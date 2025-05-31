@@ -26,7 +26,7 @@ namespace Bezoro.Core
 				ExceptionDispatchInfo.Capture(exception).Throw();
 		}
 
-		public static void Log_Info(string message, object contextObject = null, string category = "Uncategorized")
+		public static void LogInfo(string message, object contextObject = null, string category = "Uncategorized")
 		{
 			var log = new LogEntry(message, contextObject, LogEntry.LogType.Info, category);
 

@@ -77,7 +77,7 @@ namespace Bezoro.Core.Collections.Array
 		/// </summary>
 		public void Clear()
 		{
-			Logger.Log_Info("Clearing all elements from the array.");
+			Logger.LogInfo("Clearing all elements from the array.");
 			System.Array.Clear(_items, 0, _count);
 			_count = 0;
 			Logger.LogSuccess("Array cleared.");
@@ -128,7 +128,7 @@ namespace Bezoro.Core.Collections.Array
 
 		private void Perform_Swap_And_Trim(int index)
 		{
-			Logger.Log_Info($"Removing item at index {index}.");
+			Logger.LogInfo($"Removing item at index {index}.");
 
 			// Replace the item at the given index with the last item (swap-and-trim)
 			_items[index] = _items[_count - 1];

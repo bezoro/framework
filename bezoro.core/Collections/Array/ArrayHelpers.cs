@@ -169,11 +169,11 @@ namespace Bezoro.Core.Collections.Array
 			{
 				if (EqualityComparer<T>.Default.Equals(a[i], b[i])) continue;
 
-				Logger.Log_Info($"Array comparison failed at index {i}.");
+				Logger.LogInfo($"Array comparison failed at index {i}.");
 				return false;
 			}
 
-			Logger.Log_Info("Arrays are equal");
+			Logger.LogInfo("Arrays are equal");
 			return true;
 		}
 
@@ -193,7 +193,7 @@ namespace Bezoro.Core.Collections.Array
 
 			if (to == null || to.Length < from.Length)
 			{
-				Logger.Log_Info($"Target array is null or too small. Resizing to {from.Length} elements.");
+				Logger.LogInfo($"Target array is null or too small. Resizing to {from.Length} elements.");
 				to = new T[from.Length];
 			}
 
@@ -214,7 +214,7 @@ namespace Bezoro.Core.Collections.Array
 					nonNullCount++;
 			}
 
-			Logger.Log_Info($"Counted {nonNullCount} non-null elements in the array.");
+			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.");
 			return nonNullCount;
 		}
 
@@ -470,7 +470,7 @@ namespace Bezoro.Core.Collections.Array
 				if (Equals(element, default(T))) continue;
 				if (!seenElements.Add(element)) continue;
 				uniqueElements.Add(element);
-				Logger.Log_Info($"Removing duplicate: {element}");
+				Logger.LogInfo($"Removing duplicate: {element}");
 			}
 
 			array = uniqueElements.ToArray();
@@ -499,7 +499,7 @@ namespace Bezoro.Core.Collections.Array
 			// Decide on the removal method based on the size of the array
 			if (array.Length > ParallelThreshold)
 			{
-				Logger.Log_Info(
+				Logger.LogInfo(
 					$"Array size is above the parallel threshold ({ParallelThreshold}). Using parallel removal."
 				);
 
@@ -507,7 +507,7 @@ namespace Bezoro.Core.Collections.Array
 			}
 			else
 			{
-				Logger.Log_Info(
+				Logger.LogInfo(
 					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal."
 				);
 
@@ -542,7 +542,7 @@ namespace Bezoro.Core.Collections.Array
 
 			array    = new T[1];
 			array[0] = element;
-			Logger.Log_Info($"Created array and adding first element: {element}");
+			Logger.LogInfo($"Created array and adding first element: {element}");
 			return true;
 		}
 
