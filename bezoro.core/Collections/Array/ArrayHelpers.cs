@@ -201,7 +201,7 @@ namespace Bezoro.Core.Collections.Array
 			Logger.LogSuccess($"Copied {from.Length} elements from {from} to {to}.");
 		}
 
-		public static int Count_Non_Null_Elements<T>(T[] array)
+		public static int CountNonNullElements<T>(T[] array)
 			where T : class
 		{
 			if (array == null) return 0;
@@ -393,22 +393,22 @@ namespace Bezoro.Core.Collections.Array
 			switch (strategy)
 			{
 				case MergingStrategy.Fill_Null_Elements_And_Append:
-					Array.Merging.Fill_Null_Elements_And_Append(source, ref target, elementInclusionStrategy);
+					Array.Merging.FillNullElementsAndAppend(source, ref target, elementInclusionStrategy);
 					break;
 				case MergingStrategy.Fill_Null_Elements_And_Resize:
-					Array.Merging.Fill_Null_Elements_And_Resize(source, ref target);
+					Array.Merging.FillNullElementsAndResize(source, ref target);
 					break;
 				case MergingStrategy.Fill_Null_Elements_And_Prepend:
-					Array.Merging.Fill_Null_Elements_And_Prepend(source, ref target, elementInclusionStrategy);
+					Array.Merging.FillNullElementsAndPrepend(source, ref target, elementInclusionStrategy);
 					break;
 				case MergingStrategy.Fill_Null_Elements_Only:
-					Array.Merging.Fill_Null_Elements_Only(source, ref target);
+					Array.Merging.FillNullElementsOnly(source, ref target);
 					break;
 				case MergingStrategy.Append_Only:
-					Array.Merging.Append_Only(source, ref target, elementInclusionStrategy);
+					Array.Merging.AppendOnly(source, ref target, elementInclusionStrategy);
 					break;
 				case MergingStrategy.Prepend_Only:
-					Array.Merging.Prepend_Only(source, ref target, elementInclusionStrategy);
+					Array.Merging.PrependOnly(source, ref target, elementInclusionStrategy);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException(nameof(strategy), strategy, null);

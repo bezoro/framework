@@ -23,14 +23,14 @@ namespace Bezoro.Core.Collections.Array
 			/// <param name="elementInclusionStrategy">
 			///     A boolean flag indicating whether to include null elements from the source array in the append operation.
 			/// </param>
-			public static void Append_Only<T>(
+			public static void AppendOnly<T>(
 				T[] source,
 				ref T[] target,
 				ElementInclusionStrategy elementInclusionStrategy = ElementInclusionStrategy.Exclude
 			) where T : class
 			{
 				// Validate input arrays. Log warnings if null and exit early if validation fails.
-				if (!Validate_Source(source)) return;
+				if (!ValidateSource(source)) return;
 
 				var elementsToAppendCount = 0;
 
@@ -79,7 +79,7 @@ namespace Bezoro.Core.Collections.Array
 			/// <param name="elementInclusionStrategy">
 			///     A boolean flag indicating whether to include null elements from the source array during the operation.
 			/// </param>
-			public static void Fill_Null_Elements_And_Append<T>(
+			public static void FillNullElementsAndAppend<T>(
 				T[] source,
 				ref T[] target,
 				ElementInclusionStrategy elementInclusionStrategy = ElementInclusionStrategy.Exclude
@@ -90,14 +90,14 @@ namespace Bezoro.Core.Collections.Array
 
 				// Cache the condition to skip null elements in the source
 				var excludeNulls      = elementInclusionStrategy == ElementInclusionStrategy.Exclude;
-				var targetInitialized = Handle_Null_Target_Initialization(source, ref target, excludeNulls);
+				var targetInitialized = HandleNullTargetInitialization(source, ref target, excludeNulls);
 
 				if (targetInitialized) return;
 
 				var sourceIndex = 0;
 
 				// Step 1: Fill null elements in target from the source array.
-				sourceIndex = Populate_Target_With_Source(source, target, sourceIndex, excludeNulls);
+				sourceIndex = PopulateTargetWithSource(source, target, sourceIndex, excludeNulls);
 
 				// Step 2: Calculate remaining valid source elements.
 				if (CheckForRemainingElements(source, sourceIndex, excludeNulls, out var appendCount))
@@ -107,14 +107,14 @@ namespace Bezoro.Core.Collections.Array
 				AppendValidElements(source, ref target, appendCount, sourceIndex, excludeNulls);
 			}
 
-			public static void Fill_Null_Elements_And_Prepend<T>(
+			public static void FillNullElementsAndPrepend<T>(
 				T[] source,
 				ref T[] target,
 				ElementInclusionStrategy elementInclusionStrategy = ElementInclusionStrategy.Exclude
 			) where T : class
 			{
 				// Validate input arrays. Log warnings if null and exit early if validation fails.
-				if (!Validate_Source(source)) return;
+				if (!ValidateSource(source)) return;
 
 				// Step 1: Fill null elements in the target array using the source array.
 				var sourceIndex = 0;
@@ -163,11 +163,11 @@ namespace Bezoro.Core.Collections.Array
 			/// <typeparam name="T">The type of elements in the arrays.</typeparam>
 			/// <param name="source">The source array providing elements to fill the null slots in the target array.</param>
 			/// <param name="target">The target array whose null elements will be replaced and potentially resized.</param>
-			public static void Fill_Null_Elements_And_Resize<T>(T[] source, ref T[] target)
+			public static void FillNullElementsAndResize<T>(T[] source, ref T[] target)
 				where T : class
 			{
 				// Validate input arrays. Log warnings if null and exit early if validation fails.
-				if (!Validate_Source(source)) return;
+				if (!ValidateSource(source)) return;
 
 				// Keep track of source and target array indices.
 				var sourceIndex = 0;
@@ -219,11 +219,11 @@ namespace Bezoro.Core.Collections.Array
 			/// <typeparam name="T">The type of elements in the array.</typeparam>
 			/// <param name="source">The source array providing elements to fill the null slots in the target array.</param>
 			/// <param name="target">The target array whose null elements will be replaced.</param>
-			public static void Fill_Null_Elements_Only<T>(T[] source, ref T[] target)
+			public static void FillNullElementsOnly<T>(T[] source, ref T[] target)
 				where T : class
 			{
 				// Validate input arrays. Log warnings if null and exit early if validation fails.
-				if (!Validate_Source(source)) return;
+				if (!ValidateSource(source)) return;
 
 				// If the target array is null, initialize it with the source array and log the operation.
 				if (target == null || target.Length == 0)
@@ -284,14 +284,14 @@ namespace Bezoro.Core.Collections.Array
 			///     A boolean flag indicating whether to include null elements from the source array in the prepend operation.
 			/// </param>
 			/// <typeparam name="T">The type of elements in the arrays.</typeparam>
-			public static void Prepend_Only<T>(
+			public static void PrependOnly<T>(
 				T[] source,
 				ref T[] target,
 				ElementInclusionStrategy preserveElements = ElementInclusionStrategy.Exclude
 			) where T : class
 			{
 				// Validate source and target arrays. Log warnings and exit early if validation fails.
-				if (!Validate_Source(source)) return;
+				if (!ValidateSource(source)) return;
 
 				// Calculate the size of the new array.
 				var nonNullCount = preserveElements == ElementInclusionStrategy.Include
@@ -373,7 +373,7 @@ namespace Bezoro.Core.Collections.Array
 				return false;
 			}
 
-			private static bool Handle_Null_Target_Initialization<T>(
+			private static bool HandleNullTargetInitialization<T>(
 				T[] source,
 				ref T[] target,
 				bool excludeNulls
@@ -385,10 +385,10 @@ namespace Bezoro.Core.Collections.Array
 				if (excludeNulls)
 				{
 					// Initialize target with enough space for source elements
-					target = new T[ArrayHelpers.Count_Non_Null_Elements(source)];
+					target = new T[ArrayHelpers.CountNonNullElements(source)];
 
 					// Fill the target with elements from the source array
-					Populate_Target_With_Source(source, target, 0, true);
+					PopulateTargetWithSource(source, target, 0, true);
 				}
 				else
 				{
@@ -400,7 +400,7 @@ namespace Bezoro.Core.Collections.Array
 				return true;
 			}
 
-			private static int Populate_Target_With_Source<T>(
+			private static int PopulateTargetWithSource<T>(
 				T[] source,
 				T[] target,
 				int sourceIndex,
@@ -438,7 +438,7 @@ namespace Bezoro.Core.Collections.Array
 				return sourceIndex;
 			}
 
-			private static bool Validate_Source<T>(T[] source) where T : class
+			private static bool ValidateSource<T>(T[] source) where T : class
 			{
 				if (source != null) return true;
 
@@ -446,7 +446,7 @@ namespace Bezoro.Core.Collections.Array
 				return false;
 			}
 
-			private static bool Validate_Target<T>(T[] target) where T : class
+			private static bool ValidateTarget<T>(T[] target) where T : class
 			{
 				if (target != null) return true;
 
