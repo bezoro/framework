@@ -44,7 +44,7 @@ namespace Bezoro.Core.Collections.Array
 				// If there are no valid elements to append, exit early.
 				if (elementsToAppendCount == 0)
 				{
-					Logger.Log_Info("No elements to append from the source array.");
+					Logger.LogInfo("No elements to append from the source array.");
 					return;
 				}
 
@@ -253,7 +253,7 @@ namespace Bezoro.Core.Collections.Array
 					{
 						// Fill the null slot in the target array.
 						target[targetIndex] = sourceElement;
-						Logger.Log_Info($"Element {sourceElement} added to target array at index {targetIndex}.");
+						Logger.LogInfo($"Element {sourceElement} added to target array at index {targetIndex}.");
 					}
 
 					// Move to the next element in the source array.
@@ -331,7 +331,7 @@ namespace Bezoro.Core.Collections.Array
 				if (sourceArray.IsNullOrEmpty() || elementsToAppend == 0 || sourceStartIndex >= sourceArray.Length)
 					return;
 
-				Logger.Log_Info("Filling null elements and appending remaining elements from source.");
+				Logger.LogInfo("Filling null elements and appending remaining elements from source.");
 
 				var originalLength = targetArray.Length;
 				var newLength      = originalLength + elementsToAppend; // Introduced variable
