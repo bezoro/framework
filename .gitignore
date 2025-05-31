@@ -1,0 +1,21 @@
+# Standard .NET build output
+bin/
+obj/
+
+# NuGet Packages
+/packages/
+
+# JetBrains Rider/IntelliJ
+.idea/
+/_ReSharper.Caches/
+riderModule.iml
+
+# User-specific files (if any outside .idea)
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Other common files to ignore
+*.DS_Store
+Thumbs.db
