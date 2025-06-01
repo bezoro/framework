@@ -8,7 +8,6 @@
         <LangVersion>9</LangVersion>
         <Company>Bezoro</Company>
         <Product>Core</Product>
-        <DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>
     </PropertyGroup>
 
     <Target Name="CopyToUnity" AfterTargets="Build">
