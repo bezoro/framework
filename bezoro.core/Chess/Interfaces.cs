@@ -2,10 +2,10 @@ namespace Bezoro.Core.Chess
 {
 	public interface IChessBoardModel
 	{
-		IChessBoardSquareModel[,] Squares { get; }
-		IChessPieceModel?[]       Pieces  { get; }
-		int                       Height  { get; }
-		int                       Width   { get; }
+		IChessBoardSquareModel[,] Squares     { get; }
+		IChessPieceModel[]        BoardPieces { get; }
+		int                       Height      { get; }
+		int                       Width       { get; }
 	}
 
 	public interface IChessBoardSquareModel
@@ -22,11 +22,11 @@ namespace Bezoro.Core.Chess
 
 	public interface IChessPieceModel
 	{
-		bool                   IsCaptured { get; set; }
-		bool                   IsSelected { get; set; }
-		ChessPieceType         Type       { get; }
-		ChessPosition          Position   { get; set; }
-		IChessBoardSquareModel Square     { get; set; }
-		PlayerColor            Color      { get; }
+		bool                    IsCaptured { get; set; }
+		bool                    IsSelected { get; set; }
+		ChessPieceType          Type       { get; }
+		ChessPosition           Position   { get; set; }
+		IChessBoardSquareModel? Square     { get; set; }
+		PlayerColor             Color      { get; }
 	}
 }
