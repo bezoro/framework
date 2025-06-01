@@ -262,7 +262,7 @@ namespace Bezoro.Core.Collections.Array
 				// Log warning if not all source elements could be used.
 				if (sourceIndex < source.Length)
 				{
-					Logger.Log_Warning(
+					Logger.LogWarning(
 						"Source array contains additional elements that could not be used to fill target array null slots.");
 
 					return;
@@ -447,7 +447,7 @@ namespace Bezoro.Core.Collections.Array
 			{
 				if (target != null) return true;
 
-				Logger.Log_Warning("Target array must not be null. Aborting operation.");
+				Logger.LogWarning("Target array must not be null. Aborting operation.");
 				return false;
 			}
 		}

@@ -33,7 +33,7 @@ namespace Bezoro.Core
 			LoggerInstance?.Log(log);
 		}
 
-		public static void Log_Warning(string message, object contextObject = null, string category = "Uncategorized")
+		public static void LogWarning(string message, object contextObject = null, string category = "Uncategorized")
 		{
 			var log = new LogEntry(message, contextObject, LogEntry.LogType.Warning, category);
 

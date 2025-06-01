@@ -63,7 +63,7 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (_count == _items.Length)
 			{
-				Logger.Log_Warning("Array capacity reached. Resizing...");
+				Logger.LogWarning("Array capacity reached. Resizing...");
 				Resize(_items.Length * 2);
 				Logger.LogSuccess($"Array resized to new capacity: {_items.Length}");
 			}
@@ -94,7 +94,7 @@ namespace Bezoro.Core.Collections.Array
 
 				if (Should_Resize(_count, _items.Length))
 				{
-					Logger.Log_Warning("Array under-utilized. Resizing...");
+					Logger.LogWarning("Array under-utilized. Resizing...");
 					Resize(Math.Max(_items.Length / 2, _MINIMUM_ARRAY_SIZE));
 					Logger.LogSuccess($"Array resized to new capacity: {_items.Length}");
 				}
