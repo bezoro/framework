@@ -1,4 +1,5 @@
-﻿using Bezoro.Core.Collections.Array;
+﻿using System.Collections;
+using Bezoro.Core.Collections.Array;
 using NUnit.Framework;
 
 namespace Bezoro.Core.Tests.Array
@@ -7,9 +8,19 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class InitializeNullArray
 	{
-		[TestCase(null, new int[0], TestName = "InitializeNullArray_NullInput_InitializesToEmpty")]
-		[TestCase(
-			new[] { 1, 2, 3 }, new[] { 1, 2, 3 }, TestName = "InitializeNullArray_NonNullInput_PreservesOriginal")]
+		private static IEnumerable InputArray_ReturnsExpected_TestCases
+		{
+			get
+			{
+				yield return new TestCaseData(null, new int[0]).SetName(
+					"InitializeNullArray_NullInput_InitializesToEmpty");
+
+				yield return new TestCaseData(new[] { 1, 2, 3 }, new[] { 1, 2, 3 }).SetName(
+					"InitializeNullArray_NonNullInput_PreservesOriginal");
+			}
+		}
+
+		[TestCaseSource(nameof(InputArray_ReturnsExpected_TestCases))]
 		public void InputArray_ReturnsExpected(int[] input, int[] expected)
 		{
 			// Act
