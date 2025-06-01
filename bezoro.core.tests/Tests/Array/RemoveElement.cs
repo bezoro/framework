@@ -164,7 +164,7 @@ namespace Bezoro.Core.Tests.Array
 			const int elementToRemove = 3;
 
 			// Act
-			ArrayHelpers.RemoveElement(ref array, elementToRemove, ArrayRemovalApproach.SetToNull);
+			ArrayHelpers.RemoveElement(ref array, elementToRemove, Enums.SetToNull);
 
 			// Assert
 			Assert.That(
