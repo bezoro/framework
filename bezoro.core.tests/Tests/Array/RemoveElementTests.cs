@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using Bezoro.Core.Collections.Array;
 using NUnit.Framework;
 
@@ -6,8 +7,27 @@ namespace Bezoro.Core.Tests.Array
 {
 	[TestFixture]
 	[TestOf(typeof(ArrayHelpers))]
-	public class RemoveElement
+	public class RemoveElementTests
 	{
+		[Test]
+		public void RemoveElement_Sequential_InvalidRemovalApproach_ThrowsArgumentOutOfRangeException()
+		{
+			// Arrange
+			var array           = new[] { 10, 20, 30 }; // Small array to ensure sequential path
+			var elementToRemove = 20;
+
+			// Use an integer value that is not a defined member of the Enums for removalApproach
+			// This simulates an invalid enum value being passed.
+			var invalidApproach = (Enums)int.MaxValue;
+
+			// Act & Assert
+			// We expect an ArgumentOutOfRangeException when the default case in the switch statement is hit.
+			Assert.Throws<ArgumentOutOfRangeException>(
+				() =>
+					ArrayHelpers.RemoveElement(ref array, elementToRemove, invalidApproach)
+			);
+		}
+
 		[Test]
 		public void WhenArrayContainsDuplicateElements_FirstOccurrenceIsRemoved()
 		{
