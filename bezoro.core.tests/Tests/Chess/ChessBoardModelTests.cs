@@ -20,7 +20,7 @@ namespace Bezoro.Core.Tests.Chess
 			var board = new ChessBoardModel(8, 8, customFen);
 
 			// Assert
-			Assert.That(board.BoardPieces.Length, Is.EqualTo(3));
+			Assert.That(board.BoardPieces, Has.Count.EqualTo(3));
 
 			var e1Piece = BoardUtils.GetPieceAt(board, "e1");
 			Assert.That(e1Piece,       Is.Not.Null);
@@ -50,7 +50,7 @@ namespace Bezoro.Core.Tests.Chess
 			var board = new ChessBoardModel(8, 8, emptyFen);
 
 			// Assert
-			Assert.That(board.BoardPieces.Length, Is.EqualTo(0), "There should be no pieces on an empty board.");
+			Assert.That(board.BoardPieces, Is.Empty, "There should be no pieces on an empty board.");
 			for (var file = 0 ; file < board.Width ; file++)
 			{
 				for (var rank = 0 ; rank < board.Height ; rank++)
@@ -79,7 +79,7 @@ namespace Bezoro.Core.Tests.Chess
 			// FEN rank 8 ("rnbqkbnr") maps to board rank 2 (index 1).
 			// FEN rank 7 ("pppppppp") maps to board rank 1 (index 0).
 			// Other FEN ranks will result in rank index < 0 and be ignored.
-			Assert.That(board.BoardPieces.Length, Is.EqualTo(4));
+			Assert.That(board.BoardPieces, Has.Count.EqualTo(4));
 
 			// From FEN Rank 8 ("rnbqkbnr") on board rank 2 (index 1):
 			// 'r' (a8 FEN) -> a2 on board (Squares[0,1])
@@ -119,7 +119,7 @@ namespace Bezoro.Core.Tests.Chess
 			var board = new ChessBoardModel(3, 3, smallFenData); // Board is 3 files (a,b,c) x 3 ranks (1,2,3)
 
 			// Assert
-			Assert.That(board.BoardPieces.Length, Is.EqualTo(2));
+			Assert.That(board.BoardPieces, Has.Count.EqualTo(2));
 
 			// FEN rank 2 ("r1") maps to board's highest rank (rank 3, index 2)
 			// 'r' at file 'a' -> board.Squares[0,2] (algebraic a3)
@@ -174,7 +174,7 @@ namespace Bezoro.Core.Tests.Chess
 			var board = new ChessBoardModel(8, 8, standardFen);
 
 			// Assert
-			Assert.That(board.BoardPieces, Has.Length.EqualTo(32), "Should be 32 pieces on a standard board.");
+			Assert.That(board.BoardPieces, Has.Count.EqualTo(32), "Should be 32 pieces on a standard board.");
 
 			// White pieces (Rank 1: index 0, Rank 2: index 1)
 			var a1Piece = BoardUtils.GetPieceAt(board, "a1");
@@ -272,8 +272,8 @@ namespace Bezoro.Core.Tests.Chess
 			var result = board.TryMovePiece(whitePawn, command);
 
 			// Assert
-			Assert.That(result,               Is.True, "Move should be successful.");
-			Assert.That(originalSquare.Piece, Is.Null, "Original square (e2) should be empty after move.");
+			Assert.That(result,                Is.True, "Move should be successful.");
+			Assert.That(originalSquare?.Piece, Is.Null, "Original square (e2) should be empty after move.");
 			Assert.That(
 				board.Squares[targetPosition.File, targetPosition.Rank].Piece, Is.EqualTo(whitePawn),
 				"Target square (e4) should contain the moved pawn.");
@@ -315,8 +315,8 @@ namespace Bezoro.Core.Tests.Chess
 			var result = board.TryMovePiece(whitePawn, command);
 
 			// Assert
-			Assert.That(result,               Is.True, "Move should be successful.");
-			Assert.That(originalSquare.Piece, Is.Null, "Original square (e4) should be empty after move.");
+			Assert.That(result,                Is.True, "Move should be successful.");
+			Assert.That(originalSquare?.Piece, Is.Null, "Original square (e4) should be empty after move.");
 			Assert.That(
 				board.Squares[targetPosition.File, targetPosition.Rank].Piece, Is.EqualTo(whitePawn),
 				"Target square (d5) should contain the moved white pawn.");
@@ -347,7 +347,7 @@ namespace Bezoro.Core.Tests.Chess
 
 			var originalPiecePosition = whitePawn.Position;
 			var originalPieceSquare   = whitePawn.Square;
-			var originalSquareContent = originalPieceSquare.Piece;
+			var originalSquareContent = originalPieceSquare?.Piece;
 
 			// Try to move to e9 (rank 8, which is off board for 0-indexed height 8)
 			var targetPositionOffBoard = new ChessPosition(4, 8);
@@ -363,7 +363,7 @@ namespace Bezoro.Core.Tests.Chess
 				whitePawn.Square, Is.EqualTo(originalPieceSquare), "Pawn's square reference should not change.");
 
 			Assert.That(
-				originalPieceSquare.Piece, Is.EqualTo(originalSquareContent),
+				originalPieceSquare?.Piece, Is.EqualTo(originalSquareContent),
 				"Original square's content should not change.");
 
 			Assert.That(BoardUtils.GetPieceAt(board, "e2"), Is.EqualTo(whitePawn), "Piece should still be at e2.");
@@ -379,7 +379,7 @@ namespace Bezoro.Core.Tests.Chess
 
 			var originalPiecePosition = whiteRook.Position;
 			var originalPieceSquare   = whiteRook.Square;
-			var originalSquareContent = originalPieceSquare.Piece;
+			var originalSquareContent = originalPieceSquare?.Piece;
 
 			var targetPositionOffBoard = new ChessPosition(-1, 0); // Invalid file
 			var command                = new MoveCommand(whiteRook.Position, targetPositionOffBoard);
@@ -394,7 +394,7 @@ namespace Bezoro.Core.Tests.Chess
 				whiteRook.Square, Is.EqualTo(originalPieceSquare), "Rook's square reference should not change.");
 
 			Assert.That(
-				originalPieceSquare.Piece, Is.EqualTo(originalSquareContent),
+				originalPieceSquare?.Piece, Is.EqualTo(originalSquareContent),
 				"Original square's content should not change.");
 
 			Assert.That(BoardUtils.GetPieceAt(board, "a1"), Is.EqualTo(whiteRook), "Piece should still be at a1.");
