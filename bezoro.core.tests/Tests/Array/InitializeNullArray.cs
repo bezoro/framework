@@ -8,7 +8,7 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class InitializeNullArray
 	{
-		private static IEnumerable InputArray_ReturnsExpected_TestCases
+		private static IEnumerable _InputArrayReturnsExpectedTestCases
 		{
 			get
 			{
@@ -20,7 +20,7 @@ namespace Bezoro.Core.Tests.Array
 			}
 		}
 
-		[TestCaseSource(nameof(InputArray_ReturnsExpected_TestCases))]
+		[TestCaseSource(nameof(_InputArrayReturnsExpectedTestCases))]
 		public void InputArray_ReturnsExpected(int[] input, int[] expected)
 		{
 			// Act
