@@ -61,7 +61,6 @@ namespace Bezoro.Core.Collections.Array
 						target[appendIndex++] = element;
 				}
 
-				// Log a success message.
 				Logger.LogSuccess($"Appended {elementsToAppendCount} elements to the end of the target array.");
 			}
 
@@ -363,14 +362,12 @@ namespace Bezoro.Core.Collections.Array
 						appendCount++;
 				}
 
-				if (appendCount == 0)
-				{
-					// Log and exit if no elements are left to append.
-					Logger.LogSuccess("Filled null elements in the target array.");
-					return true;
-				}
+				if (appendCount != 0)
+					return false;
 
-				return false;
+				Logger.LogSuccess("Filled null elements in the target array.");
+				return true;
+
 			}
 
 			private static bool HandleNullTargetInitialization<T>(

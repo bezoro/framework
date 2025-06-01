@@ -15,11 +15,6 @@ namespace Bezoro.Core
 	/// </summary>
 	public static class Validate
 	{
-		/*───────────────────────────────────────────────────────*
-		 *                1.  VOID  OVERLOADS                   *
-		 *───────────────────────────────────────────────────────*/
-
-		// Synchronous
 		[Conditional("UNITY_EDITOR")]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static void Do(
@@ -31,7 +26,6 @@ namespace Bezoro.Core
 			InternalDo(action, custom, message);
 		}
 
-		// Asynchronous
 		[Conditional("UNITY_EDITOR")]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static void DoAsync(
@@ -41,13 +35,7 @@ namespace Bezoro.Core
 		)
 		{
 			_ = InternalDoAsync(action, custom, message);
-
-			// fire-and-forget
 		}
-
-		/*───────────────────────────────────────────────────────*
-		 *          2.  VALUE-RETURNING  OVERLOADS               *
-		 *───────────────────────────────────────────────────────*/
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static T Get<T>(
@@ -76,10 +64,6 @@ namespace Bezoro.Core
 			return func();
 #endif
 		}
-
-		/*───────────────────────────────────────────────────────*
-		 *            3.  EDITOR-ONLY  IMPLEMENTATION            *
-		 *───────────────────────────────────────────────────────*/
 
 		[Conditional("UNITY_EDITOR")]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -120,9 +104,10 @@ namespace Bezoro.Core
 			try { return func(); }
 			catch (Exception e) { Throw(custom, msg, e); }
 
-			return default; // never reached, keeps compiler happy
+			return default;
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static async Task<T> InternalGetAsync<T>(
 			Func<Task<T>> func,
 			Exception custom,
