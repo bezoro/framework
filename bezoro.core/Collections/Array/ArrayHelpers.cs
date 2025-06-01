@@ -511,7 +511,7 @@ namespace Bezoro.Core.Collections.Array
 					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal."
 				);
 
-				Remove_Element_Sequential(ref array, element, removalApproach);
+				RemoveElementSequential(ref array, element, removalApproach);
 			}
 		}
 
@@ -580,7 +580,7 @@ namespace Bezoro.Core.Collections.Array
 			switch (removalApproach)
 			{
 				case Enums.Resize:
-					Resize_Array_Parallel(ref array, foundIndex);
+					ResizeArrayParallel(ref array, foundIndex);
 					break;
 
 				case Enums.SetToNull:
@@ -597,7 +597,7 @@ namespace Bezoro.Core.Collections.Array
 			}
 		}
 
-		private static void Remove_Element_Sequential<T>(
+		private static void RemoveElementSequential<T>(
 			ref T[] array,
 			T element,
 			Enums removalApproach
@@ -633,7 +633,7 @@ namespace Bezoro.Core.Collections.Array
 			}
 		}
 
-		private static void Resize_Array_Parallel<T>(
+		private static void ResizeArrayParallel<T>(
 			ref T[] array,
 			int index
 		)
