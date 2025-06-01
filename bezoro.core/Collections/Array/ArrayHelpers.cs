@@ -21,7 +21,7 @@ namespace Bezoro.Core.Collections.Array
 
 			if (element == null)
 			{
-				Logger.Log_Warning("Element is null. Add operation aborted.");
+				Logger.LogWarning("Element is null. Add operation aborted.");
 				return;
 			}
 
@@ -98,7 +98,7 @@ namespace Bezoro.Core.Collections.Array
 			if (elementExists)
 			{
 				index = -1;
-				Logger.Log_Warning($"Element {element} already exists in array. Add operation aborted.");
+				Logger.LogWarning($"Element {element} already exists in array. Add operation aborted.");
 				return;
 			}
 
@@ -111,13 +111,13 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (array == null)
 			{
-				Logger.Log_Warning("Array is null. Aborting clear operation.");
+				Logger.LogWarning("Array is null. Aborting clear operation.");
 				return;
 			}
 
 			if (array.Length == 0)
 			{
-				Logger.Log_Warning("Array is empty. Aborting clear operation.");
+				Logger.LogWarning("Array is empty. Aborting clear operation.");
 				return;
 			}
 
@@ -181,13 +181,13 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (from == null)
 			{
-				Logger.Log_Warning("Source array is null. Aborting copy operation.");
+				Logger.LogWarning("Source array is null. Aborting copy operation.");
 				return;
 			}
 
 			if (from.Length == 0)
 			{
-				Logger.Log_Warning("Source array is empty. Aborting copy operation.");
+				Logger.LogWarning("Source array is empty. Aborting copy operation.");
 				return;
 			}
 
@@ -225,13 +225,13 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (array == null || array.Length == 0)
 			{
-				Logger.Log_Warning("Array is null or empty. Aborting search.");
+				Logger.LogWarning("Array is null or empty. Aborting search.");
 				return new(-1, elementToFind, array?.Length ?? 0);
 			}
 
 			if (Equals(elementToFind, default(T)))
 			{
-				Logger.Log_Warning("Element to find is null. Aborting search.");
+				Logger.LogWarning("Element to find is null. Aborting search.");
 				return new(-1, default, array.Length);
 			}
 
@@ -254,7 +254,7 @@ namespace Bezoro.Core.Collections.Array
 			if (resultIndex != -1)
 				Logger.LogSuccess($"Element {elementToFind} found at index {resultIndex}.");
 			else
-				Logger.Log_Warning($"Element {elementToFind} not found in array.");
+				Logger.LogWarning($"Element {elementToFind} not found in array.");
 
 			return new(resultIndex, elementToFind, array.Length);
 		}
@@ -282,7 +282,7 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (array.IsNullOrEmpty())
 			{
-				Logger.Log_Warning("Array is null or empty. Aborting search.");
+				Logger.LogWarning("Array is null or empty. Aborting search.");
 				return new(-1, elementToFind, array?.Length ?? 0);
 			}
 
@@ -293,7 +293,7 @@ namespace Bezoro.Core.Collections.Array
 				return new(i, elementToFind, array.Length);
 			}
 
-			Logger.Log_Warning($"Element {elementToFind} not found in array.");
+			Logger.LogWarning($"Element {elementToFind} not found in array.");
 			return new(-1, elementToFind, array.Length);
 		}
 
@@ -301,7 +301,7 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (array == null)
 			{
-				Logger.Log_Warning("Array is null. Aborting search.");
+				Logger.LogWarning("Array is null. Aborting search.");
 				return -1;
 			}
 
@@ -321,13 +321,13 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (source == null)
 			{
-				Logger.Log_Warning("Source array is null. Aborting merge operation.");
+				Logger.LogWarning("Source array is null. Aborting merge operation.");
 				return;
 			}
 
 			if (source.Length == 0)
 			{
-				Logger.Log_Warning("Source array is empty. Aborting merge operation.");
+				Logger.LogWarning("Source array is empty. Aborting merge operation.");
 				return;
 			}
 
@@ -420,21 +420,21 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (array == null)
 			{
-				Logger.Log_Warning("Array is null. Aborting remove operation.");
+				Logger.LogWarning("Array is null. Aborting remove operation.");
 				index = -1;
 				return false;
 			}
 
 			if (array.Length == 0)
 			{
-				Logger.Log_Warning("Array is empty. Aborting remove operation.");
+				Logger.LogWarning("Array is empty. Aborting remove operation.");
 				index = -1;
 				return false;
 			}
 
 			if (element == null)
 			{
-				Logger.Log_Warning("Element is null. Aborting remove operation.");
+				Logger.LogWarning("Element is null. Aborting remove operation.");
 				index = -1;
 				return false;
 			}
@@ -444,7 +444,7 @@ namespace Bezoro.Core.Collections.Array
 			if (foundIndex < 0)
 			{
 				index = -1;
-				Logger.Log_Warning($"Element {element} not found in array. Aborting remove operation.");
+				Logger.LogWarning($"Element {element} not found in array. Aborting remove operation.");
 				return false;
 			}
 
@@ -486,13 +486,13 @@ namespace Bezoro.Core.Collections.Array
 			// Validate input
 			if (array == null || array.Length == 0)
 			{
-				Logger.Log_Warning("Array is null or empty. Aborting remove operation.");
+				Logger.LogWarning("Array is null or empty. Aborting remove operation.");
 				return;
 			}
 
 			if (Equals(element, default(T)))
 			{
-				Logger.Log_Warning("Element is null. Aborting remove operation.");
+				Logger.LogWarning("Element is null. Aborting remove operation.");
 				return;
 			}
 
@@ -519,13 +519,13 @@ namespace Bezoro.Core.Collections.Array
 		{
 			if (factor <= 1)
 			{
-				Logger.Log_Warning($"Factor: {factor} is invalid. Array size will not be multiplied.");
+				Logger.LogWarning($"Factor: {factor} is invalid. Array size will not be multiplied.");
 				return;
 			}
 
 			if (array.IsNullOrEmpty())
 			{
-				Logger.Log_Warning("Array is null or empty. Array size will not be multiplied.");
+				Logger.LogWarning("Array is null or empty. Array size will not be multiplied.");
 				return;
 			}
 
@@ -573,7 +573,7 @@ namespace Bezoro.Core.Collections.Array
 
 			if (foundIndex == -1)
 			{
-				Logger.Log_Warning("Element not found in array. No operation performed.");
+				Logger.LogWarning("Element not found in array. No operation performed.");
 				return;
 			}
 
@@ -608,7 +608,7 @@ namespace Bezoro.Core.Collections.Array
 
 			if (index < 0)
 			{
-				Logger.Log_Warning("Element not found. No operation performed.");
+				Logger.LogWarning("Element not found. No operation performed.");
 				return;
 			}
 
