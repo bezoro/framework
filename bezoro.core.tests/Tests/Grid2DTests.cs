@@ -6,7 +6,6 @@ namespace Bezoro.Core.Tests
 	[TestFixture]
 	public class Grid2DTests
 	{
-		[Test]
 		[TestCase(0,  10)]
 		[TestCase(10, 0)]
 		[TestCase(-1, 10)]
@@ -27,12 +26,13 @@ namespace Bezoro.Core.Tests
 			// Act
 			var grid = new Grid2D<int>(width, height);
 
-			Assert.Multiple(() =>
-			{
-				// Assert
-				Assert.That(grid.Width,  Is.EqualTo(width));
-				Assert.That(grid.Height, Is.EqualTo(height));
-			});
+			Assert.Multiple(
+				() =>
+				{
+					// Assert
+					Assert.That(grid.Width,  Is.EqualTo(width));
+					Assert.That(grid.Height, Is.EqualTo(height));
+				});
 
 			grid[width - 1, height - 1] = 123;
 			Assert.That(grid[width - 1, height - 1], Is.EqualTo(123));
@@ -49,12 +49,14 @@ namespace Bezoro.Core.Tests
 			// Act
 			var grid = new Grid2D<string>(width, height, defaultValue);
 
-			Assert.Multiple(() =>
-			{
-				// Assert
-				Assert.That(grid.Width,  Is.EqualTo(width));
-				Assert.That(grid.Height, Is.EqualTo(height));
-			});
+			Assert.Multiple(
+				() =>
+				{
+					// Assert
+					Assert.That(grid.Width,  Is.EqualTo(width));
+					Assert.That(grid.Height, Is.EqualTo(height));
+				});
+
 			for (var x = 0 ; x < width ; x++)
 			{
 				for (var y = 0 ; y < height ; y++)
@@ -64,7 +66,6 @@ namespace Bezoro.Core.Tests
 			}
 		}
 
-		[Test]
 		[TestCase(0,  10, 0)]
 		[TestCase(10, 0,  0)]
 		[TestCase(-1, 10, 0)]
@@ -78,7 +79,6 @@ namespace Bezoro.Core.Tests
 			Assert.Throws<ArgumentException>(() => new Grid2D<int>(width, height, defaultValue));
 		}
 
-		[Test]
 		[TestCase(5, 5, 5,  0)]  // x out of bounds
 		[TestCase(5, 5, 0,  5)]  // y out of bounds
 		[TestCase(5, 5, -1, 0)]  // x negative
@@ -134,7 +134,6 @@ namespace Bezoro.Core.Tests
 			Assert.That(retrievedValue, Is.EqualTo(testValue));
 		}
 
-		[Test]
 		[TestCase(5, 5, 5,  0,  10)] // x out of bounds
 		[TestCase(5, 5, 0,  5,  10)] // y out of bounds
 		[TestCase(5, 5, -1, 0,  10)] // x negative
@@ -153,7 +152,6 @@ namespace Bezoro.Core.Tests
 			Assert.Throws<IndexOutOfRangeException>(() => grid[setX, setY] = valueToSet);
 		}
 
-		[Test]
 		[TestCase(0,  10)]
 		[TestCase(10, 0)]
 		[TestCase(-1, 10)]
