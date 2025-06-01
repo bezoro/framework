@@ -20,7 +20,7 @@ namespace Bezoro.Core.Chess
 		}
 
 		// Invalid position constant
-		public static readonly ChessPosition Invalid = new(-1, -1);
+		public static readonly ChessPosition INVALID = new(-1, -1);
 
 		public static bool operator ==(ChessPosition left, ChessPosition right) =>
 			left.Equals(right);
