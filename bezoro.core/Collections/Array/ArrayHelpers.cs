@@ -480,7 +480,7 @@ namespace Bezoro.Core.Collections.Array
 		public static void RemoveElement<T>(
 			ref T[] array,
 			T element,
-			ArrayRemovalApproach removalApproach = ArrayRemovalApproach.Resize
+			Enums removalApproach = Enums.Resize
 		)
 		{
 			// Validate input
@@ -549,7 +549,7 @@ namespace Bezoro.Core.Collections.Array
 		private static void Remove_Element_Parallel<T>(
 			ref T[] array,
 			T element,
-			ArrayRemovalApproach removalApproach
+			Enums removalApproach
 		)
 		{
 			var foundIndex = -1;
@@ -579,11 +579,11 @@ namespace Bezoro.Core.Collections.Array
 
 			switch (removalApproach)
 			{
-				case ArrayRemovalApproach.Resize:
+				case Enums.Resize:
 					Resize_Array_Parallel(ref array, foundIndex);
 					break;
 
-				case ArrayRemovalApproach.SetToNull:
+				case Enums.SetToNull:
 					lock ( lockObj )
 					{
 						array[foundIndex] = default;
@@ -600,7 +600,7 @@ namespace Bezoro.Core.Collections.Array
 		private static void Remove_Element_Sequential<T>(
 			ref T[] array,
 			T element,
-			ArrayRemovalApproach removalApproach
+			Enums removalApproach
 		)
 		{
 			// Find the index of the element
@@ -615,7 +615,7 @@ namespace Bezoro.Core.Collections.Array
 			// Handle removal approach
 			switch (removalApproach)
 			{
-				case ArrayRemovalApproach.Resize:
+				case Enums.Resize:
 					// Shift elements and resize the array
 					for (var i = index ; i < array.Length - 1 ; i++)
 						array[i] = array[i + 1];
@@ -623,7 +623,7 @@ namespace Bezoro.Core.Collections.Array
 					System.Array.Resize(ref array, array.Length - 1);
 
 					break;
-				case ArrayRemovalApproach.SetToNull:
+				case Enums.SetToNull:
 					// Nullify the element
 					array[index] = default;
 
