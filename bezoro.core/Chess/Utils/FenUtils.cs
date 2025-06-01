@@ -37,11 +37,11 @@ namespace Bezoro.Core.Chess.Utils
 
 	public record FenData
 	{
-		public char   ActiveColor           { get; init; }
-		public int    FullmoveNumber        { get; init; }
-		public int    HalfmoveClock         { get; init; }
-		public string CastlingAvailability  { get; init; }
-		public string EnPassantTargetSquare { get; init; }
-		public string PiecePlacement        { get; init; }
+public char   ActiveColor           { get; init; } = 'w';
+public int    FullmoveNumber        { get; init; } = 1;
+public int    HalfmoveClock         { get; init; } = 0;
+public string CastlingAvailability  { get; init; } = "KQkq";
+public string EnPassantTargetSquare { get; init; } = "-";
+public string PiecePlacement        { get; init; } = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 	}
 }
