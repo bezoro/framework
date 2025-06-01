@@ -83,7 +83,7 @@ namespace Bezoro.Core.Tests.Array
 		public void WhenArraySizeExceedsThreshold_TargetElementIsRemoved()
 		{
 			// Arrange
-			var parallelThreshold = ArrayHelpers.PARALLEL_THRESHOLD;
+			var parallelThreshold = ArrayHelpers.ParallelThreshold;
 			var array             = Enumerable.Range(1, parallelThreshold * 2).ToArray();
 			var elementToRemove   = parallelThreshold;
 
