@@ -629,8 +629,7 @@ namespace Bezoro.Core.Collections.Array
 
 					break;
 				default:
-					Logger.Log_Warning($"Unhandled Array_Removal_Approach: {removalApproach}");
-					break;
+					throw new ArgumentOutOfRangeException(nameof(removalApproach), removalApproach, null);
 			}
 		}
 
