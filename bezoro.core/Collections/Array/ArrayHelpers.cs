@@ -7,13 +7,13 @@ namespace Bezoro.Core.Collections.Array
 {
 	public static class ArrayHelpers
 	{
-		public const int PARALLEL_THRESHOLD = 100;
+		public static int ParallelThreshold { get; private set; } = 100;
 
 		public static void Add<T>(
 			ref T?[] array,
 			T? element,
 			out int index,
-			int resizeFactor = 2 // Renamed parameter for consistency
+			int resizeFactor = 2
 		)
 			where T : class
 		{
@@ -90,7 +90,7 @@ namespace Bezoro.Core.Collections.Array
 
 			bool elementExists;
 
-			if (array.Length > PARALLEL_THRESHOLD)
+			if (array.Length > ParallelThreshold)
 				elementExists = FindElementInParallel(array, element).RelevantIndex >= 0;
 			else
 				elementExists = FindElementSequentially(array, element).RelevantIndex >= 0;
@@ -121,7 +121,7 @@ namespace Bezoro.Core.Collections.Array
 				return;
 			}
 
-			if (array.Length < PARALLEL_THRESHOLD)
+			if (array.Length < ParallelThreshold)
 				ClearSequential(ref array);
 			else
 				ClearParallel(array);
@@ -305,7 +305,7 @@ namespace Bezoro.Core.Collections.Array
 				return -1;
 			}
 
-			return array.Length > PARALLEL_THRESHOLD
+			return array.Length > ParallelThreshold
 				? FindElementInParallel(array, null).RelevantIndex
 				: FindElementSequentially(array, null).RelevantIndex;
 		}
@@ -497,10 +497,10 @@ namespace Bezoro.Core.Collections.Array
 			}
 
 			// Decide on the removal method based on the size of the array
-			if (array.Length > PARALLEL_THRESHOLD)
+			if (array.Length > ParallelThreshold)
 			{
 				Logger.LogInfo(
-					$"Array size is above the parallel threshold ({PARALLEL_THRESHOLD}). Using parallel removal."
+					$"Array size is above the parallel threshold ({ParallelThreshold}). Using parallel removal."
 				);
 
 				Remove_Element_Parallel(ref array, element, removalApproach);
@@ -508,7 +508,7 @@ namespace Bezoro.Core.Collections.Array
 			else
 			{
 				Logger.LogInfo(
-					$"Array size is below the parallel threshold ({PARALLEL_THRESHOLD}). Using sequential removal."
+					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal."
 				);
 
 				RemoveElementSequential(ref array, element, removalApproach);
@@ -531,6 +531,11 @@ namespace Bezoro.Core.Collections.Array
 
 			System.Array.Resize(ref array, array.Length * factor);
 			Logger.LogSuccess($"Array size resized by factor: {factor}");
+		}
+
+		public static void SetParallelThreshold(int threshold)
+		{
+			ParallelThreshold = threshold;
 		}
 
 		public static bool SetupArrayWithFirstElement<T>(

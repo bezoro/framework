@@ -73,7 +73,7 @@ namespace Bezoro.Core.Tests.Array
 		public void WhenArrayLengthExceedsThreshold_AddsUniqueElementUsingParallelMethod_ReturnsCorrectIndex()
 		{
 			// Arrange
-			var           array         = new string?[ArrayHelpers.PARALLEL_THRESHOLD * 2];
+			var           array         = new string?[ArrayHelpers.ParallelThreshold * 2];
 			var           initialLength = array.Length;
 			const string? elementToAdd  = "Element999";
 

@@ -12,7 +12,7 @@ namespace Bezoro.Core.Tests.Array
 		public void WhenArrayLengthIsGreaterThanParallelThreshold_AllElementsAreSetToDefault()
 		{
 			// Arrange
-			var threshold = ArrayHelpers.PARALLEL_THRESHOLD;
+			var threshold = ArrayHelpers.ParallelThreshold;
 			var array     = new int[threshold * 2];
 
 			for (var i = 0 ; i < array.Length ; i++)
