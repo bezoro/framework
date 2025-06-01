@@ -5,9 +5,9 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class FenUtility
 	{
-		private const string StandardBoardFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+		private const string _STANDARD_BOARD_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-		public static FenData StandardBoard => ParseFen(StandardBoardFen);
+		public static FenData StandardBoard => ParseFen(_STANDARD_BOARD_FEN);
 
 		public static FenData ParseFen(string fenString)
 		{
