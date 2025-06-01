@@ -7,7 +7,7 @@ namespace Bezoro.Core.Collections.Array
 {
 	public static class ArrayHelpers
 	{
-		public static int ParallelThreshold = 100;
+		public const int PARALLEL_THRESHOLD = 100;
 
 		public static void Add<T>(
 			ref T?[] array,
@@ -90,7 +90,7 @@ namespace Bezoro.Core.Collections.Array
 
 			bool elementExists;
 
-			if (array.Length > ParallelThreshold)
+			if (array.Length > PARALLEL_THRESHOLD)
 				elementExists = FindElementInParallel(array, element).RelevantIndex >= 0;
 			else
 				elementExists = FindElementSequentially(array, element).RelevantIndex >= 0;
@@ -121,7 +121,7 @@ namespace Bezoro.Core.Collections.Array
 				return;
 			}
 
-			if (array.Length < ParallelThreshold)
+			if (array.Length < PARALLEL_THRESHOLD)
 				ClearSequential(ref array);
 			else
 				ClearParallel(array);
@@ -305,7 +305,7 @@ namespace Bezoro.Core.Collections.Array
 				return -1;
 			}
 
-			return array.Length > ParallelThreshold
+			return array.Length > PARALLEL_THRESHOLD
 				? FindElementInParallel(array, null).RelevantIndex
 				: FindElementSequentially(array, null).RelevantIndex;
 		}
@@ -497,10 +497,10 @@ namespace Bezoro.Core.Collections.Array
 			}
 
 			// Decide on the removal method based on the size of the array
-			if (array.Length > ParallelThreshold)
+			if (array.Length > PARALLEL_THRESHOLD)
 			{
 				Logger.LogInfo(
-					$"Array size is above the parallel threshold ({ParallelThreshold}). Using parallel removal."
+					$"Array size is above the parallel threshold ({PARALLEL_THRESHOLD}). Using parallel removal."
 				);
 
 				Remove_Element_Parallel(ref array, element, removalApproach);
@@ -508,7 +508,7 @@ namespace Bezoro.Core.Collections.Array
 			else
 			{
 				Logger.LogInfo(
-					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal."
+					$"Array size is below the parallel threshold ({PARALLEL_THRESHOLD}). Using sequential removal."
 				);
 
 				RemoveElementSequential(ref array, element, removalApproach);
