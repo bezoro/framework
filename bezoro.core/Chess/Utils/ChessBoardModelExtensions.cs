@@ -4,6 +4,15 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class ChessBoardModelExtensions
 	{
+		public static bool IsValidPosition(this IChessBoardModel board, string algebraicPosition)
+		{
+			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
+			return position.File    >= 0
+				   && position.File < board.Width
+				   && position.Rank >= 0
+				   && position.Rank < board.Height;
+		}
+
 		public static void CreatePieceAt(
 			this IChessBoardModel board,
 			string algebraicPosition,
