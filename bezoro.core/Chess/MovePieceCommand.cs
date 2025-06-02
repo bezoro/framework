@@ -72,14 +72,6 @@ namespace Bezoro.Core.Chess
 			if (!From.TrySetPiece(PieceToMove))
 				throw new InvalidOperationException("Failed to return the moving piece to its source square.");
 		}
-
-		// These overloads are not supported; use the IChessBoardModel variants.
-		public void Execute()
-			=> throw new NotSupportedException("Use Execute(IChessBoardModel) instead.");
-
-		public void Undo()
-			=> throw new NotSupportedException("Use Undo(IChessBoardModel) instead.");
-
 	#endregion
 
 		private void EnsureNotFriendlyCapture(IChessPieceModel? piece)

@@ -27,7 +27,7 @@ namespace Bezoro.Core.Chess
 		bool TrySetPiece(IChessPieceModel pieceToSet);
 	}
 
-	public interface IChessCommand : ICommand
+	public interface IChessCommand
 	{
 		IChessBoardSquareModel From        { get; }
 		IChessBoardSquareModel To          { get; }
@@ -39,23 +39,17 @@ namespace Bezoro.Core.Chess
 
 	public interface IChessPieceModel
 	{
-		ChessPieceType          Type       { get; }
-		PlayerColor             Color      { get; }
 		bool                    IsCaptured { get; set; }
 		bool                    IsSelected { get; set; }
+		ChessPieceType          Type       { get; }
 		ChessPosition           Position   { get; set; }
 		IChessBoardSquareModel? Square     { get; set; }
-		event Action?           CapturedEnemyPiece;
-		event Action?           WasCaptured;
-		event Action?           WasMoved;
-		event Action?           WasSelected;
-		bool TryRemoveSelfFromBoard(IChessBoardModel board);
+		PlayerColor             Color      { get; }
 		bool TryGetCaptured(IChessBoardModel board);
-	}
-
-	public interface ICommand
-	{
-		void Execute();
-		void Undo();
+		bool TryRemoveSelfFromBoard(IChessBoardModel board);
+		event Action? CapturedEnemyPiece;
+		event Action? WasCaptured;
+		event Action? WasMoved;
+		event Action? WasSelected;
 	}
 }
