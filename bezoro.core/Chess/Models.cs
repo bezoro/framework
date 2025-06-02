@@ -11,64 +11,46 @@ namespace Bezoro.Core.Chess
 			if (width  <= 0) throw new ArgumentOutOfRangeException(nameof(width),  "Width must be positive.");
 			if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), "Height must be positive.");
 
-			boardSetup ??= FenUtility.StandardBoard;
-			Width          = width;
-			Height         = height;
-			Squares        = InitializeSquares(Width, Height);
-			BoardPieces    = InitializePieces(Squares, boardSetup);
-			CapturedPieces = new IChessPieceModel[32];
+			boardSetup     ??= FenUtility.StandardBoard;
+			Width          =   width;
+			Height         =   height;
+			Squares        =   InitializeSquares(Width, Height);
+			BoardPieces    =   InitializePieces(Squares, boardSetup.PiecePlacement);
+			CapturedPieces =   new(32);
 		}
 
 		public IChessBoardSquareModel[,] Squares        { get; }
-		public IChessPieceModel[]        BoardPieces    { get; }
 		public int                       Height         { get; }
 		public int                       Width          { get; }
-		public IChessPieceModel[]        CapturedPieces { get; set; }
+		public List<IChessPieceModel>    BoardPieces    { get; }
+		public List<IChessPieceModel>    CapturedPieces { get; set; }
+
+	#region Interface Implementations
 
 		public bool TryMovePiece(IChessPieceModel pieceToMove, MoveCommand command)
 		{
 			var targetFile = command.To.File;
 			var targetRank = command.To.Rank;
 
-			// 1. Validate target coordinates
 			if (targetFile < 0 || targetFile >= Width || targetRank < 0 || targetRank >= Height)
 			{
 				return false; // Target square is off-board
 			}
 
-			// 2. Get the target square
 			var targetSquare = Squares[targetFile, targetRank];
-
-			// 3. Get the piece currently at the target square (if any)
-			var pieceAtTarget = targetSquare.Piece;
-
-			// 4. Clear the piece from its original square
-			// It's assumed 'piece' is currently on the board and piece.Square is not null.
-			if (pieceToMove.Square != null)
+			var targetPiece = targetSquare.Piece;
+			pieceToMove.MoveTo(targetSquare);
+			
+			if (targetPiece == null)
 			{
-				pieceToMove.Square.Piece = null;
+				return true; // No piece was on the target square, so the move was successful
 			}
 
-			// 5. Update the moving piece's properties
-			pieceToMove.Position = targetSquare.Position; // Update position to the target square's position
-			pieceToMove.Square   = targetSquare;          // Update the piece's reference to its new square
-
-			// 6. Place the moving piece on the target square
-			targetSquare.Piece = pieceToMove;
-
-			// 7. Handle capture
-			if (pieceAtTarget    != null
-				&& pieceAtTarget != pieceToMove) // Check if there was a piece and it's not the moving piece itself
-			{
-				pieceAtTarget.IsCaptured = true;
-				// Note: The captured piece still exists in the main `Pieces` array.
-				// Depending on game requirements, you might want to remove it from active pieces list
-				// or move it to a separate list of captured pieces.
-				// For now, marking IsCaptured = true is consistent with the IChessPieceModel.
-			}
-
-			return true; // Move was successful
+			HandlePieceCapture(pieceToMove, targetPiece);
+			return true; // A piece was captured on the target square, so the move was successful
 		}
+
+	#endregion
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
@@ -84,33 +66,32 @@ namespace Bezoro.Core.Chess
 			return squares;
 		}
 
-		private IChessPieceModel[] InitializePieces(IChessBoardSquareModel[,] squares, FenData boardSetup)
+		private List<IChessPieceModel> InitializePieces(IChessBoardSquareModel[,] squares, string piecePlacement)
 		{
-			var pieceList    = new List<IChessPieceModel>();
-			var fenPlacement = boardSetup.PiecePlacement;
+			var pieceList = new List<IChessPieceModel>();
 
 			var row = Height - 1; // FEN starts from 8th rank, array index is Height-1
 			var col = 0;          // FEN starts from 'a' file, array index is 0
 
-			foreach (var symbol in fenPlacement)
+			foreach (var symbol in piecePlacement)
 			{
-				if (symbol == '/')
+				if (symbol == '/') // Move to the next rank (row)
 				{
 					row--;
 					col = 0;
 				}
-				else if (char.IsDigit(symbol))
+				else if (char.IsDigit(symbol)) // Skip empty squares
 				{
 					col += int.Parse(symbol.ToString());
 				}
-				else // Piece character
+				else // Found piece symbol - create and place the piece
 				{
 					CreatePieceAtFromSymbol(symbol, col, row, squares, pieceList);
-					col++; // Move to the next file for the next piece or number
+					col++; // Move to the next file (column)
 				}
 			}
 
-			return pieceList.ToArray();
+			return pieceList;
 		}
 
 		/// <summary>
@@ -128,7 +109,7 @@ namespace Bezoro.Core.Chess
 			int currentFile,
 			int currentRank,
 			IChessBoardSquareModel[,] boardSquares,
-			List<IChessPieceModel?> piecesOnBoard)
+			List<IChessPieceModel> piecesOnBoard)
 		{
 			var pieceColor = char.IsUpper(pieceSymbol) ? PlayerColor.White : PlayerColor.Black;
 			var pieceType  = ChessUtils.GetPieceTypeFromChar(char.ToLower(pieceSymbol));
@@ -146,6 +127,24 @@ namespace Bezoro.Core.Chess
 
 			piecesOnBoard.Add(chessPiece);
 		}
+
+		private void HandlePieceCapture(IChessPieceModel pieceToMove, IChessPieceModel? targetPiece)
+		{
+			if (targetPiece == null || targetPiece == pieceToMove)
+				return;
+
+			targetPiece.IsCaptured = true;
+			BoardPieces.Remove(targetPiece);
+			CapturedPieces.Add(targetPiece);
+		}
+
+		private static void RemoveMovingPieceFromItsCurrentSquare(IChessPieceModel pieceToMove)
+		{
+			if (pieceToMove.Square != null)
+			{
+				pieceToMove.Square.Piece = null;
+			}
+		}
 	}
 
 	public record ChessBoardSquareModel(ChessPosition Position) : IChessBoardSquareModel
@@ -156,6 +155,19 @@ namespace Bezoro.Core.Chess
 		public bool              IsHighlightedAsValidMove { get; set; }
 		public bool              IsSelected               { get; set; }
 		public IChessPieceModel? Piece                    { get; set; }
+
+	#region Interface Implementations
+
+		public bool TryRemovePiece(IChessPieceModel pieceToRemove)
+		{
+			if (Piece != pieceToRemove)
+				return false;
+
+			Piece = null;
+			return true;
+		}
+
+	#endregion
 	}
 
 	public record ChessPieceModel(PlayerColor Color, ChessPieceType Type) : IChessPieceModel
