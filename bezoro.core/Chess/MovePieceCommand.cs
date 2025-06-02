@@ -4,6 +4,16 @@ namespace Bezoro.Core.Chess
 {
 	public class MovePieceCommand : IChessCommand
 	{
+		private const string DifferentSquaresMessage = "Source and destination squares must differ.";
+		private const string FriendlyCaptureMessage = "Cannot move onto a square occupied by your own piece.";
+		private const string PieceMismatchMessage = "The piece to move is not on the source square.";
+		private const string RemoveCaptureFailureMessage = "Failed to remove the captured piece from its square.";
+		private const string RemoveMoveFailureMessage = "Failed to remove the moving piece from its source square.";
+		private const string SetMoveFailureMessage = "Failed to place the moving piece on its destination square.";
+
+		// Extracted error messages
+		private const string TargetOffBoardMessage = "Target square is off-board.";
+
 		public MovePieceCommand(IChessPieceModel movingPiece, IChessBoardSquareModel destinationSquare)
 		{
 			PieceToMove = movingPiece ?? throw new ArgumentNullException(nameof(movingPiece));
@@ -14,67 +24,40 @@ namespace Bezoro.Core.Chess
 			To = destinationSquare ?? throw new ArgumentNullException(nameof(destinationSquare));
 		}
 
-		private IChessPieceModel? _capturedPiece;
+		private IChessPieceModel?      _capturedPiece;
+		public  IChessBoardSquareModel From { get; }
+		public  IChessBoardSquareModel To   { get; }
 
-		public IChessPieceModel       PieceToMove { get; }
-		public IChessBoardSquareModel From        { get; }
-		public IChessBoardSquareModel To          { get; }
+		public IChessPieceModel PieceToMove { get; }
 
 	#region Interface Implementations
 
 		public void Execute(IChessBoardModel board)
 		{
-			if (board == null)
-				throw new ArgumentNullException(nameof(board));
+			Validate(board);
 
-			if (From == To)
-				throw new InvalidOperationException("Source and destination squares must differ.");
+			var targetPiece = To.Piece;
+			EnsureNotFriendlyCapture(targetPiece);
 
-			if (From.Piece != PieceToMove)
-				throw new InvalidOperationException("The piece to move is not on the source square.");
+			if (targetPiece != null)
+				HandleCapture(targetPiece, board);
 
-			// Handle capture of an enemy piece
-			if (To.Piece != null)
-			{
-				var targetPiece = To.Piece;
-				if (targetPiece.Color == PieceToMove.Color)
-					throw new InvalidOperationException("Cannot move onto a square occupied by your own piece.");
-
-				// remove captured piece from its square
-				if (!To.TryRemovePiece(targetPiece))
-					throw new InvalidOperationException("Failed to remove the captured piece from its square.");
-
-				_capturedPiece            = targetPiece;
-				_capturedPiece.IsCaptured = true;
-				board.CapturedPieces.Add(_capturedPiece);
-				board.BoardPieces.Remove(targetPiece);
-			}
-			else
-			{
-				_capturedPiece = null;
-			}
-
-			// Move the piece
-			if (!From.TryRemovePiece(PieceToMove))
-				throw new InvalidOperationException("Failed to remove the moving piece from its source square.");
-
-			if (!To.TrySetPiece(PieceToMove))
-				throw new InvalidOperationException("Failed to place the moving piece on its destination square.");
-
-			board.SetPieceAt(PieceToMove, To);
+			PerformMove(board);
 		}
 
 		public void Undo(IChessBoardModel board)
 		{
-			if (board == null) throw new ArgumentNullException(nameof(board));
+			if (board == null)
+				throw new ArgumentNullException(nameof(board));
+
 			if (From == To)
-				throw new InvalidOperationException("Source and destination squares must differ.");
+				throw new InvalidOperationException(DifferentSquaresMessage);
 
-			// Remove the moved piece from the destination
+			// 1) Remove the moved piece from the destination
 			if (!To.TryRemovePiece(PieceToMove))
-				throw new InvalidOperationException("Failed to remove the moving piece from its destination square.");
+				throw new InvalidOperationException(RemoveMoveFailureMessage);
 
-			// Restore any captured piece
+			// 2) Restore any captured piece
 			if (_capturedPiece != null)
 			{
 				if (!To.TrySetPiece(_capturedPiece))
@@ -82,9 +65,10 @@ namespace Bezoro.Core.Chess
 
 				_capturedPiece.IsCaptured = false;
 				board.CapturedPieces.Remove(_capturedPiece);
+				board.BoardPieces.Add(_capturedPiece);
 			}
 
-			// Put the moving piece back
+			// 3) Put the moving piece back
 			if (!From.TrySetPiece(PieceToMove))
 				throw new InvalidOperationException("Failed to return the moving piece to its source square.");
 		}
@@ -97,5 +81,50 @@ namespace Bezoro.Core.Chess
 			=> throw new NotSupportedException("Use Undo(IChessBoardModel) instead.");
 
 	#endregion
+
+		private void EnsureNotFriendlyCapture(IChessPieceModel? piece)
+		{
+			if (piece?.Color == PieceToMove.Color)
+				throw new InvalidOperationException(FriendlyCaptureMessage);
+		}
+
+		private void HandleCapture(IChessPieceModel captured, IChessBoardModel board)
+		{
+			if (!To.TryRemovePiece(captured))
+				throw new InvalidOperationException(RemoveCaptureFailureMessage);
+
+			_capturedPiece            = captured;
+			_capturedPiece.IsCaptured = true;
+			board.CapturedPieces.Add(_capturedPiece);
+			board.BoardPieces.Remove(captured);
+		}
+
+		private void PerformMove(IChessBoardModel board)
+		{
+			if (!From.TryRemovePiece(PieceToMove))
+				throw new InvalidOperationException(RemoveMoveFailureMessage);
+
+			if (!To.TrySetPiece(PieceToMove))
+				throw new InvalidOperationException(SetMoveFailureMessage);
+
+			board.SetPieceAt(PieceToMove, To);
+		}
+
+		private void Validate(IChessBoardModel board)
+		{
+			if (board == null)
+				throw new ArgumentNullException(nameof(board));
+
+			var file = To.Position.File;
+			var rank = To.Position.Rank;
+			if (file < 0 || file >= board.Width || rank < 0 || rank >= board.Height)
+				throw new InvalidOperationException(TargetOffBoardMessage);
+
+			if (From == To)
+				throw new InvalidOperationException(DifferentSquaresMessage);
+
+			if (From.Piece != PieceToMove)
+				throw new InvalidOperationException(PieceMismatchMessage);
+		}
 	}
 }
