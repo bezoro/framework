@@ -19,9 +19,10 @@ namespace Bezoro.Core.Chess
 			CapturedPieces =   new(32);
 		}
 
-		public IChessBoardSquareModel[,] Squares { get; }
-		public int                       Height  { get; }
-		public int                       Width   { get; }
+		public CastlingRights            CastlingRights { get; } = CastlingRights.All;
+		public IChessBoardSquareModel[,] Squares        { get; }
+		public int                       Height         { get; }
+		public int                       Width          { get; }
 
 		public List<IChessPieceModel> BoardPieces    { get; }
 		public List<IChessPieceModel> CapturedPieces { get; set; }
@@ -71,9 +72,11 @@ namespace Bezoro.Core.Chess
 			return position.File >= 0 && position.File < Width && position.Rank >= 0 && position.Rank < Height;
 		}
 
-		public void CreatePieceAt(string algebraicPosition, IChessPieceModel piece)
+		public void CreatePieceAt(string algebraicPosition, PlayerColor color, ChessPieceType pieceType)
 		{
+			
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
+			var piece    = new ChessPieceModel(color, pieceType);
 			Squares[position.File, position.Rank].TrySetPiece(piece);
 			BoardPieces.Add(piece);
 		}
@@ -152,24 +155,6 @@ namespace Bezoro.Core.Chess
 			square.Piece        = chessPiece;
 
 			piecesOnBoard.Add(chessPiece);
-		}
-
-		private void HandlePieceCapture(IChessPieceModel pieceToMove, IChessPieceModel? targetPiece)
-		{
-			if (targetPiece == null || targetPiece == pieceToMove)
-				return;
-
-			targetPiece.IsCaptured = true;
-			BoardPieces.Remove(targetPiece);
-			CapturedPieces.Add(targetPiece);
-		}
-
-		private static void RemoveMovingPieceFromItsCurrentSquare(IChessPieceModel pieceToMove)
-		{
-			if (pieceToMove.Square != null)
-			{
-				pieceToMove.Square.Piece = null;
-			}
 		}
 	}
 }

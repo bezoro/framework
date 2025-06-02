@@ -8,6 +8,34 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public class ChessBoardModelTests
 	{
+	#region Test Methods
+
+	#region CreatePieceAt Tests
+
+		[Test]
+		public void CreatePieceAt_ValidPosition_CreatesPiece()
+		{
+			// Arrange
+			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+
+			// Act
+			board.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.Pawn);
+
+			Assert.Multiple(
+				() =>
+				{
+					// Assert
+					Assert.That(board.BoardPieces,            Has.Count.EqualTo(1));
+					Assert.That(board.GetPieceAt("a1"),       Is.Not.Null);
+					Assert.That(board.GetPieceAt("a1").Type,  Is.EqualTo(ChessPieceType.Pawn));
+					Assert.That(board.GetPieceAt("a1").Color, Is.EqualTo(PlayerColor.White));
+				});
+		}
+
+	#endregion
+
+	#endregion
+
 	#region Helper Methods/Other Members
 
 		private static void AssertPieceExistsAt(
