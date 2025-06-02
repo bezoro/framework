@@ -429,6 +429,67 @@ namespace Bezoro.Core.Tests.Chess
 				"Pawn's square reference should remain e2.");
 		}
 
+		[Test]
+		public void TryMovePiece_CaptureOpponentPiece_UpdatesPieceListsAndFlags()
+		{
+			// Arrange
+			// Minimal setup: White Pawn at e2, Black Pawn at d7. White moves e2-e4. Black moves d7-d5. White captures e4xd5.
+			var fen = FenUtility.ParseFen(
+				"rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"); // After e4, d5
+
+			var board = new ChessBoardModel(8, 8, fen);
+
+			var whitePawnE4 = BoardUtils.GetPieceAt(board, "e4"); // White Pawn at e4
+			var blackPawnD5 = BoardUtils.GetPieceAt(board, "d5"); // Black Pawn at d5 (target)
+
+			Assert.That(whitePawnE4, Is.Not.Null, "White pawn at e4 should exist.");
+			Assert.That(blackPawnD5, Is.Not.Null, "Black pawn at d5 should exist.");
+
+			var initialBoardPiecesCount    = board.BoardPieces.Count;
+			var initialCapturedPiecesCount = board.CapturedPieces.Count;
+
+			var moveCommand = new MoveCommand(whitePawnE4.Position, blackPawnD5.Position); // e4 captures d5
+
+			// Act
+			var moveResult = board.TryMovePiece(whitePawnE4, moveCommand);
+
+			// Assert
+			Assert.That(moveResult, Is.True, "Move (capture) should be successful.");
+
+			// Check captured piece properties
+			Assert.That(blackPawnD5.IsCaptured, Is.True, "Captured black pawn's IsCaptured flag should be true.");
+
+			// Check lists
+			Assert.That(
+				board.BoardPieces, Does.Not.Contain(blackPawnD5),
+				"Captured black pawn should be removed from BoardPieces.");
+
+			Assert.That(
+				board.CapturedPieces, Does.Contain(blackPawnD5),
+				"Captured black pawn should be added to CapturedPieces.");
+
+			Assert.That(
+				board.BoardPieces.Count, Is.EqualTo(initialBoardPiecesCount - 1),
+				"BoardPieces count should decrease by one.");
+
+			Assert.That(
+				board.CapturedPieces.Count, Is.EqualTo(initialCapturedPiecesCount + 1),
+				"CapturedPieces count should increase by one.");
+
+			// Check moving piece's new state
+			Assert.That(
+				whitePawnE4.Position, Is.EqualTo(blackPawnD5.Position),
+				"White pawn should now be at the capture square (d5).");
+
+			Assert.That(
+				board.Squares[blackPawnD5.Position.File, blackPawnD5.Position.Rank].Piece, Is.EqualTo(whitePawnE4),
+				"Capture square should now contain the white pawn.");
+
+			Assert.That(
+				board.Squares[moveCommand.From.File, moveCommand.From.Rank].IsEmpty, Is.True,
+				"Original square (e4) of white pawn should be empty.");
+		}
+
 	#endregion
 	}
 }
