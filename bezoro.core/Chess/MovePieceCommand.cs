@@ -72,6 +72,7 @@ namespace Bezoro.Core.Chess
 			if (!From.TrySetPiece(PieceToMove))
 				throw new InvalidOperationException("Failed to return the moving piece to its source square.");
 		}
+
 	#endregion
 
 		private void EnsureNotFriendlyCapture(IChessPieceModel? piece)
@@ -93,13 +94,7 @@ namespace Bezoro.Core.Chess
 
 		private void PerformMove(IChessBoardModel board)
 		{
-			if (!From.TryRemovePiece(PieceToMove))
-				throw new InvalidOperationException(RemoveMoveFailureMessage);
-
-			if (!To.TrySetPiece(PieceToMove))
-				throw new InvalidOperationException(SetMoveFailureMessage);
-
-			board.SetPieceAt(PieceToMove, To);
+			PieceToMove.TryMove(board, To);
 		}
 
 		private void Validate(IChessBoardModel board)
