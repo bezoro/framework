@@ -4,13 +4,17 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class BoardUtils
 	{
-		// Helper method to get a piece from the board using algebraic notation (e.g., "e4")
-		// Algebraic "a1" corresponds to Squares[0,0]
-		// Algebraic "h8" corresponds to Squares[7,7] on an 8x8 board
-		public static IChessPieceModel? GetPieceAt(IChessBoardModel board, string algebraicPosition)
+		/// <summary>
+		///     Helper method to get a piece from the board using algebraic notation (e.g., "e4").
+		/// </summary>
+		/// <remarks>
+		///     Algebraic "a1" corresponds to Squares[0,0].
+		///     Algebraic "h8" corresponds to Squares[7,7] on an 8x8 board.
+		/// </remarks>
+		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, string algebraicPosition)
 		{
-			// Use AlgebraicNotationUtils to convert algebraic string to ChessPosition
 			ChessPosition position;
+
 			try
 			{
 				position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
@@ -24,8 +28,7 @@ namespace Bezoro.Core.Chess.Utils
 				// or a generic one.
 				throw new ArgumentException(
 					$"Invalid algebraic position: {ex.Message}",
-					ex.ParamName == "algebraicSquare" ? nameof(algebraicPosition) : ex.ParamName,
-					ex);
+					ex.ParamName == "algebraicSquare" ? nameof(algebraicPosition) : ex.ParamName, ex);
 			}
 
 			var file = position.File;
@@ -36,7 +39,7 @@ namespace Bezoro.Core.Chess.Utils
 				return null;
 			}
 
-			return board.Squares[file, rank]?.Piece;
+			return board.Squares[file, rank].Piece;
 		}
 	}
 }
