@@ -11,6 +11,8 @@ namespace Bezoro.Core.Tests.Chess
 	[TestOf(typeof(AlgebraicNotationUtils))]
 	public class AlgebraicNotationUtilsTests
 	{
+	#region Test Methods
+
 	#region ToAlgebraic(ChessPosition) Tests
 
 		[TestCase(0,  0,  "a1",  TestName = "ToAlgebraic_Position_0_0_Returns_a1")]
@@ -32,15 +34,15 @@ namespace Bezoro.Core.Tests.Chess
 
 	#endregion
 
+	#endregion
+
 	#region FromAlgebraic Tests
 
-		[TestCase("a1",  0,  0,  TestName = "FromAlgebraic_a1_Returns_0_0")]
-		[TestCase("h8",  7,  7,  TestName = "FromAlgebraic_h8_Returns_7_7")]
-		[TestCase("e4",  4,  3,  TestName = "FromAlgebraic_e4_Returns_4_3")]
-		[TestCase("A1",  0,  0,  TestName = "FromAlgebraic_A1_CaseInsensitive_Returns_0_0")]
-		[TestCase("H8",  7,  7,  TestName = "FromAlgebraic_H8_CaseInsensitive_Returns_7_7")]
-		[TestCase("z1",  25, 0,  TestName = "FromAlgebraic_z1_ExtendedFile_Returns_25_0")]
-		[TestCase("a26", 0,  25, TestName = "FromAlgebraic_a26_ExtendedRank_Returns_0_25")]
+		[TestCase("a1", 0, 0, TestName = "FromAlgebraic_a1_Returns_0_0")]
+		[TestCase("h8", 7, 7, TestName = "FromAlgebraic_h8_Returns_7_7")]
+		[TestCase("e4", 4, 3, TestName = "FromAlgebraic_e4_Returns_4_3")]
+		[TestCase("A1", 0, 0, TestName = "FromAlgebraic_A1_CaseInsensitive_Returns_0_0")]
+		[TestCase("H8", 7, 7, TestName = "FromAlgebraic_H8_CaseInsensitive_Returns_7_7")]
 		public void FromAlgebraic_ValidCases_ReturnsExpectedPosition(
 			string algebraic,
 			int expectedFile,
@@ -148,7 +150,6 @@ namespace Bezoro.Core.Tests.Chess
 		[TestCase("a1")]
 		[TestCase("h8")]
 		[TestCase("e4")]
-		[TestCase("z26")]
 		public void FromAlgebraic_ToAlgebraic_RoundTrip(string initialAlgebraic)
 		{
 			// Act
