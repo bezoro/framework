@@ -55,12 +55,6 @@ namespace Bezoro.Core.Chess
 
 	#endregion
 
-		public bool IsValidPosition(string algebraicPosition)
-		{
-			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			return position.File >= 0 && position.File < Width && position.Rank >= 0 && position.Rank < Height;
-		}
-
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
 			var squares = new IChessBoardSquareModel[width, height];

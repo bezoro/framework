@@ -8,6 +8,40 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public class ChessBoardModelTests
 	{
+	#region Test Methods
+
+		[Test]
+		public void IsValidPosition_ReturnsTrue_WhenPositionIsInsideOfTheBoard()
+		{
+			// Arrange
+			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+
+			// Act & Assert
+			Assert.That(board.IsValidPosition("a1"), Is.True);
+			Assert.That(board.IsValidPosition("a8"), Is.True);
+			Assert.That(board.IsValidPosition("h1"), Is.True);
+			Assert.That(board.IsValidPosition("h8"), Is.True);
+			Assert.That(board.IsValidPosition("b2"), Is.True);
+			Assert.That(board.IsValidPosition("c3"), Is.True);
+		}
+
+		[Test]
+		public void IsValidPosition_Throws_WhenPositionIsOutsideOfTheBoard()
+		{
+			// Arrange
+			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+
+			// Act & Assert
+			Assert.That(() => board.IsValidPosition("a0"), Throws.Exception);
+			Assert.That(() => board.IsValidPosition("a9"), Throws.Exception);
+			Assert.That(() => board.IsValidPosition("i1"), Throws.Exception);
+			Assert.That(() => board.IsValidPosition("i9"), Throws.Exception);
+			Assert.That(() => board.IsValidPosition("b0"), Throws.Exception);
+			Assert.That(() => board.IsValidPosition("c9"), Throws.Exception);
+		}
+
+	#endregion
+
 	#region Helper Methods/Other Members
 
 		private static void AssertPieceExistsAt(
