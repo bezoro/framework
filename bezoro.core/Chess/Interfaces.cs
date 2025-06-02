@@ -1,11 +1,15 @@
+using System.Collections.Generic;
+
 namespace Bezoro.Core.Chess
 {
 	public interface IChessBoardModel
 	{
-		IChessBoardSquareModel[,] Squares     { get; }
-		IChessPieceModel[]        BoardPieces { get; }
-		int                       Height      { get; }
-		int                       Width       { get; }
+		IChessBoardSquareModel[,] Squares        { get; }
+		int                       Height         { get; }
+		int                       Width          { get; }
+		List<IChessPieceModel>    BoardPieces    { get; }
+		List<IChessPieceModel>    CapturedPieces { get; set; }
+		bool TryMovePiece(IChessPieceModel pieceToMove, MoveCommand command);
 	}
 
 	public interface IChessBoardSquareModel
@@ -16,6 +20,8 @@ namespace Bezoro.Core.Chess
 		bool              IsSelected               { get; set; }
 		ChessPosition     Position                 { get; }
 		IChessPieceModel? Piece                    { get; set; }
+		
+		bool TryRemovePiece(IChessPieceModel pieceToRemove);
 	}
 
 	public interface IChessCommand { }
