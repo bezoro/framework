@@ -5,9 +5,11 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class FenUtility
 	{
-		private const string _STANDARD_BOARD_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+		private const string _STANDARD_BOARD_FEN       = _STANDARD_PIECE_PLACEMENT + " w KQkq - 0 1";
+		private const string _STANDARD_PIECE_PLACEMENT = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 
-		public static FenData StandardBoard => ParseFen(_STANDARD_BOARD_FEN);
+		public static FenData StandardBoard          => ParseFen(_STANDARD_BOARD_FEN);
+		public static string  StandardPiecePlacement => _STANDARD_PIECE_PLACEMENT;
 
 		public static FenData ParseFen(string fenString)
 		{
@@ -37,11 +39,11 @@ namespace Bezoro.Core.Chess.Utils
 
 	public record FenData
 	{
-public char   ActiveColor           { get; init; } = 'w';
-public int    FullmoveNumber        { get; init; } = 1;
-public int    HalfmoveClock         { get; init; } = 0;
-public string CastlingAvailability  { get; init; } = "KQkq";
-public string EnPassantTargetSquare { get; init; } = "-";
-public string PiecePlacement        { get; init; } = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+		public char   ActiveColor           { get; init; } = 'w';
+		public int    FullmoveNumber        { get; init; } = 1;
+		public int    HalfmoveClock         { get; init; }
+		public string CastlingAvailability  { get; init; } = "KQkq";
+		public string EnPassantTargetSquare { get; init; } = "-";
+		public string PiecePlacement        { get; init; } = FenUtility.StandardPiecePlacement;
 	}
 }
