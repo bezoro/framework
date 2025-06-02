@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Bezoro.Core.Chess
@@ -9,7 +10,8 @@ namespace Bezoro.Core.Chess
 		int                       Width          { get; }
 		List<IChessPieceModel>    BoardPieces    { get; }
 		List<IChessPieceModel>    CapturedPieces { get; set; }
-		bool TryMovePiece(IChessPieceModel pieceToMove, MovePieceCommand movePieceCommand);
+		bool TryMovePiece(MovePieceCommand movePieceCommand);
+		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
 	}
 
 	public interface IChessBoardSquareModel
@@ -20,26 +22,40 @@ namespace Bezoro.Core.Chess
 		bool              IsSelected               { get; set; }
 		ChessPosition     Position                 { get; }
 		IChessPieceModel? Piece                    { get; set; }
-		
+
 		bool TryRemovePiece(IChessPieceModel pieceToRemove);
+		bool TrySetPiece(IChessPieceModel pieceToSet);
 	}
 
-	public interface ICommand
+	public interface IChessCommand : ICommand
 	{
-		IChessBoardSquareModel From  { get; }
-		IChessBoardSquareModel To    { get; }
-		IChessPieceModel       Piece { get; }
-		void Execute();
-		void Undo();
+		IChessBoardSquareModel From        { get; }
+		IChessBoardSquareModel To          { get; }
+		IChessPieceModel       PieceToMove { get; }
+
+		void Execute(IChessBoardModel board);
+		void Undo(IChessBoardModel board);
 	}
 
 	public interface IChessPieceModel
 	{
+		ChessPieceType          Type       { get; }
+		PlayerColor             Color      { get; }
 		bool                    IsCaptured { get; set; }
 		bool                    IsSelected { get; set; }
-		ChessPieceType          Type       { get; }
 		ChessPosition           Position   { get; set; }
 		IChessBoardSquareModel? Square     { get; set; }
-		PlayerColor             Color      { get; }
+		event Action?           CapturedEnemyPiece;
+		event Action?           WasCaptured;
+		event Action?           WasMoved;
+		event Action?           WasSelected;
+		bool TryRemoveSelfFromBoard(IChessBoardModel board);
+		bool TryGetCaptured(IChessBoardModel board);
+	}
+
+	public interface ICommand
+	{
+		void Execute();
+		void Undo();
 	}
 }

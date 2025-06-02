@@ -19,38 +19,69 @@ namespace Bezoro.Core.Chess
 			CapturedPieces =   new(32);
 		}
 
-		public IChessBoardSquareModel[,] Squares        { get; }
+		public List<IChessPieceModel>    BoardPieces    { get; }
 		public int                       Height         { get; }
 		public int                       Width          { get; }
-		public List<IChessPieceModel>    BoardPieces    { get; }
+		public IChessBoardSquareModel[,] Squares        { get; }
 		public List<IChessPieceModel>    CapturedPieces { get; set; }
 
 	#region Interface Implementations
 
-		public bool TryMovePiece(IChessPieceModel pieceToMove, MovePieceCommand movePieceCommand)
+		public bool TryMovePiece(MovePieceCommand movePieceCommand)
 		{
-			var targetFile = movePieceCommand.To.Position.File;
-			var targetRank = movePieceCommand.To.Position.Rank;
+			var pieceToMove = movePieceCommand.PieceToMove;
+			var moveFrom    = movePieceCommand.From;
+			var moveTo      = movePieceCommand.To;
 
+			if (pieceToMove == null || moveFrom == null || moveTo == null)
+				throw new ArgumentNullException(nameof(movePieceCommand), "Piece, From, and To must be non-null.");
+
+			var targetFile = moveTo.Position.File;
+			var targetRank = moveTo.Position.Rank;
+
+			// Ensure the target square is within bounds
 			if (targetFile < 0 || targetFile >= Width || targetRank < 0 || targetRank >= Height)
-			{
-				return false; // Target square is off-board
-			}
+				throw new ArgumentOutOfRangeException(nameof(movePieceCommand), "Target square is off-board");
 
-			var targetSquare = Squares[targetFile, targetRank];
-			var targetPiece  = targetSquare.Piece;
-			pieceToMove.MoveTo(targetSquare);
+			movePieceCommand.Execute(this);
 
-			if (targetPiece == null)
-			{
-				return true; // No piece was on the target square, so the move was successful
-			}
-
-			HandlePieceCapture(pieceToMove, targetPiece);
 			return true; // A piece was captured on the target square, so the move was successful
 		}
 
+		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
+		{
+			 pieceToMove.Square.Piece = null;
+			 to.Piece = pieceToMove;
+			 pieceToMove.Square = to;
+			 pieceToMove.Position = to.Position;
+			 
+		}
+
 	#endregion
+
+		public bool IsValidPosition(string algebraicPosition)
+		{
+			ChessPosition position;
+
+			try
+			{
+				position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e);
+				throw;
+			}
+
+			return position.File >= 0 && position.File < Width && position.Rank >= 0 && position.Rank < Height;
+		}
+
+		public void CreatePieceAt(string algebraicPosition, IChessPieceModel piece)
+		{
+			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
+			Squares[position.File, position.Rank].TrySetPiece(piece);
+			BoardPieces.Add(piece);
+		}
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
@@ -145,56 +176,5 @@ namespace Bezoro.Core.Chess
 				pieceToMove.Square.Piece = null;
 			}
 		}
-	}
-
-	public class ChessBoardSquareModel : IChessBoardSquareModel
-	{
-		public ChessBoardSquareModel(ChessPosition position)
-		{
-			Position = position;
-			Piece    = null; // Start with no piece on the square
-		}
-
-		public ChessBoardSquareModel(int row, int col) : this(new(row, col)) { }
-
-		public bool          IsEmpty    => Piece == null;
-		public bool          IsOccupied => Piece != null;
-		public ChessPosition Position   { get; }
-
-		public bool              IsHighlightedAsValidMove { get; set; }
-		public bool              IsSelected               { get; set; }
-		public IChessPieceModel? Piece                    { get; set; }
-
-	#region Interface Implementations
-
-		public bool TryRemovePiece(IChessPieceModel pieceToRemove)
-		{
-			if (Piece != pieceToRemove)
-				return false;
-
-			Piece = null;
-			return true;
-		}
-
-	#endregion
-
-		public bool TrySetPiece(IChessPieceModel pieceToSet)
-		{
-			if (Piece != null)
-				return false;
-
-			Piece          = pieceToSet;
-			Piece.Position = Position;
-			Piece.Square   = this;
-			return true;
-		}
-	}
-
-	public record ChessPieceModel(PlayerColor Color, ChessPieceType Type) : IChessPieceModel
-	{
-		public bool                    IsCaptured { get; set; }
-		public bool                    IsSelected { get; set; }
-		public ChessPosition           Position   { get; set; }
-		public IChessBoardSquareModel? Square     { get; set; }
 	}
 }
