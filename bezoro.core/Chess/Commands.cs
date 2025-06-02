@@ -27,11 +27,11 @@ namespace Bezoro.Core.Chess
 			Piece.MoveTo(To);
 		}
 
-	#endregion
-
 		public void Undo()
 		{
 			Piece.MoveTo(From);
 		}
+
+	#endregion
 	}
 }
