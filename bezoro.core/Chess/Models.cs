@@ -27,10 +27,10 @@ namespace Bezoro.Core.Chess
 
 	#region Interface Implementations
 
-		public bool TryMovePiece(IChessPieceModel pieceToMove, MoveCommand command)
+		public bool TryMovePiece(IChessPieceModel pieceToMove, MovePieceCommand movePieceCommand)
 		{
-			var targetFile = command.To.File;
-			var targetRank = command.To.Rank;
+			var targetFile = movePieceCommand.To.Position.File;
+			var targetRank = movePieceCommand.To.Position.Rank;
 
 			if (targetFile < 0 || targetFile >= Width || targetRank < 0 || targetRank >= Height)
 			{
@@ -147,10 +147,19 @@ namespace Bezoro.Core.Chess
 		}
 	}
 
-	public record ChessBoardSquareModel(ChessPosition Position) : IChessBoardSquareModel
+	public class ChessBoardSquareModel : IChessBoardSquareModel
 	{
-		public bool IsEmpty    => Piece == null;
-		public bool IsOccupied => Piece != null;
+		public ChessBoardSquareModel(ChessPosition position)
+		{
+			Position = position;
+			Piece    = null; // Start with no piece on the square
+		}
+
+		public ChessBoardSquareModel(int row, int col) : this(new(row, col)) { }
+
+		public bool          IsEmpty    => Piece == null;
+		public bool          IsOccupied => Piece != null;
+		public ChessPosition Position   { get; }
 
 		public bool              IsHighlightedAsValidMove { get; set; }
 		public bool              IsSelected               { get; set; }
