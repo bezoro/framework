@@ -21,8 +21,11 @@ namespace Bezoro.Core.Chess.Utils
 		/// <param name="algebraicSquare">The algebraic notation string (e.g., "e4"). Case-insensitive.</param>
 		/// <returns>A ChessPosition object with 0-indexed File and Rank.</returns>
 		/// <exception cref="ArgumentNullException">If algebraicSquare is null or whitespace.</exception>
-		/// <exception cref="ArgumentException">If algebraicSquare is not in a valid format (e.g., "a", "1e", "e0", "aa1", or rank exceeds <see cref="MaxParseableRankNumber"/>).</exception>
-		public static ChessPosition FromAlgebraic(string algebraicSquare)
+		/// <exception cref="ArgumentException">
+		///     If algebraicSquare is not in a valid format (e.g., "a", "1e", "e0", "aa1", or rank
+		///     exceeds <see cref="MaxParseableRankNumber" />).
+		/// </exception>
+		public static ChessPosition FromAlgebraic(string algebraicSquare, char maxFile = 'h', int maxRank = 8)
 		{
 			if (string.IsNullOrWhiteSpace(algebraicSquare))
 			{
@@ -42,14 +45,14 @@ namespace Bezoro.Core.Chess.Utils
 			var fileChar = normalizedSquare[0];
 			var rankPart = normalizedSquare[1..];
 
-			if (fileChar is < 'a' or > 'z')
+			if (fileChar < 'a' || fileChar > maxFile)
 			{
 				throw new ArgumentException(
 					$"Invalid file character '{fileChar}' in notation '{algebraicSquare}'. Must be a letter 'a'-'z'.",
 					nameof(algebraicSquare));
 			}
 
-			if (!int.TryParse(rankPart, out var rankNumber) || rankNumber < 1 || rankNumber > MaxParseableRankNumber)
+			if (!int.TryParse(rankPart, out var rankNumber) || rankNumber < 1 || rankNumber > maxRank)
 			{
 				throw new ArgumentException(
 					$"Invalid rank part '{rankPart}' in notation '{algebraicSquare}'. Must be a positive number between 1 and {MaxParseableRankNumber}.",
