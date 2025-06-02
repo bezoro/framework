@@ -10,17 +10,19 @@ namespace Bezoro.Core.Chess
 			Type  = type;
 		}
 
+		public ChessPieceType Type { get; }
+
 		public PlayerColor             Color      { get; }
-		public ChessPieceType          Type       { get; }
-		public IChessBoardSquareModel? Square     { get; set; }
-		public ChessPosition           Position   { get; set; }
 		public bool                    IsCaptured { get; set; }
 		public bool                    IsSelected { get; set; }
+		public ChessPosition           Position   { get; set; }
+		public IChessBoardSquareModel? Square     { get; set; }
 
 		public event Action? CapturedEnemyPiece;
 		public event Action? WasCaptured;
 		public event Action? WasMoved;
 		public event Action? WasSelected;
+		public event Action? WasUnselected;
 
 	#region Interface Implementations
 
@@ -35,10 +37,11 @@ namespace Bezoro.Core.Chess
 			if (IsCaptured)
 				throw new InvalidOperationException("Cannot remove a captured piece from the board.");
 
-			board.BoardPieces.Remove(this);
-
 			if (!Square.TryRemovePiece(this))
-				throw new InvalidOperationException($" piece {this} was not found on square {Square}.");
+				throw new InvalidOperationException($"Piece {this} was not found on square {Square}.");
+
+			if (!board.BoardPieces.Remove(this))
+				throw new InvalidOperationException($"Piece {this} was not found on board.");
 
 			Square = null;
 			return true;
@@ -46,15 +49,12 @@ namespace Bezoro.Core.Chess
 
 		public bool TryGetCaptured(IChessBoardModel board)
 		{
-			try { TryRemoveSelfFromBoard(board); }
-			catch (InvalidOperationException e)
-			{
-				Console.WriteLine(e);
-				throw;
-			}
+			TryRemoveSelfFromBoard(board);
 
 			IsCaptured = true;
-			board.CapturedPieces.Add(this);
+			if (!board.CapturedPieces.Contains(this))
+				board.CapturedPieces.Add(this);
+
 			WasCaptured?.Invoke();
 			return true;
 		}
@@ -63,6 +63,9 @@ namespace Bezoro.Core.Chess
 
 		public bool TryGetSelected()
 		{
+			if (IsSelected)
+				return false;
+			
 			IsSelected = true;
 			WasSelected?.Invoke();
 			return true;
@@ -70,19 +73,51 @@ namespace Bezoro.Core.Chess
 
 		public bool TryMove(IChessBoardSquareModel to)
 		{
-			if (Square == null)
-				throw new InvalidOperationException("Piece must be on a board square.");
+            if (to == null)
+                throw new ArgumentNullException(nameof(to));
+            if (Square == null)
+                throw new InvalidOperationException("Piece must be on a board square.");
+            if (IsCaptured)
+                throw new InvalidOperationException("Cannot move a captured piece.");
+            if (Square.Piece != this)
+                throw new InvalidOperationException("Piece must be on its current square.");
 
-			if (IsCaptured)
-				throw new InvalidOperationException("Cannot move a captured piece.");
+            // 1) Handle capture of an occupying piece
+            if (to.Piece is ChessPieceModel occupant && occupant.Color != this.Color)
+            {
+                // occupant.TryGetCaptured(Square.Board);  // assumes square knows its board
+                CapturedEnemyPiece?.Invoke();
+            }
+            else if (to.Piece != null)
+            {
+                throw new InvalidOperationException($"Cannot move onto occupied square {to}.");
+            }
 
-			if (Square.Piece != this)
-				throw new InvalidOperationException("Piece must be on the board.");
+            // 2) Transfer piece
+            if (!Square.TryRemovePiece(this))
+                throw new InvalidOperationException("Failed to remove piece from original square.");
 
-			Square.TryRemovePiece(this);
-			Square = to;
-			Square.TrySetPiece(this);
-			return true;
+            Square = to;
+
+            if (!Square.TrySetPiece(this))
+                throw new InvalidOperationException("Failed to place piece on destination square.");
+
+            // 3) Update position
+            Position = to.Position;
+
+            // 4) Fire moved event
+            WasMoved?.Invoke();
+            return true;
+		}
+
+		public bool TryDeselect()
+		{
+            if (!IsSelected) 
+				return false;
+            
+			IsSelected = false;
+            WasUnselected?.Invoke();
+            return true;
 		}
 	}
 }
