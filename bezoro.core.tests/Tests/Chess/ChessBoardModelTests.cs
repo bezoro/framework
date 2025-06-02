@@ -8,7 +8,23 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public class ChessBoardModelTests
 	{
-	#region Test Methods
+	#region Helper Methods/Other Members
+
+		private static void AssertPieceExistsAt(
+			IChessPieceModel piece,
+			IChessBoardSquareModel square,
+			ChessPieceType pieceType,
+			PlayerColor color,
+			ChessPosition position)
+		{
+			Assert.That(piece,          Is.Not.Null, $"Piece at {position.Algebraic} (White Rook) should exist.");
+			Assert.That(piece.Square,   Is.SameAs(square));
+			Assert.That(piece.Type,     Is.EqualTo(pieceType));
+			Assert.That(piece.Color,    Is.EqualTo(color));
+			Assert.That(piece.Position, Is.EqualTo(position));
+		}
+
+	#endregion
 
 	#region CreatePieceAt Tests
 
@@ -32,24 +48,17 @@ namespace Bezoro.Core.Tests.Chess
 				});
 		}
 
-	#endregion
-
-	#endregion
-
-	#region Helper Methods/Other Members
-
-		private static void AssertPieceExistsAt(
-			IChessPieceModel piece,
-			IChessBoardSquareModel square,
-			ChessPieceType pieceType,
-			PlayerColor color,
-			ChessPosition position)
+		[Test]
+		public void CreatePieceAt_Throws_WhenParametersAreInvalid()
 		{
-			Assert.That(piece,          Is.Not.Null, $"Piece at {position.Algebraic} (White Rook) should exist.");
-			Assert.That(piece.Square,   Is.SameAs(square));
-			Assert.That(piece.Type,     Is.EqualTo(pieceType));
-			Assert.That(piece.Color,    Is.EqualTo(color));
-			Assert.That(piece.Position, Is.EqualTo(position));
+			// Arrange
+			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+
+			// Act & Assert
+			Assert.That(() => board.CreatePieceAt("a1",  PlayerColor.None,  ChessPieceType.Pawn), Throws.Exception);
+			Assert.That(() => board.CreatePieceAt("a1",  PlayerColor.White, ChessPieceType.None), Throws.Exception);
+			Assert.That(() => board.CreatePieceAt("xxx", PlayerColor.White, ChessPieceType.Pawn), Throws.Exception);
+			Assert.That(() => board.CreatePieceAt("a1",  PlayerColor.White, ChessPieceType.Pawn), Throws.Nothing);
 		}
 
 	#endregion
