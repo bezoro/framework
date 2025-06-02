@@ -38,9 +38,9 @@ namespace Bezoro.Core.Chess
 			}
 
 			var targetSquare = Squares[targetFile, targetRank];
-			var targetPiece = targetSquare.Piece;
+			var targetPiece  = targetSquare.Piece;
 			pieceToMove.MoveTo(targetSquare);
-			
+
 			if (targetPiece == null)
 			{
 				return true; // No piece was on the target square, so the move was successful
@@ -168,13 +168,24 @@ namespace Bezoro.Core.Chess
 		}
 
 	#endregion
+
+		public bool TrySetPiece(IChessPieceModel pieceToSet)
+		{
+			if (Piece != null)
+				return false;
+
+			Piece          = pieceToSet;
+			Piece.Position = Position;
+			Piece.Square   = this;
+			return true;
+		}
 	}
 
 	public record ChessPieceModel(PlayerColor Color, ChessPieceType Type) : IChessPieceModel
 	{
-		public bool                   IsCaptured { get; set; }
-		public bool                   IsSelected { get; set; }
-		public ChessPosition          Position   { get; set; }
-		public IChessBoardSquareModel Square     { get; set; }
+		public bool                    IsCaptured { get; set; }
+		public bool                    IsSelected { get; set; }
+		public ChessPosition           Position   { get; set; }
+		public IChessBoardSquareModel? Square     { get; set; }
 	}
 }
