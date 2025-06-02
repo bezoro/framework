@@ -19,42 +19,37 @@ namespace Bezoro.Core.Chess
 			CapturedPieces =   new(32);
 		}
 
-		public List<IChessPieceModel>    BoardPieces    { get; }
-		public int                       Height         { get; }
-		public int                       Width          { get; }
-		public IChessBoardSquareModel[,] Squares        { get; }
-		public List<IChessPieceModel>    CapturedPieces { get; set; }
+		public IChessBoardSquareModel[,] Squares { get; }
+		public int                       Height  { get; }
+		public int                       Width   { get; }
+
+		public List<IChessPieceModel> BoardPieces    { get; }
+		public List<IChessPieceModel> CapturedPieces { get; set; }
 
 	#region Interface Implementations
 
 		public bool TryMovePiece(MovePieceCommand movePieceCommand)
 		{
-			var pieceToMove = movePieceCommand.PieceToMove;
-			var moveFrom    = movePieceCommand.From;
-			var moveTo      = movePieceCommand.To;
+			if (movePieceCommand == null)
+				throw new ArgumentNullException(nameof(movePieceCommand));
 
-			if (pieceToMove == null || moveFrom == null || moveTo == null)
-				throw new ArgumentNullException(nameof(movePieceCommand), "Piece, From, and To must be non-null.");
-
-			var targetFile = moveTo.Position.File;
-			var targetRank = moveTo.Position.Rank;
-
-			// Ensure the target square is within bounds
-			if (targetFile < 0 || targetFile >= Width || targetRank < 0 || targetRank >= Height)
-				throw new ArgumentOutOfRangeException(nameof(movePieceCommand), "Target square is off-board");
-
-			movePieceCommand.Execute(this);
-
-			return true; // A piece was captured on the target square, so the move was successful
+			try
+			{
+				movePieceCommand.Execute(this);
+				return true;
+			}
+			catch (InvalidOperationException)
+			{
+				return false;
+			}
 		}
 
 		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
 		{
-			 pieceToMove.Square.Piece = null;
-			 to.Piece = pieceToMove;
-			 pieceToMove.Square = to;
-			 pieceToMove.Position = to.Position;
-			 
+			pieceToMove.Square.Piece = null;
+			to.Piece                 = pieceToMove;
+			pieceToMove.Square       = to;
+			pieceToMove.Position     = to.Position;
 		}
 
 	#endregion
