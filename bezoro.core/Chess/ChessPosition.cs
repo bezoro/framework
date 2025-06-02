@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
@@ -28,20 +29,22 @@ namespace Bezoro.Core.Chess
 		public static bool operator !=(ChessPosition left, ChessPosition right) =>
 			!left.Equals(right);
 
+		public string Algebraic => AlgebraicNotationUtils.ToAlgebraic(File, Rank);
+
 		/// <summary>
 		///     Column (0-7, representing a-h)
 		/// </summary>
 		public int File { get; }
 
 		/// <summary>
-		///     Returns true if this position is within the chess board bounds
-		/// </summary>
-		public bool IsValid => File is >= 0 and < 8 && Rank is >= 0 and < 8;
-
-		/// <summary>
 		///     Row (0-7, representing 1-8)
 		/// </summary>
 		public int Rank { get; }
+
+		/// <summary>
+		///     Returns true if this position is within the chess board bounds
+		/// </summary>
+		public bool IsValid => File is >= 0 and < 8 && Rank is >= 0 and < 8;
 
 	#region Interface Implementations
 
