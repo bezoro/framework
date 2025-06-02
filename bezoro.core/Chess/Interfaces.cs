@@ -9,7 +9,7 @@ namespace Bezoro.Core.Chess
 		int                       Width          { get; }
 		List<IChessPieceModel>    BoardPieces    { get; }
 		List<IChessPieceModel>    CapturedPieces { get; set; }
-		bool TryMovePiece(IChessPieceModel pieceToMove, MoveCommand command);
+		bool TryMovePiece(IChessPieceModel pieceToMove, MovePieceCommand movePieceCommand);
 	}
 
 	public interface IChessBoardSquareModel
@@ -24,7 +24,14 @@ namespace Bezoro.Core.Chess
 		bool TryRemovePiece(IChessPieceModel pieceToRemove);
 	}
 
-	public interface IChessCommand { }
+	public interface ICommand
+	{
+		IChessBoardSquareModel From  { get; }
+		IChessBoardSquareModel To    { get; }
+		IChessPieceModel       Piece { get; }
+		void Execute();
+		void Undo();
+	}
 
 	public interface IChessPieceModel
 	{

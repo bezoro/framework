@@ -265,8 +265,8 @@ namespace Bezoro.Core.Tests.Chess
 			var whitePawn = BoardUtils.GetPieceAt(board, "e2"); // Position file 4, rank 1
 			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
 			var originalSquare = whitePawn.Square;
-			var targetPosition = new ChessPosition(4, 3); // e4 (file 4, rank 3)
-			var command        = new MoveCommand(whitePawn.Position, targetPosition);
+			var targetSquare   = new ChessBoardSquareModel(4, 3); // e4 (file 4, rank 3)
+			var command        = new MovePieceCommand(whitePawn, targetSquare);
 
 			// Act
 			var result = board.TryMovePiece(whitePawn, command);
@@ -275,12 +275,14 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(result,                Is.True, "Move should be successful.");
 			Assert.That(originalSquare?.Piece, Is.Null, "Original square (e2) should be empty after move.");
 			Assert.That(
-				board.Squares[targetPosition.File, targetPosition.Rank].Piece, Is.EqualTo(whitePawn),
+				board.Squares[targetSquare.Position.File, targetSquare.Position.Rank].Piece, Is.EqualTo(whitePawn),
 				"Target square (e4) should contain the moved pawn.");
 
-			Assert.That(whitePawn.Position, Is.EqualTo(targetPosition), "Pawn's position should be updated to e4.");
 			Assert.That(
-				whitePawn.Square, Is.EqualTo(board.Squares[targetPosition.File, targetPosition.Rank]),
+				whitePawn.Position, Is.EqualTo(targetSquare.Position), "Pawn's position should be updated to e4.");
+
+			Assert.That(
+				whitePawn.Square, Is.EqualTo(board.Squares[targetSquare.Position.File, targetSquare.Position.Rank]),
 				"Pawn's square reference should be updated to e4.");
 
 			Assert.That(
@@ -308,8 +310,8 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(blackPawnToCapture.IsCaptured, Is.False,    "Black pawn should not be captured initially.");
 
 			var originalSquare = whitePawn.Square;
-			var targetPosition = new ChessPosition(3, 4); // d5
-			var command        = new MoveCommand(whitePawn.Position, targetPosition);
+			var targetSquare   = new ChessBoardSquareModel(3, 4); // d5
+			var command        = new MovePieceCommand(whitePawn, targetSquare);
 
 			// Act
 			var result = board.TryMovePiece(whitePawn, command);
@@ -318,14 +320,15 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(result,                Is.True, "Move should be successful.");
 			Assert.That(originalSquare?.Piece, Is.Null, "Original square (e4) should be empty after move.");
 			Assert.That(
-				board.Squares[targetPosition.File, targetPosition.Rank].Piece, Is.EqualTo(whitePawn),
+				board.Squares[targetSquare.Position.File, targetSquare.Position.Rank].Piece, Is.EqualTo(whitePawn),
 				"Target square (d5) should contain the moved white pawn.");
 
 			Assert.That(
-				whitePawn.Position, Is.EqualTo(targetPosition), "White pawn's position should be updated to d5.");
+				whitePawn.Position, Is.EqualTo(targetSquare.Position),
+				"White pawn's position should be updated to d5.");
 
 			Assert.That(
-				whitePawn.Square, Is.EqualTo(board.Squares[targetPosition.File, targetPosition.Rank]),
+				whitePawn.Square, Is.EqualTo(board.Squares[targetSquare.Position.File, targetSquare.Position.Rank]),
 				"White pawn's square reference should be updated to d5.");
 
 			Assert.That(blackPawnToCapture.IsCaptured, Is.True, "Black pawn at d5 should be marked as captured.");
@@ -350,8 +353,8 @@ namespace Bezoro.Core.Tests.Chess
 			var originalSquareContent = originalPieceSquare?.Piece;
 
 			// Try to move to e9 (rank 8, which is off board for 0-indexed height 8)
-			var targetPositionOffBoard = new ChessPosition(4, 8);
-			var command                = new MoveCommand(whitePawn.Position, targetPositionOffBoard);
+			var offBoardSquare = new ChessBoardSquareModel(4, 8);
+			var command        = new MovePieceCommand(whitePawn, offBoardSquare);
 
 			// Act
 			var result = board.TryMovePiece(whitePawn, command);
@@ -381,8 +384,8 @@ namespace Bezoro.Core.Tests.Chess
 			var originalPieceSquare   = whiteRook.Square;
 			var originalSquareContent = originalPieceSquare?.Piece;
 
-			var targetPositionOffBoard = new ChessPosition(-1, 0); // Invalid file
-			var command                = new MoveCommand(whiteRook.Position, targetPositionOffBoard);
+			var offBoardSquare = new ChessBoardSquareModel(-1, 0); // Invalid file
+			var command        = new MovePieceCommand(whiteRook, offBoardSquare);
 
 			// Act
 			var result = board.TryMovePiece(whiteRook, command);
@@ -409,8 +412,7 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
 
 			var originalPosition = whitePawn.Position;
-			var targetPosition   = whitePawn.Position; // Moving to the same square
-			var command          = new MoveCommand(originalPosition, targetPosition);
+			var command          = new MovePieceCommand(whitePawn, whitePawn.Square);
 
 			// Act
 			var result = board.TryMovePiece(whitePawn, command);
@@ -448,7 +450,7 @@ namespace Bezoro.Core.Tests.Chess
 			var initialBoardPiecesCount    = board.BoardPieces.Count;
 			var initialCapturedPiecesCount = board.CapturedPieces.Count;
 
-			var moveCommand = new MoveCommand(whitePawnE4.Position, blackPawnD5.Position); // e4 captures d5
+			var moveCommand = new MovePieceCommand(whitePawnE4, blackPawnD5.Square); // e4 captures d5
 
 			// Act
 			var moveResult = board.TryMovePiece(whitePawnE4, moveCommand);
@@ -486,7 +488,7 @@ namespace Bezoro.Core.Tests.Chess
 				"Capture square should now contain the white pawn.");
 
 			Assert.That(
-				board.Squares[moveCommand.From.File, moveCommand.From.Rank].IsEmpty, Is.True,
+				board.Squares[moveCommand.From.Position.File, moveCommand.From.Position.Rank].IsEmpty, Is.True,
 				"Original square (e4) of white pawn should be empty.");
 		}
 
