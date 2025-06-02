@@ -8,6 +8,24 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public class ChessBoardModelTests
 	{
+	#region Helper Methods/Other Members
+
+		private static void AssertPieceExistsAt(
+			IChessPieceModel piece,
+			IChessBoardSquareModel square,
+			ChessPieceType pieceType,
+			PlayerColor color,
+			ChessPosition position)
+		{
+			Assert.That(piece,          Is.Not.Null, $"Piece at {position.Algebraic} (White Rook) should exist.");
+			Assert.That(piece.Square,   Is.SameAs(square));
+			Assert.That(piece.Type,     Is.EqualTo(pieceType));
+			Assert.That(piece.Color,    Is.EqualTo(color));
+			Assert.That(piece.Position, Is.EqualTo(position));
+		}
+
+	#endregion
+
 	#region Constructor Tests
 
 		[Test]
@@ -22,22 +40,22 @@ namespace Bezoro.Core.Tests.Chess
 			// Assert
 			Assert.That(board.BoardPieces, Has.Count.EqualTo(3));
 
-			var e1Piece = BoardUtils.GetPieceAt(board, "e1");
+			var e1Piece = board.GetPieceAt("e1");
 			Assert.That(e1Piece,       Is.Not.Null);
 			Assert.That(e1Piece.Type,  Is.EqualTo(ChessPieceType.King));
 			Assert.That(e1Piece.Color, Is.EqualTo(PlayerColor.White));
 
-			var e8Piece = BoardUtils.GetPieceAt(board, "e8");
+			var e8Piece = board.GetPieceAt("e8");
 			Assert.That(e8Piece,       Is.Not.Null);
 			Assert.That(e8Piece.Type,  Is.EqualTo(ChessPieceType.King));
 			Assert.That(e8Piece.Color, Is.EqualTo(PlayerColor.Black));
 
-			var a2Piece = BoardUtils.GetPieceAt(board, "a2");
+			var a2Piece = board.GetPieceAt("a2");
 			Assert.That(a2Piece,       Is.Not.Null);
 			Assert.That(a2Piece.Type,  Is.EqualTo(ChessPieceType.Pawn));
 			Assert.That(a2Piece.Color, Is.EqualTo(PlayerColor.White));
 
-			Assert.That(BoardUtils.GetPieceAt(board, "d4"), Is.Null, "An empty square should be null.");
+			Assert.That(board.GetPieceAt("d4"), Is.Null, "An empty square should be null.");
 		}
 
 		[Test]
@@ -83,26 +101,26 @@ namespace Bezoro.Core.Tests.Chess
 
 			// From FEN Rank 8 ("rnbqkbnr") on board rank 2 (index 1):
 			// 'r' (a8 FEN) -> a2 on board (Squares[0,1])
-			var a2BlackRook = BoardUtils.GetPieceAt(board, "a2");
+			var a2BlackRook = board.GetPieceAt("a2");
 			Assert.That(a2BlackRook,       Is.Not.Null, "Piece at a2 should be Black Rook.");
 			Assert.That(a2BlackRook.Type,  Is.EqualTo(ChessPieceType.Rook));
 			Assert.That(a2BlackRook.Color, Is.EqualTo(PlayerColor.Black));
 
 			// 'n' (b8 FEN) -> b2 on board (Squares[1,1])
-			var b2BlackKnight = BoardUtils.GetPieceAt(board, "b2");
+			var b2BlackKnight = board.GetPieceAt("b2");
 			Assert.That(b2BlackKnight,       Is.Not.Null, "Piece at b2 should be Black Knight.");
 			Assert.That(b2BlackKnight.Type,  Is.EqualTo(ChessPieceType.Knight));
 			Assert.That(b2BlackKnight.Color, Is.EqualTo(PlayerColor.Black));
 
 			// From FEN Rank 7 ("pppppppp") on board rank 1 (index 0):
 			// 'p' (a7 FEN) -> a1 on board (Squares[0,0])
-			var a1BlackPawn = BoardUtils.GetPieceAt(board, "a1");
+			var a1BlackPawn = board.GetPieceAt("a1");
 			Assert.That(a1BlackPawn,       Is.Not.Null, "Piece at a1 should be Black Pawn.");
 			Assert.That(a1BlackPawn.Type,  Is.EqualTo(ChessPieceType.Pawn));
 			Assert.That(a1BlackPawn.Color, Is.EqualTo(PlayerColor.Black));
 
 			// 'p' (b7 FEN) -> b1 on board (Squares[1,0])
-			var b1BlackPawn = BoardUtils.GetPieceAt(board, "b1");
+			var b1BlackPawn = board.GetPieceAt("b1");
 			Assert.That(b1BlackPawn,       Is.Not.Null, "Piece at b1 should be Black Pawn.");
 			Assert.That(b1BlackPawn.Type,  Is.EqualTo(ChessPieceType.Pawn));
 			Assert.That(b1BlackPawn.Color, Is.EqualTo(PlayerColor.Black));
@@ -123,7 +141,7 @@ namespace Bezoro.Core.Tests.Chess
 
 			// FEN rank 2 ("r1") maps to board's highest rank (rank 3, index 2)
 			// 'r' at file 'a' -> board.Squares[0,2] (algebraic a3)
-			var a3Piece = BoardUtils.GetPieceAt(board, "a3");
+			var a3Piece = board.GetPieceAt("a3");
 			Assert.That(a3Piece,          Is.Not.Null, "Black Rook (from FEN r1) should be at a3 on 3x3 board.");
 			Assert.That(a3Piece.Type,     Is.EqualTo(ChessPieceType.Rook));
 			Assert.That(a3Piece.Color,    Is.EqualTo(PlayerColor.Black));
@@ -131,21 +149,21 @@ namespace Bezoro.Core.Tests.Chess
 
 			// FEN rank 1 ("1P") maps to board's next rank down (rank 2, index 1)
 			// 'P' at file 'b' -> board.Squares[1,1] (algebraic b2)
-			var b2Piece = BoardUtils.GetPieceAt(board, "b2");
+			var b2Piece = board.GetPieceAt("b2");
 			Assert.That(b2Piece,          Is.Not.Null, "White Pawn (from FEN 1P) should be at b2 on 3x3 board.");
 			Assert.That(b2Piece.Type,     Is.EqualTo(ChessPieceType.Pawn));
 			Assert.That(b2Piece.Color,    Is.EqualTo(PlayerColor.White));
 			Assert.That(b2Piece.Position, Is.EqualTo(new ChessPosition(1, 1)));
 
 			// Check other squares are empty
-			Assert.That(BoardUtils.GetPieceAt(board, "a1"), Is.Null); // sq[0,0]
-			Assert.That(BoardUtils.GetPieceAt(board, "b1"), Is.Null); // sq[1,0]
-			Assert.That(BoardUtils.GetPieceAt(board, "c1"), Is.Null); // sq[2,0]
-			Assert.That(BoardUtils.GetPieceAt(board, "a2"), Is.Null); // sq[0,1] (b2 is Pawn)
-			Assert.That(BoardUtils.GetPieceAt(board, "c2"), Is.Null); // sq[2,1]
+			Assert.That(board.GetPieceAt("a1"), Is.Null); // sq[0,0]
+			Assert.That(board.GetPieceAt("b1"), Is.Null); // sq[1,0]
+			Assert.That(board.GetPieceAt("c1"), Is.Null); // sq[2,0]
+			Assert.That(board.GetPieceAt("a2"), Is.Null); // sq[0,1] (b2 is Pawn)
+			Assert.That(board.GetPieceAt("c2"), Is.Null); // sq[2,1]
 			// sq[0,2] is Rook, sq[1,2] should be empty
-			Assert.That(BoardUtils.GetPieceAt(board, "b3"), Is.Null); // sq[1,2]
-			Assert.That(BoardUtils.GetPieceAt(board, "c3"), Is.Null); // sq[2,2]
+			Assert.That(board.GetPieceAt("b3"), Is.Null); // sq[1,2]
+			Assert.That(board.GetPieceAt("c3"), Is.Null); // sq[2,2]
 		}
 
 		[Test]
@@ -177,44 +195,138 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(board.BoardPieces, Has.Count.EqualTo(32), "Should be 32 pieces on a standard board.");
 
 			// White pieces (Rank 1: index 0, Rank 2: index 1)
-			var a1Piece = BoardUtils.GetPieceAt(board, "a1");
-			Assert.That(a1Piece,          Is.Not.Null, "Piece at a1 (White Rook) should exist.");
-			Assert.That(a1Piece.Type,     Is.EqualTo(ChessPieceType.Rook));
-			Assert.That(a1Piece.Color,    Is.EqualTo(PlayerColor.White));
-			Assert.That(a1Piece.Square,   Is.SameAs(board.Squares[0, 0]));
-			Assert.That(a1Piece.Position, Is.EqualTo(new ChessPosition(0, 0)));
+			var a1Piece  = board.GetPieceAt("a1");
+			var a1Square = board.GetSquareAt("a1");
+			AssertPieceExistsAt(a1Piece, a1Square, ChessPieceType.Rook, PlayerColor.White, new(0, 0));
 
-			var e1Piece = BoardUtils.GetPieceAt(board, "e1");
-			Assert.That(e1Piece,                  Is.Not.Null, "Piece at e1 (White King) should exist.");
-			Assert.That(e1Piece.Type,             Is.EqualTo(ChessPieceType.King));
-			Assert.That(e1Piece.Color,            Is.EqualTo(PlayerColor.White));
-			Assert.That(e1Piece.Square?.Position, Is.EqualTo(new ChessPosition(4, 0)));
+			var b1Piece  = board.GetPieceAt("b1");
+			var b1Square = board.GetSquareAt("b1");
+			AssertPieceExistsAt(b1Piece, b1Square, ChessPieceType.Knight, PlayerColor.White, new(1, 0));
 
-			var h2Piece = BoardUtils.GetPieceAt(board, "h2");
-			Assert.That(h2Piece,                  Is.Not.Null, "Piece at h2 (White Pawn) should exist.");
-			Assert.That(h2Piece.Type,             Is.EqualTo(ChessPieceType.Pawn));
-			Assert.That(h2Piece.Color,            Is.EqualTo(PlayerColor.White));
-			Assert.That(h2Piece.Square?.Position, Is.EqualTo(new ChessPosition(7, 1)));
+			var c1Piece  = board.GetPieceAt("c1");
+			var c1Square = board.GetSquareAt("c1");
+			AssertPieceExistsAt(c1Piece, c1Square, ChessPieceType.Bishop, PlayerColor.White, new(2, 0));
+
+			var d1Piece  = board.GetPieceAt("d1");
+			var d1Square = board.GetSquareAt("d1");
+			AssertPieceExistsAt(d1Piece, d1Square, ChessPieceType.Queen, PlayerColor.White, new(3, 0));
+
+			var e1Piece  = board.GetPieceAt("e1");
+			var e1Square = board.GetSquareAt("e1");
+			AssertPieceExistsAt(e1Piece, e1Square, ChessPieceType.King, PlayerColor.White, new(4, 0));
+
+			var f1Piece  = board.GetPieceAt("f1");
+			var f1Square = board.GetSquareAt("f1");
+			AssertPieceExistsAt(f1Piece, f1Square, ChessPieceType.Bishop, PlayerColor.White, new(5, 0));
+
+			var g1Piece  = board.GetPieceAt("g1");
+			var g1Square = board.GetSquareAt("g1");
+			AssertPieceExistsAt(g1Piece, g1Square, ChessPieceType.Knight, PlayerColor.White, new(6, 0));
+
+			var h1Piece  = board.GetPieceAt("h1");
+			var h1Square = board.GetSquareAt("h1");
+			AssertPieceExistsAt(h1Piece, h1Square, ChessPieceType.Rook, PlayerColor.White, new(7, 0));
+
+			var a2Piece  = board.GetPieceAt("a2");
+			var a2Square = board.GetSquareAt("a2");
+			AssertPieceExistsAt(a2Piece, a2Square, ChessPieceType.Pawn, PlayerColor.White, new(0, 1));
+
+			var b2Piece  = board.GetPieceAt("b2");
+			var b2Square = board.GetSquareAt("b2");
+			AssertPieceExistsAt(b2Piece, b2Square, ChessPieceType.Pawn, PlayerColor.White, new(1, 1));
+
+			var c2Piece  = board.GetPieceAt("c2");
+			var c2Square = board.GetSquareAt("c2");
+			AssertPieceExistsAt(c2Piece, c2Square, ChessPieceType.Pawn, PlayerColor.White, new(2, 1));
+
+			var d2Piece  = board.GetPieceAt("d2");
+			var d2Square = board.GetSquareAt("d2");
+			AssertPieceExistsAt(d2Piece, d2Square, ChessPieceType.Pawn, PlayerColor.White, new(3, 1));
+
+			var e2Piece  = board.GetPieceAt("e2");
+			var e2Square = board.GetSquareAt("e2");
+			AssertPieceExistsAt(e2Piece, e2Square, ChessPieceType.Pawn, PlayerColor.White, new(4, 1));
+
+			var f2Piece  = board.GetPieceAt("f2");
+			var f2Square = board.GetSquareAt("f2");
+			AssertPieceExistsAt(f2Piece, f2Square, ChessPieceType.Pawn, PlayerColor.White, new(5, 1));
+
+			var g2Piece  = board.GetPieceAt("g2");
+			var g2Square = board.GetSquareAt("g2");
+			AssertPieceExistsAt(g2Piece, g2Square, ChessPieceType.Pawn, PlayerColor.White, new(6, 1));
+
+			var h2Piece  = board.GetPieceAt("h2");
+			var h2Square = board.GetSquareAt("h2");
+			AssertPieceExistsAt(h2Piece, h2Square, ChessPieceType.Pawn, PlayerColor.White, new(7, 1));
 
 			// Black pieces (Rank 8: index 7, Rank 7: index 6)
-			var a8Piece = BoardUtils.GetPieceAt(board, "a8");
-			Assert.That(a8Piece,                  Is.Not.Null, "Piece at a8 (Black Rook) should exist.");
-			Assert.That(a8Piece.Type,             Is.EqualTo(ChessPieceType.Rook));
-			Assert.That(a8Piece.Color,            Is.EqualTo(PlayerColor.Black));
-			Assert.That(a8Piece.Square?.Position, Is.EqualTo(new ChessPosition(0, 7)));
 
-			var e8Piece = BoardUtils.GetPieceAt(board, "e8");
-			Assert.That(e8Piece,       Is.Not.Null, "Piece at e8 (Black King) should exist.");
-			Assert.That(e8Piece.Type,  Is.EqualTo(ChessPieceType.King));
-			Assert.That(e8Piece.Color, Is.EqualTo(PlayerColor.Black));
+			var a8Piece  = board.GetPieceAt("a8");
+			var a8Square = board.GetSquareAt("a8");
+			AssertPieceExistsAt(a8Piece, a8Square, ChessPieceType.Rook, PlayerColor.Black, new(0, 7));
 
-			var h7Piece = BoardUtils.GetPieceAt(board, "h7");
-			Assert.That(h7Piece,       Is.Not.Null, "Piece at h7 (Black Pawn) should exist.");
-			Assert.That(h7Piece.Type,  Is.EqualTo(ChessPieceType.Pawn));
-			Assert.That(h7Piece.Color, Is.EqualTo(PlayerColor.Black));
+			var b8Piece  = board.GetPieceAt("b8");
+			var b8Square = board.GetSquareAt("b8");
+			AssertPieceExistsAt(b8Piece, b8Square, ChessPieceType.Knight, PlayerColor.Black, new(1, 7));
+
+			var c8Piece  = board.GetPieceAt("c8");
+			var c8Square = board.GetSquareAt("c8");
+			AssertPieceExistsAt(c8Piece, c8Square, ChessPieceType.Bishop, PlayerColor.Black, new(2, 7));
+
+			var d8Piece  = board.GetPieceAt("d8");
+			var d8Square = board.GetSquareAt("d8");
+			AssertPieceExistsAt(d8Piece, d8Square, ChessPieceType.Queen, PlayerColor.Black, new(3, 7));
+
+			var e8Piece  = board.GetPieceAt("e8");
+			var e8Square = board.GetSquareAt("e8");
+			AssertPieceExistsAt(e8Piece, e8Square, ChessPieceType.King, PlayerColor.Black, new(4, 7));
+
+			var f8Piece  = board.GetPieceAt("f8");
+			var f8Square = board.GetSquareAt("f8");
+			AssertPieceExistsAt(f8Piece, f8Square, ChessPieceType.Bishop, PlayerColor.Black, new(5, 7));
+
+			var g8Piece  = board.GetPieceAt("g8");
+			var g8Square = board.GetSquareAt("g8");
+			AssertPieceExistsAt(g8Piece, g8Square, ChessPieceType.Knight, PlayerColor.Black, new(6, 7));
+
+			var h8Piece  = board.GetPieceAt("h8");
+			var h8Square = board.GetSquareAt("h8");
+			AssertPieceExistsAt(h8Piece, h8Square, ChessPieceType.Rook, PlayerColor.Black, new(7, 7));
+
+			var a7Piece  = board.GetPieceAt("a7");
+			var a7Square = board.GetSquareAt("a7");
+			AssertPieceExistsAt(a7Piece, a7Square, ChessPieceType.Pawn, PlayerColor.Black, new(0, 6));
+
+			var b7Piece  = board.GetPieceAt("b7");
+			var b7Square = board.GetSquareAt("b7");
+			AssertPieceExistsAt(b7Piece, b7Square, ChessPieceType.Pawn, PlayerColor.Black, new(1, 6));
+
+			var c7Piece  = board.GetPieceAt("c7");
+			var c7Square = board.GetSquareAt("c7");
+			AssertPieceExistsAt(c7Piece, c7Square, ChessPieceType.Pawn, PlayerColor.Black, new(2, 6));
+
+			var d7Piece  = board.GetPieceAt("d7");
+			var d7Square = board.GetSquareAt("d7");
+			AssertPieceExistsAt(d7Piece, d7Square, ChessPieceType.Pawn, PlayerColor.Black, new(3, 6));
+
+			var e7Piece  = board.GetPieceAt("e7");
+			var e7Square = board.GetSquareAt("e7");
+			AssertPieceExistsAt(e7Piece, e7Square, ChessPieceType.Pawn, PlayerColor.Black, new(4, 6));
+
+			var f7Piece  = board.GetPieceAt("f7");
+			var f7Square = board.GetSquareAt("f7");
+			AssertPieceExistsAt(f7Piece, f7Square, ChessPieceType.Pawn, PlayerColor.Black, new(5, 6));
+
+			var g7Piece  = board.GetPieceAt("g7");
+			var g7Square = board.GetSquareAt("g7");
+			AssertPieceExistsAt(g7Piece, g7Square, ChessPieceType.Pawn, PlayerColor.Black, new(6, 6));
+
+			var h7Piece  = board.GetPieceAt("h7");
+			var h7Square = board.GetSquareAt("h7");
+			AssertPieceExistsAt(h7Piece, h7Square, ChessPieceType.Pawn, PlayerColor.Black, new(7, 6));
 
 			// Check an empty square in the middle
-			var e4Piece = BoardUtils.GetPieceAt(board, "e4");
+			var e4Piece = board.GetPieceAt("e4");
 			Assert.That(e4Piece,                     Is.Null, "Square e4 should be empty.");
 			Assert.That(board.Squares[4, 3].IsEmpty, Is.True);
 		}
@@ -258,39 +370,39 @@ namespace Bezoro.Core.Tests.Chess
 	#region TryMovePiece Tests
 
 		[Test]
-		public void TryMovePiece_ValidMoveToEmptySquare_UpdatesBoardAndReturnsTrue()
+		public void TryMovePiece_ToEmptySquare_UpdatesBoardAndReturnsTrue()
 		{
 			// Arrange
-			var board     = new ChessBoardModel(8, 8, FenUtility.StandardBoard);
-			var whitePawn = BoardUtils.GetPieceAt(board, "e2"); // Position file 4, rank 1
+			var board     = new ChessBoardModel();  // Standard 8x8 board
+			var whitePawn = board.GetPieceAt("e2"); // Position file 4, rank 1
 			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
 			var originalSquare = whitePawn.Square;
-			var targetSquare   = new ChessBoardSquareModel(4, 3); // e4 (file 4, rank 3)
+			var targetSquare   = board.GetSquareAt("e3"); // Get the square
 			var command        = new MovePieceCommand(whitePawn, targetSquare);
 
 			// Act
-			var result = board.TryMovePiece(whitePawn, command);
+			var result = board.TryMovePiece(command);
 
 			// Assert
 			Assert.That(result,                Is.True, "Move should be successful.");
 			Assert.That(originalSquare?.Piece, Is.Null, "Original square (e2) should be empty after move.");
 			Assert.That(
-				board.Squares[targetSquare.Position.File, targetSquare.Position.Rank].Piece, Is.EqualTo(whitePawn),
-				"Target square (e4) should contain the moved pawn.");
+				targetSquare.Piece, Is.EqualTo(whitePawn),
+				"Target square (e3) should contain the moved pawn.");
 
 			Assert.That(
-				whitePawn.Position, Is.EqualTo(targetSquare.Position), "Pawn's position should be updated to e4.");
+				whitePawn.Position, Is.EqualTo(targetSquare.Position), "Pawn's position should be updated to e3.");
 
 			Assert.That(
-				whitePawn.Square, Is.EqualTo(board.Squares[targetSquare.Position.File, targetSquare.Position.Rank]),
-				"Pawn's square reference should be updated to e4.");
+				whitePawn.Square, Is.EqualTo(targetSquare),
+				"Pawn's square reference should be updated to e3.");
 
 			Assert.That(
-				BoardUtils.GetPieceAt(board, "e2"), Is.Null, "BoardUtils should not find piece at old position e2.");
+				board.GetPieceAt("e2"), Is.Null, "BoardUtils should not find piece at old position e2.");
 
 			Assert.That(
-				BoardUtils.GetPieceAt(board, "e4"), Is.EqualTo(whitePawn),
-				"BoardUtils should find piece at new position e4.");
+				board.GetPieceAt("e3"), Is.EqualTo(whitePawn),
+				"BoardUtils should find piece at new position e3.");
 		}
 
 		[Test]
@@ -302,19 +414,19 @@ namespace Bezoro.Core.Tests.Chess
 			var fen   = FenUtility.ParseFen("8/8/8/3p4/4P3/8/8/8 w - - 0 1");
 			var board = new ChessBoardModel(8, 8, fen);
 
-			var whitePawn          = BoardUtils.GetPieceAt(board, "e4"); // File 4, Rank 3
-			var blackPawnToCapture = BoardUtils.GetPieceAt(board, "d5"); // File 3, Rank 4
+			var whitePawn          = board.GetPieceAt("e4"); // File 4, Rank 3
+			var blackPawnToCapture = board.GetPieceAt("d5"); // File 3, Rank 4
 
 			Assert.That(whitePawn,                     Is.Not.Null, "White pawn at e4 should exist.");
 			Assert.That(blackPawnToCapture,            Is.Not.Null, "Black pawn at d5 should exist.");
 			Assert.That(blackPawnToCapture.IsCaptured, Is.False,    "Black pawn should not be captured initially.");
 
 			var originalSquare = whitePawn.Square;
-			var targetSquare   = new ChessBoardSquareModel(3, 4); // d5
+			var targetSquare   = board.GetSquareAt("d5");
 			var command        = new MovePieceCommand(whitePawn, targetSquare);
 
 			// Act
-			var result = board.TryMovePiece(whitePawn, command);
+			var result = board.TryMovePiece(command);
 
 			// Assert
 			Assert.That(result,                Is.True, "Move should be successful.");
@@ -333,102 +445,11 @@ namespace Bezoro.Core.Tests.Chess
 
 			Assert.That(blackPawnToCapture.IsCaptured, Is.True, "Black pawn at d5 should be marked as captured.");
 			Assert.That(
-				BoardUtils.GetPieceAt(board, "e4"), Is.Null, "BoardUtils should not find piece at old position e4.");
+				board.GetPieceAt("e4"), Is.Null, "BoardUtils should not find piece at old position e4.");
 
 			Assert.That(
-				BoardUtils.GetPieceAt(board, "d5"), Is.EqualTo(whitePawn),
+				board.GetPieceAt("d5"), Is.EqualTo(whitePawn),
 				"BoardUtils should find the white pawn at new position d5.");
-		}
-
-		[Test]
-		public void TryMovePiece_InvalidMoveOffBoard_ReturnsFalseAndBoardUnchanged()
-		{
-			// Arrange
-			var board     = new ChessBoardModel(8, 8, FenUtility.StandardBoard);
-			var whitePawn = BoardUtils.GetPieceAt(board, "e2"); // Position file 4, rank 1
-			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
-
-			var originalPiecePosition = whitePawn.Position;
-			var originalPieceSquare   = whitePawn.Square;
-			var originalSquareContent = originalPieceSquare?.Piece;
-
-			// Try to move to e9 (rank 8, which is off board for 0-indexed height 8)
-			var offBoardSquare = new ChessBoardSquareModel(4, 8);
-			var command        = new MovePieceCommand(whitePawn, offBoardSquare);
-
-			// Act
-			var result = board.TryMovePiece(whitePawn, command);
-
-			// Assert
-			Assert.That(result,             Is.False,                          "Move off board should fail.");
-			Assert.That(whitePawn.Position, Is.EqualTo(originalPiecePosition), "Pawn's position should not change.");
-			Assert.That(
-				whitePawn.Square, Is.EqualTo(originalPieceSquare), "Pawn's square reference should not change.");
-
-			Assert.That(
-				originalPieceSquare?.Piece, Is.EqualTo(originalSquareContent),
-				"Original square's content should not change.");
-
-			Assert.That(BoardUtils.GetPieceAt(board, "e2"), Is.EqualTo(whitePawn), "Piece should still be at e2.");
-		}
-
-		[Test]
-		public void TryMovePiece_InvalidMoveOffBoard_NegativeCoordinates_ReturnsFalseAndBoardUnchanged()
-		{
-			// Arrange
-			var board     = new ChessBoardModel(8, 8, FenUtility.StandardBoard);
-			var whiteRook = BoardUtils.GetPieceAt(board, "a1"); // Position file 0, rank 0
-			Assert.That(whiteRook, Is.Not.Null, "White rook at a1 should exist.");
-
-			var originalPiecePosition = whiteRook.Position;
-			var originalPieceSquare   = whiteRook.Square;
-			var originalSquareContent = originalPieceSquare?.Piece;
-
-			var offBoardSquare = new ChessBoardSquareModel(-1, 0); // Invalid file
-			var command        = new MovePieceCommand(whiteRook, offBoardSquare);
-
-			// Act
-			var result = board.TryMovePiece(whiteRook, command);
-
-			// Assert
-			Assert.That(result,             Is.False, "Move with negative coordinate should fail.");
-			Assert.That(whiteRook.Position, Is.EqualTo(originalPiecePosition), "Rook's position should not change.");
-			Assert.That(
-				whiteRook.Square, Is.EqualTo(originalPieceSquare), "Rook's square reference should not change.");
-
-			Assert.That(
-				originalPieceSquare?.Piece, Is.EqualTo(originalSquareContent),
-				"Original square's content should not change.");
-
-			Assert.That(BoardUtils.GetPieceAt(board, "a1"), Is.EqualTo(whiteRook), "Piece should still be at a1.");
-		}
-
-		[Test]
-		public void TryMovePiece_MoveToSameSquare_ReturnsTrueAndEffectivelyNoChange()
-		{
-			// Arrange
-			var board     = new ChessBoardModel();
-			var whitePawn = BoardUtils.GetPieceAt(board, "e2"); // Position file 4, rank 1
-			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
-
-			var originalPosition = whitePawn.Position;
-			var command          = new MovePieceCommand(whitePawn, whitePawn.Square);
-
-			// Act
-			var result = board.TryMovePiece(whitePawn, command);
-
-			// Assert
-			Assert.That(
-				result, Is.True, "Move to the same square should be considered successful by the current logic.");
-
-			Assert.That(
-				board.Squares[originalPosition.File, originalPosition.Rank].Piece, Is.EqualTo(whitePawn),
-				"Pawn should still be on its original square.");
-
-			Assert.That(whitePawn.Position, Is.EqualTo(originalPosition), "Pawn's position should remain e2.");
-			Assert.That(
-				whitePawn.Square, Is.EqualTo(board.Squares[originalPosition.File, originalPosition.Rank]),
-				"Pawn's square reference should remain e2.");
 		}
 
 		[Test]
@@ -441,8 +462,8 @@ namespace Bezoro.Core.Tests.Chess
 
 			var board = new ChessBoardModel(8, 8, fen);
 
-			var whitePawnE4 = BoardUtils.GetPieceAt(board, "e4"); // White Pawn at e4
-			var blackPawnD5 = BoardUtils.GetPieceAt(board, "d5"); // Black Pawn at d5 (target)
+			var whitePawnE4 = board.GetPieceAt("e4"); // White Pawn at e4
+			var blackPawnD5 = board.GetPieceAt("d5"); // Black Pawn at d5 (target)
 
 			Assert.That(whitePawnE4, Is.Not.Null, "White pawn at e4 should exist.");
 			Assert.That(blackPawnD5, Is.Not.Null, "Black pawn at d5 should exist.");
@@ -453,7 +474,7 @@ namespace Bezoro.Core.Tests.Chess
 			var moveCommand = new MovePieceCommand(whitePawnE4, blackPawnD5.Square); // e4 captures d5
 
 			// Act
-			var moveResult = board.TryMovePiece(whitePawnE4, moveCommand);
+			var moveResult = board.TryMovePiece(moveCommand);
 
 			// Assert
 			Assert.That(moveResult, Is.True, "Move (capture) should be successful.");
@@ -480,11 +501,11 @@ namespace Bezoro.Core.Tests.Chess
 
 			// Check moving piece's new state
 			Assert.That(
-				whitePawnE4.Position, Is.EqualTo(blackPawnD5.Position),
+				whitePawnE4.Position, Is.EqualTo(board.GetSquareAt("d5").Position),
 				"White pawn should now be at the capture square (d5).");
 
 			Assert.That(
-				board.Squares[blackPawnD5.Position.File, blackPawnD5.Position.Rank].Piece, Is.EqualTo(whitePawnE4),
+				board.GetPieceAt("d5"), Is.EqualTo(whitePawnE4),
 				"Capture square should now contain the white pawn.");
 
 			Assert.That(
