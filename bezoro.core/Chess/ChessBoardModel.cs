@@ -57,28 +57,8 @@ namespace Bezoro.Core.Chess
 
 		public bool IsValidPosition(string algebraicPosition)
 		{
-			ChessPosition position;
-
-			try
-			{
-				position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine(e);
-				throw;
-			}
-
-			return position.File >= 0 && position.File < Width && position.Rank >= 0 && position.Rank < Height;
-		}
-
-		public void CreatePieceAt(string algebraicPosition, PlayerColor color, ChessPieceType pieceType)
-		{
-			
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			var piece    = new ChessPieceModel(color, pieceType);
-			Squares[position.File, position.Rank].TrySetPiece(piece);
-			BoardPieces.Add(piece);
+			return position.File >= 0 && position.File < Width && position.Rank >= 0 && position.Rank < Height;
 		}
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
