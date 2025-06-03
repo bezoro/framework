@@ -102,7 +102,7 @@ namespace Bezoro.Core.Chess
 			if (board == null)
 				throw new ArgumentNullException(nameof(board));
 
-			var file = To.Position.File;
+			var file = To.Position.Column;
 			var rank = To.Position.Rank;
 			if (file < 0 || file >= board.Width || rank < 0 || rank >= board.Height)
 				throw new InvalidOperationException(TargetOffBoardMessage);

@@ -78,7 +78,7 @@ namespace Bezoro.Core.Chess.Utils
 				throw new ArgumentNullException(nameof(position));
 			}
 
-			return ToAlgebraic(position.File, position.Rank);
+			return ToAlgebraic(position.Column, position.Rank);
 		}
 
 		/// <summary>

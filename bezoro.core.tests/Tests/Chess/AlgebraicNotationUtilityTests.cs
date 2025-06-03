@@ -50,8 +50,8 @@ namespace Bezoro.Core.Tests.Chess
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraic);
 
 			// Assert
-			Assert.That(position.File, Is.EqualTo(expectedFile));
-			Assert.That(position.Rank, Is.EqualTo(expectedRank));
+			Assert.That(position.Column, Is.EqualTo(expectedFile));
+			Assert.That(position.Rank,   Is.EqualTo(expectedRank));
 		}
 
 		[TestCase("",  TestName = "FromAlgebraic_EmptyInput_ThrowsArgumentNullException")]

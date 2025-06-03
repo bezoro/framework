@@ -18,7 +18,7 @@ namespace Bezoro.Core.Chess.Utils
 				throw;
 			}
 
-			var file = position.File;
+			var file = position.Column;
 			var rank = position.Rank;
 			return IsPositionWithinBoardBounds(board, file, rank) ? null! : board.Squares[file, rank];
 		}
@@ -44,7 +44,7 @@ namespace Bezoro.Core.Chess.Utils
 				throw;
 			}
 
-			var file = position.File;
+			var file = position.Column;
 			var rank = position.Rank;
 			return IsPositionWithinBoardBounds(board, file, rank) ? null : board.Squares[file, rank].Piece;
 		}
