@@ -7,12 +7,6 @@ namespace Bezoro.Core.Chess.Utils
 	/// </summary>
 	public static class AlgebraicNotationUtils
 	{
-		// Define a maximum rank number that FromAlgebraic will consider valid during parsing.
-		// This is an arbitrary limit chosen to make inputs like "z99" fail,
-		// as implied by some test cases expecting such inputs to be "malformed".
-		// Note: This creates an asymmetry with ToAlgebraic, which can generate ranks beyond this.
-		private const int MaxParseableRankNumber = 128;
-
 		/// <summary>
 		///     Converts an algebraic square notation string to a ChessPosition object (0-indexed file and rank).
 		///     Example: "a1" returns new ChessPosition(0, 0).
@@ -55,7 +49,7 @@ namespace Bezoro.Core.Chess.Utils
 			if (!int.TryParse(rankPart, out var rankNumber) || rankNumber < 1 || rankNumber > maxRank)
 			{
 				throw new ArgumentException(
-					$"Invalid rank part '{rankPart}' in notation '{algebraicSquare}'. Must be a positive number between 1 and {MaxParseableRankNumber}.",
+					$"Invalid rank part '{rankPart}' in notation '{algebraicSquare}'. Must be a positive number between 1 and {maxRank}.",
 					nameof(algebraicSquare));
 			}
 
