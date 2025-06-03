@@ -11,6 +11,7 @@ namespace Bezoro.Core.Chess
 		List<IChessPieceModel>    BoardPieces    { get; }
 		List<IChessPieceModel>    CapturedPieces { get; set; }
 		BoardPosition? GetPosition(IChessPieceModel piece);
+		bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite);
 		bool TryMovePiece(MovePieceCommand movePieceCommand);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
 	}
@@ -31,6 +32,7 @@ namespace Bezoro.Core.Chess
 	{
 		bool        HasMoved { get; }
 		PlayerColor Color    { get; }
+		PlayerColor Opposite { get; }
 
 		IEnumerable<Move> GetValidMoves(IChessBoardModel board);
 		void MarkMoved();

@@ -12,8 +12,16 @@ namespace Bezoro.Core.Chess
 
 		private readonly IMoveGenerator _moveGenerator;
 
-		public PlayerColor Color    { get; }
-		public bool        HasMoved { get; private set; }
+		public PlayerColor Color { get; }
+
+		public PlayerColor Opposite => Color switch
+		{
+			PlayerColor.White => PlayerColor.Black,
+			PlayerColor.Black => PlayerColor.White,
+			_                 => PlayerColor.None
+		};
+
+		public bool HasMoved { get; private set; }
 
 	#region Interface Implementations
 
