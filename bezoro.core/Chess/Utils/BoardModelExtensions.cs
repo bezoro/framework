@@ -6,13 +6,13 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class BoardModelExtensions
 	{
-		public static bool IsValidPosition(this IChessBoardModel board, string algebraicPosition)
+		public static bool IsInside(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			return IsValidPosition(board, position.Column, position.Row);
+			return IsInside(board, position.Column, position.Row);
 		}
 
-		public static bool IsValidPosition(this IChessBoardModel board, int col, int row) =>
+		public static bool IsInside(this IChessBoardModel board, int col, int row) =>
 			col    >= 0
 			&& col < board.Width
 			&& row >= 0
