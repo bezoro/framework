@@ -6,12 +6,29 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class BoardModelExtensions
 	{
+		/// <summary>
+		///     Determines whether the specified algebraic position is within the board boundaries.
+		/// </summary>
+		/// <param name="board">The chess board model to check against.</param>
+		/// <param name="algebraicPosition">The position in algebraic notation (e.g., "e4", "h8").</param>
+		/// <returns>
+		///     <c>true</c> if the position is inside the board boundaries; otherwise, <c>false</c>.
+		/// </returns>
 		public static bool IsInside(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
 			return IsInside(board, position.Column, position.Row);
 		}
 
+		/// <summary>
+		///     Determines whether the specified column and row coordinates are within the board boundaries.
+		/// </summary>
+		/// <param name="board">The chess board model to check against.</param>
+		/// <param name="col">The column (file) coordinate to check.</param>
+		/// <param name="row">The row (rank) coordinate to check.</param>
+		/// <returns>
+		///     <c>true</c> if the coordinates are inside the board boundaries; otherwise, <c>false</c>.
+		/// </returns>
 		public static bool IsInside(this IChessBoardModel board, int col, int row) =>
 			col    >= 0
 			&& col < board.Width
