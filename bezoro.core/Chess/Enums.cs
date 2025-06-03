@@ -3,6 +3,18 @@ using System;
 namespace Bezoro.Core.Chess
 {
 	/// <summary>
+	///     Identifies which side (king- or queen-side) a player wishes to castle on.
+	///     A value of <see cref="None" /> should be supplied only when the caller
+	///     does not yet know which side is intended.
+	/// </summary>
+	public enum CastleSide
+	{
+		None      = 0,
+		KingSide  = 1,
+		QueenSide = 2
+	}
+
+	/// <summary>
 	///     Represents the castling rights available to players.
 	///     Can be combined using bitwise operations as it's a flags enum.
 	/// </summary>
@@ -91,6 +103,18 @@ namespace Bezoro.Core.Chess
 		InProgress,
 		/// <summary> The game has concluded. The specific outcome is detailed by a GameOutcome object. </summary>
 		Finished
+	}
+
+	/// <summary>
+	///     Enumerates the high-level categories a move can belong to.
+	/// </summary>
+	public enum MoveKind
+	{
+		Normal,
+		Capture,
+		EnPassant,
+		Promotion,
+		Castle
 	}
 
 	/// <summary>
