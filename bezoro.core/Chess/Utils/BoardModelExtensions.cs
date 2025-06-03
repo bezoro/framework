@@ -9,11 +9,14 @@ namespace Bezoro.Core.Chess.Utils
 		public static bool IsValidPosition(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			return position.Column    >= 0
-				   && position.Column < board.Width
-				   && position.Rank   >= 0
-				   && position.Rank   < board.Height;
+			return IsValidPosition(board, position.Column, position.Row);
 		}
+
+		public static bool IsValidPosition(this IChessBoardModel board, int col, int row) =>
+			col    >= 0
+			&& col < board.Width
+			&& row >= 0
+			&& row < board.Height;
 
 		/// <summary>
 		///     Returns every square that lies directly next to
