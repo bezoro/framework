@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
+using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
 	/// <summary>
-	///     Generates every pseudo-legal move for a single king, including:
-	///     • all 8 adjacent squares (captures + quiet moves)
-	///     • castling (king/queen-side) when the corresponding rights exist
+	///     Generates every pseudo-legal move for a single king:
+	///     • 8 adjacent squares (captures plus quiet moves)
+	///     • castling (k/q-side) – the right is now delegated to
+	///     <see cref="KingModel.CanCastle" />.
 	/// </summary>
 	public sealed class KingMoveGenerator : IMoveGenerator
 	{
@@ -45,62 +47,52 @@ namespace Bezoro.Core.Chess
 				var tf = file + df;
 				var tr = rank + dr;
 
-				if (!IsInside(board, tf, tr)) continue;
+				if (!board.IsInside(tf, tr))
+					continue;
 
-				var targetPiece = board.Squares[tf, tr].GetPiece();
-				if (targetPiece is null)
+				var target = board.Squares[tf, tr].GetPiece();
+				if (target is null)
 				{
 					moves.Add(new(currentPos.Value, new(tf, tr)));
 				}
-				else if (targetPiece.Color != king.Color)
+				else if (target.Color != king.Color)
 				{
 					moves.Add(new(currentPos.Value, new(tf, tr), MoveKind.Capture));
 				}
 			}
 
 			//------------------------------------------------------------------
-			// 3. Castling (rights, empty squares, king & rook unmoved)
-			//
-			// NOTE: Attack checks are intentionally left out here because the
-			// engine does not expose such functionality yet. They can be added
-			// later by filtering the move list at a higher level.
+			// 3. Castling – delegate the rights check to KingModel
 			//------------------------------------------------------------------
 			if (king.HasMoved)
-				return moves;
+				return moves; // a moved king may no longer castle
 
-			if (king.Color == PlayerColor.White)
+			var homeRank = king.Color == PlayerColor.White ? 0 : board.Height - 1;
+
+			// Describe both castle options once and loop over them
+			var castleOptions = new[]
 			{
-				AddCastling(
-					board, moves,
-					CastlingRights.WhiteKingSide,
-					new(4, 0),                // king start
-					new[] { (5, 0), (6, 0) }, // king path squares that must be empty
-					new(6, 0));               // king destination
+				new
+				{
+					Side       = CastleSide.KingSide,
+					RookFile   = 7, // h-file
+					KingTarget = 6  // g-file
+				},
+				new
+				{
+					Side       = CastleSide.QueenSide,
+					RookFile   = 0, // a-file
+					KingTarget = 2  // c-file
+				}
+			};
 
-				AddCastling(
-					board, moves,
-					CastlingRights.WhiteQueenSide,
-					new(4, 0),
-					new[] { (3, 0), (2, 0), (1, 0) },
-					new(2, 0));
-			}
-			else // black
+			foreach (var opt in castleOptions)
 			{
-				var backRank = board.Height - 1;
+				var kingStart = new BoardPosition(4,              homeRank); // e-file
+				var rookStart = new BoardPosition(opt.RookFile,   homeRank);
+				var kingDest  = new BoardPosition(opt.KingTarget, homeRank);
 
-				AddCastling(
-					board, moves,
-					CastlingRights.BlackKingSide,
-					new(4, backRank),
-					new[] { (5, backRank), (6, backRank) },
-					new(6, backRank));
-
-				AddCastling(
-					board, moves,
-					CastlingRights.BlackQueenSide,
-					new(4, backRank),
-					new[] { (3, backRank), (2, backRank), (1, backRank) },
-					new(2, backRank));
+				TryAddCastle(board, king, moves, opt.Side, kingStart, rookStart, kingDest);
 			}
 
 			return moves;
@@ -108,30 +100,43 @@ namespace Bezoro.Core.Chess
 
 	#endregion
 
-	#region Helper Methods
-
-		private static bool IsInside(IChessBoardModel board, int file, int rank) =>
-			file >= 0 && file < board.Width && rank >= 0 && rank < board.Height;
-
-		private static void AddCastling(
+		private static void TryAddCastle(
 			IChessBoardModel board,
+			KingModel king,
 			ICollection<Move> moves,
-			CastlingRights requiredRight,
+			CastleSide side,
 			BoardPosition kingStart,
-			IEnumerable<(int f, int r)> emptySquares,
+			BoardPosition rookStart,
 			BoardPosition kingDestination)
 		{
-			if (!board.CastlingRights.HasFlag(requiredRight)) return;
+			// 1. Global rights + king / rook unmoved
+			if (!king.CanCastle(board.CastlingRights, side))
+				return;
 
-			foreach (var (f, r) in emptySquares)
+			// 2. Every square between the king and rook must be empty.
+			//    We can ask the board itself for that straight path.
+			if (board is BoardModel concreteBoard)
 			{
-				if (!IsInside(board, f, r) || board.Squares[f, r].GetPiece() is not null)
-					return;
+				foreach (var sq in concreteBoard.GetStraightPath(kingStart, rookStart))
+				{
+					if (sq.GetPiece() is not null)
+						return;
+				}
 			}
+			else
+			{
+				// Fallback: manual scan if we are given a different board implementation.
+				var step = Math.Sign(rookStart.Column - kingStart.Column);
+				for (var f = kingStart.Column + step ; f != rookStart.Column ; f += step)
+				{
+					if (board.Squares[f, kingStart.Rank].GetPiece() is not null)
+						return;
+				}
+			}
+
+			// 3. (Optional) check for check along the path – still deferred.
 
 			moves.Add(new(kingStart, kingDestination, MoveKind.Castle));
 		}
-
-	#endregion
 	}
 }
