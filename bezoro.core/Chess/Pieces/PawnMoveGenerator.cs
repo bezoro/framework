@@ -12,7 +12,7 @@ namespace Bezoro.Core.Chess
 	///     • captures (+ promotion)
 	///     • en-passant captures
 	/// </summary>
-	public sealed class PawnMoveGenerator : IMoveGenerator
+	public sealed class PawnPseudoMoveGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 
@@ -20,7 +20,7 @@ namespace Bezoro.Core.Chess
 		{
 			if (board is null) throw new ArgumentNullException(nameof(board));
 			if (piece is not PawnModel pawn)
-				throw new ArgumentException("Piece supplied to PawnMoveGenerator is not a pawn.", nameof(piece));
+				throw new ArgumentException("Piece supplied to PawnPseudoMoveGenerator is not a pawn.", nameof(piece));
 
 			var result = new List<Move>();
 

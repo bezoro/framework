@@ -5,7 +5,7 @@ namespace Bezoro.Core.Chess
 	public class PawnModel : PieceModel
 	{
 		public PawnModel(PlayerColor color)
-			: base(color, new PawnMoveGenerator())
+			: base(color, new PawnPseudoMoveGenerator())
 		{
 			Direction = color == PlayerColor.White ? 1 : -1;
 		}
