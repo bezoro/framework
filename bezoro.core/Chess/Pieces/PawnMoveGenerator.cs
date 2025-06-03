@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
@@ -69,29 +70,11 @@ namespace Bezoro.Core.Chess
 
 	#endregion
 
-		//----------------------------------------------------------------------
-		// Helper methods
-		//----------------------------------------------------------------------
-
-		private static BoardPosition? FindPosition(IChessBoardModel board, IChessPieceModel piece)
-		{
-			for (var f = 0 ; f < board.Width ; f++)
-			{
-				for (var r = 0 ; r < board.Height ; r++)
-				{
-					if (board.Squares[f, r].GetPiece() == piece)
-						return new BoardPosition(f, r);
-				}
-			}
-
-			return null;
-		}
-
 		private static bool IsEmpty(IChessBoardModel board, BoardPosition pos) =>
 			IsInside(board, pos.File, pos.Rank) && board.Squares[pos.File, pos.Rank].GetPiece() is null;
 
 		private static bool IsInside(IChessBoardModel board, int file, int rank) =>
-			file >= 0 && file < board.Width && rank >= 0 && rank < board.Height;
+			board.IsInside(file, rank);
 
 		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
@@ -108,7 +91,7 @@ namespace Bezoro.Core.Chess
 			var targetPiece = board.Squares[targetFile, targetRank].GetPiece();
 			if (targetPiece is null || targetPiece.Color == pawn.Color) return;
 
-			var from = FindPosition(board, pawn)!.Value;
+			var from = board.GetPosition(pawn)!.Value;
 			var to   = new BoardPosition(targetFile, targetRank);
 
 			AddMoveOrPromotion(pawn, from, to, MoveKind.Capture, moves, board);
@@ -128,7 +111,7 @@ namespace Bezoro.Core.Chess
 			if (adjacentPawn is null || adjacentPawn.Color == pawn.Color || !adjacentPawn.JustAdvancedTwoSquares)
 				return;
 
-			var from = FindPosition(board, pawn)!.Value;
+			var from = board.GetPosition(pawn)!.Value;
 			var to   = new BoardPosition(adjacentFile, rank + dir);
 
 			if (IsEmpty(board, to))
