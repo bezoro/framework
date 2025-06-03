@@ -43,7 +43,7 @@ namespace Bezoro.Core.Chess.Utils
 		///     returned.
 		/// </summary>
 		public static IEnumerable<IChessBoardSquareModel> GetAdjacentSquares(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition position,
 			bool includeDiagonals = false)
 		{
@@ -67,17 +67,17 @@ namespace Bezoro.Core.Chess.Utils
 		}
 
 		public static IEnumerable<IChessBoardSquareModel> GetDiagonalSquares(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition origin)
 			=> board.GetSlidingSquares(origin, DirectionVectors.Diagonal);
 
 		public static IEnumerable<IChessBoardSquareModel> GetOrthogonalSquares(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition origin)
 			=> board.GetSlidingSquares(origin, DirectionVectors.Orthogonal);
 
 		public static IEnumerable<IChessBoardSquareModel> GetQueenSquares(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition origin)
 			=> board.GetSlidingSquares(
 				origin,
@@ -90,7 +90,7 @@ namespace Bezoro.Core.Chess.Utils
 		///     The blocking square (if any) is included in the result.
 		/// </summary>
 		public static IEnumerable<IChessBoardSquareModel> GetSlidingSquares(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition origin,
 			IEnumerable<(int dx, int dy)> directions)
 		{
@@ -119,7 +119,7 @@ namespace Bezoro.Core.Chess.Utils
 		///     stops).
 		/// </summary>
 		private static IEnumerable<IChessBoardSquareModel> WalkRay(
-			this BoardModel board,
+			this IChessBoardModel board,
 			BoardPosition from,
 			int dx,
 			int dy)
