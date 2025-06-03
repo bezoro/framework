@@ -66,16 +66,37 @@ namespace Bezoro.Core.Chess.Utils
 			}
 		}
 
+		/// <summary>
+		///     Returns all squares that can be reached by moving diagonally from the origin position,
+		///     similar to a bishop's movement pattern.
+		/// </summary>
+		/// <param name="board">The chess board model.</param>
+		/// <param name="origin">The starting position.</param>
+		/// <returns>A collection of squares reachable by diagonal movement.</returns>
 		public static IEnumerable<IChessBoardSquareModel> GetDiagonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin)
 			=> board.GetSlidingSquares(origin, DirectionVectors.Diagonal);
 
+		/// <summary>
+		///     Returns all squares that can be reached by moving horizontally or vertically from the origin position,
+		///     similar to a rook's movement pattern.
+		/// </summary>
+		/// <param name="board">The chess board model.</param>
+		/// <param name="origin">The starting position.</param>
+		/// <returns>A collection of squares reachable by orthogonal movement.</returns>
 		public static IEnumerable<IChessBoardSquareModel> GetOrthogonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin)
 			=> board.GetSlidingSquares(origin, DirectionVectors.Orthogonal);
 
+		/// <summary>
+		///     Returns all squares that can be reached by moving in any direction from the origin position,
+		///     similar to a queen's movement pattern (combining rook and bishop movements).
+		/// </summary>
+		/// <param name="board">The chess board model.</param>
+		/// <param name="origin">The starting position.</param>
+		/// <returns>A collection of squares reachable by queen-like movement.</returns>
 		public static IEnumerable<IChessBoardSquareModel> GetQueenSquares(
 			this IChessBoardModel board,
 			BoardPosition origin)
@@ -84,7 +105,7 @@ namespace Bezoro.Core.Chess.Utils
 				DirectionVectors.Orthogonal.Concat(DirectionVectors.Diagonal));
 
 		/// <summary>
-		///     Enumerates all squares reachable from <paramref name="origin" /> by
+		///     Lists all squares reachable from <paramref name="origin" /> by
 		///     sliding in every given <paramref name="directions" /> ray until an
 		///     edge or a blocking piece is met.
 		///     The blocking square (if any) is included in the result.
@@ -105,20 +126,13 @@ namespace Bezoro.Core.Chess.Utils
 			}
 		}
 
-		public static void CreatePieceAt(
-			this IChessBoardModel board,
-			string algebraicPosition,
-			PlayerColor color,
-			ChessPieceType pieceType) =>
-			throw new NotImplementedException();
-
 		/// <summary>
 		///     Steps square-by-square from the field next to <paramref name="from" />
 		///     following <paramref name="dx" /> / <paramref name="dy" /> until the board
 		///     edge or the first occupied square (which is yielded and then the walk
 		///     stops).
 		/// </summary>
-		private static IEnumerable<IChessBoardSquareModel> WalkRay(
+		public static IEnumerable<IChessBoardSquareModel> WalkRay(
 			this IChessBoardModel board,
 			BoardPosition from,
 			int dx,
@@ -139,5 +153,20 @@ namespace Bezoro.Core.Chess.Utils
 				rank += dy;
 			}
 		}
+
+		/// <summary>
+		///     Creates a new chess piece of the specified type and color at the given algebraic position.
+		/// </summary>
+		/// <param name="board">The chess board model.</param>
+		/// <param name="algebraicPosition">The target position in algebraic notation (e.g., "e4").</param>
+		/// <param name="color">The color of the piece to create.</param>
+		/// <param name="pieceType">The type of the piece to create.</param>
+		/// <exception cref="NotImplementedException">This method is not implemented yet.</exception>
+		public static void CreatePieceAt(
+			this IChessBoardModel board,
+			string algebraicPosition,
+			PlayerColor color,
+			ChessPieceType pieceType) =>
+			throw new NotImplementedException();
 	}
 }
