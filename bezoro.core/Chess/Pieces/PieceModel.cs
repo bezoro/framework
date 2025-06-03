@@ -4,13 +4,13 @@ namespace Bezoro.Core.Chess
 {
 	public abstract class PieceModel : IChessPieceModel
 	{
-		protected PieceModel(PlayerColor color, IMoveGenerator moveGenerator)
+		protected PieceModel(PlayerColor color, IPseudoMoveGenerator pseudoMoveGenerator)
 		{
-			Color          = color;
-			_moveGenerator = moveGenerator;
+			Color                = color;
+			_pseudoMoveGenerator = pseudoMoveGenerator;
 		}
 
-		private readonly IMoveGenerator _moveGenerator;
+		private readonly IPseudoMoveGenerator _pseudoMoveGenerator;
 
 		public PlayerColor Color { get; }
 
@@ -26,7 +26,7 @@ namespace Bezoro.Core.Chess
 	#region Interface Implementations
 
 		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
-			_moveGenerator.Generate(board, this);
+			_pseudoMoveGenerator.Generate(board, this);
 
 		public void MarkMoved() =>
 			HasMoved = true;
@@ -37,8 +37,9 @@ namespace Bezoro.Core.Chess
 	#endregion
 	}
 
-	public interface IMoveGenerator
+	public interface IPseudoMoveGenerator
 	{
+		/// <summary>Return all moves that are geometrically possible for <paramref name="piece" />.</summary>
 		IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece);
 	}
 }
