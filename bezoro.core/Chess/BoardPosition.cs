@@ -1,129 +1,90 @@
 ﻿using System;
+using System.Numerics;
 using Bezoro.Core.Chess.Utils;
+
+// Vector2
+
+// Algebraic helpers
 
 namespace Bezoro.Core.Chess
 {
 	/// <summary>
-	///     Represents a position on the chess board using file (column) and rank (row)
+	///     Immutable value object that represents a square on a rectangular board.
+	///     The default board is 8×8, but arbitrary dimensions are supported.
 	/// </summary>
 	public readonly struct BoardPosition : IEquatable<BoardPosition>
 	{
-		/// <summary>
-		///     Initializes a new BoardPosition with specified file and rank
-		/// </summary>
-		/// <param name="file">Column (0-based, representing a-h)</param>
-		/// <param name="rank">Row (0-based, representing 1-8)</param>
-		/// <param name="maxCol">Maximum number of columns on the board</param>
-		/// <param name="maxRow">Maximum number of rows on the board</param>
-		/// <exception cref="ArgumentOutOfRangeException">Thrown when maxCol or maxRow are less than 1</exception>
-		public BoardPosition(int file, int rank, int maxCol = 8, int maxRow = 8)
+		/// <summary>Create from 0-based file / rank.</summary>
+		public BoardPosition(int column, int rank, int maxCol = 8, int maxRow = 8)
 		{
-			if (maxCol < 1) throw new ArgumentOutOfRangeException(nameof(maxCol), "Board must have at least 1 column");
-			if (maxRow < 1) throw new ArgumentOutOfRangeException(nameof(maxRow), "Board must have at least 1 row");
+			if (maxCol < 1) throw new ArgumentOutOfRangeException(nameof(maxCol));
+			if (maxRow < 1) throw new ArgumentOutOfRangeException(nameof(maxRow));
 
-			File   = file;
+			Column = column;
 			Rank   = rank;
-			MaxRow = maxRow;
 			MaxCol = maxCol;
+			MaxRow = maxRow;
+
+			Algebraic = IsValid(Column, Rank, MaxCol, MaxRow)
+				? $"{(char)('a' + Column)}{Rank + 1}"
+				: "Invalid";
 		}
 
-		/// <summary>
-		///     Initializes a new BoardPosition from algebraic notation
-		/// </summary>
-		/// <param name="algebraic">Algebraic notation (e.g., "e4")</param>
-		/// <param name="maxCol">Maximum number of columns on the board</param>
-		/// <param name="maxRow">Maximum number of rows on the board</param>
-		/// <exception cref="ArgumentOutOfRangeException">Thrown when maxCol or maxRow are less than 1</exception>
+		/// <summary>Create from algebraic string (e.g. "e4").</summary>
 		public BoardPosition(string algebraic, int maxCol = 8, int maxRow = 8)
-		{
-			if (maxCol < 1) throw new ArgumentOutOfRangeException(nameof(maxCol), "Board must have at least 1 column");
-			if (maxRow < 1) throw new ArgumentOutOfRangeException(nameof(maxRow), "Board must have at least 1 row");
+			: this(
+				AlgebraicNotationUtils.FromAlgebraic(algebraic).Column,
+				AlgebraicNotationUtils.FromAlgebraic(algebraic).Rank,
+				maxCol, maxRow) { }
 
-			var position = AlgebraicNotationUtils.FromAlgebraic(algebraic);
-			File   = position.File;
-			Rank   = position.Rank;
-			MaxRow = maxRow;
-			MaxCol = maxCol;
-		}
+		/// <summary>Create from a <see cref="Vector2" /> (X=file, Y=rank).</summary>
+		public static BoardPosition FromVector(Vector2 vec, int maxCol = 8, int maxRow = 8) =>
+			new((int)vec.X, (int)vec.Y, maxCol, maxRow);
 
-		public static bool operator ==(BoardPosition left, BoardPosition right) =>
-			left.Equals(right);
+		public static bool operator ==(BoardPosition left, BoardPosition right) => left.Equals(right);
+		public static bool operator !=(BoardPosition left, BoardPosition right) => !(left == right);
 
-		public static bool operator !=(BoardPosition left, BoardPosition right) =>
-			!left.Equals(right);
+		/// <summary>“a”.. “h” for 8×8, or generalized up to 26 columns.</summary>
+		public char File => (char)('a' + Column);
+		public int Column { get; } // 0-based column
+		public int MaxCol { get; } // board width
+		public int MaxRow { get; } // board height
+		public int Rank   { get; } // 0-based row
+		public int Row    => Rank;
 
-		/// <summary>
-		///     Column (0-based, representing a-h)
-		/// </summary>
-		public int File { get; }
+		/// <summary>Pre-computed algebraic notation or “Invalid”.</summary>
+		public string Algebraic { get; }
 
-		/// <summary>
-		///     Maximum number of columns on the board
-		/// </summary>
-		public int MaxCol { get; }
-
-		/// <summary>
-		///     Maximum number of rows on the board
-		/// </summary>
-		public int MaxRow { get; }
-
-		/// <summary>
-		///     Row (0-based, representing 1-8)
-		/// </summary>
-		public int Rank { get; }
-
-		/// <summary>
-		///     Gets the algebraic notation representation of this position
-		/// </summary>
-		public string Algebraic => AlgebraicNotationUtils.ToAlgebraic(File, Rank);
+		/// <summary>Column/row pair as a Vector2 (<c>X=file</c>, <c>Y=rank</c>).</summary>
+		public Vector2 Vector => new(Column, Rank);
 
 	#region Interface Implementations
 
-		/// <summary>
-		///     Determines whether this position is equal to another position
-		/// </summary>
-		/// <param name="other">The position to compare with</param>
-		/// <returns>True if positions are equal (same file, rank, and board dimensions)</returns>
 		public bool Equals(BoardPosition other) =>
-			File == other.File && Rank == other.Rank && MaxCol == other.MaxCol && MaxRow == other.MaxRow;
+			Column == other.Column && Rank == other.Rank && MaxCol == other.MaxCol && MaxRow == other.MaxRow;
 
 	#endregion
 
-		/// <summary>
-		///     Determines whether this position is equal to the specified object
-		/// </summary>
-		/// <param name="obj">The object to compare with</param>
-		/// <returns>True if the object is a BoardPosition and equals this position</returns>
-		public override bool Equals(object obj) =>
+		public override bool Equals(object? obj) =>
 			obj is BoardPosition other && Equals(other);
 
-		/// <summary>
-		///     Returns the hash code for this position
-		/// </summary>
-		/// <returns>A hash code combining all position properties</returns>
 		public override int GetHashCode() =>
-			HashCode.Combine(File, Rank, MaxCol, MaxRow);
+			HashCode.Combine(Column, Rank, MaxCol, MaxRow);
 
-		/// <summary>
-		///     Convert to chess notation (e.g., "e4") or "Invalid" for invalid positions
-		/// </summary>
-		/// <returns>String representation of the position</returns>
-		public override string ToString()
+		public override string ToString() => Algebraic;
+
+		/// <returns><c>true</c> when the square lies inside the board.</returns>
+		public bool IsValid() =>
+			Column >= 0 && Column < MaxCol && Rank >= 0 && Rank < MaxRow;
+
+		/// <summary>Deconstruct into file and rank (both 0-based).</summary>
+		public void Deconstruct(out int file, out int rank)
 		{
-			if (!IsValid())
-				return "Invalid";
-
-			// Additional safety check for character conversion
-			if (File < 0 || File >= 26)
-				return "Invalid";
-
-			return $"{(char)('a' + File)}{Rank + 1}";
+			file = Column;
+			rank = Rank;
 		}
 
-		/// <summary>
-		///     Returns true if this position is within the chess board bounds
-		/// </summary>
-		/// <returns>True if the position is valid for the current board dimensions</returns>
-		public bool IsValid() => File >= 0 && File < MaxCol && Rank >= 0 && Rank < MaxRow;
+		private static bool IsValid(int file, int rank, int maxCol, int maxRow) =>
+			file >= 0 && file < maxCol && rank >= 0 && rank < maxRow;
 	}
 }
