@@ -1,6 +1,7 @@
+using System.Collections.Generic;
 using Bezoro.Core.Chess;
 
 public interface IGameRules
 {
-	bool IsCastleLegal(KingModel king, CastleSide side);
+	IEnumerable<Move> FilterLegalMoves(IChessBoardModel board, IChessPieceModel piece);
 }
