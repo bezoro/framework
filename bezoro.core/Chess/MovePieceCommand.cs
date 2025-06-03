@@ -16,12 +16,7 @@ namespace Bezoro.Core.Chess
 
 		public MovePieceCommand(IChessPieceModel movingPiece, IChessBoardSquareModel destinationSquare)
 		{
-			PieceToMove = movingPiece ?? throw new ArgumentNullException(nameof(movingPiece));
-			From = movingPiece.Square
-				   ?? throw new ArgumentException(
-					   "Piece must be on a board square.", nameof(movingPiece));
-
-			To = destinationSquare ?? throw new ArgumentNullException(nameof(destinationSquare));
+			throw new NotImplementedException();
 		}
 
 		private IChessPieceModel?      _capturedPiece;
@@ -45,33 +40,8 @@ namespace Bezoro.Core.Chess
 			PerformMove(board);
 		}
 
-		public void Undo(IChessBoardModel board)
-		{
-			if (board == null)
-				throw new ArgumentNullException(nameof(board));
-
-			if (From == To)
-				throw new InvalidOperationException(DifferentSquaresMessage);
-
-			// 1) Remove the moved piece from the destination
-			if (!To.TryRemovePiece(PieceToMove))
-				throw new InvalidOperationException(RemoveMoveFailureMessage);
-
-			// 2) Restore any captured piece
-			if (_capturedPiece != null)
-			{
-				if (!To.TrySetPiece(_capturedPiece))
-					throw new InvalidOperationException("Failed to restore the captured piece to its square.");
-
-				_capturedPiece.IsCaptured = false;
-				board.CapturedPieces.Remove(_capturedPiece);
-				board.BoardPieces.Add(_capturedPiece);
-			}
-
-			// 3) Put the moving piece back
-			if (!From.TrySetPiece(PieceToMove))
-				throw new InvalidOperationException("Failed to return the moving piece to its source square.");
-		}
+		public void Undo(IChessBoardModel board) =>
+			throw new NotImplementedException();
 
 	#endregion
 
@@ -81,21 +51,10 @@ namespace Bezoro.Core.Chess
 				throw new InvalidOperationException(FriendlyCaptureMessage);
 		}
 
-		private void HandleCapture(IChessPieceModel captured, IChessBoardModel board)
-		{
-			if (!To.TryRemovePiece(captured))
-				throw new InvalidOperationException(RemoveCaptureFailureMessage);
+		private void HandleCapture(IChessPieceModel captured, IChessBoardModel board) =>
+			throw new NotImplementedException();
 
-			_capturedPiece            = captured;
-			_capturedPiece.IsCaptured = true;
-			board.CapturedPieces.Add(_capturedPiece);
-			board.BoardPieces.Remove(captured);
-		}
-
-		private void PerformMove(IChessBoardModel board)
-		{
-			PieceToMove.TryMove(board, To);
-		}
+		private void PerformMove(IChessBoardModel board) { }
 
 		private void Validate(IChessBoardModel board)
 		{
