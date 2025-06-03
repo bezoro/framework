@@ -163,6 +163,9 @@ namespace Bezoro.Core.Chess
 
 	#region Interface implementations
 
+		public bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite) =>
+			throw new NotImplementedException();
+
 		public bool TryMovePiece(MovePieceCommand movePieceCommand)
 		{
 			if (movePieceCommand == null)
