@@ -1,54 +1,37 @@
-using System;
-using Bezoro.Core.Chess.Utils;
-
 namespace Bezoro.Core.Chess
 {
 	public class BoardSquareModel : IChessBoardSquareModel
 	{
-		public BoardSquareModel(BoardPosition position)
+		public BoardSquareModel(BoardPosition position, IChessPieceModel? piece = null)
 		{
 			Position = position;
-			Piece    = null; // Start with no piece on the square
+			Piece    = piece;
 		}
 
-		public BoardSquareModel(int row, int col) : this(new(row, col)) { }
+		public BoardSquareModel(int col, int row) : this(new(col, row)) { }
 
-		public BoardPosition Position   { get; }
-		public bool          IsEmpty    => Piece == null;
-		public bool          IsOccupied => Piece != null;
-
-		public bool              IsHighlightedAsValidMove { get; set; }
-		public bool              IsSelected               { get; set; }
-		public IChessPieceModel? Piece                    { get; set; }
+		public BoardPosition     Position   { get; }
+		public bool              IsEmpty    => Piece == null;
+		public bool              IsOccupied => Piece != null;
+		public IChessPieceModel? Piece      { get; set; }
 
 	#region Interface Implementations
 
-		public bool TryRemovePiece(IChessPieceModel pieceToRemove)
-		{
-			if (Piece != pieceToRemove)
-				return false;
+		public void SetPiece(IChessPieceModel piece) =>
+			Piece = piece;
 
-			pieceToRemove.Square   = null;
-			pieceToRemove.Position = default;
-			Piece                  = null;
-			return true;
+		public void RemovePiece(IChessPieceModel piece)
+		{
+			if (piece != Piece)
+				return;
+
+			Piece = null;
 		}
 
-		public bool TrySetPiece(IChessPieceModel pieceToSet)
-		{
-			if (pieceToSet == null)
-				throw new ArgumentNullException(nameof(pieceToSet));
+		public void ClearPiece() => Piece = null;
 
-			if (Piece == pieceToSet)
-				return false;
-
-			// ???: Should I allow it so we can overwrite a piece on the square?
-			if (Piece != null)
-				return false;
-
-			pieceToSet.SetAtSquare(this);
-			return true;
-		}
+		public IChessPieceModel? GetPiece() =>
+			Piece;
 
 	#endregion
 	}
