@@ -6,7 +6,7 @@ namespace Bezoro.Core.Chess.Utils
 	{
 		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, string algebraicPosition)
 		{
-			ChessPosition position;
+			BoardPosition position;
 
 			try
 			{
@@ -32,7 +32,7 @@ namespace Bezoro.Core.Chess.Utils
 		/// </remarks>
 		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, string algebraicPosition)
 		{
-			ChessPosition position;
+			BoardPosition position;
 
 			try
 			{

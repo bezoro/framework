@@ -16,11 +16,11 @@ namespace Bezoro.Core.Chess
 
 	public interface IChessBoardSquareModel
 	{
+		BoardPosition     Position                 { get; }
 		bool              IsEmpty                  { get; }
 		bool              IsHighlightedAsValidMove { get; set; }
 		bool              IsOccupied               { get; }
 		bool              IsSelected               { get; set; }
-		ChessPosition     Position                 { get; }
 		IChessPieceModel? Piece                    { get; set; }
 
 		bool TryRemovePiece(IChessPieceModel pieceToRemove);
@@ -39,21 +39,21 @@ namespace Bezoro.Core.Chess
 
 	public interface IChessPieceModel
 	{
-		ChessPieceType          Type       { get; }
-		PlayerColor             Color      { get; }
+		BoardPosition           Position   { get; set; }
 		bool                    IsCaptured { get; set; }
 		bool                    IsSelected { get; set; }
-		ChessPosition           Position   { get; set; }
+		ChessPieceType          Type       { get; }
 		IChessBoardSquareModel? Square     { get; set; }
-		event Action?           CapturedEnemyPiece;
-		event Action?           WasCaptured;
-		event Action?           WasMoved;
-		event Action?           WasSelected;
-		event Action?           WasUnselected;
-		bool TryRemoveSelfFromBoard(IChessBoardModel board);
+		PlayerColor             Color      { get; }
+		bool TryDeselect();
 		bool TryGetCaptured(IChessBoardModel board);
 		bool TryGetSelected();
 		bool TryMove(IChessBoardModel board, IChessBoardSquareModel to);
-		bool TryDeselect();
+		bool TryRemoveSelfFromBoard(IChessBoardModel board);
+		event Action? CapturedEnemyPiece;
+		event Action? WasCaptured;
+		event Action? WasMoved;
+		event Action? WasSelected;
+		event Action? WasUnselected;
 	}
 }

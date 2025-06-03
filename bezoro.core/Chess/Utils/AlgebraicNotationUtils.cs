@@ -8,18 +8,18 @@ namespace Bezoro.Core.Chess.Utils
 	public static class AlgebraicNotationUtils
 	{
 		/// <summary>
-		///     Converts an algebraic square notation string to a ChessPosition object (0-indexed file and rank).
-		///     Example: "a1" returns new ChessPosition(0, 0).
-		///     Example: "e4" returns new ChessPosition(4, 3).
+		///     Converts an algebraic square notation string to a BoardPosition object (0-indexed file and rank).
+		///     Example: "a1" returns new BoardPosition(0, 0).
+		///     Example: "e4" returns new BoardPosition(4, 3).
 		/// </summary>
 		/// <param name="algebraicSquare">The algebraic notation string (e.g., "e4"). Case-insensitive.</param>
-		/// <returns>A ChessPosition object with 0-indexed File and Rank.</returns>
+		/// <returns>A BoardPosition object with 0-indexed File and Rank.</returns>
 		/// <exception cref="ArgumentNullException">If algebraicSquare is null or whitespace.</exception>
 		/// <exception cref="ArgumentException">
 		///     If algebraicSquare is not in a valid format (e.g., "a", "1e", "e0", "aa1", or rank
 		///     exceeds <see cref="MaxParseableRankNumber" />).
 		/// </exception>
-		public static ChessPosition FromAlgebraic(string algebraicSquare, char maxFile = 'h', int maxRank = 8)
+		public static BoardPosition FromAlgebraic(string algebraicSquare, char maxFile = 'h', int maxRank = 8)
 		{
 			if (string.IsNullOrWhiteSpace(algebraicSquare))
 			{
@@ -60,18 +60,18 @@ namespace Bezoro.Core.Chess.Utils
 		}
 
 		/// <summary>
-		///     Converts a ChessPosition (0-indexed file and rank) to algebraic notation string.
-		///     Example: new ChessPosition(0, 0) returns "a1".
-		///     Example: new ChessPosition(4, 3) returns "e4".
+		///     Converts a BoardPosition (0-indexed file and rank) to algebraic notation string.
+		///     Example: new BoardPosition(0, 0) returns "a1".
+		///     Example: new BoardPosition(4, 3) returns "e4".
 		/// </summary>
-		/// <param name="position">The ChessPosition object containing 0-indexed File and Rank.</param>
+		/// <param name="position">The BoardPosition object containing 0-indexed File and Rank.</param>
 		/// <returns>The algebraic notation string for the square.</returns>
 		/// <exception cref="ArgumentNullException">If position is null.</exception>
 		/// <exception cref="ArgumentOutOfRangeException">
 		///     If File or Rank in position are outside expected ranges for conversion
 		///     (File 0-25, Rank non-negative).
 		/// </exception>
-		public static string ToAlgebraic(ChessPosition position)
+		public static string ToAlgebraic(BoardPosition position)
 		{
 			if (position == null)
 			{

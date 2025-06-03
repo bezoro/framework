@@ -4,9 +4,9 @@ using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
-	public class ChessBoardModel : IChessBoardModel
+	public class BoardModel : IChessBoardModel
 	{
-		public ChessBoardModel(int width = 8, int height = 8, FenData? boardSetup = null)
+		public BoardModel(int width = 8, int height = 8, FenData? boardSetup = null)
 		{
 			if (width  <= 0) throw new ArgumentOutOfRangeException(nameof(width),  "Width must be positive.");
 			if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), "Height must be positive.");
@@ -62,7 +62,7 @@ namespace Bezoro.Core.Chess
 			{
 				for (var col = 0 ; col < height ; col++)
 				{
-					squares[row, col] = new ChessBoardSquareModel(new(row, col));
+					squares[row, col] = new BoardSquareModel(new(row, col));
 				}
 			}
 
@@ -116,7 +116,7 @@ namespace Bezoro.Core.Chess
 		{
 			var pieceColor = char.IsUpper(pieceSymbol) ? PlayerColor.White : PlayerColor.Black;
 			var pieceType  = ChessUtils.GetPieceTypeFromChar(char.ToLower(pieceSymbol));
-			var chessPiece = new ChessPieceModel(pieceColor, pieceType);
+			var chessPiece = new PieceModel(pieceColor, pieceType);
 
 			// Ensure indices are within bounds
 			if (currentFile >= Width || currentRank < 0)

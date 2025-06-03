@@ -3,8 +3,6 @@ using Bezoro.Core.Chess;
 using Bezoro.Core.Chess.Utils;
 using NUnit.Framework;
 
-// Assuming ChessPosition might be in this namespace
-
 namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
@@ -13,7 +11,7 @@ namespace Bezoro.Core.Tests.Chess
 	{
 	#region Test Methods
 
-	#region ToAlgebraic(ChessPosition) Tests
+	#region ToAlgebraic(BoardPosition) Tests
 
 		[TestCase(0,  0,  "a1",  TestName = "ToAlgebraic_Position_0_0_Returns_a1")]
 		[TestCase(7,  7,  "h8",  TestName = "ToAlgebraic_Position_7_7_Returns_h8")]
@@ -23,7 +21,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void ToAlgebraic_Position_ValidCases_ReturnsExpectedNotation(int file, int rank, string expectedNotation)
 		{
 			// Arrange
-			var position = new ChessPosition(file, rank);
+			var position = new BoardPosition(file, rank);
 
 			// Act
 			var notation = AlgebraicNotationUtils.ToAlgebraic(position);
@@ -137,7 +135,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void ToAlgebraic_Overloads_ProduceSameResult(int file, int rank)
 		{
 			// Arrange
-			var position = new ChessPosition(file, rank);
+			var position = new BoardPosition(file, rank);
 
 			// Act
 			var notationFromPosition = AlgebraicNotationUtils.ToAlgebraic(position);
