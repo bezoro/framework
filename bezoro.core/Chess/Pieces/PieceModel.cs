@@ -25,7 +25,7 @@ namespace Bezoro.Core.Chess
 
 	#region Interface Implementations
 
-		public IEnumerable<Move> GetValidMoves(IChessBoardModel board) =>
+		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
 			_moveGenerator.Generate(board, this);
 
 		public void MarkMoved() =>

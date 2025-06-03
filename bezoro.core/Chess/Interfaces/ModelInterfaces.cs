@@ -34,7 +34,7 @@ namespace Bezoro.Core.Chess
 		PlayerColor Color    { get; }
 		PlayerColor Opposite { get; }
 
-		IEnumerable<Move> GetValidMoves(IChessBoardModel board);
+		IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board);
 		void MarkMoved();
 		void ResetMoved();
 	}
