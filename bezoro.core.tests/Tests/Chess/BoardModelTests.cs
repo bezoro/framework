@@ -6,7 +6,7 @@ using NUnit.Framework;
 namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
-	public class ChessBoardModelTests
+	public class BoardModelTests
 	{
 	#region Test Methods
 
@@ -14,7 +14,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void IsValidPosition_ReturnsTrue_WhenPositionIsInsideOfTheBoard()
 		{
 			// Arrange
-			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+			var board = new BoardModel(8, 8, FenUtility.EmptyBoard);
 
 			// Act & Assert
 			Assert.That(board.IsValidPosition("a1"), Is.True);
@@ -29,7 +29,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void IsValidPosition_Throws_WhenPositionIsOutsideOfTheBoard()
 		{
 			// Arrange
-			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+			var board = new BoardModel(8, 8, FenUtility.EmptyBoard);
 
 			// Act & Assert
 			Assert.That(() => board.IsValidPosition("a0"), Throws.Exception);
@@ -49,7 +49,7 @@ namespace Bezoro.Core.Tests.Chess
 			IChessBoardSquareModel square,
 			ChessPieceType pieceType,
 			PlayerColor color,
-			ChessPosition position)
+			BoardPosition position)
 		{
 			Assert.That(piece,          Is.Not.Null, $"Piece at {position.Algebraic} (White Rook) should exist.");
 			Assert.That(piece.Square,   Is.SameAs(square));
@@ -66,7 +66,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void CreatePieceAt_ValidPosition_CreatesPiece()
 		{
 			// Arrange
-			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+			var board = new BoardModel(8, 8, FenUtility.EmptyBoard);
 
 			// Act
 			board.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.Pawn);
@@ -86,7 +86,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void CreatePieceAt_Throws_WhenParametersAreInvalid()
 		{
 			// Arrange
-			var board = new ChessBoardModel(8, 8, FenUtility.EmptyBoard);
+			var board = new BoardModel(8, 8, FenUtility.EmptyBoard);
 
 			// Act & Assert
 			Assert.That(() => board.CreatePieceAt("a1",  PlayerColor.None,  ChessPieceType.Pawn), Throws.Exception);
@@ -106,7 +106,7 @@ namespace Bezoro.Core.Tests.Chess
 			var customFen = FenUtility.ParseFen("4k3/8/8/8/8/8/P7/4K3 w - - 0 1");
 
 			// Act
-			var board = new ChessBoardModel(8, 8, customFen);
+			var board = new BoardModel(8, 8, customFen);
 
 			// Assert
 			Assert.That(board.BoardPieces, Has.Count.EqualTo(3));
@@ -136,7 +136,7 @@ namespace Bezoro.Core.Tests.Chess
 			var emptyFen = FenUtility.ParseFen("8/8/8/8/8/8/8/8 w - - 0 1");
 
 			// Act
-			var board = new ChessBoardModel(8, 8, emptyFen);
+			var board = new BoardModel(8, 8, emptyFen);
 
 			// Assert
 			Assert.That(board.BoardPieces, Is.Empty, "There should be no pieces on an empty board.");
@@ -161,7 +161,7 @@ namespace Bezoro.Core.Tests.Chess
 			var standardFen = FenUtility.StandardBoard;
 
 			// Act: Create a 2x2 board
-			var board = new ChessBoardModel(2, 2, standardFen); // Board is 2 files (a,b) x 2 ranks (1,2)
+			var board = new BoardModel(2, 2, standardFen); // Board is 2 files (a,b) x 2 ranks (1,2)
 
 			// Assert
 			// Only pieces from the FEN's top ranks that fit onto the 2x2 board should be placed.
@@ -205,7 +205,7 @@ namespace Bezoro.Core.Tests.Chess
 			var smallFenData = FenUtility.ParseFen("r1/1P w - - 0 1");
 
 			// Act: Create a 3x3 board using this 2-rank FEN
-			var board = new ChessBoardModel(3, 3, smallFenData); // Board is 3 files (a,b,c) x 3 ranks (1,2,3)
+			var board = new BoardModel(3, 3, smallFenData); // Board is 3 files (a,b,c) x 3 ranks (1,2,3)
 
 			// Assert
 			Assert.That(board.BoardPieces, Has.Count.EqualTo(2));
@@ -216,7 +216,7 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(a3Piece,          Is.Not.Null, "Black Rook (from FEN r1) should be at a3 on 3x3 board.");
 			Assert.That(a3Piece.Type,     Is.EqualTo(ChessPieceType.Rook));
 			Assert.That(a3Piece.Color,    Is.EqualTo(PlayerColor.Black));
-			Assert.That(a3Piece.Position, Is.EqualTo(new ChessPosition(0, 2)));
+			Assert.That(a3Piece.Position, Is.EqualTo(new BoardPosition(0, 2)));
 
 			// FEN rank 1 ("1P") maps to board's next rank down (rank 2, index 1)
 			// 'P' at file 'b' -> board.Squares[1,1] (algebraic b2)
@@ -224,7 +224,7 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.That(b2Piece,          Is.Not.Null, "White Pawn (from FEN 1P) should be at b2 on 3x3 board.");
 			Assert.That(b2Piece.Type,     Is.EqualTo(ChessPieceType.Pawn));
 			Assert.That(b2Piece.Color,    Is.EqualTo(PlayerColor.White));
-			Assert.That(b2Piece.Position, Is.EqualTo(new ChessPosition(1, 1)));
+			Assert.That(b2Piece.Position, Is.EqualTo(new BoardPosition(1, 1)));
 
 			// Check other squares are empty
 			Assert.That(board.GetPieceAt("a1"), Is.Null); // sq[0,0]
@@ -241,16 +241,16 @@ namespace Bezoro.Core.Tests.Chess
 		public void Constructor_InvalidHeight_ThrowsArgumentOutOfRangeException()
 		{
 			var fen = FenUtility.StandardBoard;
-			Assert.Throws<ArgumentOutOfRangeException>(() => new ChessBoardModel(8, 0,  fen));
-			Assert.Throws<ArgumentOutOfRangeException>(() => new ChessBoardModel(8, -5, fen));
+			Assert.Throws<ArgumentOutOfRangeException>(() => new BoardModel(8, 0,  fen));
+			Assert.Throws<ArgumentOutOfRangeException>(() => new BoardModel(8, -5, fen));
 		}
 
 		[Test]
 		public void Constructor_InvalidWidth_ThrowsArgumentOutOfRangeException()
 		{
 			var fen = FenUtility.StandardBoard;
-			Assert.Throws<ArgumentOutOfRangeException>(() => new ChessBoardModel(0,  8, fen));
-			Assert.Throws<ArgumentOutOfRangeException>(() => new ChessBoardModel(-1, 8, fen));
+			Assert.Throws<ArgumentOutOfRangeException>(() => new BoardModel(0,  8, fen));
+			Assert.Throws<ArgumentOutOfRangeException>(() => new BoardModel(-1, 8, fen));
 		}
 
 		[Test]
@@ -260,7 +260,7 @@ namespace Bezoro.Core.Tests.Chess
 			var standardFen = FenUtility.StandardBoard; // "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 			// Act
-			var board = new ChessBoardModel(8, 8, standardFen);
+			var board = new BoardModel(8, 8, standardFen);
 
 			// Assert
 			Assert.That(board.BoardPieces, Has.Count.EqualTo(32), "Should be 32 pieces on a standard board.");
@@ -409,7 +409,7 @@ namespace Bezoro.Core.Tests.Chess
 			var fen = FenUtility.ParseFen("8/8/8/8/8/8/8/8 w - - 0 1"); // Empty board FEN
 
 			// Act
-			var board = new ChessBoardModel(8, 8, fen);
+			var board = new BoardModel(8, 8, fen);
 
 			// Assert
 			Assert.That(board.Width,   Is.EqualTo(8));
@@ -430,7 +430,7 @@ namespace Bezoro.Core.Tests.Chess
 				{
 					Assert.That(board.Squares[f, r], Is.Not.Null, $"Square at [{f},{r}] should be initialized.");
 					Assert.That(
-						board.Squares[f, r].Position, Is.EqualTo(new ChessPosition(f, r)),
+						board.Squares[f, r].Position, Is.EqualTo(new BoardPosition(f, r)),
 						$"Square at [{f},{r}] has incorrect position.");
 				}
 			}
@@ -444,7 +444,7 @@ namespace Bezoro.Core.Tests.Chess
 		public void TryMovePiece_ToEmptySquare_UpdatesBoardAndReturnsTrue()
 		{
 			// Arrange
-			var board     = new ChessBoardModel();  // Standard 8x8 board
+			var board     = new BoardModel();       // Standard 8x8 board
 			var whitePawn = board.GetPieceAt("e2"); // Position file 4, rank 1
 			Assert.That(whitePawn, Is.Not.Null, "White pawn at e2 should exist.");
 			var originalSquare = whitePawn.Square;
@@ -483,7 +483,7 @@ namespace Bezoro.Core.Tests.Chess
 			// Setup: White Pawn e4, Black Pawn d5. White Pawn captures Black Pawn.
 			// FEN: 8/8/8/3p4/4P3/8/8/8 w - - 0 1  (Black pawn at d5, White pawn at e4)
 			var fen   = FenUtility.ParseFen("8/8/8/3p4/4P3/8/8/8 w - - 0 1");
-			var board = new ChessBoardModel(8, 8, fen);
+			var board = new BoardModel(8, 8, fen);
 
 			var whitePawn          = board.GetPieceAt("e4"); // File 4, Rank 3
 			var blackPawnToCapture = board.GetPieceAt("d5"); // File 3, Rank 4
@@ -531,7 +531,7 @@ namespace Bezoro.Core.Tests.Chess
 			var fen = FenUtility.ParseFen(
 				"rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"); // After e4, d5
 
-			var board = new ChessBoardModel(8, 8, fen);
+			var board = new BoardModel(8, 8, fen);
 
 			var whitePawnE4 = board.GetPieceAt("e4"); // White Pawn at e4
 			var blackPawnD5 = board.GetPieceAt("d5"); // Black Pawn at d5 (target)

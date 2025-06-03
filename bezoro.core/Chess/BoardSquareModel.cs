@@ -3,23 +3,23 @@ using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
-	public class ChessBoardSquareModel : IChessBoardSquareModel
+	public class BoardSquareModel : IChessBoardSquareModel
 	{
-		public ChessBoardSquareModel(ChessPosition position)
+		public BoardSquareModel(BoardPosition position)
 		{
 			Position = position;
 			Piece    = null; // Start with no piece on the square
 		}
 
-		public ChessBoardSquareModel(int row, int col) : this(new(row, col)) { }
-	
-		public ChessPosition Position { get; }
-		public bool              IsEmpty    => Piece == null;
-		public bool              IsOccupied => Piece != null;
-		public IChessPieceModel? Piece      { get; set; }
+		public BoardSquareModel(int row, int col) : this(new(row, col)) { }
 
-		public bool IsHighlightedAsValidMove { get; set; }
-		public bool IsSelected               { get; set; }
+		public BoardPosition Position   { get; }
+		public bool          IsEmpty    => Piece == null;
+		public bool          IsOccupied => Piece != null;
+
+		public bool              IsHighlightedAsValidMove { get; set; }
+		public bool              IsSelected               { get; set; }
+		public IChessPieceModel? Piece                    { get; set; }
 
 	#region Interface Implementations
 
@@ -28,9 +28,9 @@ namespace Bezoro.Core.Chess
 			if (Piece != pieceToRemove)
 				return false;
 
-			pieceToRemove.Square = null;
+			pieceToRemove.Square   = null;
 			pieceToRemove.Position = default;
-			Piece                = null;
+			Piece                  = null;
 			return true;
 		}
 

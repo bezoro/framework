@@ -2,9 +2,9 @@ using System;
 
 namespace Bezoro.Core.Chess
 {
-	public class ChessPieceModel : IChessPieceModel
+	public class PieceModel : IChessPieceModel
 	{
-		public ChessPieceModel(PlayerColor color, ChessPieceType type)
+		public PieceModel(PlayerColor color, ChessPieceType type)
 		{
 			Color = color;
 			Type  = type;
@@ -13,9 +13,9 @@ namespace Bezoro.Core.Chess
 		public ChessPieceType Type { get; }
 
 		public PlayerColor             Color      { get; }
+		public BoardPosition           Position   { get; set; }
 		public bool                    IsCaptured { get; set; }
 		public bool                    IsSelected { get; set; }
-		public ChessPosition           Position   { get; set; }
 		public IChessBoardSquareModel? Square     { get; set; }
 
 		public event Action? CapturedEnemyPiece;
@@ -84,7 +84,7 @@ namespace Bezoro.Core.Chess
 				throw new InvalidOperationException("Piece must be on its current square.");
 
 			// 1) Handle capture of an occupying piece
-			if (to.Piece is ChessPieceModel occupant && occupant.Color != Color)
+			if (to.Piece is PieceModel occupant && occupant.Color != Color)
 			{
 				occupant.TryGetCaptured(board);
 				CapturedEnemyPiece?.Invoke();

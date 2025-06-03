@@ -1,8 +1,6 @@
-using System;
-
 namespace Bezoro.Core.Chess.Utils
 {
-	public static class ChessPieceModelExtensions
+	public static class PieceModelExtensions
 	{
 		public static void SetAtSquare(this IChessPieceModel pieceToSet, IChessBoardSquareModel targetSquare)
 		{

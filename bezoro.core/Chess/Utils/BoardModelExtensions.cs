@@ -2,7 +2,7 @@ using System;
 
 namespace Bezoro.Core.Chess.Utils
 {
-	public static class ChessBoardModelExtensions
+	public static class BoardModelExtensions
 	{
 		public static bool IsValidPosition(this IChessBoardModel board, string algebraicPosition)
 		{
@@ -26,7 +26,7 @@ namespace Bezoro.Core.Chess.Utils
 				throw new ArgumentException("Invalid piece type.", nameof(pieceType));
 
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			var piece    = new ChessPieceModel(color, pieceType);
+			var piece    = new PieceModel(color, pieceType);
 			board.Squares[position.File, position.Rank].TrySetPiece(piece);
 			board.BoardPieces.Add(piece);
 		}
