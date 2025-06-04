@@ -7,6 +7,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class AddUnique
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArrayIsFullAndElementIsUnique_ResizesArrayAndAddsElement_ReturnsCorrectIndex()
 		{
@@ -191,5 +193,7 @@ namespace Bezoro.Core.Tests.Array
 				array.Length, Is.EqualTo(newLength), "Array length should remain unchanged for a duplicate element."
 			);
 		}
+
+	#endregion
 	}
 }

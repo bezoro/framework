@@ -8,6 +8,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class Add
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArrayHasEmptySlot_AddsElementToFirstEmptySlot()
 		{
@@ -61,7 +63,7 @@ namespace Bezoro.Core.Tests.Array
 		public void WhenArrayIsNotEmptyAndHasNoEmptySlots_AddsElementAndResizesArray()
 		{
 			// Arrange
-			TestObject?[] array         = { new TestObject(), new TestObject() };
+			TestObject?[] array         = { new(), new() };
 			var           elementToAdd  = new TestObject();
 			var           initialLength = array.Length;
 
@@ -112,7 +114,7 @@ namespace Bezoro.Core.Tests.Array
 		public void WhenElementIsAdded_ReturnsCorrectIndexOfAddedElement()
 		{
 			// Arrange
-			TestObject?[] array         = { new TestObject(), new TestObject(), new TestObject() };
+			TestObject?[] array         = { new(), new(), new() };
 			var           elementToAdd  = new TestObject();
 			var           initialLength = array.Length;
 
@@ -149,6 +151,12 @@ namespace Bezoro.Core.Tests.Array
 			);
 		}
 
+	#endregion
+
+	#region Helper Methods/Other Members
+
 		private class TestObject { }
+
+	#endregion
 	}
 }

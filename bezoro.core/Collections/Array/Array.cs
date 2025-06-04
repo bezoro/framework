@@ -318,35 +318,6 @@ namespace Bezoro.Core.Collections.Array
 				Logger.LogSuccess("Source array elements were prepended successfully.");
 			}
 
-			private static void AppendValidElements<T>(
-				T[] sourceArray,
-				ref T[] targetArray,
-				int elementsToAppend,
-				int sourceStartIndex,
-				bool excludeNulls = true
-			) where T : class
-			{
-				// Combined guard clauses for early exit
-				if (sourceArray.IsNullOrEmpty() || elementsToAppend == 0 || sourceStartIndex >= sourceArray.Length)
-					return;
-
-				Logger.LogInfo("Filling null elements and appending remaining elements from source.");
-
-				var originalLength = targetArray.Length;
-				var newLength      = originalLength + elementsToAppend; // Introduced variable
-				System.Array.Resize(ref targetArray, newLength);
-
-				for (int srcIdx = sourceStartIndex, tgtIdx = originalLength ; srcIdx < sourceArray.Length ; srcIdx++)
-				{
-					var shouldCopy = !excludeNulls || sourceArray[srcIdx] != null;
-
-					if (shouldCopy)
-						targetArray[tgtIdx++] = sourceArray[srcIdx];
-				}
-
-				Logger.LogSuccess($"Filled null elements and appended {elementsToAppend} elements from source.");
-			}
-
 			private static bool CheckForRemainingElements<T>(
 				T[] source,
 				int sourceIndex,
@@ -367,7 +338,6 @@ namespace Bezoro.Core.Collections.Array
 
 				Logger.LogSuccess("Filled null elements in the target array.");
 				return true;
-
 			}
 
 			private static bool HandleNullTargetInitialization<T>(
@@ -395,6 +365,22 @@ namespace Bezoro.Core.Collections.Array
 
 				Logger.LogSuccess("Target was null. Initialized from source array.");
 				return true;
+			}
+
+			private static bool ValidateSource<T>(T[] source) where T : class
+			{
+				if (source != null) return true;
+
+				Logger.Log_Exception(new NullReferenceException("Source array must not be null. Aborting operation."));
+				return false;
+			}
+
+			private static bool ValidateTarget<T>(T[] target) where T : class
+			{
+				if (target != null) return true;
+
+				Logger.LogWarning("Target array must not be null. Aborting operation.");
+				return false;
 			}
 
 			private static int PopulateTargetWithSource<T>(
@@ -435,20 +421,33 @@ namespace Bezoro.Core.Collections.Array
 				return sourceIndex;
 			}
 
-			private static bool ValidateSource<T>(T[] source) where T : class
+			private static void AppendValidElements<T>(
+				T[] sourceArray,
+				ref T[] targetArray,
+				int elementsToAppend,
+				int sourceStartIndex,
+				bool excludeNulls = true
+			) where T : class
 			{
-				if (source != null) return true;
+				// Combined guard clauses for early exit
+				if (sourceArray.IsNullOrEmpty() || elementsToAppend == 0 || sourceStartIndex >= sourceArray.Length)
+					return;
 
-				Logger.Log_Exception(new NullReferenceException("Source array must not be null. Aborting operation."));
-				return false;
-			}
+				Logger.LogInfo("Filling null elements and appending remaining elements from source.");
 
-			private static bool ValidateTarget<T>(T[] target) where T : class
-			{
-				if (target != null) return true;
+				var originalLength = targetArray.Length;
+				var newLength      = originalLength + elementsToAppend; // Introduced variable
+				System.Array.Resize(ref targetArray, newLength);
 
-				Logger.LogWarning("Target array must not be null. Aborting operation.");
-				return false;
+				for (int srcIdx = sourceStartIndex, tgtIdx = originalLength ; srcIdx < sourceArray.Length ; srcIdx++)
+				{
+					var shouldCopy = !excludeNulls || sourceArray[srcIdx] != null;
+
+					if (shouldCopy)
+						targetArray[tgtIdx++] = sourceArray[srcIdx];
+				}
+
+				Logger.LogSuccess($"Filled null elements and appended {elementsToAppend} elements from source.");
 			}
 		}
 	}

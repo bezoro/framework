@@ -10,13 +10,11 @@ namespace Bezoro.Core.Utils
 			string errorMessage
 		) where TException : Exception
 		{
-			string fullMessage = $"{(caller != null ? caller.GetType().Name : "")}::{methodName}: {errorMessage}";
+			var fullMessage = $"{(caller != null ? caller.GetType().Name : "")}::{methodName}: {errorMessage}";
 			throw (TException)Activator.CreateInstance(typeof(TException), fullMessage);
 		}
 
-		public static void ThrowException<TException>(string errorMessage) where TException : Exception
-		{
-			throw (TException)Activator.CreateInstance(typeof(TException), errorMessage);
-		}
+		public static void ThrowException<TException>(string errorMessage) where TException : Exception =>
+			throw ((TException)Activator.CreateInstance(typeof(TException), errorMessage));
 	}
 }

@@ -7,6 +7,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class CompareArrays
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArraysHaveDifferentLengths_ReturnsFalse()
 		{
@@ -49,6 +51,50 @@ namespace Bezoro.Core.Tests.Array
 			);
 		}
 
+		[Test]
+		public void WhenBothArraysAreNull_ReturnsTrue()
+		{
+			// Act
+			var result = ArrayHelpers.CompareArrays<object>(null, null);
+
+			// Assert
+			Assert.That(result, Is.True, "Comparing 2 null arrays should be considered equal.");
+		}
+
+		[Test]
+		public void WhenBothArraysContainOnlyNullElementsAndHaveSameLength_ReturnsTrue()
+		{
+			// Arrange
+			string[] array1 = { null!, null!, null! };
+			string[] array2 = { null!, null!, null! };
+
+			// Act
+			var result = ArrayHelpers.CompareArrays(array1, array2);
+
+			// Assert
+			Assert.That(
+				result, Is.True,
+				"Comparing 2 arrays of the same length with only null elements should be considered equal."
+			);
+		}
+
+		[Test]
+		public void WithMixedNullAndNonNullElements_ReturnsTrueForIdenticalAndFalseForDifferent()
+		{
+			// Arrange
+			string?[] array1Identical = { "a", null, "c" };
+			string?[] array2Identical = { "a", null, "c" };
+			string?[] array3Different = { "a", null, "b" };
+
+			// Act
+			var resultForIdentical = ArrayHelpers.CompareArrays(array1Identical, array2Identical);
+			var resultForDifferent = ArrayHelpers.CompareArrays(array1Identical, array3Different);
+
+			// Assert
+			Assert.That(resultForIdentical, Is.True,  "Identical arrays with null elements should return true.");
+			Assert.That(resultForDifferent, Is.False, "Different arrays with null elements should return false.");
+		}
+
 		[TestCase(
 			new object[] { 1, 2, 3 }, new object[] { 1, 2, 4 },
 			TestName = "WhenIntegerArraysDiffer_ReturnsFalse")]
@@ -89,33 +135,6 @@ namespace Bezoro.Core.Tests.Array
 			);
 		}
 
-		[Test]
-		public void WhenBothArraysAreNull_ReturnsTrue()
-		{
-			// Act
-			var result = ArrayHelpers.CompareArrays<object>(null, null);
-
-			// Assert
-			Assert.That(result, Is.True, "Comparing 2 null arrays should be considered equal.");
-		}
-
-		[Test]
-		public void WhenBothArraysContainOnlyNullElementsAndHaveSameLength_ReturnsTrue()
-		{
-			// Arrange
-			string[] array1 = { null!, null!, null! };
-			string[] array2 = { null!, null!, null! };
-
-			// Act
-			var result = ArrayHelpers.CompareArrays(array1, array2);
-
-			// Assert
-			Assert.That(
-				result, Is.True,
-				"Comparing 2 arrays of the same length with only null elements should be considered equal."
-			);
-		}
-
 		[TestCase(
 			new object[] { 1, 2, 3 }, null,
 			TestName = "WhenFirstArrayIsValidAndSecondIsNull_ReturnsFalse")]
@@ -133,22 +152,9 @@ namespace Bezoro.Core.Tests.Array
 			);
 		}
 
-		[Test]
-		public void WithMixedNullAndNonNullElements_ReturnsTrueForIdenticalAndFalseForDifferent()
-		{
-			// Arrange
-			string?[] array1Identical = { "a", null, "c" };
-			string?[] array2Identical = { "a", null, "c" };
-			string?[] array3Different = { "a", null, "b" };
+	#endregion
 
-			// Act
-			var resultForIdentical = ArrayHelpers.CompareArrays(array1Identical, array2Identical);
-			var resultForDifferent = ArrayHelpers.CompareArrays(array1Identical, array3Different);
-
-			// Assert
-			Assert.That(resultForIdentical, Is.True,  "Identical arrays with null elements should return true.");
-			Assert.That(resultForDifferent, Is.False, "Different arrays with null elements should return false.");
-		}
+	#region Helper Methods/Other Members
 
 		private class TestObject
 		{
@@ -167,5 +173,7 @@ namespace Bezoro.Core.Tests.Array
 			public override int GetHashCode() =>
 				Id.GetHashCode() ^ Name.GetHashCode();
 		}
+
+	#endregion
 	}
 }

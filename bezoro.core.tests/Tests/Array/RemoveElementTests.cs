@@ -9,6 +9,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class RemoveElementTests
 	{
+	#region Test Methods
+
 		[Test]
 		public void RemoveElement_Sequential_InvalidRemovalApproach_ThrowsArgumentOutOfRangeException()
 		{
@@ -197,5 +199,7 @@ namespace Bezoro.Core.Tests.Array
 				"The length of the array should not change when nullifying an element."
 			);
 		}
+
+	#endregion
 	}
 }

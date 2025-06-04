@@ -20,15 +20,7 @@ namespace Bezoro.Core.Tests.Array
 			}
 		}
 
-		[TestCaseSource(nameof(_InputArrayReturnsExpectedTestCases))]
-		public void InputArray_ReturnsExpected(int[] input, int[] expected)
-		{
-			// Act
-			ArrayHelpers.InitializeNullArray(ref input);
-
-			// Assert
-			Assert.That(input, Is.EqualTo(expected));
-		}
+	#region Test Methods
 
 		[Test]
 		public void NonNullInput_DoesNotAlterContents()
@@ -43,5 +35,17 @@ namespace Bezoro.Core.Tests.Array
 			// Assert
 			Assert.That(input, Is.EqualTo(expected));
 		}
+
+		[TestCaseSource(nameof(_InputArrayReturnsExpectedTestCases))]
+		public void InputArray_ReturnsExpected(int[] input, int[] expected)
+		{
+			// Act
+			ArrayHelpers.InitializeNullArray(ref input);
+
+			// Assert
+			Assert.That(input, Is.EqualTo(expected));
+		}
+
+	#endregion
 	}
 }

@@ -9,13 +9,17 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class ResizeByFactor
 	{
-		[SetUp]
-		public void SetUp()
-		{
-			_mockLogger = new();
-		}
-
 		private Mock<ILogger> _mockLogger;
+
+	#region Setup/Teardown Methods
+
+		[SetUp]
+		public void SetUp() =>
+			_mockLogger = new();
+
+	#endregion
+
+	#region Test Methods
 
 		[Test]
 		public void WhenArrayIsEmpty_ArraySizeRemainsZeroRegardlessOfFactor()
@@ -73,5 +77,7 @@ namespace Bezoro.Core.Tests.Array
 			// Times.Once
 			// );
 		}
+
+	#endregion
 	}
 }

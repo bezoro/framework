@@ -7,6 +7,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class SetupArrayWithFirstElement
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArrayIsEmpty_InitializesWithGivenElementAndReturnsTrue()
 		{
@@ -93,5 +95,7 @@ namespace Bezoro.Core.Tests.Array
 				array[0], Is.EqualTo(element), "First element of the array should match the provided element."
 			);
 		}
+
+	#endregion
 	}
 }

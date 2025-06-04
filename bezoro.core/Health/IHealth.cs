@@ -2,9 +2,9 @@
 {
 	public interface IHealth
 	{
+		public float Percentage { get; }
 		public int   Current    { get; }
 		public int   Max        { get; }
-		public float Percentage { get; }
 		public void DecreaseCurrentHealthBy(int value);
 		public void DecreaseMaxHealthBy(int value);
 		public void DepleteCurrentHealth();

@@ -23,12 +23,10 @@ namespace Bezoro.Core.Utils
 			}
 		}
 
-		public static void IsFalse(bool condition, string errorMessage = "")
-		{
+		public static void IsFalse(bool condition, string errorMessage = "") =>
 			IsFalse<InvalidOperationException>(
 				condition,
 				errorMessage);
-		}
 
 		public static void IsFalse<TException>(bool condition, string errorMessage = "")
 			where TException : Exception
