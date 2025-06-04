@@ -11,14 +11,14 @@ namespace Bezoro.Core.Chess.Utils
 		/*──────────────────────────────────────────────────────────*/
 		/*  Static FEN strings                                       */
 		/*──────────────────────────────────────────────────────────*/
-		private const string _EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1";
-		private const string _START_FEN = _START_PIECES + " w KQkq - 0 1";
-		private const string _START_PIECES =
+		public const string EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1";
+		public const string START_FEN = START_PIECES + " w KQkq - 0 1";
+		public const string START_PIECES =
 			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 
-		public static FenData EmptyBoard  { get; } = Parse(_EMPTY_FEN);
-		public static FenData StartBoard  { get; } = Parse(_START_FEN);
-		public static string  StartPieces => _START_PIECES;
+		public static FenData EmptyBoard  { get; } = Parse(EMPTY_FEN);
+		public static FenData StartBoard  { get; } = Parse(START_FEN);
+		public static string  StartPieces => START_PIECES;
 
 		public static bool TryParse(
 			string? fen,
