@@ -1,7 +1,10 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess;
+using Bezoro.Core.Chess.Pieces;
 
-public interface IGameRules
+namespace Bezoro.Core.Chess.Interfaces
 {
-	IEnumerable<Move> FilterLegalMoves(IChessBoardModel board, IChessPieceModel piece);
+	public interface IGameRules
+	{
+		IEnumerable<Move> FilterLegalMoves(IChessBoardModel board, IChessPieceModel piece);
+	}
 }

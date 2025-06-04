@@ -1,6 +1,7 @@
 using System.Collections.Generic;
+using Bezoro.Core.Chess.Interfaces;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Pieces
 {
 	public abstract class PieceModel : IChessPieceModel
 	{

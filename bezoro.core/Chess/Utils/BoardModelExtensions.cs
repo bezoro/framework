@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.Core.Chess.Interfaces;
 
 namespace Bezoro.Core.Chess.Utils
 {

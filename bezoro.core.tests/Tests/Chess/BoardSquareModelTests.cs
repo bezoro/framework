@@ -1,4 +1,5 @@
 using Bezoro.Core.Chess;
+using Bezoro.Core.Chess.Interfaces;
 using Moq;
 using NUnit.Framework;
 

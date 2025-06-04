@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Core.Chess.Interfaces;
 
 namespace Bezoro.Core.Chess
 {
