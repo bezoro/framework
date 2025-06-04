@@ -83,12 +83,12 @@ namespace Bezoro.Core.Chess.Pieces
 				{
 					foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
 					{
-						moves.Add(Move.Promotion(from, to, promo));
+						moves.Add(Move.Promotion(from, to, pawn.Color, promo));
 					}
 				}
 				else
 				{
-					moves.Add(new(from, to, t.Kind));
+					moves.Add(new(from, to, pawn.Color, t.Kind));
 				}
 			}
 

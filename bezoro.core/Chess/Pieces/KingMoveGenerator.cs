@@ -54,11 +54,11 @@ namespace Bezoro.Core.Chess.Pieces
 				var target = board.Squares[tf, tr].GetPiece();
 				if (target is null)
 				{
-					moves.Add(new(currentPos.Value, new(tf, tr)));
+					moves.Add(new(currentPos.Value, new(tf, tr), king.Color));
 				}
 				else if (target.Color != king.Color)
 				{
-					moves.Add(new(currentPos.Value, new(tf, tr), MoveKind.Capture));
+					moves.Add(new(currentPos.Value, new(tf, tr), king.Color, MoveKind.Capture));
 				}
 			}
 
@@ -137,7 +137,7 @@ namespace Bezoro.Core.Chess.Pieces
 
 			// 3. (Optional) check for check along the path – still deferred.
 
-			moves.Add(new(kingStart, kingDestination, MoveKind.Castle));
+			moves.Add(new(kingStart, kingDestination, king.Color, MoveKind.Castle));
 		}
 	}
 }
