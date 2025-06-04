@@ -7,32 +7,20 @@ namespace Bezoro.Core
 	public static class Validate
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static void Do(
-			Action action,
-			Exception? custom = null,
-			string? message = null
-		)
-		{
-			InternalDo(action, custom, message);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Task DoAsync(
-			Func<Task> action,
-			Exception? custom = null,
-			string? message = null
-		)
-		{
-			return InternalDoAsync(action, custom, message);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static T? Get<T>(
 			Func<T?> func,
 			Exception? custom = null,
 			string? message = null
 		) =>
 			InternalGet(func, custom, message);
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Task DoAsync(
+			Func<Task> action,
+			Exception? custom = null,
+			string? message = null
+		) =>
+			InternalDoAsync(action, custom, message);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Task<T?> GetAsync<T>(
@@ -43,30 +31,12 @@ namespace Bezoro.Core
 			InternalGetAsync(func, custom, message);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void InternalDo(
+		public static void Do(
 			Action action,
-			Exception? custom,
-			string? msg
-		)
-		{
-			if (action == null) throw new ArgumentNullException(nameof(action));
-
-			try { action(); }
-			catch (Exception e) { Throw(custom, msg, e); }
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static async Task InternalDoAsync(
-			Func<Task> func,
-			Exception? custom,
-			string? msg
-		)
-		{
-			if (func == null) throw new ArgumentNullException(nameof(func));
-
-			try { await func().ConfigureAwait(false); }
-			catch (Exception e) { Throw(custom, msg, e); }
-		}
+			Exception? custom = null,
+			string? message = null
+		) =>
+			InternalDo(action, custom, message);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static T? InternalGet<T>(
@@ -84,6 +54,19 @@ namespace Bezoro.Core
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static async Task InternalDoAsync(
+			Func<Task> func,
+			Exception? custom,
+			string? msg
+		)
+		{
+			if (func == null) throw new ArgumentNullException(nameof(func));
+
+			try { await func().ConfigureAwait(false); }
+			catch (Exception e) { Throw(custom, msg, e); }
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static async Task<T?> InternalGetAsync<T>(
 			Func<Task<T>> func,
 			Exception? custom,
@@ -96,6 +79,19 @@ namespace Bezoro.Core
 			catch (Exception e) { Throw(custom, msg, e); }
 
 			return default;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static void InternalDo(
+			Action action,
+			Exception? custom,
+			string? msg
+		)
+		{
+			if (action == null) throw new ArgumentNullException(nameof(action));
+
+			try { action(); }
+			catch (Exception e) { Throw(custom, msg, e); }
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]

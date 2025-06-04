@@ -23,9 +23,18 @@ namespace Bezoro.Core.Collections.Array
 		}
 
 		/// <summary>
+		///     A logger interface instance used to record operational messages, errors, and warnings
+		///     within the <see cref="SwapbackArray{T}" />. It enables tracking and debugging of array-related
+		///     operations and processes, enhancing observability and diagnostics.
+		/// </summary>
+		private ILogger _logger;
+
+		/// <summary>
 		///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
 		private int _count;
+
+		private readonly object _lock = new();
 
 		/// <summary>
 		///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -34,15 +43,6 @@ namespace Bezoro.Core.Collections.Array
 		///     of elements when removing items.
 		/// </summary>
 		private T[] _items;
-
-		private readonly object _lock = new();
-
-		/// <summary>
-		///     A logger interface instance used to record operational messages, errors, and warnings
-		///     within the <see cref="SwapbackArray{T}" />. It enables tracking and debugging of array-related
-		///     operations and processes, enhancing observability and diagnostics.
-		/// </summary>
-		private ILogger _logger;
 
 		/// <summary>
 		///     Gets the total number of elements that the internal array can hold without resizing.
@@ -53,6 +53,31 @@ namespace Bezoro.Core.Collections.Array
 		///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
 		public int Count => _count;
+
+		/// <summary>
+		///     Attempts to retrieve the value at the specified index in the dynamic array.
+		/// </summary>
+		/// <param name="index">The zero-based index of the element to retrieve.</param>
+		/// <param name="value">
+		///     The variable where the retrieved value will be stored if the index is valid; otherwise, the default
+		///     value of the type.
+		/// </param>
+		/// <returns>
+		///     A boolean value indicating whether the retrieval was successful.
+		/// </returns>
+		public bool Try_Get(int index, out T value)
+		{
+			if (index < 0 || index >= _count)
+			{
+				Logger.Log_Error($"Attempted to access invalid index: {index}");
+				value = default;
+				return false;
+			}
+
+			value = _items[index];
+			Logger.LogSuccess($"Item retrieved at index {index}: {value}");
+			return true;
+		}
 
 		/// <summary>
 		///     Adds an item to the end of the SwapbackArray. If the array's capacity is insufficient,
@@ -101,28 +126,27 @@ namespace Bezoro.Core.Collections.Array
 			}
 		}
 
-		/// <summary>
-		///     Attempts to retrieve the value at the specified index in the dynamic array.
-		/// </summary>
-		/// <param name="index">The zero-based index of the element to retrieve.</param>
-		/// <param name="value">
-		///     The variable where the retrieved value will be stored if the index is valid; otherwise, the default
-		///     value of the type.
-		/// </param>
-		/// <returns>
-		///     A boolean value indicating whether the retrieval was successful.
-		/// </returns>
-		public bool Try_Get(int index, out T value)
+		private bool Should_Resize(int currentCount, int currentCapacity) =>
+			currentCount <= currentCapacity / 4 && currentCapacity > _MINIMUM_ARRAY_SIZE;
+
+		private bool Validate_Remove_Index(int index)
 		{
-			if (index < 0 || index >= _count)
+			if (_items.IsNullOrEmpty())
 			{
-				Logger.Log_Error($"Attempted to access invalid index: {index}");
-				value = default;
+				Logger.Log_Error("Remove operation failed. Array is empty.");
 				return false;
 			}
 
-			value = _items[index];
-			Logger.LogSuccess($"Item retrieved at index {index}: {value}");
+			if (index < 0 || index >= _count)
+			{
+				Logger.Log_Exception(
+					new ArgumentOutOfRangeException(
+						nameof(index), index, $"Remove operation failed. Invalid index. Aborting {nameof(Remove_At)}.")
+				);
+
+				return false;
+			}
+
 			return true;
 		}
 
@@ -149,30 +173,6 @@ namespace Bezoro.Core.Collections.Array
 			_items = newItems;
 
 			Logger.LogSuccess($"Resize operation complete. New size: {newSize}");
-		}
-
-		private bool Should_Resize(int currentCount, int currentCapacity) =>
-			currentCount <= currentCapacity / 4 && currentCapacity > _MINIMUM_ARRAY_SIZE;
-
-		private bool Validate_Remove_Index(int index)
-		{
-			if (_items.IsNullOrEmpty())
-			{
-				Logger.Log_Error("Remove operation failed. Array is empty.");
-				return false;
-			}
-
-			if (index < 0 || index >= _count)
-			{
-				Logger.Log_Exception(
-					new ArgumentOutOfRangeException(
-						nameof(index), index, $"Remove operation failed. Invalid index. Aborting {nameof(Remove_At)}.")
-				);
-
-				return false;
-			}
-
-			return true;
 		}
 
 		~SwapbackArray()

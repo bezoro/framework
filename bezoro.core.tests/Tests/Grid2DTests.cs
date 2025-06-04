@@ -6,15 +6,7 @@ namespace Bezoro.Core.Tests
 	[TestFixture]
 	public class Grid2DTests
 	{
-		[TestCase(0,  10)]
-		[TestCase(10, 0)]
-		[TestCase(-1, 10)]
-		[TestCase(10, -5)]
-		public void GenericGrid2D_Constructor_InvalidDimensions_ThrowsArgumentException(int width, int height)
-		{
-			// Act & Assert
-			Assert.Throws<ArgumentException>(() => new Grid2D<int>(width, height));
-		}
+	#region Test Methods
 
 		[Test]
 		public void GenericGrid2D_Constructor_ValidDimensions_InitializesDataArray()
@@ -66,36 +58,6 @@ namespace Bezoro.Core.Tests
 			}
 		}
 
-		[TestCase(0,  10, 0)]
-		[TestCase(10, 0,  0)]
-		[TestCase(-1, 10, 0)]
-		[TestCase(10, -5, 0)]
-		public void GenericGrid2D_Constructor_WithDefaultValue_InvalidDimensions_ThrowsArgumentException(
-			int width,
-			int height,
-			int defaultValue)
-		{
-			// Act & Assert
-			Assert.Throws<ArgumentException>(() => new Grid2D<int>(width, height, defaultValue));
-		}
-
-		[TestCase(5, 5, 5,  0)]  // x out of bounds
-		[TestCase(5, 5, 0,  5)]  // y out of bounds
-		[TestCase(5, 5, -1, 0)]  // x negative
-		[TestCase(5, 5, 0,  -1)] // y negative
-		public void GenericGrid2D_Indexer_AccessOutOfBounds_ThrowsIndexOutOfRangeException(
-			int gridWidth,
-			int gridHeight,
-			int accessX,
-			int accessY)
-		{
-			// Arrange
-			var grid = new Grid2D<int>(gridWidth, gridHeight);
-
-			// Act & Assert
-			Assert.Throws<IndexOutOfRangeException>(() => _ = grid[accessX, accessY]);
-		}
-
 		[Test]
 		public void GenericGrid2D_Indexer_SetAndGetAtBoundaries_WorksCorrectly()
 		{
@@ -134,6 +96,61 @@ namespace Bezoro.Core.Tests
 			Assert.That(retrievedValue, Is.EqualTo(testValue));
 		}
 
+		[Test]
+		public void Grid2D_Constructor_ValidDimensions_PropertiesSetCorrectly()
+		{
+			// Arrange
+			var width  = 10;
+			var height = 20;
+
+			// Act
+			var grid = new Grid2D(width, height);
+
+			Assert.Multiple(
+				() =>
+				{
+					// Assert
+					Assert.That(grid.Width,  Is.EqualTo(width));
+					Assert.That(grid.Height, Is.EqualTo(height));
+				});
+		}
+
+		[TestCase(0,  10)]
+		[TestCase(10, 0)]
+		[TestCase(-1, 10)]
+		[TestCase(10, -5)]
+		public void GenericGrid2D_Constructor_InvalidDimensions_ThrowsArgumentException(int width, int height) =>
+			// Act & Assert
+			Assert.Throws<ArgumentException>(() => new Grid2D<int>(width, height));
+
+		[TestCase(0,  10, 0)]
+		[TestCase(10, 0,  0)]
+		[TestCase(-1, 10, 0)]
+		[TestCase(10, -5, 0)]
+		public void GenericGrid2D_Constructor_WithDefaultValue_InvalidDimensions_ThrowsArgumentException(
+			int width,
+			int height,
+			int defaultValue) =>
+			// Act & Assert
+			Assert.Throws<ArgumentException>(() => new Grid2D<int>(width, height, defaultValue));
+
+		[TestCase(5, 5, 5,  0)]  // x out of bounds
+		[TestCase(5, 5, 0,  5)]  // y out of bounds
+		[TestCase(5, 5, -1, 0)]  // x negative
+		[TestCase(5, 5, 0,  -1)] // y negative
+		public void GenericGrid2D_Indexer_AccessOutOfBounds_ThrowsIndexOutOfRangeException(
+			int gridWidth,
+			int gridHeight,
+			int accessX,
+			int accessY)
+		{
+			// Arrange
+			var grid = new Grid2D<int>(gridWidth, gridHeight);
+
+			// Act & Assert
+			Assert.Throws<IndexOutOfRangeException>(() => _ = grid[accessX, accessY]);
+		}
+
 		[TestCase(5, 5, 5,  0,  10)] // x out of bounds
 		[TestCase(5, 5, 0,  5,  10)] // y out of bounds
 		[TestCase(5, 5, -1, 0,  10)] // x negative
@@ -156,29 +173,10 @@ namespace Bezoro.Core.Tests
 		[TestCase(10, 0)]
 		[TestCase(-1, 10)]
 		[TestCase(10, -5)]
-		public void Grid2D_Constructor_InvalidDimensions_ThrowsArgumentException(int width, int height)
-		{
+		public void Grid2D_Constructor_InvalidDimensions_ThrowsArgumentException(int width, int height) =>
 			// Act & Assert
 			Assert.Throws<ArgumentException>(() => new Grid2D(width, height));
-		}
 
-		[Test]
-		public void Grid2D_Constructor_ValidDimensions_PropertiesSetCorrectly()
-		{
-			// Arrange
-			var width  = 10;
-			var height = 20;
-
-			// Act
-			var grid = new Grid2D(width, height);
-
-			Assert.Multiple(
-				() =>
-				{
-					// Assert
-					Assert.That(grid.Width,  Is.EqualTo(width));
-					Assert.That(grid.Height, Is.EqualTo(height));
-				});
-		}
+	#endregion
 	}
 }

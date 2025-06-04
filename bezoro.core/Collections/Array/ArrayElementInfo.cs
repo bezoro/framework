@@ -22,21 +22,6 @@ namespace Bezoro.Core.Collections.Array
 		}
 
 		/// <summary>
-		///     The type of the array.
-		/// </summary>
-		public Type ArrayType => typeof(T);
-
-		/// <summary>
-		///     The element itself.
-		/// </summary>
-		public T Element { get; }
-
-		/// <summary>
-		///     The element's type in the array.
-		/// </summary>
-		public Type ElementType => Element?.GetType() ?? typeof(T);
-
-		/// <summary>
 		///     The total length of the array.
 		/// </summary>
 		public int Length { get; }
@@ -44,6 +29,21 @@ namespace Bezoro.Core.Collections.Array
 		///     The index of the specific element in the array.
 		/// </summary>
 		public int RelevantIndex { get; }
+
+		/// <summary>
+		///     The element itself.
+		/// </summary>
+		public T Element { get; }
+
+		/// <summary>
+		///     The type of the array.
+		/// </summary>
+		public Type ArrayType => typeof(T);
+
+		/// <summary>
+		///     The element's type in the array.
+		/// </summary>
+		public Type ElementType => Element?.GetType() ?? typeof(T);
 
 		/// <summary>
 		///     Returns a string representation of the array data.

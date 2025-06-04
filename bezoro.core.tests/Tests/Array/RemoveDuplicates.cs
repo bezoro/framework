@@ -9,6 +9,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class RemoveDuplicates
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArrayContainsCustomObjectDuplicates_UniqueInstancesAreRetained()
 		{
@@ -34,6 +36,45 @@ namespace Bezoro.Core.Tests.Array
 
 			// Assert
 			CollectionAssert.AreEqual(expectedArray, array);
+		}
+
+		[Test]
+		public void WhenArrayContainsSingleElement_ItRemainsUnchanged()
+		{
+			// Arrange
+			var array = new[] { 42 };
+
+			// Act
+			ArrayHelpers.RemoveDuplicates(ref array);
+
+			// Assert
+			CollectionAssert.AreEqual(new[] { 42 }, array);
+		}
+
+		[Test]
+		public void WhenArrayIsEmpty_ItRemainsUnchanged()
+		{
+			// Arrange
+			var array = System.Array.Empty<int>();
+
+			// Act
+			ArrayHelpers.RemoveDuplicates(ref array);
+
+			// Assert
+			CollectionAssert.IsEmpty(array);
+		}
+
+		[Test]
+		public void WhenInputArrayIsNull_ItRemainsNull()
+		{
+			// Arrange
+			int[] array = null;
+
+			// Act
+			ArrayHelpers.RemoveDuplicates(ref array);
+
+			// Assert
+			Assert.That(array, Is.Null);
 		}
 
 		[TestCase(new object[] { 1, 1, 1, 1 },              new object[] { 1 })]
@@ -78,44 +119,9 @@ namespace Bezoro.Core.Tests.Array
 			CollectionAssert.AreEqual(expected, array);
 		}
 
-		[Test]
-		public void WhenArrayContainsSingleElement_ItRemainsUnchanged()
-		{
-			// Arrange
-			var array = new[] { 42 };
+	#endregion
 
-			// Act
-			ArrayHelpers.RemoveDuplicates(ref array);
-
-			// Assert
-			CollectionAssert.AreEqual(new[] { 42 }, array);
-		}
-
-		[Test]
-		public void WhenArrayIsEmpty_ItRemainsUnchanged()
-		{
-			// Arrange
-			var array = System.Array.Empty<int>();
-
-			// Act
-			ArrayHelpers.RemoveDuplicates(ref array);
-
-			// Assert
-			CollectionAssert.IsEmpty(array);
-		}
-
-		[Test]
-		public void WhenInputArrayIsNull_ItRemainsNull()
-		{
-			// Arrange
-			int[] array = null;
-
-			// Act
-			ArrayHelpers.RemoveDuplicates(ref array);
-
-			// Assert
-			Assert.That(array, Is.Null);
-		}
+	#region Helper Methods/Other Members
 
 		private class TestObject
 		{
@@ -139,5 +145,7 @@ namespace Bezoro.Core.Tests.Array
 			public override int GetHashCode() =>
 				HashCode.Combine(Id, Name);
 		}
+
+	#endregion
 	}
 }

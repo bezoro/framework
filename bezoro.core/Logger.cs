@@ -33,18 +33,18 @@ namespace Bezoro.Core
 			LoggerInstance?.Log(log);
 		}
 
-		public static void LogWarning(string message, object contextObject = null, string category = "Uncategorized")
-		{
-			var log = new LogEntry(message, contextObject, LogEntry.LogType.Warning, category);
-
-			LoggerInstance?.LogWarning(log);
-		}
-
 		public static void LogSuccess(string message, object contextObject = null, string category = "Uncategorized")
 		{
 			var log = new LogEntry(message, contextObject, LogEntry.LogType.Success, category);
 
 			LoggerInstance?.LogSuccess(log);
+		}
+
+		public static void LogWarning(string message, object contextObject = null, string category = "Uncategorized")
+		{
+			var log = new LogEntry(message, contextObject, LogEntry.LogType.Warning, category);
+
+			LoggerInstance?.LogWarning(log);
 		}
 
 		public static void Set_Logger(ILogger logger)
@@ -63,11 +63,12 @@ namespace Bezoro.Core
 				Context_Object = contextObject;
 			}
 
-			public string Category       { get; }
-			public object Context_Object { get; }
+			public LogType Type           { get; }
+			public object  Context_Object { get; }
 
-			public string  Message { get; }
-			public LogType Type    { get; }
+			public string Category { get; }
+
+			public string Message { get; }
 
 			public enum LogType
 			{

@@ -9,6 +9,185 @@ namespace Bezoro.Core.Collections.Array
 	{
 		public static int ParallelThreshold { get; private set; } = 100;
 
+		public static ArrayElementInfo<T> FindElementInParallel<T>(
+			T[] array,
+			T elementToFind
+		)
+		{
+			if (array == null || array.Length == 0)
+			{
+				Logger.LogWarning("Array is null or empty. Aborting search.");
+				return new(-1, elementToFind, array?.Length ?? 0);
+			}
+
+			if (Equals(elementToFind, default(T)))
+			{
+				Logger.LogWarning("Element to find is null. Aborting search.");
+				return new(-1, default, array.Length);
+			}
+
+			var resultIndex = -1;
+			var locker      = new object();
+
+			Parallel.For(
+				0, array.Length, (i, state) =>
+				{
+					if (array[i]?.Equals(elementToFind) != true) return;
+
+					lock ( locker )
+					{
+						resultIndex = i;
+						state.Stop();
+					}
+				}
+			);
+
+			if (resultIndex != -1)
+				Logger.LogSuccess($"Element {elementToFind} found at index {resultIndex}.");
+			else
+				Logger.LogWarning($"Element {elementToFind} not found in array.");
+
+			return new(resultIndex, elementToFind, array.Length);
+		}
+
+		/// <summary>
+		///     Sequentially searches for a specified element in an array and returns information about the search result.
+		/// </summary>
+		/// <typeparam name="T">The type of elements in the array.</typeparam>
+		/// <param name="array">The array to search within.</param>
+		/// <param name="elementToFind">The element to find in the array.</param>
+		/// <returns>
+		///     An <see cref="ArrayElementInfo{T}" /> containing:
+		///     - The index of the found element (-1 if not found)
+		///     - The element that was searched for
+		///     - The length of the searched array
+		/// </returns>
+		/// <remarks>
+		///     This method performs a sequential search through the array and logs the search result.
+		///     If the array is null or empty, it returns immediately with appropriate information.
+		/// </remarks>
+		public static ArrayElementInfo<T> FindElementSequentially<T>(
+			T[] array,
+			T elementToFind
+		)
+		{
+			if (array.IsNullOrEmpty())
+			{
+				Logger.LogWarning("Array is null or empty. Aborting search.");
+				return new(-1, elementToFind, array?.Length ?? 0);
+			}
+
+			for (var i = 0 ; i < array.Length ; i++)
+			{
+				if (!EqualityComparer<T>.Default.Equals(array[i], elementToFind)) continue;
+				Logger.LogSuccess($"Element {elementToFind} found at index {i}");
+				return new(i, elementToFind, array.Length);
+			}
+
+			Logger.LogWarning($"Element {elementToFind} not found in array.");
+			return new(-1, elementToFind, array.Length);
+		}
+
+		public static bool CompareArrays<T>(T[]? a, T[]? b)
+		{
+			if (a == null && b == null) return true;
+			if (a == null || b == null) return false;
+			if (a.Length != b.Length) return false;
+
+			for (var i = 0 ; i < a.Length ; i++)
+			{
+				if (EqualityComparer<T>.Default.Equals(a[i], b[i])) continue;
+
+				Logger.LogInfo($"Array comparison failed at index {i}.");
+				return false;
+			}
+
+			Logger.LogInfo("Arrays are equal");
+			return true;
+		}
+
+		public static bool Remove<T>(ref T[] array, T element, out int index, ILogger logger = null)
+			where T : class
+		{
+			if (array == null)
+			{
+				Logger.LogWarning("Array is null. Aborting remove operation.");
+				index = -1;
+				return false;
+			}
+
+			if (array.Length == 0)
+			{
+				Logger.LogWarning("Array is empty. Aborting remove operation.");
+				index = -1;
+				return false;
+			}
+
+			if (element == null)
+			{
+				Logger.LogWarning("Element is null. Aborting remove operation.");
+				index = -1;
+				return false;
+			}
+
+			var foundIndex = System.Array.IndexOf(array, element);
+
+			if (foundIndex < 0)
+			{
+				index = -1;
+				Logger.LogWarning($"Element {element} not found in array. Aborting remove operation.");
+				return false;
+			}
+
+			array[foundIndex] = null;
+			index             = foundIndex;
+			Logger.LogSuccess($"Removed element {element} at index {foundIndex}.");
+			return true;
+		}
+
+		public static bool SetupArrayWithFirstElement<T>(
+			ref T[] array,
+			T element
+		)
+		{
+			if (array != null && array.Length != 0) return false;
+
+			array    = new T[1];
+			array[0] = element;
+			Logger.LogInfo($"Created array and adding first element: {element}");
+			return true;
+		}
+
+		public static int CountNonNullElements<T>(T[] array)
+			where T : class
+		{
+			if (array == null) return 0;
+
+			var nonNullCount = 0;
+
+			foreach (var element in array)
+			{
+				if (element != null)
+					nonNullCount++;
+			}
+
+			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.");
+			return nonNullCount;
+		}
+
+		public static int FindNullIndex<T>(T[] array) where T : class?
+		{
+			if (array == null)
+			{
+				Logger.LogWarning("Array is null. Aborting search.");
+				return -1;
+			}
+
+			return array.Length > ParallelThreshold
+				? FindElementInParallel(array, null).RelevantIndex
+				: FindElementSequentially(array, null).RelevantIndex;
+		}
+
 		public static void Add<T>(
 			ref T?[] array,
 			T? element,
@@ -56,16 +235,12 @@ namespace Bezoro.Core.Collections.Array
 		}
 
 		public static void Add<T>(ref T?[] array, T? element, int resizeFactor = 2)
-			where T : class
-		{
+			where T : class =>
 			Add(ref array, element, out _, resizeFactor);
-		}
 
 		public static void Add_Unique<T>(ref T?[] array, T? element)
-			where T : class
-		{
+			where T : class =>
 			AddUnique(ref array, element, out _);
-		}
 
 		public static void AddUnique<T>(
 			ref T?[] array,
@@ -159,24 +334,6 @@ namespace Bezoro.Core.Collections.Array
 			System.Array.Clear(array, 0, array.Length);
 		}
 
-		public static bool CompareArrays<T>(T[]? a, T[]? b)
-		{
-			if (a == null && b == null) return true;
-			if (a == null || b == null) return false;
-			if (a.Length != b.Length) return false;
-
-			for (var i = 0 ; i < a.Length ; i++)
-			{
-				if (EqualityComparer<T>.Default.Equals(a[i], b[i])) continue;
-
-				Logger.LogInfo($"Array comparison failed at index {i}.");
-				return false;
-			}
-
-			Logger.LogInfo("Arrays are equal");
-			return true;
-		}
-
 		public static void Copy<T>(T[] from, ref T[] to, ILogger logger = null)
 		{
 			if (from == null)
@@ -199,115 +356,6 @@ namespace Bezoro.Core.Collections.Array
 
 			System.Array.Copy(from, to, from.Length);
 			Logger.LogSuccess($"Copied {from.Length} elements from {from} to {to}.");
-		}
-
-		public static int CountNonNullElements<T>(T[] array)
-			where T : class
-		{
-			if (array == null) return 0;
-
-			var nonNullCount = 0;
-
-			foreach (var element in array)
-			{
-				if (element != null)
-					nonNullCount++;
-			}
-
-			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.");
-			return nonNullCount;
-		}
-
-		public static ArrayElementInfo<T> FindElementInParallel<T>(
-			T[] array,
-			T elementToFind
-		)
-		{
-			if (array == null || array.Length == 0)
-			{
-				Logger.LogWarning("Array is null or empty. Aborting search.");
-				return new(-1, elementToFind, array?.Length ?? 0);
-			}
-
-			if (Equals(elementToFind, default(T)))
-			{
-				Logger.LogWarning("Element to find is null. Aborting search.");
-				return new(-1, default, array.Length);
-			}
-
-			var resultIndex = -1;
-			var locker      = new object();
-
-			Parallel.For(
-				0, array.Length, (i, state) =>
-				{
-					if (array[i]?.Equals(elementToFind) != true) return;
-
-					lock ( locker )
-					{
-						resultIndex = i;
-						state.Stop();
-					}
-				}
-			);
-
-			if (resultIndex != -1)
-				Logger.LogSuccess($"Element {elementToFind} found at index {resultIndex}.");
-			else
-				Logger.LogWarning($"Element {elementToFind} not found in array.");
-
-			return new(resultIndex, elementToFind, array.Length);
-		}
-
-		/// <summary>
-		///     Sequentially searches for a specified element in an array and returns information about the search result.
-		/// </summary>
-		/// <typeparam name="T">The type of elements in the array.</typeparam>
-		/// <param name="array">The array to search within.</param>
-		/// <param name="elementToFind">The element to find in the array.</param>
-		/// <returns>
-		///     An <see cref="ArrayElementInfo{T}" /> containing:
-		///     - The index of the found element (-1 if not found)
-		///     - The element that was searched for
-		///     - The length of the searched array
-		/// </returns>
-		/// <remarks>
-		///     This method performs a sequential search through the array and logs the search result.
-		///     If the array is null or empty, it returns immediately with appropriate information.
-		/// </remarks>
-		public static ArrayElementInfo<T> FindElementSequentially<T>(
-			T[] array,
-			T elementToFind
-		)
-		{
-			if (array.IsNullOrEmpty())
-			{
-				Logger.LogWarning("Array is null or empty. Aborting search.");
-				return new(-1, elementToFind, array?.Length ?? 0);
-			}
-
-			for (var i = 0 ; i < array.Length ; i++)
-			{
-				if (!EqualityComparer<T>.Default.Equals(array[i], elementToFind)) continue;
-				Logger.LogSuccess($"Element {elementToFind} found at index {i}");
-				return new(i, elementToFind, array.Length);
-			}
-
-			Logger.LogWarning($"Element {elementToFind} not found in array.");
-			return new(-1, elementToFind, array.Length);
-		}
-
-		public static int FindNullIndex<T>(T[] array) where T : class?
-		{
-			if (array == null)
-			{
-				Logger.LogWarning("Array is null. Aborting search.");
-				return -1;
-			}
-
-			return array.Length > ParallelThreshold
-				? FindElementInParallel(array, null).RelevantIndex
-				: FindElementSequentially(array, null).RelevantIndex;
 		}
 
 		public static void InitializeNullArray<T>(ref T[] array)
@@ -415,45 +463,6 @@ namespace Bezoro.Core.Collections.Array
 			}
 		}
 
-		public static bool Remove<T>(ref T[] array, T element, out int index, ILogger logger = null)
-			where T : class
-		{
-			if (array == null)
-			{
-				Logger.LogWarning("Array is null. Aborting remove operation.");
-				index = -1;
-				return false;
-			}
-
-			if (array.Length == 0)
-			{
-				Logger.LogWarning("Array is empty. Aborting remove operation.");
-				index = -1;
-				return false;
-			}
-
-			if (element == null)
-			{
-				Logger.LogWarning("Element is null. Aborting remove operation.");
-				index = -1;
-				return false;
-			}
-
-			var foundIndex = System.Array.IndexOf(array, element);
-
-			if (foundIndex < 0)
-			{
-				index = -1;
-				Logger.LogWarning($"Element {element} not found in array. Aborting remove operation.");
-				return false;
-			}
-
-			array[foundIndex] = null;
-			index             = foundIndex;
-			Logger.LogSuccess($"Removed element {element} at index {foundIndex}.");
-			return true;
-		}
-
 		public static void RemoveDuplicates<T>(ref T[] array)
 		{
 			if (array.IsNullOrEmpty())
@@ -533,23 +542,8 @@ namespace Bezoro.Core.Collections.Array
 			Logger.LogSuccess($"Array size resized by factor: {factor}");
 		}
 
-		public static void SetParallelThreshold(int threshold)
-		{
+		public static void SetParallelThreshold(int threshold) =>
 			ParallelThreshold = threshold;
-		}
-
-		public static bool SetupArrayWithFirstElement<T>(
-			ref T[] array,
-			T element
-		)
-		{
-			if (array != null && array.Length != 0) return false;
-
-			array    = new T[1];
-			array[0] = element;
-			Logger.LogInfo($"Created array and adding first element: {element}");
-			return true;
-		}
 
 		private static void Remove_Element_Parallel<T>(
 			ref T[] array,

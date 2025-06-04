@@ -8,6 +8,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestOf(typeof(ArrayHelpers))]
 	public class Clear
 	{
+	#region Test Methods
+
 		[Test]
 		public void WhenArrayLengthIsGreaterThanParallelThreshold_AllElementsAreSetToDefault()
 		{
@@ -37,5 +39,7 @@ namespace Bezoro.Core.Tests.Array
 			// Assert
 			Assert.That(array.All(element => element == default), Is.True);
 		}
+
+	#endregion
 	}
 }

@@ -8,13 +8,13 @@ namespace Bezoro.Core
 {
 	public class CodeWriter
 	{
-		private const string _INDENT_STRING = "    "; // 4 spaces
+		private const    string          _INDENT_STRING = "    "; // 4 spaces
+		private          bool            _isNewLine     = true;
+		private readonly HashSet<string> _usings        = new();
+
+		private int _indentLevel;
 
 		private readonly StringBuilder _builder = new();
-
-		private          int             _indentLevel;
-		private          bool            _isNewLine = true;
-		private readonly HashSet<string> _usings    = new();
 
 		public override string ToString()
 		{
@@ -53,20 +53,6 @@ namespace Bezoro.Core
 			return this;
 		}
 
-		public IDisposable BeginScope(string declaration = null)
-		{
-			if (declaration != null) WriteLine(declaration);
-			WriteLine("{");
-			_indentLevel++;
-			return new ScopeGuard(this);
-		}
-
-		public void EndScope(string closer = "}")
-		{
-			_indentLevel--;
-			WriteLine(closer);
-		}
-
 		public CodeWriter Write(string text)
 		{
 			if (_isNewLine)
@@ -92,6 +78,20 @@ namespace Bezoro.Core
 			return this;
 		}
 
+		public IDisposable BeginScope(string declaration = null)
+		{
+			if (declaration != null) WriteLine(declaration);
+			WriteLine("{");
+			_indentLevel++;
+			return new ScopeGuard(this);
+		}
+
+		public void EndScope(string closer = "}")
+		{
+			_indentLevel--;
+			WriteLine(closer);
+		}
+
 		private void WriteIndent()
 		{
 			for (var i = 0 ; i < _indentLevel ; i++) _builder.Append(_INDENT_STRING);
@@ -106,18 +106,16 @@ namespace Bezoro.Core
 
 			private readonly CodeWriter _writer;
 
-			public void Dispose()
-			{
+			public void Dispose() =>
 				_writer.EndScope();
-			}
 		}
 	}
 
 	public class CSharpCodeBuilder
 	{
 		private          bool          _isInClass;
-		private readonly Stack<string> _namespaceStack = new();
 		private readonly CodeWriter    _writer         = new();
+		private readonly Stack<string> _namespaceStack = new();
 
 		public CSharpCodeBuilder AddField(
 			string name,
@@ -293,13 +291,13 @@ namespace Bezoro.Core
 		private readonly CSharpCodeBuilder _builder;
 		private readonly string            _outputPath;
 
+		public CSharpCodeBuilder GetBuilder() =>
+			_builder;
+
 		public void Generate()
 		{
 			var code = _builder.Generate();
 			File.WriteAllText(_outputPath, code);
 		}
-
-		public CSharpCodeBuilder GetBuilder() =>
-			_builder;
 	}
 }

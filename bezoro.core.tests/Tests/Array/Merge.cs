@@ -7,6 +7,8 @@ namespace Bezoro.Core.Tests.Array
 	[TestFixture]
 	public class Merge
 	{
+	#region Test Methods
+
 		[Test]
 		public void BothSourceAndDestinationArraysAreNull_DestinationRemainsNull()
 		{
@@ -165,6 +167,10 @@ namespace Bezoro.Core.Tests.Array
 			Assert.That(to, Is.EqualTo(from));
 		}
 
+	#endregion
+
+	#region Helper Methods/Other Members
+
 		// Test class for complex type checking
 		private class TestObject
 		{
@@ -190,5 +196,7 @@ namespace Bezoro.Core.Tests.Array
 			public override int GetHashCode() =>
 				HashCode.Combine(Id, Name);
 		}
+
+	#endregion
 	}
 }
