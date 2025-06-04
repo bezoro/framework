@@ -33,7 +33,7 @@ namespace Bezoro.Core.Chess.Pieces
 				_ => throw new ArgumentException("Invalid promotion piece type", nameof(newType))
 			};
 
-			promotionSquare.Piece = newPiece;
+			promotionSquare.SetPiece(newPiece);
 		}
 
 		public void SetEnPassantCapturable(bool value) => CanBeCapturedEnPassant = value;
