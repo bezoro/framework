@@ -13,7 +13,7 @@ namespace Bezoro.Core.Chess.Pieces
 	{
 	#region Interface Implementations
 
-		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece) =>
+		public IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece) =>
 			throw new NotImplementedException();
 
 	#endregion

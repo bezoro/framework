@@ -22,7 +22,7 @@ namespace Bezoro.Core.Chess.Pieces
 
 	#region Interface Implementations
 
-		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece)
+		public IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece)
 		{
 			if (board is null) throw new ArgumentNullException(nameof(board));
 			if (piece is not KingModel king)
