@@ -30,16 +30,16 @@ namespace Bezoro.Core.Chess
 				? null
 				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant); // Assuming this utility exists
 
-			HalfmoveClock  = setup.HalfmoveClock;
-			FullmoveNumber = setup.FullmoveNumber;
+			HalfMoveClock  = setup.HalfmoveClock;
+			FullMoveNumber = setup.FullmoveNumber;
 		}
 
 		public BoardModel             Board                 { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
 		public BoardPosition?         EnPassantTargetSquare { get; internal set; }
 		public CastlingRights         CastlingRights        { get; internal set; }
-		public int                    FullmoveNumber        { get; internal set; }
-		public int                    HalfmoveClock         { get; internal set; }
+		public int                    FullMoveNumber        { get; internal set; }
+		public int                    HalfMoveClock         { get; internal set; }
 
 		public PlayerColor ActiveColor { get; internal set; }
 
@@ -75,15 +75,15 @@ namespace Bezoro.Core.Chess
 			if (capturedPiece != null && capturedPiece.Color != pieceToMove.Color)
 			{
 				CapturedPieces.Add(capturedPiece);
-				HalfmoveClock = 0; // Reset halfmove clock on capture
+				HalfMoveClock = 0; // Reset halfmove clock on capture
 			}
 			else if (pieceToMove.GetPieceType() == ChessPieceType.Pawn) // Assuming IChessPieceModel has Type
 			{
-				HalfmoveClock = 0; // Reset halfmove clock on pawn move
+				HalfMoveClock = 0; // Reset halfmove clock on pawn move
 			}
 			else
 			{
-				HalfmoveClock++;
+				HalfMoveClock++;
 			}
 
 			// Update Castling Rights (simplified version)
@@ -108,7 +108,7 @@ namespace Bezoro.Core.Chess
 			// Increment fullmove number if Black just moved (meaning it's now White's turn)
 			if (ActiveColor == PlayerColor.White)
 			{
-				FullmoveNumber++;
+				FullMoveNumber++;
 			}
 
 			// The BoardModel itself handles invalidating its snapshot internally when MovePieceInternal is called.
@@ -146,11 +146,11 @@ namespace Bezoro.Core.Chess
 			fen.Append(' ');
 
 			// 5. Halfmove clock
-			fen.Append(HalfmoveClock);
+			fen.Append(HalfMoveClock);
 			fen.Append(' ');
 
 			// 6. Fullmove number
-			fen.Append(FullmoveNumber);
+			fen.Append(FullMoveNumber);
 
 			return fen.ToString();
 		}
