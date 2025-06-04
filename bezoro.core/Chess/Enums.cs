@@ -9,9 +9,9 @@ namespace Bezoro.Core.Chess
 	/// </summary>
 	public enum CastleSide
 	{
-		None      = 0,
-		KingSide  = 1,
-		QueenSide = 2
+		None  = 0,
+		King  = 1,
+		Queen = 2
 	}
 
 	/// <summary>
@@ -114,7 +114,9 @@ namespace Bezoro.Core.Chess
 		Capture,
 		EnPassant,
 		Promotion,
-		Castle
+		Castle,
+		CastleKingside,
+		CastleQueenside
 	}
 
 	/// <summary>
