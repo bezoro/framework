@@ -178,9 +178,11 @@ namespace Bezoro.Core.Chess
 				throw new ArgumentNullException(nameof(square));
 
 			var piece = square.GetPiece();
-			if (piece != null)
-				_pieceIndex.Remove(piece);
+			if (piece == null)
+				return;
 
+			_pieceIndex.Remove(piece);
+			BoardPieces.Remove(piece);
 			square.SetPiece(null);
 			InvalidateSnapshot();
 		}
