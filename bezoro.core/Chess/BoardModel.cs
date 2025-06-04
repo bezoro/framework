@@ -192,7 +192,7 @@ namespace Bezoro.Core.Chess
 			=> _pieceIndex[piece] = newPos;
 
 		private BoardSnapshot CreateSnapshot() =>
-			throw new NotImplementedException();
+			new(Squares);
 
 		private bool IsValid(BoardPosition position) =>
 			position.Column    >= 0
