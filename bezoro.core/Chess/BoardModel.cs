@@ -6,7 +6,7 @@ using Bezoro.Core.Chess.Utils;
 namespace Bezoro.Core.Chess
 {
 	/// <summary>
-	///     Represents a chess board model that manages pieces, their positions, and game state.
+	///     Represents a chess board model that manages pieces, their positions and game state.
 	/// </summary>
 	public class BoardModel : IChessBoardModel
 	{
@@ -206,11 +206,12 @@ namespace Bezoro.Core.Chess
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
 			var squares = new IChessBoardSquareModel[width, height];
-			for (var row = 0 ; row < width ; row++)
+
+			for (var file = 0 ; file < width ; file++) // columns
 			{
-				for (var col = 0 ; col < height ; col++)
+				for (var rank = 0 ; rank < height ; rank++) // rows
 				{
-					squares[row, col] = new BoardSquareModel(new(row, col));
+					squares[file, rank] = new BoardSquareModel(new(file, rank));
 				}
 			}
 
