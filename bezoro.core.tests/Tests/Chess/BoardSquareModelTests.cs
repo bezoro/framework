@@ -18,7 +18,8 @@ namespace Bezoro.Core.Tests.Chess
 		{
 			// arrange
 			var piece  = CreatePiece().Object;
-			var square = new BoardSquareModel(4, 4) { Piece = piece };
+			var square = new BoardSquareModel(4, 4);
+			square.SetPiece(piece);
 
 			// act
 			square.ClearPiece();
@@ -84,7 +85,8 @@ namespace Bezoro.Core.Tests.Chess
 			// arrange
 			var pieceOnSquare = CreatePiece("OnSquare").Object;
 			var pieceToRemove = CreatePiece("Other").Object;
-			var square        = new BoardSquareModel(1, 1) { Piece = pieceOnSquare };
+			var square        = new BoardSquareModel(1, 1);
+			square.SetPiece(pieceOnSquare);
 
 			// act
 			square.RemovePiece(pieceToRemove);
@@ -103,7 +105,8 @@ namespace Bezoro.Core.Tests.Chess
 		{
 			// arrange
 			var piece  = CreatePiece().Object;
-			var square = new BoardSquareModel(2, 2) { Piece = piece };
+			var square = new BoardSquareModel(2, 2);
+			square.SetPiece(piece);
 
 			// act
 			square.RemovePiece(piece);

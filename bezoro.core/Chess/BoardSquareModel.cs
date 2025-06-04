@@ -15,7 +15,7 @@ namespace Bezoro.Core.Chess
 		public BoardPosition     Position   { get; }
 		public bool              IsEmpty    => Piece == null;
 		public bool              IsOccupied => Piece != null;
-		public IChessPieceModel? Piece      { get; set; }
+		public IChessPieceModel? Piece      { get; private set; }
 
 	#region Interface Implementations
 
