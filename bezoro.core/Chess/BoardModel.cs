@@ -29,7 +29,29 @@ namespace Bezoro.Core.Chess
 			CapturedPieces =   new(32);
 		}
 
+		private BoardSnapshot? _cachedSnapshot;
+		private bool           _snapshotValid; // false after every mutation
+
 		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex = new();
+
+		/// <summary>
+		///     Returns a read-only picture of the current position.
+		///     The object is created once per position and reused until the
+		///     board changes again.
+		/// </summary>
+		public BoardSnapshot Snapshot
+		{
+			get
+			{
+				if (_snapshotValid && _cachedSnapshot is not null)
+					return _cachedSnapshot;
+
+				_cachedSnapshot = CreateSnapshot();
+				_snapshotValid  = true;
+
+				return _cachedSnapshot;
+			}
+		}
 
 		public IChessBoardSquareModel[,] Squares { get; }
 		public int                       Height  { get; }
@@ -38,6 +60,49 @@ namespace Bezoro.Core.Chess
 		public List<IChessPieceModel> BoardPieces    { get; }
 		public CastlingRights         CastlingRights { get; internal set; } = CastlingRights.All;
 		public List<IChessPieceModel> CapturedPieces { get; set; }
+
+	#region Interface Implementations
+
+		public bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite) =>
+			throw new NotImplementedException();
+
+		public bool TryMovePiece(MovePieceCommand movePieceCommand)
+		{
+			if (movePieceCommand == null)
+				throw new ArgumentNullException(nameof(movePieceCommand));
+
+			try
+			{
+				movePieceCommand.Execute(this);
+				return true;
+			}
+			catch (InvalidOperationException)
+			{
+				return false;
+			}
+		}
+
+		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
+		{
+			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
+			if (to          == null) throw new ArgumentNullException(nameof(to));
+
+			to.SetPiece(pieceToMove);
+			UpdateIndex(pieceToMove, to.Position);
+		}
+
+		public bool IsEmpty(BoardPosition to)
+		{
+			if (to == null)
+				throw new ArgumentNullException(nameof(to));
+
+			return Squares[to.File, to.Rank].GetPiece() == null;
+		}
+
+		public BoardPosition? GetPosition(IChessPieceModel piece) =>
+			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
+
+	#endregion
 
 		/// <summary>
 		///     Lists every square in a straight path between <paramref name="from" />
@@ -98,6 +163,9 @@ namespace Bezoro.Core.Chess
 
 		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos)
 			=> _pieceIndex[piece] = newPos;
+
+		private BoardSnapshot CreateSnapshot() =>
+			throw new NotImplementedException();
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
@@ -161,39 +229,9 @@ namespace Bezoro.Core.Chess
 			UpdateIndex(piece, new(currentFile, currentRank));
 		}
 
-	#region Interface implementations
-
-		public bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite) =>
-			throw new NotImplementedException();
-
-		public bool TryMovePiece(MovePieceCommand movePieceCommand)
-		{
-			if (movePieceCommand == null)
-				throw new ArgumentNullException(nameof(movePieceCommand));
-
-			try
-			{
-				movePieceCommand.Execute(this);
-				return true;
-			}
-			catch (InvalidOperationException)
-			{
-				return false;
-			}
-		}
-
-		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
-		{
-			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
-			if (to          == null) throw new ArgumentNullException(nameof(to));
-
-			to.SetPiece(pieceToMove);
-			UpdateIndex(pieceToMove, to.Position);
-		}
-
-		public BoardPosition? GetPosition(IChessPieceModel piece) =>
-			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
-
-	#endregion
+		/// <summary>
+		///     Must be called by every method that mutates the board state.
+		/// </summary>
+		private void InvalidateSnapshot() => _snapshotValid = false;
 	}
 }
