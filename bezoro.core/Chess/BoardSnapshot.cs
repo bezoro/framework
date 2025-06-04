@@ -112,10 +112,12 @@ namespace Bezoro.Core.Chess
 			}
 
 			/* -------- Pawns (capture vectors only) -------------------- */
-			var pawnDir = by == PlayerColor.White ? +1 : -1;
+			var attackingPawnRankOffset = by == PlayerColor.White ? -1 : +1;
+			var attackingPawnRank       = tr + attackingPawnRankOffset;
+
 			foreach (var df in new[] { -1, +1 })
 			{
-				if (TryGetPiece(tf + df, tr + pawnDir, out var pP)
+				if (TryGetPiece(tf + df, attackingPawnRank, out var pP)
 					&& pP!.Color         == by
 					&& pP.GetPieceType() == ChessPieceType.Pawn)
 					return true;
