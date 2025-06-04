@@ -11,6 +11,7 @@ namespace Bezoro.Core.Chess
 		List<IChessPieceModel>    BoardPieces    { get; }
 		List<IChessPieceModel>    CapturedPieces { get; set; }
 		BoardPosition? GetPosition(IChessPieceModel piece);
+		bool IsEmpty(BoardPosition to);
 		bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite);
 		bool TryMovePiece(MovePieceCommand movePieceCommand);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
