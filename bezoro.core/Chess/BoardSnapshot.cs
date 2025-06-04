@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Pieces;
 using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
@@ -15,13 +16,56 @@ namespace Bezoro.Core.Chess
 		/*  Construction / cloning                                  */
 		/*──────────────────────────────────────────────────────────*/
 
-		internal BoardSnapshot(IChessBoardSquareModel[,] pieces)
+		internal BoardSnapshot(IChessBoardSquareModel[,] piecesSource)
 		{
-			Width  = pieces.GetLength(0);
-			Height = pieces.GetLength(1);
+			Width  = piecesSource.GetLength(0);
+			Height = piecesSource.GetLength(1);
 
 			_pieces = new IChessPieceModel?[Width, Height];
-			Array.Copy(pieces, _pieces, pieces.Length);
+			// Assuming IChessBoardSquareModel might be directly an IChessPieceModel
+			// or has a property to get the IChessPieceModel.
+			// If IChessBoardSquareModel is not IChessPieceModel, this copy needs adjustment.
+			// For example, if it's a wrapper:
+			// for (int i = 0; i < Width; i++)
+			// {
+			//     for (int j = 0; j < Height; j++)
+			//     {
+			//         _pieces[i, j] = piecesSource[i, j]?.Piece; // Assuming a 'Piece' property
+			//     }
+			// }
+			// Given the original Array.Copy, it implies piecesSource elements are compatible with _pieces elements.
+			// Let's stick to the original interpretation for now, assuming compatibility.
+			if (piecesSource is IChessPieceModel?[,] pieceModels)
+			{
+				Array.Copy(pieceModels, _pieces, pieceModels.Length);
+			}
+			else if (typeof(IChessBoardSquareModel)
+					 == typeof(IChessPieceModel)) // If they are effectively the same type
+			{
+				Array.Copy(piecesSource, _pieces, piecesSource.Length);
+			}
+			else
+			{
+				// Fallback if direct copy is not possible and IChessBoardSquareModel is more complex
+				// This part would need to know how to extract IChessPieceModel from IChessBoardSquareModel
+				for (var i = 0 ; i < Width ; i++)
+				{
+					for (var j = 0 ; j < Height ; j++)
+					{
+						_pieces[i, j] =
+							piecesSource[i,
+								j] as IChessPieceModel; // Simplistic cast, might need specific adapter logic
+					}
+				}
+			}
+		}
+
+		private BoardSnapshot(IChessPieceModel?[,] pieceModels, int width, int height)
+		{
+			Width   = width;
+			Height  = height;
+			_pieces = new IChessPieceModel?[width, height];
+			Array.Copy(pieceModels, _pieces, pieceModels.Length);
 		}
 
 		/*──────────────────────────────────────────────────────────*/
@@ -67,31 +111,138 @@ namespace Bezoro.Core.Chess
 			return null;
 		}
 
-		public BoardSnapshot ApplyMove(BoardPosition from, BoardPosition to)
+		public BoardSnapshot ApplyMove(Move move)
 		{
-			if (from == null) throw new ArgumentNullException(nameof(from));
-			if (to   == null) throw new ArgumentNullException(nameof(to));
+			if (move == null) throw new ArgumentNullException(nameof(move));
 
-			var movingPiece = this[from.File, from.Rank];
-			if (movingPiece is null)
+			// Create a new internal representation for the next state by deep copying the current _pieces array.
+			var newPiecesArray = new IChessPieceModel?[Width, Height];
+			Array.Copy(_pieces, newPiecesArray, _pieces.Length);
+			var next = new BoardSnapshot(newPiecesArray, Width, Height); // Use private constructor for true clone
+
+			var movingPiece = next[move.From.File, move.From.Rank];
+			if (movingPiece == null)
 			{
-				throw new InvalidOperationException(
-					$"No piece at {from}.");
+				throw new InvalidOperationException($"No piece at {move.From} to apply move.");
 			}
 
-			var next = Clone();
+			var movingPieceColor = movingPiece.Color;
+			var movingPieceType  = movingPiece.GetPieceType();
 
-			next[to.File, to.Rank]     = movingPiece; // capture / overwrite
-			next[from.File, from.Rank] = null;
+			var currentHasMoved = false;
+			if (movingPiece is PieceModel pieceModel)
+			{
+				currentHasMoved = pieceModel.HasMoved;
+			}
+			// If KingModel/RookModel don't derive from a common PieceModel with HasMoved,
+			// you might need more specific checks here, e.g.:
+			// else if (movingPiece is KingModel km) currentHasMoved = km.HasMoved;
+			// else if (movingPiece is RookModel rm) currentHasMoved = rm.HasMoved;
+
+			// Clear the original square
+			next[move.From.File, move.From.Rank] = null;
+
+			IChessPieceModel pieceToPlace;
+
+			switch (move.Kind)
+			{
+				case MoveKind.Normal:
+					var newHasMovedNormal = currentHasMoved
+											|| movingPieceType == ChessPieceType.King
+											|| movingPieceType == ChessPieceType.Rook;
+
+					pieceToPlace = CreateUpdatedPiece(movingPieceColor, movingPieceType, newHasMovedNormal);
+
+					next[move.To.File, move.To.Rank] = pieceToPlace;
+					break;
+
+				case MoveKind.Promotion:
+					if (!move.PromoteTo.HasValue)
+					{
+						throw new InvalidOperationException("Promotion move must specify promotion piece type.");
+					}
+
+					ChessPieceType promotedPieceType;
+					switch (move.PromoteTo.Value)
+					{
+						case PromotionPieceType.Queen:
+							promotedPieceType = ChessPieceType.Queen;
+							break;
+						case PromotionPieceType.Rook:
+							promotedPieceType = ChessPieceType.Rook;
+							break;
+						case PromotionPieceType.Bishop:
+							promotedPieceType = ChessPieceType.Bishop;
+							break;
+						case PromotionPieceType.Knight:
+							promotedPieceType = ChessPieceType.Knight;
+							break;
+						default:
+							throw new ArgumentOutOfRangeException(
+								nameof(move.PromoteTo), "Invalid promotion piece type.");
+					}
+
+					// A promoted piece should always be considered "moved", especially if it's a Rook.
+					pieceToPlace                     = CreateUpdatedPiece(movingPieceColor, promotedPieceType, true);
+					next[move.To.File, move.To.Rank] = pieceToPlace;
+					break;
+
+				case MoveKind.EnPassant:
+					// The pawn itself moves.
+					// 'false' for hasMoved as pawn's initial two-step capability isn't what this flag is for (castling).
+					pieceToPlace = CreateUpdatedPiece(movingPieceColor, movingPieceType, false);
+
+					next[move.To.File, move.To.Rank] = pieceToPlace;
+					// Remove the captured pawn in en passant
+					var capturedPawnPos = new BoardPosition(move.To.File, move.From.Rank);
+					next[capturedPawnPos.File, capturedPawnPos.Rank] = null;
+					break;
+
+				case MoveKind.CastleKingside:
+				case MoveKind.CastleQueenside:
+					// King moves and its HasMoved status is set to true.
+					var movedKing = CreateUpdatedPiece(movingPieceColor, ChessPieceType.King, true);
+					next[move.To.File, move.To.Rank] = movedKing;
+
+					// Determine Rook's movement
+					var           rank = move.From.Rank;
+					BoardPosition rookFromPos, rookToPos;
+					if (move.Kind == MoveKind.CastleKingside)
+					{
+						rookFromPos = new(next.Width   - 1, rank); // Assuming H-file is Width-1
+						rookToPos   = new(move.To.File - 1, rank); // King moves two squares, rook to adjacent square
+					}
+					else // CastleQueenside
+					{
+						rookFromPos = new(0, rank);                // Assuming A-file is 0
+						rookToPos   = new(move.To.File + 1, rank); // King moves two squares, rook to adjacent square
+					}
+
+					var rook = next[rookFromPos.File, rookFromPos.Rank];
+					if (rook == null || rook.GetPieceType() != ChessPieceType.Rook)
+					{
+						throw new InvalidOperationException(
+							$"Rook not found at {rookFromPos} or not a rook for castling.");
+					}
+
+					var movedRook = CreateUpdatedPiece(rook.Color, ChessPieceType.Rook, true);
+					next[rookFromPos.File, rookFromPos.Rank] = null;
+					next[rookToPos.File, rookToPos.Rank]     = movedRook;
+					break;
+
+				default:
+					throw new ArgumentOutOfRangeException(nameof(move.Kind), $"Unknown move kind: {move.Kind}");
+			}
 
 			return next;
 		}
 
 		public BoardSnapshot Clone()
 		{
-			var copy = new IChessBoardSquareModel[Width, Height];
-			Array.Copy(_pieces, copy, _pieces.Length);
-			return new(copy);
+			// Ensure a deep copy of the _pieces array for the new snapshot
+			var newPiecesArray = new IChessPieceModel?[Width, Height];
+			Array.Copy(_pieces, newPiecesArray, _pieces.Length);
+			return new(newPiecesArray, Width, Height); // Use the private constructor
 		}
 
 		/*──────────────────────────────────────────────────────────*/
@@ -175,9 +326,6 @@ namespace Bezoro.Core.Chess
 			PlayerColor attacker,
 			bool diag)
 		{
-			var f = fStart + df;
-			var r = rStart + dr;
-
 			foreach (var (nf, nr) in _pieces.Ray(fStart, rStart, df, dr))
 			{
 				var piece = _pieces[nf, nr];
@@ -211,5 +359,42 @@ namespace Bezoro.Core.Chess
 
 		private static ChessPieceType GetPieceType(IChessPieceModel piece) =>
 			piece.GetPieceType();
+
+		// Helper to create a new piece instance, primarily for updating HasMoved state or for promotion.
+		private IChessPieceModel CreateUpdatedPiece(
+			PlayerColor color,
+			ChessPieceType type,
+			bool hasMoved)
+		{
+			// Assumes piece classes (e.g., KingModel, RookModel) have a constructor PlayerColor color
+			// and a MarkMoved() method or a similar mechanism to set HasMoved.
+			switch (type)
+			{
+				case ChessPieceType.King:
+					var king = new KingModel(color);
+					if (hasMoved) king.MarkMoved();
+					return king;
+				case ChessPieceType.Rook:
+					var rook = new RookModel(color);
+					if (hasMoved) rook.MarkMoved();
+					return rook;
+				case ChessPieceType.Queen:
+					var queen = new QueenModel(color);
+					if (hasMoved) queen.MarkMoved();
+					return queen;
+				case ChessPieceType.Bishop:
+					var bishop = new BishopModel(color);
+					if (hasMoved) bishop.MarkMoved();
+					return bishop;
+				case ChessPieceType.Knight:
+					var knight = new KnightModel(color);
+					if (hasMoved) knight.MarkMoved();
+					return knight;
+				case ChessPieceType.Pawn:
+					return new PawnModel(color);
+				default:
+					throw new ArgumentOutOfRangeException(nameof(type), $"Unsupported piece type for creation: {type}");
+			}
+		}
 	}
 }
