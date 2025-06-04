@@ -124,6 +124,9 @@ namespace Bezoro.Core.Chess
 			var dx = Math.Sign(to.File - from.File);
 			var dy = Math.Sign(to.Rank - from.Rank);
 
+			if (dx == 0 && dy == 0)
+				throw new InvalidOperationException("Source and target squares are identical.");
+
 			// Must be purely horizontal or vertical for castling.
 			if (dx != 0 && dy != 0)
 			{
