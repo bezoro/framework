@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Rules;
 using Bezoro.Core.Chess.Utils;
 
 // For FenData, FenUtility, AlgebraicNotationUtils, ChessUtils
@@ -17,24 +18,26 @@ namespace Bezoro.Core.Chess
 		/// <param name="fen">The FEN string to load the game state from. If null or empty, uses standard start.</param>
 		/// <param name="boardWidth">The width of the chess board.</param>
 		/// <param name="boardHeight">The height of the chess board.</param>
-		public GameModel(string? fen = null, int boardWidth = 8, int boardHeight = 8)
+		public GameModel(string? fen = null, int boardWidth = 8, int boardHeight = 8, IGameRules? rules = null)
 		{
 			var setup = string.IsNullOrWhiteSpace(fen) ? FenUtility.StartBoard : FenUtility.Parse(fen);
 
 			Board          = new(boardWidth, boardHeight, setup.PiecePlacement);
+			GameRules      = rules ?? new StandardChessRules();
 			CapturedPieces = new(32); // Standard max captures
-
-			ActiveColor    = setup.ActiveColor;
-			CastlingRights = setup.Castling;
 			EnPassantTargetSquare = string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
 				? null
-				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant); // Assuming this utility exists
+				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant);
 
-			HalfMoveClock  = setup.HalfmoveClock;
+			CastlingRights = setup.Castling;
 			FullMoveNumber = setup.FullmoveNumber;
+			HalfMoveClock  = setup.HalfmoveClock;
+			ActiveColor    = setup.ActiveColor;
 		}
 
-		public BoardModel             Board                 { get; }
+		public BoardModel Board { get; }
+
+		public IGameRules             GameRules             { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
 		public BoardPosition?         EnPassantTargetSquare { get; internal set; }
 		public CastlingRights         CastlingRights        { get; internal set; }
