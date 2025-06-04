@@ -90,15 +90,13 @@ namespace Bezoro.Core.Chess
 		public IChessBoardSquareModel GetSquare(BoardPosition position)
 		{
 			if (!IsValid(position))
-			{
 				throw new ArgumentOutOfRangeException(nameof(position), "Position is out of bounds.");
-			}
 
 			return Squares[position.Column, position.Row];
 		}
 
 		public bool IsEmpty(BoardPosition to) =>
-			Squares[to.File, to.Rank].GetPiece() == null;
+			GetSquare(to).GetPiece() == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
@@ -214,8 +212,8 @@ namespace Bezoro.Core.Chess
 			return squares;
 		}
 
-		private IChessPieceModel? GetPieceAt(BoardPosition pos)
-			=> Squares[pos.Column, pos.Rank].Piece;
+		private IChessPieceModel? GetPieceAt(BoardPosition pos) =>
+			GetSquare(pos).GetPiece();
 
 		private List<IChessPieceModel> InitializePieces(
 			IChessBoardSquareModel[,] squares,
@@ -271,7 +269,7 @@ namespace Bezoro.Core.Chess
 		private void InvalidateSnapshot() => _snapshotValid = false;
 
 		/// <summary>
-		///     Relocates a piece (including capture handling, index update and snapshot
+		///     Relocates a piece (including index update and snapshot
 		///     invalidation). All public <c>MovePiece</c> overloads delegate to this method.
 		/// </summary>
 		private void MovePieceInternal(
