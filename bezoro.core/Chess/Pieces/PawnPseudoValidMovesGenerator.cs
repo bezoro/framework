@@ -8,12 +8,32 @@ namespace Bezoro.Core.Chess.Pieces
 {
 	/// <summary>
 	///     Generates every pseudo-legal pawn move (white perspective; black is mirrored).
-	///     See the big ASCII table below for the 12 promotion cases.
+	///     ///
+	///     <remarks>
+	///         The pawn has six geometrical shapes; at the promotion rank three of
+	///         them fan out into four promotion pieces, giving 12 concrete moves:
+	///         ┌─────────────┬──────────────────────┬──────────┤
+	///         │ # │ Geometry│ MoveKind             │ Promotion│
+	///         ├───┼─────────┼──────────────────────┼──────────┤
+	///         │ 1 │ (0,+1)  │ Normal               │ Queen    │
+	///         │ 2 │ (0,+1)  │ Normal               │ Rook     │
+	///         │ 3 │ (0,+1)  │ Normal               │ Bishop   │
+	///         │ 4 │ (0,+1)  │ Normal               │ Knight   │
+	///         │ 5 │(-1,+1)  │ Capture              │ Queen    │
+	///         │ 6 │(-1,+1)  │ Capture              │ Rook     │
+	///         │ 7 │(-1,+1)  │ Capture              │ Bishop   │
+	///         │ 8 │(-1,+1)  │ Capture              │ Knight   │
+	///         │ 9 │(+1,+1)  │ Capture              │ Queen    │
+	///         │10 │(+1,+1)  │ Capture              │ Rook     │
+	///         │11 │(+1,+1)  │ Capture              │ Bishop   │
+	///         │12 │(+1,+1)  │ Capture              │ Knight   │
+	///         └───┴─────────┴───────────────────────┴──────────┘
+	///         The geometries (0,+2) and ±(1,+1) En-Passant never promote, so they
+	///         are not counted above.
+	///     </remarks>
 	/// </summary>
 	public sealed class PawnPseudoValidMovesGenerator : IPseudoMoveGenerator
 	{
-		// `ReadOnlySpan` avoids allocating a managed array; the JIT embeds the
-		// data directly in the readonly data section.
 		private static ReadOnlySpan<MoveTemplate> Templates => new[]
 		{
 			new MoveTemplate(0,  +1, MoveKind.Normal),       // single push
@@ -26,60 +46,93 @@ namespace Bezoro.Core.Chess.Pieces
 
 	#region Interface Implementations
 
-		/*──────────────────────────────────────────────────────────*/
-		/*  IPseudoMoveGenerator                                    */
-		/*──────────────────────────────────────────────────────────*/
+		/*───────────────────────────── Public API ─────────────────────────────*/
 
 		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece)
 		{
-			if (board is null) throw new ArgumentNullException(nameof(board));
-			if (piece is not PawnModel pawn)
-				throw new ArgumentException("Generator was given a non-pawn piece.", nameof(piece));
+			var pawn = ValidateArgumentsAndCast(board, piece);
 
-			var pos = board.GetPosition(pawn);
-			if (pos is null) yield break;
+			var from = GetPawnPosition(board, pawn);
+			if (from is null) yield break;
 
-			var file = pos.Value.Column;
-			var rank = pos.Value.Row;
-			var dir  = pawn.Direction; // +1 (white) / –1 (black)
-
-			for (var i = 0 ; i < Templates.Length ; i++)
+			foreach (var move in GenerateMoves(board, pawn, from.Value))
 			{
-				var t = Templates[i];
-				if (t.FirstMoveOnly && pawn.HasMoved) continue;
-
-				var toFile = file + t.Dx;
-				var toRank = rank + t.Dy * dir;
-
-				if (!board.IsInside(toFile, toRank)) continue;
-
-				var from = pos.Value;
-				var to   = new BoardPosition(toFile, toRank);
-
-				if (IsPromotionRank(pawn.Color, toRank, board))
-				{
-					foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
-					{
-						yield return Move.Promotion(from, to, pawn.Color, promo);
-					}
-				}
-				else
-				{
-					yield return new(from, to, pawn.Color, t.Kind);
-				}
+				yield return move;
 			}
 		}
 
 	#endregion
 
-		/*──────────────────────────────────────────────────────────*/
+		private static BoardPosition? GetPawnPosition(IChessBoardModel board, PawnModel pawn) =>
+			board.GetPosition(pawn);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
-		/*──────────────────────────────────────────────────────────*/
-		/*  “Matrix” of pawn moves (white); black flips dy with dir */
-		/*──────────────────────────────────────────────────────────*/
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static bool IsTemplateApplicable(in MoveTemplate tpl, PawnModel pawn) =>
+			!(tpl.FirstMoveOnly && pawn.HasMoved);
+
+		private IEnumerable<Move> BuildMoves(
+			IChessBoardModel board,
+			PawnModel pawn,
+			MoveTemplate tpl,
+			BoardPosition from,
+			int toFile,
+			int toRank)
+		{
+			var to = new BoardPosition(toFile, toRank);
+
+			if (IsPromotionRank(pawn.Color, toRank, board))
+			{
+				var type = typeof(PromotionPieceType);
+				foreach (PromotionPieceType promo in Enum.GetValues(type))
+				{
+					yield return Move.Promotion(from, to, pawn.Color, promo);
+				}
+			}
+			else
+			{
+				yield return new(from, to, pawn.Color, tpl.Kind);
+			}
+		}
+
+		private IEnumerable<Move> GenerateMoves(
+			IChessBoardModel board,
+			PawnModel pawn,
+			BoardPosition from)
+		{
+			var dir  = pawn.Direction; // +1 (white) / –1 (black)
+			var file = from.Column;
+			var rank = from.Row;
+
+			for (var i = 0 ; i < Templates.Length ; i++)
+			{
+				var tpl = Templates[i];
+				if (!IsTemplateApplicable(tpl, pawn)) continue;
+
+				var toFile = file + tpl.Dx;
+				var toRank = rank + tpl.Dy * dir;
+
+				if (!board.IsInside(toFile, toRank)) continue;
+
+				foreach (var move in BuildMoves(board, pawn, tpl, from, toFile, toRank))
+				{
+					yield return move;
+				}
+			}
+		}
+
+		private static PawnModel ValidateArgumentsAndCast(IChessBoardModel board, PieceModel piece)
+		{
+			if (board is null) throw new ArgumentNullException(nameof(board));
+			if (piece is null) throw new ArgumentNullException(nameof(piece));
+			if (piece is not PawnModel pawn)
+				throw new ArgumentException("Generator received a non-pawn piece.", nameof(piece));
+
+			return pawn;
+		}
 
 		private readonly struct MoveTemplate
 		{
@@ -97,31 +150,5 @@ namespace Bezoro.Core.Chess.Pieces
 			public readonly int      Dy;
 			public readonly MoveKind Kind;
 		}
-
-		/*──────────────────────────────────────────────────────────*/
-		/*  The 12 promotion moves table (documentation only)       */
-		/*──────────────────────────────────────────────────────────*/
-		/// <remarks>
-		/// The pawn has six geometrical shapes; at the promotion rank three of
-		/// them fan out into four promotion pieces, giving 12 concrete moves:
-		/// ┌─────────────┬───────────────────────┬──────────┬───────────┐
-		/// │ # │ Geometry│ MoveKind             │ Promotion│
-		/// ├───┼─────────┼───────────────────────┼──────────┤
-		/// │ 1 │ (0,+1)  │ Normal               │ Queen    │
-		/// │ 2 │ (0,+1)  │ Normal               │ Rook     │
-		/// │ 3 │ (0,+1)  │ Normal               │ Bishop   │
-		/// │ 4 │ (0,+1)  │ Normal               │ Knight   │
-		/// │ 5 │(-1,+1)  │ Capture              │ Queen    │
-		/// │ 6 │(-1,+1)  │ Capture              │ Rook     │
-		/// │ 7 │(-1,+1)  │ Capture              │ Bishop   │
-		/// │ 8 │(-1,+1)  │ Capture              │ Knight   │
-		/// │ 9 │(+1,+1)  │ Capture              │ Queen    │
-		/// │10 │(+1,+1)  │ Capture              │ Rook     │
-		/// │11 │(+1,+1)  │ Capture              │ Bishop   │
-		/// │12 │(+1,+1)  │ Capture              │ Knight   │
-		/// └───┴─────────┴───────────────────────┴──────────┘
-		/// The geometries (0,+2) and ±(1,+1) En-Passant never promote, so they
-		/// are not counted above.
-		/// </remarks>
 	}
 }
