@@ -86,9 +86,9 @@ namespace Bezoro.Core.Chess.Pieces
 
 			if (IsPromotionRank(pawn.Color, toRank, board))
 			{
-				var type = typeof(PromotionPieceType);
-				foreach (PromotionPieceType promo in Enum.GetValues(type))
+				foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
 				{
+					if (promo == PromotionPieceType.None) continue; // <<< skip “None”
 					yield return Move.Promotion(from, to, pawn.Color, promo);
 				}
 			}
@@ -116,6 +116,12 @@ namespace Bezoro.Core.Chess.Pieces
 				var toRank = rank + tpl.Dy * dir;
 
 				if (!board.IsInside(toFile, toRank)) continue;
+
+				var kindsToPromotion = tpl.Kind is MoveKind.Normal or MoveKind.Capture;
+				if (kindsToPromotion && IsPromotionRank(pawn.Color, toRank, board))
+				{
+					continue;
+				}
 
 				foreach (var move in BuildMoves(board, pawn, tpl, from, toFile, toRank))
 				{
