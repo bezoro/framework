@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Pieces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Collections;
 
 namespace Bezoro.Core.Chess.Rules
 {
@@ -13,7 +13,7 @@ namespace Bezoro.Core.Chess.Rules
 
 		public IEnumerable<Move> FilterLegalMoves(GameModel game, IChessPieceModel piece, IEnumerable<Move> pseudoMoves)
 		{
-			if (pseudoMoves == null)
+			if (pseudoMoves.IsNullOrEmpty())
 			{
 				return Enumerable.Empty<Move>();
 			}
@@ -68,7 +68,7 @@ namespace Bezoro.Core.Chess.Rules
 
 			// 2. Squares between King and Rook must be empty.
 			// 3. King must not pass through an attacked square.
-			int kingStartFile = castleMove.From.File;
+			var kingStartFile = castleMove.From.Column;
 
 			if (castleMove.Kind == MoveKind.CastleKingside)
 			{
@@ -108,7 +108,7 @@ namespace Bezoro.Core.Chess.Rules
 			Move move,
 			IChessPieceModel movingPiece)
 		{
-			var targetSquare = board.Squares[move.To.File, move.To.Rank];
+			var targetSquare = board.Squares[move.To.Column, move.To.Row];
 			var targetPiece  = targetSquare.GetPiece();
 
 			return targetPiece != null && targetPiece.Color == movingPiece.Color;
@@ -186,7 +186,7 @@ namespace Bezoro.Core.Chess.Rules
 			Move move,
 			out IChessPieceModel? movingPiece)
 		{
-			var sourceSquare = board.Squares[move.From.File, move.From.Rank];
+			var sourceSquare = board.Squares[move.From.Column, move.From.Row];
 			movingPiece = sourceSquare.GetPiece();
 			return movingPiece != null;
 		}
