@@ -21,8 +21,20 @@ namespace Bezoro.Core.Chess.Pieces
 			JustAdvancedTwoSquares = false;
 		}
 
-		public void PromoteTo(PromotionPieceType newType) =>
-			throw new NotImplementedException();
+		public void PromoteTo(BoardSquareModel promotionSquare, PromotionPieceType newType)
+		{
+			PieceModel newPiece = newType switch
+			{
+				PromotionPieceType.Queen => new QueenModel(Color),
+				PromotionPieceType.Rook => new RookModel(Color),
+				PromotionPieceType.Bishop => new BishopModel(Color),
+				PromotionPieceType.Knight => new KnightModel(Color),
+				PromotionPieceType.None => throw new ArgumentException("Cannot promote to None", nameof(newType)),
+				_ => throw new ArgumentException("Invalid promotion piece type", nameof(newType))
+			};
+
+			promotionSquare.Piece = newPiece;
+		}
 
 		public void SetEnPassantCapturable(bool value) => CanBeCapturedEnPassant = value;
 		public void SetJustAdvancedTwoSquares(bool value) => JustAdvancedTwoSquares = value;
