@@ -31,5 +31,6 @@ namespace Bezoro.Core.Chess
 		///     <see cref="MoveKind.Promotion" />.
 		/// </summary>
 		public bool IsPromotion => Kind == MoveKind.Promotion;
+		public PlayerColor MovingSide { get; }
 	}
 }
