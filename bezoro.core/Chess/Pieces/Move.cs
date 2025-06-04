@@ -5,7 +5,7 @@ namespace Bezoro.Core.Chess.Pieces
 	/// <summary>
 	///     Immutable, lightweight value type that represents one <em>possible</em> move
 	///     produced by the move-generator.
-	///     It is pure data – it does not modify the board and has no side-effects.
+	///     It is pure data – it does not modify the board and has no side effects.
 	/// </summary>
 	public readonly struct Move : IEquatable<Move>
 	{
@@ -76,7 +76,7 @@ namespace Bezoro.Core.Chess.Pieces
 
 		/// <remarks>
 		///     This is intentionally left as the default value; callers may set it through an
-		///     object-initialiser if they need to tag the move with the side that generated it.
+		///     object-initializer if they need to tag the move with the side that generated it.
 		/// </remarks>
 		public PlayerColor MovingSide { get; init; }
 
