@@ -88,8 +88,13 @@ namespace Bezoro.Core.Chess
 			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
 			if (to          == null) throw new ArgumentNullException(nameof(to));
 
+			if (_pieceIndex.TryGetValue(pieceToMove, out var oldPos))
+				GetSquare(oldPos).SetPiece(null);
+
 			to.SetPiece(pieceToMove);
 			UpdateIndex(pieceToMove, to.Position);
+
+			_snapshotValid = false;
 		}
 
 		public IChessBoardSquareModel GetSquare(BoardPosition position)
@@ -102,10 +107,8 @@ namespace Bezoro.Core.Chess
 			return Squares[position.Column, position.Row];
 		}
 
-		public bool IsEmpty(BoardPosition to)
-		{
-			return Squares[to.File, to.Rank].GetPiece() == null;
-		}
+		public bool IsEmpty(BoardPosition to) =>
+			Squares[to.File, to.Rank].GetPiece() == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
