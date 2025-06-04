@@ -64,23 +64,13 @@ namespace Bezoro.Core.Chess
 
 	#region Interface Implementations
 
-		public bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite) =>
-			throw new NotImplementedException();
-
 		public bool TryMovePiece(MovePieceCommand movePieceCommand)
 		{
 			if (movePieceCommand == null)
 				throw new ArgumentNullException(nameof(movePieceCommand));
 
-			try
-			{
-				movePieceCommand.Execute(this);
-				return true;
-			}
-			catch (InvalidOperationException)
-			{
-				return false;
-			}
+			movePieceCommand.Execute(this);
+			return true;
 		}
 
 		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
@@ -94,7 +84,7 @@ namespace Bezoro.Core.Chess
 			to.SetPiece(pieceToMove);
 			UpdateIndex(pieceToMove, to.Position);
 
-			_snapshotValid = false;
+			InvalidateSnapshot();
 		}
 
 		public IChessBoardSquareModel GetSquare(BoardPosition position)
@@ -189,6 +179,7 @@ namespace Bezoro.Core.Chess
 				_pieceIndex.Remove(piece);
 
 			square.SetPiece(null);
+			InvalidateSnapshot();
 		}
 
 		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos)
@@ -305,8 +296,7 @@ namespace Bezoro.Core.Chess
 			toSquare.SetPiece(pieceToMove);
 			_pieceIndex[pieceToMove] = to;
 
-			// Snapshot no longer represents the current position
-			_snapshotValid = false;
+			InvalidateSnapshot();
 		}
 	}
 }
