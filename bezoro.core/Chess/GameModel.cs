@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Rules;
 using Bezoro.Core.Chess.Utils;
@@ -80,7 +79,7 @@ namespace Bezoro.Core.Chess
 				CapturedPieces.Add(capturedPiece);
 				HalfMoveClock = 0; // Reset halfmove clock on capture
 			}
-			else if (pieceToMove.GetPieceType() == ChessPieceType.Pawn) // Assuming IChessPieceModel has Type
+			else if (pieceToMove.GetPieceType() == ChessPieceType.Pawn)
 			{
 				HalfMoveClock = 0; // Reset halfmove clock on pawn move
 			}
@@ -124,38 +123,19 @@ namespace Bezoro.Core.Chess
 		/// <returns>The FEN string.</returns>
 		public string ToFenString()
 		{
-			var fen = new StringBuilder();
+			var piecePlacement  = Board.GetPiecePlacementFen();
+			var enPassantString = EnPassantTargetSquare?.Algebraic ?? "-";
 
-			// 1. Piece placement (from BoardModel)
-			fen.Append(Board.GetPiecePlacementFen()); // BoardModel will provide this part
-			fen.Append(' ');
+			var currentFenData = new FenData(
+				piecePlacement,
+				ActiveColor,
+				CastlingRights,
+				enPassantString,
+				HalfMoveClock,
+				FullMoveNumber
+			);
 
-			// 2. Active color
-			fen.Append(ActiveColor == PlayerColor.White ? 'w' : 'b');
-			fen.Append(' ');
-
-			// 3. Castling availability
-			var castlingStr = new StringBuilder();
-			if (CastlingRights.HasFlag(CastlingRights.WhiteKingSide)) castlingStr.Append('K');
-			if (CastlingRights.HasFlag(CastlingRights.WhiteQueenSide)) castlingStr.Append('Q');
-			if (CastlingRights.HasFlag(CastlingRights.BlackKingSide)) castlingStr.Append('k');
-			if (CastlingRights.HasFlag(CastlingRights.BlackQueenSide)) castlingStr.Append('q');
-			fen.Append(castlingStr.Length > 0 ? castlingStr.ToString() : "-");
-			fen.Append(' ');
-
-			// 4. En passant target square
-			// Assuming BoardPosition has an 'Algebraic' property or similar representation
-			fen.Append(EnPassantTargetSquare?.Algebraic ?? "-");
-			fen.Append(' ');
-
-			// 5. Halfmove clock
-			fen.Append(HalfMoveClock);
-			fen.Append(' ');
-
-			// 6. Fullmove number
-			fen.Append(FullMoveNumber);
-
-			return fen.ToString();
+			return FenUtility.Format(currentFenData);
 		}
 
 		private void UpdateCastlingRightsOnMove(
@@ -179,6 +159,8 @@ namespace Bezoro.Core.Chess
 			// If Rook moved from its starting square
 			else if (movedPiece.GetPieceType() == ChessPieceType.Rook)
 			{
+				// Simplified: Assumes standard board size for rook starting squares.
+				// A more robust implementation might check actual initial rook positions if configurable.
 				if (movedPiece.Color == PlayerColor.White)
 				{
 					if (from.File == 0 && from.Rank == 0) // A1
@@ -196,15 +178,16 @@ namespace Bezoro.Core.Chess
 			}
 
 			// If a rook is captured on its starting square
-			if (capturedPiece != null && capturedPiece.GetPieceType() == ChessPieceType.Rook)
+			if (capturedPiece                   != null
+				&& capturedPiece.GetPieceType() == ChessPieceType.Rook)
 			{
-				if (to.File == 0 && to.Rank == 0) // A1 was captured
+				if (to.File == 0 && to.Rank == 0) // A1 was captured (White's QR)
 					CastlingRights &= ~CastlingRights.WhiteQueenSide;
-				else if (to.File == 7 && to.Rank == 0) // H1 was captured
+				else if (to.File == 7 && to.Rank == 0) // H1 was captured (White's KR)
 					CastlingRights &= ~CastlingRights.WhiteKingSide;
-				else if (to.File == 0 && to.Rank == 7) // A8 was captured
+				else if (to.File == 0 && to.Rank == 7) // A8 was captured (Black's QR)
 					CastlingRights &= ~CastlingRights.BlackQueenSide;
-				else if (to.File == 7 && to.Rank == 7) // H8 was captured
+				else if (to.File == 7 && to.Rank == 7) // H8 was captured (Black's KR)
 					CastlingRights &= ~CastlingRights.BlackKingSide;
 			}
 		}
