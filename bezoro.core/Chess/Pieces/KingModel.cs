@@ -28,10 +28,10 @@ namespace Bezoro.Core.Chess.Pieces
 			// 2. Map (color, side)
 			var expectedFlag = Color switch
 			{
-				PlayerColor.White when side == CastleSide.KingSide => CastlingRights.WhiteKingSide,
-				PlayerColor.White                                  => CastlingRights.WhiteQueenSide,
-				PlayerColor.Black when side == CastleSide.KingSide => CastlingRights.BlackKingSide,
-				_                                                  => CastlingRights.BlackQueenSide
+				PlayerColor.White when side == CastleSide.King => CastlingRights.WhiteKingSide,
+				PlayerColor.White                              => CastlingRights.WhiteQueenSide,
+				PlayerColor.Black when side == CastleSide.King => CastlingRights.BlackKingSide,
+				_                                              => CastlingRights.BlackQueenSide
 			};
 
 			// 3. The king can castle if that specific right is still available.

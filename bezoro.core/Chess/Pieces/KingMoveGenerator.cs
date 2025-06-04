@@ -75,13 +75,13 @@ namespace Bezoro.Core.Chess.Pieces
 			{
 				new
 				{
-					Side       = CastleSide.KingSide,
+					Side       = CastleSide.King,
 					RookFile   = 7, // h-file
 					KingTarget = 6  // g-file
 				},
 				new
 				{
-					Side       = CastleSide.QueenSide,
+					Side       = CastleSide.Queen,
 					RookFile   = 0, // a-file
 					KingTarget = 2  // c-file
 				}
