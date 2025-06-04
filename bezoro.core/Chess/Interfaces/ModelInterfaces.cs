@@ -15,6 +15,7 @@ namespace Bezoro.Core.Chess.Interfaces
 		bool IsEmpty(BoardPosition to);
 		bool IsSquareAttacked(IChessBoardSquareModel sq, PlayerColor opposite);
 		bool TryMovePiece(MovePieceCommand movePieceCommand);
+		IChessBoardSquareModel GetSquare(BoardPosition position);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
 	}
 

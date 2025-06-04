@@ -92,6 +92,16 @@ namespace Bezoro.Core.Chess
 			UpdateIndex(pieceToMove, to.Position);
 		}
 
+		public IChessBoardSquareModel GetSquare(BoardPosition position)
+		{
+			if (!IsValid(position))
+			{
+				throw new ArgumentOutOfRangeException(nameof(position), "Position is out of bounds.");
+			}
+
+			return Squares[position.Column, position.Row];
+		}
+
 		public bool IsEmpty(BoardPosition to)
 		{
 			if (to == null)
@@ -167,6 +177,12 @@ namespace Bezoro.Core.Chess
 
 		private BoardSnapshot CreateSnapshot() =>
 			throw new NotImplementedException();
+
+		private bool IsValid(BoardPosition position) =>
+			position.Column    >= 0
+			&& position.Column < Width
+			&& position.Row    >= 0
+			&& position.Row    < Height;
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
