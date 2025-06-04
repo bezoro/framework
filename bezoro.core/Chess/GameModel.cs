@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Pieces;
 using Bezoro.Core.Chess.Rules;
 using Bezoro.Core.Chess.Utils;
 
@@ -34,16 +35,14 @@ namespace Bezoro.Core.Chess
 			ActiveColor    = setup.ActiveColor;
 		}
 
-		public BoardModel Board { get; }
-
+		public BoardModel             Board                 { get; }
 		public IGameRules             GameRules             { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
 		public BoardPosition?         EnPassantTargetSquare { get; internal set; }
 		public CastlingRights         CastlingRights        { get; internal set; }
 		public int                    FullMoveNumber        { get; internal set; }
 		public int                    HalfMoveClock         { get; internal set; }
-
-		public PlayerColor ActiveColor { get; internal set; }
+		public PlayerColor            ActiveColor           { get; internal set; }
 
 		/// <summary>
 		///     Attempts to execute a move defined by the move command.
@@ -54,67 +53,25 @@ namespace Bezoro.Core.Chess
 		/// <returns>True if the move was successful, false otherwise.</returns>
 		public bool TryMovePiece(MovePieceCommand moveCommand)
 		{
-			if (moveCommand == null)
-				throw new ArgumentNullException(nameof(moveCommand));
-
-			var pieceToMove = Board.GetPieceAt(moveCommand.From.Position);
-
-			if (pieceToMove       == null) return false;        // No piece at the source square
-			if (pieceToMove.Color != ActiveColor) return false; // Not the active player's piece
-
-			// TODO: Add comprehensive move validation here:
-			// 1. Piece-specific move logic (e.g., can a knight move like that?)
-			// 2. Path clear? (for sliders)
-			// 3. Target square valid? (e.g., not own piece unless castling)
-			// 4. Does the move leave the king in check?
-
-			var capturedPiece = Board.GetPieceAt(moveCommand.To.Position); // Check for capture before moving
-
-			// Execute the move on the board
-			Board.MovePieceInternal(pieceToMove, moveCommand.From.Position, moveCommand.To.Position);
-
-			// Update game state based on the move
-			if (capturedPiece != null && capturedPiece.Color != pieceToMove.Color)
-			{
-				CapturedPieces.Add(capturedPiece);
-				HalfMoveClock = 0; // Reset halfmove clock on capture
-			}
-			else if (pieceToMove.GetPieceType() == ChessPieceType.Pawn)
-			{
-				HalfMoveClock = 0; // Reset halfmove clock on pawn move
-			}
-			else
-			{
-				HalfMoveClock++;
-			}
-
-			// Update Castling Rights (simplified version)
-			UpdateCastlingRightsOnMove(pieceToMove, moveCommand.From.Position, capturedPiece, moveCommand.To.Position);
-
-			// Set En Passant Target Square (simplified version)
-			if (pieceToMove.GetPieceType()                                                 == ChessPieceType.Pawn
-				&& Math.Abs(moveCommand.From.Position.Rank - moveCommand.To.Position.Rank) == 2)
-			{
-				// Pawn moved two squares, set en passant target
-				var enPassantRank = (moveCommand.From.Position.Rank + moveCommand.To.Position.Rank) / 2;
-				EnPassantTargetSquare = new BoardPosition(moveCommand.From.Position.File, enPassantRank);
-			}
-			else
-			{
-				EnPassantTargetSquare = null; // Clear en passant otherwise
-			}
-
-			// Toggle active color
-			ActiveColor = ActiveColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
-
-			// Increment fullmove number if Black just moved (meaning it's now White's turn)
-			if (ActiveColor == PlayerColor.White)
-			{
-				FullMoveNumber++;
-			}
-
-			// The BoardModel itself handles invalidating its snapshot internally when MovePieceInternal is called.
+			moveCommand.Execute(Board);
 			return true;
+		}
+
+		/// <summary>
+		///     1) Asks the piece for all its pseudo‐legal moves,
+		///     2) Filters them through the rule engine,
+		///     3) Returns the actually legal moves.
+		/// </summary>
+		public IEnumerable<Move> StartMove(BoardPosition pos)
+		{
+			var pieceToMove = Board.GetPieceAt(pos);
+			// 1. Generate all geometrically‐legal moves
+			var pseudoMoves = pieceToMove.GetPseudoLegalMoves(this);
+
+			// 2. Ask the rules engine to filter out illegal ones
+			var legalMoves = GameRules.FilterLegalMoves(this, pieceToMove, pseudoMoves);
+
+			return legalMoves;
 		}
 
 		/// <summary>
