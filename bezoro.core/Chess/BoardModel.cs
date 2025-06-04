@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess
 {
+	// Assuming PlayerColor enum exists, e.g.:
+	// public enum PlayerColor { White, Black }
+
 	/// <summary>
 	///     Represents a chess board model that manages pieces, their positions and game state.
 	/// </summary>
@@ -22,24 +26,33 @@ namespace Bezoro.Core.Chess
 			if (width  <= 0) throw new ArgumentOutOfRangeException(nameof(width),  "Width must be positive.");
 			if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), "Height must be positive.");
 
-			boardSetup     ??= FenUtility.StartBoard;
-			Width          =   width;
-			Height         =   height;
-			Squares        =   InitializeSquares(Width, Height);
-			BoardPieces    =   InitializePieces(Squares, boardSetup.Value.PiecePlacement);
-			CapturedPieces =   new(32);
+			var setup = boardSetup ?? FenUtility.StartBoard;
+
+			Width          = width;
+			Height         = height;
+			Squares        = InitializeSquares(Width, Height);
+			BoardPieces    = InitializePieces(Squares, setup.PiecePlacement);
+			CapturedPieces = new(32);
+
+			// Initialize game state essentials
+			ActiveColor    = setup.ActiveColor;
+			CastlingRights = setup.Castling;
+
+			// Convert EnPassant string from FenData to BoardPosition?
+			EnPassantTargetSquare = string.Equals(setup.EnPassant, "-", StringComparison.Ordinal)
+				? null
+				: AlgebraicNotationUtils.FromAlgebraic(
+					setup.EnPassant);
+
+			HalfmoveClock  = setup.HalfmoveClock;
+			FullmoveNumber = setup.FullmoveNumber;
 		}
 
 		private BoardSnapshot? _cachedSnapshot;
-		private bool           _snapshotValid; // false after every mutation
+		private bool           _snapshotValid;
 
 		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex = new();
 
-		/// <summary>
-		///     Returns a read-only picture of the current position.
-		///     The object is created once per position and reused until the
-		///     board changes again.
-		/// </summary>
 		public BoardSnapshot Snapshot
 		{
 			get
@@ -58,9 +71,13 @@ namespace Bezoro.Core.Chess
 		public int                       Height  { get; }
 		public int                       Width   { get; }
 
-		public List<IChessPieceModel> BoardPieces    { get; }
-		public CastlingRights         CastlingRights { get; internal set; } = CastlingRights.All;
+		public List<IChessPieceModel> BoardPieces { get; }
+		public BoardPosition? EnPassantTargetSquare { get; internal set; }
+		public CastlingRights CastlingRights { get; internal set; }
+		public int FullmoveNumber { get; internal set; } // Starts at 1, increments after Black's move
+		public int HalfmoveClock { get; internal set; } // For 50-move rule
 		public List<IChessPieceModel> CapturedPieces { get; set; }
+		public PlayerColor ActiveColor { get; internal set; } // Whose turn it is
 
 	#region Interface Implementations
 
@@ -70,6 +87,7 @@ namespace Bezoro.Core.Chess
 				throw new ArgumentNullException(nameof(movePieceCommand));
 
 			movePieceCommand.Execute(this);
+			InvalidateSnapshot();
 			return true;
 		}
 
@@ -96,20 +114,11 @@ namespace Bezoro.Core.Chess
 		}
 
 		public bool IsEmpty(BoardPosition to) =>
-			GetSquare(to).GetPiece() == null;
+			GetPieceAt(to) == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
 
-		/// <summary>
-		///     Lists every square in a straight path between <paramref name="from" />
-		///     and <paramref name="to" />, excluding the endpoints.
-		///     Ideal for validating that all squares between the king and rook are empty
-		///     when evaluating castling rights.
-		/// </summary>
-		/// <exception cref="InvalidOperationException">
-		///     Thrown when the two squares are not on the same rank or file.
-		/// </exception>
 		public IEnumerable<IChessBoardSquareModel> GetStraightPath(
 			BoardPosition from,
 			BoardPosition to)
@@ -123,11 +132,9 @@ namespace Bezoro.Core.Chess
 			if (dx == 0 && dy == 0)
 				throw new InvalidOperationException("Source and target squares are identical.");
 
-			// Must be purely horizontal or vertical for castling.
 			if (dx != 0 && dy != 0)
 			{
-				throw new InvalidOperationException(
-					"Path must be horizontal or vertical.");
+				throw new InvalidOperationException("Path must be horizontal or vertical.");
 			}
 
 			var curFile = from.File + dx;
@@ -141,9 +148,6 @@ namespace Bezoro.Core.Chess
 			}
 		}
 
-		// -----------------------------------------------------------------------------
-		//  PUBLIC overloads (now just thin delegates)
-		// -----------------------------------------------------------------------------
 		public void MovePiece(
 			IChessPieceModel piece,
 			BoardPosition from,
@@ -162,17 +166,100 @@ namespace Bezoro.Core.Chess
 
 	#endregion
 
+		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
+		{
+			if (position == null) throw new ArgumentNullException(nameof(position));
+			return Snapshot.IsSquareAttacked(position, attackerColor);
+		}
+
+		public IChessPieceModel? GetPieceAt(BoardPosition position)
+		{
+			if (!IsValid(position))
+				return null;
+
+			return Squares[position.Column, position.Row].GetPiece();
+		}
+
+		public string ToFenString()
+		{
+			var fen = new StringBuilder();
+
+			// 1. Piece placement
+			for (var rank = Height - 1 ; rank >= 0 ; rank--)
+			{
+				var emptySquares = 0;
+				for (var file = 0 ; file < Width ; file++)
+				{
+					var piece = GetPieceAt(new(file, rank));
+					if (piece == null)
+					{
+						emptySquares++;
+					}
+					else
+					{
+						if (emptySquares > 0)
+						{
+							fen.Append(emptySquares);
+							emptySquares = 0;
+						}
+
+						fen.Append(ChessUtils.GetCharFromPiece(piece));
+					}
+				}
+
+				if (emptySquares > 0)
+				{
+					fen.Append(emptySquares);
+				}
+
+				if (rank > 0)
+				{
+					fen.Append('/');
+				}
+			}
+
+			fen.Append(' ');
+
+			// 2. Active color
+			fen.Append(ActiveColor == PlayerColor.White ? 'w' : 'b');
+			fen.Append(' ');
+
+			// 3. Castling availability
+			var castlingStr                                                        = "";
+			if (CastlingRights.HasFlag(CastlingRights.WhiteKingSide)) castlingStr  += "K";
+			if (CastlingRights.HasFlag(CastlingRights.WhiteQueenSide)) castlingStr += "Q";
+			if (CastlingRights.HasFlag(CastlingRights.BlackKingSide)) castlingStr  += "k";
+			if (CastlingRights.HasFlag(CastlingRights.BlackQueenSide)) castlingStr += "q";
+			fen.Append(string.IsNullOrEmpty(castlingStr) ? "-" : castlingStr);
+			fen.Append(' ');
+
+			// 4. En passant target square
+			fen.Append(EnPassantTargetSquare?.Algebraic ?? "-"); // Assumes BoardPosition has an Algebraic property
+			fen.Append(' ');
+
+			// 5. Halfmove clock
+			fen.Append(HalfmoveClock);
+			fen.Append(' ');
+
+			// 6. Fullmove number
+			fen.Append(FullmoveNumber);
+
+			return fen.ToString();
+		}
+
+		internal void AddPieceToCaptured(IChessPieceModel piece)
+		{
+			if (piece == null) throw new ArgumentNullException(nameof(piece));
+			CapturedPieces.Add(piece);
+			InvalidateSnapshot();
+		}
+
 		internal void ClearCastlingRight(CastlingRights rightsToRemove)
 		{
 			CastlingRights &= ~rightsToRemove;
 			InvalidateSnapshot();
 		}
 
-		/// <summary>
-		///     Removes a piece from the specified square and from the index.
-		///     (Useful for captures and undo logic.)
-		/// </summary>
-		/// <param name="square">The square from which to remove a piece.</param>
 		internal void ClearPieceFromSquare(IChessBoardSquareModel square)
 		{
 			if (square == null)
@@ -203,10 +290,9 @@ namespace Bezoro.Core.Chess
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
 			var squares = new IChessBoardSquareModel[width, height];
-
-			for (var file = 0 ; file < width ; file++) // columns
+			for (var file = 0 ; file < width ; file++)
 			{
-				for (var rank = 0 ; rank < height ; rank++) // rows
+				for (var rank = 0 ; rank < height ; rank++)
 				{
 					squares[file, rank] = new BoardSquareModel(new(file, rank));
 				}
@@ -215,17 +301,13 @@ namespace Bezoro.Core.Chess
 			return squares;
 		}
 
-		private IChessPieceModel? GetPieceAt(BoardPosition pos) =>
-			GetSquare(pos).GetPiece();
-
 		private List<IChessPieceModel> InitializePieces(
 			IChessBoardSquareModel[,] squares,
 			string piecePlacement)
 		{
 			var pieceList = new List<IChessPieceModel>();
-
-			var row = Height - 1; // FEN starts from 8th rank, array index is Height-1
-			var col = 0;          // FEN starts from 'a' file, array index is 0
+			var row       = Height - 1;
+			var col       = 0;
 
 			foreach (var symbol in piecePlacement)
 			{
@@ -241,7 +323,7 @@ namespace Bezoro.Core.Chess
 				else
 				{
 					CreatePieceAtFromSymbol(symbol, col, row, squares, pieceList);
-					col++; // next file
+					col++;
 				}
 			}
 
@@ -255,7 +337,7 @@ namespace Bezoro.Core.Chess
 			IChessBoardSquareModel[,] boardSquares,
 			List<IChessPieceModel> piecesOnBoard)
 		{
-			if (currentFile >= Width || currentRank < 0)
+			if (currentFile >= Width || currentRank < 0 || currentFile < 0 || currentRank >= Height)
 				return;
 
 			var piece  = ChessUtils.GetPieceFromChar(pieceSymbol);
@@ -266,15 +348,9 @@ namespace Bezoro.Core.Chess
 			UpdateIndex(piece, new(currentFile, currentRank));
 		}
 
-		/// <summary>
-		///     Must be called by every method that mutates the board state.
-		/// </summary>
-		private void InvalidateSnapshot() => _snapshotValid = false;
+		private void InvalidateSnapshot() =>
+			_snapshotValid = false;
 
-		/// <summary>
-		///     Relocates a piece (including index update and snapshot
-		///     invalidation). All public <c>MovePiece</c> overloads delegate to this method.
-		/// </summary>
 		private void MovePieceInternal(
 			IChessPieceModel pieceToMove,
 			BoardPosition from,
@@ -284,7 +360,6 @@ namespace Bezoro.Core.Chess
 			if (!IsValid(from)) throw new InvalidOperationException($"Position {from} is out of bounds.");
 			if (!IsValid(to)) throw new InvalidOperationException($"Position {to} is out of bounds.");
 
-			// Make sure the index knows the piece *and* it stands on <from>.
 			if (!_pieceIndex.TryGetValue(pieceToMove, out var current) || current != from)
 			{
 				throw new InvalidOperationException(
@@ -297,7 +372,18 @@ namespace Bezoro.Core.Chess
 			if (fromSquare.GetPiece() != pieceToMove)
 				throw new InvalidOperationException($"Piece {pieceToMove} is not at {from}.");
 
-			// Relocate
+			var capturedPiece = toSquare.GetPiece();
+			if (capturedPiece != null)
+			{
+				if (capturedPiece == pieceToMove)
+				{
+					throw new InvalidOperationException("Piece cannot capture itself by moving to its own square.");
+				}
+
+				_pieceIndex.Remove(capturedPiece);
+				BoardPieces.Remove(capturedPiece);
+			}
+
 			fromSquare.SetPiece(null);
 			toSquare.SetPiece(pieceToMove);
 			_pieceIndex[pieceToMove] = to;
