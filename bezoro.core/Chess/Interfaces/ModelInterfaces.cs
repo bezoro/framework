@@ -12,15 +12,12 @@ namespace Bezoro.Core.Chess.Interfaces
 		///     board changes again.
 		/// </summary>
 		BoardSnapshot Snapshot { get; }
-		CastlingRights            CastlingRights { get; }
-		IChessBoardSquareModel[,] Squares        { get; }
-		int                       Height         { get; }
-		int                       Width          { get; }
-		List<IChessPieceModel>    BoardPieces    { get; }
-		List<IChessPieceModel>    CapturedPieces { get; set; }
+		IChessBoardSquareModel[,] Squares     { get; }
+		int                       Height      { get; }
+		int                       Width       { get; }
+		List<IChessPieceModel>    BoardPieces { get; }
 		BoardPosition? GetPosition(IChessPieceModel piece);
 		bool IsEmpty(BoardPosition to);
-		bool TryMovePiece(MovePieceCommand movePieceCommand);
 		IChessBoardSquareModel GetSquare(BoardPosition position);
 
 		/// <summary>
@@ -67,7 +64,7 @@ namespace Bezoro.Core.Chess.Interfaces
 		PlayerColor Color    { get; }
 		PlayerColor Opposite { get; }
 
-		IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board);
+		IEnumerable<Move> GetPseudoLegalMoves(GameModel game);
 		void MarkMoved();
 		void ResetMoved();
 	}

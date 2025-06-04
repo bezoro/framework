@@ -48,9 +48,13 @@ namespace Bezoro.Core.Chess.Pieces
 
 		/*───────────────────────────── Public API ─────────────────────────────*/
 
-		public IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece)
+		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			var pawn = ValidateArgumentsAndCast(board, piece);
+			if (game is null)
+				throw new ArgumentNullException(nameof(game));
+
+			var board = game.Board;
+			var pawn  = ValidateArgumentsAndCast(board, piece);
 
 			var from = GetPawnPosition(board, pawn);
 			if (from is null) yield break;

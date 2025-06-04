@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Bezoro.Core.Chess;
-using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Pieces;
 using Moq;
 using NUnit.Framework;
@@ -16,22 +15,22 @@ namespace Bezoro.Core.Tests.Chess.Pieces
 		public void GetPseudoLegalMoves_DelegatesToGenerator()
 		{
 			// Arrange
-			var board = Mock.Of<IChessBoardModel>();
+			var game  = new GameModel();
 			var moves = new List<Move> { new(new(0, 0), new(0, 1), PlayerColor.White) };
 
 			var genMock = new Mock<IPseudoMoveGenerator>();
 			genMock
-				.Setup(g => g.Generate(board, It.IsAny<PieceModel>()))
+				.Setup(g => g.Generate(game, It.IsAny<PieceModel>()))
 				.Returns(moves);
 
 			var piece = new DummyPiece(PlayerColor.White, genMock.Object);
 
 			// Act
-			var result = piece.GetPseudoLegalMoves(board);
+			var result = piece.GetPseudoLegalMoves(game);
 
 			// Assert
 			Assert.That(result, Is.SameAs(moves)); // returns what generator returned
-			genMock.Verify(g => g.Generate(board, piece), Times.Once);
+			genMock.Verify(g => g.Generate(game, piece), Times.Once);
 		}
 
 		[Test]

@@ -22,12 +22,13 @@ namespace Bezoro.Core.Chess.Pieces
 
 	#region Interface Implementations
 
-		public IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece)
+		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			if (board is null) throw new ArgumentNullException(nameof(board));
+			if (game is null) throw new ArgumentNullException(nameof(game));
 			if (piece is not KingModel king)
 				throw new ArgumentException("Piece supplied to KingPseudoMoveGenerator is not a king.", nameof(piece));
 
+			var board = game.Board;
 			var moves = new List<Move>();
 
 			//------------------------------------------------------------------
@@ -93,7 +94,7 @@ namespace Bezoro.Core.Chess.Pieces
 				var rookStart = new BoardPosition(opt.RookFile,   homeRank);
 				var kingDest  = new BoardPosition(opt.KingTarget, homeRank);
 
-				TryAddCastle(board, king, moves, opt.Side, kingStart, rookStart, kingDest);
+				TryAddCastle(game, king, moves, opt.Side, kingStart, rookStart, kingDest);
 			}
 
 			return moves;
@@ -102,7 +103,7 @@ namespace Bezoro.Core.Chess.Pieces
 	#endregion
 
 		private static void TryAddCastle(
-			IChessBoardModel board,
+			GameModel game,
 			KingModel king,
 			ICollection<Move> moves,
 			CastleSide side,
@@ -110,8 +111,9 @@ namespace Bezoro.Core.Chess.Pieces
 			BoardPosition rookStart,
 			BoardPosition kingDestination)
 		{
+			var board = game.Board;
 			// 1. Global rights + king / rook unmoved
-			if (!king.CanCastle(board.CastlingRights, side))
+			if (!king.CanCastle(game.CastlingRights, side))
 				return;
 
 			// 2. Every square between the king and rook must be empty.

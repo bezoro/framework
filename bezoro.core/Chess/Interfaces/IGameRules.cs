@@ -5,6 +5,6 @@ namespace Bezoro.Core.Chess.Interfaces
 {
 	public interface IGameRules
 	{
-		IEnumerable<Move> FilterLegalMoves(IChessBoardModel board, IChessPieceModel piece);
+		IEnumerable<Move> FilterLegalMoves(GameModel board, IChessPieceModel piece);
 	}
 }

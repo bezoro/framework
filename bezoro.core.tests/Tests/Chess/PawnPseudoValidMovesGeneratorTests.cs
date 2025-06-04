@@ -10,8 +10,13 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public sealed class PawnPseudoValidMovesGeneratorTests
 	{
-	#region Test Methods
+		private BoardModel _standardBoard = null!;
 
+		private GameModel _standardGame = null!;
+
+	#region Setup/Teardown Methods
+
+		[SetUp]
 		[Test]
 		public void Constructor_CreatesValidInstance()
 		{
@@ -33,14 +38,24 @@ namespace Bezoro.Core.Tests.Chess
 				});
 		}
 
+		[SetUp]
+		public void Setup()
+		{
+			_standardGame  = new(FenUtility.StartPieces);
+			_standardBoard = _standardGame.Board;
+		}
+
+	#endregion
+
+	#region Test Methods
+
 		[Test]
 		public void Generate_AfterPawnHasMoved_ExcludesDoubleAdvance()
 		{
-			var board = new BoardModel();
-			var pawn  = board.GetPieceAt("e2");
+			var pawn = _standardBoard.GetPieceAt("e2");
 			pawn.MarkMoved(); // simulate that the pawn already moved
 
-			var moves = pawn.GetPseudoLegalMoves(board).ToList();
+			var moves = pawn.GetPseudoLegalMoves(_standardGame).ToList();
 
 			Assert.That(
 				moves.Any(m => m.To.Algebraic == "e4"), Is.False,
@@ -48,7 +63,7 @@ namespace Bezoro.Core.Tests.Chess
 		}
 
 		[Test]
-		public void Generate_NullBoard_Throws()
+		public void Generate_NullGameParameter_Throws()
 		{
 			var g = new PawnPseudoValidMovesGenerator();
 			Assert.Throws<ArgumentNullException>(() => g.Generate(null!, new PawnModel(PlayerColor.White)).ToList());
@@ -57,21 +72,19 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void Generate_NullPiece_Throws()
 		{
-			var g     = new PawnPseudoValidMovesGenerator();
-			var board = new BoardModel();
-			Assert.Throws<ArgumentNullException>(() => g.Generate(board, null!).ToList());
+			var g = new PawnPseudoValidMovesGenerator();
+			Assert.Throws<ArgumentNullException>(() => g.Generate(_standardGame, null!).ToList());
 		}
 
 		[Test]
 		public void Generate_PawnOn7thRank_EmitsPromotionMoves()
 		{
-			var board = new BoardModel();
-			var pawn  = board.GetPieceAt("a2");
+			var pawn = _standardBoard.GetPieceAt("a2");
 
-			board.MovePiece(pawn, "a2", "a7");
+			_standardBoard.MovePiece(pawn, "a2", "a7");
 			pawn.ResetMoved(); // ignore first-move flag
 
-			var moves = pawn.GetPseudoLegalMoves(board).ToList();
+			var moves = pawn.GetPseudoLegalMoves(_standardGame).ToList();
 			var promos = moves
 						 .Where(m => m.Kind == MoveKind.Promotion)
 						 .ToList();
@@ -101,11 +114,10 @@ namespace Bezoro.Core.Tests.Chess
 		public void Generate_StartingPawn_ReturnsAllPseudoValidMoves()
 		{
 			// Arrange
-			var board = new BoardModel();
-			var pawn  = board.GetPieceAt("c2");
+			var pawn = _standardBoard.GetPieceAt("c2");
 
 			// Act
-			var moves = pawn.GetPseudoLegalMoves(board).ToList();
+			var moves = pawn.GetPseudoLegalMoves(_standardGame).ToList();
 
 			// Assert
 			var expectedMoves = new[]
@@ -135,10 +147,9 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void Generate_WithNonPawnPiece_Throws()
 		{
-			var g     = new PawnPseudoValidMovesGenerator();
-			var board = new BoardModel();
-			var rook  = board.GetPieceAt("a1"); // or new RookModel(...)
-			Assert.Throws<ArgumentException>(() => g.Generate(board, rook).ToList());
+			var g    = new PawnPseudoValidMovesGenerator();
+			var rook = _standardBoard.GetPieceAt("a1"); // or new RookModel(...)
+			Assert.Throws<ArgumentException>(() => g.Generate(_standardGame, rook).ToList());
 		}
 
 	#endregion
