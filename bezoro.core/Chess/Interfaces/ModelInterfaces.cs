@@ -28,7 +28,7 @@ namespace Bezoro.Core.Chess.Interfaces
 		IChessPieceModel? GetPiece();
 		void ClearPiece();
 		void RemovePiece(IChessPieceModel piece);
-		void SetPiece(IChessPieceModel piece);
+		void SetPiece(IChessPieceModel? piece);
 	}
 
 	public interface IChessPieceModel

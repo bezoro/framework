@@ -19,7 +19,7 @@ namespace Bezoro.Core.Chess
 
 	#region Interface Implementations
 
-		public void SetPiece(IChessPieceModel piece) =>
+		public void SetPiece(IChessPieceModel? piece) =>
 			Piece = piece;
 
 		public void RemovePiece(IChessPieceModel piece)
