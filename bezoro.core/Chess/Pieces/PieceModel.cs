@@ -26,8 +26,8 @@ namespace Bezoro.Core.Chess.Pieces
 
 	#region Interface Implementations
 
-		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
-			_pseudoMoveGenerator.Generate(board, this);
+		public IEnumerable<Move> GetPseudoLegalMoves(GameModel game) =>
+			_pseudoMoveGenerator.Generate(game, this);
 
 		public void MarkMoved() =>
 			HasMoved = true;
@@ -41,6 +41,6 @@ namespace Bezoro.Core.Chess.Pieces
 	public interface IPseudoMoveGenerator
 	{
 		/// <summary>Return all moves that are geometrically possible for <paramref name="piece" />.</summary>
-		IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece);
+		IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece);
 	}
 }
