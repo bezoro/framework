@@ -41,6 +41,6 @@ namespace Bezoro.Core.Chess.Pieces
 	public interface IPseudoMoveGenerator
 	{
 		/// <summary>Return all moves that are geometrically possible for <paramref name="piece" />.</summary>
-		IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece);
+		IEnumerable<Move> Generate(IChessBoardModel board, IChessPieceModel piece);
 	}
 }
