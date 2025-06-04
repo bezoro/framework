@@ -163,7 +163,10 @@ namespace Bezoro.Core.Chess
 	#endregion
 
 		internal void ClearCastlingRight(CastlingRights rightsToRemove)
-			=> CastlingRights &= ~rightsToRemove;
+		{
+			CastlingRights &= ~rightsToRemove;
+			InvalidateSnapshot();
+		}
 
 		/// <summary>
 		///     Removes a piece from the specified square and from the index.
