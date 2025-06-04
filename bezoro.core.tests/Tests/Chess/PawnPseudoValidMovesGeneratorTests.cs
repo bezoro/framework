@@ -33,7 +33,7 @@ namespace Bezoro.Core.Tests.Chess
 		}
 
 		[Test]
-		public void Generate_StartingPawn_ReturnsSixPseudoValidMovesMoves()
+		public void Generate_StartingPawn_ReturnsAllPseudoValidMoves()
 		{
 			// Arrange
 			var board = new BoardModel();
