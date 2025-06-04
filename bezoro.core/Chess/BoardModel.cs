@@ -103,8 +103,6 @@ namespace Bezoro.Core.Chess
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
 
-	#endregion
-
 		/// <summary>
 		///     Lists every square in a straight path between <paramref name="from" />
 		///     and <paramref name="to" />, excluding the endpoints.
@@ -164,6 +162,8 @@ namespace Bezoro.Core.Chess
 			MovePieceInternal(piece, from, to);
 		}
 
+	#endregion
+
 		internal void ClearCastlingRight(CastlingRights rightsToRemove)
 			=> CastlingRights &= ~rightsToRemove;
 
@@ -172,7 +172,7 @@ namespace Bezoro.Core.Chess
 		///     (Useful for captures and undo logic.)
 		/// </summary>
 		/// <param name="square">The square from which to remove a piece.</param>
-		internal void ClearSquare(IChessBoardSquareModel square)
+		internal void ClearPieceFromSquare(IChessBoardSquareModel square)
 		{
 			if (square == null)
 				throw new ArgumentNullException(nameof(square));
