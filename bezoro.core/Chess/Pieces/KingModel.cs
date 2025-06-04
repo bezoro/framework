@@ -1,6 +1,6 @@
 namespace Bezoro.Core.Chess
 {
-	public class KingModel : PieceModel, IChessPieceModel
+	public class KingModel : PieceModel
 	{
 		public KingModel(PlayerColor color, IChessBoardSquareModel? square = null)
 			: base(color, new KingPseudoMoveGenerator()) { }
@@ -9,8 +9,6 @@ namespace Bezoro.Core.Chess
 		public bool IsCheckMated { get; private set; }
 		public bool IsInCheck    { get; private set; }
 
-	#region Interface Implementations
-
 		public override void ResetMoved()
 		{
 			base.ResetMoved();
@@ -18,8 +16,6 @@ namespace Bezoro.Core.Chess
 			IsCheckMated = false;
 			IsInCheck    = false;
 		}
-
-	#endregion
 
 		public bool CanCastle(CastlingRights castlingRights, CastleSide side)
 		{

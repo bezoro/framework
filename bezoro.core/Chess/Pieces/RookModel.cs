@@ -1,27 +1,18 @@
 using System;
 using System.Collections.Generic;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Pieces
 {
-	public class RookModel : IChessPieceModel
+	public class RookModel : PieceModel
 	{
-		public RookModel(PlayerColor color)
-		{
-			throw new NotImplementedException();
-		}
+		public RookModel(PlayerColor color) : base(color, new RookPseudoValidMovesGenerator()) { }
+	}
 
-		public bool        HasMoved { get; }
-		public PlayerColor Color    { get; }
-
+	public class RookPseudoValidMovesGenerator : IPseudoMoveGenerator
+	{
 	#region Interface Implementations
 
-		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
-			throw new NotImplementedException();
-
-		public void MarkMoved() =>
-			throw new NotImplementedException();
-
-		public void ResetMoved() =>
+		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece) =>
 			throw new NotImplementedException();
 
 	#endregion
