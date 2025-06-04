@@ -152,6 +152,25 @@ namespace Bezoro.Core.Chess
 			}
 		}
 
+		// -----------------------------------------------------------------------------
+		//  PUBLIC overloads (now just thin delegates)
+		// -----------------------------------------------------------------------------
+		public void MovePiece(
+			IChessPieceModel piece,
+			BoardPosition from,
+			BoardPosition to)
+			=> MovePieceInternal(piece, from, to);
+
+		public void MovePiece(
+			IChessPieceModel piece,
+			string fromAlgebraic,
+			string toAlgebraic)
+		{
+			var from = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
+			var to   = AlgebraicNotationUtils.FromAlgebraic(toAlgebraic);
+			MovePieceInternal(piece, from, to);
+		}
+
 		internal void ClearCastlingRight(CastlingRights rightsToRemove)
 			=> CastlingRights &= ~rightsToRemove;
 
@@ -197,6 +216,9 @@ namespace Bezoro.Core.Chess
 
 			return squares;
 		}
+
+		private IChessPieceModel? GetPieceAt(BoardPosition pos)
+			=> Squares[pos.Column, pos.Rank].Piece;
 
 		private List<IChessPieceModel> InitializePieces(
 			IChessBoardSquareModel[,] squares,
@@ -250,5 +272,40 @@ namespace Bezoro.Core.Chess
 		///     Must be called by every method that mutates the board state.
 		/// </summary>
 		private void InvalidateSnapshot() => _snapshotValid = false;
+
+		/// <summary>
+		///     Relocates a piece (including capture handling, index update and snapshot
+		///     invalidation). All public <c>MovePiece</c> overloads delegate to this method.
+		/// </summary>
+		private void MovePieceInternal(
+			IChessPieceModel pieceToMove,
+			BoardPosition from,
+			BoardPosition to)
+		{
+			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
+			if (!IsValid(from)) throw new InvalidOperationException($"Position {from} is out of bounds.");
+			if (!IsValid(to)) throw new InvalidOperationException($"Position {to} is out of bounds.");
+
+			// Make sure the index knows the piece *and* it stands on <from>.
+			if (!_pieceIndex.TryGetValue(pieceToMove, out var current) || current != from)
+			{
+				throw new InvalidOperationException(
+					$"Piece {pieceToMove} is recorded on {current.Algebraic}, not on {from.Algebraic}.");
+			}
+
+			var fromSquare = GetSquare(from);
+			var toSquare   = GetSquare(to);
+
+			if (fromSquare.GetPiece() != pieceToMove)
+				throw new InvalidOperationException($"Piece {pieceToMove} is not at {from}.");
+
+			// Relocate
+			fromSquare.SetPiece(null);
+			toSquare.SetPiece(pieceToMove);
+			_pieceIndex[pieceToMove] = to;
+
+			// Snapshot no longer represents the current position
+			_snapshotValid = false;
+		}
 	}
 }
