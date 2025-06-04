@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Bezoro.Core.Chess;
 using Bezoro.Core.Chess.Pieces;
@@ -33,6 +34,70 @@ namespace Bezoro.Core.Tests.Chess
 		}
 
 		[Test]
+		public void Generate_AfterPawnHasMoved_ExcludesDoubleAdvance()
+		{
+			var board = new BoardModel();
+			var pawn  = board.GetPieceAt("e2");
+			pawn.MarkMoved(); // simulate that the pawn already moved
+
+			var moves = pawn.GetPseudoLegalMoves(board).ToList();
+
+			Assert.That(
+				moves.Any(m => m.To.Algebraic == "e4"), Is.False,
+				"Double advance should not be generated after the pawn has moved.");
+		}
+
+		[Test]
+		public void Generate_NullBoard_Throws()
+		{
+			var g = new PawnPseudoValidMovesGenerator();
+			Assert.Throws<ArgumentNullException>(() => g.Generate(null!, new PawnModel(PlayerColor.White)).ToList());
+		}
+
+		[Test]
+		public void Generate_NullPiece_Throws()
+		{
+			var g     = new PawnPseudoValidMovesGenerator();
+			var board = new BoardModel();
+			Assert.Throws<ArgumentNullException>(() => g.Generate(board, null!).ToList());
+		}
+
+		[Test]
+		public void Generate_PawnOn7thRank_EmitsPromotionMoves()
+		{
+			var board = new BoardModel();
+			var pawn  = board.GetPieceAt("a2");
+
+			board.MovePiece(pawn, "a2", "a7");
+			pawn.ResetMoved(); // ignore first-move flag
+
+			var moves = pawn.GetPseudoLegalMoves(board).ToList();
+			var promos = moves
+						 .Where(m => m.Kind == MoveKind.Promotion)
+						 .ToList();
+
+			Assert.That(
+				promos, Has.Count.EqualTo(4),
+				"Single-push promotion should yield 4 moves.");
+
+			// `PromoteTo` is guaranteed non-null for promotion moves → unwrap with !
+			var promotedPieceKinds = promos
+									 .Select(m => m.PromoteTo!.Value)
+									 .Distinct();
+
+			Assert.That(
+				promotedPieceKinds,
+				Is.EquivalentTo(
+					new[]
+					{
+						PromotionPieceType.Queen,
+						PromotionPieceType.Rook,
+						PromotionPieceType.Bishop,
+						PromotionPieceType.Knight
+					}));
+		}
+
+		[Test]
 		public void Generate_StartingPawn_ReturnsAllPseudoValidMoves()
 		{
 			// Arrange
@@ -65,6 +130,15 @@ namespace Bezoro.Core.Tests.Chess
 						Assert.That(moves[i].Kind,         Is.EqualTo(kind),   $"Move {i + 1} should be a {kind} move");
 					}
 				});
+		}
+
+		[Test]
+		public void Generate_WithNonPawnPiece_Throws()
+		{
+			var g     = new PawnPseudoValidMovesGenerator();
+			var board = new BoardModel();
+			var rook  = board.GetPieceAt("a1"); // or new RookModel(...)
+			Assert.Throws<ArgumentException>(() => g.Generate(board, rook).ToList());
 		}
 
 	#endregion
