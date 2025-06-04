@@ -15,10 +15,8 @@ namespace Bezoro.Core.Chess
 		/*  Construction / cloning                                  */
 		/*──────────────────────────────────────────────────────────*/
 
-		internal BoardSnapshot(IChessPieceModel?[,] pieces)
+		internal BoardSnapshot(IChessBoardSquareModel[,] pieces)
 		{
-			if (pieces == null) throw new ArgumentNullException(nameof(pieces));
-
 			Width  = pieces.GetLength(0);
 			Height = pieces.GetLength(1);
 
@@ -91,7 +89,7 @@ namespace Bezoro.Core.Chess
 
 		public BoardSnapshot Clone()
 		{
-			var copy = new IChessPieceModel?[Width, Height];
+			var copy = new IChessBoardSquareModel[Width, Height];
 			Array.Copy(_pieces, copy, _pieces.Length);
 			return new(copy);
 		}
