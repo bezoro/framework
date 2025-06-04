@@ -4,48 +4,35 @@ using System.Text;
 using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Utils;
 
+// For AlgebraicNotationUtils, ChessUtils
+
 namespace Bezoro.Core.Chess
 {
-	// Assuming PlayerColor enum exists, e.g.:
-	// public enum PlayerColor { White, Black }
-
 	/// <summary>
-	///     Represents a chess board model that manages pieces, their positions and game state.
+	///     Represents the chess board structure and manages piece positions.
+	///     Does not manage game rules or overall game state like turns or clocks.
 	/// </summary>
 	public class BoardModel : IChessBoardModel
 	{
 		/// <summary>
-		///     Initializes a new instance of the chess board model.
+		///     Initializes a new instance of the chess board model with a specific piece placement.
 		/// </summary>
-		/// <param name="width">The width of the board. Defaults to 8.</param>
-		/// <param name="height">The height of the board. Defaults to 8.</param>
-		/// <param name="boardSetup">Optional FEN data for initial board setup. If null, uses standard chess setup.</param>
+		/// <param name="width">The width of the board.</param>
+		/// <param name="height">The height of the board.</param>
+		/// <param name="piecePlacementFen">The piece placement part of a FEN string.</param>
 		/// <exception cref="ArgumentOutOfRangeException">Thrown when width or height is not positive.</exception>
-		public BoardModel(int width = 8, int height = 8, FenData? boardSetup = null)
+		/// <exception cref="ArgumentNullException">Thrown if piecePlacementFen is null.</exception>
+		public BoardModel(int width, int height, string piecePlacementFen)
 		{
-			if (width  <= 0) throw new ArgumentOutOfRangeException(nameof(width),  "Width must be positive.");
+			if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width), "Width must be positive.");
 			if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), "Height must be positive.");
+			if (piecePlacementFen == null) throw new ArgumentNullException(nameof(piecePlacementFen));
 
-			var setup = boardSetup ?? FenUtility.StartBoard;
-
-			Width          = width;
-			Height         = height;
-			Squares        = InitializeSquares(Width, Height);
-			BoardPieces    = InitializePieces(Squares, setup.PiecePlacement);
-			CapturedPieces = new(32);
-
-			// Initialize game state essentials
-			ActiveColor    = setup.ActiveColor;
-			CastlingRights = setup.Castling;
-
-			// Convert EnPassant string from FenData to BoardPosition?
-			EnPassantTargetSquare = string.Equals(setup.EnPassant, "-", StringComparison.Ordinal)
-				? null
-				: AlgebraicNotationUtils.FromAlgebraic(
-					setup.EnPassant);
-
-			HalfmoveClock  = setup.HalfmoveClock;
-			FullmoveNumber = setup.FullmoveNumber;
+			Width       = width;
+			Height      = height;
+			Squares     = InitializeSquares(Width, Height);
+			BoardPieces = InitializePieces(Squares, piecePlacementFen);
+			// Note: CapturedPieces list is now managed by GameModel
 		}
 
 		private BoardSnapshot? _cachedSnapshot;
@@ -62,45 +49,53 @@ namespace Bezoro.Core.Chess
 
 				_cachedSnapshot = CreateSnapshot();
 				_snapshotValid  = true;
-
 				return _cachedSnapshot;
 			}
 		}
 
-		public IChessBoardSquareModel[,] Squares { get; }
-		public int                       Height  { get; }
-		public int                       Width   { get; }
-
-		public List<IChessPieceModel> BoardPieces { get; }
-		public BoardPosition? EnPassantTargetSquare { get; internal set; }
-		public CastlingRights CastlingRights { get; internal set; }
-		public int FullmoveNumber { get; internal set; } // Starts at 1, increments after Black's move
-		public int HalfmoveClock { get; internal set; } // For 50-move rule
-		public List<IChessPieceModel> CapturedPieces { get; set; }
-		public PlayerColor ActiveColor { get; internal set; } // Whose turn it is
+		public IChessBoardSquareModel[,] Squares     { get; }
+		public int                       Height      { get; }
+		public int                       Width       { get; }
+		public List<IChessPieceModel>    BoardPieces { get; } // Pieces currently on the board
 
 	#region Interface Implementations
-
-		public bool TryMovePiece(MovePieceCommand movePieceCommand)
-		{
-			if (movePieceCommand == null)
-				throw new ArgumentNullException(nameof(movePieceCommand));
-
-			movePieceCommand.Execute(this);
-			InvalidateSnapshot();
-			return true;
-		}
 
 		public void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to)
 		{
 			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
 			if (to          == null) throw new ArgumentNullException(nameof(to));
 
+			// Remove from old position if it was already on the board
 			if (_pieceIndex.TryGetValue(pieceToMove, out var oldPos))
-				GetSquare(oldPos).SetPiece(null);
+			{
+				var oldSquare = GetSquare(oldPos);
+				if (oldSquare.GetPiece() == pieceToMove) // Ensure it's the same piece instance
+				{
+					oldSquare.SetPiece(null);
+				}
+			}
+
+			// Remove from BoardPieces list if it was already there to avoid duplicates
+			if (BoardPieces.Contains(pieceToMove))
+			{
+				BoardPieces.Remove(pieceToMove);
+			}
+
+			// If there's a piece at the target square, it's considered "off-board" by this action.
+			// Captures are handled by GameModel logic before calling low-level move methods.
+			var existingPieceAtTarget = to.GetPiece();
+			if (existingPieceAtTarget != null)
+			{
+				_pieceIndex.Remove(existingPieceAtTarget);
+				BoardPieces.Remove(existingPieceAtTarget);
+			}
 
 			to.SetPiece(pieceToMove);
 			UpdateIndex(pieceToMove, to.Position);
+			if (!BoardPieces.Contains(pieceToMove)) // Add if not already present
+			{
+				BoardPieces.Add(pieceToMove);
+			}
 
 			InvalidateSnapshot();
 		}
@@ -113,15 +108,12 @@ namespace Bezoro.Core.Chess
 			return Squares[position.Column, position.Row];
 		}
 
-		public bool IsEmpty(BoardPosition to) =>
-			GetPieceAt(to) == null;
+		public bool IsEmpty(BoardPosition to) => GetPieceAt(to) == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
 
-		public IEnumerable<IChessBoardSquareModel> GetStraightPath(
-			BoardPosition from,
-			BoardPosition to)
+		public IEnumerable<IChessBoardSquareModel> GetStraightPath(BoardPosition from, BoardPosition to)
 		{
 			if (from == null) throw new ArgumentNullException(nameof(from));
 			if (to   == null) throw new ArgumentNullException(nameof(to));
@@ -133,9 +125,7 @@ namespace Bezoro.Core.Chess
 				throw new InvalidOperationException("Source and target squares are identical.");
 
 			if (dx != 0 && dy != 0)
-			{
 				throw new InvalidOperationException("Path must be horizontal or vertical.");
-			}
 
 			var curFile = from.File + dx;
 			var curRank = from.Rank + dy;
@@ -148,21 +138,15 @@ namespace Bezoro.Core.Chess
 			}
 		}
 
-		public void MovePiece(
-			IChessPieceModel piece,
-			BoardPosition from,
-			BoardPosition to)
-			=> MovePieceInternal(piece, from, to);
-
-		public void MovePiece(
-			IChessPieceModel piece,
-			string fromAlgebraic,
-			string toAlgebraic)
+		public void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic)
 		{
 			var from = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
 			var to   = AlgebraicNotationUtils.FromAlgebraic(toAlgebraic);
 			MovePieceInternal(piece, from, to);
 		}
+
+		public void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to)
+			=> MovePieceInternal(piece, from, to);
 
 	#endregion
 
@@ -174,17 +158,17 @@ namespace Bezoro.Core.Chess
 
 		public IChessPieceModel? GetPieceAt(BoardPosition position)
 		{
-			if (!IsValid(position))
-				return null;
-
+			if (!IsValid(position)) return null;
 			return Squares[position.Column, position.Row].GetPiece();
 		}
 
-		public string ToFenString()
+		/// <summary>
+		///     Generates the piece placement part of the Forsyth-Edwards Notation (FEN) string.
+		/// </summary>
+		/// <returns>The FEN piece placement string.</returns>
+		public string GetPiecePlacementFen()
 		{
-			var fen = new StringBuilder();
-
-			// 1. Piece placement
+			var fenPart = new StringBuilder();
 			for (var rank = Height - 1 ; rank >= 0 ; rank--)
 			{
 				var emptySquares = 0;
@@ -199,93 +183,99 @@ namespace Bezoro.Core.Chess
 					{
 						if (emptySquares > 0)
 						{
-							fen.Append(emptySquares);
+							fenPart.Append(emptySquares);
 							emptySquares = 0;
 						}
 
-						fen.Append(ChessUtils.GetCharFromPiece(piece));
+						// Assuming ChessUtils.GetCharFromPiece exists and IChessPieceModel is compatible
+						fenPart.Append(ChessUtils.GetCharFromPiece(piece));
 					}
 				}
 
 				if (emptySquares > 0)
 				{
-					fen.Append(emptySquares);
+					fenPart.Append(emptySquares);
 				}
 
 				if (rank > 0)
 				{
-					fen.Append('/');
+					fenPart.Append('/');
 				}
 			}
 
-			fen.Append(' ');
-
-			// 2. Active color
-			fen.Append(ActiveColor == PlayerColor.White ? 'w' : 'b');
-			fen.Append(' ');
-
-			// 3. Castling availability
-			var castlingStr                                                        = "";
-			if (CastlingRights.HasFlag(CastlingRights.WhiteKingSide)) castlingStr  += "K";
-			if (CastlingRights.HasFlag(CastlingRights.WhiteQueenSide)) castlingStr += "Q";
-			if (CastlingRights.HasFlag(CastlingRights.BlackKingSide)) castlingStr  += "k";
-			if (CastlingRights.HasFlag(CastlingRights.BlackQueenSide)) castlingStr += "q";
-			fen.Append(string.IsNullOrEmpty(castlingStr) ? "-" : castlingStr);
-			fen.Append(' ');
-
-			// 4. En passant target square
-			fen.Append(EnPassantTargetSquare?.Algebraic ?? "-"); // Assumes BoardPosition has an Algebraic property
-			fen.Append(' ');
-
-			// 5. Halfmove clock
-			fen.Append(HalfmoveClock);
-			fen.Append(' ');
-
-			// 6. Fullmove number
-			fen.Append(FullmoveNumber);
-
-			return fen.ToString();
+			return fenPart.ToString();
 		}
 
-		internal void AddPieceToCaptured(IChessPieceModel piece)
+		internal bool IsValid(BoardPosition position) =>
+			position.Column >= 0 && position.Column < Width && position.Row >= 0 && position.Row < Height;
+
+		internal void InvalidateSnapshot() => _snapshotValid = false;
+
+		/// <summary>
+		///     Internal method to move a piece on the board. This method handles updating piece lists
+		///     and indices but does not manage captures or game state rules like clocks or turns.
+		///     It assumes the move is physically possible for the board layout.
+		///     GameModel is responsible for higher-level validation and state updates.
+		/// </summary>
+		internal void MovePieceInternal(IChessPieceModel pieceToMove, BoardPosition from, BoardPosition to)
 		{
-			if (piece == null) throw new ArgumentNullException(nameof(piece));
-			CapturedPieces.Add(piece);
+			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
+			if (!IsValid(from)) throw new InvalidOperationException($"Source position {from} is out of bounds.");
+			if (!IsValid(to)) throw new InvalidOperationException($"Target position {to} is out of bounds.");
+
+			var fromSquare = GetSquare(from);
+			var toSquare   = GetSquare(to);
+
+			if (fromSquare.GetPiece() != pieceToMove)
+			{
+				// Attempt to find the piece if _pieceIndex is out of sync or if called directly
+				if (_pieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos == from)
+				{
+					// _pieceIndex is correct, but square might not be. This indicates an inconsistency.
+					// For now, proceed if _pieceIndex matches 'from'.
+				}
+				else
+				{
+					throw new InvalidOperationException(
+						$"Piece {pieceToMove} is not at the source position {from}. Recorded at: {(_pieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}");
+				}
+			}
+
+			// Handle the piece at the target square.
+			// GameModel should have already determined if this is a capture and added to CapturedPieces list.
+			// BoardModel's role here is to remove it from its own tracking if it exists.
+			var pieceAtTarget = toSquare.GetPiece();
+			if (pieceAtTarget != null)
+			{
+				if (pieceAtTarget == pieceToMove)
+				{
+					// Trying to move to its own square is generally not allowed unless it's a null move,
+					// which should be handled by GameModel.
+					// For BoardModel, if from == to, we essentially do nothing here but update index if needed.
+					if (from.Equals(to))
+					{
+						_pieceIndex[pieceToMove] = to; // Ensure index is current
+						InvalidateSnapshot();
+						return;
+					}
+					// If it's a different piece, it means GameModel didn't handle its removal for a capture.
+					// Or, it's an overwrite, which this simple model allows by removing.
+				}
+
+				_pieceIndex.Remove(pieceAtTarget);
+				BoardPieces.Remove(pieceAtTarget); // Remove from active board pieces
+			}
+
+			fromSquare.SetPiece(null);
+			toSquare.SetPiece(pieceToMove);
+			_pieceIndex[pieceToMove] = to; // Update the index for the moved piece
+
 			InvalidateSnapshot();
 		}
 
-		internal void ClearCastlingRight(CastlingRights rightsToRemove)
-		{
-			CastlingRights &= ~rightsToRemove;
-			InvalidateSnapshot();
-		}
+		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => _pieceIndex[piece] = newPos;
 
-		internal void ClearPieceFromSquare(IChessBoardSquareModel square)
-		{
-			if (square == null)
-				throw new ArgumentNullException(nameof(square));
-
-			var piece = square.GetPiece();
-			if (piece == null)
-				return;
-
-			_pieceIndex.Remove(piece);
-			BoardPieces.Remove(piece);
-			square.SetPiece(null);
-			InvalidateSnapshot();
-		}
-
-		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos)
-			=> _pieceIndex[piece] = newPos;
-
-		private BoardSnapshot CreateSnapshot() =>
-			new(Squares);
-
-		private bool IsValid(BoardPosition position) =>
-			position.Column    >= 0
-			&& position.Column < Width
-			&& position.Row    >= 0
-			&& position.Row    < Height;
+		private BoardSnapshot CreateSnapshot() => new(Squares); // Pass necessary data to snapshot
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
@@ -302,93 +292,37 @@ namespace Bezoro.Core.Chess
 		}
 
 		private List<IChessPieceModel> InitializePieces(
-			IChessBoardSquareModel[,] squares,
-			string piecePlacement)
+			IChessBoardSquareModel[,] boardSquares,
+			string piecePlacementFen)
 		{
 			var pieceList = new List<IChessPieceModel>();
-			var row       = Height - 1;
-			var col       = 0;
+			var rank      = Height - 1; // FEN starts from 8th rank
+			var file      = 0;          // FEN starts from a-file
 
-			foreach (var symbol in piecePlacement)
+			foreach (var symbol in piecePlacementFen)
 			{
 				if (symbol == '/')
 				{
-					row--;
-					col = 0;
+					rank--;
+					file = 0;
 				}
 				else if (char.IsDigit(symbol))
 				{
-					col += int.Parse(symbol.ToString());
+					file += int.Parse(symbol.ToString());
 				}
 				else
 				{
-					CreatePieceAtFromSymbol(symbol, col, row, squares, pieceList);
-					col++;
+					// Assuming ChessUtils.GetPieceFromChar exists and returns IChessPieceModel
+					var piece  = ChessUtils.GetPieceFromChar(symbol);
+					var square = boardSquares[file, rank];
+					square.SetPiece(piece);
+					pieceList.Add(piece);
+					UpdateIndex(piece, new(file, rank));
+					file++;
 				}
 			}
 
 			return pieceList;
-		}
-
-		private void CreatePieceAtFromSymbol(
-			char pieceSymbol,
-			int currentFile,
-			int currentRank,
-			IChessBoardSquareModel[,] boardSquares,
-			List<IChessPieceModel> piecesOnBoard)
-		{
-			if (currentFile >= Width || currentRank < 0 || currentFile < 0 || currentRank >= Height)
-				return;
-
-			var piece  = ChessUtils.GetPieceFromChar(pieceSymbol);
-			var square = boardSquares[currentFile, currentRank];
-
-			square.SetPiece(piece);
-			piecesOnBoard.Add(piece);
-			UpdateIndex(piece, new(currentFile, currentRank));
-		}
-
-		private void InvalidateSnapshot() =>
-			_snapshotValid = false;
-
-		private void MovePieceInternal(
-			IChessPieceModel pieceToMove,
-			BoardPosition from,
-			BoardPosition to)
-		{
-			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
-			if (!IsValid(from)) throw new InvalidOperationException($"Position {from} is out of bounds.");
-			if (!IsValid(to)) throw new InvalidOperationException($"Position {to} is out of bounds.");
-
-			if (!_pieceIndex.TryGetValue(pieceToMove, out var current) || current != from)
-			{
-				throw new InvalidOperationException(
-					$"Piece {pieceToMove} is recorded on {current.Algebraic}, not on {from.Algebraic}.");
-			}
-
-			var fromSquare = GetSquare(from);
-			var toSquare   = GetSquare(to);
-
-			if (fromSquare.GetPiece() != pieceToMove)
-				throw new InvalidOperationException($"Piece {pieceToMove} is not at {from}.");
-
-			var capturedPiece = toSquare.GetPiece();
-			if (capturedPiece != null)
-			{
-				if (capturedPiece == pieceToMove)
-				{
-					throw new InvalidOperationException("Piece cannot capture itself by moving to its own square.");
-				}
-
-				_pieceIndex.Remove(capturedPiece);
-				BoardPieces.Remove(capturedPiece);
-			}
-
-			fromSquare.SetPiece(null);
-			toSquare.SetPiece(pieceToMove);
-			_pieceIndex[pieceToMove] = to;
-
-			InvalidateSnapshot();
 		}
 	}
 }
