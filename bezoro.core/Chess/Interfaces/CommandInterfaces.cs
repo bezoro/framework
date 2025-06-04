@@ -1,4 +1,4 @@
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Interfaces
 {
 	public interface IChessCommand
 	{

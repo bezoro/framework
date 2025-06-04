@@ -1,4 +1,6 @@
-namespace Bezoro.Core.Chess
+using Bezoro.Core.Chess.Interfaces;
+
+namespace Bezoro.Core.Chess.Pieces
 {
 	public class KingModel : PieceModel
 	{

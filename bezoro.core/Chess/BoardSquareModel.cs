@@ -1,3 +1,5 @@
+using Bezoro.Core.Chess.Interfaces;
+
 namespace Bezoro.Core.Chess
 {
 	public class BoardSquareModel : IChessBoardSquareModel

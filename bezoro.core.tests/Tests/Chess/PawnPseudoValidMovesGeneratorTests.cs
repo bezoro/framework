@@ -1,5 +1,6 @@
 using System.Linq;
 using Bezoro.Core.Chess;
+using Bezoro.Core.Chess.Pieces;
 using Bezoro.Core.Chess.Utils;
 using NUnit.Framework;
 

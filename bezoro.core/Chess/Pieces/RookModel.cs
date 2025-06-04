@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Bezoro.Core.Chess.Interfaces;
 
 namespace Bezoro.Core.Chess.Pieces
 {

@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Pieces
 {
 	public class PawnModel : PieceModel
 	{

@@ -1,6 +1,4 @@
-using System;
-
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Pieces
 {
 	/// <summary>
 	///     Immutable, lightweight value object that represents one *possible* move
