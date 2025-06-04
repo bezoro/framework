@@ -104,9 +104,6 @@ namespace Bezoro.Core.Chess
 
 		public bool IsEmpty(BoardPosition to)
 		{
-			if (to == null)
-				throw new ArgumentNullException(nameof(to));
-
 			return Squares[to.File, to.Rank].GetPiece() == null;
 		}
 
