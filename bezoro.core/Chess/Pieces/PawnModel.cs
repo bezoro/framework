@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Core.Chess.Interfaces;
 
 namespace Bezoro.Core.Chess.Pieces
 {
@@ -21,7 +22,7 @@ namespace Bezoro.Core.Chess.Pieces
 			JustAdvancedTwoSquares = false;
 		}
 
-		public void PromoteTo(BoardSquareModel promotionSquare, PromotionPieceType newType)
+		public void PromoteTo(IChessBoardSquareModel promotionSquare, PromotionPieceType newType)
 		{
 			PieceModel newPiece = newType switch
 			{
