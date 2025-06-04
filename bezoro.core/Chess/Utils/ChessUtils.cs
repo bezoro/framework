@@ -6,6 +6,22 @@ namespace Bezoro.Core.Chess.Utils
 {
 	public static class ChessUtils
 	{
+		public static char GetCharFromPiece(IChessPieceModel piece)
+		{
+			var pieceChar = piece.GetType().Name switch
+			{
+				nameof(KingModel)   => 'k',
+				nameof(QueenModel)  => 'q',
+				nameof(RookModel)   => 'r',
+				nameof(BishopModel) => 'b',
+				nameof(KnightModel) => 'n',
+				nameof(PawnModel)   => 'p',
+				_                   => throw new ArgumentException($"Invalid piece type: {piece.GetType().Name}")
+			};
+
+			return piece.Color == PlayerColor.White ? char.ToUpper(pieceChar) : pieceChar;
+		}
+
 		/// <summary>
 		///     Converts a FEN (Forsyth–Edwards Notation) character to its corresponding chess piece type.
 		/// </summary>
