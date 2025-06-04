@@ -3,25 +3,16 @@ using System.Collections.Generic;
 
 namespace Bezoro.Core.Chess.Utils
 {
-	public class BishopModel : IChessPieceModel
+	public class BishopModel : PieceModel
 	{
-		public BishopModel(PlayerColor color)
-		{
-			throw new NotImplementedException();
-		}
+		public BishopModel(PlayerColor color) : base(color, new BishopPseudoValidMovesGenerator()) { }
+	}
 
-		public bool        HasMoved { get; }
-		public PlayerColor Color    { get; }
-
+	public class BishopPseudoValidMovesGenerator : IPseudoMoveGenerator
+	{
 	#region Interface Implementations
 
-		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
-			throw new NotImplementedException();
-
-		public void MarkMoved() =>
-			throw new NotImplementedException();
-
-		public void ResetMoved() =>
+		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece) =>
 			throw new NotImplementedException();
 
 	#endregion

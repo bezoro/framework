@@ -3,25 +3,16 @@ using System.Collections.Generic;
 
 namespace Bezoro.Core.Chess.Utils
 {
-	public class KnightModel : IChessPieceModel
+	public class KnightModel : PieceModel
 	{
-		public KnightModel(PlayerColor color)
-		{
-			throw new NotImplementedException();
-		}
+		public KnightModel(PlayerColor color) : base(color, new KnightPseudoValidMovesGenerator()) { }
+	}
 
-		public bool        HasMoved { get; }
-		public PlayerColor Color    { get; }
-
+	public class KnightPseudoValidMovesGenerator : IPseudoMoveGenerator
+	{
 	#region Interface Implementations
 
-		public IEnumerable<Move> GetPseudoLegalMoves(IChessBoardModel board) =>
-			throw new NotImplementedException();
-
-		public void MarkMoved() =>
-			throw new NotImplementedException();
-
-		public void ResetMoved() =>
+		public IEnumerable<Move> Generate(IChessBoardModel board, PieceModel piece) =>
 			throw new NotImplementedException();
 
 	#endregion
