@@ -37,7 +37,8 @@ namespace Bezoro.Core.Chess.Pieces
 			}
 		}
 
-	#region Factory helpers
+		public static bool operator ==(Move left, Move right) => left.Equals(right);
+		public static bool operator !=(Move left, Move right) => !left.Equals(right);
 
 		public static Move Promotion(
 			BoardPosition from,
@@ -45,8 +46,6 @@ namespace Bezoro.Core.Chess.Pieces
 			PlayerColor movingSide,
 			PromotionPieceType promoteTo) =>
 			new(from, to, movingSide, MoveKind.Promotion, promoteTo);
-
-	#endregion
 
 		/// <summary>
 		///     Square the piece moves from.
@@ -80,10 +79,12 @@ namespace Bezoro.Core.Chess.Pieces
 		/// </remarks>
 		public PlayerColor MovingSide { get; init; }
 
-	#region Equality & hashing
+	#region Interface Implementations
 
 		public bool Equals(Move other) =>
 			From.Equals(other.From) && To.Equals(other.To) && Kind == other.Kind && PromoteTo == other.PromoteTo;
+
+	#endregion
 
 		public override bool Equals(object? obj) =>
 			obj is Move m && Equals(m);
@@ -91,12 +92,8 @@ namespace Bezoro.Core.Chess.Pieces
 		public override int GetHashCode() =>
 			HashCode.Combine(From, To, Kind, PromoteTo);
 
-		public static bool operator ==(Move left, Move right) => left.Equals(right);
-		public static bool operator !=(Move left, Move right) => !left.Equals(right);
-
-	#endregion
-
-	#region Deconstruct & debugging
+		public override string ToString() =>
+			$"{From}→{To}" + (IsPromotion ? $" (promote to {PromoteTo})" : string.Empty);
 
 		public void Deconstruct(
 			out BoardPosition from,
@@ -109,10 +106,5 @@ namespace Bezoro.Core.Chess.Pieces
 			kind      = Kind;
 			promoteTo = PromoteTo;
 		}
-
-		public override string ToString() =>
-			$"{From}→{To}" + (IsPromotion ? $" (promote to {PromoteTo})" : string.Empty);
-
-	#endregion
 	}
 }
