@@ -2,10 +2,6 @@
 using System.Numerics;
 using Bezoro.Core.Chess.Utils;
 
-// Vector2
-
-// Algebraic helpers
-
 namespace Bezoro.Core.Chess
 {
 	/// <summary>
