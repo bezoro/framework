@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Bezoro.Core.Chess.Utils
 {
@@ -34,50 +35,65 @@ namespace Bezoro.Core.Chess.Utils
 				return false;
 			}
 
-			var fields = new string[6];
-			if (!fen.TrySplitIntoSixTokens(fields))
+			// Split the FEN string by spaces, removing empty entries.
+			var parts = fen.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+			if (parts.Length is 0 or > 6)
 			{
-				error = "FEN must contain exactly six space-separated fields.";
+				error = "FEN string must contain between 1 and 6 space-separated fields.";
 				return false;
 			}
 
-			if (!FenValidators.IsValidPiecePlacement(fields[0]))
+			// Field 1: Piece Placement (Mandatory)
+			var piecePlacement = parts[0];
+			if (!FenValidators.IsValidPiecePlacement(piecePlacement)) // Assuming FenValidators exists
 			{
 				error = "Invalid piece-placement section.";
 				return false;
 			}
 
-			if (!FenExtensions.TryParseColor(fields[1], out var color))
+			// Field 2: Active Color (Default: 'w')
+			var activeColorStr = parts.Length > 1 ? parts[1] : "w";
+			if (!FenExtensions.TryParseColor(activeColorStr, out var color))
 			{
 				error = "Active color must be 'w' or 'b'.";
 				return false;
 			}
 
-			if (!FenExtensions.TryParseCastling(fields[2], out var rights))
+			// Field 3: Castling Availability (Default: '-')
+			var castlingStr = parts.Length > 2 ? parts[2] : "-";
+			if (!FenExtensions.TryParseCastling(castlingStr, out var rights))
 			{
 				error = "Malformed castling section.";
 				return false;
 			}
 
-			if (!FenValidators.TryParseEnPassant(fields[3], out var ep))
+			// Field 4: En Passant Target Square (Default: '-')
+			var enPassantStr = parts.Length > 3 ? parts[3] : "-";
+			// Assuming FenValidators.TryParseEnPassant validates and outputs the string representation (e.g. "e3" or "-")
+			if (!FenValidators.TryParseEnPassant(enPassantStr, out var epSquareString))
 			{
 				error = "Invalid en-passant target square.";
 				return false;
 			}
 
-			if (!int.TryParse(fields[4], out var half) || half < 0)
+			// Field 5: Halfmove Clock (Default: 0)
+			var halfmoveClockStr = parts.Length > 4 ? parts[4] : "0";
+			if (!int.TryParse(halfmoveClockStr, out var half) || half < 0)
 			{
-				error = "Half-move clock must be ≥ 0.";
+				error = "Half-move clock must be a non-negative integer.";
 				return false;
 			}
 
-			if (!int.TryParse(fields[5], out var full) || full < 1)
+			// Field 6: Fullmove Number (Default: 1)
+			var fullmoveNumberStr = parts.Length > 5 ? parts[5] : "1";
+			if (!int.TryParse(fullmoveNumberStr, out var full) || full < 1)
 			{
-				error = "Full-move number must be ≥ 1.";
+				error = "Full-move number must be a positive integer (>= 1).";
 				return false;
 			}
 
-			data = new(fields[0], color, rights, ep, half, full);
+			data = new(piecePlacement, color, rights, epSquareString, half, full);
 			return true;
 		}
 
@@ -89,7 +105,7 @@ namespace Bezoro.Core.Chess.Utils
 		public static FenData Parse(string fen)
 		{
 			if (!TryParse(fen, out var data, out var err))
-				throw new ArgumentException(err, nameof(fen));
+				throw new ArgumentException(err ?? "Invalid FEN string.", nameof(fen));
 
 			return data;
 		}
@@ -99,7 +115,7 @@ namespace Bezoro.Core.Chess.Utils
 				fen.PiecePlacement, " ",
 				fen.ActiveColor.ToFenChar(), " ",
 				fen.Castling.ToFenString(), " ",
-				fen.EnPassant, " ",
+				fen.EnPassant, " ", // FenData.EnPassant should be the string representation
 				fen.HalfmoveClock.ToString(), " ",
 				fen.FullmoveNumber.ToString());
 	}
@@ -116,60 +132,79 @@ namespace Bezoro.Core.Chess.Utils
 			rights = CastlingRights.None;
 			if (token == "-") return true;
 
+			// Ensure no invalid characters and build rights
+			var tempRights = CastlingRights.None;
 			foreach (var c in token)
 			{
-				rights |= c == 'K' ? CastlingRights.WhiteKingSide
-					: c     == 'Q' ? CastlingRights.WhiteQueenSide
-					: c     == 'k' ? CastlingRights.BlackKingSide
-					: c     == 'q' ? CastlingRights.BlackQueenSide
-									 : CastlingRights.None;
+				switch (c)
+				{
+					case 'K': tempRights |= CastlingRights.WhiteKingSide; break;
+					case 'Q': tempRights |= CastlingRights.WhiteQueenSide; break;
+					case 'k': tempRights |= CastlingRights.BlackKingSide; break;
+					case 'q': tempRights |= CastlingRights.BlackQueenSide; break;
+					default:  return false; // Invalid character
+				}
 			}
 
-			return rights != CastlingRights.None || token == "-";
+			// Check for duplicates or invalid order if necessary, though FEN standard is somewhat loose here.
+			// For simplicity, we accept any combination of valid characters.
+			rights = tempRights;
+			return true; // True if token was "-" or only contained valid castling characters
 		}
 
 		public static bool TryParseColor(string token, out PlayerColor color)
 		{
-			color = token == "w" ? PlayerColor.White
-				: token   == "b" ? PlayerColor.Black
-								   : PlayerColor.None;
-
-			return color != PlayerColor.None;
-		}
-
-		/*——— Tokeniser ———*/
-		public static bool TrySplitIntoSixTokens(this string src, Span<string> dest)
-		{
-			int idx = 0, start = 0;
-			for (var i = 0 ; i < src.Length ; i++)
+			color = PlayerColor.None; // Default to an invalid state
+			if (token.Length == 1)
 			{
-				if (src[i] == ' ')
+				switch (token[0])
 				{
-					if (idx == 6) return false; // too many
-					dest[idx++] = src.Substring(start, i - start);
-					start       = i + 1;
+					case 'w':
+						color = PlayerColor.White;
+						return true;
+					case 'b':
+						color = PlayerColor.Black;
+						return true;
 				}
 			}
 
-			if (idx != 5) return false; // too few
-			dest[5] = src.Substring(start);
-			return true;
+			return false;
 		}
+
+		// The TrySplitIntoSixTokens method is no longer needed and can be removed.
+		// public static bool TrySplitIntoSixTokens(this string src, Span<string> dest) { ... }
 
 		/*——— PlayerColor ———*/
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToFenChar(this PlayerColor color) =>
 			color == PlayerColor.White ? 'w' : 'b';
 
-		public static string ToFenString(this CastlingRights rights) =>
-			rights == CastlingRights.None
-				? "-"
-				: string.Concat(
-					rights.HasFlag(CastlingRights.WhiteKingSide) ? "K" : string.Empty,
-					rights.HasFlag(CastlingRights.WhiteQueenSide) ? "Q" : string.Empty,
-					rights.HasFlag(CastlingRights.BlackKingSide) ? "k" : string.Empty,
-					rights.HasFlag(CastlingRights.BlackQueenSide) ? "q" : string.Empty);
+		public static string ToFenString(this CastlingRights rights)
+		{
+			if (rights == CastlingRights.None) return "-";
+			var sb = new StringBuilder(4);
+			if (rights.HasFlag(CastlingRights.WhiteKingSide)) sb.Append('K');
+			if (rights.HasFlag(CastlingRights.WhiteQueenSide)) sb.Append('Q');
+			if (rights.HasFlag(CastlingRights.BlackKingSide)) sb.Append('k');
+			if (rights.HasFlag(CastlingRights.BlackQueenSide)) sb.Append('q');
+			return sb.ToString();
+		}
 	}
+
+	// Assuming FenValidators.TryParseEnPassant and other parts of FenData, Piece, etc. remain as they were,
+	// and FenValidators.IsValidPiecePlacement exists.
+	// If FenValidators is not defined elsewhere, you'll need to implement it.
+	// For example:
+	// public static class FenValidators {
+	// public static bool IsValidPiecePlacement(string piecePlacement) { /* ... */ return true; }
+	// public static bool TryParseEnPassant(string fenEp, out string epSquare) {
+	// epSquare = fenEp; // Simplistic, proper validation needed
+	// if (fenEp == "-") return true;
+	// // Basic check: a-h followed by 3 or 6 for white/black en passant
+	// if (fenEp.Length == 2 && fenEp[0] >= 'a' && fenEp[0] <= 'h' && (fenEp[1] == '3' || fenEp[1] == '6')) return true;
+	// return false;
+	// }
+	// }
 
 	/*──────────────────────────────────────────────────────────────*/
 	/*  Value object (struct — C#9 compatible)                      */
@@ -181,14 +216,14 @@ namespace Bezoro.Core.Chess.Utils
 			string piecePlacement,
 			PlayerColor activeColor,
 			CastlingRights castling,
-			string enPassant,
+			string enPassant, // This should be the string like "e3" or "-"
 			int halfmoveClock,
 			int fullmoveNumber)
 		{
 			PiecePlacement = piecePlacement;
 			ActiveColor    = activeColor;
 			Castling       = castling;
-			EnPassant      = enPassant;
+			EnPassant      = enPassant; // Store the string directly
 			HalfmoveClock  = halfmoveClock;
 			FullmoveNumber = fullmoveNumber;
 		}
@@ -197,7 +232,7 @@ namespace Bezoro.Core.Chess.Utils
 		public readonly int            FullmoveNumber;
 		public readonly int            HalfmoveClock;
 		public readonly PlayerColor    ActiveColor;
-		public readonly string         EnPassant;
+		public readonly string         EnPassant; // String representation like "e3" or "-"
 		public readonly string         PiecePlacement;
 
 		/// <summary>Returns a copy with the side to move toggled.</summary>
