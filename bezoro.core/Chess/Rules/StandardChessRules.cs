@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Core.Chess.Interfaces;
 using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Utils;
 using Bezoro.Core.Collections;
 
 namespace Bezoro.Core.Chess.Rules
@@ -106,35 +107,38 @@ namespace Bezoro.Core.Chess.Rules
 		private static bool IsFriendlyCapture(
 			IChessBoardModel board,
 			Move move,
-			IChessPieceModel movingPiece)
+			PlayerColor movingPieceColor)
 		{
 			var targetSquare = board.Squares[move.To.Column, move.To.Row];
 			var targetPiece  = targetSquare.GetPiece();
 
-			return targetPiece != null && targetPiece.Color == movingPiece.Color;
+			return targetPiece != null && targetPiece.Color == movingPieceColor;
 		}
 
 		private bool IsMoveLegal(GameModel game, Move move)
 		{
-			var board = game.Board;
+			var board      = game.Board;
+			var pieceType  = move.PieceType;
+			var pieceColor = move.MovingSide;
 
 			// 1) The piece to move must actually be on the source square
-			if (!TryGetMovingPiece(board, move, out var movingPiece) || movingPiece == null)
-				return false;
+			var movingPiece = move.GetMovingPiece(board);
+			if (movingPiece == null)
+				return false; // Piece to move not found on source square.
 
 			// 2) The destination square must not contain a friendly piece (for regular moves)
 			if (move.Kind    != MoveKind.CastleKingside
 				&& move.Kind != MoveKind.CastleQueenside)
 			{
-				if (IsFriendlyCapture(board, move, movingPiece))
+				if (IsFriendlyCapture(board, move, pieceColor))
 					return false;
 			}
 
 			// 3) Specific rules for move kinds (Castling, Promotion)
 			if (move.Kind == MoveKind.CastleKingside || move.Kind == MoveKind.CastleQueenside)
 			{
-				if (movingPiece.GetPieceType() != ChessPieceType.King) return false; // Only kings can castle
-				if (!CanCastle(game, move, movingPiece.Color, movingPiece))
+				if (pieceType != ChessPieceType.King) return false; // Only kings can castle
+				if (!CanCastle(game, move, pieceColor, movingPiece))
 				{
 					return false;
 				}
@@ -148,14 +152,17 @@ namespace Bezoro.Core.Chess.Rules
 			}
 
 			// 4) The move must not leave the moving player's king in check.
-			if (MoveLeavesKingInCheck(game, move, movingPiece.Color))
+			if (MoveLeavesKingInCheck(game, move, pieceColor))
 				return false;
 
 			return true;
 		}
 
+		// !!! Broken, investigate
 		private bool MoveLeavesKingInCheck(GameModel game, Move move, PlayerColor movingPlayerColor)
 		{
+			// Returning false for now until this is fixed
+			return false;
 			var           currentSnapshot = new BoardSnapshot(game.Board.Squares);
 			BoardSnapshot nextBoardSnapshot;
 			try
@@ -179,16 +186,6 @@ namespace Bezoro.Core.Chess.Rules
 
 			var opponentColor = movingPlayerColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
 			return nextBoardSnapshot.IsSquareAttacked(kingPosition.Value, opponentColor);
-		}
-
-		private static bool TryGetMovingPiece(
-			IChessBoardModel board,
-			Move move,
-			out IChessPieceModel? movingPiece)
-		{
-			var sourceSquare = board.Squares[move.From.Column, move.From.Row];
-			movingPiece = sourceSquare.GetPiece();
-			return movingPiece != null;
 		}
 	}
 }
