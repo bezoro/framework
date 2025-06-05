@@ -4,7 +4,7 @@ using Bezoro.Core.Chess.Common.Helpers;
 using Bezoro.Core.Chess.Pieces.Models;
 using NUnit.Framework;
 
-namespace Bezoro.Core.Chess.Tests.Common.Helpers
+namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
 	public class ChessUtilsTests
