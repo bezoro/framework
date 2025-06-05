@@ -193,7 +193,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			var file = from.Column + dx;
 			var rank = from.Row    + dy;
 
-			while (board.IsInside(dx, dy))
+			while (board.IsInside(file, rank))
 			{
 				var square = board.Squares[file, rank];
 				yield return square;
