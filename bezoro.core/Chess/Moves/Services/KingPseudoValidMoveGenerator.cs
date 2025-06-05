@@ -2,151 +2,88 @@ using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Board;
-using Bezoro.Core.Chess.Board.Models;
-using Bezoro.Core.Chess.Common.Enums;
 using Bezoro.Core.Chess.Common.Extensions;
+using Bezoro.Core.Chess.Common.Helpers;
 using Bezoro.Core.Chess.Game.Models;
 using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Chess.Pieces.Models;
 
 namespace Bezoro.Core.Chess.Moves.Services
 {
-	/// <summary>
-	///     Generates every pseudo-legal move for a single king:
-	///     • 8 adjacent squares (captures plus quiet moves)
-	///     • castling (k/q-side) – the right is now delegated to
-	///     <see cref="KingModel.CanCastle" />.
-	/// </summary>
-	public sealed class KingPseudoValidMoveGenerator : IPseudoMoveGenerator
+	public class KingPseudoValidMoveGenerator : IPseudoMoveGenerator
 	{
-		private static readonly (int df, int dr)[] _KING_STEPS =
-		{
-			(-1, -1), (-1, 0), (-1, 1),
-			(0, -1), (0, 1),
-			(1, -1), (1, 0), (1, 1)
-		};
-
 	#region Interface Implementations
 
 		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			if (game is null) throw new ArgumentNullException(nameof(game));
-			if (piece is not KingModel king)
-				throw new ArgumentException(
-					"Piece supplied to KingPseudoValidMoveGenerator is not a king.", nameof(piece));
+			if (game  == null) throw new ArgumentNullException(nameof(game));
+			if (piece == null) throw new ArgumentNullException(nameof(piece));
 
 			var board = game.Board;
-			var moves = new List<Move>();
+			var king  = EnsureKingPiece(board, piece);
 
-			//------------------------------------------------------------------
-			// 1. Locate the king on the board
-			//------------------------------------------------------------------
-			var currentPos = board.GetPosition(king);
-			if (currentPos is null)
-				return moves;
+			var from = board.GetPosition(king);
+			if (from == null) yield break;
 
-			int file = currentPos.Value.File;
-			var rank = currentPos.Value.Rank;
-
-			//------------------------------------------------------------------
-			// 2. Normal king moves (8 surrounding squares)
-			//------------------------------------------------------------------
-			foreach (var (df, dr) in _KING_STEPS)
+			// Standard King Moves (1 square in any direction)
+			foreach (var (dx, dy) in DirectionVectors.KING)
 			{
-				var tf = file + df;
-				var tr = rank + dr;
+				var toFile = from.Value.Column + dx;
+				var toRow  = from.Value.Row    + dy;
 
-				if (!board.IsInside(tf, tr))
-					continue;
-
-				var target = board.Squares[tf, tr].GetPiece();
-				if (target is null)
+				if (board.IsInside(toFile, toRow))
 				{
-					moves.Add(new(currentPos.Value, new(tf, tr), king.Color, king.GetPieceType()));
-				}
-				else if (target.Color != king.Color)
-				{
-					moves.Add(new(currentPos.Value, new(tf, tr), king.Color, king.GetPieceType(), MoveKind.Capture));
+					var to = new BoardPosition(toFile, toRow);
+					yield return new(from.Value, to, king.Color, king.GetPieceType());
 				}
 			}
 
-			//------------------------------------------------------------------
-			// 3. Castling – delegate the rights check to KingModel
-			//------------------------------------------------------------------
-			if (king.HasMoved)
-				return moves; // a moved king may no longer castle
-
-			var homeRank = king.Color == PlayerColor.White ? 0 : board.Height - 1;
-
-			// Describe both castle options once and loop over them
-			var castleOptions = new[]
+			// Castling Moves
+			// For pseudo-legal moves, we primarily check if the king and rook have moved.
+			// More complex castling rules (path clear, not in/through check) are for full legal move validation.
+			if (!king.HasMoved && !king.HasCastled) // King hasn't moved or already castled
 			{
-				new
+				// Determine rook starting files and king's castling destination files
+				var kingSideRookFile      = board.Width - 1; // H-file (index 7 for 8x8)
+				var queenSideRookFile     = 0;               // A-file (index 0)
+				var kingSideCastleToFile  = from.Value.Column + 2;
+				var queenSideCastleToFile = from.Value.Column - 2;
+				var kingRank              = from.Value.Row; // King's current rank
+
+				// King-side Castling
+				var kingSideRookPos   = new BoardPosition(kingSideRookFile, kingRank);
+				var kingSideRookPiece = board.GetPieceAt(kingSideRookPos);
+				if (kingSideRookPiece is RookModel kingSideRook &&
+					kingSideRook.Color == king.Color            &&
+					!kingSideRook.HasMoved)
 				{
-					Side       = CastleSide.King,
-					RookFile   = 7, // h-file
-					KingTarget = 6  // g-file
-				},
-				new
-				{
-					Side       = CastleSide.Queen,
-					RookFile   = 0, // a-file
-					KingTarget = 2  // c-file
+					var toKingSide = new BoardPosition(kingSideCastleToFile, kingRank);
+					yield return Move.CastleKingSide(from.Value, toKingSide, king.Color);
 				}
-			};
 
-			foreach (var opt in castleOptions)
-			{
-				var kingStart = new BoardPosition(4,              homeRank); // e-file
-				var rookStart = new BoardPosition(opt.RookFile,   homeRank);
-				var kingDest  = new BoardPosition(opt.KingTarget, homeRank);
-
-				TryAddCastle(game, king, moves, opt.Side, kingStart, rookStart, kingDest);
+				// Queen-side Castling
+				var queenSideRookPos   = new BoardPosition(queenSideRookFile, kingRank);
+				var queenSideRookPiece = board.GetPieceAt(queenSideRookPos);
+				if (queenSideRookPiece is RookModel queenSideRook &&
+					queenSideRook.Color == king.Color             &&
+					!queenSideRook.HasMoved)
+				{
+					var toQueenSide = new BoardPosition(queenSideCastleToFile, kingRank);
+					yield return Move.CastleQueenSide(from.Value, toQueenSide, king.Color);
+				}
 			}
-
-			return moves;
 		}
 
 	#endregion
 
-		private static void TryAddCastle(
-			GameModel game,
-			KingModel king,
-			ICollection<Move> moves,
-			CastleSide side,
-			BoardPosition kingStart,
-			BoardPosition rookStart,
-			BoardPosition kingDestination)
+		private static KingModel EnsureKingPiece(IChessBoardModel board, IChessPieceModel piece)
 		{
-			var board = game.Board;
-			// 1. Global rights + king / rook unmoved
-			if (!king.CanCastle(game.CastlingRights, side))
-				return;
+			if (board == null) throw new ArgumentNullException(nameof(board));
+			if (piece == null) throw new ArgumentNullException(nameof(piece));
+			if (piece is not KingModel king)
+				throw new ArgumentException("Generator received a non-king piece.", nameof(piece));
 
-			// 2. Every square between the king and rook must be empty.
-			//    We can ask the board itself for that straight path.
-			if (board is BoardModel concreteBoard)
-			{
-				foreach (var sq in concreteBoard.GetStraightPath(kingStart, rookStart))
-				{
-					if (sq.GetPiece() is not null)
-						return;
-				}
-			}
-			else
-			{
-				// Fallback: manual scan if we are given a different board implementation.
-				var step = Math.Sign(rookStart.Column - kingStart.Column);
-				for (var f = kingStart.Column + step ; f != rookStart.Column ; f += step)
-				{
-					if (board.Squares[f, kingStart.Rank].GetPiece() is not null)
-						return;
-				}
-			}
-
-			// 3. (Optional) check for check along the path – still deferred.
-
-			moves.Add(new(kingStart, kingDestination, king.Color, king.GetPieceType(), MoveKind.Castle));
+			return king;
 		}
 	}
 }
