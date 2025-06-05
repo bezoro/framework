@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Board;
 using Bezoro.Core.Chess.Common.Enums;
@@ -39,29 +38,26 @@ namespace Bezoro.Core.Chess.Moves.Services
 	/// </summary>
 	public sealed class PawnPseudoValidMovesGenerator : IPseudoMoveGenerator
 	{
-		private static ReadOnlySpan<MoveTemplate> Templates => new[]
+		private static ReadOnlySpan<PawnMoveTemplate> _MOVE_TEMPLATES => new[]
 		{
-			new MoveTemplate(0,  +1, MoveKind.Normal),       // single push
-			new MoveTemplate(0,  +2, MoveKind.Normal, true), // double push
-			new MoveTemplate(-1, +1, MoveKind.Capture),      // capture left
-			new MoveTemplate(+1, +1, MoveKind.Capture),      // capture right
-			new MoveTemplate(-1, +1, MoveKind.EnPassant),    // e.p. left
-			new MoveTemplate(+1, +1, MoveKind.EnPassant)     // e.p. right
+			new PawnMoveTemplate(0,  +1, MoveKind.Normal),
+			new PawnMoveTemplate(0,  +2, MoveKind.Normal, true),
+			new PawnMoveTemplate(-1, +1, MoveKind.Capture),
+			new PawnMoveTemplate(+1, +1, MoveKind.Capture),
+			new PawnMoveTemplate(-1, +1, MoveKind.EnPassant),
+			new PawnMoveTemplate(+1, +1, MoveKind.EnPassant)
 		};
 
 	#region Interface Implementations
 
-		/*───────────────────────────── Public API ─────────────────────────────*/
-
 		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			if (game is null)
-				throw new ArgumentNullException(nameof(game));
+			if (game is null) throw new ArgumentNullException(nameof(game));
 
 			var board = game.Board;
-			var pawn  = ValidateArgumentsAndCast(board, piece);
+			var pawn  = EnsurePawnPiece(board, piece);
 
-			var from = GetPawnPosition(board, pawn);
+			var from = board.GetPosition(pawn);
 			if (from is null) yield break;
 
 			foreach (var move in GenerateMoves(board, pawn, from.Value))
@@ -72,38 +68,38 @@ namespace Bezoro.Core.Chess.Moves.Services
 
 	#endregion
 
-		private static BoardPosition? GetPawnPosition(IChessBoardModel board, PawnModel pawn) =>
-			board.GetPosition(pawn);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static bool IsTemplateApplicable(in MoveTemplate tpl, PawnModel pawn) =>
-			!(tpl.FirstMoveOnly && pawn.HasMoved);
+		private static bool IsTemplateApplicable(in PawnMoveTemplate tpl, PawnModel pawn) =>
+			!(tpl.OnlyOnFirstMove && pawn.HasMoved);
+
+		private static bool ShouldSkipPromotionTemplate(
+			MoveKind kind,
+			PlayerColor color,
+			int toRank,
+			IChessBoardModel board) =>
+			kind is MoveKind.Normal or MoveKind.Capture &&
+			IsPromotionRank(color, toRank, board);
 
 		private IEnumerable<Move> BuildMoves(
-			IChessBoardModel board,
-			PawnModel pawn,
-			MoveTemplate tpl,
 			BoardPosition from,
-			int toFile,
-			int toRank)
+			BoardPosition to,
+			PawnModel pawn,
+			MoveKind kind,
+			IChessBoardModel board)
 		{
-			var to = new BoardPosition(toFile, toRank);
-
-			if (IsPromotionRank(pawn.Color, toRank, board))
+			if (IsPromotionRank(pawn.Color, to.Row, board))
 			{
 				foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
 				{
-					if (promo == PromotionPieceType.None) continue; // <<< skip “None”
-					yield return Move.Promotion(from, to, pawn.Color, pawn.GetPieceType(), promo);
+					if (promo != PromotionPieceType.None)
+						yield return Move.Promotion(from, to, pawn.Color, pawn.GetPieceType(), promo);
 				}
 			}
 			else
 			{
-				yield return new(from, to, pawn.Color, pawn.GetPieceType(), tpl.Kind);
+				yield return new(from, to, pawn.Color, pawn.GetPieceType(), kind);
 			}
 		}
 
@@ -116,30 +112,27 @@ namespace Bezoro.Core.Chess.Moves.Services
 			var file = from.Column;
 			var rank = from.Row;
 
-			for (var i = 0 ; i < Templates.Length ; i++)
+			for (var i = 0 ; i < _MOVE_TEMPLATES.Length ; i++)
 			{
-				var tpl = Templates[i];
+				var tpl = _MOVE_TEMPLATES[i];
 				if (!IsTemplateApplicable(tpl, pawn)) continue;
 
 				var toFile = file + tpl.Dx;
 				var toRank = rank + tpl.Dy * dir;
 
-				if (!board.IsInside(toFile, toRank)) continue;
+				var isInsideBoard = board.IsInside(toFile, toRank);
+				if (!isInsideBoard) continue;
+				if (ShouldSkipPromotionTemplate(tpl.Kind, pawn.Color, toRank, board)) continue;
 
-				var kindsToPromotion = tpl.Kind is MoveKind.Normal or MoveKind.Capture;
-				if (kindsToPromotion && IsPromotionRank(pawn.Color, toRank, board))
-				{
-					continue;
-				}
-
-				foreach (var move in BuildMoves(board, pawn, tpl, from, toFile, toRank))
+				var to = new BoardPosition(toFile, toRank);
+				foreach (var move in BuildMoves(from, to, pawn, tpl.Kind, board))
 				{
 					yield return move;
 				}
 			}
 		}
 
-		private static PawnModel ValidateArgumentsAndCast(IChessBoardModel board, IChessPieceModel piece)
+		private static PawnModel EnsurePawnPiece(IChessBoardModel board, IChessPieceModel piece)
 		{
 			if (board is null) throw new ArgumentNullException(nameof(board));
 			if (piece is null) throw new ArgumentNullException(nameof(piece));
@@ -149,17 +142,17 @@ namespace Bezoro.Core.Chess.Moves.Services
 			return pawn;
 		}
 
-		private readonly struct MoveTemplate
+		private readonly struct PawnMoveTemplate
 		{
-			public MoveTemplate(int dx, int dy, MoveKind kind, bool firstMoveOnly = false)
+			public PawnMoveTemplate(int dx, int dy, MoveKind kind, bool onlyOnFirstMove = false)
 			{
-				Dx            = dx;
-				Dy            = dy;
-				Kind          = kind;
-				FirstMoveOnly = firstMoveOnly;
+				Dx              = dx;
+				Dy              = dy;
+				Kind            = kind;
+				OnlyOnFirstMove = onlyOnFirstMove;
 			}
 
-			public readonly bool FirstMoveOnly;
+			public readonly bool OnlyOnFirstMove;
 
 			public readonly int      Dx;
 			public readonly int      Dy;
