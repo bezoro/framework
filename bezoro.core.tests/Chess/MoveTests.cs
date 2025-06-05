@@ -71,8 +71,10 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void Deconstruct_ReturnsComponents()
 		{
-			var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
-			move.Deconstruct(out var from, out var to, out var kind, out var promoteTo);
+			var movingSide = PlayerColor.White;
+			var pieceType  = ChessPieceType.Pawn;
+			var move       = new Move(E2, E4, movingSide, ChessPieceType.Pawn);
+			move.Deconstruct(out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo);
 
 			Assert.Multiple(
 				() =>
