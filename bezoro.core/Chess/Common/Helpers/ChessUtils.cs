@@ -70,7 +70,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			};
 		}
 
-		public static IChessPieceModel? GetMovingPiece(this Move move, BoardModel board) =>
+		public static IChessPieceModel? GetMovingPiece(this Move move, IChessBoardModel board) =>
 			board.GetPieceAt(move.From);
 
 		/// <summary>

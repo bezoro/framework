@@ -25,7 +25,7 @@ namespace Bezoro.Core.Chess.Game.Models
 		{
 			var setup = string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
 
-			Board          = new(boardWidth, boardHeight, setup.PiecePlacement);
+			Board          = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement);
 			GameRules      = rules ?? new StandardChessRules();
 			CapturedPieces = new(32); // Standard max captures
 			EnPassantTargetSquare = string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
@@ -38,11 +38,11 @@ namespace Bezoro.Core.Chess.Game.Models
 			ActiveColor    = setup.ActiveColor;
 		}
 
-		public BoardModel             Board                 { get; }
 		public IGameRules             GameRules             { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
 		public BoardPosition?         EnPassantTargetSquare { get; internal set; }
 		public CastlingRights         CastlingRights        { get; internal set; }
+		public IChessBoardModel       Board                 { get; private set; }
 		public int                    FullMoveNumber        { get; internal set; }
 		public int                    HalfMoveClock         { get; internal set; }
 		public PlayerColor            ActiveColor           { get; internal set; }
@@ -97,6 +97,9 @@ namespace Bezoro.Core.Chess.Game.Models
 
 			return FenUtils.Format(currentFenData);
 		}
+
+		public void SetBoard(IChessBoardModel board) =>
+			Board = board;
 
 		private void UpdateCastlingRightsOnMove(
 			IChessPieceModel movedPiece,

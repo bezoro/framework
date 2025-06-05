@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Bezoro.Core.Chess.Board.Models;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Common.Enums;
 using Bezoro.Core.Chess.Common.Extensions;
 using Bezoro.Core.Chess.Common.Helpers;
@@ -14,7 +14,7 @@ namespace Bezoro.Core.Tests.Chess
 	[TestFixture]
 	public sealed class PawnPseudoValidMovesGeneratorTests
 	{
-		private BoardModel _standardBoard = null!;
+		private IChessBoardModel _standardBoard = null!;
 
 		private GameModel _standardGame = null!;
 
