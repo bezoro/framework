@@ -30,6 +30,8 @@ namespace Bezoro.Core.Chess.Abstractions.Interfaces
 		/// </summary>
 		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
 
+		void Clear();
+
 		void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
 		void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to);
 

@@ -120,6 +120,9 @@ namespace Bezoro.Core.Tests.Chess
 			public void SetPieceAt(IChessPieceModel piece, IChessBoardSquareModel square) =>
 				square.SetPiece(piece);
 
+			public void Clear() =>
+				throw new NotImplementedException();
+
 			public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor) =>
 				throw new NotImplementedException();
 
