@@ -113,6 +113,13 @@ namespace Bezoro.Core.Tests.Chess
 						PromotionPieceType.Bishop,
 						PromotionPieceType.Knight
 					}));
+
+			TestContext.Out.WriteLine($"Pseudo moves count: {moves.Count}");
+			foreach (var move in moves)
+			{
+				TestContext.Out.WriteLine(move);
+				TestContext.Out.WriteLine($"Kind: {move.Kind}");
+			}
 		}
 
 		[Test]
