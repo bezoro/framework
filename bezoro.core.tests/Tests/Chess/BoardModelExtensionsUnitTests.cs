@@ -87,7 +87,8 @@ namespace Bezoro.Core.Chess.Tests.Common
 			public IChessBoardSquareModel[,] Squares { get; }
 			public int                       Height  { get; }
 
-			public int Width { get; }
+			public int                                               Width                  { get; }
+			public IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves { get; }
 
 			/* --- members not required by the extension code --- */
 			public List<IChessPieceModel> BoardPieces => new();
@@ -101,6 +102,12 @@ namespace Bezoro.Core.Chess.Tests.Common
 
 			public bool IsEmpty(BoardPosition position) => this.GetSquareAt(position.Column, position.Row).IsEmpty;
 			public bool IsSquareAttacked(BoardPosition position, PlayerColor byColor) => false;
+
+			public IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece) =>
+				throw new NotImplementedException();
+
+			public void RefreshPseudoLegalMoveCache(GameModel game) =>
+				throw new NotImplementedException();
 
 			public void MovePiece(IChessPieceModel piece, string from, string to) =>
 				throw new NotImplementedException();

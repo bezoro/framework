@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Common.Enums;
 using Bezoro.Core.Chess.Common.Extensions;
 using Bezoro.Core.Chess.Common.Helpers;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 
 namespace Bezoro.Core.Chess.Board.Models
 {
@@ -31,31 +34,17 @@ namespace Bezoro.Core.Chess.Board.Models
 			Height      = height;
 			Squares     = InitializeSquares(Width, Height);
 			BoardPieces = InitializePieces(Squares, piecePlacementFen);
-			// Note: CapturedPieces list is now managed by GameModel
 		}
 
-		private BoardSnapshot? _cachedSnapshot;
-		private bool           _snapshotValid;
+		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex             = new();
+		private          Dictionary<IChessPieceModel, List<Move>>    _cachedPseudoLegalMoves = new();
 
-		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex = new();
-
-		public BoardSnapshot Snapshot
-		{
-			get
-			{
-				if (_snapshotValid && _cachedSnapshot is not null)
-					return _cachedSnapshot;
-
-				_cachedSnapshot = CreateSnapshot();
-				_snapshotValid  = true;
-				return _cachedSnapshot;
-			}
-		}
-
-		public IChessBoardSquareModel[,] Squares     { get; }
-		public int                       Height      { get; }
-		public int                       Width       { get; }
-		public List<IChessPieceModel>    BoardPieces { get; } // Pieces currently on the board
+		public IChessBoardSquareModel[,] Squares { get; }
+		public int                       Height  { get; }
+		public int                       Width   { get; }
+		public IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves =>
+			_cachedPseudoLegalMoves;
+		public List<IChessPieceModel> BoardPieces { get; } // Pieces currently on the board
 
 	#region Interface Implementations
 
@@ -95,8 +84,6 @@ namespace Bezoro.Core.Chess.Board.Models
 			{
 				BoardPieces.Add(pieceToMove);
 			}
-
-			InvalidateSnapshot();
 		}
 
 		public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor)
@@ -152,8 +139,49 @@ namespace Bezoro.Core.Chess.Board.Models
 
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
 		{
-			if (position == null) throw new ArgumentNullException(nameof(position));
-			return Snapshot.IsSquareAttacked(position, attackerColor);
+			if (position == null)
+				throw new ArgumentNullException(nameof(position));
+
+			throw new NotImplementedException();
+		}
+
+		/// <summary>
+		///     Retrieves the cached moves for a specific piece.
+		///     Returns an empty collection if the piece is unknown or no cache is present.
+		/// </summary>
+		public IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece)
+		{
+			if (piece == null) throw new ArgumentNullException(nameof(piece));
+
+			return _cachedPseudoLegalMoves.TryGetValue(piece, out var moves)
+				? moves
+				: Array.Empty<Move>();
+		}
+
+		/// <summary>
+		///     Rebuilds the cache that maps every on-board piece to the full set of its
+		///     current pseudo-legal moves.
+		///     This cache can later be consulted (e.g. when verifying that the king is not
+		///     placed in check by a prospective move).
+		/// </summary>
+		/// <param name="game">
+		///     The <see cref="GameModel" /> instance providing the necessary context to each
+		///     piece’s <see cref="IChessPieceModel.GetPseudoLegalMoves" /> implementation.
+		/// </param>
+		/// <exception cref="ArgumentNullException">
+		///     Thrown if <paramref name="game" /> is <c>null</c>.
+		/// </exception>
+		public void RefreshPseudoLegalMoveCache(GameModel game)
+		{
+			if (game == null) throw new ArgumentNullException(nameof(game));
+
+			_cachedPseudoLegalMoves = new(BoardPieces.Count);
+
+			foreach (var piece in BoardPieces)
+			{
+				var moves = piece.GetPseudoLegalMoves(game);
+				_cachedPseudoLegalMoves[piece] = moves.ToList();
+			}
 		}
 
 	#endregion
@@ -202,7 +230,6 @@ namespace Bezoro.Core.Chess.Board.Models
 					if (from.Equals(to))
 					{
 						_pieceIndex[pieceToMove] = to; // Ensure index is current
-						InvalidateSnapshot();
 						return;
 					}
 					// If it's a different piece, it means GameModel didn't handle its removal for a capture.
@@ -216,8 +243,6 @@ namespace Bezoro.Core.Chess.Board.Models
 			fromSquare.SetPiece(null);
 			toSquare.SetPiece(pieceToMove);
 			_pieceIndex[pieceToMove] = to; // Update the index for the moved piece
-
-			InvalidateSnapshot();
 		}
 
 		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => _pieceIndex[piece] = newPos;
