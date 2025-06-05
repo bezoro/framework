@@ -133,6 +133,98 @@ namespace Bezoro.Core.Tests.Chess
 		}
 
 		[Test]
+		public void Generate_KingsideCastlingH1RookHasMoved_NoCastlingMoveGenerated()
+		{
+			// Arrange
+			var game = new GameModel();
+			game.Board.Clear();
+
+			var king = new KingModel(PlayerColor.White); // King has NOT moved
+			// king.MarkMoved(); // Ensure king has not moved for this test
+			var kingPosition = game.Board.GetSquareAt("e1");
+			game.Board.SetPieceAt(king, kingPosition);
+
+			var rook = new RookModel(PlayerColor.White);
+			rook.MarkMoved(); // Mark h1-Rook as having moved
+			var rookPosition = game.Board.GetSquareAt("h1");
+			game.Board.SetPieceAt(rook, rookPosition);
+
+			// f1 and g1 are implicitly empty due to Board.Clear()
+
+			var generator = new KingPseudoValidMoveGenerator();
+
+			// Act
+			var pseudoMoves          = generator.Generate(game, king).ToList();
+			var kingsideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleKingside);
+
+			// Assert
+			// If no CastleKingside move is found, FirstOrDefault returns default(Move).
+			// We assert that the Kind of this (potentially default) move is not CastleKingside.
+			// This relies on default(Move).Kind not being MoveKind.CastleKingside.
+			Assert.That(
+				kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleKingside),
+				"Kingside castling move should not be generated if the h1-Rook has moved.");
+
+			var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
+			Assert.That(standardMovesCount, Is.EqualTo(5), "Standard king moves should still be generated.");
+
+			TestContext.Out.WriteLine($"Pseudo moves generated ({pseudoMoves.Count}):");
+			foreach (var move in pseudoMoves)
+			{
+				TestContext.Out.WriteLine($"{move} (Kind: {move.Kind})");
+			}
+		}
+
+		[Test]
+		public void Generate_KingsideCastlingKingHasMoved_NoCastlingMoveGenerated()
+		{
+			// Arrange
+			var game = new GameModel(); // Assuming GameModel tracks castling rights or piece history
+			game.Board.Clear();
+
+			var king = new KingModel(PlayerColor.White);
+			king.MarkMoved(); // Mark King as having moved
+			var kingPosition = game.Board.GetSquareAt("e1");
+			game.Board.SetPieceAt(king, kingPosition);
+
+			var rook         = new RookModel(PlayerColor.White); // Rook has not moved
+			var rookPosition = game.Board.GetSquareAt("h1");
+			game.Board.SetPieceAt(rook, rookPosition);
+
+			// Ensure squares between King and Rook are empty
+			// game.Board.GetSquareAt("f1").Piece = null; // Implicitly empty by Board.Clear()
+			// game.Board.GetSquareAt("g1").Piece = null; // Implicitly empty by Board.Clear()
+
+			var generator = new KingPseudoValidMoveGenerator();
+
+			// Act
+			var pseudoMoves          = generator.Generate(game, king).ToList();
+			var kingsideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleKingside);
+
+			// Assert
+			Assert.That(
+				kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleKingside),
+				"Kingside castling move should not be generated if the King has moved.");
+
+			// Optional: Verify standard moves are still generated (e.g., 5 if e1 is unblocked)
+			// This depends on whether this generator is solely for castling or all king moves.
+			// Based on its name "KingPseudoValidMoveGenerator", it should likely generate all.
+			var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
+			// Assuming d1, d2, e2, f1, f2 are the targets for standard moves from e1
+			// and none are blocked for the purpose of this generator.
+			// If 'h1' (rook's square) is considered blocked for a standard move to 'f1', adjust count.
+			// Given our clarification, pseudo-moves don't check for friendly pieces on target squares.
+			// King on e1 can move to d1, d2, e2, f1, f2.
+			Assert.That(standardMovesCount, Is.EqualTo(5), "Standard king moves should still be generated.");
+
+			TestContext.Out.WriteLine($"Pseudo moves generated ({pseudoMoves.Count}):");
+			foreach (var move in pseudoMoves)
+			{
+				TestContext.Out.WriteLine($"{move} (Kind: {move.Kind})");
+			}
+		}
+
+		[Test]
 		public void Generate_ValidKing_ReturnsCorrectMoves()
 		{
 			// Arrange
