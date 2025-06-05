@@ -6,7 +6,7 @@ namespace Bezoro.Core.Collections.Array
 	/// <summary>
 	///     Small set of helpers for quick null / empty checks on arrays.
 	///     Works the same in Unity and in plain .NET because arrays never
-	///     derive from <see cref="UnityEngine.Object" />, so the custom Unity
+	///     derive from <see cref="object" />, so the custom Unity
 	///     equality operator is not involved.
 	/// </summary>
 	public static class ArrayExtensions

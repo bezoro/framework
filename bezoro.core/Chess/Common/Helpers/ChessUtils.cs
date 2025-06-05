@@ -2,6 +2,7 @@ using System;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Board.Models;
 using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
 using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Chess.Pieces.Models;
 

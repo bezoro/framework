@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Board;
 using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
 using Bezoro.Core.Chess.Game.Models;
 using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Chess.Rules;
@@ -19,7 +20,7 @@ namespace Bezoro.Core.Tests.Chess
 		{
 			var game     = new GameModel();
 			var pawnB2   = game.Board.GetPieceAt("b2");
-			var squareB2 = game.Board.GetSquare("b2");
+			var squareB2 = game.Board.GetSquareAt("b2");
 
 			Assert.Multiple(
 				() =>

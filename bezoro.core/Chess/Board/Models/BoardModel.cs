@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
 using Bezoro.Core.Chess.Common.Helpers;
 
 namespace Bezoro.Core.Chess.Board.Models
@@ -67,7 +67,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			// Remove from old position if it was already on the board
 			if (_pieceIndex.TryGetValue(pieceToMove, out var oldPos))
 			{
-				var oldSquare = GetSquare(oldPos);
+				var oldSquare = this.GetSquareAt(oldPos);
 				if (oldSquare.GetPiece() == pieceToMove) // Ensure it's the same piece instance
 				{
 					oldSquare.SetPiece(null);
@@ -99,15 +99,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			InvalidateSnapshot();
 		}
 
-		public IChessBoardSquareModel GetSquare(BoardPosition position)
-		{
-			if (!IsValid(position))
-				throw new ArgumentOutOfRangeException(nameof(position), "Position is out of bounds.");
-
-			return Squares[position.Column, position.Row];
-		}
-
-		public bool IsEmpty(BoardPosition to) => GetPieceAt(to) == null;
+		public bool IsEmpty(BoardPosition to) => this.GetPieceAt(to) == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
@@ -147,84 +139,13 @@ namespace Bezoro.Core.Chess.Board.Models
 		public void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to)
 			=> MovePieceInternal(piece, from, to);
 
-	#endregion
-
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
 		{
 			if (position == null) throw new ArgumentNullException(nameof(position));
 			return Snapshot.IsSquareAttacked(position, attackerColor);
 		}
 
-		public IChessBoardSquareModel GetSquare(string algebraicPos)
-		{
-			var pos = AlgebraicNotationUtils.FromAlgebraic(algebraicPos);
-			if (!IsValid(pos))
-				throw new ArgumentOutOfRangeException(nameof(algebraicPos), "Position is out of bounds.");
-
-			return Squares[pos.Column, pos.Row];
-		}
-
-		public IChessPieceModel? GetPieceAt(BoardPosition position)
-		{
-			if (!IsValid(position)) return null;
-			return Squares[position.Column, position.Row].GetPiece();
-		}
-
-		public IChessPieceModel? GetPieceAt(string algebraicPos)
-		{
-			var pos = AlgebraicNotationUtils.FromAlgebraic(algebraicPos);
-			if (!IsValid(pos)) return null;
-			return Squares[pos.Column, pos.Row].GetPiece();
-		}
-
-		/// <summary>
-		///     Generates the piece placement part of the Forsyth-Edwards Notation (FEN) string.
-		/// </summary>
-		/// <returns>The FEN piece placement string.</returns>
-		public string GetPiecePlacementFen()
-		{
-			var fenPart = new StringBuilder();
-			for (var rank = Height - 1 ; rank >= 0 ; rank--)
-			{
-				var emptySquares = 0;
-				for (var file = 0 ; file < Width ; file++)
-				{
-					var piece = GetPieceAt(new BoardPosition(file, rank));
-					if (piece == null)
-					{
-						emptySquares++;
-					}
-					else
-					{
-						if (emptySquares > 0)
-						{
-							fenPart.Append(emptySquares);
-							emptySquares = 0;
-						}
-
-						// Assuming ChessUtils.GetCharFromPiece exists and IChessPieceModel is compatible
-						fenPart.Append(ChessUtils.GetCharFromPiece(piece));
-					}
-				}
-
-				if (emptySquares > 0)
-				{
-					fenPart.Append(emptySquares);
-				}
-
-				if (rank > 0)
-				{
-					fenPart.Append('/');
-				}
-			}
-
-			return fenPart.ToString();
-		}
-
-		internal bool IsValid(BoardPosition position) =>
-			position.Column >= 0 && position.Column < Width && position.Row >= 0 && position.Row < Height;
-
-		internal void InvalidateSnapshot() => _snapshotValid = false;
+	#endregion
 
 		/// <summary>
 		///     Internal method to move a piece on the board. This method handles updating piece lists
@@ -235,11 +156,11 @@ namespace Bezoro.Core.Chess.Board.Models
 		internal void MovePieceInternal(IChessPieceModel pieceToMove, BoardPosition from, BoardPosition to)
 		{
 			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
-			if (!IsValid(from)) throw new InvalidOperationException($"Source position {from} is out of bounds.");
-			if (!IsValid(to)) throw new InvalidOperationException($"Target position {to} is out of bounds.");
+			if (!this.IsInside(from)) throw new InvalidOperationException($"Source position {from} is out of bounds.");
+			if (!this.IsInside(to)) throw new InvalidOperationException($"Target position {to} is out of bounds.");
 
-			var fromSquare = GetSquare(from);
-			var toSquare   = GetSquare(to);
+			var fromSquare = this.GetSquareAt(from);
+			var toSquare   = this.GetSquareAt(to);
 
 			if (fromSquare.GetPiece() != pieceToMove)
 			{
@@ -299,7 +220,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			{
 				for (var rank = 0 ; rank < height ; rank++)
 				{
-					squares[file, rank] = new BoardSquareModel(new(file, rank));
+					squares[file, rank] = new BoardSquareModel(file, rank);
 				}
 			}
 
