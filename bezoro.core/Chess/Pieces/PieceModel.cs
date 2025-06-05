@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess.Pieces
 {
@@ -34,6 +35,9 @@ namespace Bezoro.Core.Chess.Pieces
 
 		public virtual void ResetMoved() =>
 			HasMoved = false;
+
+		public ChessPieceType GetPieceType() =>
+			PieceModelExtensions.GetPieceType(this);
 
 	#endregion
 	}

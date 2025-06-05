@@ -63,6 +63,7 @@ namespace Bezoro.Core.Chess.Interfaces
 		bool        HasMoved { get; }
 		PlayerColor Color    { get; }
 		PlayerColor Opposite { get; }
+		ChessPieceType GetPieceType();
 
 		IEnumerable<Move> GetPseudoLegalMoves(GameModel game);
 		void MarkMoved();

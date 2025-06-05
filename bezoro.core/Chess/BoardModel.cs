@@ -156,10 +156,26 @@ namespace Bezoro.Core.Chess
 			return Snapshot.IsSquareAttacked(position, attackerColor);
 		}
 
+		public IChessBoardSquareModel GetSquare(string algebraicPos)
+		{
+			var pos = AlgebraicNotationUtils.FromAlgebraic(algebraicPos);
+			if (!IsValid(pos))
+				throw new ArgumentOutOfRangeException(nameof(algebraicPos), "Position is out of bounds.");
+
+			return Squares[pos.Column, pos.Row];
+		}
+
 		public IChessPieceModel? GetPieceAt(BoardPosition position)
 		{
 			if (!IsValid(position)) return null;
 			return Squares[position.Column, position.Row].GetPiece();
+		}
+
+		public IChessPieceModel? GetPieceAt(string algebraicPos)
+		{
+			var pos = AlgebraicNotationUtils.FromAlgebraic(algebraicPos);
+			if (!IsValid(pos)) return null;
+			return Squares[pos.Column, pos.Row].GetPiece();
 		}
 
 		/// <summary>
@@ -174,7 +190,7 @@ namespace Bezoro.Core.Chess
 				var emptySquares = 0;
 				for (var file = 0 ; file < Width ; file++)
 				{
-					var piece = GetPieceAt(new(file, rank));
+					var piece = GetPieceAt(new BoardPosition(file, rank));
 					if (piece == null)
 					{
 						emptySquares++;
