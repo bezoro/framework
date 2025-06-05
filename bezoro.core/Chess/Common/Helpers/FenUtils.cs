@@ -10,14 +10,20 @@ namespace Bezoro.Core.Chess.Common.Helpers
 	/// </summary>
 	public static class FenUtils
 	{
-		public const string EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1";
-		public const string START_FEN = START_PIECES + " w KQkq - 0 1";
+		public const string EMPTY_FEN          = "8/8/8/8/8/8/8/8";
+		public const string START_ACTIVE_COLOR = " w";
+		public const string START_CASTLING     = " KQkq";
+		public const string START_EN_PASSANT   = " -";
+		public const string START_FEN = START_PIECES     + START_ACTIVE_COLOR + START_CASTLING +
+										START_EN_PASSANT + START_HALF_MOVE    + START_FULL_MOVE;
+		public const string START_FULL_MOVE = " 1";
+		public const string START_HALF_MOVE = " 0";
 		public const string START_PIECES =
 			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+		public static FenData StartBoard { get; } = Parse(START_FEN);
 
-		public static FenData EmptyBoard  { get; } = Parse(EMPTY_FEN);
-		public static FenData StartBoard  { get; } = Parse(START_FEN);
-		public static string  StartPieces => START_PIECES;
+		public static string EmptyBoard  => EMPTY_FEN;
+		public static string StartPieces => START_PIECES;
 
 		public static bool IsValidPiecePlacement(string field)
 		{
