@@ -258,7 +258,7 @@ namespace Bezoro.Core.Chess.Board
 			var (tf, tr) = (target.File, target.Rank);
 
 			/* -------- Knights ----------------------------------------- */
-			foreach (var (df, dr) in DirectionVectors.Knight)
+			foreach (var (df, dr) in DirectionVectors.KNIGHT)
 			{
 				if (_pieces.TryGetPiece(tf + df, tr + dr, out var pN)
 					&& pN!.Color         == by
@@ -279,7 +279,7 @@ namespace Bezoro.Core.Chess.Board
 			}
 
 			/* -------- King (adjacent) --------------------------------- */
-			foreach (var (df, dr) in DirectionVectors.King)
+			foreach (var (df, dr) in DirectionVectors.KING)
 			{
 				if (TryGetPiece(tf + df, tr + dr, out var pK)
 					&& pK!.Color         == by
@@ -290,14 +290,14 @@ namespace Bezoro.Core.Chess.Board
 			/* -------- Sliders: rook / bishop / queen ------------------ */
 
 			// Orthogonal rays – rook or queen
-			foreach (var (df, dr) in DirectionVectors.Orthogonal)
+			foreach (var (df, dr) in DirectionVectors.ORTHOGONAL)
 			{
 				if (RayHitsSlider(tf, tr, df, dr, by, false))
 					return true;
 			}
 
 			// Diagonal rays – bishop or queen
-			foreach (var (df, dr) in DirectionVectors.Diagonal)
+			foreach (var (df, dr) in DirectionVectors.DIAGONAL)
 			{
 				if (RayHitsSlider(tf, tr, df, dr, by, true))
 					return true;
