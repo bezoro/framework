@@ -8,6 +8,7 @@
         <LangVersion>9</LangVersion>
         <Company>Bezoro</Company>
         <Product>Core</Product>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
