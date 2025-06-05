@@ -19,6 +19,27 @@ namespace Bezoro.Core.Chess.Common.Helpers
 		public static FenData StartBoard  { get; } = Parse(START_FEN);
 		public static string  StartPieces => START_PIECES;
 
+		public static bool IsValidPiecePlacement(string field)
+		{
+			string[] ranks = field.Split('/');
+			if (ranks.Length != 8) return false;
+
+			foreach (var rank in ranks)
+			{
+				var files = 0;
+				foreach (var c in rank)
+				{
+					if (char.IsDigit(c)) files                     += c - '0';
+					else if ("prnbqkPRNBQK".IndexOf(c) >= 0) files += 1;
+					else return false;
+				}
+
+				if (files != 8) return false;
+			}
+
+			return true;
+		}
+
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool TryParse(
 			string? fen,
@@ -45,7 +66,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 
 			// Field 1: Piece Placement (Mandatory)
 			var piecePlacement = parts[0];
-			if (!FenValidators.IsValidPiecePlacement(piecePlacement)) // Assuming FenValidators exists
+			if (!IsValidPiecePlacement(piecePlacement)) // Assuming FenValidators exists
 			{
 				error = "Invalid piece-placement section.";
 				return false;
@@ -70,7 +91,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			// Field 4: En Passant Target Square (Default: '-')
 			var enPassantStr = parts.Length > 3 ? parts[3] : "-";
 			// Assuming FenValidators.TryParseEnPassant validates and outputs the string representation (e.g. "e3" or "-")
-			if (!FenValidators.TryParseEnPassant(enPassantStr, out var epSquareString))
+			if (!TryParseEnPassant(enPassantStr, out var epSquareString))
 			{
 				error = "Invalid en-passant target square.";
 				return false;
@@ -140,6 +161,14 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			}
 
 			return false;
+		}
+
+		public static bool TryParseEnPassant(string token, out string square)
+		{
+			square = token;
+			if (token == "-") return true;
+
+			return token.Length == 2 && "abcdefgh".Contains(token[0]) && "36".Contains(token[1]);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
