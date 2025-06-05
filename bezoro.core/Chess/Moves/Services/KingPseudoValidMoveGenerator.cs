@@ -11,7 +11,7 @@ namespace Bezoro.Core.Chess.Pieces
 	///     • castling (k/q-side) – the right is now delegated to
 	///     <see cref="KingModel.CanCastle" />.
 	/// </summary>
-	public sealed class KingPseudoMoveGenerator : IPseudoMoveGenerator
+	public sealed class KingPseudoValidMoveGenerator : IPseudoMoveGenerator
 	{
 		private static readonly (int df, int dr)[] _KING_STEPS =
 		{
@@ -26,7 +26,8 @@ namespace Bezoro.Core.Chess.Pieces
 		{
 			if (game is null) throw new ArgumentNullException(nameof(game));
 			if (piece is not KingModel king)
-				throw new ArgumentException("Piece supplied to KingPseudoMoveGenerator is not a king.", nameof(piece));
+				throw new ArgumentException(
+					"Piece supplied to KingPseudoValidMoveGenerator is not a king.", nameof(piece));
 
 			var board = game.Board;
 			var moves = new List<Move>();

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Bezoro.Core.Chess.Board.Validation;
 using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Utils;
 
 namespace Bezoro.Core.Chess.Pieces
 {
