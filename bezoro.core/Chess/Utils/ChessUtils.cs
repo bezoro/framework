@@ -65,7 +65,9 @@ namespace Bezoro.Core.Chess.Utils
 			};
 		}
 
-		// TODO: Move to proper class
+		public static IChessPieceModel? GetMovingPiece(this Move move, BoardModel board) =>
+			board.GetPieceAt(move.From);
+
 		/// <summary>
 		///     Converts a character to a PlayerColor based on its case.
 		/// </summary>
