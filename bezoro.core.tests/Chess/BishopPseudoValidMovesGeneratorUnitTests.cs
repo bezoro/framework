@@ -4,7 +4,7 @@ using Bezoro.Core.Chess.Game.Models;
 using Bezoro.Core.Chess.Pieces.Models;
 using NUnit.Framework;
 
-namespace Bezoro.Core.Tests.Chess.Pieces.Models
+namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
 	[TestOf(typeof(BishopPseudoValidMovesGenerator))]

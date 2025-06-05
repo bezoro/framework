@@ -10,7 +10,7 @@ using Bezoro.Core.Chess.Game.Models;
 using Bezoro.Core.Chess.Moves.Models;
 using NUnit.Framework;
 
-namespace Bezoro.Core.Chess.Tests.Common
+namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
 	public class BoardModelExtensionsTests
@@ -162,7 +162,7 @@ namespace Bezoro.Core.Chess.Tests.Common
 		#region Interface Implementations
 
 			public ChessPieceType GetPieceType() => ChessPieceType.Rook;
-			public IEnumerable<Move> GetPseudoLegalMoves(GameModel _) => Array.Empty<Move>();
+			public IEnumerable<Move> GetPseudoLegalMoves(GameModel _) => System.Array.Empty<Move>();
 			public void MarkMoved() => HasMoved = true;
 			public void ResetMoved() => HasMoved = false;
 
