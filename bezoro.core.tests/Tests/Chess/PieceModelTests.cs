@@ -1,10 +1,12 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess;
-using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
+using Bezoro.Core.Chess.Pieces.Models;
 using Moq;
 using NUnit.Framework;
 
-namespace Bezoro.Core.Tests.Chess.Pieces
+namespace Bezoro.Core.Tests.Chess
 {
 	[TestFixture]
 	public class PieceModelTests

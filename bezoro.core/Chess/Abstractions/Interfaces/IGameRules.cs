@@ -1,7 +1,8 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 
-namespace Bezoro.Core.Chess.Interfaces
+namespace Bezoro.Core.Chess.Abstractions.Interfaces
 {
 	public interface IGameRules
 	{

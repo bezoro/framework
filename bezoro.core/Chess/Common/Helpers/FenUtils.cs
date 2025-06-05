@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Bezoro.Core.Chess.Common.Enums;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Helpers
 {
 	/// <summary>
 	///     High-performance, fully-validated FEN parser / formatter.

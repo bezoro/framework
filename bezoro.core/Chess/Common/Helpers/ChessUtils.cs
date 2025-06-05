@@ -1,8 +1,11 @@
 using System;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board.Models;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Moves.Models;
+using Bezoro.Core.Chess.Pieces.Models;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Helpers
 {
 	public static class ChessUtils
 	{

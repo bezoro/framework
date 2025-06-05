@@ -1,9 +1,9 @@
 using System;
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Helpers;
 
-namespace Bezoro.Core.Chess.Board.Validation
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	public static class BoardValidationExtensions
 	{

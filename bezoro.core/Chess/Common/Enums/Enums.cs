@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Common.Enums
 {
 	public enum CardinalDirection
 	{

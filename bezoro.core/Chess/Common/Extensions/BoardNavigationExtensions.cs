@@ -1,9 +1,10 @@
 using System;
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Chess.Board.Validation;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
 
-namespace Bezoro.Core.Chess.Board.Navigation
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	public static class BoardNavigationExtensions
 	{

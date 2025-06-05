@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Bezoro.Core.Chess.Common.Enums;
 
-namespace Bezoro.Core.Chess.Board.Navigation
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	public static class BoardDirectionExtensions
 	{

@@ -1,4 +1,4 @@
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Helpers
 {
 	internal static class FenValidators
 	{

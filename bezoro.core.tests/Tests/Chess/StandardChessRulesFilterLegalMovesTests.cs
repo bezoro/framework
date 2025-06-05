@@ -1,9 +1,12 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Chess.Rules;
 using NUnit.Framework;
 
-namespace Bezoro.Core.Chess.Tests
+namespace Bezoro.Core.Tests.Chess
 {
 	// TODO: Finish tests
 	[TestFixture]

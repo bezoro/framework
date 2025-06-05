@@ -1,5 +1,6 @@
-using Bezoro.Core.Chess;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Board.Models;
 using Moq;
 using NUnit.Framework;
 

@@ -1,6 +1,7 @@
+using Bezoro.Core.Chess.Common.Enums;
 using JetBrains.Annotations;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Game
 {
 	/// <summary>
 	///     Interface all specific game outcomes.

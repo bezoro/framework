@@ -1,8 +1,11 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 
-namespace Bezoro.Core.Chess.Pieces
+namespace Bezoro.Core.Chess.Pieces.Models
 {
 	public abstract class PieceModel : IChessPieceModel
 	{

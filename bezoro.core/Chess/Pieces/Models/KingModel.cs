@@ -1,6 +1,8 @@
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Moves.Services;
 
-namespace Bezoro.Core.Chess.Pieces
+namespace Bezoro.Core.Chess.Pieces.Models
 {
 	public class KingModel : PieceModel
 	{

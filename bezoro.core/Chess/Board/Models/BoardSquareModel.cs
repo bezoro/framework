@@ -1,6 +1,6 @@
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Board.Models
 {
 	public class BoardSquareModel : IChessBoardSquareModel
 	{
