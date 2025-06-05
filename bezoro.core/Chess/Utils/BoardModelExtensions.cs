@@ -162,12 +162,20 @@ namespace Bezoro.Core.Chess.Utils
 		/// <param name="algebraicPosition">The target position in algebraic notation (e.g., "e4").</param>
 		/// <param name="color">The color of the piece to create.</param>
 		/// <param name="pieceType">The type of the piece to create.</param>
-		/// <exception cref="NotImplementedException">This method is not implemented yet.</exception>
 		public static void CreatePieceAt(
 			this IChessBoardModel board,
 			string algebraicPosition,
 			PlayerColor color,
-			ChessPieceType pieceType) =>
-			throw new NotImplementedException();
+			ChessPieceType pieceType)
+		{
+			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
+			var square   = board.GetSquare(position);
+			var piece = ChessUtils.GetPieceFromChar(
+				color == PlayerColor.White
+					? char.ToUpper(pieceType.ToString()[0])
+					: char.ToLower(pieceType.ToString()[0]));
+
+			square.SetPiece(piece);
+		}
 	}
 }
