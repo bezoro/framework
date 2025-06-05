@@ -84,6 +84,8 @@ namespace Bezoro.Core.Chess.Tests.Common
 				}
 			}
 
+			public Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; }
+
 			public IChessBoardSquareModel[,] Squares { get; }
 			public int                       Height  { get; }
 

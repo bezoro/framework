@@ -9,9 +9,10 @@ namespace Bezoro.Core.Chess.Abstractions.Interfaces
 {
 	public interface IChessBoardModel
 	{
-		IChessBoardSquareModel[,] Squares { get; }
-		int                       Height  { get; }
-		int                       Width   { get; }
+		Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; }
+		IChessBoardSquareModel[,]                   Squares    { get; }
+		int                                         Height     { get; }
+		int                                         Width      { get; }
 		/// <summary>
 		///     Read-only view of the last computed pseudo-legal moves for all pieces.
 		/// </summary>
