@@ -39,9 +39,10 @@ namespace Bezoro.Core.Chess.Board.Models
 		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex             = new();
 		private          Dictionary<IChessPieceModel, List<Move>>    _cachedPseudoLegalMoves = new();
 
-		public IChessBoardSquareModel[,] Squares { get; }
-		public int                       Height  { get; }
-		public int                       Width   { get; }
+		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex => _pieceIndex;
+		public IChessBoardSquareModel[,]                   Squares    { get; }
+		public int                                         Height     { get; }
+		public int                                         Width      { get; }
 		public IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves =>
 			_cachedPseudoLegalMoves;
 		public List<IChessPieceModel> BoardPieces { get; } // Pieces currently on the board
