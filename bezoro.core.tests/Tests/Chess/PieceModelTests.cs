@@ -16,7 +16,7 @@ namespace Bezoro.Core.Tests.Chess.Pieces
 		{
 			// Arrange
 			var game  = new GameModel();
-			var moves = new List<Move> { new(new(0, 0), new(0, 1), PlayerColor.White) };
+			var moves = new List<Move> { new(new(0, 0), new(0, 1), PlayerColor.White, ChessPieceType.Pawn) };
 
 			var genMock = new Mock<IPseudoMoveGenerator>();
 			genMock

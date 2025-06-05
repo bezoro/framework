@@ -18,7 +18,7 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void NormalMove_HasExpectedProperties()
 		{
-			var move = new Move(E2, E4, PlayerColor.White);
+			var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
 
 			Assert.Multiple(
 				() =>
@@ -34,7 +34,7 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void PromotionFactory_CreatesValidPromotionMove()
 		{
-			var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Queen);
+			var move = Move.Promotion(A7, A8, PlayerColor.Black, ChessPieceType.Pawn, PromotionPieceType.Queen);
 
 			Assert.Multiple(
 				() =>
@@ -48,8 +48,8 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void Equality_WorksForIdenticalMoves()
 		{
-			var a = new Move(E2, E4, PlayerColor.White);
-			var b = new Move(E2, E4, PlayerColor.White);
+			var a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
+			var b = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
 
 			Assert.Multiple(
 				() =>
@@ -63,14 +63,14 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void Inequality_ReturnsFalseForIdenticalMoves()
 		{
-			var a = new Move(E2, E4, PlayerColor.White);
+			var a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
 			Assert.That(a != a, Is.False); // reflexive
 		}
 
 		[Test]
 		public void Deconstruct_ReturnsComponents()
 		{
-			var move = new Move(E2, E4, PlayerColor.White);
+			var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
 			move.Deconstruct(out var from, out var to, out var kind, out var promoteTo);
 
 			Assert.Multiple(
@@ -86,14 +86,14 @@ namespace Bezoro.Core.Tests.Chess
 		[Test]
 		public void ToString_NormalMove_OmitsPromotionSuffix()
 		{
-			var move = new Move(E2, E4, PlayerColor.White);
+			var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
 			Assert.That(move.ToString(), Is.EqualTo("e2→e4"));
 		}
 
 		[Test]
 		public void ToString_PromotionMove_AppendsPromotionInfo()
 		{
-			var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
+			var move = Move.Promotion(A7, A8, PlayerColor.Black, ChessPieceType.Pawn, PromotionPieceType.Rook);
 			Assert.That(move.ToString(), Does.Contain("promote to Rook"));
 		}
 
@@ -106,7 +106,7 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.Throws<ArgumentNullException>(
 				() =>
 				{
-					_ = new Move(A7, A8, PlayerColor.White, MoveKind.Promotion);
+					_ = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Promotion);
 				});
 
 		[Test]
@@ -114,14 +114,15 @@ namespace Bezoro.Core.Tests.Chess
 			Assert.Throws<ArgumentException>(
 				() =>
 				{
-					_ = new Move(E2, E4, PlayerColor.White, MoveKind.Normal, PromotionPieceType.Bishop);
+					_ = new Move(
+						E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal, PromotionPieceType.Bishop);
 				});
 
 		[Test]
 		public void EqualsObject_ReturnsFalseForDifferentMove()
 		{
-			var    a = new Move(E2, E4, PlayerColor.White);
-			object b = new Move(A7, A8, PlayerColor.White);
+			var    a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
+			object b = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn);
 			Assert.That(a.Equals(b), Is.False);
 		}
 
