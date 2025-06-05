@@ -4,13 +4,14 @@ namespace Bezoro.Core.Chess.Board.Models
 {
 	public class BoardSquareModel : IChessBoardSquareModel
 	{
-		public BoardSquareModel(BoardPosition position, IChessPieceModel? piece = null)
+		public BoardSquareModel(BoardPosition position, IChessPieceModel? piece = null) : this(
+			position.Column, position.Row, piece) { }
+
+		public BoardSquareModel(int col, int row, IChessPieceModel? piece = null)
 		{
-			Position = position;
+			Position = new(col, row);
 			Piece    = piece;
 		}
-
-		public BoardSquareModel(int col, int row) : this(new(col, row)) { }
 
 		public BoardPosition     Position   { get; }
 		public bool              IsEmpty    => Piece == null;

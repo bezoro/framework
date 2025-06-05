@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
 using Bezoro.Core.Chess.Common.Helpers;
 
 namespace Bezoro.Core.Chess.Common.Extensions
@@ -34,5 +35,8 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			return col >= 0 && col < board.Width &&
 				   row >= 0 && row < board.Height;
 		}
+
+		public static bool IsInside(this IChessBoardModel board, BoardPosition position) =>
+			board.IsInside(position.Column, position.Row);
 	}
 }

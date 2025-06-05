@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
 
 namespace Bezoro.Core.Chess.Abstractions.Interfaces
 {
