@@ -6,13 +6,10 @@ using Bezoro.Core.Chess.Common.Enums;
 namespace Bezoro.Core.Chess.Common.Helpers
 {
 	/// <summary>
-	///     High-performance, fully-validated FEN parser / formatter.
+	///     High-performance, fully validated FEN parser / formatter.
 	/// </summary>
-	public static class FenUtility
+	public static class FenUtils
 	{
-		/*──────────────────────────────────────────────────────────*/
-		/*  Static FEN strings                                       */
-		/*──────────────────────────────────────────────────────────*/
 		public const string EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1";
 		public const string START_FEN = START_PIECES + " w KQkq - 0 1";
 		public const string START_PIECES =
@@ -22,6 +19,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 		public static FenData StartBoard  { get; } = Parse(START_FEN);
 		public static string  StartPieces => START_PIECES;
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool TryParse(
 			string? fen,
 			out FenData data,
@@ -55,7 +53,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 
 			// Field 2: Active Color (Default: 'w')
 			var activeColorStr = parts.Length > 1 ? parts[1] : "w";
-			if (!FenExtensions.TryParseColor(activeColorStr, out var color))
+			if (!TryParseColor(activeColorStr, out var color))
 			{
 				error = "Active color must be 'w' or 'b'.";
 				return false;
@@ -63,7 +61,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 
 			// Field 3: Castling Availability (Default: '-')
 			var castlingStr = parts.Length > 2 ? parts[2] : "-";
-			if (!FenExtensions.TryParseCastling(castlingStr, out var rights))
+			if (!TryParseCastling(castlingStr, out var rights))
 			{
 				error = "Malformed castling section.";
 				return false;
@@ -98,36 +96,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			return true;
 		}
 
-		/*──────────────────────────────────────────────────────────*/
-		/*  Public API                                              */
-		/*──────────────────────────────────────────────────────────*/
-
-		/// <exception cref="ArgumentException">Malformed FEN.</exception>
-		public static FenData Parse(string fen)
-		{
-			if (!TryParse(fen, out var data, out var err))
-				throw new ArgumentException(err ?? "Invalid FEN string.", nameof(fen));
-
-			return data;
-		}
-
-		public static string Format(in FenData fen) =>
-			string.Concat(
-				fen.PiecePlacement, " ",
-				fen.ActiveColor.ToFenChar(), " ",
-				fen.Castling.ToFenString(), " ",
-				fen.EnPassant, " ", // FenData.EnPassant should be the string representation
-				fen.HalfmoveClock.ToString(), " ",
-				fen.FullmoveNumber.ToString());
-	}
-
-	/*──────────────────────────────────────────────────────────────*/
-	/*  Internal helpers                                            */
-	/*──────────────────────────────────────────────────────────────*/
-
-	internal static class FenExtensions
-	{
-		/*——— CastlingRights ———*/
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool TryParseCastling(string token, out CastlingRights rights)
 		{
 			rights = CastlingRights.None;
@@ -153,6 +122,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			return true; // True if token was "-" or only contained valid castling characters
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool TryParseColor(string token, out PlayerColor color)
 		{
 			color = PlayerColor.None; // Default to an invalid state
@@ -172,14 +142,31 @@ namespace Bezoro.Core.Chess.Common.Helpers
 			return false;
 		}
 
-		// The TrySplitIntoSixTokens method is no longer needed and can be removed.
-		// public static bool TrySplitIntoSixTokens(this string src, Span<string> dest) { ... }
-
-		/*——— PlayerColor ———*/
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToFenChar(this PlayerColor color) =>
 			color == PlayerColor.White ? 'w' : 'b';
 
+		/// <exception cref="ArgumentException">Malformed FEN.</exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static FenData Parse(string fen)
+		{
+			if (!TryParse(fen, out var data, out var err))
+				throw new ArgumentException(err ?? "Invalid FEN string.", nameof(fen));
+
+			return data;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static string Format(in FenData fen) =>
+			string.Concat(
+				fen.PiecePlacement, " ",
+				fen.ActiveColor.ToFenChar(), " ",
+				fen.Castling.ToFenString(), " ",
+				fen.EnPassant, " ", // FenData.EnPassant should be the string representation
+				fen.HalfmoveClock.ToString(), " ",
+				fen.FullmoveNumber.ToString());
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static string ToFenString(this CastlingRights rights)
 		{
 			if (rights == CastlingRights.None) return "-";
@@ -192,39 +179,20 @@ namespace Bezoro.Core.Chess.Common.Helpers
 		}
 	}
 
-	// Assuming FenValidators.TryParseEnPassant and other parts of FenData, Piece, etc. remain as they were,
-	// and FenValidators.IsValidPiecePlacement exists.
-	// If FenValidators is not defined elsewhere, you'll need to implement it.
-	// For example:
-	// public static class FenValidators {
-	// public static bool IsValidPiecePlacement(string piecePlacement) { /* ... */ return true; }
-	// public static bool TryParseEnPassant(string fenEp, out string epSquare) {
-	// epSquare = fenEp; // Simplistic, proper validation needed
-	// if (fenEp == "-") return true;
-	// // Basic check: a-h followed by 3 or 6 for white/black en passant
-	// if (fenEp.Length == 2 && fenEp[0] >= 'a' && fenEp[0] <= 'h' && (fenEp[1] == '3' || fenEp[1] == '6')) return true;
-	// return false;
-	// }
-	// }
-
-	/*──────────────────────────────────────────────────────────────*/
-	/*  Value object (struct — C#9 compatible)                      */
-	/*──────────────────────────────────────────────────────────────*/
-
 	public readonly struct FenData
 	{
 		public FenData(
 			string piecePlacement,
 			PlayerColor activeColor,
 			CastlingRights castling,
-			string enPassant, // This should be the string like "e3" or "-"
+			string enPassant,
 			int halfmoveClock,
 			int fullmoveNumber)
 		{
 			PiecePlacement = piecePlacement;
 			ActiveColor    = activeColor;
 			Castling       = castling;
-			EnPassant      = enPassant; // Store the string directly
+			EnPassant      = enPassant;
 			HalfmoveClock  = halfmoveClock;
 			FullmoveNumber = fullmoveNumber;
 		}
@@ -233,75 +201,7 @@ namespace Bezoro.Core.Chess.Common.Helpers
 		public readonly int            FullmoveNumber;
 		public readonly int            HalfmoveClock;
 		public readonly PlayerColor    ActiveColor;
-		public readonly string         EnPassant; // String representation like "e3" or "-"
+		public readonly string         EnPassant;
 		public readonly string         PiecePlacement;
-
-		/// <summary>Returns a copy with the side to move toggled.</summary>
-		public FenData ToggleColor()
-		{
-			var newColor = ActiveColor == PlayerColor.White
-				? PlayerColor.Black
-				: PlayerColor.White;
-
-			return new(
-				PiecePlacement,
-				newColor,
-				Castling,
-				EnPassant,
-				HalfmoveClock,
-				FullmoveNumber);
-		}
-
-		/// <summary>
-		///     Expands the piece-placement field into a 64-square array
-		///     (index 0 = A1, index 63 = H8). Empty squares are <c>null</c>.
-		/// </summary>
-		public Piece?[] ToBoardArray()
-		{
-			var board = new Piece?[64];
-			var idx   = 56; // A8
-			foreach (var rank in PiecePlacement.Split('/'))
-			{
-				foreach (var c in rank)
-				{
-					if (char.IsDigit(c))
-					{
-						idx += c - '0';
-					}
-					else
-					{
-						board[idx++] = new Piece(c);
-					}
-				}
-
-				idx -= 16; // next lower rank
-			}
-
-			return board;
-		}
-	}
-
-	/// <summary>Minimal wrapper for a piece defined by a FEN character.</summary>
-	public readonly struct Piece
-	{
-		public Piece(char fenChar)
-		{
-			var isUpper = char.IsUpper(fenChar);
-			Color = isUpper ? PlayerColor.White : PlayerColor.Black;
-
-			Type = char.ToLowerInvariant(fenChar) switch
-			{
-				'p' => ChessPieceType.Pawn,
-				'n' => ChessPieceType.Knight,
-				'b' => ChessPieceType.Bishop,
-				'r' => ChessPieceType.Rook,
-				'q' => ChessPieceType.Queen,
-				'k' => ChessPieceType.King,
-				_   => ChessPieceType.None
-			};
-		}
-
-		public readonly ChessPieceType Type;
-		public readonly PlayerColor    Color;
 	}
 }

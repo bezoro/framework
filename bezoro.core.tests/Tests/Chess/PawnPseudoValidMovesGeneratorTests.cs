@@ -45,7 +45,7 @@ namespace Bezoro.Core.Tests.Chess
 		[SetUp]
 		public void Setup()
 		{
-			_standardGame  = new(FenUtility.StartPieces);
+			_standardGame  = new(FenUtils.StartPieces);
 			_standardBoard = _standardGame.Board;
 		}
 

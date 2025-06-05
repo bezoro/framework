@@ -10,8 +10,6 @@ using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Chess.Pieces.Commands;
 using Bezoro.Core.Chess.Rules;
 
-// For FenData, FenUtility, AlgebraicNotationUtils, ChessUtils
-
 namespace Bezoro.Core.Chess.Game.Models
 {
 	public class GameModel
@@ -25,7 +23,7 @@ namespace Bezoro.Core.Chess.Game.Models
 		/// <param name="boardHeight">The height of the chess board.</param>
 		public GameModel(string? fen = null, int boardWidth = 8, int boardHeight = 8, IGameRules? rules = null)
 		{
-			var setup = string.IsNullOrWhiteSpace(fen) ? FenUtility.StartBoard : FenUtility.Parse(fen);
+			var setup = string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
 
 			Board          = new(boardWidth, boardHeight, setup.PiecePlacement);
 			GameRules      = rules ?? new StandardChessRules();
@@ -97,7 +95,7 @@ namespace Bezoro.Core.Chess.Game.Models
 				FullMoveNumber
 			);
 
-			return FenUtility.Format(currentFenData);
+			return FenUtils.Format(currentFenData);
 		}
 
 		private void UpdateCastlingRightsOnMove(
