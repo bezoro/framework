@@ -28,8 +28,8 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			if (position == null) throw new ArgumentNullException(nameof(position));
 
 			var dirs = includeDiagonals
-				? DirectionVectors.Orthogonal.Concat(DirectionVectors.Diagonal)
-				: DirectionVectors.Orthogonal;
+				? DirectionVectors.ORTHOGONAL.Concat(DirectionVectors.DIAGONAL)
+				: DirectionVectors.ORTHOGONAL;
 
 			foreach (var (dx, dy) in dirs)
 			{
@@ -49,7 +49,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 		public static IEnumerable<IChessBoardSquareModel> GetDiagonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
-			board.GetSlidingSquares(origin, DirectionVectors.Diagonal);
+			board.GetSlidingSquares(origin, DirectionVectors.DIAGONAL);
 
 		/// <summary>
 		///     Shortcut for king moves – simply returns the adjacent squares
@@ -101,7 +101,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 		public static IEnumerable<IChessBoardSquareModel> GetOrthogonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
-			board.GetSlidingSquares(origin, DirectionVectors.Orthogonal);
+			board.GetSlidingSquares(origin, DirectionVectors.ORTHOGONAL);
 
 		/// <summary>
 		///     Returns all squares reachable by a queen from the given position.
@@ -117,7 +117,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			BoardPosition origin) =>
 			board.GetSlidingSquares(
 				origin,
-				DirectionVectors.Orthogonal.Concat(DirectionVectors.Diagonal));
+				DirectionVectors.ORTHOGONAL.Concat(DirectionVectors.DIAGONAL));
 
 		/// <summary>
 		///     Returns all squares reachable by sliding from the origin in the specified directions
