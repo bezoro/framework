@@ -1,4 +1,3 @@
-using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Common.Enums;
 using Bezoro.Core.Chess.Moves.Services;
 
@@ -6,7 +5,7 @@ namespace Bezoro.Core.Chess.Pieces.Models
 {
 	public class KingModel : PieceModel
 	{
-		public KingModel(PlayerColor color, IChessBoardSquareModel? square = null)
+		public KingModel(PlayerColor color)
 			: base(color, new KingPseudoValidMoveGenerator()) { }
 
 		public bool HasCastled   { get; private set; }
