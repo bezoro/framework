@@ -172,7 +172,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 
 		/// <summary>
 		///     Walks a ray starting from the position next to the origin in the specified direction
-		///     until reaching a board edge or an occupied square.
+		///     until reaching a board edge.
 		/// </summary>
 		/// <param name="board">The chess board.</param>
 		/// <param name="from">The origin position (the walk starts from the adjacent square).</param>
@@ -180,7 +180,7 @@ namespace Bezoro.Core.Chess.Common.Extensions
 		/// <param name="dy">The vertical direction component (-1, 0, or 1).</param>
 		/// <returns>A collection of squares along the ray.</returns>
 		/// <remarks>
-		///     When an occupied square is encountered, it is included in the results before stopping.
+		///     This method ignores occupied squares and continues walking until reaching a board edge.
 		///     This method is used by the sliding piece move generators and for checking lines of attack.
 		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -197,9 +197,6 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			{
 				var square = board.Squares[file, rank];
 				yield return square;
-
-				if (square.GetPiece() != null)
-					yield break; // stop after the first occupied square
 
 				file += dx;
 				rank += dy;
