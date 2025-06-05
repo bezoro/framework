@@ -36,10 +36,9 @@ namespace Bezoro.Core.Chess.Board.Models
 			BoardPieces = InitializePieces(Squares, piecePlacementFen);
 		}
 
-		private readonly Dictionary<IChessPieceModel, BoardPosition> _pieceIndex             = new();
-		private          Dictionary<IChessPieceModel, List<Move>>    _cachedPseudoLegalMoves = new();
+		private Dictionary<IChessPieceModel, List<Move>> _cachedPseudoLegalMoves = new();
 
-		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex => _pieceIndex;
+		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; } = new();
 		public IChessBoardSquareModel[,]                   Squares    { get; }
 		public int                                         Height     { get; }
 		public int                                         Width      { get; }
@@ -55,7 +54,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			if (to          == null) throw new ArgumentNullException(nameof(to));
 
 			// Remove from old position if it was already on the board
-			if (_pieceIndex.TryGetValue(pieceToMove, out var oldPos))
+			if (PieceIndex.TryGetValue(pieceToMove, out var oldPos))
 			{
 				var oldSquare = this.GetSquareAt(oldPos);
 				if (oldSquare.GetPiece() == pieceToMove) // Ensure it's the same piece instance
@@ -75,7 +74,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			var existingPieceAtTarget = to.GetPiece();
 			if (existingPieceAtTarget != null)
 			{
-				_pieceIndex.Remove(existingPieceAtTarget);
+				PieceIndex.Remove(existingPieceAtTarget);
 				BoardPieces.Remove(existingPieceAtTarget);
 			}
 
@@ -84,6 +83,14 @@ namespace Bezoro.Core.Chess.Board.Models
 			if (!BoardPieces.Contains(pieceToMove)) // Add if not already present
 			{
 				BoardPieces.Add(pieceToMove);
+			}
+		}
+
+		public void Clear()
+		{
+			foreach (var square in Squares)
+			{
+				square.SetPiece(null);
 			}
 		}
 
@@ -101,7 +108,7 @@ namespace Bezoro.Core.Chess.Board.Models
 		public bool IsEmpty(BoardPosition to) => this.GetPieceAt(to) == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
-			_pieceIndex.TryGetValue(piece, out var pos) ? pos : null;
+			PieceIndex.TryGetValue(piece, out var pos) ? pos : null;
 
 		public IEnumerable<IChessBoardSquareModel> GetStraightPath(BoardPosition from, BoardPosition to)
 		{
@@ -205,7 +212,7 @@ namespace Bezoro.Core.Chess.Board.Models
 			if (fromSquare.GetPiece() != pieceToMove)
 			{
 				// Attempt to find the piece if _pieceIndex is out of sync or if called directly
-				if (_pieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos == from)
+				if (PieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos == from)
 				{
 					// _pieceIndex is correct, but square might not be. This indicates an inconsistency.
 					// For now, proceed if _pieceIndex matches 'from'.
@@ -213,7 +220,7 @@ namespace Bezoro.Core.Chess.Board.Models
 				else
 				{
 					throw new InvalidOperationException(
-						$"Piece {pieceToMove} is not at the source position {from}. Recorded at: {(_pieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}");
+						$"Piece {pieceToMove} is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}");
 				}
 			}
 
@@ -230,23 +237,23 @@ namespace Bezoro.Core.Chess.Board.Models
 					// For BoardModel, if from == to, we essentially do nothing here but update index if needed.
 					if (from.Equals(to))
 					{
-						_pieceIndex[pieceToMove] = to; // Ensure index is current
+						PieceIndex[pieceToMove] = to; // Ensure index is current
 						return;
 					}
 					// If it's a different piece, it means GameModel didn't handle its removal for a capture.
 					// Or, it's an overwrite, which this simple model allows by removing.
 				}
 
-				_pieceIndex.Remove(pieceAtTarget);
+				PieceIndex.Remove(pieceAtTarget);
 				BoardPieces.Remove(pieceAtTarget); // Remove from active board pieces
 			}
 
 			fromSquare.SetPiece(null);
 			toSquare.SetPiece(pieceToMove);
-			_pieceIndex[pieceToMove] = to; // Update the index for the moved piece
+			PieceIndex[pieceToMove] = to; // Update the index for the moved piece
 		}
 
-		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => _pieceIndex[piece] = newPos;
+		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => PieceIndex[piece] = newPos;
 
 		private BoardSnapshot CreateSnapshot() => new(Squares); // Pass necessary data to snapshot
 
