@@ -35,7 +35,7 @@ namespace Bezoro.Core.Collections
 			// Using Linq's Any() after casting to IEnumerable<object> is a clean
 			// and safe way to check for elements. Any() handles enumerator
 			// creation and disposal correctly.
-			return !enumerable.Cast<object>().Any();
+			return !enumerable!.Cast<object>().Any();
 		}
 	}
 }
