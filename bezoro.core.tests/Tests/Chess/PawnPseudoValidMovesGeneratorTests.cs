@@ -90,8 +90,9 @@ namespace Bezoro.Core.Tests.Chess
 
 			var moves = pawn.GetPseudoLegalMoves(_standardGame).ToList();
 			var promos = moves
-						 .Where(m => m.Kind == MoveKind.Promotion)
-						 .ToList();
+						 .Where(
+							 m => m.Kind        == MoveKind.Promotion &&
+								  m.From.Column == m.To.Column).ToList();
 
 			Assert.That(
 				promos, Has.Count.EqualTo(4),
