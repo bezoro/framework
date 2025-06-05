@@ -2,47 +2,50 @@ using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Board;
 using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 
 namespace Bezoro.Core.Chess.Abstractions.Interfaces
 {
 	public interface IChessBoardModel
 	{
+		IChessBoardSquareModel[,] Squares { get; }
+		int                       Height  { get; }
+		int                       Width   { get; }
 		/// <summary>
-		///     Returns a read-only picture of the current position.
-		///     The object is created once per position and reused until the
-		///     board changes again.
+		///     Read-only view of the last computed pseudo-legal moves for all pieces.
 		/// </summary>
-		BoardSnapshot Snapshot { get; }
-		IChessBoardSquareModel[,] Squares     { get; }
-		int                       Height      { get; }
-		int                       Width       { get; }
-		List<IChessPieceModel>    BoardPieces { get; }
+		IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves { get; }
+		List<IChessPieceModel> BoardPieces { get; } // Pieces currently on the board
 		BoardPosition? GetPosition(IChessPieceModel piece);
 		bool IsEmpty(BoardPosition to);
-		IChessBoardSquareModel GetSquare(BoardPosition position);
+		bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor);
+		bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor);
+		IEnumerable<IChessBoardSquareModel> GetStraightPath(BoardPosition from, BoardPosition to);
 
 		/// <summary>
-		///     Lists every square in a straight path between <paramref name="from" />
-		///     and <paramref name="to" />, excluding the endpoints.
-		///     Ideal for validating that all squares between the king and rook are empty
-		///     when evaluating castling rights.
+		///     Retrieves the cached moves for a specific piece.
+		///     Returns an empty collection if the piece is unknown or no cache is present.
 		/// </summary>
-		/// <exception cref="InvalidOperationException">
-		///     Thrown when the two squares are not on the same rank or file.
+		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
+
+		void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
+		void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to);
+
+		/// <summary>
+		///     Rebuilds the cache that maps every on-board piece to the full set of its
+		///     current pseudo-legal moves.
+		///     This cache can later be consulted (e.g. when verifying that the king is not
+		///     placed in check by a prospective move).
+		/// </summary>
+		/// <param name="game">
+		///     The <see cref="GameModel" /> instance providing the necessary context to each
+		///     piece’s <see cref="IChessPieceModel.GetPseudoLegalMoves" /> implementation.
+		/// </param>
+		/// <exception cref="ArgumentNullException">
+		///     Thrown if <paramref name="game" /> is <c>null</c>.
 		/// </exception>
-		IEnumerable<IChessBoardSquareModel> GetStraightPath(
-			BoardPosition from,
-			BoardPosition to);
-
-		void MovePiece(
-			IChessPieceModel piece,
-			BoardPosition from,
-			BoardPosition to);
-
-		void MovePiece(
-			IChessPieceModel piece,
-			string fromAlgebraic,
-			string toAlgebraic);
+		void RefreshPseudoLegalMoveCache(GameModel game);
 
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
 	}
