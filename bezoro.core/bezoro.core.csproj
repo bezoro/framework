@@ -15,6 +15,11 @@
         <PackageReference Include="JetBrains.Annotations" Version="2024.3.0"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Folder Include="Chess\Abstractions\"/>
+        <Folder Include="Chess\Board\Services\"/>
+    </ItemGroup>
+
     <Target Name="CopyToUnity" AfterTargets="Build">
         <!-- copy built DLL into your Unity project -->
         <PropertyGroup>
