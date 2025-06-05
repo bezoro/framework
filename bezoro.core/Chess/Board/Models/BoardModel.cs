@@ -99,6 +99,17 @@ namespace Bezoro.Core.Chess.Board.Models
 			InvalidateSnapshot();
 		}
 
+		public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor)
+		{
+			if (targetSquare == null) throw new ArgumentNullException(nameof(targetSquare));
+
+			var targetPiece = targetSquare.GetPiece();
+			if (targetPiece == null)
+				return false;
+
+			return targetPiece.Color != myColor;
+		}
+
 		public bool IsEmpty(BoardPosition to) => this.GetPieceAt(to) == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>

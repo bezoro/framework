@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using Bezoro.Core.Chess.Abstractions.Interfaces;
 using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Board.Models;
 using Bezoro.Core.Chess.Common.Enums;
 using Bezoro.Core.Chess.Common.Extensions;
+using Bezoro.Core.Chess.Common.Helpers;
 using Bezoro.Core.Chess.Game.Models;
 using Bezoro.Core.Chess.Moves.Models;
 using NUnit.Framework;
@@ -13,13 +15,13 @@ namespace Bezoro.Core.Chess.Tests.Common
 	[TestFixture]
 	public class BoardModelExtensionsTests
 	{
-		private FakeBoard _board;
+		private IChessBoardModel _board;
 
 	#region Setup/Teardown Methods
 
 		[SetUp]
 		public void SetUp() =>
-			_board = new(8, 8);
+			_board = new BoardModel(8, 8, FenUtils.EmptyBoard);
 
 	#endregion
 
@@ -108,6 +110,9 @@ namespace Bezoro.Core.Chess.Tests.Common
 
 			public void SetPieceAt(IChessPieceModel piece, IChessBoardSquareModel square) =>
 				square.SetPiece(piece);
+
+			public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor) =>
+				throw new NotImplementedException();
 
 		#endregion
 
