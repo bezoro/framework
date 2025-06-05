@@ -225,6 +225,88 @@ namespace Bezoro.Core.Tests.Chess
 		}
 
 		[Test]
+		public void Generate_QueensideCastlingA1RookHasMoved_NoCastlingMoveGenerated()
+		{
+			// Arrange
+			var game = new GameModel();
+			game.Board.Clear();
+
+			var king = new KingModel(PlayerColor.White); // King has NOT moved
+			// king.MarkMoved(); 
+			var kingPosition = game.Board.GetSquareAt("e1");
+			game.Board.SetPieceAt(king, kingPosition);
+
+			var rook = new RookModel(PlayerColor.White);
+			rook.MarkMoved(); // Mark a1-Rook as having moved
+			var rookPosition = game.Board.GetSquareAt("a1");
+			game.Board.SetPieceAt(rook, rookPosition);
+
+			// b1, c1, d1 are implicitly empty due to Board.Clear()
+
+			var generator = new KingPseudoValidMoveGenerator();
+
+			// Act
+			var pseudoMoves           = generator.Generate(game, king).ToList();
+			var queensideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleQueenside);
+
+			// Assert
+			Assert.That(
+				queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleQueenside),
+				"Queenside castling move should not be generated if the a1-Rook has moved.");
+
+			var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
+			// Standard moves from e1: d1, d2, e2, f1, f2 (5 moves)
+			Assert.That(standardMovesCount, Is.EqualTo(5), "Standard king moves should still be generated.");
+
+			TestContext.Out.WriteLine($"Pseudo moves generated ({pseudoMoves.Count}):");
+			foreach (var move in pseudoMoves)
+			{
+				TestContext.Out.WriteLine($"{move} (Kind: {move.Kind})");
+			}
+		}
+
+		[Test]
+		public void Generate_QueensideCastlingKingHasMoved_NoCastlingMoveGenerated()
+		{
+			// Arrange
+			var game = new GameModel();
+			game.Board.Clear();
+
+			var king = new KingModel(PlayerColor.White);
+			king.MarkMoved(); // Mark King as having moved
+			var kingPosition = game.Board.GetSquareAt("e1");
+			game.Board.SetPieceAt(king, kingPosition);
+
+			var rook = new RookModel(PlayerColor.White); // a1-Rook has not moved
+			// rook.MarkMoved(); 
+			var rookPosition = game.Board.GetSquareAt("a1");
+			game.Board.SetPieceAt(rook, rookPosition);
+
+			// b1, c1, d1 are implicitly empty due to Board.Clear()
+
+			var generator = new KingPseudoValidMoveGenerator();
+
+			// Act
+			var pseudoMoves           = generator.Generate(game, king).ToList();
+			var queensideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleQueenside);
+
+			// Assert
+			Assert.That(
+				queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleQueenside),
+				"Queenside castling move should not be generated if the King has moved.");
+
+			var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
+			// Standard moves from e1: d1, d2, e2, f1, f2 (5 moves)
+			Assert.That(standardMovesCount, Is.EqualTo(5), "Standard king moves should still be generated.");
+
+			TestContext.Out.WriteLine($"Pseudo moves generated ({pseudoMoves.Count}):");
+			foreach (var move in pseudoMoves)
+			{
+				TestContext.Out.WriteLine($"{move} (Kind: {move.Kind})");
+			}
+		}
+
+		[Test]
 		public void Generate_ValidKing_ReturnsCorrectMoves()
 		{
 			// Arrange
