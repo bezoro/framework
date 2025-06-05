@@ -30,11 +30,56 @@ namespace Bezoro.Core.Chess.Utils
 		/// <returns>
 		///     <c>true</c> if the coordinates are inside the board boundaries; otherwise, <c>false</c>.
 		/// </returns>
-		public static bool IsInside(this IChessBoardModel board, int col, int row) =>
-			col    >= 0
-			&& col < board.Width
-			&& row >= 0
-			&& row < board.Height;
+		public static bool IsInside(this IChessBoardModel board, int col, int row)
+		{
+			if (board == null) throw new ArgumentNullException(nameof(board));
+			return col >= 0 && col < board.Width && row >= 0 && row < board.Height;
+		}
+
+		public static IChessBoardSquareModel? GetEastSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.East));
+
+		public static IChessBoardSquareModel? GetNorthEastSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.NorthEast));
+
+		public static IChessBoardSquareModel? GetNorthSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.North));
+
+		public static IChessBoardSquareModel? GetNorthWestSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.NorthWest));
+
+		public static IChessBoardSquareModel? GetOffsetSquare(
+			this IChessBoardModel board,
+			BoardPosition position,
+			int dx,
+			int dy) =>
+			board.GetOffsetSquare(position, (dx, dy));
+
+		public static IChessBoardSquareModel? GetOffsetSquare(
+			this IChessBoardModel board,
+			BoardPosition position,
+			(int dx, int dy) offset)
+		{
+			if (board == null)
+				throw new ArgumentNullException(nameof(board));
+
+			var file = position.File + offset.dx;
+			var rank = position.Rank + offset.dy;
+
+			return board.IsInside(file, rank) ? board.Squares[file, rank] : null;
+		}
+
+		public static IChessBoardSquareModel? GetSouthEastSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.SouthEast));
+
+		public static IChessBoardSquareModel? GetSouthSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.South));
+
+		public static IChessBoardSquareModel? GetSouthWestSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.SouthWest));
+
+		public static IChessBoardSquareModel? GetWestSquare(this IChessBoardModel board, BoardPosition position) =>
+			board.GetOffsetSquare(position, MapDirectionToOffsets(CardinalDirection.West));
 
 		/// <summary>
 		///     Returns every square that lies directly next to
@@ -127,6 +172,16 @@ namespace Bezoro.Core.Chess.Utils
 			}
 		}
 
+		public static IEnumerable<IChessBoardSquareModel> GetSquaresInDirection(
+			this IChessBoardModel board,
+			BoardPosition position,
+			CardinalDirection direction)
+		{
+			var (dx, dy) = MapDirectionToOffsets(direction);
+
+			return board.WalkRay(position, dx, dy);
+		}
+
 		/// <summary>
 		///     Steps square-by-square from the field next to <paramref name="from" />
 		///     following <paramref name="dx" /> / <paramref name="dy" /> until the board
@@ -177,5 +232,19 @@ namespace Bezoro.Core.Chess.Utils
 
 			square.SetPiece(piece);
 		}
+
+		private static (int, int) MapDirectionToOffsets(CardinalDirection direction) =>
+			direction switch
+			{
+				CardinalDirection.North     => (0, 1),
+				CardinalDirection.NorthEast => (1, 1),
+				CardinalDirection.East      => (1, 0),
+				CardinalDirection.SouthEast => (1, -1),
+				CardinalDirection.South     => (0, -1),
+				CardinalDirection.SouthWest => (-1, -1),
+				CardinalDirection.West      => (-1, 0),
+				CardinalDirection.NorthWest => (-1, 1),
+				_                           => throw new ArgumentException($"Invalid direction: {direction}")
+			};
 	}
 }
