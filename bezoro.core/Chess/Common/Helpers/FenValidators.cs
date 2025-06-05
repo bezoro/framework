@@ -1,6 +1,6 @@
 namespace Bezoro.Core.Chess.Common.Helpers
 {
-	internal static class FenValidators
+	public static class FenValidators
 	{
 		public static bool IsValidPiecePlacement(string field)
 		{
