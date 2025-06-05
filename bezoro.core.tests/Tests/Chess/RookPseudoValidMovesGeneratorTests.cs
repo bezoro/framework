@@ -72,6 +72,10 @@ namespace Bezoro.Core.Tests.Chess
 			var pseudoMoves = _generator.Generate(_gameModel, rook).ToList();
 			Assert.That(pseudoMoves, Is.Not.Empty);
 			TestContext.WriteLine($"Successfully generated rook pseudo-valid moves: {pseudoMoves.Count}");
+			foreach (var pseudoMove in pseudoMoves)
+			{
+				TestContext.Out.WriteLine($"{pseudoMove}");
+			}
 		}
 
 	#endregion
