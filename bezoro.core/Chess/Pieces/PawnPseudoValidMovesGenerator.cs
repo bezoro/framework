@@ -93,12 +93,12 @@ namespace Bezoro.Core.Chess.Pieces
 				foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
 				{
 					if (promo == PromotionPieceType.None) continue; // <<< skip “None”
-					yield return Move.Promotion(from, to, pawn.Color, promo);
+					yield return Move.Promotion(from, to, pawn.Color, pawn.GetPieceType(), promo);
 				}
 			}
 			else
 			{
-				yield return new(from, to, pawn.Color, tpl.Kind);
+				yield return new(from, to, pawn.Color, pawn.GetPieceType(), tpl.Kind);
 			}
 		}
 

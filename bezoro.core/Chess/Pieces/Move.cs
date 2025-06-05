@@ -13,12 +13,14 @@ namespace Bezoro.Core.Chess.Pieces
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
+			ChessPieceType pieceType,
 			MoveKind kind = MoveKind.Normal,
 			PromotionPieceType? promoteTo = null)
 		{
 			From       = from;
 			To         = to;
 			MovingSide = movingSide;
+			PieceType  = pieceType;
 			Kind       = kind;
 			PromoteTo  = promoteTo;
 
@@ -44,8 +46,9 @@ namespace Bezoro.Core.Chess.Pieces
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
+			ChessPieceType pieceType,
 			PromotionPieceType promoteTo) =>
-			new(from, to, movingSide, MoveKind.Promotion, promoteTo);
+			new(from, to, movingSide, pieceType, MoveKind.Promotion, promoteTo);
 
 		/// <summary>
 		///     Square the piece moves from.
@@ -61,6 +64,8 @@ namespace Bezoro.Core.Chess.Pieces
 		///     Convenience helper.
 		/// </summary>
 		public bool IsPromotion => Kind == MoveKind.Promotion;
+
+		public ChessPieceType PieceType { get; }
 
 		/// <summary>
 		///     Flags describing the kind of move (normal, capture, castling, promotion, …).
