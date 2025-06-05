@@ -35,8 +35,8 @@ namespace Bezoro.Core.Chess.Tests
 
 			var pseudo = new List<Move>
 			{
-				new(from, toB3, pawnB2.Color),
-				new(from, toB4, pawnB2.Color)
+				new(from, toB3, pawnB2.Color, ChessPieceType.Pawn),
+				new(from, toB4, pawnB2.Color, ChessPieceType.Pawn)
 			};
 
 			// ------------------------- Act ---------------------------------------
