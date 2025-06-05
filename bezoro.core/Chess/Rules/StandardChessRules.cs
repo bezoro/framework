@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Pieces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Helpers;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
 using Bezoro.Core.Collections;
 
 namespace Bezoro.Core.Chess.Rules

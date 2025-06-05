@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Pieces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board.Models;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
+using Bezoro.Core.Chess.Common.Helpers;
+using Bezoro.Core.Chess.Moves.Models;
+using Bezoro.Core.Chess.Pieces.Models;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Board
 {
 	/// <summary>
 	///     Immutable representation of a board position that can be cloned and

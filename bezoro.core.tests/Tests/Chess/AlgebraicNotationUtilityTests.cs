@@ -1,6 +1,6 @@
 using System;
-using Bezoro.Core.Chess;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Helpers;
 using NUnit.Framework;
 
 namespace Bezoro.Core.Tests.Chess

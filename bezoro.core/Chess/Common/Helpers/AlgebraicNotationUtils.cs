@@ -1,6 +1,7 @@
 using System;
+using Bezoro.Core.Chess.Board;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Helpers
 {
 	/// <summary>
 	///     Provides utility methods for working with chess algebraic notation for squares.

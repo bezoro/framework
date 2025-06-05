@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	/// <summary>
 	///     Extension helpers for working with the internal 2-D piece array that

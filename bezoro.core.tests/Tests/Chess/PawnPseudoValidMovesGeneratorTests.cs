@@ -1,8 +1,11 @@
 using System;
 using System.Linq;
-using Bezoro.Core.Chess;
-using Bezoro.Core.Chess.Pieces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Board.Models;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Helpers;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Services;
+using Bezoro.Core.Chess.Pieces.Models;
 using NUnit.Framework;
 
 namespace Bezoro.Core.Tests.Chess

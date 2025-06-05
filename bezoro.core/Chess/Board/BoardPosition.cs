@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Numerics;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Common.Helpers;
 
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Board
 {
 	/// <summary>
 	///     Immutable value object that represents a square on a rectangular board.

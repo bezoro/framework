@@ -1,6 +1,8 @@
 using System;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
 
-namespace Bezoro.Core.Chess.Pieces
+namespace Bezoro.Core.Chess.Moves.Models
 {
 	/// <summary>
 	///     Immutable, lightweight value type that represents one <em>possible</em> move

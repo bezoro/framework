@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Helpers;
 
-// For AlgebraicNotationUtils, ChessUtils
-
-namespace Bezoro.Core.Chess
+namespace Bezoro.Core.Chess.Board.Models
 {
 	/// <summary>
 	///     Represents the chess board structure and manages piece positions.

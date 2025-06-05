@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Chess.Board.Validation;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Extensions;
+using Bezoro.Core.Chess.Game.Models;
+using Bezoro.Core.Chess.Moves.Models;
+using Bezoro.Core.Chess.Pieces.Models;
 
-namespace Bezoro.Core.Chess.Pieces
+namespace Bezoro.Core.Chess.Moves.Services
 {
 	/// <summary>
 	///     Generates every pseudo-legal pawn move (white perspective; black is mirrored).

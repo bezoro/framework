@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Chess.Board.Navigation;
-using Bezoro.Core.Chess.Board.Validation;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Utils;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Helpers;
 
-namespace Bezoro.Core.Chess.Board.Patterns
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	public static class BoardPatternExtensions
 	{

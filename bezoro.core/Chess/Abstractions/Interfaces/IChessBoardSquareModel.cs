@@ -1,4 +1,6 @@
-namespace Bezoro.Core.Chess.Interfaces
+using Bezoro.Core.Chess.Board;
+
+namespace Bezoro.Core.Chess.Abstractions.Interfaces
 {
 	public interface IChessBoardSquareModel
 	{

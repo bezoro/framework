@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Common.Helpers;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	/// <summary>
 	///     Extension methods for IChessBoardModel to provide common chess board operations

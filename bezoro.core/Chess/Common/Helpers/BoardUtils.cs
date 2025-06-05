@@ -1,7 +1,8 @@
 using System;
-using Bezoro.Core.Chess.Interfaces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Board;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Helpers
 {
 	public static class BoardUtils
 	{

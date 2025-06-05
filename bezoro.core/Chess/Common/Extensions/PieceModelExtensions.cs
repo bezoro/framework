@@ -1,8 +1,9 @@
 using System;
-using Bezoro.Core.Chess.Interfaces;
-using Bezoro.Core.Chess.Pieces;
+using Bezoro.Core.Chess.Abstractions.Interfaces;
+using Bezoro.Core.Chess.Common.Enums;
+using Bezoro.Core.Chess.Pieces.Models;
 
-namespace Bezoro.Core.Chess.Utils
+namespace Bezoro.Core.Chess.Common.Extensions
 {
 	/// <summary>Maps concrete piece models to <see cref="ChessPieceType" />.</summary>
 	internal static class PieceModelExtensions
