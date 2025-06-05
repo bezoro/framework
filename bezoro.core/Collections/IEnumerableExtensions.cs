@@ -1,41 +1,55 @@
+using System;
 using System.Collections;
-using System.Linq;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-
-// ReSharper disable PossibleMultipleEnumeration
 
 namespace Bezoro.Core.Collections
 {
 	public static class IEnumerableExtensions
 	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool IsNull(this IEnumerable? enumerable) => enumerable == null;
-
 		/// <summary>
-		///     Checks if the IEnumerable is null or contains no elements.
-		///     This method is robust by handling nulls, optimizing for ICollection types,
-		///     and ensuring proper enumerator handling for other IEnumerable types.
+		///     Returns <c>true</c> when the sequence is <c>null</c> or has no elements.
+		///     Enumerates at most one element when the source is not a collection.
+		///     Prefer calling the generic overload
+		///     to ensure the most efficient implementation is selected.
 		/// </summary>
-		/// <param name="enumerable">The IEnumerable to check.</param>
-		/// <returns>True if the enumerable is null or empty, false otherwise.</returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsNullOrEmpty(this IEnumerable? enumerable)
 		{
-			if (enumerable.IsNull())
-			{
+			if (enumerable is null)
 				return true;
-			}
 
-			if (enumerable is ICollection collection)
+			if (enumerable is ICollection nonGeneric)
+				return nonGeneric.Count == 0;
+
+			var enumerator = enumerable.GetEnumerator();
+			try
 			{
-				return collection.Count == 0;
+				return !enumerator.MoveNext();
 			}
+			finally
+			{
+				if (enumerator is IDisposable d)
+					d.Dispose();
+			}
+		}
 
-			// Fallback for general IEnumerable instances.
-			// Using Linq's Any() after casting to IEnumerable<object> is a clean
-			// and safe way to check for elements. Any() handles enumerator
-			// creation and disposal correctly.
-			return !enumerable!.Cast<object>().Any();
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsNullOrEmpty<T>(this IEnumerable<T>? enumerable)
+		{
+			if (enumerable is null)
+				return true;
+
+			// Fast-path for mutable collections
+			if (enumerable is ICollection<T> coll)
+				return coll.Count == 0;
+
+			// Fast-path for read-only collections
+			if (enumerable is IReadOnlyCollection<T> readOnly)
+				return readOnly.Count == 0;
+
+			using var e = enumerable.GetEnumerator();
+			return !e.MoveNext();
 		}
 	}
 }
