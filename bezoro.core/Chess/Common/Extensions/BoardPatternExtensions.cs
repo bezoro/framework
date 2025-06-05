@@ -190,10 +190,10 @@ namespace Bezoro.Core.Chess.Common.Extensions
 			int dx,
 			int dy)
 		{
-			var file = from.File + dx;
-			var rank = from.Rank + dy;
+			var file = from.Column + dx;
+			var rank = from.Row    + dy;
 
-			while (file >= 0 && file < board.Width && rank >= 0 && rank < board.Height)
+			while (board.IsInside(dx, dy))
 			{
 				var square = board.Squares[file, rank];
 				yield return square;
