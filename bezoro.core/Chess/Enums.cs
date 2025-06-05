@@ -2,6 +2,13 @@ using System;
 
 namespace Bezoro.Core.Chess
 {
+	public enum CardinalDirection
+	{
+		None = -1,
+		North, South, East, West,
+		NorthEast, NorthWest, SouthEast, SouthWest
+	}
+
 	/// <summary>
 	///     Identifies which side (king- or queen-side) a player wishes to castle on.
 	///     A value of <see cref="None" /> should be supplied only when the caller
