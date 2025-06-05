@@ -33,6 +33,9 @@ namespace Bezoro.Core.Chess.Board
 				AlgebraicNotationUtils.FromAlgebraic(algebraic).Rank,
 				maxCol, maxRow) { }
 
+		public static BoardPosition FromString(string algebraic) =>
+			new(algebraic);
+
 		/// <summary>Create from a <see cref="Vector2" /> (X=file, Y=rank).</summary>
 		public static BoardPosition FromVector(Vector2 vec, int maxCol = 8, int maxRow = 8) =>
 			new((int)vec.X, (int)vec.Y, maxCol, maxRow);
