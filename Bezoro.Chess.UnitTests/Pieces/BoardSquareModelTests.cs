@@ -1,6 +1,6 @@
-using Bezoro.Chess.Chess.Abstractions.Interfaces;
-using Bezoro.Chess.Chess.Board;
-using Bezoro.Chess.Chess.Board.Models;
+using Bezoro.Chess.Abstractions.Interfaces;
+using Bezoro.Chess.Board;
+using Bezoro.Chess.Board.Models;
 using Moq;
 
 namespace Bezoro.Chess.UnitTests.Pieces;
