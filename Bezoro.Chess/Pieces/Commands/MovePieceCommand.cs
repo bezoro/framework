@@ -17,23 +17,20 @@ namespace Bezoro.Chess.Pieces.Commands
 			if (board is null)
 				throw new ArgumentNullException(nameof(board));
 
-			_move = move;
-
 			From = board.GetSquareAt(move.From)
 				   ?? throw new InvalidOperationException("Source square not found on board.");
 
 			To = board.GetSquareAt(move.To)
 				 ?? throw new InvalidOperationException("Target square not found on board.");
 
-			PieceToMove = From.Piece
+			MovingPiece = From.Piece
 						  ?? throw new InvalidOperationException("There is no piece on the source square.");
 		}
 
-		private readonly Move _move;
-
 		public IChessBoardSquareModel From        { get; }
 		public IChessBoardSquareModel To          { get; }
-		public IChessPieceModel       PieceToMove { get; }
+		public IChessPieceModel       MovingPiece { get; }
+		public IChessPieceModel       CapturedPiece { get; }
 
 	#region Interface Implementations
 
@@ -45,4 +42,6 @@ namespace Bezoro.Chess.Pieces.Commands
 
 	#endregion
 	}
+	
+	public abstract record CaptureData(IChessBoardSquareModel Square);
 }
