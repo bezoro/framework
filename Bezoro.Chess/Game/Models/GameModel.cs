@@ -21,22 +21,23 @@ namespace Bezoro.Chess.Game.Models
 		/// <param name="fen">The FEN string to load the game state from. If null or empty, uses standard start.</param>
 		/// <param name="boardWidth">The width of the chess board.</param>
 		/// <param name="boardHeight">The height of the chess board.</param>
+		/// <param name="rules">The rules of the game. If null uses the standard rules</param>
 		public GameModel(string? fen = null, int boardWidth = 8, int boardHeight = 8, IGameRules? rules = null)
 		{
-			var setup = string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
-
+			var setup = ResolveFen(fen);
+			
+			CastlingRights        = setup.Castling;
+			FullMoveNumber        = setup.FullmoveNumber;
+			HalfMoveClock         = setup.HalfmoveClock;
+			ActiveColor           = setup.ActiveColor;
+			EnPassantTargetSquare = ResolveEnPassant(setup);
 			Board          = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement);
 			GameRules      = rules ?? new StandardChessRules();
 			CapturedPieces = new(32); // Standard max captures
-			EnPassantTargetSquare = string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
-				? null
-				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant);
-
-			CastlingRights = setup.Castling;
-			FullMoveNumber = setup.FullmoveNumber;
-			HalfMoveClock  = setup.HalfmoveClock;
-			ActiveColor    = setup.ActiveColor;
 		}
+
+		private static FenData ResolveFen(string? fen) =>
+			string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
 
 		public IGameRules             GameRules             { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
@@ -100,6 +101,11 @@ namespace Bezoro.Chess.Game.Models
 
 		public void SetBoard(IChessBoardModel board) =>
 			Board = board;
+
+		private static BoardPosition? ResolveEnPassant(FenData setup) =>
+			string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
+				? null
+				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant);
 
 		private void UpdateCastlingRightsOnMove(
 			IChessPieceModel movedPiece,
