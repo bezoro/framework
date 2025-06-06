@@ -18,14 +18,16 @@ namespace Bezoro.Chess.Moves.Models
 			PlayerColor movingSide,
 			ChessPieceType pieceType,
 			MoveKind kind = MoveKind.Normal,
-			PromotionPieceType? promoteTo = null)
+			PromotionPieceType? promoteTo = null,
+			bool leavesKingInCheck = false)
 		{
-			From       = from;
-			To         = to;
-			MovingSide = movingSide;
-			PieceType  = pieceType;
-			Kind       = kind;
-			PromoteTo  = promoteTo;
+			From              = from;
+			To                = to;
+			MovingSide        = movingSide;
+			PieceType         = pieceType;
+			Kind              = kind;
+			PromoteTo         = promoteTo;
+			LeavesKingInCheck = leavesKingInCheck;
 
 			if (Kind == MoveKind.Promotion && promoteTo is null)
 			{
@@ -69,9 +71,8 @@ namespace Bezoro.Chess.Moves.Models
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
-			ChessPieceType pieceType, // Should typically be Pawn for promotions
 			PromotionPieceType promoteTo) =>
-			new(from, to, movingSide, pieceType, MoveKind.Promotion, promoteTo);
+			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.Promotion, promoteTo);
 
 		/// <summary>
 		///     Square the piece moves from.
@@ -98,6 +99,8 @@ namespace Bezoro.Chess.Moves.Models
 		/// </summary>
 		public bool IsPromotion => Kind == MoveKind.Promotion;
 
+		public bool LeavesKingInCheck { get; }
+
 		public ChessPieceType PieceType { get; }
 
 		/// <summary>
@@ -120,8 +123,10 @@ namespace Bezoro.Chess.Moves.Models
 	#region Interface Implementations
 
 		public bool Equals(Move other) =>
-			From.Equals(other.From) && To.Equals(other.To) && Kind == other.Kind      && PromoteTo == other.PromoteTo &&
-			PieceType                                              == other.PieceType && MovingSide == other.MovingSide;
+			From.Equals(other.From)              && To.Equals(other.To)            &&
+			Kind              == other.Kind      && PromoteTo  == other.PromoteTo  &&
+			PieceType         == other.PieceType && MovingSide == other.MovingSide &&
+			LeavesKingInCheck == other.LeavesKingInCheck;
 
 	#endregion
 
@@ -129,7 +134,7 @@ namespace Bezoro.Chess.Moves.Models
 			obj is Move m && Equals(m);
 
 		public override int GetHashCode() =>
-			HashCode.Combine(From, To, Kind, PromoteTo, PieceType, MovingSide);
+			HashCode.Combine(From, To, Kind, PromoteTo, PieceType, MovingSide, LeavesKingInCheck);
 
 		public override string ToString() =>
 			Kind switch
@@ -137,7 +142,8 @@ namespace Bezoro.Chess.Moves.Models
 				MoveKind.CastleKingside  => "O-O",
 				MoveKind.CastleQueenside => "O-O-O",
 				_ => $"{(PieceType == ChessPieceType.Pawn ? "" : PieceType.ToChar(MovingSide).ToString())}{From}→{To}" +
-					 (IsPromotion ? $" (promote to {PromoteTo?.ToString()})" : string.Empty)
+					 (IsPromotion ? $" (promote to {PromoteTo?.ToString()})" : string.Empty)                           +
+					 (LeavesKingInCheck ? " (CHECK!)" : string.Empty)
 			};
 
 		public void Deconstruct(
@@ -146,14 +152,16 @@ namespace Bezoro.Chess.Moves.Models
 			out PlayerColor movingSide,
 			out ChessPieceType pieceType,
 			out MoveKind kind,
-			out PromotionPieceType? promoteTo)
+			out PromotionPieceType? promoteTo,
+			out bool leavesKingInCheck)
 		{
-			from       = From;
-			to         = To;
-			movingSide = MovingSide;
-			pieceType  = PieceType;
-			kind       = Kind;
-			promoteTo  = PromoteTo;
+			from              = From;
+			to                = To;
+			movingSide        = MovingSide;
+			pieceType         = PieceType;
+			kind              = Kind;
+			promoteTo         = PromoteTo;
+			leavesKingInCheck = LeavesKingInCheck;
 		}
 	}
 }
