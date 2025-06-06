@@ -4,7 +4,6 @@ using System.Linq;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 using Bezoro.Core.Collections;
@@ -17,131 +16,209 @@ namespace Bezoro.Chess.Rules
 
 		public IEnumerable<Move> FilterLegalMoves(GameModel game, IChessPieceModel piece, IEnumerable<Move> pseudoMoves)
 		{
-			if (pseudoMoves.IsNullOrEmpty())
-			{
+			var moves = pseudoMoves.ToList();
+			if (moves.IsNullOrEmpty())
 				return Enumerable.Empty<Move>();
-			}
 
-			var legalMoves = new List<Move>();
-			foreach (var move in pseudoMoves)
+			var evaluatedMoves = new List<Move>();
+			foreach (var pseudoMove in moves)
 			{
-				if (IsMoveLegal(game, move))
-				{
-					legalMoves.Add(move);
-				}
+				var moveForValidation = new Move(
+					pseudoMove.From,
+					pseudoMove.To,
+					piece.Color,
+					piece.GetPieceType(),
+					pseudoMove.Kind,
+					pseudoMove.PromoteTo
+				);
+
+				if (!IsMoveBasicallyValid(game, moveForValidation, piece))
+					continue;
+
+				var leavesKingInCheck = CheckIfMoveExposesKing(game, moveForValidation, piece.Color);
+
+				evaluatedMoves.Add(
+					new(
+						moveForValidation.From,
+						moveForValidation.To,
+						moveForValidation.MovingSide,
+						moveForValidation.PieceType,
+						moveForValidation.Kind,
+						moveForValidation.PromoteTo,
+						leavesKingInCheck
+					));
 			}
 
-			return legalMoves;
+			return evaluatedMoves;
 		}
 
 	#endregion
 
 		private bool CanCastle(GameModel game, Move castleMove, PlayerColor kingColor, IChessPieceModel kingPiece)
 		{
+			if (kingPiece == null || kingPiece.GetPieceType() != ChessPieceType.King || kingPiece.Color != kingColor)
+			{
+				return false;
+			}
+
 			var currentSnapshot = new BoardSnapshot(game.Board.Squares);
 			var opponentColor   = kingColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
 
-			// 0. King and relevant Rook must not have moved.
 			if (kingPiece.HasMoved)
 			{
-				return false; // King has moved.
+				return false;
 			}
 
 			var rookFile = castleMove.Kind == MoveKind.CastleKingside ? currentSnapshot.Width - 1 : 0;
-			var kingRank = castleMove.From.Rank; // King's current rank
+			var kingRank = castleMove.From.Rank;
 
 			var rookForCastle = currentSnapshot[rookFile, kingRank];
-			if (rookForCastle                   == null
-				|| rookForCastle.GetPieceType() != ChessPieceType.Rook
-				|| rookForCastle.Color          != kingColor)
+			if (rookForCastle?.GetPieceType() != ChessPieceType.Rook || rookForCastle.Color != kingColor ||
+				rookForCastle.HasMoved)
 			{
-				return false; // Rook not found, wrong type, or wrong color.
+				return false;
 			}
 
-			if (rookForCastle.HasMoved)
+			if (currentSnapshot.IsSquareAttacked(castleMove.From, opponentColor))
 			{
-				return false; // Rook has moved.
+				return false;
 			}
 
-			// 1. King must not be in current check.
-			var kingInitialPosition = castleMove.From; // King's current position from the move
-			if (currentSnapshot.IsSquareAttacked(kingInitialPosition, opponentColor))
-			{
-				return false; // Cannot castle out of check.
-			}
-
-			// 2. Squares between King and Rook must be empty.
-			// 3. King must not pass through an attacked square.
 			var kingStartFile = castleMove.From.Column;
 
 			if (castleMove.Kind == MoveKind.CastleKingside)
 			{
-				// Squares between king (e.g., E file) and H-file rook: F, G files.
 				for (var file = kingStartFile + 1 ; file < rookFile ; ++file)
 				{
-					if (currentSnapshot[file, kingRank] != null) return false; // Path not clear
+					if (currentSnapshot[file, kingRank] != null) return false;
 				}
 
-				// King passes over (kingStartFile + 1). King lands on (kingStartFile + 2).
 				if (currentSnapshot.IsSquareAttacked(new(kingStartFile + 1, kingRank), opponentColor))
 				{
-					return false; // King passes through check.
+					return false;
 				}
 			}
 			else // CastleQueenside
 			{
-				// Squares between king (e.g., E file) and A-file rook: D, C, B files.
 				for (var file = kingStartFile - 1 ; file > rookFile ; --file)
 				{
-					if (currentSnapshot[file, kingRank] != null) return false; // Path not clear
+					if (currentSnapshot[file, kingRank] != null) return false;
 				}
 
-				// King passes over (kingStartFile - 1). King lands on (kingStartFile - 2).
 				if (currentSnapshot.IsSquareAttacked(new(kingStartFile - 1, kingRank), opponentColor))
 				{
-					return false; // King passes through check.
+					return false;
 				}
 			}
 
-			// Note: The destination square (where the king lands) will be checked by MoveLeavesKingInCheck.
 			return true;
 		}
 
-		private static bool IsFriendlyCapture(
-			IChessBoardModel board,
-			Move move,
-			PlayerColor movingPieceColor)
+		private bool CheckIfMoveExposesKing(GameModel game, Move move, PlayerColor movingPlayerColor)
 		{
-			var targetSquare = board.Squares[move.To.Column, move.To.Row];
-			var targetPiece  = targetSquare.GetPiece();
-
-			return targetPiece != null && targetPiece.Color == movingPieceColor;
-		}
-
-		private bool IsMoveLegal(GameModel game, Move move)
-		{
-			var board      = game.Board;
-			var pieceType  = move.PieceType;
-			var pieceColor = move.MovingSide;
-
-			// 1) The piece to move must actually be on the source square
-			var movingPiece = move.GetMovingPiece(board);
-			if (movingPiece == null)
-				return false; // Piece to move not found on source square.
-
-			// 2) The destination square must not contain a friendly piece (for regular moves)
-			if (move.Kind    != MoveKind.CastleKingside
-				&& move.Kind != MoveKind.CastleQueenside)
+			var           currentSnapshot = new BoardSnapshot(game.Board.Squares);
+			BoardSnapshot nextBoardState;
+			try
 			{
-				if (IsFriendlyCapture(board, move, pieceColor))
-					return false;
+				nextBoardState = currentSnapshot.ApplyMove(move);
+			}
+			catch (Exception)
+			{
+				return true;
 			}
 
-			// 3) Specific rules for move kinds (Castling, Promotion)
+			var kingPosition = nextBoardState.FindKing(movingPlayerColor);
+
+			if (kingPosition == null)
+			{
+				return true;
+			}
+
+			var opponentColor = movingPlayerColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
+			return nextBoardState.IsSquareAttacked(kingPosition.Value, opponentColor);
+		}
+
+		private static bool IsFriendlyCapture(IChessBoardModel board, Move move)
+		{
 			if (move.Kind == MoveKind.CastleKingside || move.Kind == MoveKind.CastleQueenside)
 			{
-				if (pieceType != ChessPieceType.King) return false; // Only kings can castle
-				if (!CanCastle(game, move, pieceColor, movingPiece))
+				return false;
+			}
+
+			var targetSquare = board.Squares[move.To.Column, move.To.Row];
+			var targetPiece  = targetSquare.GetPiece();
+			return targetPiece != null && targetPiece.Color == move.MovingSide;
+		}
+
+		// New helper method to check path for sliding pieces
+		private bool IsSlidingPathClear(IChessBoardModel board, BoardPosition from, BoardPosition to)
+		{
+			var dCol = Math.Sign(to.Column - from.Column);
+			var dRow = Math.Sign(to.Row    - from.Row);
+
+			var currentCol = from.Column + dCol;
+			var currentRow = from.Row + dRow;
+
+			// Iterate through squares between 'from' and 'to'
+			while (currentCol != to.Column || currentRow != to.Row)
+			{
+				if (board.Squares[currentCol, currentRow].GetPiece() != null)
+				{
+					return false; // Path is blocked
+				}
+				currentCol += dCol;
+				currentRow += dRow;
+			}
+			return true; // Path is clear
+		}
+
+		private bool IsMoveBasicallyValid(GameModel game, Move move, IChessPieceModel movingPiece)
+		{
+			if (movingPiece       == null || movingPiece.GetPieceType() != move.PieceType ||
+				movingPiece.Color != move.MovingSide)
+			{
+				return false;
+			}
+
+			if (IsFriendlyCapture(game.Board, move))
+			{
+				return false;
+			}
+
+			// --- NEW LOGIC FOR PATH OBSTRUCTION ---
+			var pieceType = move.PieceType;
+
+			// Knights jump over pieces, so they are not checked for path obstruction.
+			if (pieceType == ChessPieceType.Rook || pieceType == ChessPieceType.Bishop || pieceType == ChessPieceType.Queen)
+			{
+				if (!IsSlidingPathClear(game.Board, move.From, move.To))
+				{
+					return false; // Path is blocked for this sliding piece
+				}
+			}
+			else if (pieceType == ChessPieceType.Pawn)
+			{
+				// Check for obstruction on a two-square forward push.
+				// This occurs if a pawn moves two rows forward and stays in the same column.
+				if (move.From.Column == move.To.Column && Math.Abs(move.To.Row - move.From.Row) == 2)
+				{
+					// Determine the intermediate square's rank (the square being "jumped" over)
+					var intermediateRank = move.From.Row + Math.Sign(move.To.Row - move.From.Row);
+					if (game.Board.Squares[move.From.Column, intermediateRank].GetPiece() != null)
+					{
+						return false; // Intermediate square is blocked for the two-square pawn push
+					}
+				}
+				// Note: Standard pawn captures (diagonal) and single-square pushes don't have intermediate path squares.
+				// En Passant is a special case that would require its own logic if not handled by pseudo-move generation
+				// or a specific MoveKind.
+			}
+			// --- END OF NEW LOGIC ---
+
+			if (move.Kind == MoveKind.CastleKingside || move.Kind == MoveKind.CastleQueenside)
+			{
+				if (move.PieceType != ChessPieceType.King) return false;
+				if (!CanCastle(game, move, move.MovingSide, movingPiece))
 				{
 					return false;
 				}
@@ -150,19 +227,11 @@ namespace Bezoro.Chess.Rules
 			{
 				if (!move.PromoteTo.HasValue)
 				{
-					return false; // Promotion move must specify promotion piece type.
+					return false;
 				}
 			}
 
-			// 4) The move must not leave the moving player's king in check.
-			if (MoveLeavesKingInCheck(game, move, pieceColor))
-				return false;
-
 			return true;
 		}
-
-		// TODO: Implement
-		private bool MoveLeavesKingInCheck(GameModel game, Move move, PlayerColor movingPlayerColor) =>
-			throw new NotImplementedException();
 	}
 }
