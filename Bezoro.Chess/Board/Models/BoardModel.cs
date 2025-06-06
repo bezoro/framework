@@ -192,6 +192,25 @@ namespace Bezoro.Chess.Board.Models
 			}
 		}
 
+		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side)
+		{
+			var pseudoMoves = new List<(IChessPieceModel, IEnumerable<Move>)>();
+			var legalMoves = new List<IEnumerable<Move>>();
+			foreach (var piece in BoardPieces.Where(p => p.Color == side))
+			{
+				pseudoMoves.Add((piece,piece.GetPseudoLegalMoves(game)));
+			}
+
+			foreach (var pseudoMove in pseudoMoves)
+			{
+				var piece = pseudoMove.Item1;
+				var moves = pseudoMove.Item2;
+				legalMoves.Add(game.GameRules.FilterLegalMoves(game, piece, moves));
+			}
+
+			return legalMoves;
+		}
+
 	#endregion
 
 		/// <summary>

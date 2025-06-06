@@ -51,5 +51,6 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		void RefreshPseudoLegalMoveCache(GameModel game);
 
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
+		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
 	}
 }
