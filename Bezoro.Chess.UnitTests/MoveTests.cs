@@ -33,7 +33,7 @@ public class MoveTests
 	[Test]
 	public void PromotionFactory_CreatesValidPromotionMove()
 	{
-		var move = Move.Promotion(A7, A8, PlayerColor.Black, ChessPieceType.Pawn, PromotionPieceType.Queen);
+		var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Queen);
 
 		Assert.Multiple(
 			() =>
@@ -72,7 +72,7 @@ public class MoveTests
 		var movingSide = PlayerColor.White;
 		var pieceType  = ChessPieceType.Pawn;
 		var move       = new Move(E2, E4, movingSide, ChessPieceType.Pawn);
-		move.Deconstruct(out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo);
+		move.Deconstruct(out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo, out var check);
 
 		Assert.Multiple(
 			() =>
@@ -94,7 +94,7 @@ public class MoveTests
 	[Test]
 	public void ToString_PromotionMove_AppendsPromotionInfo()
 	{
-		var move = Move.Promotion(A7, A8, PlayerColor.Black, ChessPieceType.Pawn, PromotionPieceType.Rook);
+		var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
 		Assert.That(move.ToString(), Does.Contain("promote to Rook"));
 	}
 

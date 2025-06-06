@@ -91,7 +91,7 @@ namespace Bezoro.Chess.Moves.Services
 				foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
 				{
 					if (promo != PromotionPieceType.None)
-						yield return Move.Promotion(from, to, pawn.Color, pawn.GetPieceType(), promo);
+						yield return Move.Promotion(from, to, pawn.Color, promo);
 				}
 			}
 			else
