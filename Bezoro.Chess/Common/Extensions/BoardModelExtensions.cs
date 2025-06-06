@@ -131,6 +131,8 @@ namespace Bezoro.Chess.Common.Extensions
 					: char.ToLower(pieceType.ToString()[0]));
 
 			square.SetPiece(piece);
+			board.BoardPieces.Add(piece);
+			return piece;
 		}
 	}
 }
