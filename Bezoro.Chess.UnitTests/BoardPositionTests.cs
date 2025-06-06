@@ -1,5 +1,5 @@
 using System.Numerics;
-using Bezoro.Chess.Chess.Board;
+using Bezoro.Chess.Board;
 
 namespace Bezoro.Chess.UnitTests;
 

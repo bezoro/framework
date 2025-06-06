@@ -1,10 +1,10 @@
-using Bezoro.Chess.Chess.Abstractions.Interfaces;
-using Bezoro.Chess.Chess.Board;
-using Bezoro.Chess.Chess.Common.Enums;
-using Bezoro.Chess.Chess.Common.Extensions;
-using Bezoro.Chess.Chess.Common.Helpers;
-using Bezoro.Chess.Chess.Game.Models;
-using Bezoro.Chess.Chess.Pieces.Models;
+using Bezoro.Chess.Abstractions.Interfaces;
+using Bezoro.Chess.Board;
+using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Common.Extensions;
+using Bezoro.Chess.Common.Helpers;
+using Bezoro.Chess.Game.Models;
+using Bezoro.Chess.Pieces.Models;
 using Moq;
 using NUnit.Framework.Legacy;
 

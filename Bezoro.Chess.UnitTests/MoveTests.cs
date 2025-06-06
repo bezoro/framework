@@ -1,6 +1,6 @@
-using Bezoro.Chess.Chess.Board;
-using Bezoro.Chess.Chess.Common.Enums;
-using Bezoro.Chess.Chess.Moves.Models;
+using Bezoro.Chess.Board;
+using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Moves.Models;
 
 namespace Bezoro.Chess.UnitTests;
 

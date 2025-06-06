@@ -1,7 +1,7 @@
-using Bezoro.Chess.Chess.Abstractions.Interfaces;
-using Bezoro.Chess.Chess.Board.Models;
-using Bezoro.Chess.Chess.Common.Enums;
-using Bezoro.Chess.Chess.Pieces.Models;
+using Bezoro.Chess.Abstractions.Interfaces;
+using Bezoro.Chess.Board.Models;
+using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Pieces.Models;
 using Moq;
 
 namespace Bezoro.Chess.UnitTests.Pieces;

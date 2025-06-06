@@ -1,5 +1,5 @@
-using Bezoro.Chess.Chess.Board;
-using Bezoro.Chess.Chess.Common.Helpers;
+using Bezoro.Chess.Board;
+using Bezoro.Chess.Common.Helpers;
 
 namespace Bezoro.Chess.UnitTests;
 
