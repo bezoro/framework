@@ -12,7 +12,7 @@ using Bezoro.Chess.Rules;
 
 namespace Bezoro.Chess.Game.Models
 {
-	public class GameModel
+	public class GameModel : IGameModel
 	{
 		/// <summary>
 		///     Initializes a new game, optionally from a FEN string.
@@ -25,19 +25,19 @@ namespace Bezoro.Chess.Game.Models
 		public GameModel(string? fen = null, int boardWidth = 8, int boardHeight = 8, IGameRules? rules = null)
 		{
 			var setup = ResolveFen(fen);
-			
+
 			CastlingRights        = setup.Castling;
 			FullMoveNumber        = setup.FullmoveNumber;
 			HalfMoveClock         = setup.HalfmoveClock;
 			ActiveColor           = setup.ActiveColor;
 			EnPassantTargetSquare = ResolveEnPassant(setup);
-			Board          = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement);
-			GameRules      = rules ?? new StandardChessRules();
-			CapturedPieces = new(32); // Standard max captures
+			Board                 = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement);
+			GameRules             = rules ?? new StandardChessRules();
+			CapturedPieces        = new(32); // Standard max captures
 		}
 
-		private static FenData ResolveFen(string? fen) =>
-			string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
+		private readonly Stack<(GameStateMemento previousGameState, IChessCommand previousMoveCommand)> _undoHistory =
+			new();
 
 		public IGameRules             GameRules             { get; }
 		public List<IChessPieceModel> CapturedPieces        { get; }
@@ -49,33 +49,19 @@ namespace Bezoro.Chess.Game.Models
 		public PlayerColor            ActiveColor           { get; internal set; }
 
 		/// <summary>
-		///     Attempts to execute a move defined by the move command.
-		///     This method is responsible for validating the move in the context of game rules,
-		///     updating the board state via BoardModel, and then updating the game state.
+		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
 		/// </summary>
-		/// <param name="moveCommand">The command detailing the move to be made.</param>
-		/// <returns>True if the move was successful, false otherwise.</returns>
-		public bool TryMovePiece(MovePieceCommand moveCommand)
+		public (IChessPieceModel piece, IEnumerable<Move>) StartMove(string fromAlgebraic)
 		{
-			moveCommand.Execute(Board);
-			return true;
-		}
+			var from  = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
+			var piece = Board.GetPieceAt(from);
 
-		/// <summary>
-		///     1) Asks the piece for all its pseudo‐legal moves,
-		///     2) Filters them through the rule engine,
-		///     3) Returns the actually legal moves.
-		/// </summary>
-		public IEnumerable<Move> StartMove(BoardPosition pos)
-		{
-			var pieceToMove = Board.GetPieceAt(pos);
-			// 1. Generate all geometrically‐legal moves
-			var pseudoMoves = pieceToMove.GetPseudoLegalMoves(this);
+			if (piece is null)
+				throw new ArgumentException("No piece at the given position.", nameof(fromAlgebraic));
 
-			// 2. Ask the rules engine to filter out illegal ones
-			var legalMoves = GameRules.FilterLegalMoves(this, pieceToMove, pseudoMoves);
-
-			return legalMoves;
+			var pseudoLegalMoves = piece.GetPseudoLegalMoves(this);
+			var legalMoves       = GameRules.FilterLegalMoves(this, piece, pseudoLegalMoves);
+			return (piece, legalMoves);
 		}
 
 		/// <summary>
@@ -99,13 +85,50 @@ namespace Bezoro.Chess.Game.Models
 			return FenUtils.Format(currentFenData);
 		}
 
+		public void DoMove(Move move)
+		{
+			var gameState = new GameStateMemento(
+				ActiveColor, CastlingRights, EnPassantTargetSquare, HalfMoveClock, FullMoveNumber);
+
+			var moveCommand = new MovePieceCommand(move, Board);
+			moveCommand.Execute(Board);
+			ActiveColor = ActiveColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
+			HalfMoveClock++;
+
+			if (ActiveColor == PlayerColor.White)
+				FullMoveNumber++;
+
+			_undoHistory.Push((gameState, moveCommand));
+		}
+
 		public void SetBoard(IChessBoardModel board) =>
 			Board = board;
+
+		/// <summary>
+		///     Undoes the last executed move.
+		/// </summary>
+		public void UndoLastMove()
+		{
+			if (_undoHistory.Count == 0)
+				return;
+
+			var (previousGameState, previousMove) = _undoHistory.Pop();
+
+			previousMove.Undo(Board);
+			EnPassantTargetSquare = previousGameState.EnPassantTargetSquare;
+			CastlingRights        = previousGameState.CastlingRights;
+			ActiveColor           = previousGameState.ActiveColor;
+			HalfMoveClock         = previousGameState.HalfMoveClock;
+			FullMoveNumber        = previousGameState.FullMoveNumber;
+		}
 
 		private static BoardPosition? ResolveEnPassant(FenData setup) =>
 			string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
 				? null
 				: AlgebraicNotationUtils.FromAlgebraic(setup.EnPassant);
+
+		private static FenData ResolveFen(string? fen) =>
+			string.IsNullOrWhiteSpace(fen) ? FenUtils.StartBoard : FenUtils.Parse(fen);
 
 		private void UpdateCastlingRightsOnMove(
 			IChessPieceModel movedPiece,
@@ -160,5 +183,36 @@ namespace Bezoro.Chess.Game.Models
 					CastlingRights &= ~CastlingRights.BlackKingSide;
 			}
 		}
+	}
+
+	public interface IGameModel
+	{
+		IGameRules             GameRules             { get; }
+		List<IChessPieceModel> CapturedPieces        { get; }
+		BoardPosition?         EnPassantTargetSquare { get; }
+		CastlingRights         CastlingRights        { get; }
+		IChessBoardModel       Board                 { get; }
+		int                    FullMoveNumber        { get; }
+		int                    HalfMoveClock         { get; }
+		PlayerColor            ActiveColor           { get; }
+
+		/// <summary>
+		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
+		/// </summary>
+		(IChessPieceModel piece, IEnumerable<Move>) StartMove(string fromAlgebraic);
+
+		/// <summary>
+		///     Generates the Forsyth-Edwards Notation (FEN) string for the current game state.
+		/// </summary>
+		/// <returns>The FEN string.</returns>
+		string ToFenString();
+
+		void DoMove(Move move);
+		void SetBoard(IChessBoardModel board);
+
+		/// <summary>
+		///     Undoes the last executed move.
+		/// </summary>
+		void UndoLastMove();
 	}
 }
