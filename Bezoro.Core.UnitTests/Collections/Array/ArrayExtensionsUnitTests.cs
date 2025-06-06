@@ -4,6 +4,7 @@ using NUnit.Framework;
 namespace Bezoro.Core.UnitTests.Collections.Array;
 
 [TestFixture]
+[TestOf(typeof(ArrayExtensions))]
 public class ArrayExtensionsUnitTests
 {
 #region IsEmpty

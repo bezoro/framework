@@ -7,31 +7,12 @@ namespace Bezoro.Core.UnitTests.Collections.Array;
 
 [TestFixture]
 [TestOf(typeof(ArrayHelpers))]
-public class RemoveElementTests
+public class ArrayRemoveElementUnitTests
 {
 #region Test Methods
 
 	[Test]
-	public void RemoveElement_Sequential_InvalidRemovalApproach_ThrowsArgumentOutOfRangeException()
-	{
-		// Arrange
-		var array           = new[] { 10, 20, 30 }; // Small array to ensure sequential path
-		var elementToRemove = 20;
-
-		// Use an integer value that is not a defined member of the Enums for removalApproach
-		// This simulates an invalid enum value being passed.
-		var invalidApproach = (Enums)int.MaxValue;
-
-		// Act & Assert
-		// We expect an ArgumentOutOfRangeException when the default case in the switch statement is hit.
-		Assert.Throws<ArgumentOutOfRangeException>(
-			() =>
-				ArrayHelpers.RemoveElement(ref array, elementToRemove, invalidApproach)
-		);
-	}
-
-	[Test]
-	public void WhenArrayContainsDuplicateElements_FirstOccurrenceIsRemoved()
+	public void RemoveElement_WhenArrayContainsDuplicateElements_ThenFirstOccurrenceIsRemoved()
 	{
 		// Arrange
 		var       array           = new[] { 1, 2, 3, 3, 4, 5 };
@@ -54,7 +35,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenArrayIsEmpty_ItRemainsUnchanged()
+	public void RemoveElement_WhenArrayIsEmpty_ThenItRemainsUnchanged()
 	{
 		// Arrange
 		var       array           = new int[0];
@@ -68,7 +49,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenArrayIsNull_ItRemainsNull()
+	public void RemoveElement_WhenArrayIsNull_ThenItRemainsNull()
 	{
 		// Arrange
 		int[]     array           = null;
@@ -82,7 +63,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenArraySizeExceedsThreshold_TargetElementIsRemoved()
+	public void RemoveElement_WhenArraySizeExceedsThreshold_ThenTargetElementIsRemoved()
 	{
 		// Arrange
 		var parallelThreshold = ArrayHelpers.ParallelThreshold;
@@ -97,7 +78,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenArraySizeIsBelowThreshold_TargetElementIsRemoved()
+	public void RemoveElement_WhenArraySizeIsBelowThreshold_ThenTargetElementIsRemoved()
 	{
 		// Arrange
 		var       array           = new[] { 1, 2, 3, 4, 5 };
@@ -111,7 +92,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenElementNotFoundInArray_ArrayRemainsUnchanged()
+	public void RemoveElement_WhenElementNotFoundInArray_ThenArrayRemainsUnchanged()
 	{
 		// Arrange
 		var       array             = new[] { 1, 2, 3, 4, 5 };
@@ -134,7 +115,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenElementToRemoveIsNull_ArrayRemainsUnchanged()
+	public void RemoveElement_WhenElementToRemoveIsNull_ThenArrayRemainsUnchanged()
 	{
 		// Arrange
 		var array         = new int?[] { 1, 2, 3, 4, 5 };
@@ -156,7 +137,26 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenRemovalApproachIsResize_ElementIsRemovedAndArrayIsResized()
+	public void RemoveElement_WhenRemovalApproachIsInvalid_ThenThrowsArgumentOutOfRangeException()
+	{
+		// Arrange
+		var array           = new[] { 10, 20, 30 }; // Small array to ensure sequential path
+		var elementToRemove = 20;
+
+		// Use an integer value that is not a defined member of the Enums for removalApproach
+		// This simulates an invalid enum value being passed.
+		var invalidApproach = (Enums)int.MaxValue;
+
+		// Act & Assert
+		// We expect an ArgumentOutOfRangeException when the default case in the switch statement is hit.
+		Assert.Throws<ArgumentOutOfRangeException>(
+			() =>
+				ArrayHelpers.RemoveElement(ref array, elementToRemove, invalidApproach)
+		);
+	}
+
+	[Test]
+	public void RemoveElement_WhenRemovalApproachIsResize_ThenElementIsRemovedAndArrayIsResized()
 	{
 		// Arrange
 		var       array           = new[] { 1, 2, 3, 4, 5 };
@@ -178,7 +178,7 @@ public class RemoveElementTests
 	}
 
 	[Test]
-	public void WhenRemovalApproachIsSetToNull_ElementIsNulledAndArrayLengthUnchanged()
+	public void RemoveElement_WhenRemovalApproachIsSetToNull_ThenElementIsNulledAndArrayLengthUnchanged()
 	{
 		// Arrange
 		var       array           = new int?[] { 1, 2, 3, 4, 5 };

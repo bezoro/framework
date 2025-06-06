@@ -12,7 +12,7 @@ public class ArrayRemoveDuplicatesUnitTests
 #region Test Methods
 
 	[Test]
-	public void WhenArrayContainsCustomObjectDuplicates_UniqueInstancesAreRetained()
+	public void RemoveDuplicates_WhenArrayContainsCustomObjectDuplicates_ThenUniqueInstancesAreRetained()
 	{
 		// Arrange
 		var array = new[]
@@ -39,7 +39,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	}
 
 	[Test]
-	public void WhenArrayContainsSingleElement_ItRemainsUnchanged()
+	public void RemoveDuplicates_WhenArrayContainsSingleElement_ThenItRemainsUnchanged()
 	{
 		// Arrange
 		var array = new[] { 42 };
@@ -52,7 +52,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsEmpty_ItRemainsUnchanged()
+	public void RemoveDuplicates_WhenArrayIsEmpty_ThenItRemainsUnchanged()
 	{
 		// Arrange
 		var array = System.Array.Empty<int>();
@@ -65,7 +65,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	}
 
 	[Test]
-	public void WhenInputArrayIsNull_ItRemainsNull()
+	public void RemoveDuplicates_WhenInputArrayIsNull_ThenItRemainsNull()
 	{
 		// Arrange
 		int[] array = null;
@@ -80,7 +80,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	[TestCase(new object[] { 1, 1, 1, 1 },              new object[] { 1 })]
 	[TestCase(new object[] { 1, 2, 3, 3, 4, 5 },        new object[] { 1, 2, 3, 4, 5 })]
 	[TestCase(new object[] { "A", "A", "B", "B", "C" }, new object[] { "A", "B", "C" })]
-	public void WhenArrayContainsIntegerOrStringDuplicates_UniqueValuesAreRetained(
+	public void RemoveDuplicates_WhenArrayContainsIntegerOrStringDuplicates_ThenUniqueValuesAreRetained(
 		object[] array,
 		object[] expectedArray)
 	{
@@ -94,7 +94,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	[TestCase(new object[] { 1, 1, 2, 2, 3, 3 },        new object[] { 1, 2, 3 })]
 	[TestCase(new object[] { 1.1, 1.1, 2.2, 3.3, 3.3 }, new object[] { 1.1, 2.2, 3.3 })]
 	[TestCase(new object[] { 'a', 'a', 'b', 'c', 'c' }, new object[] { 'a', 'b', 'c' })]
-	public void WhenArrayContainsNumericOrCharDuplicates_UniqueValuesAreRetained(
+	public void RemoveDuplicates_WhenArrayContainsNumericOrCharDuplicates_ThenUniqueValuesAreRetained(
 		object[] array,
 		object[] expectedArray)
 	{
@@ -108,9 +108,10 @@ public class ArrayRemoveDuplicatesUnitTests
 	[TestCase(new object[] { 1, 2, 2, null, 1, 3, null },      new object[] { 1, 2, 3 })]
 	[TestCase(new object[] { null, null, null },               new object[] { })]
 	[TestCase(new object[] { "X", "Y", "X", null, "Y", null }, new object[] { "X", "Y" })]
-	public void WhenArrayContainsObjectDuplicatesAndNulls_UniqueValuesAreRetainedAndNullsAreRemoved(
-		object[] array,
-		object[] expected)
+	public void
+		RemoveDuplicates_WhenArrayContainsObjectDuplicatesAndNulls_ThenUniqueValuesAreRetainedAndNullsAreRemoved(
+			object[] array,
+			object[] expected)
 	{
 		// Act
 		ArrayHelpers.RemoveDuplicates(ref array);

@@ -10,7 +10,7 @@ public class ArrayCompareUnitTests
 #region Test Methods
 
 	[Test]
-	public void WhenArraysHaveDifferentLengths_ReturnsFalse()
+	public void CompareArrays_WhenArraysHaveDifferentLengths_ReturnsFalse()
 	{
 		// Arrange
 		var array1 = new[] { 1, 2, 3 };
@@ -26,7 +26,7 @@ public class ArrayCompareUnitTests
 	}
 
 	[Test]
-	public void WhenArraysOfCustomTypeHaveElementWiseEqualValues_ReturnsTrue()
+	public void CompareArrays_WhenArraysContainEqualCustomObjects_ReturnsTrue()
 	{
 		// Arrange
 		var obj1 = new TestObject(1, "Test1");
@@ -52,7 +52,7 @@ public class ArrayCompareUnitTests
 	}
 
 	[Test]
-	public void WhenBothArraysAreNull_ReturnsTrue()
+	public void CompareArrays_WhenBothArraysAreNull_ReturnsTrue()
 	{
 		// Act
 		var result = ArrayHelpers.CompareArrays<object>(null, null);
@@ -62,7 +62,7 @@ public class ArrayCompareUnitTests
 	}
 
 	[Test]
-	public void WhenBothArraysContainOnlyNullElementsAndHaveSameLength_ReturnsTrue()
+	public void CompareArrays_WhenBothArraysContainOnlyNullsAndSameLength_ReturnsTrue()
 	{
 		// Arrange
 		string[] array1 = { null!, null!, null! };
@@ -79,7 +79,7 @@ public class ArrayCompareUnitTests
 	}
 
 	[Test]
-	public void WithMixedNullAndNonNullElements_ReturnsTrueForIdenticalAndFalseForDifferent()
+	public void CompareArrays_WithMixedNullElements_ReturnsTrueForIdenticalAndFalseForDifferent()
 	{
 		// Arrange
 		string?[] array1Identical = { "a", null, "c" };
@@ -97,15 +97,15 @@ public class ArrayCompareUnitTests
 
 	[TestCase(
 		new object[] { 1, 2, 3 }, new object[] { 1, 2, 4 },
-		TestName = "WhenIntegerArraysDiffer_ReturnsFalse")]
+		TestName = "CompareArrays_WhenIntegerArraysDiffer_ReturnsFalse")]
 	[TestCase(
 		new object[] { "a", "b", "c" }, new object[] { "a", "b", "d" },
-		TestName = "WhenStringArraysDiffer_ReturnsFalse")]
+		TestName = "CompareArrays_WhenStringArraysDiffer_ReturnsFalse")]
 	[TestCase(
 		new object[0], new object[] { 0 },
 		TestName =
-			"WhenOneIsEmptyAndOtherIsNot_ReturnsFalse")] // Technically different lengths too
-	public void WhenArraysOfSameLengthHaveDifferentElements_ReturnsFalse(object[]? a, object[]? b)
+			"CompareArrays_WhenOneIsEmptyAndOtherIsNot_ReturnsFalse")] // Technically different lengths too
+	public void CompareArrays_WhenArraysHaveDifferentElements_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
 		var comparisonResult = ArrayHelpers.CompareArrays(a, b);
@@ -119,11 +119,11 @@ public class ArrayCompareUnitTests
 
 	[TestCase(
 		new object[] { 1.1, 2.2, 3.3 }, new object[] { 1.1, 2.2, 3.3 },
-		TestName = "WhenArraysOfDoublesHaveSameElements_ReturnsTrue")]
+		TestName = "CompareArrays_WhenDoubleArraysAreEqual_ReturnsTrue")]
 	[TestCase(
 		new object[] { true, false }, new object[] { true, false },
-		TestName = "WhenArraysOfBooleansHaveSameElements_ReturnsTrue")]
-	public void WhenArraysOfSimpleTypesHaveSameElements_ReturnsTrue(object[]? a, object[]? b)
+		TestName = "CompareArrays_WhenBooleanArraysAreEqual_ReturnsTrue")]
+	public void CompareArrays_WhenArraysOfSimpleTypesAreEqual_ReturnsTrue(object[]? a, object[]? b)
 	{
 		// Act
 		var result = ArrayHelpers.CompareArrays(a, b);
@@ -137,11 +137,11 @@ public class ArrayCompareUnitTests
 
 	[TestCase(
 		new object[] { 1, 2, 3 }, null,
-		TestName = "WhenFirstArrayIsValidAndSecondIsNull_ReturnsFalse")]
+		TestName = "CompareArrays_WhenFirstArrayIsValidAndSecondIsNull_ReturnsFalse")]
 	[TestCase(
 		null, new object[] { 1, 2, 3 },
-		TestName = "WhenFirstArrayIsNullAndSecondIsValid_ReturnsFalse")]
-	public void WhenOneArrayIsNullAndOtherIsNotNull_ReturnsFalse(object[]? a, object[]? b)
+		TestName = "CompareArrays_WhenFirstArrayIsNullAndSecondIsValid_ReturnsFalse")]
+	public void CompareArrays_WhenOneArrayIsNullAndOtherIsNot_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
 		var result = ArrayHelpers.CompareArrays(a, b);
