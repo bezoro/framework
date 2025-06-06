@@ -117,6 +117,9 @@ public class BoardModelExtensionsTests
 		public void SetPieceAt(IChessPieceModel piece, IChessBoardSquareModel square) =>
 			square.SetPiece(piece);
 
+		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side) =>
+			throw new NotImplementedException();
+
 		public void Clear() =>
 			throw new NotImplementedException();
 
