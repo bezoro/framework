@@ -132,6 +132,7 @@ namespace Bezoro.Chess.Common.Extensions
 
 			square.SetPiece(piece);
 			board.BoardPieces.Add(piece);
+			board.PieceIndex.TryAdd(piece, new(col, row));;
 			return piece;
 		}
 	}
