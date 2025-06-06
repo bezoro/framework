@@ -11,7 +11,7 @@ public class ArrayClearUnitTests
 #region Test Methods
 
 	[Test]
-	public void WhenArrayLengthIsGreaterThanParallelThreshold_AllElementsAreSetToDefault()
+	public void Clear_WhenArrayExceedsParallelThreshold_UsesParallelMethodToResetAllElements()
 	{
 		// Arrange
 		var threshold = ArrayHelpers.ParallelThreshold;
@@ -28,7 +28,7 @@ public class ArrayClearUnitTests
 	}
 
 	[Test]
-	public void WhenArrayLengthIsLessThanParallelThreshold_AllElementsAreSetToDefault()
+	public void Clear_WhenArrayIsBelowParallelThreshold_UsesSequentialMethodToResetAllElements()
 	{
 		// Arrange
 		int[] array = { 1, 2, 3, 4, 5 };
@@ -38,6 +38,29 @@ public class ArrayClearUnitTests
 
 		// Assert
 		Assert.That(array.All(element => element == default), Is.True);
+	}
+
+	[Test]
+	public void Clear_WhenArrayIsNull_DoesNotThrowException()
+	{
+		// Arrange
+		int[] array = null;
+
+		// Act & Assert
+		Assert.DoesNotThrow(() => ArrayHelpers.Clear(ref array));
+	}
+
+	[Test]
+	public void Clear_WhenArrayIsEmpty_DoesNotModifyArray()
+	{
+		// Arrange
+		var array = System.Array.Empty<int>();
+
+		// Act
+		ArrayHelpers.Clear(ref array);
+
+		// Assert
+		Assert.That(array, Is.Empty);
 	}
 
 #endregion

@@ -5,12 +5,12 @@ namespace Bezoro.Core.UnitTests.Collections.Array;
 
 [TestFixture]
 [TestOf(typeof(ArrayHelpers))]
-public class SetupArrayWithFirstElement
+public class ArraySetupWithFirstElementUnitTests
 {
 #region Test Methods
 
 	[Test]
-	public void WhenArrayIsEmpty_InitializesWithGivenElementAndReturnsTrue()
+	public void SetupArrayWithFirstElement_WhenArrayIsEmpty_ThenInitializesWithGivenElementAndReturnsTrue()
 	{
 		// Arrange
 		var array   = new int[0];
@@ -36,7 +36,7 @@ public class SetupArrayWithFirstElement
 	}
 
 	[Test]
-	public void WhenArrayIsNotEmpty_ItRemainsUnchangedAndReturnsFalse()
+	public void SetupArrayWithFirstElement_WhenArrayIsNotEmpty_ThenItRemainsUnchangedAndReturnsFalse()
 	{
 		// Arrange
 		int[] array   = { 10, 20, 30 };
@@ -57,7 +57,7 @@ public class SetupArrayWithFirstElement
 	}
 
 	[Test]
-	public void WhenArrayIsNotEmpty_ReturnsFalse()
+	public void SetupArrayWithFirstElement_WhenArrayIsNotEmpty_ThenReturnsFalse()
 	{
 		// Arrange
 		int[] array   = { 10, 20 };
@@ -73,7 +73,7 @@ public class SetupArrayWithFirstElement
 	}
 
 	[Test]
-	public void WhenArrayIsNull_InitializesWithGivenElementAndReturnsTrue()
+	public void SetupArrayWithFirstElement_WhenArrayIsNull_ThenInitializesWithGivenElementAndReturnsTrue()
 	{
 		// Arrange
 		int[] array   = null;

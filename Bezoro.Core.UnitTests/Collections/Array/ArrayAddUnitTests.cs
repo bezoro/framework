@@ -11,7 +11,7 @@ public class ArrayAddUnitTests
 #region Test Methods
 
 	[Test]
-	public void WhenArrayHasEmptySlot_AddsElementToFirstEmptySlot()
+	public void Add_WhenArrayHasEmptySlot_FillsFirstEmptySlotWithElement()
 	{
 		// Arrange
 		var array        = new[] { new TestObject(), null, new TestObject() };
@@ -31,7 +31,7 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsEmpty_AddsElementAndResizesArray()
+	public void Add_WhenArrayIsEmpty_InitializesArrayWithElement()
 	{
 		// Arrange
 		TestObject?[] array         = { };
@@ -60,7 +60,7 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsNotEmptyAndHasNoEmptySlots_AddsElementAndResizesArray()
+	public void Add_WhenArrayIsFullWithNoEmptySlots_ResizesAndAppendsElement()
 	{
 		// Arrange
 		TestObject?[] array         = { new(), new() };
@@ -89,7 +89,7 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsNull_InitializesArrayAndAddsElement()
+	public void Add_WhenArrayIsNull_CreatesNewArrayWithElement()
 	{
 		// Arrange
 		TestObject?[] array        = null;
@@ -111,7 +111,7 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
-	public void WhenElementIsAdded_ReturnsCorrectIndexOfAddedElement()
+	public void Add_WithOutputParameter_ReturnsCorrectIndexOfAddedElement()
 	{
 		// Arrange
 		TestObject?[] array         = { new(), new(), new() };
@@ -132,7 +132,7 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
-	public void WhenElementIsNull_DoesNotModifyArray()
+	public void Add_WhenElementIsNull_DoesNotModifyArray()
 	{
 		// Arrange
 		var array         = new[] { new TestObject(), new TestObject() };

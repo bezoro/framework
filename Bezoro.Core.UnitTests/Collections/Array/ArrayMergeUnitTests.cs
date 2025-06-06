@@ -10,7 +10,7 @@ public class ArrayMergeUnitTests
 #region Test Methods
 
 	[Test]
-	public void BothSourceAndDestinationArraysAreNull_DestinationRemainsNull()
+	public void Merge_WhenBothSourceAndDestinationArraysAreNull_ThenDestinationRemainsNull()
 	{
 		// Arrange
 		string[] to = null;
@@ -23,7 +23,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void CustomObjectArrayAndDestinationSmaller_DestinationResizedAndAllElementsCopied()
+	public void Merge_WhenCustomObjectArrayAndDestinationSmaller_ThenDestinationResizedAndAllElementsCopied()
 	{
 		// Arrange
 		var from = new[]
@@ -43,7 +43,8 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void DestinationArrayContainsPartialNulls_NullsInDestinationReplacedByCorrespondingSourceElements()
+	public void
+		Merge_WhenDestinationArrayContainsPartialNulls_ThenNullsInDestinationReplacedByCorrespondingSourceElements()
 	{
 		// Arrange
 		var from = new[] { "A", "B", "C" };
@@ -57,7 +58,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void DestinationArrayHasExistingDataAndNulls_OnlyNullsInDestinationReplacedBySourceElements()
+	public void Merge_WhenDestinationArrayHasExistingDataAndNulls_ThenOnlyNullsInDestinationReplacedBySourceElements()
 	{
 		// Arrange
 		var from = new[] { "X", "Y", "Z" };
@@ -71,7 +72,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void DestinationArrayIsEmpty_DestinationResizedAndAllSourceElementsCopied()
+	public void Merge_WhenDestinationArrayIsEmpty_ThenDestinationResizedAndAllSourceElementsCopied()
 	{
 		// Arrange
 		var from = new[] { "A", "B", "C" };
@@ -85,7 +86,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void DestinationArrayIsNull_DestinationInitializedAndAllSourceElementsCopied()
+	public void Merge_WhenDestinationArrayIsNull_ThenDestinationInitializedAndAllSourceElementsCopied()
 	{
 		// Arrange
 		var      from = new[] { "A", "B", "C" };
@@ -99,7 +100,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void DestinationArrayLargerAndContainsElements_DestinationArrayUnchanged()
+	public void Merge_WhenDestinationArrayLargerAndContainsElements_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
 		var from = new[] { 1, 2 };
@@ -113,7 +114,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void SourceArrayIsEmpty_DestinationArrayUnchanged()
+	public void Merge_WhenSourceArrayIsEmpty_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
 		var from = System.Array.Empty<string>();
@@ -127,7 +128,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void SourceArrayIsNull_DestinationArrayUnchanged()
+	public void Merge_WhenSourceArrayIsNull_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
 		string[] to = { "Existing" };
@@ -140,7 +141,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void SourceArrayLargerThanDestination_DestinationResizedAndAllElementsCopied()
+	public void Merge_WhenSourceArrayLargerThanDestination_ThenDestinationResizedAndAllElementsCopied()
 	{
 		// Arrange
 		var from = new[] { 1, 2, 3 };
@@ -154,7 +155,7 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void SourceArrayLargerThanDestination_DestinationResizedToFitSource()
+	public void Merge_WhenSourceArrayLargerThanDestination_ThenDestinationResizedToFitSource()
 	{
 		// Arrange
 		var from = new[] { 100, 200, 300 };

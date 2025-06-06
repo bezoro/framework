@@ -7,7 +7,7 @@ namespace Bezoro.Core.UnitTests.Collections.Array;
 
 [TestFixture]
 [TestOf(typeof(ArrayHelpers))]
-public class ResizeByFactor
+public class ArrayResizeByFactorUnitTests
 {
 	private Mock<ILogger> _mockLogger;
 
@@ -22,7 +22,7 @@ public class ResizeByFactor
 #region Test Methods
 
 	[Test]
-	public void WhenArrayIsEmpty_ArraySizeRemainsZeroRegardlessOfFactor()
+	public void ResizeByFactor_WhenArrayIsEmpty_ThenArraySizeRemainsZeroRegardlessOfFactor()
 	{
 		// Arrange
 		var       array  = System.Array.Empty<int>();
@@ -33,15 +33,10 @@ public class ResizeByFactor
 
 		// Assert
 		Assert.That(array.Length, Is.EqualTo(0), "Empty array multiplied should still stay empty.");
-
-		// _mockLogger.Verify(
-		// logger => logger.Log(It.Is<string>(msg => !string.IsNullOrEmpty(msg))),
-		// Times.Once
-		// );
 	}
 
 	[Test]
-	public void WhenFactorIsOneOrLess_ArraySizeRemainsUnchanged([Range(1, -5)] int factor)
+	public void ResizeByFactor_WhenFactorIsOneOrLess_ThenArraySizeRemainsUnchanged([Range(1, -5)] int factor)
 	{
 		// Arrange
 		int[] array = { 1, 2, 3 };
@@ -51,15 +46,10 @@ public class ResizeByFactor
 
 		// Assert
 		Assert.That(array.Length, Is.EqualTo(3), "Array size should remain unchanged.");
-
-		// _mockLogger.Verify(
-		// logger => logger.Log_Warning(It.Is<string>(msg => !string.IsNullOrEmpty(msg))),
-		// Times.Once
-		// );
 	}
 
 	[Test]
-	public void WhenFactorIsPositive_ArraySizeIncreasesByFactor()
+	public void ResizeByFactor_WhenFactorIsPositive_ThenArraySizeIncreasesByFactor()
 	{
 		// Arrange
 		int[] array  = { 1, 2, 3 };
@@ -70,12 +60,6 @@ public class ResizeByFactor
 
 		// Assert
 		Assert.That(array.Length, Is.EqualTo(6), "Array size should be multiplied by the factor.");
-
-		// _mockLogger.Verify(
-		// logger => logger.Log(
-		// It.Is<string>(msg => !string.IsNullOrEmpty(msg))),
-		// Times.Once
-		// );
 	}
 
 #endregion

@@ -10,7 +10,7 @@ public class ArrayAddUniqueUnitTests
 #region Test Methods
 
 	[Test]
-	public void WhenArrayIsFullAndElementIsUnique_ResizesArrayAndAddsElement_ReturnsCorrectIndex()
+	public void AddUnique_WhenArrayIsFull_ResizesArrayAndReturnsNewElementIndex()
 	{
 		// Arrange
 		string?[]     array         = { "Element1", "Element2" };
@@ -36,7 +36,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsNotEmptyAndElementIsUnique_AddsElementAndResizes_ReturnsCorrectIndex()
+	public void AddUnique_WhenArrayIsNotEmpty_AddsElementAndReturnsCorrectIndex()
 	{
 		// Arrange
 		string?[] array   = { "Element1" };
@@ -54,7 +54,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenArrayIsNull_InitializesArrayAndAddsElement_ReturnsCorrectIndex()
+	public void AddUnique_WhenArrayIsNull_InitializesArrayWithElementAndReturnsZeroIndex()
 	{
 		// Arrange
 		string?[]     array   = null;
@@ -72,7 +72,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenArrayLengthExceedsThreshold_AddsUniqueElementUsingParallelMethod_ReturnsCorrectIndex()
+	public void AddUnique_WhenArrayExceedsParallelThreshold_UsesParallelMethodAndReturnsCorrectIndex()
 	{
 		// Arrange
 		var           array         = new string?[ArrayHelpers.ParallelThreshold * 2];
@@ -101,7 +101,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenArrayLengthIsBelowThreshold_AddsUniqueElementUsingSequentialMethod_ReturnsCorrectIndex()
+	public void AddUnique_WhenArrayIsBelowThreshold_UsesSequentialMethodAndReturnsCorrectIndex()
 	{
 		// Arrange
 		string?[]     array   = { "Element1" };
@@ -125,7 +125,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenElementIsDuplicate_DoesNotAddElement_ReturnsIndexNegativeOne()
+	public void AddUnique_WhenElementIsDuplicate_DoesNotModifyArrayAndReturnsNegativeIndex()
 	{
 		// Arrange
 		string?[] array   = { "Element1" };
@@ -144,7 +144,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenElementIsNull_DoesNotModifyArray_ReturnsIndexNegativeOne()
+	public void AddUnique_WhenElementIsNull_DoesNotModifyArrayAndReturnsNegativeIndex()
 	{
 		// Arrange
 		string[] array = { "Element1" };
@@ -161,7 +161,7 @@ public class ArrayAddUniqueUnitTests
 	}
 
 	[Test]
-	public void WhenElementIsUnique_AddsElement_And_WhenElementIsDuplicate_DoesNotAddElement()
+	public void AddUnique_DuplicateDetection_AddsUniqueElementButIgnoresDuplicate()
 	{
 		// Arrange
 		string?[]     array         = { "Element1", "Element2" };
