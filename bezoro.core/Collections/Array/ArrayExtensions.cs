@@ -9,7 +9,7 @@ namespace Bezoro.Core.Collections.Array
 	///     derive from <see cref="object" />, so the custom Unity
 	///     equality operator is not involved.
 	/// </summary>
-	public static class ArrayExtensionsUnit
+	public static class ArrayExtensions
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsEmpty<T>(this T[]? array) =>
