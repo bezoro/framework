@@ -98,18 +98,18 @@ namespace Bezoro.Chess.Common.Extensions
 		///     a piece at the target position, it will be replaced by the new piece.
 		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static void CreatePieceAt(
+		public static IChessPieceModel CreatePieceAt(
 			this IChessBoardModel board,
 			string algebraicPosition,
 			PlayerColor color,
 			ChessPieceType pieceType)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			board.CreatePieceAt(position.Column, position.Row, color, pieceType);
+			return board.CreatePieceAt(position.Column, position.Row, color, pieceType);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static void CreatePieceAt(
+		public static IChessPieceModel CreatePieceAt(
 			this IChessBoardModel board,
 			BoardPosition position,
 			PlayerColor color,
@@ -117,7 +117,7 @@ namespace Bezoro.Chess.Common.Extensions
 			board.CreatePieceAt(position.Column, position.Row, color, pieceType);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static void CreatePieceAt(
+		public static IChessPieceModel CreatePieceAt(
 			this IChessBoardModel board,
 			int col,
 			int row,
