@@ -128,7 +128,7 @@ public class BoardModelExtensionsTests
 		public void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare) =>
 			throw new NotImplementedException();
 
-		public void Clear() =>
+		public IChessBoardModel Clear() =>
 			throw new NotImplementedException();
 
 		public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor) =>
