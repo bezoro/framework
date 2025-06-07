@@ -305,7 +305,7 @@ public class KingPseudoValidMovesGeneratorTests
 	}
 
 	[Test]
-	public void Generate_ValidKing_ReturnsCorrectMoves()
+	public void Generate_StartingKing_ReturnsNoMoves()
 	{
 		// Arrange
 		var game = new GameModel();
@@ -315,8 +315,8 @@ public class KingPseudoValidMovesGeneratorTests
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
-		Assert.That(pseudoMoves, Is.Not.Empty);
-		;
+		Assert.That(pseudoMoves, Is.Empty);
+		
 		TestContext.Out.WriteLine($"Pseudo moved:{pseudoMoves.Count}");
 		foreach (var move in pseudoMoves)
 		{
