@@ -19,9 +19,9 @@ namespace Bezoro.Chess.Pieces.Models
 	}
 
 	/// <summary>
-	///     Emits every geometrically legal (pseudo-legal) rook move.
-	///     It deliberately ignores occupancy and self-check – higher-level
-	///     validators will take care of that.
+	///     Emits every geometrically legal (pseudo-legal) rook move,
+	///     accounting for board occupancy to handle blocking pieces and captures.
+	///     Self-check validation is handled by higher-level validators.
 	/// </summary>
 	public sealed class RookPseudoValidMovesGenerator : IPseudoMoveGenerator
 	{
@@ -52,8 +52,20 @@ namespace Bezoro.Chess.Pieces.Models
 		{
 			foreach (var square in board.GetOrthogonalSquares(from))
 			{
-				var to = new BoardPosition(square.Position.Column, square.Position.Row);
-				yield return new(from, to, rook.Color, rook.GetPieceType());
+				var to          = new BoardPosition(square.Position.Column, square.Position.Row);
+				var targetPiece = square.GetPiece();
+
+				// If square is occupied by friendly piece, we can't move there
+				if (targetPiece != null && targetPiece.Color == rook.Color)
+					continue;
+
+				// Create appropriate move type (capture or normal)
+				var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
+				yield return new(from, to, rook.Color, rook.GetPieceType(), moveKind);
+
+				// If this square contains any piece (friend or enemy), we can't move past it
+				if (targetPiece != null)
+					break;
 			}
 		}
 
