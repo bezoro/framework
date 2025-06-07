@@ -55,11 +55,15 @@ public class BoardModelExtensionsTests
 	[Test]
 	public void CreatePieceAt_String_PlacesPieceOnTargetSquare()
 	{
-		Assert.That(_board.GetPieceAt("a1"), Is.Null); // pre-condition
+		var emptyBoard = new BoardModel(8, 8, FenUtils.EmptyBoard);
+		Assert.That(emptyBoard.GetPieceAt("a1"), Is.Null);
 
 		_board.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.King);
 
-		Assert.That(_board.GetPieceAt("a1"), Is.Not.Null);
+		Assert.That(_board.GetPieceAt("a1"),                Is.Not.Null);
+		Assert.That(_board.GetPieceAt("a1").Color,          Is.EqualTo(PlayerColor.White));
+		Assert.That(_board.GetPieceAt("a1").GetPieceType(), Is.EqualTo(ChessPieceType.King));
+		Assert.That(_board.GetPieceAt("a1").HasMoved,       Is.False);
 	}
 
 #endregion
@@ -81,7 +85,8 @@ public class BoardModelExtensionsTests
 			}
 		}
 
-		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; }
+		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex            { get; }
+		public IChessBoardSquareModel                      EnPassantTargetSquare { get; }
 
 		public IChessBoardSquareModel[,] Squares { get; }
 		public int                       Height  { get; }
@@ -118,6 +123,9 @@ public class BoardModelExtensionsTests
 			square.SetPiece(piece);
 
 		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side) =>
+			throw new NotImplementedException();
+
+		public void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare) =>
 			throw new NotImplementedException();
 
 		public void Clear() =>
