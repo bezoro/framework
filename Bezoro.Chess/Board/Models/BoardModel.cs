@@ -91,12 +91,14 @@ namespace Bezoro.Chess.Board.Models
 			}
 		}
 
-		public void Clear()
+		public IChessBoardModel Clear()
 		{
 			foreach (var square in Squares)
 			{
 				square.SetPiece(null);
 			}
+
+			return this;
 		}
 
 		public bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor)

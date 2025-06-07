@@ -20,6 +20,7 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		bool IsEmpty(BoardPosition to);
 		bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor);
 		bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor);
+		IChessBoardModel Clear();
 		IEnumerable<IChessBoardSquareModel> GetStraightPath(BoardPosition from, BoardPosition to);
 
 		/// <summary>
@@ -29,7 +30,6 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
 
 		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
-		void Clear();
 		void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
 		void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to);
 
