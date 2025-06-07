@@ -1,5 +1,4 @@
 using Bezoro.Chess.Abstractions.Interfaces;
-using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
 
 namespace Bezoro.Chess.Game
@@ -9,7 +8,7 @@ namespace Bezoro.Chess.Game
 		public GameStateMemento(
 			PlayerColor activeColor,
 			CastlingRights castlingRights,
-			BoardPosition? enPassantTargetSquare,
+			IChessBoardSquareModel enPassantTargetSquare,
 			int halfMoveClock,
 			int fullMoveNumber)
 		{
@@ -20,10 +19,11 @@ namespace Bezoro.Chess.Game
 			FullMoveNumber        = fullMoveNumber;
 		}
 
-		public BoardPosition? EnPassantTargetSquare { get; }
 		public CastlingRights CastlingRights { get; }
-		public int            FullMoveNumber { get; }
-		public int            HalfMoveClock  { get; }
-		public PlayerColor    ActiveColor    { get; }
+
+		public IChessBoardSquareModel EnPassantTargetSquare { get; }
+		public int                    FullMoveNumber        { get; }
+		public int                    HalfMoveClock         { get; }
+		public PlayerColor            ActiveColor           { get; }
 	}
 }

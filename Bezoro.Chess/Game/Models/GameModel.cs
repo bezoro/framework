@@ -26,27 +26,27 @@ namespace Bezoro.Chess.Game.Models
 		{
 			var setup = ResolveFen(fen);
 
-			CastlingRights        = setup.Castling;
-			FullMoveNumber        = setup.FullmoveNumber;
-			HalfMoveClock         = setup.HalfmoveClock;
-			ActiveColor           = setup.ActiveColor;
-			EnPassantTargetSquare = ResolveEnPassant(setup);
-			Board                 = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement);
-			GameRules             = rules ?? new StandardChessRules();
-			CapturedPieces        = new(32); // Standard max captures
+			CastlingRights = setup.Castling;
+			FullMoveNumber = setup.FullmoveNumber;
+			HalfMoveClock  = setup.HalfmoveClock;
+			ActiveColor    = setup.ActiveColor;
+			Board          = new BoardModel(boardWidth, boardHeight, setup.PiecePlacement, setup.EnPassant);
+			GameRules      = rules ?? new StandardChessRules();
+			CapturedPieces = new(32); // Standard max captures
 		}
 
 		private readonly Stack<(GameStateMemento previousGameState, IChessCommand previousMoveCommand)> _undoHistory =
 			new();
 
-		public IGameRules             GameRules             { get; }
-		public List<IChessPieceModel> CapturedPieces        { get; }
-		public BoardPosition?         EnPassantTargetSquare { get; internal set; }
-		public CastlingRights         CastlingRights        { get; internal set; }
-		public IChessBoardModel       Board                 { get; private set; }
-		public int                    FullMoveNumber        { get; internal set; }
-		public int                    HalfMoveClock         { get; internal set; }
-		public PlayerColor            ActiveColor           { get; internal set; }
+		public IGameRules             GameRules      { get; }
+		public List<IChessPieceModel> CapturedPieces { get; }
+		public CastlingRights         CastlingRights { get; internal set; }
+		public IChessBoardModel       Board          { get; private set; }
+		public int                    FullMoveNumber { get; internal set; }
+		public int                    HalfMoveClock  { get; internal set; }
+		public PlayerColor            ActiveColor    { get; internal set; }
+
+	#region Interface Implementations
 
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
@@ -71,7 +71,7 @@ namespace Bezoro.Chess.Game.Models
 		public string ToFenString()
 		{
 			var piecePlacement  = Board.GetPiecePlacementFen();
-			var enPassantString = EnPassantTargetSquare?.Algebraic ?? "-";
+			var enPassantString = Board.EnPassantTargetSquare.Position.Algebraic;
 
 			var currentFenData = new FenData(
 				piecePlacement,
@@ -88,7 +88,7 @@ namespace Bezoro.Chess.Game.Models
 		public void DoMove(Move move)
 		{
 			var gameState = new GameStateMemento(
-				ActiveColor, CastlingRights, EnPassantTargetSquare, HalfMoveClock, FullMoveNumber);
+				ActiveColor, CastlingRights, Board.EnPassantTargetSquare, HalfMoveClock, FullMoveNumber);
 
 			var moveCommand = new MovePieceCommand(move, Board);
 			moveCommand.Execute(Board);
@@ -115,12 +115,14 @@ namespace Bezoro.Chess.Game.Models
 			var (previousGameState, previousMove) = _undoHistory.Pop();
 
 			previousMove.Undo(Board);
-			EnPassantTargetSquare = previousGameState.EnPassantTargetSquare;
-			CastlingRights        = previousGameState.CastlingRights;
-			ActiveColor           = previousGameState.ActiveColor;
-			HalfMoveClock         = previousGameState.HalfMoveClock;
-			FullMoveNumber        = previousGameState.FullMoveNumber;
+			Board.SetEnPassantTargetSquare(previousGameState.EnPassantTargetSquare);
+			CastlingRights = previousGameState.CastlingRights;
+			ActiveColor    = previousGameState.ActiveColor;
+			HalfMoveClock  = previousGameState.HalfMoveClock;
+			FullMoveNumber = previousGameState.FullMoveNumber;
 		}
+
+	#endregion
 
 		private static BoardPosition? ResolveEnPassant(FenData setup) =>
 			string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
@@ -187,14 +189,13 @@ namespace Bezoro.Chess.Game.Models
 
 	public interface IGameModel
 	{
-		IGameRules             GameRules             { get; }
-		List<IChessPieceModel> CapturedPieces        { get; }
-		BoardPosition?         EnPassantTargetSquare { get; }
-		CastlingRights         CastlingRights        { get; }
-		IChessBoardModel       Board                 { get; }
-		int                    FullMoveNumber        { get; }
-		int                    HalfMoveClock         { get; }
-		PlayerColor            ActiveColor           { get; }
+		CastlingRights         CastlingRights { get; }
+		IChessBoardModel       Board          { get; }
+		IGameRules             GameRules      { get; }
+		int                    FullMoveNumber { get; }
+		int                    HalfMoveClock  { get; }
+		List<IChessPieceModel> CapturedPieces { get; }
+		PlayerColor            ActiveColor    { get; }
 
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
