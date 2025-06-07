@@ -63,16 +63,26 @@ public class RookPseudoValidMovesGeneratorTests
 	[Test]
 	public void Generate_RookOnBoard_ReturnsCorrectMoves()
 	{
-		var rook = _gameModel.Board.GetSquareAt("a1").Piece;
+		var emptyBoard = _gameModel.Board.Clear();
+		var rook       = emptyBoard.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.Rook);
 		Assert.That(rook, Is.Not.Null);
 		Assert.That(rook, Is.TypeOf<RookModel>());
+
 		var pseudoMoves = _generator.Generate(_gameModel, rook).ToList();
-		Assert.That(pseudoMoves, Is.Not.Empty);
-		TestContext.WriteLine($"Successfully generated rook pseudo-valid moves: {pseudoMoves.Count}");
-		foreach (var pseudoMove in pseudoMoves)
+
+		Assert.That(pseudoMoves.Count, Is.EqualTo(14), "Rook should have 14 possible moves from a1");
+
+		var expectedDestinations = new[]
 		{
-			TestContext.Out.WriteLine($"{pseudoMove}");
-		}
+			"a2", "a3", "a4", "a5", "a6", "a7", "a8",
+			"b1", "c1", "d1", "e1", "f1", "g1", "h1"
+		};
+
+		var actualDestinations = pseudoMoves.Select(m => m.To.ToString()).ToList();
+
+		CollectionAssert.AreEquivalent(
+			expectedDestinations, actualDestinations,
+			"Rook should be able to move vertically up a-file and horizontally across rank 1");
 	}
 
 #endregion
