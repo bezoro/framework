@@ -22,18 +22,21 @@ namespace Bezoro.Chess.Board.Models
 		/// <param name="width">The width of the board.</param>
 		/// <param name="height">The height of the board.</param>
 		/// <param name="piecePlacementFen">The piece placement part of a FEN string.</param>
+		/// <param name="enPassant"></param>
 		/// <exception cref="ArgumentOutOfRangeException">Thrown when width or height is not positive.</exception>
 		/// <exception cref="ArgumentNullException">Thrown if piecePlacementFen is null.</exception>
-		public BoardModel(int width, int height, string piecePlacementFen)
+		public BoardModel(int width = 8, int height = 8, string? piecePlacementFen = null, string enPassant = "-")
 		{
-			if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width), "Width must be positive.");
+			if (width  <= 0) throw new ArgumentOutOfRangeException(nameof(width),  "Width must be positive.");
 			if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), "Height must be positive.");
-			if (piecePlacementFen == null) throw new ArgumentNullException(nameof(piecePlacementFen));
 
-			Width       = width;
-			Height      = height;
-			Squares     = InitializeSquares(Width, Height);
-			BoardPieces = InitializePieces(Squares, piecePlacementFen);
+			piecePlacementFen ??= FenUtils.StartPieces;
+
+			Width                 = width;
+			Height                = height;
+			Squares               = InitializeSquares(Width, Height);
+			BoardPieces           = InitializePieces(Squares, piecePlacementFen);
+			EnPassantTargetSquare = ResolveEnPassantTarget(enPassant);
 		}
 
 		private Dictionary<IChessPieceModel, List<Move>> _cachedPseudoLegalMoves = new();
@@ -45,6 +48,8 @@ namespace Bezoro.Chess.Board.Models
 		public IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves =>
 			_cachedPseudoLegalMoves;
 		public List<IChessPieceModel> BoardPieces { get; } // Pieces currently on the board
+
+		public IChessBoardSquareModel? EnPassantTargetSquare { get; private set; }
 
 	#region Interface Implementations
 
@@ -195,10 +200,10 @@ namespace Bezoro.Chess.Board.Models
 		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side)
 		{
 			var pseudoMoves = new List<(IChessPieceModel, IEnumerable<Move>)>();
-			var legalMoves = new List<IEnumerable<Move>>();
+			var legalMoves  = new List<IEnumerable<Move>>();
 			foreach (var piece in BoardPieces.Where(p => p.Color == side))
 			{
-				pseudoMoves.Add((piece,piece.GetPseudoLegalMoves(game)));
+				pseudoMoves.Add((piece, piece.GetPseudoLegalMoves(game)));
 			}
 
 			foreach (var pseudoMove in pseudoMoves)
@@ -210,6 +215,9 @@ namespace Bezoro.Chess.Board.Models
 
 			return legalMoves;
 		}
+
+		public void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare) =>
+			EnPassantTargetSquare = enPassantSquare;
 
 	#endregion
 
@@ -275,6 +283,9 @@ namespace Bezoro.Chess.Board.Models
 		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => PieceIndex[piece] = newPos;
 
 		private BoardSnapshot CreateSnapshot() => new(Squares); // Pass necessary data to snapshot
+
+		private IChessBoardSquareModel? ResolveEnPassantTarget(string enPassant) =>
+			enPassant == "-" ? null : this.GetSquareAt(AlgebraicNotationUtils.FromAlgebraic(enPassant));
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{

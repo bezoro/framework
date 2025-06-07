@@ -9,15 +9,13 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 {
 	public interface IChessBoardModel
 	{
-		Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; }
-		IChessBoardSquareModel[,]                   Squares    { get; }
-		int                                         Height     { get; }
-		int                                         Width      { get; }
-		/// <summary>
-		///     Read-only view of the last computed pseudo-legal moves for all pieces.
-		/// </summary>
+		Dictionary<IChessPieceModel, BoardPosition>       PieceIndex { get; }
+		IChessBoardSquareModel                            EnPassantTargetSquare { get; }
+		IChessBoardSquareModel[,]                         Squares { get; }
+		int                                               Height { get; }
+		int                                               Width { get; }
 		IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves { get; }
-		List<IChessPieceModel> BoardPieces { get; } // Pieces currently on the board
+		List<IChessPieceModel>                            BoardPieces { get; } // Pieces currently on the board
 		BoardPosition? GetPosition(IChessPieceModel piece);
 		bool IsEmpty(BoardPosition to);
 		bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor);
@@ -30,8 +28,8 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		/// </summary>
 		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
 
+		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
 		void Clear();
-
 		void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
 		void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to);
 
@@ -50,7 +48,7 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		/// </exception>
 		void RefreshPseudoLegalMoveCache(GameModel game);
 
+		void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
-		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
 	}
 }
