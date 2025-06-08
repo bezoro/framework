@@ -38,64 +38,32 @@ namespace Bezoro.Chess.Pieces.Generators
 		/// <exception cref="ArgumentException">Thrown when the piece is not a pawn or not on the board.</exception>
 		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			if (game == null)
-				throw new ArgumentNullException(nameof(game));
+			if (game is null) throw new ArgumentNullException(nameof(game));
+			if (piece is null) throw new ArgumentNullException(nameof(piece));
 
-			if (game.Board == null)
-				throw new ArgumentException("Game.Board cannot be null.", nameof(game));
+			var board = game.Board ?? throw new ArgumentException("Game.Board cannot be null.", nameof(game));
+			var pawn  = EnsurePawnPiece(piece);
 
-			if (piece == null)
-				throw new ArgumentNullException(nameof(piece));
+			var from = board.GetPosition(pawn);
+			if (from is null) throw new ArgumentException("Pawn is not on the board.", nameof(piece));
 
-			if (piece is not PawnModel pawn)
-				throw new ArgumentException("Generator received a non-pawn piece.", nameof(piece));
-
-			var board                = game.Board; // board is now guaranteed not null
-			var nullableFromPosition = board.GetPosition(pawn);
-			if (nullableFromPosition == null)
-				throw new ArgumentException("Generator received a pawn that is not on the board.", nameof(piece));
-
-			var fromPosition = nullableFromPosition.Value;
-
-			foreach (var mv in GenerateMoves(game, pawn, fromPosition))
+			foreach (var move in GenerateMoves(game, pawn, from.Value))
 			{
-				yield return mv;
+				yield return move;
 			}
 		}
 
 	#endregion
 
+		/// <summary>
+		///     Determines if the given rank is a promotion rank for the specified color.
+		/// </summary>
+		/// <param name="color">The color of the pawn.</param>
+		/// <param name="rank">The rank to check.</param>
+		/// <param name="board">The chess board.</param>
+		/// <returns>True if the rank is a promotion rank, false otherwise.</returns>
 		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
-
-		/// <summary>
-		///     Attempts to calculate a valid target position given a starting position and delta movements.
-		/// </summary>
-		/// <param name="from">Starting position.</param>
-		/// <param name="deltaX">Horizontal movement.</param>
-		/// <param name="deltaY">Vertical movement.</param>
-		/// <param name="board">The chess board.</param>
-		/// <param name="targetPosition">The calculated target position if valid.</param>
-		/// <returns>True if the target position is valid and inside the board.</returns>
-		private static bool TryGetValidTargetPosition(
-			BoardPosition from,
-			int deltaX,
-			int deltaY,
-			IChessBoardModel board,
-			out BoardPosition targetPosition)
-		{
-			var toFile = from.Column + deltaX;
-			var toRank = from.Row    + deltaY;
-
-			if (!board.IsInside(toFile, toRank))
-			{
-				targetPosition = default;
-				return false;
-			}
-
-			targetPosition = new(toFile, toRank);
-			return true;
-		}
 
 		/// <summary>
 		///     Builds move objects for normal moves or promotions based on the target square.
@@ -116,10 +84,18 @@ namespace Bezoro.Chess.Pieces.Generators
 			// Check for promotion
 			if (kind != MoveKind.EnPassant && IsPromotionRank(pawn.Color, to.Row, board))
 			{
-				foreach (PromotionPieceType promo in Enum.GetValues(typeof(PromotionPieceType)))
+				// Use static array instead of Enum.GetValues for better performance
+				var promotionTypes = new[]
 				{
-					if (promo != PromotionPieceType.None)
-						yield return Move.Promotion(from, to, pawn.Color, promo);
+					PromotionPieceType.Queen,
+					PromotionPieceType.Rook,
+					PromotionPieceType.Bishop,
+					PromotionPieceType.Knight
+				};
+
+				foreach (var promotionType in promotionTypes)
+				{
+					yield return Move.Promotion(from, to, pawn.Color, promotionType);
 				}
 			}
 			// Normal move
@@ -141,178 +117,193 @@ namespace Bezoro.Chess.Pieces.Generators
 			var board         = game.Board;
 			var pawnDirection = pawn.Direction; // Pawn's forward direction (+1 for White, -1 for Black)
 
-			// Single Push
-			foreach (var move in ProcessSinglePush(pawn, from, board, pawnDirection))
+			// Generate single push moves
+			var singlePushMove = TryGenerateSinglePush(pawn, from, board, pawnDirection);
+			if (singlePushMove != null)
 			{
-				yield return move;
-			}
-
-			// Double Push
-			if (!pawn.HasMoved)
-			{
-				foreach (var move in ProcessDoublePush(pawn, from, board, pawnDirection))
+				foreach (var move in singlePushMove)
 				{
 					yield return move;
 				}
-			}
 
-			// Captures (Left and Right)
-			foreach (var move in ProcessCapture(pawn, from, board, pawnDirection, -1)) // Capture left
-			{
-				yield return move;
-			}
-
-			foreach (var move in ProcessCapture(pawn, from, board, pawnDirection, +1)) // Capture right
-			{
-				yield return move;
-			}
-
-			// En Passant (Left and Right)
-			foreach (var move in ProcessEnPassant(pawn, from, board, pawnDirection, -1)) // En Passant left
-			{
-				yield return move;
-			}
-
-			foreach (var move in ProcessEnPassant(pawn, from, board, pawnDirection, +1)) // En Passant right
-			{
-				yield return move;
-			}
-		}
-
-		/// <summary>
-		///     Processes potential capture moves for a pawn in a given direction.
-		/// </summary>
-		/// <param name="pawn">The pawn making the capture.</param>
-		/// <param name="from">Starting position.</param>
-		/// <param name="board">The chess board.</param>
-		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
-		/// <param name="captureDx">Horizontal direction of capture (-1 for left, +1 for right).</param>
-		/// <returns>Collection of valid capture moves.</returns>
-		private static IEnumerable<Move> ProcessCapture(
-			PawnModel pawn,
-			BoardPosition from,
-			IChessBoardModel board,
-			int pawnDir,
-			int captureDx)
-		{
-			if (!TryGetValidTargetPosition(from, captureDx, 1 * pawnDir, board, out var toPos))
-				yield break;
-
-			var pieceOnToSquare = board.Squares[toPos.Column, toPos.Row].Piece;
-			if (pieceOnToSquare != null && pieceOnToSquare.Color != pawn.Color)
-			{
-				foreach (var move in BuildMoves(from, toPos, pawn, MoveKind.Capture, board))
+				// Only try double push if single push is possible and pawn hasn't moved
+				if (!pawn.HasMoved)
 				{
-					yield return move;
+					var doublePushMoves = TryGenerateDoublePush(pawn, from, board, pawnDirection);
+					if (doublePushMoves != null)
+					{
+						foreach (var move in doublePushMoves)
+						{
+							yield return move;
+						}
+					}
+				}
+			}
+
+			// Generate capture moves
+			foreach (var dx in new[] { -1, 1 }) // Left and right captures
+			{
+				// Try regular capture
+				var captureTargetFile = from.Column + dx;
+				var captureTargetRank = from.Row    + pawnDirection;
+
+				if (board.IsInside(captureTargetFile, captureTargetRank))
+				{
+					var captureTo   = new BoardPosition(captureTargetFile, captureTargetRank);
+					var targetPiece = board.Squares[captureTargetFile, captureTargetRank].GetPiece();
+
+					// If there's an enemy piece to capture
+					if (targetPiece != null && targetPiece.Color != pawn.Color)
+					{
+						foreach (var move in BuildMoves(from, captureTo, pawn, MoveKind.Capture, board))
+						{
+							yield return move;
+						}
+					}
+				}
+
+				// Try en passant
+				var enPassantMoves = TryGenerateEnPassant(pawn, from, board, pawnDirection, dx);
+				if (enPassantMoves != null)
+				{
+					foreach (var move in enPassantMoves)
+					{
+						yield return move;
+					}
 				}
 			}
 		}
 
 		/// <summary>
-		///     Processes the initial two-square pawn advance if conditions are met.
+		///     Attempts to generate a double push move for a pawn.
 		/// </summary>
 		/// <param name="pawn">The pawn to move.</param>
 		/// <param name="from">Starting position.</param>
 		/// <param name="board">The chess board.</param>
-		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
-		/// <returns>Collection of valid double push moves.</returns>
-		private static IEnumerable<Move> ProcessDoublePush(
+		/// <param name="pawnDir">Direction of pawn movement.</param>
+		/// <returns>A collection of double push moves if valid, null otherwise.</returns>
+		private static IEnumerable<Move> TryGenerateDoublePush(
 			PawnModel pawn,
 			BoardPosition from,
 			IChessBoardModel board,
 			int pawnDir)
 		{
-			if (!TryGetValidTargetPosition(from, 0, 2 * pawnDir, board, out var toPos))
-				yield break;
+			var targetFile = from.Column;
+			var targetRank = from.Row + 2 * pawnDir;
 
-			var pieceOnToSquare = board.Squares[toPos.Column, toPos.Row].Piece;
-			if (pieceOnToSquare != null) // Target square must be empty
-				yield break;
+			// Check if target is inside board
+			if (!board.IsInside(targetFile, targetRank))
+				return null;
 
-			// Check intermediate square (the one pawn jumps over)
-			var intermediateRank = from.Row + 1 * pawnDir;
-			// This square's validity is implied if toPos (2 steps away) is valid.
-			var pieceOnIntermediateSquare = board.Squares[from.Column, intermediateRank].Piece;
-			if (pieceOnIntermediateSquare != null) // Intermediate square must also be empty
-				yield break;
+			// Check if target square is empty
+			var targetSquare = board.Squares[targetFile, targetRank];
+			if (targetSquare.IsOccupied)
+				return null;
 
-			foreach (var move in BuildMoves(from, toPos, pawn, MoveKind.Normal, board))
-			{
-				yield return move;
-			}
+			// Check if the intermediate square is empty
+			var intermediateRank   = from.Row + pawnDir;
+			var intermediateSquare = board.Squares[targetFile, intermediateRank];
+			if (intermediateSquare.IsOccupied)
+				return null;
+
+			var to = new BoardPosition(targetFile, targetRank);
+			return BuildMoves(from, to, pawn, MoveKind.Normal, board);
 		}
 
 		/// <summary>
-		///     Processes potential en passant captures for a pawn.
+		///     Attempts to generate an en passant capture move for a pawn.
 		/// </summary>
-		/// <param name="pawn">The pawn making the en passant capture.</param>
+		/// <param name="pawn">The pawn to move.</param>
 		/// <param name="from">Starting position.</param>
 		/// <param name="board">The chess board.</param>
-		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
-		/// <param name="epDx">Horizontal direction of en passant (-1 for left, +1 for right).</param>
-		/// <returns>Collection of valid en passant moves.</returns>
-		private static IEnumerable<Move> ProcessEnPassant(
+		/// <param name="pawnDir">Direction of pawn movement.</param>
+		/// <param name="dx">Horizontal direction of capture.</param>
+		/// <returns>A collection of en passant moves if valid, null otherwise.</returns>
+		private static IEnumerable<Move> TryGenerateEnPassant(
 			PawnModel pawn,
 			BoardPosition from,
 			IChessBoardModel board,
 			int pawnDir,
-			int epDx)
+			int dx)
 		{
-			if (!TryGetValidTargetPosition(from, epDx, 1 * pawnDir, board, out var toPos))
-				yield break;
+			var targetFile = from.Column + dx;
+			var targetRank = from.Row    + pawnDir;
 
-			if (IsPromotionRank(pawn.Color, toPos.Row, board)) // En passant cannot result in promotion
-				yield break;
+			// Check if target is inside board
+			if (!board.IsInside(targetFile, targetRank))
+				return null;
 
-			var pieceOnLandingSquare = board.Squares[toPos.Column, toPos.Row].Piece;
-			if (pieceOnLandingSquare != null) // Landing square for en passant must be empty
-				yield break;
+			var to = new BoardPosition(targetFile, targetRank);
 
-			if (board.EnPassantTargetSquare == null || !board.EnPassantTargetSquare.Position.Equals(toPos))
-			{
-				yield break;
-			}
+			// Check if target is a promotion rank (en passant can't result in promotion)
+			if (IsPromotionRank(pawn.Color, targetRank, board))
+				return null;
 
-			var capturedPawnFile = toPos.Column;
-			var capturedPawnRank = from.Row; // Captured pawn is on the same rank as the attacking pawn
-			// This position's validity (from.Column + epDx, from.Row) is implied if toPos is valid.
-			var capturedPawn = board.Squares[capturedPawnFile, capturedPawnRank].Piece;
+			// Target square must be empty for en passant
+			if (board.Squares[targetFile, targetRank].IsOccupied)
+				return null;
+
+			// Must have a valid en passant target square
+			if (board.EnPassantTargetSquare == null || !board.EnPassantTargetSquare.Position.Equals(to))
+				return null;
+
+			// Check for the captured pawn (must be on the same rank as the attacking pawn)
+			var capturedPawnFile = targetFile;
+			var capturedPawnRank = from.Row;
+			var capturedPawn     = board.Squares[capturedPawnFile, capturedPawnRank].Piece;
+
+			// Verify there's an enemy pawn to capture
 			if (capturedPawn                == null                ||
 				capturedPawn.GetPieceType() != ChessPieceType.Pawn ||
 				capturedPawn.Color          == pawn.Color)
-				yield break;
+				return null;
 
-			foreach (var move in BuildMoves(from, toPos, pawn, MoveKind.EnPassant, board))
-			{
-				yield return move;
-			}
+			return BuildMoves(from, to, pawn, MoveKind.EnPassant, board);
 		}
 
 		/// <summary>
-		///     Processes the standard one-square pawn advance.
+		///     Attempts to generate a single push move for a pawn.
 		/// </summary>
 		/// <param name="pawn">The pawn to move.</param>
 		/// <param name="from">Starting position.</param>
 		/// <param name="board">The chess board.</param>
-		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
-		/// <returns>Collection of valid single push moves.</returns>
-		private static IEnumerable<Move> ProcessSinglePush(
+		/// <param name="pawnDir">Direction of pawn movement.</param>
+		/// <returns>A collection of single push moves if valid, null otherwise.</returns>
+		private static IEnumerable<Move> TryGenerateSinglePush(
 			PawnModel pawn,
 			BoardPosition from,
 			IChessBoardModel board,
 			int pawnDir)
 		{
-			if (!TryGetValidTargetPosition(from, 0, 1 * pawnDir, board, out var toPos))
-				yield break;
+			var targetFile = from.Column;
+			var targetRank = from.Row + pawnDir;
 
-			var toSquare = board.Squares[toPos.Column, toPos.Row];
-			if (toSquare.IsOccupied)
-				yield break;
+			// Check if target is inside board
+			if (!board.IsInside(targetFile, targetRank))
+				return null;
 
-			foreach (var move in BuildMoves(from, toPos, pawn, MoveKind.Normal, board))
-			{
-				yield return move;
-			}
+			var to           = new BoardPosition(targetFile, targetRank);
+			var targetSquare = board.Squares[targetFile, targetRank];
+
+			// Square must be empty for a push
+			if (targetSquare.IsOccupied)
+				return null;
+
+			return BuildMoves(from, to, pawn, MoveKind.Normal, board);
+		}
+
+		/// <summary>
+		///     Validates that the piece is a pawn.
+		/// </summary>
+		/// <param name="piece">The chess piece to validate.</param>
+		/// <returns>The validated pawn piece.</returns>
+		/// <exception cref="ArgumentException">Thrown when piece is not a pawn.</exception>
+		private static PawnModel EnsurePawnPiece(IChessPieceModel piece)
+		{
+			if (piece is not PawnModel pawn)
+				throw new ArgumentException("Generator received a non-pawn piece.", nameof(piece));
+
+			return pawn;
 		}
 	}
 }
