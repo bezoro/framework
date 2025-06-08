@@ -4,4 +4,4 @@ namespace Bezoro.Chess.UnitTests.Rules;
 
 [TestFixture]
 [TestOf(typeof(StandardChessRules))]
-public class StandardChessRulesTest { }
+public class StandardChessRulesUnitTest { }

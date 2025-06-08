@@ -9,7 +9,7 @@ using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 using Bezoro.Chess.Pieces.Models;
 
-namespace Bezoro.Chess.Moves.Services
+namespace Bezoro.Chess.Pieces.Generators
 {
 	/// <summary>
 	///     Generates pseudo-valid moves for a king piece, including regular moves, captures,

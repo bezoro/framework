@@ -2,17 +2,14 @@ using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Game.Models;
-using Bezoro.Chess.Moves.Services;
+using Bezoro.Chess.Pieces.Generators;
 using Bezoro.Chess.Pieces.Models;
 
-// For FenUtils if used
-
-// For IChessBoardModel
-
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-public class KingPseudoValidMovesGeneratorTests
+[TestOf(typeof(KingPseudoValidMoveGenerator))]
+public class KingPseudoLegalMovesGeneratorUnitTests
 {
 #region Test Methods
 
@@ -316,7 +313,7 @@ public class KingPseudoValidMovesGeneratorTests
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
 		Assert.That(pseudoMoves, Is.Empty);
-		
+
 		TestContext.Out.WriteLine($"Pseudo moved:{pseudoMoves.Count}");
 		foreach (var move in pseudoMoves)
 		{

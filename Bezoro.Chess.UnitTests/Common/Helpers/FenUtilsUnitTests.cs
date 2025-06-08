@@ -1,9 +1,10 @@
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Helpers;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Common.Helpers;
 
 [TestFixture]
+[TestOf(typeof(FenUtils))]
 public class FenUtilsUnitTests
 {
 #region Test Methods

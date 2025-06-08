@@ -3,10 +3,11 @@ using Bezoro.Chess.Board;
 using Bezoro.Chess.Board.Models;
 using Moq;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Board.Models;
 
 [TestFixture]
-public class BoardSquareModelTests
+[TestOf(typeof(BoardSquareModel))]
+public class BoardSquareModelUnitTests
 {
 #region Test Methods
 

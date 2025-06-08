@@ -1,11 +1,11 @@
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Helpers;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Common.Helpers;
 
 [TestFixture]
 [TestOf(typeof(AlgebraicNotationUtils))]
-public class AlgebraicNotationUtilsTests
+public class AlgebraicNotationUtilsUnitTests
 {
 #region Test Methods
 

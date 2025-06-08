@@ -4,10 +4,11 @@ using Bezoro.Chess.Moves.Models;
 using Bezoro.Chess.Pieces.Models;
 using Moq;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Models;
 
 [TestFixture]
-public class PieceModelTests
+[TestOf(typeof(PieceModel))]
+public class PieceModelUnitTests
 {
 #region Test Methods
 

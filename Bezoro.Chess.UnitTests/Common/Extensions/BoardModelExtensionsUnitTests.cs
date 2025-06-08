@@ -7,10 +7,11 @@ using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Common.Extensions;
 
 [TestFixture]
-public class BoardModelExtensionsTests
+[TestOf(typeof(BoardModelExtensions))]
+public class BoardModelExtensionsUnitTests
 {
 	private IChessBoardModel _board;
 

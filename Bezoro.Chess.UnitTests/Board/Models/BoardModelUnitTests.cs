@@ -1,8 +1,12 @@
+using Bezoro.Chess.Board.Models;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Game.Models;
 
+namespace Bezoro.Chess.UnitTests.Board.Models;
+
 [TestFixture]
-public class BoardModelTests
+[TestOf(typeof(BoardModel))]
+public class BoardModelUnitTests
 {
 #region Test Methods
 

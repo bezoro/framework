@@ -7,14 +7,14 @@ using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Pieces.Models;
 using Moq;
 
-namespace Bezoro.Chess.UnitTests.Pieces.Models;
+namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-[TestOf(typeof(KnightPseudoValidMovesGenerator))]
-public class KnightPseudoValidMovesGeneratorTest
+[TestOf(typeof(KnightPseudoLegalMovesGenerator))]
+public class KnightPseudoLegalMovesGeneratorUnitTest
 {
 	private GameModel                       _game;
-	private KnightPseudoValidMovesGenerator _generator;
+	private KnightPseudoLegalMovesGenerator _generator;
 	private Mock<IChessPieceModel>          _knightMock;
 
 #region Setup/Teardown Methods

@@ -2,13 +2,14 @@ using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
-using Bezoro.Chess.Moves.Services;
+using Bezoro.Chess.Pieces.Generators;
 using Bezoro.Chess.Pieces.Models;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-public sealed class PawnPseudoValidMovesGeneratorTests
+[TestOf(typeof(PawnPseudoLegalMovesGenerator))]
+public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 {
 	private GameModel _emptyGame    = null!;
 	private GameModel _standardGame = null!;
@@ -30,7 +31,7 @@ public sealed class PawnPseudoValidMovesGeneratorTests
 	public void Constructor_CreatesValidInstance()
 	{
 		// Act
-		var generator = new PawnPseudoValidMovesGenerator();
+		var generator = new PawnPseudoLegalMovesGenerator();
 
 		// Assert
 		Assert.Multiple(
@@ -38,7 +39,7 @@ public sealed class PawnPseudoValidMovesGeneratorTests
 			{
 				Assert.That(generator, Is.Not.Null, "Instance should not be null.");
 				Assert.That(
-					generator, Is.InstanceOf<PawnPseudoValidMovesGenerator>(),
+					generator, Is.InstanceOf<PawnPseudoLegalMovesGenerator>(),
 					"Instance should be of correct concrete type.");
 
 				Assert.That(
@@ -122,14 +123,14 @@ public sealed class PawnPseudoValidMovesGeneratorTests
 	[Test]
 	public void Generate_NullGameParameter_Throws()
 	{
-		var g = new PawnPseudoValidMovesGenerator();
+		var g = new PawnPseudoLegalMovesGenerator();
 		Assert.Throws<ArgumentNullException>(() => g.Generate(null!, new PawnModel(PlayerColor.White)).ToList());
 	}
 
 	[Test]
 	public void Generate_NullPiece_Throws()
 	{
-		var g = new PawnPseudoValidMovesGenerator();
+		var g = new PawnPseudoLegalMovesGenerator();
 		Assert.Throws<ArgumentNullException>(() => g.Generate(_standardGame, null!).ToList());
 	}
 
@@ -299,7 +300,7 @@ public sealed class PawnPseudoValidMovesGeneratorTests
 	[Test]
 	public void Generate_WithNonPawnPiece_Throws()
 	{
-		var g    = new PawnPseudoValidMovesGenerator();
+		var g    = new PawnPseudoLegalMovesGenerator();
 		var rook = _standardGame.Board.GetPieceAt("a1");
 		Assert.Throws<ArgumentException>(() => g.Generate(_standardGame, rook).ToList());
 	}

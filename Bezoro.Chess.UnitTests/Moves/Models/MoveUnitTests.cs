@@ -2,10 +2,11 @@ using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Moves.Models;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Moves.Models;
 
 [TestFixture]
-public class MoveTests
+[TestOf(typeof(Move))]
+public class MoveUnitTests
 {
 	private static readonly BoardPosition A7 = new(0, 6); // a7
 	private static readonly BoardPosition A8 = new(0, 7); // a8
@@ -72,7 +73,8 @@ public class MoveTests
 		var movingSide = PlayerColor.White;
 		var pieceType  = ChessPieceType.Pawn;
 		var move       = new Move(E2, E4, movingSide, ChessPieceType.Pawn);
-		move.Deconstruct(out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo, out var check);
+		move.Deconstruct(
+			out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo, out var check);
 
 		Assert.Multiple(
 			() =>

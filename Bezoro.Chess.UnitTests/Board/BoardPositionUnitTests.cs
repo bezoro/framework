@@ -1,10 +1,11 @@
 using System.Numerics;
 using Bezoro.Chess.Board;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Board;
 
 [TestFixture]
-public class BoardPositionTests
+[TestOf(typeof(BoardPosition))]
+public class BoardPositionUnitTests
 {
 #region Happy paths
 

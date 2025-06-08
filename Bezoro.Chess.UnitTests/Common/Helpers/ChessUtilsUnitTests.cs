@@ -2,10 +2,11 @@ using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Pieces.Models;
 
-namespace Bezoro.Chess.UnitTests;
+namespace Bezoro.Chess.UnitTests.Common.Helpers;
 
 [TestFixture]
-public class ChessUtilsTests
+[TestOf(typeof(ChessUtils))]
+public class ChessUtilsUnitTests
 {
 #region GetCharFromPiece
 
