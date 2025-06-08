@@ -11,15 +11,31 @@ using Bezoro.Chess.Pieces.Models;
 namespace Bezoro.Chess.Pieces.Generators
 {
 	/// <summary>
+	///     Generates pseudo-legal moves for a pawn chess piece.
+	///     Pseudo-legal moves are all possible moves without considering if they put the king in check.
 	///     Emits pawn moves considering board occupancy and en-passant rules.
 	///     The white template is mirrored for black by multiplying
 	///     <c>dy</c> with <c>pawn.Direction</c> (+1 / −1).
 	///     Higher layers handle check-legality.
+	///     Pawn movement rules:
+	///     - Can move forward one square if unblocked
+	///     - Can move forward two squares on first move if unblocked
+	///     - Can capture diagonally one square forward
+	///     - Can capture en passant when conditions are met
+	///     - Must promote when reaching opposite end of board
 	/// </summary>
 	public sealed class PawnPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 
+		/// <summary>
+		///     Generates all pseudo-legal moves for a pawn piece in the current game state.
+		/// </summary>
+		/// <param name="game">The current game state containing the board position.</param>
+		/// <param name="piece">The pawn piece to generate moves for.</param>
+		/// <returns>An enumerable collection of possible moves for the pawn.</returns>
+		/// <exception cref="ArgumentNullException">Thrown when game or piece is null.</exception>
+		/// <exception cref="ArgumentException">Thrown when the piece is not a pawn or not on the board.</exception>
 		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
 			if (game == null)
@@ -52,6 +68,15 @@ namespace Bezoro.Chess.Pieces.Generators
 		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
 
+		/// <summary>
+		///     Attempts to calculate a valid target position given a starting position and delta movements.
+		/// </summary>
+		/// <param name="from">Starting position.</param>
+		/// <param name="deltaX">Horizontal movement.</param>
+		/// <param name="deltaY">Vertical movement.</param>
+		/// <param name="board">The chess board.</param>
+		/// <param name="targetPosition">The calculated target position if valid.</param>
+		/// <returns>True if the target position is valid and inside the board.</returns>
 		private static bool TryGetValidTargetPosition(
 			BoardPosition from,
 			int deltaX,
@@ -72,6 +97,15 @@ namespace Bezoro.Chess.Pieces.Generators
 			return true;
 		}
 
+		/// <summary>
+		///     Builds move objects for normal moves or promotions based on the target square.
+		/// </summary>
+		/// <param name="from">Starting position of the move.</param>
+		/// <param name="to">Target position of the move.</param>
+		/// <param name="pawn">The pawn making the move.</param>
+		/// <param name="kind">The kind of move being made.</param>
+		/// <param name="board">The chess board.</param>
+		/// <returns>Collection of possible moves including promotions if applicable.</returns>
 		private static IEnumerable<Move> BuildMoves(
 			BoardPosition from,
 			BoardPosition to,
@@ -95,6 +129,13 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 		}
 
+		/// <summary>
+		///     Generates all possible pawn moves from a given position.
+		/// </summary>
+		/// <param name="game">The current game state.</param>
+		/// <param name="pawn">The pawn to generate moves for.</param>
+		/// <param name="from">The pawn's current position.</param>
+		/// <returns>Collection of all possible moves for the pawn.</returns>
 		private static IEnumerable<Move> GenerateMoves(GameModel game, PawnModel pawn, BoardPosition from)
 		{
 			var board         = game.Board;
@@ -138,6 +179,15 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 		}
 
+		/// <summary>
+		///     Processes potential capture moves for a pawn in a given direction.
+		/// </summary>
+		/// <param name="pawn">The pawn making the capture.</param>
+		/// <param name="from">Starting position.</param>
+		/// <param name="board">The chess board.</param>
+		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
+		/// <param name="captureDx">Horizontal direction of capture (-1 for left, +1 for right).</param>
+		/// <returns>Collection of valid capture moves.</returns>
 		private static IEnumerable<Move> ProcessCapture(
 			PawnModel pawn,
 			BoardPosition from,
@@ -158,6 +208,14 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 		}
 
+		/// <summary>
+		///     Processes the initial two-square pawn advance if conditions are met.
+		/// </summary>
+		/// <param name="pawn">The pawn to move.</param>
+		/// <param name="from">Starting position.</param>
+		/// <param name="board">The chess board.</param>
+		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
+		/// <returns>Collection of valid double push moves.</returns>
 		private static IEnumerable<Move> ProcessDoublePush(
 			PawnModel pawn,
 			BoardPosition from,
@@ -184,6 +242,15 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 		}
 
+		/// <summary>
+		///     Processes potential en passant captures for a pawn.
+		/// </summary>
+		/// <param name="pawn">The pawn making the en passant capture.</param>
+		/// <param name="from">Starting position.</param>
+		/// <param name="board">The chess board.</param>
+		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
+		/// <param name="epDx">Horizontal direction of en passant (-1 for left, +1 for right).</param>
+		/// <returns>Collection of valid en passant moves.</returns>
 		private static IEnumerable<Move> ProcessEnPassant(
 			PawnModel pawn,
 			BoardPosition from,
@@ -221,6 +288,14 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 		}
 
+		/// <summary>
+		///     Processes the standard one-square pawn advance.
+		/// </summary>
+		/// <param name="pawn">The pawn to move.</param>
+		/// <param name="from">Starting position.</param>
+		/// <param name="board">The chess board.</param>
+		/// <param name="pawnDir">Direction of pawn movement (+1 for white, -1 for black).</param>
+		/// <returns>Collection of valid single push moves.</returns>
 		private static IEnumerable<Move> ProcessSinglePush(
 			PawnModel pawn,
 			BoardPosition from,
