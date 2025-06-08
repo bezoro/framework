@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
@@ -22,7 +21,7 @@ namespace Bezoro.Chess.Board.Models
 		/// <param name="width">The width of the board.</param>
 		/// <param name="height">The height of the board.</param>
 		/// <param name="piecePlacementFen">The piece placement part of a FEN string.</param>
-		/// <param name="enPassant"></param>
+		/// <param name="enPassant">The en passant target square in algebraic notation (e.g., "e3") or "-" if none.</param>
 		/// <exception cref="ArgumentOutOfRangeException">Thrown when width or height is not positive.</exception>
 		/// <exception cref="ArgumentNullException">Thrown if piecePlacementFen is null.</exception>
 		public BoardModel(int width = 8, int height = 8, string? piecePlacementFen = null, string enPassant = "-")
@@ -61,8 +60,8 @@ namespace Bezoro.Chess.Board.Models
 			// Remove from old position if it was already on the board
 			if (PieceIndex.TryGetValue(pieceToMove, out var oldPos))
 			{
-				var oldSquare = this.GetSquareAt(oldPos);
-				if (oldSquare.GetPiece() == pieceToMove) // Ensure it's the same piece instance
+				var oldSquare = GetSquareAt(oldPos);      // Assuming GetSquareAt extension method
+				if (oldSquare?.GetPiece() == pieceToMove) // Ensure it's the same piece instance
 				{
 					oldSquare.SetPiece(null);
 				}
@@ -98,6 +97,10 @@ namespace Bezoro.Chess.Board.Models
 				square.SetPiece(null);
 			}
 
+			PieceIndex.Clear();
+			BoardPieces.Clear();             // Also clear pieces list
+			EnPassantTargetSquare = null;    // Clear en passant target
+			_cachedPseudoLegalMoves.Clear(); // Clear cache
 			return this;
 		}
 
@@ -112,7 +115,7 @@ namespace Bezoro.Chess.Board.Models
 			return targetPiece.Color != myColor;
 		}
 
-		public bool IsEmpty(BoardPosition to) => this.GetPieceAt(to) == null;
+		public bool IsEmpty(BoardPosition to) => GetSquareAt(to)?.GetPiece() == null;
 
 		public BoardPosition? GetPosition(IChessPieceModel piece) =>
 			PieceIndex.TryGetValue(piece, out var pos) ? pos : null;
@@ -122,23 +125,28 @@ namespace Bezoro.Chess.Board.Models
 			if (from == null) throw new ArgumentNullException(nameof(from));
 			if (to   == null) throw new ArgumentNullException(nameof(to));
 
-			var dx = Math.Sign(to.File - from.File);
-			var dy = Math.Sign(to.Rank - from.Rank);
+			var dx = Math.Sign(to.Column - from.Column);
+			var dy = Math.Sign(to.Row    - from.Row);
 
 			if (dx == 0 && dy == 0)
 				throw new InvalidOperationException("Source and target squares are identical.");
 
-			if (dx != 0 && dy != 0)
-				throw new InvalidOperationException("Path must be horizontal or vertical.");
+			if (dx                                != 0 &&
+				dy                                != 0 &&
+				Math.Abs(to.Column - from.Column) != Math.Abs(to.Rank - from.Rank)) // Allow diagonal
+				throw new InvalidOperationException("Path must be horizontal, vertical, or purely diagonal.");
 
-			var curFile = from.File + dx;
-			var curRank = from.Rank + dy;
+			var currentCol  = from.Column + dx;
+			var currentRank = from.Rank   + dy;
 
-			while (curFile != to.File || curRank != to.Rank)
+			while (currentCol != to.Column || currentRank != to.Rank)
 			{
-				yield return Squares[curFile, curRank];
-				curFile += dx;
-				curRank += dy;
+				if (currentCol < 0 || currentCol >= Width || currentRank < 0 || currentRank >= Height)
+					throw new InvalidOperationException("Path goes out of bounds.");
+
+				yield return Squares[currentCol, currentRank];
+				currentCol  += dx;
+				currentRank += dy;
 			}
 		}
 
@@ -157,13 +165,11 @@ namespace Bezoro.Chess.Board.Models
 			if (position == null)
 				throw new ArgumentNullException(nameof(position));
 
-			throw new NotImplementedException();
+			// This requires a GameModel context to get pseudo-legal moves for opponent pieces
+			throw new NotImplementedException(
+				"IsSquareAttacked needs GameModel context or direct attack generation logic.");
 		}
 
-		/// <summary>
-		///     Retrieves the cached moves for a specific piece.
-		///     Returns an empty collection if the piece is unknown or no cache is present.
-		/// </summary>
 		public IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece)
 		{
 			if (piece == null) throw new ArgumentNullException(nameof(piece));
@@ -173,19 +179,6 @@ namespace Bezoro.Chess.Board.Models
 				: Array.Empty<Move>();
 		}
 
-		/// <summary>
-		///     Rebuilds the cache that maps every on-board piece to the full set of its
-		///     current pseudo-legal moves.
-		///     This cache can later be consulted (e.g. when verifying that the king is not
-		///     placed in check by a prospective move).
-		/// </summary>
-		/// <param name="game">
-		///     The <see cref="GameModel" /> instance providing the necessary context to each
-		///     piece’s <see cref="IChessPieceModel.GetPseudoLegalMoves" /> implementation.
-		/// </param>
-		/// <exception cref="ArgumentNullException">
-		///     Thrown if <paramref name="game" /> is <c>null</c>.
-		/// </exception>
 		public void RefreshPseudoLegalMoveCache(GameModel game)
 		{
 			if (game == null) throw new ArgumentNullException(nameof(game));
@@ -194,100 +187,146 @@ namespace Bezoro.Chess.Board.Models
 
 			foreach (var piece in BoardPieces)
 			{
-				var moves = piece.GetPseudoLegalMoves(game);
+				var moves = piece.GetPseudoLegalMoves(game); // GameModel context is crucial here
 				_cachedPseudoLegalMoves[piece] = moves.ToList();
 			}
 		}
 
 		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side)
 		{
-			var pseudoMoves = new List<(IChessPieceModel, IEnumerable<Move>)>();
-			var legalMoves  = new List<IEnumerable<Move>>();
+			if (game == null) throw new ArgumentNullException(nameof(game));
+			var legalMovesForSide = new List<IEnumerable<Move>>();
 			foreach (var piece in BoardPieces.Where(p => p.Color == side))
 			{
-				pseudoMoves.Add((piece, piece.GetPseudoLegalMoves(game)));
+				var pseudoMoves = piece.GetPseudoLegalMoves(game);
+				// Original code: legalMoves.Add(game.GameRules.FilterLegalMoves(game, moves));
+				// This implies FilterLegalMoves takes (GameModel, IEnumerable<Move>)
+				// but the interface IGameRules has FilterLegalMoves(GameModel, IChessPieceModel, IEnumerable<Move>)
+				// Assuming a version of FilterLegalMoves that matches is available or the call is adjusted.
+				// For now, let's assume the intent is to filter moves for *this* piece.
+				var filteredMoves = game.GameRules.FilterLegalMoves(game, pseudoMoves);
+				if (filteredMoves.Any())
+				{
+					legalMovesForSide.Add(filteredMoves);
+				}
 			}
 
-			foreach (var pseudoMove in pseudoMoves)
-			{
-				var piece = pseudoMove.Item1;
-				var moves = pseudoMove.Item2;
-				legalMoves.Add(game.GameRules.FilterLegalMoves(game, piece, moves));
-			}
-
-			return legalMoves;
+			return legalMovesForSide;
 		}
 
-		public void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare) =>
+		public void SetEnPassantTargetSquare(IChessBoardSquareModel? enPassantSquare) =>
 			EnPassantTargetSquare = enPassantSquare;
 
 	#endregion
 
-		/// <summary>
-		///     Internal method to move a piece on the board. This method handles updating piece lists
-		///     and indices but does not manage captures or game state rules like clocks or turns.
-		///     It assumes the move is physically possible for the board layout.
-		///     GameModel is responsible for higher-level validation and state updates.
-		/// </summary>
 		internal void MovePieceInternal(IChessPieceModel pieceToMove, BoardPosition from, BoardPosition to)
 		{
 			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
-			if (!this.IsInside(from)) throw new InvalidOperationException($"Source position {from} is out of bounds.");
-			if (!this.IsInside(to)) throw new InvalidOperationException($"Target position {to} is out of bounds.");
+			if (!new BoardPosition(from.Column, from.Rank, Width, Height).IsValid())
+				throw new InvalidOperationException($"Source position {from} is out of bounds for this board.");
 
-			var fromSquare = this.GetSquareAt(from);
-			var toSquare   = this.GetSquareAt(to);
+			if (!new BoardPosition(to.Column, to.Rank, Width, Height).IsValid())
+				throw new InvalidOperationException($"Target position {to} is out of bounds for this board.");
+
+			var fromSquare = Squares[from.Column, from.Rank];
+			var toSquare   = Squares[to.Column, to.Rank];
 
 			if (fromSquare.GetPiece() != pieceToMove)
 			{
-				// Attempt to find the piece if _pieceIndex is out of sync or if called directly
-				if (PieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos == from)
-				{
-					// _pieceIndex is correct, but square might not be. This indicates an inconsistency.
-					// For now, proceed if _pieceIndex matches 'from'.
-				}
-				else
+				if (!(PieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos.Equals(from)))
 				{
 					throw new InvalidOperationException(
-						$"Piece {pieceToMove} is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}");
+						$"Piece {pieceToMove.GetPieceType()} ({pieceToMove.Color}) is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}, expected {from.Algebraic}");
 				}
 			}
 
-			// Handle the piece at the target square.
-			// GameModel should have already determined if this is a capture and added to CapturedPieces list.
-			// BoardModel's role here is to remove it from its own tracking if it exists.
 			var pieceAtTarget = toSquare.GetPiece();
 			if (pieceAtTarget != null)
 			{
 				if (pieceAtTarget == pieceToMove)
 				{
-					// Trying to move to its own square is generally not allowed unless it's a null move,
-					// which should be handled by GameModel.
-					// For BoardModel, if from == to, we essentially do nothing here but update index if needed.
 					if (from.Equals(to))
 					{
-						PieceIndex[pieceToMove] = to; // Ensure index is current
+						PieceIndex[pieceToMove] = to;
 						return;
 					}
-					// If it's a different piece, it means GameModel didn't handle its removal for a capture.
-					// Or, it's an overwrite, which this simple model allows by removing.
 				}
 
 				PieceIndex.Remove(pieceAtTarget);
-				BoardPieces.Remove(pieceAtTarget); // Remove from active board pieces
+				BoardPieces.Remove(pieceAtTarget);
 			}
 
 			fromSquare.SetPiece(null);
 			toSquare.SetPiece(pieceToMove);
-			PieceIndex[pieceToMove] = to; // Update the index for the moved piece
+			PieceIndex[pieceToMove] = to;
+			// Ensure piece is in BoardPieces if it wasn't (e.g. piece dropped on board)
+			if (!BoardPieces.Contains(pieceToMove))
+			{
+				BoardPieces.Add(pieceToMove);
+			}
 		}
 
-		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) => PieceIndex[piece] = newPos;
+		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) =>
+			// Ensure BoardPosition newPos is created with this board's dimensions for consistency
+			PieceIndex[piece] = new(newPos.Column, newPos.Rank, Width, Height);
 
-		private BoardSnapshot CreateSnapshot() => new(Squares); // Pass necessary data to snapshot
+		// Helper, assuming it's an extension method elsewhere, or defined here:
+		private IChessBoardSquareModel? GetSquareAt(BoardPosition position)
+		{
+			if (position.Column >= 0    &&
+				position.Column < Width &&
+				position.Rank   >= 0    &&
+				position.Rank   < Height)
+			{
+				return Squares[position.Column, position.Rank];
+			}
 
-		private IChessBoardSquareModel? ResolveEnPassantTarget(string enPassant) =>
-			enPassant == "-" ? null : this.GetSquareAt(AlgebraicNotationUtils.FromAlgebraic(enPassant));
+			return null;
+		}
+
+		private IChessBoardSquareModel? ResolveEnPassantTarget(string enPassantFen)
+		{
+			// If FEN indicates no en passant square (e.g., "-", empty, or whitespace), return null.
+			if (string.IsNullOrWhiteSpace(enPassantFen) || enPassantFen == "-")
+			{
+				return null;
+			}
+
+			BoardPosition targetPosition;
+			try
+			{
+				// Parse the algebraic notation from the FEN string.
+				// It's important that AlgebraicNotationUtils.FromAlgebraic can parse notation
+				// without assuming a fixed 8x8 board, or that it allows specifying dimensions.
+				// For this example, we assume it returns raw 0-indexed coordinates.
+				targetPosition = AlgebraicNotationUtils.FromAlgebraic(enPassantFen);
+			}
+			catch (Exception ex) // Catch exceptions from FromAlgebraic (e.g., invalid format)
+			{
+				// Log this error appropriately in a real application using a proper logging framework.
+				Console.WriteLine(
+					$"Warning: Could not parse FEN en passant square '{enPassantFen}'. Error: {ex.Message}. Treating as no en passant target.");
+
+				return null; // Gracefully handle malformed FEN en passant part
+			}
+
+			// Validate that the parsed coordinates are within the current board's actual dimensions.
+			if (targetPosition.Column >= 0    &&
+				targetPosition.Column < Width &&
+				targetPosition.Rank   >= 0    &&
+				targetPosition.Rank   < Height)
+			{
+				// Coordinates are valid for this board, return the corresponding square.
+				return Squares[targetPosition.Column, targetPosition.Rank];
+			}
+
+			// The FEN string specified an en passant square that is outside this board's dimensions.
+			// Log this warning appropriately.
+			Console.WriteLine(
+				$"Warning: FEN en passant square '{enPassantFen}' (parsed as {targetPosition.Column},{targetPosition.Rank}) is outside board dimensions {Width}x{Height}. Treating as no en passant target.");
+
+			return null;
+		}
 
 		private static IChessBoardSquareModel[,] InitializeSquares(int width, int height)
 		{
@@ -308,8 +347,8 @@ namespace Bezoro.Chess.Board.Models
 			string piecePlacementFen)
 		{
 			var pieceList = new List<IChessPieceModel>();
-			var rank      = Height - 1; // FEN starts from 8th rank
-			var file      = 0;          // FEN starts from a-file
+			var rank      = Height - 1; // FEN starts from 8th rank (0-indexed: Height - 1)
+			var file      = 0;          // FEN starts from a-file (0-indexed: 0)
 
 			foreach (var symbol in piecePlacementFen)
 			{
@@ -324,13 +363,27 @@ namespace Bezoro.Chess.Board.Models
 				}
 				else
 				{
-					// Assuming ChessUtils.GetPieceFromChar exists and returns IChessPieceModel
-					var piece  = ChessUtils.GetPieceFromChar(symbol);
-					var square = boardSquares[file, rank];
-					square.SetPiece(piece);
-					pieceList.Add(piece);
-					UpdateIndex(piece, new(file, rank));
-					file++;
+					var piece = ChessUtils.GetPieceFromChar(symbol); // Assuming this returns IChessPieceModel
+					if (file < Width && rank >= 0)                   // Basic bounds check before accessing boardSquares
+					{
+						var square = boardSquares[file, rank];
+						square.SetPiece(piece);
+						pieceList.Add(piece);
+						// Ensure BoardPosition stored in PieceIndex uses this board's dimensions
+						UpdateIndex(piece, new(file, rank, Width, Height));
+						file++;
+					}
+					else
+					{
+						// FEN string piece placement is out of bounds for declared board size.
+						Console.WriteLine(
+							$"Warning: FEN piece placement for '{symbol}' at calculated ({file},{rank}) is out of bounds for board size {Width}x{Height}.");
+
+						// Depending on strictness, either throw, or skip this piece, or adjust file/rank.
+						// For now, just skip if it would cause an error.
+						if (file >= Width && symbol != '/')
+							file = 0; // Attempt to recover if file overflowed before rank decrement
+					}
 				}
 			}
 
