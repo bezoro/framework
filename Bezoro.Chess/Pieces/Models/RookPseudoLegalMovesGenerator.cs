@@ -4,6 +4,7 @@ using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
+using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 
@@ -45,6 +46,7 @@ namespace Bezoro.Chess.Pieces.Models
 
 		/// <summary>
 		///     Generates all possible moves for a rook from the given position.
+		///     Uses direction vectors to iterate through all orthogonal directions efficiently.
 		/// </summary>
 		/// <param name="board">The chess board.</param>
 		/// <param name="rook">The rook piece.</param>
@@ -55,14 +57,45 @@ namespace Bezoro.Chess.Pieces.Models
 			RookModel rook,
 			BoardPosition from)
 		{
-			foreach (var square in board.GetOrthogonalSquares(from))
+			// Use DirectionVectors.ORTHOGONAL for rook movement
+			foreach (var (dx, dy) in DirectionVectors.ORTHOGONAL)
 			{
-				var to          = new BoardPosition(square.Position.Column, square.Position.Row);
-				var targetPiece = square.GetPiece();
+				foreach (var move in GenerateMovesInDirection(board, rook, from, dx, dy))
+				{
+					yield return move;
+				}
+			}
+		}
+
+		/// <summary>
+		///     Generates moves in a specific direction using direction vectors.
+		///     Continues in the direction until blocked by a piece or edge of board.
+		/// </summary>
+		/// <param name="board">The chess board.</param>
+		/// <param name="rook">The rook piece.</param>
+		/// <param name="from">The starting position.</param>
+		/// <param name="dx">Horizontal direction offset.</param>
+		/// <param name="dy">Vertical direction offset.</param>
+		/// <returns>A collection of valid moves in the specified direction.</returns>
+		private static IEnumerable<Move> GenerateMovesInDirection(
+			IChessBoardModel board,
+			RookModel rook,
+			BoardPosition from,
+			int dx,
+			int dy)
+		{
+			var currentFile = from.Column + dx;
+			var currentRank = from.Row    + dy;
+
+			while (board.IsInside(currentFile, currentRank))
+			{
+				var to           = new BoardPosition(currentFile, currentRank);
+				var targetSquare = board.Squares[currentFile, currentRank];
+				var targetPiece  = targetSquare.GetPiece();
 
 				// If square is occupied by friendly piece, we can't move there
 				if (targetPiece != null && targetPiece.Color == rook.Color)
-					continue;
+					break;
 
 				// Create appropriate move type (capture or normal)
 				var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
@@ -71,6 +104,10 @@ namespace Bezoro.Chess.Pieces.Models
 				// If this square contains any piece (friend or enemy), we can't move past it
 				if (targetPiece != null)
 					break;
+
+				// Move to next square in this direction
+				currentFile += dx;
+				currentRank += dy;
 			}
 		}
 
