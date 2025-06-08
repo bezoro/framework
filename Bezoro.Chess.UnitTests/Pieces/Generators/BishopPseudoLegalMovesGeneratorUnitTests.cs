@@ -2,11 +2,11 @@ using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Pieces.Models;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-[TestOf(typeof(BishopPseudoValidMovesGenerator))]
-public class BishopPseudoValidMovesGeneratorUnitTests
+[TestOf(typeof(BishopPseudoLegalMovesGenerator))]
+public class BishopPseudoLegalMovesGeneratorUnitTests
 {
 #region Test Methods
 
@@ -17,7 +17,7 @@ public class BishopPseudoValidMovesGeneratorUnitTests
 		var game   = new GameModel();
 		var bishop = game.Board.GetPieceAt("c1");
 		Assert.That(bishop, Is.Not.Null);
-		var generator = new BishopPseudoValidMovesGenerator();
+		var generator = new BishopPseudoLegalMovesGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, bishop).ToList();

@@ -11,10 +11,10 @@ namespace Bezoro.Chess.Pieces.Models
 {
 	public class QueenModel : PieceModel
 	{
-		public QueenModel(PlayerColor color) : base(color, new QueenPseudoValidMovesGenerator()) { }
+		public QueenModel(PlayerColor color) : base(color, new QueenPseudoLegalMovesGenerator()) { }
 	}
 
-	public class QueenPseudoValidMovesGenerator : IPseudoMoveGenerator
+	public class QueenPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 

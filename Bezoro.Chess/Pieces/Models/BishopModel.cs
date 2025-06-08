@@ -11,10 +11,10 @@ namespace Bezoro.Chess.Pieces.Models
 {
 	public class BishopModel : PieceModel
 	{
-		public BishopModel(PlayerColor color) : base(color, new BishopPseudoValidMovesGenerator()) { }
+		public BishopModel(PlayerColor color) : base(color, new BishopPseudoLegalMovesGenerator()) { }
 	}
 
-	public class BishopPseudoValidMovesGenerator : IPseudoMoveGenerator
+	public class BishopPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 

@@ -8,13 +8,14 @@ using Bezoro.Chess.Pieces.Models;
 using Moq;
 using NUnit.Framework.Legacy;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-public class QueenPseudoValidMovesGeneratorTests
+[TestOf(typeof(QueenPseudoLegalMovesGenerator))]
+public class QueenPseudoLegalMovesGeneratorUnitTests
 {
 	private GameModel                      _gameModel;
-	private QueenPseudoValidMovesGenerator _generator;
+	private QueenPseudoLegalMovesGenerator _generator;
 	private Mock<IChessBoardModel>         _mockBoardModel;
 	private QueenModel                     _queenPiece;
 

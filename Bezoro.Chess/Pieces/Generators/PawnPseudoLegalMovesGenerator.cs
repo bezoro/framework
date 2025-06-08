@@ -8,7 +8,7 @@ using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 using Bezoro.Chess.Pieces.Models;
 
-namespace Bezoro.Chess.Moves.Services
+namespace Bezoro.Chess.Pieces.Generators
 {
 	/// <summary>
 	///     Emits pawn moves considering board occupancy and en-passant rules.
@@ -16,7 +16,7 @@ namespace Bezoro.Chess.Moves.Services
 	///     <c>dy</c> with <c>pawn.Direction</c> (+1 / −1).
 	///     Higher layers handle check-legality.
 	/// </summary>
-	public sealed class PawnPseudoValidMovesGenerator : IPseudoMoveGenerator
+	public sealed class PawnPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 

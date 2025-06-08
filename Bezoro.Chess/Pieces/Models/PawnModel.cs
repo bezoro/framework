@@ -1,14 +1,14 @@
 using System;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Moves.Services;
+using Bezoro.Chess.Pieces.Generators;
 
 namespace Bezoro.Chess.Pieces.Models
 {
 	public class PawnModel : PieceModel
 	{
 		public PawnModel(PlayerColor color)
-			: base(color, new PawnPseudoValidMovesGenerator())
+			: base(color, new PawnPseudoLegalMovesGenerator())
 		{
 			Direction = color == PlayerColor.White ? 1 : -1;
 		}

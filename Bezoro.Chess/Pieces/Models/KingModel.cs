@@ -1,5 +1,5 @@
 using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Moves.Services;
+using Bezoro.Chess.Pieces.Generators;
 
 namespace Bezoro.Chess.Pieces.Models
 {

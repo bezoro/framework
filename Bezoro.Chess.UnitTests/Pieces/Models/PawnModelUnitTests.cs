@@ -4,10 +4,11 @@ using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Pieces.Models;
 using Moq;
 
-namespace Bezoro.Chess.UnitTests.Pieces;
+namespace Bezoro.Chess.UnitTests.Pieces.Models;
 
 [TestFixture]
-public class PawnModelTests
+[TestOf(typeof(PawnModel))]
+public class PawnModelUnitTests
 {
 #region Test Methods
 

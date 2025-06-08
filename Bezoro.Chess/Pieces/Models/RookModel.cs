@@ -15,7 +15,7 @@ namespace Bezoro.Chess.Pieces.Models
 	public sealed class RookModel : PieceModel
 	{
 		public RookModel(PlayerColor color)
-			: base(color, new RookPseudoValidMovesGenerator()) { }
+			: base(color, new RookPseudoLegalMovesGenerator()) { }
 	}
 
 	/// <summary>
@@ -23,7 +23,7 @@ namespace Bezoro.Chess.Pieces.Models
 	///     accounting for board occupancy to handle blocking pieces and captures.
 	///     Self-check validation is handled by higher-level validators.
 	/// </summary>
-	public sealed class RookPseudoValidMovesGenerator : IPseudoMoveGenerator
+	public sealed class RookPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 

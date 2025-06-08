@@ -11,6 +11,10 @@
       <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Folder Include="Moves\Services\"/>
+    </ItemGroup>
+
     <Target Name="CopyToUnity" AfterTargets="Build">
         <!-- copy built DLL into your Unity project -->
         <PropertyGroup>
