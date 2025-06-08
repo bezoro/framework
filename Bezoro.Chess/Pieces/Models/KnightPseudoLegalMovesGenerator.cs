@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
@@ -15,7 +14,7 @@ namespace Bezoro.Chess.Pieces.Models
 	///     Generates pseudo-legal moves for a knight chess piece.
 	///     Pseudo-legal moves are all possible knight moves without considering if they put the king in check.
 	/// </summary>
-	public class KnightPseudoLegalMovesGenerator : IPseudoMoveGenerator
+	public sealed class KnightPseudoLegalMovesGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 
@@ -26,100 +25,80 @@ namespace Bezoro.Chess.Pieces.Models
 		/// <param name="piece">The knight piece to generate moves for.</param>
 		/// <returns>A collection of possible moves for the knight.</returns>
 		/// <exception cref="ArgumentNullException">Thrown when game or piece is null.</exception>
+		/// <exception cref="ArgumentException">Thrown when piece is not a knight.</exception>
 		public IEnumerable<Move> Generate(GameModel game, IChessPieceModel piece)
 		{
-			ValidateParameters(game, piece);
+			if (game is null) throw new ArgumentNullException(nameof(game));
+			if (piece is null) throw new ArgumentNullException(nameof(piece));
 
-			var board    = game.Board;
-			var position = GetPiecePosition(board, piece);
+			var board  = game.Board;
+			var knight = EnsureKnightPiece(board, piece);
 
-			if (position == null)
-				return Enumerable.Empty<Move>();
+			var from = board.GetPosition(knight);
+			if (from is null) yield break;
 
-			var moves = new List<Move>();
-
-			GenerateKnightMoves(board, piece, position.Value, moves);
-
-			return moves;
+			foreach (var move in GenerateMoves(board, knight, from.Value))
+			{
+				yield return move;
+			}
 		}
 
 	#endregion
 
-		private static (int file, int rank) CalculateTargetPosition(BoardPosition position, int dx, int dy) =>
-			(position.Column + dx, position.Rank + dy);
-
-		private static BoardPosition? GetPiecePosition(IChessBoardModel board, IChessPieceModel piece) =>
-			board.GetPosition(piece);
-
-		private static bool IsOccupiedByFriendlyPiece(IChessPieceModel targetPiece, PlayerColor pieceColor) =>
-			targetPiece != null && targetPiece.Color == pieceColor;
-
-		private static bool IsValidTargetPosition(IChessBoardModel board, IChessPieceModel piece, int file, int rank) =>
-			board.IsInside(file, rank);
-
 		/// <summary>
-		///     Creates a new Move instance for a knight move.
-		/// </summary>
-		/// <param name="origin">The starting position.</param>
-		/// <param name="targetSquare">The target square.</param>
-		/// <param name="pieceColor">The color of the moving piece.</param>
-		/// <param name="targetPiece">The piece at the target square, if any.</param>
-		/// <returns>A new Move instance representing the knight's move.</returns>
-		private static Move CreateKnightMove(
-			BoardPosition origin,
-			IChessBoardSquareModel targetSquare,
-			PlayerColor pieceColor,
-			IChessPieceModel targetPiece)
-		{
-			var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
-			return new(
-				origin,
-				targetSquare.Position,
-				pieceColor,
-				ChessPieceType.Knight,
-				moveKind);
-		}
-
-		/// <summary>
-		///     Generates all possible knight moves from the given position.
+		///     Generates all possible moves for a knight from the given position.
+		///     Knights move in an L-shape pattern to any of 8 possible positions.
 		/// </summary>
 		/// <param name="board">The chess board.</param>
-		/// <param name="piece">The knight piece.</param>
-		/// <param name="position">The current position of the knight.</param>
-		/// <param name="moves">The list to add generated moves to.</param>
-		private static void GenerateKnightMoves(
+		/// <param name="knight">The knight piece.</param>
+		/// <param name="from">The current position of the knight.</param>
+		/// <returns>A collection of valid moves for the knight.</returns>
+		private static IEnumerable<Move> GenerateMoves(
 			IChessBoardModel board,
-			IChessPieceModel piece,
-			BoardPosition position,
-			List<Move> moves)
+			KnightModel knight,
+			BoardPosition from)
 		{
+			// Use DirectionVectors.KNIGHT for knight movement
 			foreach (var (dx, dy) in DirectionVectors.KNIGHT)
 			{
-				var targetPosition = CalculateTargetPosition(position, dx, dy);
+				// Calculate target position
+				var targetFile = from.Column + dx;
+				var targetRank = from.Row    + dy;
 
-				if (!IsValidTargetPosition(board, piece, targetPosition.file, targetPosition.rank))
+				// Skip if position is outside the board
+				if (!board.IsInside(targetFile, targetRank))
 					continue;
 
-				var targetSquare = board.Squares[targetPosition.file, targetPosition.rank];
+				// Get target square and piece
+				var to           = new BoardPosition(targetFile, targetRank);
+				var targetSquare = board.Squares[targetFile, targetRank];
 				var targetPiece  = targetSquare.GetPiece();
 
-				if (IsOccupiedByFriendlyPiece(targetPiece, piece.Color))
+				// Skip if target square contains a friendly piece
+				if (targetPiece != null && targetPiece.Color == knight.Color)
 					continue;
 
-				moves.Add(CreateKnightMove(position, targetSquare, piece.Color, targetPiece));
+				// Create appropriate move type (capture or normal)
+				var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
+				yield return new(from, to, knight.Color, knight.GetPieceType(), moveKind);
 			}
 		}
 
 		/// <summary>
-		///     Validates that the required parameters are not null.
+		///     Validates that the piece is a knight and the parameters are not null.
 		/// </summary>
-		/// <param name="game">The game model to validate.</param>
+		/// <param name="board">The chess board to validate.</param>
 		/// <param name="piece">The chess piece to validate.</param>
-		/// <exception cref="ArgumentNullException">Thrown when game or piece is null.</exception>
-		private static void ValidateParameters(GameModel game, IChessPieceModel piece)
+		/// <returns>The validated knight piece.</returns>
+		/// <exception cref="ArgumentNullException">Thrown when board or piece is null.</exception>
+		/// <exception cref="ArgumentException">Thrown when piece is not a knight.</exception>
+		private static KnightModel EnsureKnightPiece(IChessBoardModel board, IChessPieceModel piece)
 		{
-			if (game  == null) throw new ArgumentNullException(nameof(game));
-			if (piece == null) throw new ArgumentNullException(nameof(piece));
+			if (board is null) throw new ArgumentNullException(nameof(board));
+			if (piece is not KnightModel knight)
+				throw new ArgumentException("Generator received a non-knight piece.", nameof(piece));
+
+			return knight;
 		}
 	}
 }
