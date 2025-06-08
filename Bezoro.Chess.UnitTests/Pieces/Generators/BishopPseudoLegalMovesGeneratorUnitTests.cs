@@ -1,4 +1,6 @@
+using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
+using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Pieces.Models;
 
@@ -11,11 +13,11 @@ public class BishopPseudoLegalMovesGeneratorUnitTests
 #region Test Methods
 
 	[Test]
-	public void Generate_ValidBishop_ReturnsCorrectMoves()
+	public void Generate_BishopAtCenterOfEmptyBoard_ReturnsCorrectMoves()
 	{
 		// Arrange
-		var game   = new GameModel();
-		var bishop = game.Board.GetPieceAt("c1");
+		var game   = new GameModel(FenUtils.EmptyBoard);
+		var bishop = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Bishop);
 		Assert.That(bishop, Is.Not.Null);
 		var generator = new BishopPseudoLegalMovesGenerator();
 
@@ -24,7 +26,14 @@ public class BishopPseudoLegalMovesGeneratorUnitTests
 
 		// Assert
 		Assert.That(pseudoMoves, Is.Not.Empty);
-		var expectedMoves = new[] { "b2", "a3", "d2", "e3", "f4", "g5", "h6" };
+		var expectedMoves = new[]
+		{
+			"a1", "b2", "c3",      // Down-Left diagonal
+			"g1", "f2", "e3",      // Down-Right diagonal
+			"a7", "b6", "c5",      // Up-Left diagonal
+			"h8", "g7", "f6", "e5" // Up-Right diagonal
+		};
+
 		Assert.That(
 			pseudoMoves.Select(m => m.To.ToString()),
 			Is.EquivalentTo(expectedMoves),
