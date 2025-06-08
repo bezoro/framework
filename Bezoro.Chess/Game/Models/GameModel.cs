@@ -40,18 +40,18 @@ namespace Bezoro.Chess.Game.Models
 
 		public IGameRules             GameRules      { get; }
 		public List<IChessPieceModel> CapturedPieces { get; }
-		public CastlingRights         CastlingRights { get; internal set; }
+		public CastlingRights         CastlingRights { get; private set; }
 		public IChessBoardModel       Board          { get; private set; }
-		public int                    FullMoveNumber { get; internal set; }
-		public int                    HalfMoveClock  { get; internal set; }
-		public PlayerColor            ActiveColor    { get; internal set; }
+		public int                    FullMoveNumber { get; private set; }
+		public int                    HalfMoveClock  { get; private set; }
+		public PlayerColor            ActiveColor    { get; private set; }
 
 	#region Interface Implementations
 
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
 		/// </summary>
-		public (IChessPieceModel piece, IEnumerable<Move>) StartMove(string fromAlgebraic)
+		public (IChessPieceModel piece, IEnumerable<Move> moves) StartMove(string fromAlgebraic)
 		{
 			var from  = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
 			var piece = Board.GetPieceAt(from);
@@ -60,7 +60,7 @@ namespace Bezoro.Chess.Game.Models
 				throw new ArgumentException("No piece at the given position.", nameof(fromAlgebraic));
 
 			var pseudoLegalMoves = piece.GetPseudoLegalMoves(this);
-			var legalMoves       = GameRules.FilterLegalMoves(this, piece, pseudoLegalMoves);
+			var legalMoves       = GameRules.FilterLegalMoves(this, pseudoLegalMoves);
 			return (piece, legalMoves);
 		}
 
@@ -70,8 +70,17 @@ namespace Bezoro.Chess.Game.Models
 		/// <returns>The FEN string.</returns>
 		public string ToFenString()
 		{
-			var piecePlacement  = Board.GetPiecePlacementFen();
-			var enPassantString = Board.EnPassantTargetSquare.Position.Algebraic;
+			var piecePlacement = Board.GetPiecePlacementFen();
+
+			string enPassantString;
+			if (Board.EnPassantTargetSquare != null)
+			{
+				enPassantString = Board.EnPassantTargetSquare.Position.Algebraic;
+			}
+			else
+			{
+				enPassantString = "-"; // Standard FEN for no en passant target
+			}
 
 			var currentFenData = new FenData(
 				piecePlacement,
@@ -172,8 +181,7 @@ namespace Bezoro.Chess.Game.Models
 			}
 
 			// If a rook is captured on its starting square
-			if (capturedPiece                   != null
-				&& capturedPiece.GetPieceType() == ChessPieceType.Rook)
+			if (capturedPiece != null && capturedPiece.GetPieceType() == ChessPieceType.Rook)
 			{
 				if (to.File == 0 && to.Rank == 0) // A1 was captured (White's QR)
 					CastlingRights &= ~CastlingRights.WhiteQueenSide;
@@ -200,7 +208,7 @@ namespace Bezoro.Chess.Game.Models
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
 		/// </summary>
-		(IChessPieceModel piece, IEnumerable<Move>) StartMove(string fromAlgebraic);
+		(IChessPieceModel piece, IEnumerable<Move> moves) StartMove(string fromAlgebraic);
 
 		/// <summary>
 		///     Generates the Forsyth-Edwards Notation (FEN) string for the current game state.
