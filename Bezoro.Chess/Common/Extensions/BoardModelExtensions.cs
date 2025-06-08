@@ -65,11 +65,12 @@ namespace Bezoro.Chess.Common.Extensions
 			PlayerColor color,
 			ChessPieceType pieceType)
 		{
-			var square = board.GetSquareAt(col, row);
+			var square      = board.GetSquareAt(col, row);
+			var baseFenChar = pieceType.ToFenChar();
 			var piece = ChessUtils.GetPieceFromChar(
 				color == PlayerColor.White
-					? char.ToUpper(pieceType.ToString()[0])
-					: char.ToLower(pieceType.ToString()[0]));
+					? char.ToUpper(baseFenChar)
+					: baseFenChar);
 
 			square.SetPiece(piece);
 			board.BoardPieces.Add(piece);
@@ -113,7 +114,9 @@ namespace Bezoro.Chess.Common.Extensions
 				{
 					var piece = board.GetPieceAt(new BoardPosition(file, rank));
 					if (piece == null)
+					{
 						emptySquares++;
+					}
 					else
 					{
 						if (emptySquares > 0)
