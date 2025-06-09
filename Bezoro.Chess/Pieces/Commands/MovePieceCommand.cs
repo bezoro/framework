@@ -27,9 +27,9 @@ namespace Bezoro.Chess.Pieces.Commands
 
 		public void Execute(GameModel game)
 		{
-			var               board          = game.Board;
-			var               pieceToMove    = board.GetPieceAt(Move.From);
-			IChessPieceModel? pieceToCapture = null;
+			var               board       = game.Board;
+			var               pieceToMove = board.GetPieceAt(Move.From);
+			IChessPieceModel? pieceToCapture;
 
 			if (pieceToMove is null)
 				throw new InvalidOperationException("Trying to move a Piece that is null.");
