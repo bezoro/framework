@@ -92,6 +92,8 @@ namespace Bezoro.Chess.Board.Models
 
 		public void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game)
 		{
+			var capturedSquare = GetSquareAt(pos);
+			capturedSquare.SetPiece(null);
 			PieceIndex.Remove(pieceToCapture);
 			BoardPieces.Remove(pieceToCapture);
 			game.CapturedPieces.Add(pieceToCapture);
