@@ -39,6 +39,9 @@ namespace Bezoro.Chess.Pieces.Models
 		public virtual void ResetMoved() =>
 			HasMoved = false;
 
+		public void ToggleMoved() =>
+			HasMoved = !HasMoved;
+
 		public ChessPieceType GetPieceType() =>
 			PieceModelExtensions.GetPieceType(this);
 

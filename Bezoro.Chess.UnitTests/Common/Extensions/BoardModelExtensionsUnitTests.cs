@@ -181,6 +181,9 @@ public class BoardModelExtensionsUnitTests
 		public void MarkMoved() => HasMoved = true;
 		public void ResetMoved() => HasMoved = false;
 
+		public void ToggleMoved() =>
+			throw new NotImplementedException();
+
 	#endregion
 	}
 
