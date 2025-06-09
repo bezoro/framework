@@ -29,26 +29,20 @@ namespace Bezoro.Chess.Moves.Models
 			PromoteTo         = promoteTo;
 			LeavesKingInCheck = leavesKingInCheck;
 
-			if (Kind == MoveKind.Promotion && promoteTo is null)
+			if (Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture && promoteTo is null)
 			{
 				throw new ArgumentNullException(
-					nameof(promoteTo),
-					"A promotion move must specify the piece to promote to.");
+					nameof(promoteTo), "A promotion move must specify the piece to promote to.");
 			}
 
-			if (Kind != MoveKind.Promotion && promoteTo is not null)
+			if (Kind is not (MoveKind.PromotionQuiet or MoveKind.PromotionCapture) && promoteTo is not null)
 			{
-				throw new ArgumentException(
-					"PromoteTo may only be supplied for promotion moves.",
-					nameof(promoteTo));
+				throw new ArgumentException("PromoteTo may only be supplied for promotion moves.", nameof(promoteTo));
 			}
 
-			if ((Kind == MoveKind.CastleKingside || Kind == MoveKind.CastleQueenside) &&
-				pieceType != ChessPieceType.King)
+			if (Kind == MoveKind.Castle && pieceType != ChessPieceType.King)
 			{
-				throw new ArgumentException(
-					"Castling moves must have a PieceType of King.",
-					nameof(pieceType));
+				throw new ArgumentException("Castling moves must have a PieceType of King.", nameof(pieceType));
 			}
 
 			switch (Kind)
@@ -80,12 +74,19 @@ namespace Bezoro.Chess.Moves.Models
 			PlayerColor movingSide) =>
 			new(kingFrom, kingTo, movingSide, ChessPieceType.King, MoveKind.CastleQueenside);
 
-		public static Move Promotion(
+		public static Move PromotionCapture(
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
 			PromotionPieceType promoteTo) =>
-			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.Promotion, promoteTo);
+			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionCapture, promoteTo);
+
+		public static Move PromotionQuiet(
+			BoardPosition from,
+			BoardPosition to,
+			PlayerColor movingSide,
+			PromotionPieceType promoteTo) =>
+			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionQuiet, promoteTo);
 
 		/// <summary>
 		///     Square the piece moves from.
@@ -110,7 +111,7 @@ namespace Bezoro.Chess.Moves.Models
 		/// <summary>
 		///     Convenience helper.
 		/// </summary>
-		public bool IsPromotion => Kind == MoveKind.Promotion;
+		public bool IsPromotion => Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture;
 
 		public bool LeavesKingInCheck { get; }
 
