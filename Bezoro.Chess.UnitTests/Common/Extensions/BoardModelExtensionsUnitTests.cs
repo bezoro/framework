@@ -117,6 +117,9 @@ public class BoardModelExtensionsUnitTests
 		public void SetPieceAt(IChessPieceModel piece, IChessBoardSquareModel square) =>
 			square.SetPiece(piece);
 
+		public void PerformCastle(IChessPieceModel rook, CastleSide side) =>
+			throw new NotImplementedException();
+
 		public void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game) =>
 			throw new NotImplementedException();
 
