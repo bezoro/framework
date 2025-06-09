@@ -114,6 +114,8 @@ namespace Bezoro.Chess.Moves.Models
 
 		public bool LeavesKingInCheck { get; }
 
+		public CastleSide CastleSide { get; }
+
 		public ChessPieceType PieceType { get; }
 
 		/// <summary>
