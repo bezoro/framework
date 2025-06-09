@@ -52,8 +52,15 @@ namespace Bezoro.Chess.Pieces.Commands
 					pieceToMove.MarkMoved();
 					break;
 				case MoveKind.PromotionCapture:
+					PreviousPromotionData = new(Move.To, Move.PromoteTo);
+					PerformPieceCapture(game, board, pieceToMove);
 					break;
 				case MoveKind.Castle:
+					if (Move.PieceType != ChessPieceType.King)
+						throw new InvalidOperationException("Trying to castle a non-king piece.");
+
+					PreviousCastlingData = new(pieceToMove, Move.CastleSide);
+					board.PerformCastle(pieceToMove, Move.CastleSide);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();
