@@ -111,24 +111,11 @@ public class BoardModelExtensionsUnitTests
 		public IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece) =>
 			throw new NotImplementedException();
 
-		public void RefreshPseudoLegalMoveCache(GameModel game) =>
-			throw new NotImplementedException();
-
-		public void MovePieceTo(IChessPieceModel piece, string from, string to) =>
-			throw new NotImplementedException();
-
 		public void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to) =>
 			throw new NotImplementedException();
 
 		public void SetPieceAt(IChessPieceModel piece, IChessBoardSquareModel square) =>
 			square.SetPiece(piece);
-
-		public void MovePieceTo(
-			ChessPieceType pieceType,
-			PlayerColor color,
-			IChessBoardSquareModel fromSquare,
-			IChessBoardSquareModel toSquare) =>
-			throw new NotImplementedException();
 
 		public void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game) =>
 			throw new NotImplementedException();
