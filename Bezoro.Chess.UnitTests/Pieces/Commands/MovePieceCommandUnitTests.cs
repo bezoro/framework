@@ -14,6 +14,26 @@ public class MovePieceCommandUnitTests
 #region Test Methods
 
 	[Test]
+	public void Execute_WhenMoveIsEnPassant_RemovesTargetPieceAndMovesPawn()
+	{
+		var game  = new GameModel(FenUtils.EmptyBoard);
+		var board = game.Board;
+		board.SetEnPassantTargetSquare(board.GetSquareAt("f6"));
+		var whitePawn   = board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
+		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
+		var move        = new Move(new("e5"), new("f6"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.EnPassant);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt("f6"),        Is.EqualTo(whitePawn));
+				Assert.That(board.GetSquareAt("e4").Piece, Is.Null);
+			});
+	}
+
+	[Test]
 	public void Execute_WhenPawnCaptures_RemovesTargetPieceAndMovesPawn()
 	{
 		var game        = new GameModel(FenUtils.EmptyBoard);
