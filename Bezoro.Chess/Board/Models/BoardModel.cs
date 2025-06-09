@@ -95,6 +95,7 @@ namespace Bezoro.Chess.Board.Models
 			PieceIndex.Remove(pieceToCapture);
 			BoardPieces.Remove(pieceToCapture);
 			game.CapturedPieces.Add(pieceToCapture);
+			EnPassantTargetSquare = null;
 		}
 
 		public void RestoreLastCapturedPiece(
@@ -103,15 +104,17 @@ namespace Bezoro.Chess.Board.Models
 			GameModel game)
 		{
 			var capturedSquare = GetSquareAt(capturedPosition);
-			var index          = game.CapturedPieces.Count - 1;
-			var piece          = game.CapturedPieces[index];
+			if (capturedSquare == null)
+				throw new InvalidOperationException(
+					$"Trying to restore the last captured piece, but it's square at: {capturedPosition.Algebraic} is null.");
+
+			var index = game.CapturedPieces.Count - 1;
+			var piece = game.CapturedPieces[index];
 
 			game.CapturedPieces.Remove(piece);
 			PieceIndex[piece] = capturedPosition;
 			BoardPieces.Add(piece);
 			capturedSquare.SetPiece(piece);
-			if (EnPassantTargetSquare == capturedSquare)
-				EnPassantTargetSquare = null;
 		}
 
 		public IChessBoardModel Clear()

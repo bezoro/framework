@@ -27,7 +27,7 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game);
 		void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to);
 		void RestoreLastCapturedPiece(ChessPieceType capturedPieceType, BoardPosition capturedPosition, GameModel game);
-		void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare);
+		void SetEnPassantTargetSquare(IChessBoardSquareModel? enPassantSquare);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
 	}
 }
