@@ -18,7 +18,8 @@ namespace Bezoro.Chess.Moves.Models
 			PlayerColor movingSide,
 			ChessPieceType pieceType,
 			MoveKind kind = MoveKind.Normal,
-			PromotionPieceType? promoteTo = null,
+			CastleSide castleSide = CastleSide.None,
+			PromotionPieceType promoteTo = PromotionPieceType.None,
 			bool leavesKingInCheck = false)
 		{
 			From              = from;
@@ -29,13 +30,14 @@ namespace Bezoro.Chess.Moves.Models
 			PromoteTo         = promoteTo;
 			LeavesKingInCheck = leavesKingInCheck;
 
-			if (Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture && promoteTo is null)
+			if (Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture && promoteTo is PromotionPieceType.None)
 			{
 				throw new ArgumentNullException(
 					nameof(promoteTo), "A promotion move must specify the piece to promote to.");
 			}
 
-			if (Kind is not (MoveKind.PromotionQuiet or MoveKind.PromotionCapture) && promoteTo is not null)
+			if (Kind is not (MoveKind.PromotionQuiet or MoveKind.PromotionCapture) &&
+				promoteTo is not PromotionPieceType.None)
 			{
 				throw new ArgumentException("PromoteTo may only be supplied for promotion moves.", nameof(promoteTo));
 			}
@@ -45,18 +47,7 @@ namespace Bezoro.Chess.Moves.Models
 				throw new ArgumentException("Castling moves must have a PieceType of King.", nameof(pieceType));
 			}
 
-			switch (Kind)
-			{
-				case MoveKind.CastleKingside:
-					CastleSide = CastleSide.King;
-					break;
-				case MoveKind.CastleQueenside:
-					CastleSide = CastleSide.Queen;
-					break;
-				default:
-					CastleSide = CastleSide.None;
-					break;
-			}
+			CastleSide = castleSide;
 		}
 
 		public static bool operator ==(Move left, Move right) => left.Equals(right);
@@ -66,27 +57,27 @@ namespace Bezoro.Chess.Moves.Models
 			BoardPosition kingFrom,
 			BoardPosition kingTo,
 			PlayerColor movingSide) =>
-			new(kingFrom, kingTo, movingSide, ChessPieceType.King, MoveKind.CastleKingside);
+			new(kingFrom, kingTo, movingSide, ChessPieceType.King, MoveKind.Castle, CastleSide.King);
 
 		public static Move CastleQueenSide(
 			BoardPosition kingFrom,
 			BoardPosition kingTo,
 			PlayerColor movingSide) =>
-			new(kingFrom, kingTo, movingSide, ChessPieceType.King, MoveKind.CastleQueenside);
+			new(kingFrom, kingTo, movingSide, ChessPieceType.King, MoveKind.Castle, CastleSide.Queen);
 
 		public static Move PromotionCapture(
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
 			PromotionPieceType promoteTo) =>
-			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionCapture, promoteTo);
+			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionCapture, CastleSide.None, promoteTo);
 
 		public static Move PromotionQuiet(
 			BoardPosition from,
 			BoardPosition to,
 			PlayerColor movingSide,
 			PromotionPieceType promoteTo) =>
-			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionQuiet, promoteTo);
+			new(from, to, movingSide, ChessPieceType.Pawn, MoveKind.PromotionQuiet, CastleSide.None, promoteTo);
 
 		/// <summary>
 		///     Square the piece moves from.
@@ -128,7 +119,7 @@ namespace Bezoro.Chess.Moves.Models
 		///     Target piece type when <see cref="Kind" /> is <see cref="MoveKind.Promotion" />.
 		///     <c>null</c> otherwise.
 		/// </summary>
-		public PromotionPieceType? PromoteTo { get; }
+		public PromotionPieceType PromoteTo { get; }
 
 		/// <remarks>
 		///     This is intentionally left as the default value; callers may set it through an
@@ -161,7 +152,7 @@ namespace Bezoro.Chess.Moves.Models
 				MoveKind.CastleKingside  => "O-O",
 				MoveKind.CastleQueenside => "O-O-O",
 				_ => $"{(PieceType == ChessPieceType.Pawn ? "" : PieceType.ToChar(MovingSide).ToString())}{From}→{To}" +
-					 (IsPromotion ? $" (promote to {PromoteTo?.ToString()})" : string.Empty)                           +
+					 (IsPromotion ? $" (promote to {PromoteTo.ToString()})" : string.Empty)                            +
 					 (LeavesKingInCheck ? " (CHECK!)" : string.Empty)
 			};
 
