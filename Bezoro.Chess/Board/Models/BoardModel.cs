@@ -98,9 +98,9 @@ namespace Bezoro.Chess.Board.Models
 			}
 
 			PieceIndex.Clear();
-			BoardPieces.Clear();             // Also clear pieces list
-			EnPassantTargetSquare = null;    // Clear en passant target
-			_cachedPseudoLegalMoves.Clear(); // Clear cache
+			BoardPieces.Clear();
+			EnPassantTargetSquare = null;
+			_cachedPseudoLegalMoves.Clear();
 			return this;
 		}
 
