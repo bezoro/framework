@@ -30,8 +30,15 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
 
 		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
-		void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
-		void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to);
+		void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game);
+		void MovePieceTo(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic);
+		void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to);
+
+		void MovePieceTo(
+			ChessPieceType pieceType,
+			PlayerColor color,
+			IChessBoardSquareModel fromSquare,
+			IChessBoardSquareModel toSquare);
 
 		/// <summary>
 		///     Rebuilds the cache that maps every on-board piece to the full set of its
@@ -47,6 +54,8 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		///     Thrown if <paramref name="game" /> is <c>null</c>.
 		/// </exception>
 		void RefreshPseudoLegalMoveCache(GameModel game);
+
+		void RestoreLastCapturedPiece(ChessPieceType capturedPieceType, BoardPosition capturedPosition, GameModel game);
 
 		void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
