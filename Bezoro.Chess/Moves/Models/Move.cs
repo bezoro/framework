@@ -138,9 +138,12 @@ namespace Bezoro.Chess.Moves.Models
 	#region Interface Implementations
 
 		public bool Equals(Move other) =>
-			From.Equals(other.From)              && To.Equals(other.To)            &&
-			Kind              == other.Kind      && PromoteTo  == other.PromoteTo  &&
-			PieceType         == other.PieceType && MovingSide == other.MovingSide &&
+			From.Equals(other.From)               &&
+			To.Equals(other.To)                   &&
+			Kind              == other.Kind       &&
+			PromoteTo         == other.PromoteTo  &&
+			PieceType         == other.PieceType  &&
+			MovingSide        == other.MovingSide &&
 			LeavesKingInCheck == other.LeavesKingInCheck;
 
 	#endregion
