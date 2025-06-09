@@ -129,7 +129,7 @@ public class BoardModelExtensionsUnitTests
 		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side) =>
 			throw new NotImplementedException();
 
-		public void SetEnPassantTargetSquare(IChessBoardSquareModel enPassantSquare) =>
+		public void SetEnPassantTargetSquare(IChessBoardSquareModel? enPassantSquare) =>
 			throw new NotImplementedException();
 
 		public IChessBoardModel Clear() =>
