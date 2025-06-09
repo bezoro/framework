@@ -38,7 +38,7 @@ namespace Bezoro.Chess.Board.Models
 			EnPassantTargetSquare = ResolveEnPassantTarget(enPassant);
 		}
 
-		private Dictionary<IChessPieceModel, List<Move>> _cachedPseudoLegalMoves = new();
+		private readonly Dictionary<IChessPieceModel, List<Move>> _cachedPseudoLegalMoves = new();
 
 		public Dictionary<IChessPieceModel, BoardPosition> PieceIndex { get; } = new();
 		public IChessBoardSquareModel[,]                   Squares    { get; }
@@ -89,12 +89,6 @@ namespace Bezoro.Chess.Board.Models
 				BoardPieces.Add(pieceToMove);
 			}
 		}
-
-		public void MovePieceTo(
-			ChessPieceType pieceType,
-			PlayerColor color,
-			IChessBoardSquareModel fromSquare,
-			IChessBoardSquareModel toSquare) { }
 
 		public void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game)
 		{
@@ -178,13 +172,6 @@ namespace Bezoro.Chess.Board.Models
 			}
 		}
 
-		public void MovePieceTo(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic)
-		{
-			var from = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
-			var to   = AlgebraicNotationUtils.FromAlgebraic(toAlgebraic);
-			// MovePieceInternal(piece, from, to);
-		}
-
 		public void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to)
 		{
 			if (piece == null) throw new ArgumentNullException(nameof(piece));
@@ -230,36 +217,16 @@ namespace Bezoro.Chess.Board.Models
 				: Array.Empty<Move>();
 		}
 
-		public void RefreshPseudoLegalMoveCache(GameModel game)
-		{
-			if (game == null) throw new ArgumentNullException(nameof(game));
-
-			_cachedPseudoLegalMoves = new(BoardPieces.Count);
-
-			foreach (var piece in BoardPieces)
-			{
-				var moves = piece.GetPseudoLegalMoves(game); // GameModel context is crucial here
-				_cachedPseudoLegalMoves[piece] = moves.ToList();
-			}
-		}
-
 		public List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side)
 		{
 			if (game == null) throw new ArgumentNullException(nameof(game));
 			var legalMovesForSide = new List<IEnumerable<Move>>();
 			foreach (var piece in BoardPieces.Where(p => p.Color == side))
 			{
-				var pseudoMoves = piece.GetPseudoLegalMoves(game);
-				// Original code: legalMoves.Add(game.GameRules.FilterLegalMoves(game, moves));
-				// This implies FilterLegalMoves takes (GameModel, IEnumerable<Move>)
-				// but the interface IGameRules has FilterLegalMoves(GameModel, IChessPieceModel, IEnumerable<Move>)
-				// Assuming a version of FilterLegalMoves that matches is available or the call is adjusted.
-				// For now, let's assume the intent is to filter moves for *this* piece.
+				var pseudoMoves   = piece.GetPseudoLegalMoves(game);
 				var filteredMoves = game.GameRules.FilterLegalMoves(game, pseudoMoves);
 				if (filteredMoves.Any())
-				{
 					legalMovesForSide.Add(filteredMoves);
-				}
 			}
 
 			return legalMovesForSide;
@@ -270,70 +237,11 @@ namespace Bezoro.Chess.Board.Models
 
 	#endregion
 
-		internal void MovePieceInternal(ChessPieceType pieceType, BoardPosition from, BoardPosition to)
-		{
-			if (!new BoardPosition(from.Column, from.Rank, Width, Height).IsValid())
-				throw new InvalidOperationException($"Source position {from} is out of bounds for this board.");
-
-			if (!new BoardPosition(to.Column, to.Rank, Width, Height).IsValid())
-				throw new InvalidOperationException($"Target position {to} is out of bounds for this board.");
-
-			var fromSquare = Squares[from.Column, from.Rank];
-			var toSquare   = Squares[to.Column, to.Rank];
-			var piece      = fromSquare.GetPiece();
-
-			if (piece.GetPieceType() != pieceType)
-			{
-				if (!(PieceIndex.TryGetValue(piece, out var actualPos) && actualPos.Equals(from)))
-				{
-					throw new InvalidOperationException(
-						$"Piece {piece.GetPieceType()} ({piece.Color}) is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(piece, out var p) ? p.Algebraic : "N/A")}, expected {from.Algebraic}");
-				}
-			}
-
-			var pieceAtTarget = toSquare.GetPiece();
-			if (pieceAtTarget != null)
-			{
-				if (pieceAtTarget == piece)
-				{
-					if (from.Equals(to))
-					{
-						PieceIndex[piece] = to;
-						return;
-					}
-				}
-
-				PieceIndex.Remove(pieceAtTarget);
-				BoardPieces.Remove(pieceAtTarget);
-			}
-
-			fromSquare.SetPiece(null);
-			toSquare.SetPiece(piece);
-			PieceIndex[piece] = to;
-			// Ensure piece is in BoardPieces if it wasn't (e.g. piece dropped on board)
-			if (!BoardPieces.Contains(piece))
-			{
-				BoardPieces.Add(piece);
-			}
-		}
-
 		internal void UpdateIndex(IChessPieceModel piece, BoardPosition newPos) =>
-			// Ensure BoardPosition newPos is created with this board's dimensions for consistency
 			PieceIndex[piece] = new(newPos.Column, newPos.Rank, Width, Height);
 
-		// Helper, assuming it's an extension method elsewhere, or defined here:
-		private IChessBoardSquareModel? GetSquareAt(BoardPosition position)
-		{
-			if (position.Column >= 0    &&
-				position.Column < Width &&
-				position.Rank   >= 0    &&
-				position.Rank   < Height)
-			{
-				return Squares[position.Column, position.Rank];
-			}
-
-			return null;
-		}
+		private IChessBoardSquareModel? GetSquareAt(BoardPosition position) =>
+			position.IsValid() ? Squares[position.Column, position.Rank] : null;
 
 		private IChessBoardSquareModel? ResolveEnPassantTarget(string enPassantFen)
 		{
