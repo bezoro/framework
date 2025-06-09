@@ -10,6 +10,14 @@ public class FenUtilsUnitTests
 #region Test Methods
 
 	[Test]
+	public void Parse_WhenStartBoard_ParsesCorrectly()
+	{
+		var fenData = FenUtils.Parse(FenUtils.START_FEN);
+
+		Assert.That(fenData.FullString, Is.EquivalentTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR White All - 0 1"));
+	}
+
+	[Test]
 	public void TryParse_ValidMinimalFen_ReturnsTrue()
 	{
 		const string fen = "8/8/8/8/8/8/8/8 w - - 0 1";
