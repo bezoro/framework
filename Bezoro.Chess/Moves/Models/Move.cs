@@ -50,6 +50,19 @@ namespace Bezoro.Chess.Moves.Models
 					"Castling moves must have a PieceType of King.",
 					nameof(pieceType));
 			}
+
+			switch (Kind)
+			{
+				case MoveKind.CastleKingside:
+					CastleSide = CastleSide.King;
+					break;
+				case MoveKind.CastleQueenside:
+					CastleSide = CastleSide.Queen;
+					break;
+				default:
+					CastleSide = CastleSide.None;
+					break;
+			}
 		}
 
 		public static bool operator ==(Move left, Move right) => left.Equals(right);
