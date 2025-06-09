@@ -15,7 +15,7 @@ namespace Bezoro.Chess.Pieces.Commands
 		///     The board instance is needed only for looking up the squares – it is not
 		///     modified in the constructor.
 		/// </summary>
-		internal MovePieceCommand(Move move)
+		public MovePieceCommand(Move move)
 		{
 			Move = move;
 		}
