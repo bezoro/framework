@@ -27,7 +27,7 @@ public class MoveUnitTests
 				Assert.That(move.To,          Is.EqualTo(E4));
 				Assert.That(move.Kind,        Is.EqualTo(MoveKind.Normal));
 				Assert.That(move.IsPromotion, Is.False);
-				Assert.That(move.PromoteTo,   Is.Null);
+				Assert.That(move.PromoteTo,   Is.EqualTo(PromotionPieceType.None));
 			});
 	}
 
@@ -82,7 +82,7 @@ public class MoveUnitTests
 				Assert.That(from,      Is.EqualTo(E2));
 				Assert.That(to,        Is.EqualTo(E4));
 				Assert.That(kind,      Is.EqualTo(MoveKind.Normal));
-				Assert.That(promoteTo, Is.Null);
+				Assert.That(promoteTo, Is.EqualTo(PromotionPieceType.None));
 			});
 	}
 
@@ -118,7 +118,8 @@ public class MoveUnitTests
 			() =>
 			{
 				_ = new Move(
-					E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal, PromotionPieceType.Bishop);
+					E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal, CastleSide.None,
+					PromotionPieceType.Bishop);
 			});
 
 	[Test]
