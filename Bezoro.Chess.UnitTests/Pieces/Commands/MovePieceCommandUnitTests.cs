@@ -60,7 +60,9 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt("b4"), Is.EqualTo(b2Pawn));
+		Assert.That(board.GetPieceAt("b4"),          Is.EqualTo(b2Pawn));
+		Assert.That(board.GetPieceAt("b2"),          Is.Null);
+		Assert.That(board.GetPieceAt("b4").HasMoved, Is.True);
 	}
 
 	[Test]
