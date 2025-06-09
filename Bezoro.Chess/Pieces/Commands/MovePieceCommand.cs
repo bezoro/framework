@@ -20,16 +20,17 @@ namespace Bezoro.Chess.Pieces.Commands
 			Move = move;
 		}
 
-		internal Move        Move                { get; }
-		internal CaptureData PreviousCaptureData { get; private set; }
+		internal Move          Move                  { get; }
+		internal CaptureData   PreviousCaptureData   { get; private set; }
+		internal CastlingData  PreviousCastlingData  { get; private set; }
+		internal PromotionData PreviousPromotionData { get; private set; }
 
 	#region Interface Implementations
 
 		public void Execute(GameModel game)
 		{
-			var               board       = game.Board;
-			var               pieceToMove = board.GetPieceAt(Move.From);
-			IChessPieceModel? pieceToCapture;
+			var board       = game.Board;
+			var pieceToMove = board.GetPieceAt(Move.From);
 
 			if (pieceToMove is null)
 				throw new InvalidOperationException("Trying to move a Piece that is null.");
@@ -37,33 +38,18 @@ namespace Bezoro.Chess.Pieces.Commands
 			switch (Move.Kind)
 			{
 				case MoveKind.Normal:
-					board.MovePieceTo(pieceToMove, Move.From, Move.To);
-					pieceToMove.MarkMoved();
+					PerformPieceMovement(board, pieceToMove);
 					break;
 				case MoveKind.Capture:
-					pieceToCapture = board.GetPieceAt(Move.To);
-
-					if (pieceToCapture is null)
-						throw new InvalidOperationException("Trying to capture a Piece that is null.");
-
-					PreviousCaptureData = new(pieceToCapture, Move.To);
-					board.CapturePieceAt(pieceToCapture, Move.To, game);
-					board.MovePieceTo(pieceToMove, Move.From, Move.To);
-					pieceToMove.MarkMoved();
+					PerformPieceCapture(game, board, pieceToMove);
 					break;
 				case MoveKind.EnPassant:
-					var enPassantSquare = board.EnPassantTargetSquare;
-					var capturablePiecePosition = new BoardPosition(
-						enPassantSquare.Position.Column, enPassantSquare.Position.Row - 1);
-
-					pieceToCapture      = board.GetPieceAt(capturablePiecePosition);
-					PreviousCaptureData = new(pieceToCapture, capturablePiecePosition, enPassantSquare);
-
-					board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
-					board.MovePieceTo(pieceToMove, Move.From, Move.To);
-					pieceToMove.MarkMoved();
+					PerformEnPassant(game, board, pieceToMove);
 					break;
 				case MoveKind.PromotionQuiet:
+					PreviousPromotionData = new(Move.To, Move.PromoteTo);
+					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					pieceToMove.MarkMoved();
 					break;
 				case MoveKind.PromotionCapture:
 					break;
@@ -115,6 +101,39 @@ namespace Bezoro.Chess.Pieces.Commands
 		}
 
 	#endregion
+
+		private void PerformEnPassant(GameModel game, IChessBoardModel board, IChessPieceModel pieceToMove)
+		{
+			var enPassantSquare = board.EnPassantTargetSquare;
+			var capturablePiecePosition = new BoardPosition(
+				enPassantSquare.Position.Column, enPassantSquare.Position.Row - 1);
+
+			var pieceToCapture = board.GetPieceAt(capturablePiecePosition);
+			PreviousCaptureData = new(pieceToCapture, capturablePiecePosition, enPassantSquare);
+
+			board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
+			board.MovePieceTo(pieceToMove, Move.From, Move.To);
+			pieceToMove.MarkMoved();
+		}
+
+		private void PerformPieceCapture(GameModel game, IChessBoardModel board, IChessPieceModel pieceToMove)
+		{
+			var pieceToCapture = board.GetPieceAt(Move.To);
+
+			if (pieceToCapture is null)
+				throw new InvalidOperationException("Trying to capture a Piece that is null.");
+
+			PreviousCaptureData = new(pieceToCapture, Move.To);
+			board.CapturePieceAt(pieceToCapture, Move.To, game);
+			board.MovePieceTo(pieceToMove, Move.From, Move.To);
+			pieceToMove.MarkMoved();
+		}
+
+		private void PerformPieceMovement(IChessBoardModel board, IChessPieceModel pieceToMove)
+		{
+			board.MovePieceTo(pieceToMove, Move.From, Move.To);
+			pieceToMove.MarkMoved();
+		}
 	}
 
 	/// <summary>
