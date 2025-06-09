@@ -26,6 +26,7 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
 		void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game);
 		void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to);
+		void PerformCastle(IChessPieceModel rook, CastleSide side);
 		void RestoreLastCapturedPiece(ChessPieceType capturedPieceType, BoardPosition capturedPosition, GameModel game);
 		void SetEnPassantTargetSquare(IChessBoardSquareModel? enPassantSquare);
 		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
