@@ -110,6 +110,8 @@ namespace Bezoro.Chess.Board.Models
 			PieceIndex[piece] = capturedPosition;
 			BoardPieces.Add(piece);
 			capturedSquare.SetPiece(piece);
+			if (EnPassantTargetSquare == capturedSquare)
+				EnPassantTargetSquare = null;
 		}
 
 		public IChessBoardModel Clear()
