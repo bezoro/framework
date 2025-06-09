@@ -38,6 +38,7 @@ namespace Bezoro.Chess.Pieces.Commands
 			{
 				case MoveKind.Normal:
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					pieceToMove.MarkMoved();
 					break;
 				case MoveKind.Capture:
 					pieceToCapture = board.GetPieceAt(Move.To);
@@ -48,6 +49,7 @@ namespace Bezoro.Chess.Pieces.Commands
 					PreviousCaptureData = new(pieceToCapture, Move.To);
 					board.CapturePieceAt(pieceToCapture, Move.To, game);
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					pieceToMove.MarkMoved();
 					break;
 				case MoveKind.EnPassant:
 					var enPassantSquare = board.EnPassantTargetSquare;
@@ -59,6 +61,7 @@ namespace Bezoro.Chess.Pieces.Commands
 
 					board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					pieceToMove.MarkMoved();
 					break;
 				case MoveKind.PromotionQuiet:
 					break;
@@ -83,15 +86,18 @@ namespace Bezoro.Chess.Pieces.Commands
 			{
 				case MoveKind.Normal:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					pieceToUndoMove.ResetMoved();
 					break;
 				case MoveKind.Capture:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
+					pieceToUndoMove.ResetMoved();
 					break;
 				case MoveKind.EnPassant:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
 					board.SetEnPassantTargetSquare(PreviousCaptureData.EnPassant);
+					pieceToUndoMove.ResetMoved();
 					break;
 				case MoveKind.PromotionQuiet:
 					break;

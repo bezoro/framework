@@ -75,13 +75,22 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-		Assert.That(board.GetPieceAt("a4"), Is.EqualTo(whitePawn));
-		Assert.That(board.GetPieceAt("a2"), Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt("a4"),          Is.EqualTo(whitePawn));
+				Assert.That(board.GetPieceAt("a2"),          Is.Null);
+				Assert.That(board.GetPieceAt("a4").HasMoved, Is.True);
+			});
 
 		moveCommand.Undo(game);
-		Assert.That(board.GetPieceAt("a2"), Is.EqualTo(whitePawn));
-		;
-		Assert.That(board.GetPieceAt("a4"), Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt("a2"),          Is.EqualTo(whitePawn));
+				Assert.That(board.GetPieceAt("a4"),          Is.Null);
+				Assert.That(board.GetPieceAt("a2").HasMoved, Is.False);
+			});
 	}
 
 #endregion

@@ -203,7 +203,6 @@ namespace Bezoro.Chess.Board.Models
 			toSquare.SetPiece(piece);
 			PieceIndex[piece]     = to;
 			EnPassantTargetSquare = null;
-			piece.MarkMoved();
 		}
 
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
