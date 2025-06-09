@@ -51,7 +51,7 @@ namespace Bezoro.Chess.Game.Models
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
 		/// </summary>
-		public (IChessPieceModel piece, IEnumerable<Move> moves) StartMove(string fromAlgebraic)
+		public IEnumerable<Move> StartMove(string fromAlgebraic)
 		{
 			var from  = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
 			var piece = Board.GetPieceAt(from);
@@ -61,7 +61,7 @@ namespace Bezoro.Chess.Game.Models
 
 			var pseudoLegalMoves = piece.GetPseudoLegalMoves(this);
 			var legalMoves       = GameRules.FilterLegalMoves(this, pseudoLegalMoves);
-			return (piece, legalMoves);
+			return legalMoves;
 		}
 
 		/// <summary>
@@ -74,13 +74,9 @@ namespace Bezoro.Chess.Game.Models
 
 			string enPassantString;
 			if (Board.EnPassantTargetSquare != null)
-			{
 				enPassantString = Board.EnPassantTargetSquare.Position.Algebraic;
-			}
 			else
-			{
 				enPassantString = "-"; // Standard FEN for no en passant target
-			}
 
 			var currentFenData = new FenData(
 				piecePlacement,
@@ -99,8 +95,8 @@ namespace Bezoro.Chess.Game.Models
 			var gameState = new GameStateMemento(
 				ActiveColor, CastlingRights, Board.EnPassantTargetSquare, HalfMoveClock, FullMoveNumber);
 
-			var moveCommand = new MovePieceCommand(move, Board);
-			moveCommand.Execute(Board);
+			var moveCommand = new MovePieceCommand(move);
+			moveCommand.Execute(this);
 			ActiveColor = ActiveColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
 			HalfMoveClock++;
 
@@ -123,7 +119,7 @@ namespace Bezoro.Chess.Game.Models
 
 			var (previousGameState, previousMove) = _undoHistory.Pop();
 
-			previousMove.Undo(Board);
+			previousMove.Undo(this);
 			Board.SetEnPassantTargetSquare(previousGameState.EnPassantTargetSquare);
 			CastlingRights = previousGameState.CastlingRights;
 			ActiveColor    = previousGameState.ActiveColor;
@@ -208,7 +204,7 @@ namespace Bezoro.Chess.Game.Models
 		/// <summary>
 		///     Given an algebraic notation string, returns all legal moves the piece at that position can make.
 		/// </summary>
-		(IChessPieceModel piece, IEnumerable<Move> moves) StartMove(string fromAlgebraic);
+		IEnumerable<Move> StartMove(string fromAlgebraic);
 
 		/// <summary>
 		///     Generates the Forsyth-Edwards Notation (FEN) string for the current game state.
