@@ -1,6 +1,9 @@
 using System;
 using Bezoro.Chess.Abstractions.Interfaces;
+using Bezoro.Chess.Board;
+using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
+using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
 
 namespace Bezoro.Chess.Pieces.Commands
@@ -12,36 +15,170 @@ namespace Bezoro.Chess.Pieces.Commands
 		///     The board instance is needed only for looking up the squares – it is not
 		///     modified in the constructor.
 		/// </summary>
-		public MovePieceCommand(Move move, IChessBoardModel board)
+		internal MovePieceCommand(Move move)
 		{
-			if (board is null)
-				throw new ArgumentNullException(nameof(board));
-
-			From = board.GetSquareAt(move.From)
-				   ?? throw new InvalidOperationException("Source square not found on board.");
-
-			To = board.GetSquareAt(move.To)
-				 ?? throw new InvalidOperationException("Target square not found on board.");
-
-			MovingPiece = From.Piece
-						  ?? throw new InvalidOperationException("There is no piece on the source square.");
+			Move = move;
 		}
 
-		public IChessBoardSquareModel From        { get; }
-		public IChessBoardSquareModel To          { get; }
-		public IChessPieceModel       MovingPiece { get; }
-		public IChessPieceModel       CapturedPiece { get; }
+		internal Move Move { get; }
+
+		internal CaptureData PreviousCaptureData { get; private set; }
 
 	#region Interface Implementations
 
-		public void Execute(IChessBoardModel board) =>
-			throw new NotImplementedException();
+		public void Execute(GameModel game)
+		{
+			var               board          = game.Board;
+			var               pieceToMove    = board.GetPieceAt(Move.From);
+			IChessPieceModel? pieceToCapture = null;
 
-		public void Undo(IChessBoardModel board) =>
-			throw new NotImplementedException();
+			if (pieceToMove is null)
+				throw new InvalidOperationException("Trying to move a Piece that is null.");
+
+			switch (Move.Kind)
+			{
+				case MoveKind.Normal:
+					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					break;
+				case MoveKind.Capture:
+					if (pieceToCapture is null)
+						throw new InvalidOperationException("Trying to capture a Piece that is null.");
+
+					pieceToCapture      = board.GetPieceAt(Move.To);
+					PreviousCaptureData = new(pieceToCapture, Move.To);
+					board.CapturePieceAt(pieceToCapture, Move.To, game);
+					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					break;
+				case MoveKind.EnPassant:
+					var enPassantSquare = board.EnPassantTargetSquare;
+					var capturablePiecePosition = new BoardPosition(
+						enPassantSquare.Position.Column, enPassantSquare.Position.Row - 1);
+
+					pieceToCapture      = board.GetPieceAt(capturablePiecePosition);
+					PreviousCaptureData = new(pieceToCapture, capturablePiecePosition);
+
+					board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
+					board.MovePieceTo(pieceToMove, Move.From, Move.To);
+					break;
+				case MoveKind.Promotion:
+					break;
+				case MoveKind.Castle:
+					break;
+				default:
+					throw new ArgumentOutOfRangeException();
+			}
+		}
+
+		public void Undo(GameModel game)
+		{
+			var board           = game.Board;
+			var pieceToUndoMove = board.GetPieceAt(Move.To);
+
+			var capturedPosition  = PreviousCaptureData.Position;
+			var capturedPieceType = PreviousCaptureData.PieceState.PieceType;
+
+			switch (Move.Kind)
+			{
+				case MoveKind.Normal:
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					break;
+				case MoveKind.Capture:
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
+					break;
+				case MoveKind.EnPassant:
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
+					break;
+				case MoveKind.Promotion:
+					break;
+				case MoveKind.Castle:
+					break;
+				case MoveKind.CastleKingside:
+					break;
+				case MoveKind.CastleQueenside:
+					break;
+				default:
+					throw new ArgumentOutOfRangeException();
+			}
+		}
 
 	#endregion
 	}
-	
-	public abstract record CaptureData(IChessBoardSquareModel Square);
+
+	/// <summary>
+	///     Stores information about a captured piece for undo purposes.
+	/// </summary>
+	internal readonly struct CaptureData
+	{
+		internal CaptureData(IChessPieceModel piece, BoardPosition position)
+		{
+			PieceState = new(piece);
+			Position   = position;
+		}
+
+		internal BoardPosition Position   { get; }
+		internal PieceState    PieceState { get; }
+	}
+
+	/// <summary>
+	///     Stores information about the rook involved in a castling move for undo purposes.
+	/// </summary>
+	internal readonly struct CastlingData
+	{
+		internal CastlingData(IChessPieceModel rook, CastleSide side)
+		{
+			RookState = new(rook);
+			switch (side)
+			{
+				case CastleSide.King:
+					RookOriginalPosition = new("h1");
+					RookTargetPosition   = new("g1");
+					break;
+				case CastleSide.Queen:
+					RookOriginalPosition = new("a1");
+					RookTargetPosition   = new("c1");
+					break;
+				default:
+					RookOriginalPosition = null;
+					RookTargetPosition   = null;
+					break;
+			}
+		}
+
+		internal BoardPosition? RookOriginalPosition { get; }
+		internal BoardPosition? RookTargetPosition   { get; }
+		internal PieceState     RookState            { get; }
+	}
+
+	/// <summary>
+	///     Stores the essential state of a piece before a move, for undo purposes.
+	/// </summary>
+	internal readonly struct PieceState
+	{
+		internal PieceState(IChessPieceModel piece)
+		{
+			PieceType = piece.GetPieceType();
+			HasMoved  = piece.HasMoved;
+		}
+
+		internal bool           HasMoved  { get; }
+		internal ChessPieceType PieceType { get; }
+	}
+
+	/// <summary>
+	///     Stores information about a pawn promotion.
+	/// </summary>
+	internal readonly struct PromotionData
+	{
+		internal PromotionData(BoardPosition position, PromotionPieceType promotedToType)
+		{
+			Position      = position;
+			PromotionType = promotedToType;
+		}
+
+		internal BoardPosition      Position      { get; }
+		internal bool               IsValid       => PromotionType != PromotionPieceType.None;
+		internal PromotionPieceType PromotionType { get; }
+	}
 }

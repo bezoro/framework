@@ -1,10 +1,10 @@
+using Bezoro.Chess.Game.Models;
+
 namespace Bezoro.Chess.Abstractions.Interfaces
 {
 	public interface IChessCommand
 	{
-		IChessPieceModel MovingPiece { get; }
-
-		void Execute(IChessBoardModel board);
-		void Undo(IChessBoardModel board);
+		void Execute(GameModel game);
+		void Undo(GameModel game);
 	}
 }
