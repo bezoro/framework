@@ -129,6 +129,10 @@ namespace Bezoro.Chess.Game.Models
 
 	#endregion
 
+		public void AddCastlingRights(CastlingRights castlingRights) => CastlingRights |= castlingRights;
+		public void RemoveCastlingRights(CastlingRights castlingRights) => CastlingRights &= ~castlingRights;
+		public void SetCastlingRights(CastlingRights castlingRights) => CastlingRights = castlingRights;
+
 		private static BoardPosition? ResolveEnPassant(FenData setup) =>
 			string.Equals(setup.EnPassant, "-", StringComparison.OrdinalIgnoreCase)
 				? null
