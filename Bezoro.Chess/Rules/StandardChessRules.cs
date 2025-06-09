@@ -6,6 +6,7 @@ using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
+
 // Required for GameModel
 
 // Assuming BoardPosition is here
@@ -39,9 +40,8 @@ namespace Bezoro.Chess.Rules
 							move.MovingSide, // Should align with game.ActiveColor
 							move.PieceType,
 							move.Kind,
-							move.PromoteTo,
-							true
-						);
+							move.CastleSide,
+							move.PromoteTo, true);
 					}
 
 					return move;
