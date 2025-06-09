@@ -40,10 +40,11 @@ namespace Bezoro.Chess.Pieces.Commands
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
 					break;
 				case MoveKind.Capture:
+					pieceToCapture = board.GetPieceAt(Move.To);
+
 					if (pieceToCapture is null)
 						throw new InvalidOperationException("Trying to capture a Piece that is null.");
 
-					pieceToCapture      = board.GetPieceAt(Move.To);
 					PreviousCaptureData = new(pieceToCapture, Move.To);
 					board.CapturePieceAt(pieceToCapture, Move.To, game);
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
