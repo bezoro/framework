@@ -20,8 +20,7 @@ namespace Bezoro.Chess.Pieces.Commands
 			Move = move;
 		}
 
-		internal Move Move { get; }
-
+		internal Move        Move                { get; }
 		internal CaptureData PreviousCaptureData { get; private set; }
 
 	#region Interface Implementations
@@ -55,12 +54,13 @@ namespace Bezoro.Chess.Pieces.Commands
 						enPassantSquare.Position.Column, enPassantSquare.Position.Row - 1);
 
 					pieceToCapture      = board.GetPieceAt(capturablePiecePosition);
-					PreviousCaptureData = new(pieceToCapture, capturablePiecePosition);
+					PreviousCaptureData = new(pieceToCapture, capturablePiecePosition, enPassantSquare);
 
 					board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
 					break;
 				case MoveKind.Promotion:
+
 					break;
 				case MoveKind.Castle:
 					break;
@@ -89,6 +89,7 @@ namespace Bezoro.Chess.Pieces.Commands
 				case MoveKind.EnPassant:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
+					board.SetEnPassantTargetSquare(PreviousCaptureData.EnPassant);
 					break;
 				case MoveKind.Promotion:
 					break;
@@ -111,14 +112,16 @@ namespace Bezoro.Chess.Pieces.Commands
 	/// </summary>
 	internal readonly struct CaptureData
 	{
-		internal CaptureData(IChessPieceModel piece, BoardPosition position)
+		internal CaptureData(IChessPieceModel piece, BoardPosition position, IChessBoardSquareModel? enPassant = null)
 		{
 			PieceState = new(piece);
 			Position   = position;
+			EnPassant  = enPassant;
 		}
 
-		internal BoardPosition Position   { get; }
-		internal PieceState    PieceState { get; }
+		public   IChessBoardSquareModel? EnPassant  { get; }
+		internal BoardPosition           Position   { get; }
+		internal PieceState              PieceState { get; }
 	}
 
 	/// <summary>
