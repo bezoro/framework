@@ -14,8 +14,12 @@ namespace Bezoro.Chess.Common.Helpers
 		public const string START_ACTIVE_COLOR = " w";
 		public const string START_CASTLING     = " KQkq";
 		public const string START_EN_PASSANT   = " -";
-		public const string START_FEN = START_PIECES     + START_ACTIVE_COLOR + START_CASTLING +
-										START_EN_PASSANT + START_HALF_MOVE    + START_FULL_MOVE;
+		public const string START_FEN = START_PIECES       +
+										START_ACTIVE_COLOR +
+										START_CASTLING     +
+										START_EN_PASSANT   +
+										START_HALF_MOVE    +
+										START_FULL_MOVE;
 		public const string START_FULL_MOVE = " 1";
 		public const string START_HALF_MOVE = " 0";
 		public const string START_PIECES =
@@ -47,10 +51,7 @@ namespace Bezoro.Chess.Common.Helpers
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool TryParse(
-			string? fen,
-			out FenData data,
-			out string? error)
+		public static bool TryParse(string? fen, out FenData data, out string? error)
 		{
 			data  = default;
 			error = null;
@@ -153,17 +154,17 @@ namespace Bezoro.Chess.Common.Helpers
 		public static bool TryParseColor(string token, out PlayerColor color)
 		{
 			color = PlayerColor.None; // Default to an invalid state
-			if (token.Length == 1)
+			if (token.Length != 1)
+				return false;
+
+			switch (token[0])
 			{
-				switch (token[0])
-				{
-					case 'w':
-						color = PlayerColor.White;
-						return true;
-					case 'b':
-						color = PlayerColor.Black;
-						return true;
-				}
+				case 'w':
+					color = PlayerColor.White;
+					return true;
+				case 'b':
+					color = PlayerColor.Black;
+					return true;
 			}
 
 			return false;
@@ -230,6 +231,7 @@ namespace Bezoro.Chess.Common.Helpers
 			EnPassant      = enPassant;
 			HalfmoveClock  = halfmoveClock;
 			FullmoveNumber = fullmoveNumber;
+			FullString     = $"{piecePlacement} {activeColor} {castling} {enPassant} {halfmoveClock} {fullmoveNumber}";
 		}
 
 		public readonly CastlingRights Castling;
@@ -237,6 +239,7 @@ namespace Bezoro.Chess.Common.Helpers
 		public readonly int            HalfmoveClock;
 		public readonly PlayerColor    ActiveColor;
 		public readonly string         EnPassant;
+		public readonly string         FullString;
 		public readonly string         PiecePlacement;
 	}
 }
