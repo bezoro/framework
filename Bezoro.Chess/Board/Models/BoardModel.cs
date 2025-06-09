@@ -90,6 +90,34 @@ namespace Bezoro.Chess.Board.Models
 			}
 		}
 
+		public void MovePieceTo(
+			ChessPieceType pieceType,
+			PlayerColor color,
+			IChessBoardSquareModel fromSquare,
+			IChessBoardSquareModel toSquare) { }
+
+		public void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game)
+		{
+			PieceIndex.Remove(pieceToCapture);
+			BoardPieces.Remove(pieceToCapture);
+			game.CapturedPieces.Add(pieceToCapture);
+		}
+
+		public void RestoreLastCapturedPiece(
+			ChessPieceType capturedPieceType,
+			BoardPosition capturedPosition,
+			GameModel game)
+		{
+			var capturedSquare = GetSquareAt(capturedPosition);
+			var index          = game.CapturedPieces.Count - 1;
+			var piece          = game.CapturedPieces[index];
+
+			game.CapturedPieces.Remove(piece);
+			PieceIndex[piece] = capturedPosition;
+			BoardPieces.Add(piece);
+			capturedSquare.SetPiece(piece);
+		}
+
 		public IChessBoardModel Clear()
 		{
 			foreach (var square in Squares)
@@ -150,15 +178,38 @@ namespace Bezoro.Chess.Board.Models
 			}
 		}
 
-		public void MovePiece(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic)
+		public void MovePieceTo(IChessPieceModel piece, string fromAlgebraic, string toAlgebraic)
 		{
 			var from = AlgebraicNotationUtils.FromAlgebraic(fromAlgebraic);
 			var to   = AlgebraicNotationUtils.FromAlgebraic(toAlgebraic);
-			MovePieceInternal(piece, from, to);
+			// MovePieceInternal(piece, from, to);
 		}
 
-		public void MovePiece(IChessPieceModel piece, BoardPosition from, BoardPosition to)
-			=> MovePieceInternal(piece, from, to);
+		public void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to)
+		{
+			if (piece == null) throw new ArgumentNullException(nameof(piece));
+
+			var fromSquare = GetSquareAt(from);
+
+			if (fromSquare.IsEmpty)
+			{
+				throw new InvalidOperationException(
+					$"Source square {fromSquare.Position.Algebraic} is empty.");
+			}
+
+			var toSquare = GetSquareAt(to);
+
+			if (toSquare.IsOccupied)
+			{
+				throw new InvalidOperationException(
+					$"Target square {toSquare.Position.Algebraic} is occupied by {toSquare.Piece.GetPieceType()} ({toSquare.Piece.Color}).");
+			}
+
+			fromSquare.SetPiece(null);
+			toSquare.SetPiece(piece);
+			PieceIndex[piece]     = to;
+			EnPassantTargetSquare = null;
+		}
 
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
 		{
@@ -219,9 +270,8 @@ namespace Bezoro.Chess.Board.Models
 
 	#endregion
 
-		internal void MovePieceInternal(IChessPieceModel pieceToMove, BoardPosition from, BoardPosition to)
+		internal void MovePieceInternal(ChessPieceType pieceType, BoardPosition from, BoardPosition to)
 		{
-			if (pieceToMove == null) throw new ArgumentNullException(nameof(pieceToMove));
 			if (!new BoardPosition(from.Column, from.Rank, Width, Height).IsValid())
 				throw new InvalidOperationException($"Source position {from} is out of bounds for this board.");
 
@@ -230,24 +280,25 @@ namespace Bezoro.Chess.Board.Models
 
 			var fromSquare = Squares[from.Column, from.Rank];
 			var toSquare   = Squares[to.Column, to.Rank];
+			var piece      = fromSquare.GetPiece();
 
-			if (fromSquare.GetPiece() != pieceToMove)
+			if (piece.GetPieceType() != pieceType)
 			{
-				if (!(PieceIndex.TryGetValue(pieceToMove, out var actualPos) && actualPos.Equals(from)))
+				if (!(PieceIndex.TryGetValue(piece, out var actualPos) && actualPos.Equals(from)))
 				{
 					throw new InvalidOperationException(
-						$"Piece {pieceToMove.GetPieceType()} ({pieceToMove.Color}) is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(pieceToMove, out var p) ? p.Algebraic : "N/A")}, expected {from.Algebraic}");
+						$"Piece {piece.GetPieceType()} ({piece.Color}) is not at the source position {from}. Recorded at: {(PieceIndex.TryGetValue(piece, out var p) ? p.Algebraic : "N/A")}, expected {from.Algebraic}");
 				}
 			}
 
 			var pieceAtTarget = toSquare.GetPiece();
 			if (pieceAtTarget != null)
 			{
-				if (pieceAtTarget == pieceToMove)
+				if (pieceAtTarget == piece)
 				{
 					if (from.Equals(to))
 					{
-						PieceIndex[pieceToMove] = to;
+						PieceIndex[piece] = to;
 						return;
 					}
 				}
@@ -257,12 +308,12 @@ namespace Bezoro.Chess.Board.Models
 			}
 
 			fromSquare.SetPiece(null);
-			toSquare.SetPiece(pieceToMove);
-			PieceIndex[pieceToMove] = to;
+			toSquare.SetPiece(piece);
+			PieceIndex[piece] = to;
 			// Ensure piece is in BoardPieces if it wasn't (e.g. piece dropped on board)
-			if (!BoardPieces.Contains(pieceToMove))
+			if (!BoardPieces.Contains(piece))
 			{
-				BoardPieces.Add(pieceToMove);
+				BoardPieces.Add(piece);
 			}
 		}
 
