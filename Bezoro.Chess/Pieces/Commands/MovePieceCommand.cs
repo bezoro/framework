@@ -60,8 +60,9 @@ namespace Bezoro.Chess.Pieces.Commands
 					board.CapturePieceAt(pieceToCapture, capturablePiecePosition, game);
 					board.MovePieceTo(pieceToMove, Move.From, Move.To);
 					break;
-				case MoveKind.Promotion:
-
+				case MoveKind.PromotionQuiet:
+					break;
+				case MoveKind.PromotionCapture:
 					break;
 				case MoveKind.Castle:
 					break;
@@ -92,7 +93,9 @@ namespace Bezoro.Chess.Pieces.Commands
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
 					board.SetEnPassantTargetSquare(PreviousCaptureData.EnPassant);
 					break;
-				case MoveKind.Promotion:
+				case MoveKind.PromotionQuiet:
+					break;
+				case MoveKind.PromotionCapture:
 					break;
 				case MoveKind.Castle:
 					break;

@@ -71,7 +71,7 @@ namespace Bezoro.Chess.Pieces.Generators
 		/// <param name="from">Starting position of the move.</param>
 		/// <param name="to">Target position of the move.</param>
 		/// <param name="pawn">The pawn making the move.</param>
-		/// <param name="kind">The kind of move being made.</param>
+		/// <param name="kind">The kind of move being made (before considering promotion, e.g., Normal or Capture).</param>
 		/// <param name="board">The chess board.</param>
 		/// <returns>Collection of possible moves including promotions if applicable.</returns>
 		private static IEnumerable<Move> BuildMoves(
@@ -82,9 +82,9 @@ namespace Bezoro.Chess.Pieces.Generators
 			IChessBoardModel board)
 		{
 			// Check for promotion
+			// En Passant cannot result in promotion (this is also checked in TryGenerateEnPassant before calling BuildMoves)
 			if (kind != MoveKind.EnPassant && IsPromotionRank(pawn.Color, to.Row, board))
 			{
-				// Use static array instead of Enum.GetValues for better performance
 				var promotionTypes = new[]
 				{
 					PromotionPieceType.Queen,
@@ -95,10 +95,21 @@ namespace Bezoro.Chess.Pieces.Generators
 
 				foreach (var promotionType in promotionTypes)
 				{
-					yield return Move.Promotion(from, to, pawn.Color, promotionType);
+					if (kind == MoveKind.Capture)
+					{
+						// Assumes Move.PromotionCapture(from, to, color, promotionType) exists
+						// and sets the move's Kind to MoveKind.PromotionCapture.
+						yield return Move.PromotionCapture(from, to, pawn.Color, promotionType);
+					}
+					else // kind would be MoveKind.Normal for quiet pushes resulting in promotion
+					{
+						// Assumes Move.PromotionQuiet(from, to, color, promotionType)
+						// sets the move's Kind to MoveKind.PromotionQuiet.
+						yield return Move.PromotionQuiet(from, to, pawn.Color, promotionType);
+					}
 				}
 			}
-			// Normal move
+			// Normal move (or EnPassant, which is not a promotion itself)
 			else
 			{
 				yield return new(from, to, pawn.Color, pawn.GetPieceType(), kind);

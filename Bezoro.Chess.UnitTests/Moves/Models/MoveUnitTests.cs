@@ -34,13 +34,13 @@ public class MoveUnitTests
 	[Test]
 	public void PromotionFactory_CreatesValidPromotionMove()
 	{
-		var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Queen);
+		var move = Move.PromotionQuiet(A7, A8, PlayerColor.Black, PromotionPieceType.Queen);
 
 		Assert.Multiple(
 			() =>
 			{
 				Assert.That(move.IsPromotion, Is.True);
-				Assert.That(move.Kind,        Is.EqualTo(MoveKind.Promotion));
+				Assert.That(move.Kind,        Is.EqualTo(MoveKind.PromotionQuiet));
 				Assert.That(move.PromoteTo,   Is.EqualTo(PromotionPieceType.Queen));
 			});
 	}
@@ -96,7 +96,7 @@ public class MoveUnitTests
 	[Test]
 	public void ToString_PromotionMove_AppendsPromotionInfo()
 	{
-		var move = Move.Promotion(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
+		var move = Move.PromotionQuiet(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
 		Assert.That(move.ToString(), Does.Contain("promote to Rook"));
 	}
 
@@ -109,7 +109,7 @@ public class MoveUnitTests
 		Assert.Throws<ArgumentNullException>(
 			() =>
 			{
-				_ = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Promotion);
+				_ = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn, MoveKind.PromotionQuiet);
 			});
 
 	[Test]
