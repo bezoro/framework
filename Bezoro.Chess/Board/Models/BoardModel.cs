@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Common.Helpers;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
@@ -203,6 +204,53 @@ namespace Bezoro.Chess.Board.Models
 			toSquare.SetPiece(piece);
 			PieceIndex[piece]     = to;
 			EnPassantTargetSquare = null;
+		}
+
+		public void PerformCastle(IChessPieceModel king, CastleSide side)
+		{
+			var               color = king.Color;
+			IChessPieceModel? rook  = null!;
+
+			if (color == PlayerColor.White)
+			{
+				switch (side)
+				{
+					case CastleSide.None:
+						break;
+					case CastleSide.King:
+						rook = this.GetPieceAt("h1");
+						MovePieceTo(rook, new("h1"), new("f1"));
+						MovePieceTo(king, new("e1"), new("g1"));
+						break;
+					case CastleSide.Queen:
+						rook = this.GetPieceAt("a1");
+						MovePieceTo(rook, new("a1"), new("d1"));
+						MovePieceTo(king, new("e1"), new("c1"));
+						break;
+					default:
+						throw new ArgumentOutOfRangeException(nameof(side), side, null);
+				}
+			}
+			else
+			{
+				switch (side)
+				{
+					case CastleSide.None:
+						break;
+					case CastleSide.King:
+						rook = this.GetPieceAt("h8");
+						MovePieceTo(rook, new("h8"), new("f8"));
+						MovePieceTo(king, new("e8"), new("g8"));
+						break;
+					case CastleSide.Queen:
+						rook = this.GetPieceAt("a8");
+						MovePieceTo(rook, new("a8"), new("d8"));
+						MovePieceTo(king, new("e8"), new("c8"));
+						break;
+					default:
+						throw new ArgumentOutOfRangeException(nameof(side), side, null);
+				}
+			}
 		}
 
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
