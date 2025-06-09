@@ -45,8 +45,8 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt("f5"), Is.EqualTo(whitePawn));
-		// Assert.That(board.GetSquareAt("e4").Piece, Is.Null);
+		Assert.That(board.GetPieceAt("f5"),        Is.EqualTo(whitePawn));
+		Assert.That(board.GetSquareAt("e4").Piece, Is.Null);
 	}
 
 	[Test]
@@ -61,6 +61,25 @@ public class MovePieceCommandUnitTests
 		moveCommand.Execute(game);
 
 		Assert.That(board.GetPieceAt("b4"), Is.EqualTo(b2Pawn));
+	}
+
+	[Test]
+	public void Undo_WhenPawnMoved_ReturnsToPastSquare()
+	{
+		var game        = new GameModel();
+		var board       = game.Board;
+		var whitePawn   = board.GetPieceAt("a2");
+		var move        = new Move(new("a2"), new("a4"), PlayerColor.White, ChessPieceType.Pawn);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+		Assert.That(board.GetPieceAt("a4"), Is.EqualTo(whitePawn));
+		Assert.That(board.GetPieceAt("a2"), Is.Null);
+
+		moveCommand.Undo(game);
+		Assert.That(board.GetPieceAt("a2"), Is.EqualTo(whitePawn));
+		;
+		Assert.That(board.GetPieceAt("a4"), Is.Null);
 	}
 
 #endregion
