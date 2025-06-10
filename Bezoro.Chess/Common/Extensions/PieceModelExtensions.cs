@@ -8,6 +8,9 @@ namespace Bezoro.Chess.Common.Extensions
 	/// <summary>Maps concrete piece models to <see cref="ChessPieceType" />.</summary>
 	internal static class PieceModelExtensions
 	{
+		public static char ToFenChar(this IChessPieceModel piece) =>
+			piece.GetPieceType().ToFenChar();
+
 		public static ChessPieceType GetPieceType(this IChessPieceModel piece) =>
 			piece switch
 			{
