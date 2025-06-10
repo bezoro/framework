@@ -222,18 +222,30 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
-		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
-		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
-		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+				Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+				Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+				Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+			});
 
 		moveCommand.Undo(game);
 
-		Assert.That(board.GetPieceAt(kingSquare),       Is.TypeOf<KingModel>());
-		Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
+		var king = board.GetPieceAt(kingSquare);
+		var rook = board.GetPieceAt(rookSquare);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(king,                               Is.TypeOf<KingModel>());
+				Assert.That(king.HasMoved,                      Is.False);
+				Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
 
-		Assert.That(board.GetPieceAt(rookSquare),       Is.TypeOf<RookModel>());
-		Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
+				Assert.That(rook,                               Is.TypeOf<RookModel>());
+				Assert.That(rook.HasMoved,                      Is.False);
+				Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
+			});
 	}
 
 	[TestCase(PlayerColor.White)]
@@ -271,7 +283,6 @@ public class MovePieceCommandUnitTests
 				Assert.That(restoredPawn,          Is.Not.Null);
 				Assert.That(restoredPawn,          Is.TypeOf<PawnModel>());
 				Assert.That(restoredPawn.Color,    Is.EqualTo(color));
-				Assert.That(restoredPawn.HasMoved, Is.False);
 				Assert.That(restoredPawn.HasMoved, Is.False);
 			});
 	}
@@ -324,18 +335,30 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
-		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
-		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
-		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+				Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+				Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+				Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+			});
 
 		moveCommand.Undo(game);
 
-		Assert.That(board.GetPieceAt(kingSquare),       Is.TypeOf<KingModel>());
-		Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
+		var king = board.GetPieceAt(kingSquare);
+		var rook = board.GetPieceAt(rookSquare);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(king,                               Is.TypeOf<KingModel>());
+				Assert.That(king.HasMoved,                      Is.False);
+				Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
 
-		Assert.That(board.GetPieceAt(rookSquare),       Is.TypeOf<RookModel>());
-		Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
+				Assert.That(rook,                               Is.TypeOf<RookModel>());
+				Assert.That(rook.HasMoved,                      Is.False);
+				Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
+			});
 	}
 
 #endregion
