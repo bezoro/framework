@@ -90,16 +90,6 @@ namespace Bezoro.Chess.Moves.Models
 		public BoardPosition To { get; }
 
 		/// <summary>
-		///     Convenience helper for king-side castling.
-		/// </summary>
-		public bool IsCastleKingSide => Kind == MoveKind.CastleKingside;
-
-		/// <summary>
-		///     Convenience helper for queen-side castling.
-		/// </summary>
-		public bool IsCastleQueenSide => Kind == MoveKind.CastleQueenside;
-
-		/// <summary>
 		///     Convenience helper.
 		/// </summary>
 		public bool IsPromotion => Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture;
@@ -144,13 +134,13 @@ namespace Bezoro.Chess.Moves.Models
 			obj is Move m && Equals(m);
 
 		public override int GetHashCode() =>
-			HashCode.Combine(From, To, Kind, PromoteTo, PieceType, MovingSide, LeavesKingInCheck);
+			HashCode.Combine(From, To, Kind, PromoteTo, PieceType, MovingSide, LeavesKingInCheck, CastleSide);
 
 		public override string ToString() =>
-			Kind switch
+			CastleSide switch
 			{
-				MoveKind.CastleKingside  => "O-O",
-				MoveKind.CastleQueenside => "O-O-O",
+				CastleSide.King  => "O-O",
+				CastleSide.Queen => "O-O-O",
 				_ => $"{(PieceType == ChessPieceType.Pawn ? "" : PieceType.ToChar(MovingSide).ToString())}{From}→{To}" +
 					 (IsPromotion ? $" (promote to {PromoteTo.ToString()})" : string.Empty)                            +
 					 (LeavesKingInCheck ? " (CHECK!)" : string.Empty)
