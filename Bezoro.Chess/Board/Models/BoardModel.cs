@@ -208,49 +208,18 @@ namespace Bezoro.Chess.Board.Models
 
 		public void PerformCastle(IChessPieceModel king, CastleSide side)
 		{
-			var               color = king.Color;
-			IChessPieceModel? rook  = null!;
+			if (side == CastleSide.None) return;
 
-			if (color == PlayerColor.White)
-			{
-				switch (side)
-				{
-					case CastleSide.None:
-						break;
-					case CastleSide.King:
-						rook = this.GetPieceAt("h1");
-						MovePieceTo(rook, new("h1"), new("f1"));
-						MovePieceTo(king, new("e1"), new("g1"));
-						break;
-					case CastleSide.Queen:
-						rook = this.GetPieceAt("a1");
-						MovePieceTo(rook, new("a1"), new("d1"));
-						MovePieceTo(king, new("e1"), new("c1"));
-						break;
-					default:
-						throw new ArgumentOutOfRangeException(nameof(side), side, null);
-				}
-			}
-			else
-			{
-				switch (side)
-				{
-					case CastleSide.None:
-						break;
-					case CastleSide.King:
-						rook = this.GetPieceAt("h8");
-						MovePieceTo(rook, new("h8"), new("f8"));
-						MovePieceTo(king, new("e8"), new("g8"));
-						break;
-					case CastleSide.Queen:
-						rook = this.GetPieceAt("a8");
-						MovePieceTo(rook, new("a8"), new("d8"));
-						MovePieceTo(king, new("e8"), new("c8"));
-						break;
-					default:
-						throw new ArgumentOutOfRangeException(nameof(side), side, null);
-				}
-			}
+			var color = king.Color;
+			if (!ChessUtils.CastlePositions.TryGetValue((color, side), out var positions))
+				throw new ArgumentException($"Invalid castle combination: {color} {side}");
+
+			var rook = this.GetPieceAt(positions.rookFrom.Algebraic);
+			if (rook == null)
+				throw new InvalidOperationException($"No rook found at {positions.rookFrom.Algebraic} for castling");
+
+			MovePieceTo(rook, positions.rookFrom, positions.rookTo);
+			MovePieceTo(king, positions.kingFrom, positions.kingTo);
 		}
 
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor)
