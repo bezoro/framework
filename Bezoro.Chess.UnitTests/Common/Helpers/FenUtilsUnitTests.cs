@@ -1,5 +1,8 @@
+using Bezoro.Chess.Board.Models;
 using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Common.Helpers;
+using Bezoro.Chess.Pieces.Models;
 
 namespace Bezoro.Chess.UnitTests.Common.Helpers;
 
@@ -10,11 +13,194 @@ public class FenUtilsUnitTests
 #region Test Methods
 
 	[Test]
+	public void GenerateFEN_CustomPosition_ReturnsCorrectFEN()
+	{
+		// Create a board with a custom position
+		var board = FenUtils.Parse("r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 4");
+
+		// Just check the piece placement part (first segment before the space)
+		var fenPiecePlacement = board.PiecePlacement;
+
+		Assert.That(fenPiecePlacement, Is.EqualTo("r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R"));
+	}
+
+	[Test]
 	public void Parse_WhenStartBoard_ParsesCorrectly()
 	{
 		var fenData = FenUtils.Parse(FenUtils.START_FEN);
 
 		Assert.That(fenData.FullString, Is.EquivalentTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR White All - 0 1"));
+	}
+
+	[Test]
+	public void ParseFEN_EmptyBoard_CreatesEmptyBoard()
+	{
+		// Empty board FEN
+		var emptyBoardFEN = "8/8/8/8/8/8/8/8 w - - 0 1";
+
+		var board = new BoardModel(8, 8, FenUtils.Parse(emptyBoardFEN).PiecePlacement);
+
+		// Verify all squares are empty
+		for (var rank = 1 ; rank <= 8 ; rank++)
+		{
+			for (var file = 'a' ; file <= 'h' ; file++)
+			{
+				Assert.That(board.GetPieceAt($"{file}{rank}"), Is.Null);
+			}
+		}
+	}
+
+	[Test]
+	public void ParseFEN_InitialPosition_CreatesCorrectBoard()
+	{
+		// Standard initial position
+		var initialFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+		var board = new BoardModel(8, 8, FenUtils.Parse(initialFEN).PiecePlacement);
+
+		// Verify white pieces are in correct positions
+		Assert.Multiple(
+			() =>
+			{
+				// White pieces - back rank
+				Assert.That(
+					board.GetPieceAt("a1"), Is.TypeOf<RookModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("b1"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("c1"), Is.TypeOf<BishopModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("d1"), Is.TypeOf<QueenModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("e1"), Is.TypeOf<KingModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("f1"), Is.TypeOf<BishopModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("g1"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("h1"), Is.TypeOf<RookModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				// White pawns
+				for (var file = 'a' ; file <= 'h' ; file++)
+				{
+					Assert.That(
+						board.GetPieceAt($"{file}2"),
+						Is.TypeOf<PawnModel>().And.Property("Color").EqualTo(PlayerColor.White));
+				}
+
+				// Black pieces - back rank
+				Assert.That(
+					board.GetPieceAt("a8"), Is.TypeOf<RookModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("b8"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("c8"), Is.TypeOf<BishopModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("d8"), Is.TypeOf<QueenModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("e8"), Is.TypeOf<KingModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("f8"), Is.TypeOf<BishopModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("g8"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("h8"), Is.TypeOf<RookModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				// Black pawns
+				for (var file = 'a' ; file <= 'h' ; file++)
+				{
+					Assert.That(
+						board.GetPieceAt($"{file}7"),
+						Is.TypeOf<PawnModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+				}
+
+				// Middle ranks should be empty
+				for (var rank = 3 ; rank <= 6 ; rank++)
+				{
+					for (var file = 'a' ; file <= 'h' ; file++)
+					{
+						Assert.That(board.GetPieceAt($"{file}{rank}"), Is.Null);
+					}
+				}
+			});
+	}
+
+	[Test]
+	public void ParseFEN_InvalidFEN_ThrowsException()
+	{
+		// Invalid FEN strings
+		var invalidFENs = new[]
+		{
+			"too/short",
+			"9/8/8/8/8/8/8/8 w - - 0 1",                               // Invalid digit (9)
+			"8/8/8/8/8/8/8/8/8 w - - 0 1",                             // Too many ranks
+			"8/8/8/8/8/8/8 w - - 0 1",                                 // Too few ranks
+			"8/8/8/8/8/8/8/8z w - - 0 1",                              // Invalid character
+			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNZ w KQkq - 0 1" // Invalid piece
+		};
+
+		foreach (var invalidFEN in invalidFENs)
+		{
+			Assert.Throws<ArgumentException>(() => FenUtils.Parse(invalidFEN));
+		}
+	}
+
+	[Test]
+	public void ParseFEN_MidGamePosition_CreatesCorrectBoard()
+	{
+		// A typical mid-game position
+		var midGameFEN = "r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 4";
+
+		var board = new BoardModel(8, 8, FenUtils.Parse(midGameFEN).PiecePlacement);
+
+		// Verify specific pieces are in correct positions
+		Assert.Multiple(
+			() =>
+			{
+				// Check a few white pieces
+				Assert.That(
+					board.GetPieceAt("e1"), Is.TypeOf<KingModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("e4"), Is.TypeOf<PawnModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("c3"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				Assert.That(
+					board.GetPieceAt("f3"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.White));
+
+				// Check a few black pieces
+				Assert.That(
+					board.GetPieceAt("e8"), Is.TypeOf<KingModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("e5"), Is.TypeOf<PawnModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("c6"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				Assert.That(
+					board.GetPieceAt("f6"), Is.TypeOf<KnightModel>().And.Property("Color").EqualTo(PlayerColor.Black));
+
+				// Check empty squares
+				Assert.That(board.GetPieceAt("d3"), Is.Null);
+				Assert.That(board.GetPieceAt("e3"), Is.Null);
+			});
 	}
 
 	[Test]
