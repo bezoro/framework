@@ -187,6 +187,9 @@ public class BoardModelExtensionsUnitTests
 		public void ToggleMoved() =>
 			throw new NotImplementedException();
 
+		public void SetMoved(bool value) =>
+			throw new NotImplementedException();
+
 	#endregion
 	}
 

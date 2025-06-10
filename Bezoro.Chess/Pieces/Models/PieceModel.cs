@@ -45,6 +45,8 @@ namespace Bezoro.Chess.Pieces.Models
 		public ChessPieceType GetPieceType() =>
 			PieceModelExtensions.GetPieceType(this);
 
+		public void SetMoved(bool value) => HasMoved = value;
+
 	#endregion
 	}
 

@@ -5,6 +5,7 @@ using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Game.Models;
 using Bezoro.Chess.Moves.Models;
+using Bezoro.Chess.Pieces.Models;
 
 namespace Bezoro.Chess.Pieces.Commands
 {
@@ -20,17 +21,20 @@ namespace Bezoro.Chess.Pieces.Commands
 			Move = move;
 		}
 
-		internal Move          Move                  { get; }
-		internal CaptureData   PreviousCaptureData   { get; private set; }
-		internal CastlingData  PreviousCastlingData  { get; private set; }
-		internal PromotionData PreviousPromotionData { get; private set; }
+		internal Move          Move                     { get; }
+		internal CaptureData   PreviousCaptureData      { get; private set; }
+		internal CastlingData  PreviousCastlingData     { get; private set; }
+		internal PieceState    PreviousMovingPieceState { get; private set; }
+		internal PromotionData PreviousPromotionData    { get; private set; }
 
 	#region Interface Implementations
 
 		public void Execute(GameModel game)
 		{
-			var board       = game.Board;
-			var pieceToMove = board.GetPieceAt(Move.From);
+			var board           = game.Board;
+			var pieceToMove     = board.GetPieceAt(Move.From);
+			var promotionSquare = board.GetSquareAt(Move.To);
+			var pawn            = pieceToMove as PawnModel;
 
 			if (pieceToMove is null)
 				throw new InvalidOperationException("Trying to move a Piece that is null.");
@@ -38,28 +42,42 @@ namespace Bezoro.Chess.Pieces.Commands
 			switch (Move.Kind)
 			{
 				case MoveKind.Normal:
+					PreviousMovingPieceState = new(pieceToMove);
 					PerformPieceMovement(board, pieceToMove);
 					break;
 				case MoveKind.Capture:
+					PreviousMovingPieceState = new(pieceToMove);
 					PerformPieceCapture(game, board, pieceToMove);
 					break;
 				case MoveKind.EnPassant:
-					PerformEnPassant(game, board, pieceToMove);
+					PreviousMovingPieceState = new(pieceToMove);
+					PerformEnPassant(game, board, pieceToMove, Move.MovingSide);
 					break;
 				case MoveKind.PromotionQuiet:
-					PreviousPromotionData = new(Move.To, Move.PromoteTo);
-					board.MovePieceTo(pieceToMove, Move.From, Move.To);
-					pieceToMove.MarkMoved();
+					PreviousMovingPieceState = new(pieceToMove);
+					PreviousPromotionData    = new(Move.To, Move.PromoteTo);
+					board.MovePieceTo(pawn, Move.From, Move.To);
+					pawn.PromoteTo(promotionSquare, Move.PromoteTo);
 					break;
 				case MoveKind.PromotionCapture:
-					PreviousPromotionData = new(Move.To, Move.PromoteTo);
+					PreviousMovingPieceState = new(pieceToMove);
+					PreviousPromotionData    = new(Move.To, Move.PromoteTo);
 					PerformPieceCapture(game, board, pieceToMove);
+					pawn.PromoteTo(promotionSquare, Move.PromoteTo);
 					break;
 				case MoveKind.Castle:
 					if (Move.PieceType != ChessPieceType.King)
 						throw new InvalidOperationException("Trying to castle a non-king piece.");
 
-					PreviousCastlingData = new(pieceToMove, Move.CastleSide);
+					var king = pieceToMove;
+					var rookPosition = Move.CastleSide == CastleSide.King
+						? Move.MovingSide == PlayerColor.White ? "h1" : "h8"
+						: Move.MovingSide == PlayerColor.White ? "a1" : "a8";
+
+					var rook = board.GetPieceAt(rookPosition);
+
+					PreviousMovingPieceState = new(king);
+					PreviousCastlingData     = new(king, rook, Move.CastleSide, Move.MovingSide);
 					board.PerformCastle(pieceToMove, Move.CastleSide);
 					break;
 				default:
@@ -79,24 +97,44 @@ namespace Bezoro.Chess.Pieces.Commands
 			{
 				case MoveKind.Normal:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
-					pieceToUndoMove.ResetMoved();
+					pieceToUndoMove.SetMoved(PreviousMovingPieceState.HasMoved);
 					break;
 				case MoveKind.Capture:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
-					pieceToUndoMove.ResetMoved();
+					pieceToUndoMove.SetMoved(PreviousMovingPieceState.HasMoved);
 					break;
 				case MoveKind.EnPassant:
 					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
 					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
 					board.SetEnPassantTargetSquare(PreviousCaptureData.EnPassant);
-					pieceToUndoMove.ResetMoved();
+					pieceToUndoMove.SetMoved(PreviousMovingPieceState.HasMoved);
 					break;
 				case MoveKind.PromotionQuiet:
+					pieceToUndoMove = board.CreatePieceAt(Move.To, Move.MovingSide, Move.PieceType);
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					pieceToUndoMove.SetMoved(PreviousMovingPieceState.HasMoved);
 					break;
 				case MoveKind.PromotionCapture:
+					pieceToUndoMove = board.CreatePieceAt(Move.To, Move.MovingSide, Move.PieceType);
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					pieceToUndoMove.SetMoved(PreviousMovingPieceState.HasMoved);
+					board.RestoreLastCapturedPiece(capturedPieceType, capturedPosition, game);
 					break;
 				case MoveKind.Castle:
+					board.MovePieceTo(pieceToUndoMove, Move.To, Move.From);
+					pieceToUndoMove.SetMoved(PreviousCastlingData.KingState.HasMoved);
+
+					if (PreviousCastlingData is { RookOriginalPosition: not null, RookTargetPosition: not null })
+					{
+						var rook = board.GetPieceAt(PreviousCastlingData.RookTargetPosition.Value);
+						board.MovePieceTo(
+							rook, PreviousCastlingData.RookTargetPosition.Value,
+							PreviousCastlingData.RookOriginalPosition.Value);
+
+						rook.SetMoved(PreviousCastlingData.RookState.HasMoved);
+					}
+
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();
@@ -105,11 +143,16 @@ namespace Bezoro.Chess.Pieces.Commands
 
 	#endregion
 
-		private void PerformEnPassant(GameModel game, IChessBoardModel board, IChessPieceModel pieceToMove)
+		private void PerformEnPassant(
+			GameModel game,
+			IChessBoardModel board,
+			IChessPieceModel pieceToMove,
+			PlayerColor color)
 		{
+			var dir             = color == PlayerColor.White ? 1 : -1;
 			var enPassantSquare = board.EnPassantTargetSquare;
 			var capturablePiecePosition = new BoardPosition(
-				enPassantSquare.Position.Column, enPassantSquare.Position.Row - 1);
+				enPassantSquare.Position.Column, enPassantSquare.Position.Row - dir);
 
 			var pieceToCapture = board.GetPieceAt(capturablePiecePosition);
 			PreviousCaptureData = new(pieceToCapture, capturablePiecePosition, enPassantSquare);
@@ -161,18 +204,20 @@ namespace Bezoro.Chess.Pieces.Commands
 	/// </summary>
 	internal readonly struct CastlingData
 	{
-		internal CastlingData(IChessPieceModel rook, CastleSide side)
+		internal CastlingData(IChessPieceModel king, IChessPieceModel rook, CastleSide side, PlayerColor color)
 		{
+			KingState = new(king);
 			RookState = new(rook);
+
 			switch (side)
 			{
 				case CastleSide.King:
-					RookOriginalPosition = new("h1");
-					RookTargetPosition   = new("g1");
+					RookOriginalPosition = new(color == PlayerColor.White ? "h1" : "h8");
+					RookTargetPosition   = new(color == PlayerColor.White ? "f1" : "f8");
 					break;
 				case CastleSide.Queen:
-					RookOriginalPosition = new("a1");
-					RookTargetPosition   = new("c1");
+					RookOriginalPosition = new(color == PlayerColor.White ? "a1" : "a8");
+					RookTargetPosition   = new(color == PlayerColor.White ? "d1" : "d8");
 					break;
 				default:
 					RookOriginalPosition = null;
@@ -181,9 +226,11 @@ namespace Bezoro.Chess.Pieces.Commands
 			}
 		}
 
+		public PieceState RookState { get; }
+
 		internal BoardPosition? RookOriginalPosition { get; }
 		internal BoardPosition? RookTargetPosition   { get; }
-		internal PieceState     RookState            { get; }
+		internal PieceState     KingState            { get; }
 	}
 
 	/// <summary>

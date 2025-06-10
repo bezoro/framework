@@ -24,7 +24,7 @@ namespace Bezoro.Chess.Pieces.Models
 			JustAdvancedTwoSquares = false;
 		}
 
-		public void PromoteTo(IChessBoardSquareModel promotionSquare, PromotionPieceType newType)
+		public IChessPieceModel PromoteTo(IChessBoardSquareModel promotionSquare, PromotionPieceType newType)
 		{
 			PieceModel newPiece = newType switch
 			{
@@ -37,6 +37,8 @@ namespace Bezoro.Chess.Pieces.Models
 			};
 
 			promotionSquare.SetPiece(newPiece);
+			newPiece.MarkMoved();
+			return newPiece;
 		}
 
 		public void SetEnPassantCapturable(bool value) => CanBeCapturedEnPassant = value;

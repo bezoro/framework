@@ -15,6 +15,7 @@ namespace Bezoro.Chess.Abstractions.Interfaces
 		IEnumerable<Move> GetPseudoLegalMoves(GameModel game);
 		void MarkMoved();
 		void ResetMoved();
+		void SetMoved(bool value);
 		void ToggleMoved();
 	}
 }
