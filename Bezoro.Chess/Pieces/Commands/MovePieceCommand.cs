@@ -169,6 +169,9 @@ namespace Bezoro.Chess.Pieces.Commands
 			if (pieceToCapture is null)
 				throw new InvalidOperationException("Trying to capture a Piece that is null.");
 
+			if (pieceToCapture.Color == pieceToMove.Color)
+				throw new InvalidOperationException("Trying to capture a Piece of the same color.");
+
 			PreviousCaptureData = new(pieceToCapture, Move.To);
 			board.CapturePieceAt(pieceToCapture, Move.To, game);
 			board.MovePieceTo(pieceToMove, Move.From, Move.To);

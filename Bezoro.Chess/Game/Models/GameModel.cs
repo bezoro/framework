@@ -97,7 +97,7 @@ namespace Bezoro.Chess.Game.Models
 
 			var moveCommand = new MovePieceCommand(move);
 			moveCommand.Execute(this);
-			ActiveColor = ActiveColor == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
+			ActiveColor = ActiveColor.Opposite();
 			HalfMoveClock++;
 
 			if (ActiveColor == PlayerColor.White)
