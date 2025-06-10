@@ -108,14 +108,6 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt("f5"),        Is.EqualTo(whitePawn));
-				Assert.That(board.GetSquareAt("e4").Piece, Is.Null);
-			});
-
 		moveCommand.Undo(game);
 
 		Assert.Multiple(
@@ -136,15 +128,8 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt("a4"),          Is.EqualTo(whitePawn));
-				Assert.That(board.GetPieceAt("a2"),          Is.Null);
-				Assert.That(board.GetPieceAt("a4").HasMoved, Is.True);
-			});
-
 		moveCommand.Undo(game);
+
 		Assert.Multiple(
 			() =>
 			{
@@ -167,8 +152,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
 		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
-		var move = Move.CastleKingSide(new(kingSquare), new(targetKingSquare), color);
-
+		var move        = Move.CastleKingSide(new(kingSquare), new(targetKingSquare), color);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
@@ -196,8 +180,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
 		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
-		var move = Move.CastleQueenSide(new(kingSquare), new(targetKingSquare), color);
-
+		var move        = Move.CastleQueenSide(new(kingSquare), new(targetKingSquare), color);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
@@ -250,8 +233,12 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
-		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+				Assert.That(board.GetPieceAt(startSquare), Is.Null);
+			});
 	}
 
 	[TestCase(PlayerColor.White)]
@@ -270,20 +257,10 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
-				Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
-				Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
-				Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
-			});
-
 		moveCommand.Undo(game);
-
 		var king = board.GetPieceAt(kingSquare);
 		var rook = board.GetPieceAt(rookSquare);
+
 		Assert.Multiple(
 			() =>
 			{
@@ -312,14 +289,6 @@ public class MovePieceCommandUnitTests
 		var moveCommand   = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
-				Assert.That(board.GetPieceAt(startSquare), Is.Null);
-			});
-
 		moveCommand.Undo(game);
 
 		Assert.That(board.GetPieceAt(endSquare), Is.EqualTo(capturedPawn));
@@ -349,14 +318,6 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
-				Assert.That(board.GetPieceAt(startSquare), Is.Null);
-			});
-
 		moveCommand.Undo(game);
 
 		var restoredPawn = board.GetPieceAt(startSquare);
@@ -387,20 +348,10 @@ public class MovePieceCommandUnitTests
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
-				Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
-				Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
-				Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
-			});
-
 		moveCommand.Undo(game);
-
 		var king = board.GetPieceAt(kingSquare);
 		var rook = board.GetPieceAt(rookSquare);
+
 		Assert.Multiple(
 			() =>
 			{
