@@ -21,8 +21,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		var rook  = board.CreatePieceAt("h8", PlayerColor.Black, ChessPieceType.Rook);
 		var king  = board.CreatePieceAt("e8", PlayerColor.Black, ChessPieceType.King);
-		var move = new Move(
-			new("e8"), new("g8"), PlayerColor.Black, ChessPieceType.King, MoveKind.Castle, CastleSide.King);
+		var move  = Move.CastleKingSide(new("e8"), new("g8"), PlayerColor.Black);
 
 		var moveCommand = new MovePieceCommand(move);
 
@@ -41,8 +40,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		var rook  = board.CreatePieceAt("a8", PlayerColor.Black, ChessPieceType.Rook);
 		var king  = board.CreatePieceAt("e8", PlayerColor.Black, ChessPieceType.King);
-		var move = new Move(
-			new("e8"), new("c8"), PlayerColor.Black, ChessPieceType.King, MoveKind.Castle, CastleSide.Queen);
+		var move  = Move.CastleQueenSide(new("e8"), new("c8"), PlayerColor.Black);
 
 		var moveCommand = new MovePieceCommand(move);
 
@@ -61,8 +59,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		var rook  = board.CreatePieceAt("h1", PlayerColor.White, ChessPieceType.Rook);
 		var king  = board.CreatePieceAt("e1", PlayerColor.White, ChessPieceType.King);
-		var move = new Move(
-			new("e1"), new("g1"), PlayerColor.White, ChessPieceType.King, MoveKind.Castle, CastleSide.King);
+		var move  = Move.CastleKingSide(new("e1"), new("g1"), PlayerColor.White);
 
 		var moveCommand = new MovePieceCommand(move);
 
@@ -81,8 +78,7 @@ public class MovePieceCommandUnitTests
 		var board = game.Board;
 		var rook  = board.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.Rook);
 		var king  = board.CreatePieceAt("e1", PlayerColor.White, ChessPieceType.King);
-		var move = new Move(
-			new("e1"), new("c1"), PlayerColor.White, ChessPieceType.King, MoveKind.Castle, CastleSide.Queen);
+		var move  = Move.CastleQueenSide(new("e1"), new("c1"), PlayerColor.White);
 
 		var moveCommand = new MovePieceCommand(move);
 
@@ -100,9 +96,9 @@ public class MovePieceCommandUnitTests
 		var game  = new GameModel(FenUtils.EmptyBoard);
 		var board = game.Board;
 		board.SetEnPassantTargetSquare(board.GetSquareAt("f6"));
-		var whitePawn   = board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
-		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
-		var move        = new Move(new("e5"), new("f6"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.EnPassant);
+		var whitePawn = board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
+		var blackPawn = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
+		var move = Move.Standard(new("e5"), new("f6"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.EnPassant);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
@@ -121,7 +117,7 @@ public class MovePieceCommandUnitTests
 		var board       = game.Board;
 		var whitePawn   = board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
-		var move        = new Move(new("e4"), new("f5"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Capture);
+		var move        = Move.Standard(new("e4"), new("f5"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Capture);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
@@ -136,7 +132,7 @@ public class MovePieceCommandUnitTests
 		var game        = new GameModel();
 		var board       = game.Board;
 		var b2Pawn      = board.GetPieceAt("b2");
-		var move        = new Move(new("b2"), new("b4"), PlayerColor.White, ChessPieceType.Pawn);
+		var move        = Move.Standard(new("b2"), new("b4"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);
@@ -152,7 +148,7 @@ public class MovePieceCommandUnitTests
 		var game        = new GameModel();
 		var board       = game.Board;
 		var whitePawn   = board.GetPieceAt("a2");
-		var move        = new Move(new("a2"), new("a4"), PlayerColor.White, ChessPieceType.Pawn);
+		var move        = Move.Standard(new("a2"), new("a4"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 		var moveCommand = new MovePieceCommand(move);
 
 		moveCommand.Execute(game);

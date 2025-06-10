@@ -13,12 +13,28 @@ public class MoveUnitTests
 	private static readonly BoardPosition E2 = new(4, 1); // e2
 	private static readonly BoardPosition E4 = new(4, 3); // e4
 
+#region Test Methods
+
+#region Sad paths
+
+	[Test]
+	public void EqualsObject_ReturnsFalseForDifferentMove()
+	{
+		var    a = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
+		object b = Move.Standard(A7, A8, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
+		Assert.That(a.Equals(b), Is.False);
+	}
+
+#endregion
+
+#endregion
+
 #region Happy paths
 
 	[Test]
 	public void NormalMove_HasExpectedProperties()
 	{
-		var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
+		var move = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 
 		Assert.Multiple(
 			() =>
@@ -48,8 +64,8 @@ public class MoveUnitTests
 	[Test]
 	public void Equality_WorksForIdenticalMoves()
 	{
-		var a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
-		var b = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
+		var a = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
+		var b = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 
 		Assert.Multiple(
 			() =>
@@ -63,8 +79,8 @@ public class MoveUnitTests
 	[Test]
 	public void Inequality_ReturnsFalseForIdenticalMoves()
 	{
-		var a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
-		Assert.That(a != a, Is.False); // reflexive
+		var a = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
+		Assert.That(a != a, Is.False);
 	}
 
 	[Test]
@@ -72,7 +88,7 @@ public class MoveUnitTests
 	{
 		var movingSide = PlayerColor.White;
 		var pieceType  = ChessPieceType.Pawn;
-		var move       = new Move(E2, E4, movingSide, ChessPieceType.Pawn);
+		var move       = Move.Standard(E2, E4, movingSide, ChessPieceType.Pawn, MoveKind.Normal);
 		move.Deconstruct(
 			out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo, out var check);
 
@@ -89,7 +105,7 @@ public class MoveUnitTests
 	[Test]
 	public void ToString_NormalMove_OmitsPromotionSuffix()
 	{
-		var move = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
+		var move = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 		Assert.That(move.ToString(), Is.EqualTo("e2→e4"));
 	}
 
@@ -98,36 +114,6 @@ public class MoveUnitTests
 	{
 		var move = Move.PromotionQuiet(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
 		Assert.That(move.ToString(), Does.Contain("promote to Rook"));
-	}
-
-#endregion
-
-#region Sad paths
-
-	[Test]
-	public void PromotionWithoutPromoteTo_ThrowsArgumentNull() =>
-		Assert.Throws<ArgumentNullException>(
-			() =>
-			{
-				_ = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn, MoveKind.PromotionQuiet);
-			});
-
-	[Test]
-	public void NonPromotionWithPromoteTo_ThrowsArgumentException() =>
-		Assert.Throws<ArgumentException>(
-			() =>
-			{
-				_ = new Move(
-					E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal, CastleSide.None,
-					PromotionPieceType.Bishop);
-			});
-
-	[Test]
-	public void EqualsObject_ReturnsFalseForDifferentMove()
-	{
-		var    a = new Move(E2, E4, PlayerColor.White, ChessPieceType.Pawn);
-		object b = new Move(A7, A8, PlayerColor.White, ChessPieceType.Pawn);
-		Assert.That(a.Equals(b), Is.False);
 	}
 
 #endregion

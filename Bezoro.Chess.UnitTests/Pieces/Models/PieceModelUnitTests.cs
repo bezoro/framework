@@ -16,8 +16,9 @@ public class PieceModelUnitTests
 	public void GetPseudoLegalMoves_DelegatesToGenerator()
 	{
 		// Arrange
-		var game  = new GameModel();
-		var moves = new List<Move> { new(new(0, 0), new(0, 1), PlayerColor.White, ChessPieceType.Pawn) };
+		var game = new GameModel();
+		var moves = new List<Move>
+			{ Move.Standard(new(0, 0), new(0, 1), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal) };
 
 		var genMock = new Mock<IPseudoMoveGenerator>();
 		genMock

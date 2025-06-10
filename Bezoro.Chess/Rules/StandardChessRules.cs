@@ -34,14 +34,15 @@ namespace Bezoro.Chess.Rules
 					// Ensure the move being checked is for the currently active player in the original game context
 					if (CheckIfMoveExposesKing(game, move, game.ActiveColor))
 					{
-						return new(
+						return Move.Create(
 							move.From,
 							move.To,
-							move.MovingSide, // Should align with game.ActiveColor
+							move.MovingSide,
 							move.PieceType,
 							move.Kind,
+							move.PromoteTo,
 							move.CastleSide,
-							move.PromoteTo, true);
+							true);
 					}
 
 					return move;

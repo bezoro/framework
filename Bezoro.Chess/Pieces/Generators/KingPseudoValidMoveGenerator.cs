@@ -107,7 +107,8 @@ namespace Bezoro.Chess.Pieces.Generators
 
 				// Create appropriate move type (capture or normal)
 				var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
-				yield return new(from, to, king.Color, king.GetPieceType(), moveKind);
+				yield return Move.Standard(from, to, king.Color, king.GetPieceType(), moveKind);
+				;
 			}
 		}
 

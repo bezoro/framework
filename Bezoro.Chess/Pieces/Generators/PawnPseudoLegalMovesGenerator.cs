@@ -112,7 +112,7 @@ namespace Bezoro.Chess.Pieces.Generators
 			// Normal move (or EnPassant, which is not a promotion itself)
 			else
 			{
-				yield return new(from, to, pawn.Color, pawn.GetPieceType(), kind);
+				yield return Move.Standard(from, to, pawn.Color, pawn.GetPieceType(), kind);
 			}
 		}
 

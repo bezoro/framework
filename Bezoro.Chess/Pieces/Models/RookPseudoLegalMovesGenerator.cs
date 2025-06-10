@@ -99,7 +99,7 @@ namespace Bezoro.Chess.Pieces.Models
 
 				// Create appropriate move type (capture or normal)
 				var moveKind = targetPiece != null ? MoveKind.Capture : MoveKind.Normal;
-				yield return new(from, to, rook.Color, rook.GetPieceType(), moveKind);
+				yield return Move.Standard(from, to, rook.Color, rook.GetPieceType(), moveKind);
 
 				// If this square contains any piece (friend or enemy), we can't move past it
 				if (targetPiece != null)
