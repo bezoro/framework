@@ -98,6 +98,35 @@ public class MovePieceCommandUnitTests
 	}
 
 	[Test]
+	public void Undo_WhenPawnCaptures_RestorePreviousState()
+	{
+		var game        = new GameModel(FenUtils.EmptyBoard);
+		var board       = game.Board;
+		var whitePawn   = board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Pawn);
+		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
+		var move        = Move.Standard(new("e4"), new("f5"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Capture);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt("f5"),        Is.EqualTo(whitePawn));
+				Assert.That(board.GetSquareAt("e4").Piece, Is.Null);
+			});
+
+		moveCommand.Undo(game);
+
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt("e4"),        Is.EqualTo(whitePawn));
+				Assert.That(board.GetSquareAt("f5").Piece, Is.EqualTo(blackPawn));
+			});
+	}
+
+	[Test]
 	public void Undo_WhenPawnMoved_ReturnsToPastSquare()
 	{
 		var game        = new GameModel();
