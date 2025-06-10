@@ -29,25 +29,41 @@ namespace Bezoro.Chess.Common.Helpers
 		public static string EmptyBoard  => EMPTY_FEN;
 		public static string StartPieces => START_PIECES;
 
-		public static bool IsValidPiecePlacement(string field)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsValidPiecePlacement(ReadOnlySpan<char> field)
 		{
-			string[] ranks = field.Split('/');
-			if (ranks.Length != 8) return false;
+			var ranks = 0;
+			var files = 0;
 
-			foreach (var rank in ranks)
+			foreach (var c in field)
 			{
-				var files = 0;
-				foreach (var c in rank)
+				if (c == '/')
 				{
-					if (char.IsDigit(c)) files                     += c - '0';
-					else if ("prnbqkPRNBQK".IndexOf(c) >= 0) files += 1;
-					else return false;
+					if (files != 8) return false;
+					files = 0;
+					ranks++;
+					continue;
 				}
 
-				if (files != 8) return false;
+				if (char.IsDigit(c))
+				{
+					var emptySquares = c - '0';
+					if (emptySquares < 1 || emptySquares > 8) return false;
+					files += emptySquares;
+				}
+				else if ("prnbqkPRNBQK".Contains(c))
+				{
+					files += 1;
+				}
+				else
+				{
+					return false;
+				}
+
+				if (files > 8) return false; // Too many files in a rank
 			}
 
-			return true;
+			return ranks == 7 && files == 8; // 7 slashes + final rank = 8 ranks total
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -58,102 +74,142 @@ namespace Bezoro.Chess.Common.Helpers
 
 			if (string.IsNullOrWhiteSpace(fen))
 			{
-				error = "FEN string is null or blank.";
+				error = "FEN string cannot be null or empty.";
 				return false;
 			}
 
-			// Split the FEN string by spaces, removing empty entries.
-			var parts = fen.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+			return TryParse(fen.AsSpan(), out data, out error);
+		}
 
-			if (parts.Length is 0 or > 6)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool TryParse(ReadOnlySpan<char> fen, out FenData data, out string? error)
+		{
+			data  = default;
+			error = null;
+
+			if (fen.IsEmpty || fen.IsWhiteSpace())
 			{
-				error = "FEN string must contain between 1 and 6 space-separated fields.";
+				error = "FEN string cannot be null or empty.";
+				return false;
+			}
+
+			// Use stack allocation for parts array (small, fixed size)
+			Span<Range> parts     = stackalloc Range[6];
+			var         partCount = SplitFenString(fen, parts);
+
+			if (partCount == 0 || partCount > 6)
+			{
+				error = "FEN string must contain 1-6 space-separated fields.";
 				return false;
 			}
 
 			// Field 1: Piece Placement (Mandatory)
-			var piecePlacement = parts[0];
-			if (!IsValidPiecePlacement(piecePlacement)) // Assuming FenValidators exists
+			var piecePlacement = fen[parts[0]];
+			if (!IsValidPiecePlacement(piecePlacement))
 			{
-				error = "Invalid piece-placement section.";
+				error = "Invalid piece placement section.";
 				return false;
 			}
 
 			// Field 2: Active Color (Default: 'w')
-			var activeColorStr = parts.Length > 1 ? parts[1] : "w";
-			if (!TryParseColor(activeColorStr, out var color))
+			var activeColorSpan = partCount > 1 ? fen[parts[1]] : "w".AsSpan();
+			if (!TryParseColor(activeColorSpan, out var color))
 			{
-				error = "Active color must be 'w' or 'b'.";
+				error = "Active color must be 'w' (white) or 'b' (black).";
 				return false;
 			}
 
 			// Field 3: Castling Availability (Default: '-')
-			var castlingStr = parts.Length > 2 ? parts[2] : "-";
-			if (!TryParseCastling(castlingStr, out var rights))
+			var castlingSpan = partCount > 2 ? fen[parts[2]] : "-".AsSpan();
+			if (!TryParseCastling(castlingSpan, out var rights))
 			{
-				error = "Malformed castling section.";
+				error = "Invalid castling availability section.";
 				return false;
 			}
 
 			// Field 4: En Passant Target Square (Default: '-')
-			var enPassantStr = parts.Length > 3 ? parts[3] : "-";
-			// Assuming FenValidators.TryParseEnPassant validates and outputs the string representation (e.g. "e3" or "-")
-			if (!TryParseEnPassant(enPassantStr, out var epSquareString))
+			var enPassantSpan = partCount > 3 ? fen[parts[3]] : "-".AsSpan();
+			if (!TryParseEnPassant(enPassantSpan, out var epSquareString))
 			{
-				error = "Invalid en-passant target square.";
+				error = "Invalid en passant target square.";
 				return false;
 			}
 
 			// Field 5: Halfmove Clock (Default: 0)
-			var halfmoveClockStr = parts.Length > 4 ? parts[4] : "0";
-			if (!int.TryParse(halfmoveClockStr, out var half) || half < 0)
+			var halfmoveClockSpan = partCount > 4 ? fen[parts[4]] : "0".AsSpan();
+			if (!TryParseInt(halfmoveClockSpan, out var half) || half < 0)
 			{
-				error = "Half-move clock must be a non-negative integer.";
+				error = "Halfmove clock must be a non-negative integer.";
 				return false;
 			}
 
 			// Field 6: Fullmove Number (Default: 1)
-			var fullmoveNumberStr = parts.Length > 5 ? parts[5] : "1";
-			if (!int.TryParse(fullmoveNumberStr, out var full) || full < 1)
+			var fullmoveNumberSpan = partCount > 5 ? fen[parts[5]] : "1".AsSpan();
+			if (!TryParseInt(fullmoveNumberSpan, out var full) || full < 1)
 			{
-				error = "Full-move number must be a positive integer (>= 1).";
+				error = "Fullmove number must be a positive integer (>= 1).";
 				return false;
 			}
 
-			data = new(piecePlacement, color, rights, epSquareString, half, full);
+			data = new(piecePlacement.ToString(), color, rights, epSquareString, half, full);
 			return true;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool TryParseCastling(string token, out CastlingRights rights)
+		public static bool TryParseCastling(ReadOnlySpan<char> token, out CastlingRights rights)
 		{
 			rights = CastlingRights.None;
-			if (token == "-") return true;
 
-			// Ensure no invalid characters and build rights
+			if (token.Length == 1 && token[0] == '-')
+				return true;
+
 			var tempRights = CastlingRights.None;
+			var seenFlags  = 0; // Bit flags to track duplicates: K=1, Q=2, k=4, q=8
+
 			foreach (var c in token)
 			{
+				int            flag;
+				CastlingRights right;
+
 				switch (c)
 				{
-					case 'K': tempRights |= CastlingRights.WhiteKingSide; break;
-					case 'Q': tempRights |= CastlingRights.WhiteQueenSide; break;
-					case 'k': tempRights |= CastlingRights.BlackKingSide; break;
-					case 'q': tempRights |= CastlingRights.BlackQueenSide; break;
-					default:  return false; // Invalid character
+					case 'K':
+						flag  = 1;
+						right = CastlingRights.WhiteKingSide;
+						break;
+					case 'Q':
+						flag  = 2;
+						right = CastlingRights.WhiteQueenSide;
+						break;
+					case 'k':
+						flag  = 4;
+						right = CastlingRights.BlackKingSide;
+						break;
+					case 'q':
+						flag  = 8;
+						right = CastlingRights.BlackQueenSide;
+						break;
+					default:
+						return false; // Invalid character
 				}
+
+				// Check for duplicates
+				if ((seenFlags & flag) != 0)
+					return false;
+
+				seenFlags  |= flag;
+				tempRights |= right;
 			}
 
-			// Check for duplicates or invalid order if necessary, though FEN standard is somewhat loose here.
-			// For simplicity, we accept any combination of valid characters.
 			rights = tempRights;
-			return true; // True if token was "-" or only contained valid castling characters
+			return true;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool TryParseColor(string token, out PlayerColor color)
+		public static bool TryParseColor(ReadOnlySpan<char> token, out PlayerColor color)
 		{
-			color = PlayerColor.None; // Default to an invalid state
+			color = PlayerColor.None;
+
 			if (token.Length != 1)
 				return false;
 
@@ -165,17 +221,45 @@ namespace Bezoro.Chess.Common.Helpers
 				case 'b':
 					color = PlayerColor.Black;
 					return true;
+				default:
+					return false;
 			}
-
-			return false;
 		}
 
-		public static bool TryParseEnPassant(string token, out string square)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool TryParseEnPassant(ReadOnlySpan<char> token, out string square)
 		{
-			square = token;
-			if (token == "-") return true;
+			if (token.Length == 1 && token[0] == '-')
+			{
+				square = "-";
+				return true;
+			}
 
-			return token.Length == 2 && "abcdefgh".Contains(token[0]) && "36".Contains(token[1]);
+			if (token.Length != 2)
+			{
+				square = string.Empty;
+				return false;
+			}
+
+			var file = token[0];
+			var rank = token[1];
+
+			// File must be a-h
+			if (file < 'a' || file > 'h')
+			{
+				square = string.Empty;
+				return false;
+			}
+
+			// Rank must be 3 or 6 (valid en passant target squares)
+			if (rank != '3' && rank != '6')
+			{
+				square = string.Empty;
+				return false;
+			}
+
+			square = token.ToString();
+			return true;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -213,6 +297,99 @@ namespace Bezoro.Chess.Common.Helpers
 			if (rights.HasFlag(CastlingRights.BlackQueenSide)) sb.Append('q');
 			return sb.ToString();
 		}
+
+		/// <summary>
+		///     High-performance integer parsing for spans
+		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static bool TryParseInt(ReadOnlySpan<char> span, out int result)
+		{
+			result = 0;
+
+			if (span.IsEmpty)
+				return false;
+
+			var isNegative = false;
+			var startIndex = 0;
+
+			// Handle negative numbers
+			if (span[0] == '-')
+			{
+				if (span.Length == 1)
+					return false;
+
+				isNegative = true;
+				startIndex = 1;
+			}
+			else if (span[0] == '+')
+			{
+				if (span.Length == 1)
+					return false;
+
+				startIndex = 1;
+			}
+
+			// Parse digits
+			for (var i = startIndex ; i < span.Length ; i++)
+			{
+				var c = span[i];
+				if (c < '0' || c > '9')
+					return false;
+
+				var digit = c - '0';
+
+				// Check for overflow before multiplication
+				if (result > (int.MaxValue - digit) / 10)
+					return false;
+
+				result = result * 10 + digit;
+			}
+
+			if (isNegative)
+				result = -result;
+
+			return true;
+		}
+
+		/// <summary>
+		///     Splits a FEN string by spaces, returning the number of parts found.
+		/// </summary>
+		/// <param name="fen">The FEN string to split</param>
+		/// <param name="parts">Span to store the ranges of each part</param>
+		/// <returns>Number of parts found</returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static int SplitFenString(ReadOnlySpan<char> fen, Span<Range> parts)
+		{
+			var partCount = 0;
+			var start     = 0;
+
+			for (var i = 0 ; i < fen.Length && partCount < parts.Length ; i++)
+			{
+				if (fen[i] == ' ')
+				{
+					if (i > start) // Skip empty parts
+					{
+						parts[partCount] = new(start, i);
+						partCount++;
+					}
+
+					// Skip consecutive spaces
+					while (i < fen.Length - 1 && fen[i + 1] == ' ')
+						i++;
+
+					start = i + 1;
+				}
+			}
+
+			// Add the last part if it exists
+			if (start < fen.Length && partCount < parts.Length)
+			{
+				parts[partCount] = new(start, fen.Length);
+				partCount++;
+			}
+
+			return partCount;
+		}
 	}
 
 	public readonly struct FenData
@@ -231,15 +408,17 @@ namespace Bezoro.Chess.Common.Helpers
 			EnPassant      = enPassant;
 			HalfmoveClock  = halfmoveClock;
 			FullmoveNumber = fullmoveNumber;
-			FullString     = $"{piecePlacement} {activeColor} {castling} {enPassant} {halfmoveClock} {fullmoveNumber}";
+			_fullString    = null; // Lazy initialization
 		}
 
-		public readonly CastlingRights Castling;
-		public readonly int            FullmoveNumber;
-		public readonly int            HalfmoveClock;
-		public readonly PlayerColor    ActiveColor;
-		public readonly string         EnPassant;
-		public readonly string         FullString;
-		public readonly string         PiecePlacement;
+		public readonly  CastlingRights Castling;
+		public readonly  int            FullmoveNumber;
+		public readonly  int            HalfmoveClock;
+		public readonly  PlayerColor    ActiveColor;
+		public readonly  string         EnPassant;
+		public readonly  string         PiecePlacement;
+		private readonly string?        _fullString;
+
+		public string FullString => _fullString ?? FenUtils.Format(this);
 	}
 }
