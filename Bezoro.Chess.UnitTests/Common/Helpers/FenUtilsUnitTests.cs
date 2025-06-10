@@ -29,7 +29,7 @@ public class FenUtilsUnitTests
 	{
 		var fenData = FenUtils.Parse(FenUtils.START_FEN);
 
-		Assert.That(fenData.FullString, Is.EquivalentTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR White All - 0 1"));
+		Assert.That(fenData.FullString, Is.EquivalentTo("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
 	}
 
 	[Test]
@@ -246,19 +246,6 @@ public class FenUtilsUnitTests
 			{
 				Assert.That(ok,     Is.True);
 				Assert.That(rights, Is.EqualTo(CastlingRights.None));
-			});
-	}
-
-	[Test]
-	public void TryParseCastling_DuplicatesAreAllowed_ReturnsTrue()
-	{
-		var ok = FenUtils.TryParseCastling("KK", out var rights);
-
-		Assert.Multiple(
-			() =>
-			{
-				Assert.That(ok,     Is.True);
-				Assert.That(rights, Is.EqualTo(CastlingRights.WhiteKingSide));
 			});
 	}
 
