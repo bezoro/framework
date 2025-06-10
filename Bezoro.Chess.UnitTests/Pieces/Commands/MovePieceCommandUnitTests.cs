@@ -172,6 +172,25 @@ public class MovePieceCommandUnitTests
 
 	[TestCase(PlayerColor.White)]
 	[TestCase(PlayerColor.Black)]
+	public void Execute_WhenValidPromotionCapture_PerformsPromotion(PlayerColor color)
+	{
+		var game        = new GameModel(FenUtils.EmptyBoard);
+		var board       = game.Board;
+		var startSquare = color == PlayerColor.White ? "a7" : "a2";
+		var endSquare   = color == PlayerColor.White ? "b8" : "b1";
+		var whitePawn   = board.CreatePieceAt(startSquare, color, ChessPieceType.Pawn);
+		var blackPawn   = board.CreatePieceAt(endSquare,   color, ChessPieceType.Pawn);
+		var move        = Move.PromotionCapture(new(startSquare), new(endSquare), color, PromotionPieceType.Queen);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
 	public void Execute_WhenValidPromotionQuiet_PerformsPromotion(PlayerColor color)
 	{
 		var game        = new GameModel(FenUtils.EmptyBoard);
@@ -186,6 +205,30 @@ public class MovePieceCommandUnitTests
 
 		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
 		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Undo_WhenValidPromotionCapture_UndoesPromotion(PlayerColor color)
+	{
+		var game        = new GameModel(FenUtils.EmptyBoard);
+		var board       = game.Board;
+		var startSquare = color == PlayerColor.White ? "a7" : "a2";
+		var endSquare   = color == PlayerColor.White ? "b8" : "b1";
+		var whitePawn   = board.CreatePieceAt(startSquare, color, ChessPieceType.Pawn);
+		var blackPawn   = board.CreatePieceAt(endSquare,   color, ChessPieceType.Pawn);
+		var move        = Move.PromotionCapture(new(startSquare), new(endSquare), color, PromotionPieceType.Queen);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+
+		moveCommand.Undo(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<PawnModel>());
+		Assert.That(board.GetPieceAt(startSquare), Is.TypeOf<PawnModel>());
 	}
 
 	[TestCase(PlayerColor.White)]
@@ -212,4 +255,6 @@ public class MovePieceCommandUnitTests
 	}
 
 #endregion
+
+	// TODO: Castle
 }
