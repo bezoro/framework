@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Board;
 
 namespace Bezoro.Chess.Common.Helpers
@@ -20,6 +21,7 @@ namespace Bezoro.Chess.Common.Helpers
 		///     If algebraicSquare is not in a valid format (e.g., "a", "1e", "e0", "aa1", or rank
 		///     exceeds <see cref="MaxParseableRankNumber" />).
 		/// </exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static BoardPosition FromAlgebraic(string algebraicSquare, char maxFile = 'h', int maxRank = 8)
 		{
 			if (string.IsNullOrWhiteSpace(algebraicSquare))
@@ -72,6 +74,7 @@ namespace Bezoro.Chess.Common.Helpers
 		///     If File or Rank in position are outside expected ranges for conversion
 		///     (File 0-25, Rank non-negative).
 		/// </exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static string ToAlgebraic(BoardPosition position)
 		{
 			if (position == null)
@@ -94,6 +97,7 @@ namespace Bezoro.Chess.Common.Helpers
 		///     If fileIndex or rankIndex are outside expected ranges (fileIndex 0-25,
 		///     rankIndex non-negative).
 		/// </exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static string ToAlgebraic(int fileIndex, int rankIndex)
 		{
 			if (fileIndex is < 0 or > 25)

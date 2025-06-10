@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Common.Enums;
 
 namespace Bezoro.Chess.Common.Extensions
@@ -9,6 +10,7 @@ namespace Bezoro.Chess.Common.Extensions
 		///     Gets the standard single character representation for a chess piece type.
 		///     Pawn returns 'P', though in SAN it's often omitted or represented by file.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToChar(this ChessPieceType pieceType, PlayerColor movingSide) =>
 			movingSide == PlayerColor.White
 				? pieceType switch
@@ -35,6 +37,7 @@ namespace Bezoro.Chess.Common.Extensions
 		/// <summary>
 		///     Gets the standard single character representation for a promotion piece type.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToChar(this PromotionPieceType pieceType) =>
 			pieceType switch
 			{
