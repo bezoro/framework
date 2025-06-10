@@ -252,13 +252,28 @@ public class MovePieceCommandUnitTests
 
 		moveCommand.Execute(game);
 
-		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
-		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+				Assert.That(board.GetPieceAt(startSquare), Is.Null);
+			});
 
 		moveCommand.Undo(game);
 
-		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<PawnModel>());
-		Assert.That(board.GetPieceAt(startSquare), Is.TypeOf<PawnModel>());
+		Assert.That(board.GetPieceAt(endSquare), Is.EqualTo(capturedPawn));
+
+		var restoredPawn = board.GetPieceAt(startSquare);
+
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(restoredPawn,          Is.Not.Null);
+				Assert.That(restoredPawn,          Is.TypeOf<PawnModel>());
+				Assert.That(restoredPawn.Color,    Is.EqualTo(color));
+				Assert.That(restoredPawn.HasMoved, Is.False);
+				Assert.That(restoredPawn.HasMoved, Is.False);
+			});
 	}
 
 	[TestCase(PlayerColor.White)]
