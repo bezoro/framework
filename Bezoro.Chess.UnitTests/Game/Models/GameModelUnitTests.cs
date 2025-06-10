@@ -16,7 +16,7 @@ public class GameModelUnitTests
 	public void DoMove_WhenFromB2ToB4PawnMove_PawnMovesToB4()
 	{
 		var game = new GameModel();
-		var move = new Move(new("b2"), new("b4"), PlayerColor.White, ChessPieceType.Pawn);
+		var move = Move.Standard(new("b2"), new("b4"), PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
 
 		game.DoMove(move);
 

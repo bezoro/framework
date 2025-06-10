@@ -123,15 +123,15 @@ namespace Bezoro.Chess.Common.Helpers
 
 					if (board.IsEmpty(to.Position))
 					{
-						yield return new(from.Position, to.Position, movingSide, movingPieceType); // quiet move
+						yield return Move.Standard(
+							from.Position, to.Position, movingSide, movingPieceType, MoveKind.Normal);
 					}
 					else
 					{
 						if (board.IsEnemy(to, movingPieceColor))
 						{
-							yield return new(
-								from.Position, to.Position, movingPieceColor, movingPieceType,
-								MoveKind.Capture); // capture
+							yield return Move.Standard(
+								from.Position, to.Position, movingPieceColor, movingPieceType, MoveKind.Capture);
 						}
 
 						break; // blocked

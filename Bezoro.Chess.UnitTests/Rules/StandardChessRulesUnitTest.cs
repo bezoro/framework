@@ -17,12 +17,13 @@ public class StandardChessRulesUnitTest
 		var rules = new StandardChessRules();
 		var game  = new GameModel();
 
-		var move = new Move(
+		var move = Move.Standard(
 			new("e2"),
 			new("e4"),
 			PlayerColor.White,
 			ChessPieceType.Pawn,
-			leavesKingInCheck: true);
+			MoveKind.Normal,
+			true);
 
 		var result = rules.FilterLegalMoves(game, [ move ]);
 
