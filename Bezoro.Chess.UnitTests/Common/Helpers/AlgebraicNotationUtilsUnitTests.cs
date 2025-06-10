@@ -54,8 +54,12 @@ public class AlgebraicNotationUtilsUnitTests
 		var position = AlgebraicNotationUtils.FromAlgebraic(algebraic);
 
 		// Assert
-		Assert.That(position.Column, Is.EqualTo(expectedFile));
-		Assert.That(position.Rank,   Is.EqualTo(expectedRank));
+		Assert.Multiple(
+			() =>
+			{
+				Assert.That(position.Column, Is.EqualTo(expectedFile));
+				Assert.That(position.Rank,   Is.EqualTo(expectedRank));
+			});
 	}
 
 	[TestCase("",  TestName = "FromAlgebraic_EmptyInput_ThrowsArgumentNullException")]
