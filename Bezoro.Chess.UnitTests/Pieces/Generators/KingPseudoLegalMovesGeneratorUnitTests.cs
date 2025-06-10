@@ -149,16 +149,17 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var generator = new KingPseudoValidMoveGenerator();
 
 		// Act
-		var pseudoMoves          = generator.Generate(game, king).ToList();
-		var kingsideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleKingside);
+		var pseudoMoves = generator.Generate(game, king).ToList();
+		var kingsideCastlingMove =
+			pseudoMoves.FirstOrDefault(m => m is { Kind: MoveKind.Castle, CastleSide: CastleSide.King });
 
 		// Assert
 		// If no CastleKingside move is found, FirstOrDefault returns default(Move).
 		// We assert that the Kind of this (potentially default) move is not CastleKingside.
 		// This relies on default(Move).Kind not being MoveKind.CastleKingside.
 		Assert.That(
-			kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleKingside),
-			"Kingside castling move should not be generated if the h1-Rook has moved.");
+			kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.Castle),
+			"Castling move should not be generated if the h1-Rook has moved.");
 
 		var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
 		Assert.That(standardMovesCount, Is.EqualTo(5), "Standard king moves should still be generated.");
@@ -193,13 +194,14 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var generator = new KingPseudoValidMoveGenerator();
 
 		// Act
-		var pseudoMoves          = generator.Generate(game, king).ToList();
-		var kingsideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleKingside);
+		var pseudoMoves = generator.Generate(game, king).ToList();
+		var kingsideCastlingMove =
+			pseudoMoves.FirstOrDefault(m => m is { Kind: MoveKind.Castle, CastleSide: CastleSide.King });
 
 		// Assert
 		Assert.That(
-			kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleKingside),
-			"Kingside castling move should not be generated if the King has moved.");
+			kingsideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.Castle),
+			"Castling move should not be generated if the King has moved.");
 
 		// Optional: Verify standard moves are still generated (e.g., 5 if e1 is unblocked)
 		// This depends on whether this generator is solely for castling or all king moves.
@@ -241,13 +243,16 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var generator = new KingPseudoValidMoveGenerator();
 
 		// Act
-		var pseudoMoves           = generator.Generate(game, king).ToList();
-		var queensideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleQueenside);
+		var pseudoMoves = generator.Generate(game, king).ToList();
+		var queensideCastlingMove =
+			pseudoMoves.FirstOrDefault(m => m is { Kind: MoveKind.Castle, CastleSide: CastleSide.Queen });
+
+		;
 
 		// Assert
 		Assert.That(
-			queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleQueenside),
-			"Queenside castling move should not be generated if the a1-Rook has moved.");
+			queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.Castle),
+			"Castling move should not be generated if the a1-Rook has moved.");
 
 		var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
 		// Standard moves from e1: d1, d2, e2, f1, f2 (5 moves)
@@ -282,13 +287,14 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var generator = new KingPseudoValidMoveGenerator();
 
 		// Act
-		var pseudoMoves           = generator.Generate(game, king).ToList();
-		var queensideCastlingMove = pseudoMoves.FirstOrDefault(m => m.Kind == MoveKind.CastleQueenside);
+		var pseudoMoves = generator.Generate(game, king).ToList();
+		var queensideCastlingMove =
+			pseudoMoves.FirstOrDefault(m => m is { Kind: MoveKind.Castle, CastleSide: CastleSide.Queen });
 
 		// Assert
 		Assert.That(
-			queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.CastleQueenside),
-			"Queenside castling move should not be generated if the King has moved.");
+			queensideCastlingMove.Kind, Is.Not.EqualTo(MoveKind.Castle),
+			"Castling move should not be generated if the King has moved.");
 
 		var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
 		// Standard moves from e1: d1, d2, e2, f1, f2 (5 moves)

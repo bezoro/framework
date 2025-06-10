@@ -122,9 +122,7 @@ namespace Bezoro.Chess.Common.Enums
 		EnPassant,
 		PromotionQuiet,
 		PromotionCapture,
-		Castle,
-		CastleKingside,
-		CastleQueenside
+		Castle
 	}
 
 	/// <summary>

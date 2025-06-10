@@ -98,10 +98,6 @@ namespace Bezoro.Chess.Pieces.Commands
 					break;
 				case MoveKind.Castle:
 					break;
-				case MoveKind.CastleKingside:
-					break;
-				case MoveKind.CastleQueenside:
-					break;
 				default:
 					throw new ArgumentOutOfRangeException();
 			}
