@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Chess.Abstractions.Interfaces;
+using Bezoro.Chess.Board;
 using Bezoro.Chess.Board.Models;
 using Bezoro.Chess.Common.Enums;
 using Bezoro.Chess.Common.Extensions;
@@ -11,6 +12,16 @@ namespace Bezoro.Chess.Common.Helpers
 {
 	public static class ChessUtils
 	{
+		public static readonly Dictionary<(PlayerColor color, CastleSide side),
+			(BoardPosition kingFrom, BoardPosition kingTo,
+			BoardPosition rookFrom, BoardPosition rookTo)> CastlePositions = new()
+		{
+			{ (PlayerColor.White, CastleSide.King), (new("e1"), new("g1"), new("h1"), new("f1")) },
+			{ (PlayerColor.White, CastleSide.Queen), (new("e1"), new("c1"), new("a1"), new("d1")) },
+			{ (PlayerColor.Black, CastleSide.King), (new("e8"), new("g8"), new("h8"), new("f8")) },
+			{ (PlayerColor.Black, CastleSide.Queen), (new("e8"), new("c8"), new("a8"), new("d8")) }
+		};
+
 		public static char GetCharFromPiece(IChessPieceModel piece)
 		{
 			var pieceChar = piece.GetType().Name switch
@@ -124,7 +135,7 @@ namespace Bezoro.Chess.Common.Helpers
 		/// </summary>
 		/// <param name="c">The character to convert.</param>
 		/// <returns>White for uppercase characters, Black for lowercase characters.</returns>
-		private static PlayerColor ToPlayerColor(this char c) =>
+		public static PlayerColor ToPlayerColor(this char c) =>
 			char.IsUpper(c) ? PlayerColor.White : PlayerColor.Black;
 	}
 }
