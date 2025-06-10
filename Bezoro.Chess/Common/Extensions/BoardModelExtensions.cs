@@ -13,6 +13,13 @@ namespace Bezoro.Chess.Common.Extensions
 	/// </summary>
 	public static class BoardModelExtensions
 	{
+		public static bool HasExactlyOneKingPerSide(this IChessBoardModel board)
+		{
+			var whiteKing = board.FindFirstPieceOfType(ChessPieceType.King, PlayerColor.White);
+			var blackKing = board.FindFirstPieceOfType(ChessPieceType.King, PlayerColor.Black);
+			return whiteKing != null && blackKing != null;
+		}
+
 		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
@@ -76,6 +83,20 @@ namespace Bezoro.Chess.Common.Extensions
 			board.BoardPieces.Add(piece);
 			board.PieceIndex.TryAdd(piece, new(col, row));
 			return piece;
+		}
+
+		public static IChessPieceModel? FindFirstPieceOfType(
+			this IChessBoardModel board,
+			ChessPieceType type,
+			PlayerColor color)
+		{
+			foreach (var piece in board.BoardPieces)
+			{
+				if (piece.GetPieceType() == type && piece.Color == color)
+					return piece;
+			}
+
+			return null;
 		}
 
 		/// <summary>
