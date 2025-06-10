@@ -172,6 +172,29 @@ public class MovePieceCommandUnitTests
 
 	[TestCase(PlayerColor.White)]
 	[TestCase(PlayerColor.Black)]
+	public void Execute_WhenValidKingSideCastle_MovesKingAndRook(PlayerColor color)
+	{
+		var game             = new GameModel(FenUtils.EmptyBoard);
+		var board            = game.Board;
+		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
+		var rookSquare       = color == PlayerColor.White ? "h1" : "h8";
+		var targetKingSquare = color == PlayerColor.White ? "g1" : "g8";
+		var targetRookSquare = color == PlayerColor.White ? "f1" : "f8";
+		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
+		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
+		var move        = Move.CastleKingSide(new(kingSquare), new(targetKingSquare), color);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
 	public void Execute_WhenValidPromotionCapture_PerformsPromotion(PlayerColor color)
 	{
 		var game        = new GameModel(FenUtils.EmptyBoard);
@@ -205,6 +228,60 @@ public class MovePieceCommandUnitTests
 
 		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
 		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Execute_WhenValidQueenSideCastle_MovesKingAndRook(PlayerColor color)
+	{
+		var game             = new GameModel(FenUtils.EmptyBoard);
+		var board            = game.Board;
+		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
+		var rookSquare       = color == PlayerColor.White ? "a1" : "a8";
+		var targetKingSquare = color == PlayerColor.White ? "c1" : "c8";
+		var targetRookSquare = color == PlayerColor.White ? "d1" : "d8";
+		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
+		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
+		var move        = Move.CastleQueenSide(new(kingSquare), new(targetKingSquare), color);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Undo_WhenValidKingSideCastle_ResetsKingAndRook(PlayerColor color)
+	{
+		var game             = new GameModel(FenUtils.EmptyBoard);
+		var board            = game.Board;
+		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
+		var rookSquare       = color == PlayerColor.White ? "h1" : "h8";
+		var targetKingSquare = color == PlayerColor.White ? "g1" : "g8";
+		var targetRookSquare = color == PlayerColor.White ? "f1" : "f8";
+		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
+		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
+		var move        = Move.CastleKingSide(new(kingSquare), new(targetKingSquare), color);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+
+		moveCommand.Undo(game);
+
+		Assert.That(board.GetPieceAt(kingSquare),       Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
+
+		Assert.That(board.GetPieceAt(rookSquare),       Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
 	}
 
 	[TestCase(PlayerColor.White)]
@@ -254,7 +331,36 @@ public class MovePieceCommandUnitTests
 		Assert.That(board.GetPieceAt(startSquare), Is.TypeOf<PawnModel>());
 	}
 
-#endregion
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Undo_WhenValidQueenSideCastle_ResetsKingAndRook(PlayerColor color)
+	{
+		var game             = new GameModel(FenUtils.EmptyBoard);
+		var board            = game.Board;
+		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
+		var rookSquare       = color == PlayerColor.White ? "a1" : "a8";
+		var targetKingSquare = color == PlayerColor.White ? "c1" : "c8";
+		var targetRookSquare = color == PlayerColor.White ? "d1" : "d8";
+		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
+		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
+		var move        = Move.CastleQueenSide(new(kingSquare), new(targetKingSquare), color);
+		var moveCommand = new MovePieceCommand(move);
 
-	// TODO: Castle
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(rookSquare),       Is.Null);
+		Assert.That(board.GetPieceAt(kingSquare),       Is.Null);
+
+		moveCommand.Undo(game);
+
+		Assert.That(board.GetPieceAt(kingSquare),       Is.TypeOf<KingModel>());
+		Assert.That(board.GetPieceAt(targetKingSquare), Is.Null);
+
+		Assert.That(board.GetPieceAt(rookSquare),       Is.TypeOf<RookModel>());
+		Assert.That(board.GetPieceAt(targetRookSquare), Is.Null);
+	}
+
+#endregion
 }
