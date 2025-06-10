@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Abstractions.Interfaces;
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Board.Models;
@@ -22,6 +23,7 @@ namespace Bezoro.Chess.Common.Helpers
 			{ (PlayerColor.Black, CastleSide.Queen), (new("e8"), new("c8"), new("a8"), new("d8")) }
 		};
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char GetCharFromPiece(IChessPieceModel piece)
 		{
 			var pieceChar = piece.GetType().Name switch
@@ -44,6 +46,7 @@ namespace Bezoro.Chess.Common.Helpers
 		/// <param name="fenChar">The FEN character representing a chess piece.</param>
 		/// <returns>The corresponding ChessPieceType.</returns>
 		/// <exception cref="ArgumentException">Thrown when the FEN character is invalid.</exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static ChessPieceType GetPieceTypeFromChar(char fenChar)
 		{
 			switch (fenChar)
@@ -64,6 +67,7 @@ namespace Bezoro.Chess.Common.Helpers
 		/// <param name="fenChar">The FEN character representing a chess piece.</param>
 		/// <returns>A new instance of IChessPieceModel representing the chess piece.</returns>
 		/// <exception cref="ArgumentException">Thrown when the FEN character is invalid.</exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessPieceModel GetPieceFromChar(char fenChar)
 		{
 			var color     = fenChar.ToPlayerColor();
@@ -91,6 +95,7 @@ namespace Bezoro.Chess.Common.Helpers
 		/// <param name="movingPieceType">The type of piece being moved.</param>
 		/// <param name="movingPieceColor">The color of the piece being moved.</param>
 		/// <returns>An enumerable collection of valid moves for the piece.</returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GenerateSlidingMoves(
 			IChessBoardModel board,
 			IChessBoardSquareModel from,
@@ -135,6 +140,7 @@ namespace Bezoro.Chess.Common.Helpers
 		/// </summary>
 		/// <param name="c">The character to convert.</param>
 		/// <returns>White for uppercase characters, Black for lowercase characters.</returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static PlayerColor ToPlayerColor(this char c) =>
 			char.IsUpper(c) ? PlayerColor.White : PlayerColor.Black;
 	}

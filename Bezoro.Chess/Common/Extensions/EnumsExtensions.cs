@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Common.Enums;
 
 namespace Bezoro.Chess.Common.Extensions
@@ -12,6 +13,7 @@ namespace Bezoro.Chess.Common.Extensions
 		/// <returns>The lowercase FEN character for the piece type.</returns>
 		/// <exception cref="ArgumentException">Thrown for None piece type.</exception>
 		/// <exception cref="ArgumentOutOfRangeException">Thrown for unknown piece types.</exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToFenChar(this ChessPieceType pieceType) =>
 			pieceType switch
 			{

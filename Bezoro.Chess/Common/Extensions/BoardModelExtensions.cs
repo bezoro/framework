@@ -13,6 +13,7 @@ namespace Bezoro.Chess.Common.Extensions
 	/// </summary>
 	public static class BoardModelExtensions
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool HasExactlyOneKingPerSide(this IChessBoardModel board)
 		{
 			var whiteKing = board.FindFirstPieceOfType(ChessPieceType.King, PlayerColor.White);
@@ -20,6 +21,7 @@ namespace Bezoro.Chess.Common.Extensions
 			return whiteKing != null && blackKing != null;
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
@@ -28,9 +30,11 @@ namespace Bezoro.Chess.Common.Extensions
 			return board.GetSquareAt(col, row);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, BoardPosition position) =>
 			board.GetSquareAt(position.Column, position.Row);
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, int col, int row) =>
 			!board.IsInside(col, row) ? null! : board.Squares[col, row];
 
@@ -85,6 +89,7 @@ namespace Bezoro.Chess.Common.Extensions
 			return piece;
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessPieceModel? FindFirstPieceOfType(
 			this IChessBoardModel board,
 			ChessPieceType type,
@@ -106,6 +111,7 @@ namespace Bezoro.Chess.Common.Extensions
 		///     Algebraic "a1" corresponds to Squares[0,0].
 		///     Algebraic "h8" corresponds to Squares[7,7] on an 8x8 board.
 		/// </remarks>
+		/// [MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
@@ -115,9 +121,11 @@ namespace Bezoro.Chess.Common.Extensions
 			return board.GetPieceAt(col, row);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, BoardPosition position) =>
 			board.GetPieceAt(position.Column, position.Row);
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, int col, int row) =>
 			!board.IsInside(col, row) ? null : board.Squares[col, row].Piece;
 
@@ -125,6 +133,7 @@ namespace Bezoro.Chess.Common.Extensions
 		///     Generates the piece placement part of the Forsyth-Edwards Notation (FEN) string.
 		/// </summary>
 		/// <returns>The FEN piece placement string.</returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static string GetPiecePlacementFen(this IChessBoardModel board)
 		{
 			var fenPart = new StringBuilder();
