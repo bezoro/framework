@@ -170,5 +170,46 @@ public class MovePieceCommandUnitTests
 			});
 	}
 
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Execute_WhenValidPromotionQuiet_PerformsPromotion(PlayerColor color)
+	{
+		var game        = new GameModel(FenUtils.EmptyBoard);
+		var board       = game.Board;
+		var startSquare = color == PlayerColor.White ? "a7" : "a2";
+		var endSquare   = color == PlayerColor.White ? "a8" : "a1";
+		var pawn        = board.CreatePieceAt(startSquare, color, ChessPieceType.Pawn);
+		var move        = Move.PromotionQuiet(new(startSquare), new(endSquare), color, PromotionPieceType.Queen);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+	}
+
+	[TestCase(PlayerColor.White)]
+	[TestCase(PlayerColor.Black)]
+	public void Undo_WhenValidPromotionQuiet_UndoesPromotion(PlayerColor color)
+	{
+		var game        = new GameModel(FenUtils.EmptyBoard);
+		var board       = game.Board;
+		var startSquare = color == PlayerColor.White ? "a7" : "a2";
+		var endSquare   = color == PlayerColor.White ? "a8" : "a1";
+		var pawn        = board.CreatePieceAt(startSquare, color, ChessPieceType.Pawn);
+		var move        = Move.PromotionQuiet(new(startSquare), new(endSquare), color, PromotionPieceType.Queen);
+		var moveCommand = new MovePieceCommand(move);
+
+		moveCommand.Execute(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.TypeOf<QueenModel>());
+		Assert.That(board.GetPieceAt(startSquare), Is.Null);
+
+		moveCommand.Undo(game);
+
+		Assert.That(board.GetPieceAt(endSquare),   Is.Null);
+		Assert.That(board.GetPieceAt(startSquare), Is.TypeOf<PawnModel>());
+	}
+
 #endregion
 }
