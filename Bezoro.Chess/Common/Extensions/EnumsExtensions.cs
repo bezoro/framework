@@ -6,6 +6,18 @@ namespace Bezoro.Chess.Common.Extensions
 {
 	public static class EnumsExtensions
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static char FenChar(this PromotionPieceType promo, PlayerColor color) =>
+			promo switch
+			{
+				PromotionPieceType.Queen  => color == PlayerColor.White ? 'Q' : 'q',
+				PromotionPieceType.Rook   => color == PlayerColor.White ? 'R' : 'r',
+				PromotionPieceType.Bishop => color == PlayerColor.White ? 'B' : 'b',
+				PromotionPieceType.Knight => color == PlayerColor.White ? 'N' : 'n',
+				_ => throw new ArgumentOutOfRangeException(
+					nameof(promo), $"Unknown promotion piece type: {promo}")
+			};
+
 		/// <summary>
 		///     Converts a ChessPieceType enum to its lowercase FEN character representation.
 		/// </summary>
@@ -28,6 +40,7 @@ namespace Bezoro.Chess.Common.Extensions
 				_ => throw new ArgumentOutOfRangeException(nameof(pieceType), $"Unknown piece type: {pieceType}")
 			};
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static PlayerColor Opposite(this PlayerColor color) =>
 			color == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
 	}
