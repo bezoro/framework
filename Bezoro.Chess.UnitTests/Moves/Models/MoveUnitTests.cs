@@ -1,5 +1,6 @@
 using Bezoro.Chess.Board;
 using Bezoro.Chess.Common.Enums;
+using Bezoro.Chess.Common.Extensions;
 using Bezoro.Chess.Moves.Models;
 
 namespace Bezoro.Chess.UnitTests.Moves.Models;
@@ -90,15 +91,20 @@ public class MoveUnitTests
 		var pieceType  = ChessPieceType.Pawn;
 		var move       = Move.Standard(E2, E4, movingSide, ChessPieceType.Pawn, MoveKind.Normal);
 		move.Deconstruct(
-			out var from, out var to, out movingSide, out pieceType, out var kind, out var promoteTo, out var check);
+			out var from, out var to, out var side, out var type, out var kind, out var promoteTo,
+			out var castleSide, out var check);
 
 		Assert.Multiple(
 			() =>
 			{
-				Assert.That(from,      Is.EqualTo(E2));
-				Assert.That(to,        Is.EqualTo(E4));
-				Assert.That(kind,      Is.EqualTo(MoveKind.Normal));
-				Assert.That(promoteTo, Is.EqualTo(PromotionPieceType.None));
+				Assert.That(from,       Is.EqualTo(E2));
+				Assert.That(to,         Is.EqualTo(E4));
+				Assert.That(side,       Is.EqualTo(movingSide));
+				Assert.That(type,       Is.EqualTo(pieceType));
+				Assert.That(kind,       Is.EqualTo(MoveKind.Normal));
+				Assert.That(promoteTo,  Is.EqualTo(PromotionPieceType.None));
+				Assert.That(castleSide, Is.EqualTo(CastleSide.None));
+				Assert.That(check,      Is.False);
 			});
 	}
 
@@ -106,14 +112,14 @@ public class MoveUnitTests
 	public void ToString_NormalMove_OmitsPromotionSuffix()
 	{
 		var move = Move.Standard(E2, E4, PlayerColor.White, ChessPieceType.Pawn, MoveKind.Normal);
-		Assert.That(move.ToString(), Is.EqualTo("e2→e4"));
+		Assert.That(move.ToString(), Is.EqualTo("e2e4"));
 	}
 
 	[Test]
 	public void ToString_PromotionMove_AppendsPromotionInfo()
 	{
 		var move = Move.PromotionQuiet(A7, A8, PlayerColor.Black, PromotionPieceType.Rook);
-		Assert.That(move.ToString(), Does.Contain("promote to Rook"));
+		Assert.That(move.ToString(), Does.Contain($"={move.PromoteTo.FenChar(move.MovingSide)}"));
 	}
 
 #endregion
