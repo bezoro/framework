@@ -194,18 +194,18 @@ namespace Bezoro.Chess.Moves.Models
 		/// </summary>
 		public MoveKind Kind { get; }
 
+		/// <remarks>
+		///     This is intentionally left as the default value; callers may set it through an
+		///     object-initializer if they need to tag the move with the side that generated it.
+		/// </remarks>
+		public PlayerColor MovingSide { get; }
+
 		/// <summary>
 		///     Target piece type when <see cref="Kind" /> is <see cref="MoveKind.PromotionQuiet" /> or
 		///     <see cref="MoveKind.PromotionCapture" />.
 		///     <see cref="PromotionPieceType.None" /> otherwise.
 		/// </summary>
 		public PromotionPieceType PromoteTo { get; }
-
-		/// <remarks>
-		///     This is intentionally left as the default value; callers may set it through an
-		///     object-initializer if they need to tag the move with the side that generated it.
-		/// </remarks>
-		public PlayerColor MovingSide { get; init; }
 
 	#region Interface Implementations
 
