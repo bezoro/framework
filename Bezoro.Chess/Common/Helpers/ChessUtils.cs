@@ -1,28 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Bezoro.Chess.Abstractions.Interfaces;
-using Bezoro.Chess.Board;
-using Bezoro.Chess.Board.Models;
 using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Common.Extensions;
-using Bezoro.Chess.Moves.Models;
 using Bezoro.Chess.Pieces.Models;
 
 namespace Bezoro.Chess.Common.Helpers
 {
 	public static class ChessUtils
 	{
-		public static readonly Dictionary<(PlayerColor color, CastleSide side),
-			(BoardPosition kingFrom, BoardPosition kingTo,
-			BoardPosition rookFrom, BoardPosition rookTo)> CastlePositions = new()
-		{
-			{ (PlayerColor.White, CastleSide.King), (new("e1"), new("g1"), new("h1"), new("f1")) },
-			{ (PlayerColor.White, CastleSide.Queen), (new("e1"), new("c1"), new("a1"), new("d1")) },
-			{ (PlayerColor.Black, CastleSide.King), (new("e8"), new("g8"), new("h8"), new("f8")) },
-			{ (PlayerColor.Black, CastleSide.Queen), (new("e8"), new("c8"), new("a8"), new("d8")) }
-		};
-
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char GetCharFromPiece(IChessPieceModel piece)
 		{
@@ -83,56 +68,6 @@ namespace Bezoro.Chess.Common.Helpers
 				'n' => new KnightModel(color),
 				_   => throw new ArgumentException($"Invalid FEN piece character: {fenChar}")
 			};
-		}
-
-		/// <summary>
-		///     Generates all possible sliding moves for a piece in the given directions.
-		/// </summary>
-		/// <param name="board">The chess board model.</param>
-		/// <param name="from">The starting square of the piece.</param>
-		/// <param name="directions">Array of direction vectors (dx,dy) to check for moves.</param>
-		/// <param name="movingSide">The color of the side to move.</param>
-		/// <param name="movingPieceType">The type of piece being moved.</param>
-		/// <param name="movingPieceColor">The color of the piece being moved.</param>
-		/// <returns>An enumerable collection of valid moves for the piece.</returns>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IEnumerable<Move> GenerateSlidingMoves(
-			IChessBoardModel board,
-			IChessBoardSquareModel from,
-			(int dx, int dy)[] directions,
-			PlayerColor movingSide,
-			ChessPieceType movingPieceType,
-			PlayerColor movingPieceColor)
-		{
-			foreach (var (dx, dy) in directions)
-			{
-				var x = from.Position.Column + dx;
-				var y = from.Position.Row    + dy;
-
-				while (board.IsInside(x, y))
-				{
-					var to = new BoardSquareModel(x, y);
-
-					if (board.IsEmpty(to.Position))
-					{
-						yield return Move.Standard(
-							from.Position, to.Position, movingSide, movingPieceType, MoveKind.Normal);
-					}
-					else
-					{
-						if (board.IsEnemy(to, movingPieceColor))
-						{
-							yield return Move.Standard(
-								from.Position, to.Position, movingPieceColor, movingPieceType, MoveKind.Capture);
-						}
-
-						break; // blocked
-					}
-
-					x += dx; // step again
-					y += dy;
-				}
-			}
 		}
 
 		/// <summary>
