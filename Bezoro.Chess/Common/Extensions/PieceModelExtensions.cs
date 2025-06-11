@@ -11,7 +11,7 @@ namespace Bezoro.Chess.Common.Extensions
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static char ToFenChar(this IChessPieceModel piece) =>
-			piece.GetPieceType().ToFenChar();
+			piece.GetPieceType().ToFenChar(piece.Color);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static ChessPieceType GetPieceType(this IChessPieceModel piece) =>

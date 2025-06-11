@@ -22,19 +22,20 @@ namespace Bezoro.Chess.Common.Extensions
 		///     Converts a ChessPieceType enum to its lowercase FEN character representation.
 		/// </summary>
 		/// <param name="pieceType">The chess piece type.</param>
+		/// <param name="color"></param>
 		/// <returns>The lowercase FEN character for the piece type.</returns>
 		/// <exception cref="ArgumentException">Thrown for None piece type.</exception>
 		/// <exception cref="ArgumentOutOfRangeException">Thrown for unknown piece types.</exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static char ToFenChar(this ChessPieceType pieceType) =>
+		public static char ToFenChar(this ChessPieceType pieceType, PlayerColor color) =>
 			pieceType switch
 			{
-				ChessPieceType.Pawn   => 'p',
-				ChessPieceType.Knight => 'n',
-				ChessPieceType.Bishop => 'b',
-				ChessPieceType.Rook   => 'r',
-				ChessPieceType.Queen  => 'q',
-				ChessPieceType.King   => 'k',
+				ChessPieceType.Pawn   => color == PlayerColor.White ? 'P' : 'p',
+				ChessPieceType.Knight => color == PlayerColor.White ? 'N' : 'n',
+				ChessPieceType.Bishop => color == PlayerColor.White ? 'B' : 'b',
+				ChessPieceType.Rook   => color == PlayerColor.White ? 'R' : 'r',
+				ChessPieceType.Queen  => color == PlayerColor.White ? 'Q' : 'q',
+				ChessPieceType.King   => color == PlayerColor.White ? 'K' : 'k',
 				ChessPieceType.None => throw new ArgumentException(
 					"Cannot get FEN char for None piece type.", nameof(pieceType)),
 				_ => throw new ArgumentOutOfRangeException(nameof(pieceType), $"Unknown piece type: {pieceType}")
