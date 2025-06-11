@@ -209,34 +209,40 @@ namespace Bezoro.Chess.Moves.Models
 
 	#region Interface Implementations
 
+		// 1) Value equality
 		public bool Equals(Move other) =>
 			From.Equals(other.From)               &&
 			To.Equals(other.To)                   &&
+			MovingSide        == other.MovingSide &&
+			PieceType         == other.PieceType  &&
 			Kind              == other.Kind       &&
 			PromoteTo         == other.PromoteTo  &&
-			PieceType         == other.PieceType  &&
-			MovingSide        == other.MovingSide &&
 			CastleSide        == other.CastleSide &&
 			LeavesKingInCheck == other.LeavesKingInCheck;
 
 	#endregion
 
 		public override bool Equals(object? obj) =>
-			obj is Move m && Equals(m);
+			obj is Move other && Equals(other);
 
+		// 2) Hashing
 		public override int GetHashCode() =>
-			HashCode.Combine(From, To, Kind, PromoteTo, PieceType, MovingSide, LeavesKingInCheck, CastleSide);
+			HashCode.Combine(From, To, MovingSide, PieceType, Kind, PromoteTo, CastleSide, LeavesKingInCheck);
 
-		public override string ToString() =>
-			CastleSide switch
-			{
-				CastleSide.King  => "O-O",
-				CastleSide.Queen => "O-O-O",
-				_ => $"{(PieceType == ChessPieceType.Pawn ? "" : PieceType.ToChar(MovingSide).ToString())}{From}→{To}" +
-					 (IsPromotion ? $" (promote to {PromoteTo.ToString()})" : string.Empty)                            +
-					 (LeavesKingInCheck ? " (CHECK!)" : string.Empty)
-			};
+		// 4) Optional: human-readable notation
+		public override string ToString()
+		{
+			if (Kind == MoveKind.Castle)
+				return CastleSide == CastleSide.King ? "O-O" : "O-O-O";
 
+			var s = $"{From}{To}";
+			if (IsPromotion)
+				s += $"={PromoteTo.FenChar(MovingSide)}";
+
+			return s;
+		}
+
+		// 3) Optional: deconstruction helper
 		public void Deconstruct(
 			out BoardPosition from,
 			out BoardPosition to,
@@ -244,6 +250,7 @@ namespace Bezoro.Chess.Moves.Models
 			out ChessPieceType pieceType,
 			out MoveKind kind,
 			out PromotionPieceType promoteTo,
+			out CastleSide castleSide,
 			out bool leavesKingInCheck)
 		{
 			from              = From;
@@ -252,6 +259,7 @@ namespace Bezoro.Chess.Moves.Models
 			pieceType         = PieceType;
 			kind              = Kind;
 			promoteTo         = PromoteTo;
+			castleSide        = CastleSide;
 			leavesKingInCheck = LeavesKingInCheck;
 		}
 	}
