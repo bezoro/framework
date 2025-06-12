@@ -1,6 +1,6 @@
 using System;
 
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	[Flags]
 	public enum CastlingRights

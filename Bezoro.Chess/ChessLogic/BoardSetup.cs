@@ -1,4 +1,4 @@
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	/// <summary>
 	///     Utility class for creating initial game states with different board setups.

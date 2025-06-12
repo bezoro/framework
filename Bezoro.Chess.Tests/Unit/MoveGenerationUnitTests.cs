@@ -1,4 +1,4 @@
-using ChessLogic;
+using Bezoro.Chess.ChessLogic;
 using FluentAssertions;
 
 namespace Bezoro.Chess.Tests.Unit;

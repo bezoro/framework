@@ -1,6 +1,6 @@
 using System;
 
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	/// <summary>
 	///     Represents a position on the chessboard using both 0-indexed row/column

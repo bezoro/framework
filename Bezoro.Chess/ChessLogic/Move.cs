@@ -1,4 +1,4 @@
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	/// <summary>
 	///     Represents a single move from a starting position to an end position.
