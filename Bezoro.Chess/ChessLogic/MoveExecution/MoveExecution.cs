@@ -68,10 +68,11 @@ namespace Bezoro.Chess.ChessLogic.MoveExecution
 
 		private static CastlingRights UpdateCastlingRights(GameState state, Move move)
 		{
-			var newRights = state.Castling;
+			var newRights   = state.Castling;
+			var movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
 
 			// King moves remove all castling rights for that color
-			if (state.PiecePositions[move.From.Row, move.From.Col].Type == PieceType.King)
+			if (movingPiece.Type == PieceType.King)
 			{
 				if (state.ActiveColor == PieceColor.White)
 				{
@@ -83,26 +84,32 @@ namespace Bezoro.Chess.ChessLogic.MoveExecution
 				}
 			}
 
-			// Rook moves remove the castling right for that side
-			if (state.PiecePositions[move.From.Row, move.From.Col].Type == PieceType.Rook)
+			// A rook moving from its home square removes the castling right for that side
+			if (movingPiece.Type == PieceType.Rook)
 			{
-				if (state.ActiveColor == PieceColor.White)
+				if (move.From.Row == 7) // White's back rank
 				{
 					if (move.From.Col == 0) newRights &= ~CastlingRights.WhiteQueenside;
 					if (move.From.Col == 7) newRights &= ~CastlingRights.WhiteKingside;
 				}
-				else
+				else if (move.From.Row == 0) // Black's back rank
 				{
 					if (move.From.Col == 0) newRights &= ~CastlingRights.BlackQueenside;
 					if (move.From.Col == 7) newRights &= ~CastlingRights.BlackKingside;
 				}
 			}
 
-			// If a rook is captured, remove the corresponding castling right
-			if (move.To.Row == 0 && move.To.Col == 0) newRights &= ~CastlingRights.BlackQueenside;
-			if (move.To.Row == 0 && move.To.Col == 7) newRights &= ~CastlingRights.BlackKingside;
-			if (move.To.Row == 7 && move.To.Col == 0) newRights &= ~CastlingRights.WhiteQueenside;
-			if (move.To.Row == 7 && move.To.Col == 7) newRights &= ~CastlingRights.WhiteKingside;
+			// If a rook is captured on its home square, remove the corresponding castling right
+			if (move.To.Row == 0)
+			{
+				if (move.To.Col == 0) newRights &= ~CastlingRights.BlackQueenside;
+				if (move.To.Col == 7) newRights &= ~CastlingRights.BlackKingside;
+			}
+			else if (move.To.Row == 7)
+			{
+				if (move.To.Col == 0) newRights &= ~CastlingRights.WhiteQueenside;
+				if (move.To.Col == 7) newRights &= ~CastlingRights.WhiteKingside;
+			}
 
 			return newRights;
 		}

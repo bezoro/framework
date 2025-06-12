@@ -18,22 +18,28 @@ namespace Bezoro.Chess.ChessLogic.Generators
 			{
 				if (oneStepForward.Row == promotionRow)
 				{
-					yield return new(from, oneStepForward, pawn.Color, MoveType.PawnPromotion);
+					// Quiet promotion: generate a move for each possible promotion piece.
+					foreach (var move in GeneratePromotionMoves(from, oneStepForward, pawn.Color, PieceType.None))
+					{
+						yield return move;
+					}
 				}
 				else
 				{
 					yield return new(from, oneStepForward, pawn.Color);
 				}
+			}
 
-				// 2. Two-square advance from starting position
-				if (from.Row == startRow)
+			// 2. Two-square advance from starting position
+			if (from.Row == startRow)
+			{
+				var oneStepIsEmpty  = gameState.PiecePositions[from.Row + direction, from.Col].Type == PieceType.None;
+				var twoStepsForward = new Position(from.Row + 2 * direction, from.Col);
+				if (oneStepIsEmpty                             &&
+					BoardHelper.IsInsideBoard(twoStepsForward) &&
+					gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == PieceType.None)
 				{
-					var twoStepsForward = new Position(from.Row + 2 * direction, from.Col);
-					if (BoardHelper.IsInsideBoard(twoStepsForward) &&
-						gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == PieceType.None)
-					{
-						yield return new(from, twoStepsForward, pawn.Color);
-					}
+					yield return new(from, twoStepsForward, pawn.Color);
 				}
 			}
 
@@ -54,11 +60,19 @@ namespace Bezoro.Chess.ChessLogic.Generators
 				{
 					if (toPosition.Row == promotionRow)
 					{
-						yield return new(from, toPosition, pawn.Color, MoveType.PawnPromotion);
+						// Capture-promotion: generate a move for each possible promotion piece.
+						foreach (var move in GeneratePromotionMoves(
+									 from, toPosition, pawn.Color, pieceAtDestination.Type))
+						{
+							yield return move;
+						}
 					}
 					else
 					{
-						yield return new(from, toPosition, pawn.Color, MoveType.Capture);
+						// Standard capture, now storing the captured piece type.
+						yield return new(
+							from, toPosition, pawn.Color, MoveType.Capture, pieceAtDestination.Type,
+							PromotionType.None);
 					}
 				}
 
@@ -67,9 +81,25 @@ namespace Bezoro.Chess.ChessLogic.Generators
 					toPosition.Row == gameState.EnPassantTargetSquare.Value.Row &&
 					toPosition.Col == gameState.EnPassantTargetSquare.Value.Col)
 				{
-					yield return new(from, toPosition, pawn.Color, MoveType.EnPassant);
+					// En-passant capture, the captured piece is always a Pawn.
+					yield return new(
+						from, toPosition, pawn.Color, MoveType.EnPassant, PieceType.Pawn, PromotionType.None);
 				}
 			}
+		}
+
+		/// <summary>
+		///     Generates all possible promotion moves (quiet or capture) for a pawn reaching the back rank.
+		/// </summary>
+		private static IEnumerable<Move> GeneratePromotionMoves(
+			Position from, Position to, PieceColor color, PieceType capturedPiece)
+		{
+			var moveType = capturedPiece == PieceType.None ? MoveType.PawnPromotion : MoveType.PawnPromotionCapture;
+
+			yield return new(from, to, color, moveType, capturedPiece, PromotionType.Queen);
+			yield return new(from, to, color, moveType, capturedPiece, PromotionType.Rook);
+			yield return new(from, to, color, moveType, capturedPiece, PromotionType.Bishop);
+			yield return new(from, to, color, moveType, capturedPiece, PromotionType.Knight);
 		}
 	}
 }
