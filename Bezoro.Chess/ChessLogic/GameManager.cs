@@ -60,6 +60,12 @@ namespace Bezoro.Chess.ChessLogic
 		}
 
 		/// <summary>
+		///     True if the current position is a draw by the fifty-move rule.
+		/// </summary>
+		public bool IsDrawByFiftyMoveRule() =>
+			CurrentState.HalfMoveClock >= 100; // 100 half-moves == 50 full moves
+
+		/// <summary>
 		///     Determines if a king of the specified color is in check.
 		/// </summary>
 		public bool IsKingInCheck(GameState state, PieceColor kingColor)
