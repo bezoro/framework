@@ -111,6 +111,26 @@ public class ArrayAddUnitTests
 	}
 
 	[Test]
+	public void Add_WhenElementIsNull_DoesNotModifyArray()
+	{
+		// Arrange
+		var array         = new[] { new TestObject(), new TestObject() };
+		var initialLength = array.Length;
+
+		// Act
+		ArrayHelpers.Add(ref array, null);
+
+		// Assert
+		Assert.That(
+			array.Length, Is.EqualTo(initialLength), "Array length should remain unchanged."
+		);
+
+		Assert.That(
+			array.Contains(null), Is.False, "Null element should not be added to the array."
+		);
+	}
+
+	[Test]
 	public void Add_WithOutputParameter_ReturnsCorrectIndexOfAddedElement()
 	{
 		// Arrange
@@ -128,26 +148,6 @@ public class ArrayAddUnitTests
 
 		Assert.That(
 			index, Is.EqualTo(initialLength), "Index should match the position of the newly added element."
-		);
-	}
-
-	[Test]
-	public void Add_WhenElementIsNull_DoesNotModifyArray()
-	{
-		// Arrange
-		var array         = new[] { new TestObject(), new TestObject() };
-		var initialLength = array.Length;
-
-		// Act
-		ArrayHelpers.Add(ref array, null);
-
-		// Assert
-		Assert.That(
-			array.Length, Is.EqualTo(initialLength), "Array length should remain unchanged."
-		);
-
-		Assert.That(
-			array.Contains(null), Is.False, "Null element should not be added to the array."
 		);
 	}
 

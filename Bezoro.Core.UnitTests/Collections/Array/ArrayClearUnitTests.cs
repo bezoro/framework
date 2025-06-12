@@ -41,16 +41,6 @@ public class ArrayClearUnitTests
 	}
 
 	[Test]
-	public void Clear_WhenArrayIsNull_DoesNotThrowException()
-	{
-		// Arrange
-		int[] array = null;
-
-		// Act & Assert
-		Assert.DoesNotThrow(() => ArrayHelpers.Clear(ref array));
-	}
-
-	[Test]
 	public void Clear_WhenArrayIsEmpty_DoesNotModifyArray()
 	{
 		// Arrange
@@ -61,6 +51,16 @@ public class ArrayClearUnitTests
 
 		// Assert
 		Assert.That(array, Is.Empty);
+	}
+
+	[Test]
+	public void Clear_WhenArrayIsNull_DoesNotThrowException()
+	{
+		// Arrange
+		int[] array = null;
+
+		// Act & Assert
+		Assert.DoesNotThrow(() => ArrayHelpers.Clear(ref array));
 	}
 
 #endregion

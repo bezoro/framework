@@ -14,6 +14,8 @@ EndProject
 	EndProject
 	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.IntegrationTests", "Bezoro.Chess.IntegrationTests\Bezoro.Chess.IntegrationTests.csproj", "{880823CD-AA53-4F3D-BE10-5E9114D355FF}"
 	EndProject
+	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.Tests", "Bezoro.Chess.Tests\Bezoro.Chess.Tests.csproj", "{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}"
+	EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
