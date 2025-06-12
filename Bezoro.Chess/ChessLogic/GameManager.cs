@@ -71,11 +71,11 @@ namespace Bezoro.Chess.ChessLogic
 				for (var c = 0 ; c < 8 ; c++)
 				{
 					var piece = state.PiecePositions[r, c];
-					if (piece.Type == PieceType.King && piece.Color == kingColor)
-					{
-						kingPosition = new Position(r, c);
-						break;
-					}
+					if (piece.Type != PieceType.King || piece.Color != kingColor)
+						continue;
+
+					kingPosition = new Position(r, c);
+					break;
 				}
 
 				if (kingPosition.HasValue) break;
