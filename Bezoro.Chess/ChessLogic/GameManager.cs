@@ -167,6 +167,16 @@ namespace Bezoro.Chess.ChessLogic
 		}
 
 		/// <summary>
+		///     Returns all pseudo-legal moves for a piece, marking each with its legality.
+		///     This is ideal for UI that needs to visually distinguish between legal and illegal moves.
+		/// </summary>
+		public IEnumerable<(Move move, bool isLegal)> GetMovesWithLegalityForPiece(Position position)
+		{
+			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
+			return pieceMoves.Select(move => (move, IsMoveLegal(move)));
+		}
+
+		/// <summary>
 		///     Returns a list of all legal moves for the active player.
 		/// </summary>
 		public IEnumerable<Move> GetLegalMoves()
