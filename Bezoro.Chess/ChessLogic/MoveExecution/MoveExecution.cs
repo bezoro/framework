@@ -45,29 +45,8 @@ namespace Bezoro.Chess.ChessLogic
 				EnPassantTargetSquare = newEnPassantTargetSquare
 			};
 
-			// Handle special move types
-			switch (move.Type)
-			{
-				case MoveType.Normal:
-					ExecuteNormalMove(newState, move);
-					break;
-
-				case MoveType.CastleKingside:
-					ExecuteCastlingMove(newState, move, true);
-					break;
-
-				case MoveType.CastleQueenside:
-					ExecuteCastlingMove(newState, move, false);
-					break;
-
-				case MoveType.EnPassant:
-					ExecuteEnPassantMove(newState, move);
-					break;
-
-				case MoveType.PawnPromotion:
-					ExecutePawnPromotionMove(newState, move);
-					break;
-			}
+			// Delegate the actual board modification to the correct executor.
+			ExecuteMoveOnBoard(newState, move);
 
 			return newState;
 		}
@@ -128,52 +107,36 @@ namespace Bezoro.Chess.ChessLogic
 			return newRights;
 		}
 
-		private static void ExecuteCastlingMove(GameState state, Move move, bool isKingside)
+		/// <summary>
+		///     Dispatches the move to the appropriate executor based on its type.
+		/// </summary>
+		private static void ExecuteMoveOnBoard(GameState state, Move move)
 		{
-			// Move the king
-			ExecuteNormalMove(state, move);
+			switch (move.Type)
+			{
+				case MoveType.Normal:
+				case MoveType.Capture:
+					NormalMoveExecutor.Execute(state, move);
+					break;
 
-			// Also move the rook
-			var rookFromCol = isKingside ? 7 : 0;
-			var rookToCol   = isKingside ? 5 : 3;
-			var row         = move.From.Row; // Same row as the king
+				case MoveType.CastleKingside:
+				case MoveType.CastleQueenside:
+					CastleMoveExecutor.Execute(state, move);
+					break;
 
-			var rookMove = new Move(
-				new(row, rookFromCol),
-				new(row, rookToCol)
-			);
+				case MoveType.EnPassant:
+					EnPassantMoveExecutor.Execute(state, move);
+					break;
 
-			ExecuteNormalMove(state, rookMove);
-		}
+				case MoveType.PawnPromotion:
+				case MoveType.PawnPromotionCapture:
+					PawnPromotionMoveExecutor.Execute(state, move);
+					break;
 
-		private static void ExecuteEnPassantMove(GameState state, Move move)
-		{
-			// Move the pawn to the destination square
-			ExecuteNormalMove(state, move);
-
-			// Remove the captured pawn
-			var capturedPawnRow = move.From.Row;
-			var capturedPawnCol = move.To.Col;
-			state.PiecePositions[capturedPawnRow, capturedPawnCol] = default;
-		}
-
-		private static void ExecuteNormalMove(GameState state, Move move)
-		{
-			// Simply move the piece from the source to the destination
-			state.PiecePositions[move.To.Row, move.To.Col]     = state.PiecePositions[move.From.Row, move.From.Col];
-			state.PiecePositions[move.From.Row, move.From.Col] = default; // Empty the source square
-		}
-
-		private static void ExecutePawnPromotionMove(GameState state, Move move)
-		{
-			// Move the pawn
-			ExecuteNormalMove(state, move);
-
-			// Replace it with a queen (for now, could make this configurable)
-			state.PiecePositions[move.To.Row, move.To.Col] = new(
-				PieceType.Queen,
-				state.ActiveColor == PieceColor.White ? PieceColor.Black : PieceColor.White
-			);
+				default:
+					// It's good practice to handle unexpected cases.
+					throw new ArgumentOutOfRangeException(nameof(move), $"Unknown move type: {move.Type}");
+			}
 		}
 	}
 }
