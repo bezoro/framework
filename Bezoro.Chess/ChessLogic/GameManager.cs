@@ -30,6 +30,12 @@ namespace Bezoro.Chess.ChessLogic
 		}
 
 		/// <summary>
+		///     Caches the result of expensive end-of-game calculations (check/stalemate).
+		///     Invalidated whenever the game state changes.
+		/// </summary>
+		private (bool hasLegalMoves, bool isKingInCheck)? _gameStatusCache;
+
+		/// <summary>
 		///     The index of the current game state in the history.
 		/// </summary>
 		private int _currentStateIndex = -1;
@@ -53,14 +59,8 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public bool IsCheckmate()
 		{
-			// If the king is not in check, it can't be checkmate
-			if (!IsKingInCheck(CurrentState, CurrentState.ActiveColor))
-			{
-				return false;
-			}
-
-			// If any legal move exists, it's not checkmate
-			return !GetLegalMoves().Any();
+			var (hasLegalMoves, isKingInCheck) = GetGameStatus();
+			return !hasLegalMoves && isKingInCheck;
 		}
 
 		/// <summary>
@@ -153,14 +153,8 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public bool IsStalemate()
 		{
-			// If the king is in check, it's not stalemate
-			if (IsKingInCheck(CurrentState, CurrentState.ActiveColor))
-			{
-				return false;
-			}
-
-			// If any legal move exists, it's not stalemate
-			return !GetLegalMoves().Any();
+			var (hasLegalMoves, isKingInCheck) = GetGameStatus();
+			return !hasLegalMoves && !isKingInCheck;
 		}
 
 		/// <summary>
@@ -175,6 +169,7 @@ namespace Bezoro.Chess.ChessLogic
 
 			_currentStateIndex++;
 			CurrentState = _gameStateHistory[_currentStateIndex];
+			InvalidateGameStatusCache();
 			return true;
 		}
 
@@ -199,6 +194,7 @@ namespace Bezoro.Chess.ChessLogic
 
 			_currentStateIndex--;
 			CurrentState = _gameStateHistory[_currentStateIndex];
+			InvalidateGameStatusCache();
 			return true;
 		}
 
@@ -217,7 +213,7 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public IEnumerable<Move> GetLegalMoves()
 		{
-			var allMoves = MoveGenerator.GenerateMoves(CurrentState).ToList();
+			var allMoves = MoveGenerator.GenerateMoves(CurrentState);
 			return allMoves.Where(IsMoveLegal);
 		}
 
@@ -226,7 +222,7 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public IEnumerable<Move> GetLegalMovesForPiece(Position position)
 		{
-			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState).ToList();
+			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
 			return pieceMoves.Where(IsMoveLegal);
 		}
 
@@ -240,6 +236,17 @@ namespace Bezoro.Chess.ChessLogic
 			_gameStateHistory.Add(CurrentState);
 			_currentStateIndex = 0;
 			Outcome            = GameOutcome.Ongoing;
+			InvalidateGameStatusCache();
+		}
+
+		private (bool hasLegalMoves, bool isKingInCheck) GetGameStatus()
+		{
+			_gameStatusCache ??= (
+				GetLegalMoves().Any(),
+				IsKingInCheck(CurrentState, CurrentState.ActiveColor)
+			);
+
+			return _gameStatusCache.Value;
 		}
 
 		private void ExecuteAndRecordMove(Move move)
@@ -247,6 +254,7 @@ namespace Bezoro.Chess.ChessLogic
 			CurrentState = MoveExecution.MoveExecution.ExecuteMove(CurrentState, move);
 			_gameStateHistory.Add(CurrentState);
 			_currentStateIndex++;
+			InvalidateGameStatusCache();
 		}
 
 		private void HandleGameEndConditions()
@@ -268,6 +276,8 @@ namespace Bezoro.Chess.ChessLogic
 			if (_currentStateIndex < _gameStateHistory.Count - 1)
 				_gameStateHistory.RemoveRange(_currentStateIndex + 1, _gameStateHistory.Count - _currentStateIndex - 1);
 		}
+
+		private void InvalidateGameStatusCache() => _gameStatusCache = null;
 
 		private void SetOutcome(GameOutcome outcome)
 		{
