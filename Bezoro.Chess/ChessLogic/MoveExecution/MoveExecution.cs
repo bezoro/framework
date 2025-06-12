@@ -8,12 +8,12 @@ namespace Bezoro.Chess.ChessLogic.MoveExecution
 	public static class MoveExecution
 	{
 		/// <summary>
-		///     Executes a move and returns a new GameState that reflects the move's result.
+		///     Executes <paramref name="move" /> on <paramref name="state" /> and returns the resulting state.
 		/// </summary>
-		public static GameState ExecuteMove(GameState currentState, Move move)
+		public static GameState ExecuteMove(GameState state, Move move)
 		{
 			// Get the piece that's moving
-			var movingPiece = currentState.PiecePositions[move.From.Row, move.From.Col];
+			var movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
 
 			// Determine the en passant target square for the *next* state.
 			// This is only set when a pawn makes a two-square advance.
@@ -29,19 +29,19 @@ namespace Bezoro.Chess.ChessLogic.MoveExecution
 			var newState = new GameState
 			{
 				// Copy the current board
-				PiecePositions = (Piece[,])currentState.PiecePositions.Clone(),
+				PiecePositions = (Piece[,])state.PiecePositions.Clone(),
 
 				// Switch the active color
-				ActiveColor = currentState.ActiveColor == PieceColor.White ? PieceColor.Black : PieceColor.White,
+				ActiveColor = state.ActiveColor == PieceColor.White ? PieceColor.Black : PieceColor.White,
 
 				// Update the move counters
-				HalfMoveClock = ShouldResetHalfMoveClock(currentState, move) ? 0 : currentState.HalfMoveClock + 1,
-				FullMoveNumber = currentState.ActiveColor == PieceColor.Black
-					? currentState.FullMoveNumber + 1
-					: currentState.FullMoveNumber,
+				HalfMoveClock = ShouldResetHalfMoveClock(state, move) ? 0 : state.HalfMoveClock + 1,
+				FullMoveNumber = state.ActiveColor == PieceColor.Black
+					? state.FullMoveNumber + 1
+					: state.FullMoveNumber,
 
 				// These will be updated as needed below
-				Castling              = UpdateCastlingRights(currentState, move),
+				Castling              = UpdateCastlingRights(state, move),
 				EnPassantTargetSquare = newEnPassantTargetSquare
 			};
 
