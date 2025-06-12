@@ -39,10 +39,14 @@ namespace Bezoro.Chess.ChessLogic
 		///     This allows for undo/redo functionality.
 		/// </summary>
 		private readonly List<GameState> _gameStateHistory = new();
+
+		public GameOutcome Outcome { get; private set; } = GameOutcome.None;
 		/// <summary>
 		///     The current state of the game.
 		/// </summary>
 		public GameState CurrentState { get; private set; }
+
+		public event Action<GameOutcome>? GameEnded;
 
 		/// <summary>
 		///     Determines if the current player is in checkmate.
@@ -64,6 +68,56 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public bool IsDrawByFiftyMoveRule() =>
 			CurrentState.HalfMoveClock >= 100; // 100 half-moves == 50 full moves
+
+		/// <summary>
+		///     Determines if the game is a draw due to insufficient material to checkmate.
+		///     Covers K vs K, K+B vs K, K+N vs K, and K+B vs K+B (same color bishops).
+		/// </summary>
+		public bool IsDrawByInsufficientMaterial()
+		{
+			var pieces = CurrentState.PiecePositions.Cast<Piece>()
+									 .Where(p => p.Type is not PieceType.None and not PieceType.King)
+									 .ToList();
+
+			// Any pawns, rooks, or queens? If so, mate is possible.
+			if (pieces.Any(p => p.Type is PieceType.Pawn or PieceType.Rook or PieceType.Queen))
+			{
+				return false;
+			}
+
+			// At this point, we only have knights, bishops, or nothing.
+			// K vs K, K+N vs K, K+B vs K are all draws.
+			if (pieces.Count <= 1)
+				return true;
+
+			// If we have exactly two pieces, and they are two bishops on same-colored squares.
+			if (pieces.Count != 2 || pieces.Any(p => p.Type != PieceType.Bishop))
+				return false;
+
+			var bishopPositions = new List<Position>();
+			for (var r = 0 ; r < 8 ; r++)
+			{
+				for (var c = 0 ; c < 8 ; c++)
+				{
+					if (CurrentState.PiecePositions[r, c].Type == PieceType.Bishop)
+					{
+						bishopPositions.Add(new(r, c));
+					}
+				}
+			}
+
+			// Bishops are on the same color square if the sum of their coordinates has the same parity.
+			var (pos1, pos2) = (bishopPositions[0], bishopPositions[1]);
+			return (pos1.Row + pos1.Col) % 2 == (pos2.Row + pos2.Col) % 2;
+		}
+
+		/// <summary>
+		///     Determines if the game is a draw by threefold repetition.
+		/// </summary>
+		public bool IsDrawByThreefoldRepetition() =>
+			// The current game state has appeared 3 or more times.
+			// GameState is a record, so equality is based on its values (positions, turn, castling, en passant).
+			_gameStateHistory.Count(state => state.Equals(CurrentState)) >= 3;
 
 		/// <summary>
 		///     Determines if a king of the specified color is in check.
@@ -124,36 +178,14 @@ namespace Bezoro.Chess.ChessLogic
 			return true;
 		}
 
-		/// <summary>
-		///     Tries to make a move. Returns true if the move was successful.
-		/// </summary>
 		public bool TryMakeMove(Move move)
 		{
-			// Verify that the move is legal
-			if (!IsMoveLegal(move))
-			{
+			if (Outcome.IsFinished() || !IsMoveLegal(move))
 				return false;
-			}
 
-			// Execute the move
-			var newState = MoveExecution.MoveExecution.ExecuteMove(CurrentState, move);
-
-			// If we're not at the end of the history (i.e., we've done some undos),
-			// remove all future states
-			if (_currentStateIndex < _gameStateHistory.Count - 1)
-			{
-				_gameStateHistory.RemoveRange(
-					_currentStateIndex      + 1,
-					_gameStateHistory.Count - _currentStateIndex - 1);
-			}
-
-			// Add the new state to the history
-			_gameStateHistory.Add(newState);
-			_currentStateIndex++;
-
-			// Update the current state
-			CurrentState = newState;
-
+			HandleTrimGameStateHistory();
+			ExecuteAndRecordMove(move);
+			HandleGameEndConditions();
 			return true;
 		}
 
@@ -163,9 +195,7 @@ namespace Bezoro.Chess.ChessLogic
 		public bool Undo()
 		{
 			if (_currentStateIndex <= 0)
-			{
 				return false; // Nothing to undo
-			}
 
 			_currentStateIndex--;
 			CurrentState = _gameStateHistory[_currentStateIndex];
@@ -209,6 +239,55 @@ namespace Bezoro.Chess.ChessLogic
 			_gameStateHistory.Clear();
 			_gameStateHistory.Add(CurrentState);
 			_currentStateIndex = 0;
+			Outcome            = GameOutcome.Ongoing;
 		}
+
+		private void ExecuteAndRecordMove(Move move)
+		{
+			CurrentState = MoveExecution.MoveExecution.ExecuteMove(CurrentState, move);
+			_gameStateHistory.Add(CurrentState);
+			_currentStateIndex++;
+		}
+
+		private void HandleGameEndConditions()
+		{
+			if (IsCheckmate())
+				SetOutcome(CurrentState.ActiveColor == PieceColor.White ? GameOutcome.BlackWin : GameOutcome.WhiteWin);
+			else if (IsStalemate())
+				SetOutcome(GameOutcome.DrawStalemate);
+			else if (IsDrawByThreefoldRepetition())
+				SetOutcome(GameOutcome.DrawThreefold);
+			else if (IsDrawByInsufficientMaterial())
+				SetOutcome(GameOutcome.DrawInsufficientMaterial);
+			else if (IsDrawByFiftyMoveRule())
+				SetOutcome(GameOutcome.DrawFiftyMoves);
+		}
+
+		private void HandleTrimGameStateHistory()
+		{
+			if (_currentStateIndex < _gameStateHistory.Count - 1)
+				_gameStateHistory.RemoveRange(_currentStateIndex + 1, _gameStateHistory.Count - _currentStateIndex - 1);
+		}
+
+		private void SetOutcome(GameOutcome outcome)
+		{
+			if (Outcome.IsFinished())
+				return;
+
+			Outcome = outcome;
+			GameEnded?.Invoke(outcome);
+		}
+	}
+
+	public enum GameOutcome : byte
+	{
+		None,    // Still not begun
+		Ongoing, // Game is still in progress
+		WhiteWin,
+		BlackWin,
+		DrawStalemate,
+		DrawFiftyMoves,
+		DrawThreefold,
+		DrawInsufficientMaterial
 	}
 }
