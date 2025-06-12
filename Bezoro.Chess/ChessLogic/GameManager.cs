@@ -63,41 +63,15 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public bool IsKingInCheck(GameState state, PieceColor kingColor)
 		{
-			// Find the king's position
-			Position? kingPosition = null;
-
-			for (var r = 0 ; r < 8 ; r++)
-			{
-				for (var c = 0 ; c < 8 ; c++)
-				{
-					var piece = state.PiecePositions[r, c];
-					if (piece.Type != PieceType.King || piece.Color != kingColor)
-						continue;
-
-					kingPosition = new Position(r, c);
-					break;
-				}
-
-				if (kingPosition.HasValue) break;
-			}
+			var kingPosition = state.FindKingPosition(kingColor);
 
 			if (!kingPosition.HasValue)
 			{
 				throw new InvalidOperationException($"No {kingColor} king found on the board");
 			}
 
-			// Check if any opponent's piece can attack the king's position
-			var tempState = new GameState
-			{
-				PiecePositions        = state.PiecePositions,
-				ActiveColor           = kingColor == PieceColor.White ? PieceColor.Black : PieceColor.White,
-				Castling              = state.Castling,
-				EnPassantTargetSquare = state.EnPassantTargetSquare
-			};
-
-			var opponentMoves = MoveGenerator.GenerateMoves(tempState);
-
-			return opponentMoves.Any(move => move.To.Equals(kingPosition.Value));
+			var opponentColor = kingColor.Opposite();
+			return state.IsSquareAttackedBy(kingPosition.Value, opponentColor);
 		}
 
 		/// <summary>
