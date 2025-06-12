@@ -1,20 +1,13 @@
 namespace Bezoro.Chess.ChessLogic
 {
-	public enum PieceColor
+	public enum PieceColor : byte
 	{
-		White,
-		Black
+		White, Black
 	}
 
-	public enum PieceType
+	public enum PieceType : byte
 	{
-		None,
-		Pawn,
-		Knight,
-		Bishop,
-		Rook,
-		Queen,
-		King
+		None, Pawn, Knight, Bishop, Rook, Queen, King
 	}
 
 	/// <summary>
@@ -40,10 +33,7 @@ namespace Bezoro.Chess.ChessLogic
 		/// <summary>
 		///     Returns a string representation of the piece, primarily for debugging.
 		/// </summary>
-		public override string ToString()
-		{
-			if (Type == PieceType.None) return "Empty";
-			return $"{Color} {Type}";
-		}
+		public override string ToString() =>
+			Type == PieceType.None ? "Empty" : $"{Color} {Type}";
 	}
 }
