@@ -25,9 +25,11 @@ namespace Bezoro.Chess.ChessLogic
 	public enum MoveType
 	{
 		Normal,
+		Capture,
 		CastleKingside,
 		CastleQueenside,
 		EnPassant,
-		PawnPromotion
+		PawnPromotion,
+		PawnPromotionCapture
 	}
 }

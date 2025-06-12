@@ -84,7 +84,7 @@ namespace Bezoro.Chess.ChessLogic
 					else if (pieceAtDestination.Color != gameState.ActiveColor)
 					{
 						// Enemy piece, can capture and then stop
-						yield return new(from, to);
+						yield return new(from, to, MoveType.Capture);
 						break;
 					}
 					else
@@ -122,10 +122,15 @@ namespace Bezoro.Chess.ChessLogic
 
 				var pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
 
-				// Can move to an empty square or capture an enemy piece
-				if (pieceAtDestination.Type == default || pieceAtDestination.Color != gameState.ActiveColor)
+				if (pieceAtDestination.Type == default)
 				{
+					// Empty square, can move here
 					yield return new(from, to);
+				}
+				else if (pieceAtDestination.Color != gameState.ActiveColor)
+				{
+					// Enemy piece, can capture
+					yield return new(from, to, MoveType.Capture);
 				}
 			}
 
@@ -194,45 +199,51 @@ namespace Bezoro.Chess.ChessLogic
 
 		private static IEnumerable<Move> GenerateKnightMoves(Position from, GameState gameState)
 		{
-			// 8 potential L-shaped moves
-			int[] dRow = { 2, 2, 1, 1, -1, -1, -2, -2 };
-			int[] dCol = { 1, -1, 2, -2, 2, -2, 1, -1 };
-
-			for (var i = 0 ; i < 8 ; i++)
+			// Knights move in an "L" shape: two squares in one direction, then one in a perpendicular direction.
+			(int dRow, int dCol)[] moves =
 			{
-				Position to = new(from.Row + dRow[i], from.Col + dCol[i]);
+				(2, 1), (2, -1), (-2, 1), (-2, -1),
+				(1, 2), (1, -2), (-1, 2), (-1, -2)
+			};
 
-				if (!IsInsideBoard(to))
+			foreach (var (dRow, dCol) in moves)
+			{
+				var toPosition = new Position(from.Row + dRow, from.Col + dCol);
+
+				if (!IsInsideBoard(toPosition))
 				{
-					continue;
+					continue; // Skip moves that go off the board
 				}
 
-				var destinationPiece = gameState.PiecePositions[to.Row, to.Col];
-				// Can move to an empty square or a square occupied by an opponent's piece
-				if (destinationPiece.Type == default || destinationPiece.Color != gameState.ActiveColor)
+				var pieceAtDestination = gameState.PiecePositions[toPosition.Row, toPosition.Col];
+
+				if (pieceAtDestination.Type == default)
 				{
-					yield return new(from, to);
+					// Empty square, can move here
+					yield return new(from, toPosition);
 				}
+				else if (pieceAtDestination.Color != gameState.ActiveColor)
+				{
+					// Enemy piece, can capture
+					yield return new(from, toPosition, MoveType.Capture);
+				}
+				// If it's a friendly piece, we can't move there.
 			}
 		}
 
 		private static IEnumerable<Move> GeneratePawnMoves(Position from, GameState gameState)
 		{
-			// Pawns move differently based on their color
-			var direction = gameState.ActiveColor == PieceColor.White ? -1 : 1;
-			var isAtStartingRank = gameState.ActiveColor == PieceColor.White && from.Row == 6 ||
-								   gameState.ActiveColor == PieceColor.Black && from.Row == 1;
+			var pawn         = gameState.PiecePositions[from.Row, from.Col];
+			var direction    = pawn.Color == PieceColor.White ? -1 : 1;
+			var startRow     = pawn.Color == PieceColor.White ? 6 : 1;
+			var promotionRow = pawn.Color == PieceColor.White ? 0 : 7;
 
-			var isAtPromotionRank = gameState.ActiveColor == PieceColor.White && from.Row == 1 ||
-									gameState.ActiveColor == PieceColor.Black && from.Row == 6;
-
-			// Forward move (one square)
-			Position oneStepForward = new(from.Row + direction, from.Col);
+			// 1. Single-square advance
+			var oneStepForward = new Position(from.Row + direction, from.Col);
 			if (IsInsideBoard(oneStepForward) &&
-				gameState.PiecePositions[oneStepForward.Row, oneStepForward.Col].Type == default)
+				gameState.PiecePositions[oneStepForward.Row, oneStepForward.Col].Type == PieceType.None)
 			{
-				// Pawn promotion
-				if (isAtPromotionRank)
+				if (oneStepForward.Row == promotionRow)
 				{
 					yield return new(from, oneStepForward, MoveType.PawnPromotion);
 				}
@@ -241,46 +252,49 @@ namespace Bezoro.Chess.ChessLogic
 					yield return new(from, oneStepForward);
 				}
 
-				// Initial two-square move
-				if (isAtStartingRank)
+				// 2. Two-square advance from starting position
+				if (from.Row == startRow)
 				{
-					Position twoStepsForward = new(from.Row + 2 * direction, from.Col);
-
-					if (gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == default)
+					var twoStepsForward = new Position(from.Row + 2 * direction, from.Col);
+					if (IsInsideBoard(twoStepsForward) &&
+						gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == PieceType.None)
 					{
 						yield return new(from, twoStepsForward);
 					}
 				}
 			}
 
-			// Captures (diagonal moves)
-			for (var dc = -1 ; dc <= 1 ; dc += 2)
+			// 3. Diagonal captures
+			(int dRow, int dCol)[] captureMoves = { (direction, -1), (direction, 1) };
+			foreach (var (dRow, dCol) in captureMoves)
 			{
-				Position captureDiagonal = new(from.Row + direction, from.Col + dc);
+				var toPosition = new Position(from.Row + dRow, from.Col + dCol);
 
-				if (IsInsideBoard(captureDiagonal))
+				if (!IsInsideBoard(toPosition))
 				{
-					var pieceAtCapture = gameState.PiecePositions[captureDiagonal.Row, captureDiagonal.Col];
+					continue;
+				}
 
-					// Normal capture
-					if (pieceAtCapture.Type != default && pieceAtCapture.Color != gameState.ActiveColor)
+				// Standard capture
+				var pieceAtDestination = gameState.PiecePositions[toPosition.Row, toPosition.Col];
+				if (pieceAtDestination.Type != PieceType.None && pieceAtDestination.Color != pawn.Color)
+				{
+					if (toPosition.Row == promotionRow)
 					{
-						if (isAtPromotionRank)
-						{
-							yield return new(from, captureDiagonal, MoveType.PawnPromotion);
-						}
-						else
-						{
-							yield return new(from, captureDiagonal);
-						}
+						yield return new(from, toPosition, MoveType.PawnPromotion);
 					}
+					else
+					{
+						yield return new(from, toPosition, MoveType.Capture);
+					}
+				}
 
-					// En passant capture
-					if (gameState.EnPassantTargetSquare.HasValue &&
-						captureDiagonal.Equals(gameState.EnPassantTargetSquare.Value))
-					{
-						yield return new(from, captureDiagonal, MoveType.EnPassant);
-					}
+				// 4. En passant capture
+				if (gameState.EnPassantTargetSquare.HasValue                    &&
+					toPosition.Row == gameState.EnPassantTargetSquare.Value.Row &&
+					toPosition.Col == gameState.EnPassantTargetSquare.Value.Col)
+				{
+					yield return new(from, toPosition, MoveType.EnPassant);
 				}
 			}
 		}
@@ -313,42 +327,40 @@ namespace Bezoro.Chess.ChessLogic
 
 		private static IEnumerable<Move> GenerateRookMoves(Position from, GameState gameState)
 		{
-			// Define the four directions a rook can move: up, right, down, left
-			(int dRow, int dCol)[] directions = { (-1, 0), (0, 1), (1, 0), (0, -1) };
+			// Rooks move any number of squares along a rank or file
+			(int dRow, int dCol)[] directions = { (0, 1), (0, -1), (1, 0), (-1, 0) };
 
-			// For each direction, keep moving until we hit a piece or the edge of the board
 			foreach (var (dRow, dCol) in directions)
 			{
-				// Start at position one step in the current direction
-				var newRow = from.Row + dRow;
-				var newCol = from.Col + dCol;
-
-				// Keep going in this direction until we hit a piece or the edge
-				while (IsInsideBoard(new(newRow, newCol)))
+				for (var i = 1 ; i < 8 ; i++)
 				{
-					Position to                 = new(newRow, newCol);
-					var      pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
+					var toRow = from.Row + i * dRow;
+					var toCol = from.Col + i * dCol;
+
+					if (!IsInsideBoard(new(toRow, toCol)))
+					{
+						break; // Off the board
+					}
+
+					var toPosition         = new Position(toRow, toCol);
+					var pieceAtDestination = gameState.PiecePositions[toRow, toCol];
 
 					if (pieceAtDestination.Type == default)
 					{
 						// Empty square, can move here
-						yield return new(from, to);
-					}
-					else if (pieceAtDestination.Color != gameState.ActiveColor)
-					{
-						// Enemy piece, can capture and then stop
-						yield return new(from, to);
-						break;
+						yield return new(from, toPosition);
 					}
 					else
 					{
-						// Friendly piece, can't move here or beyond
+						if (pieceAtDestination.Color != gameState.ActiveColor)
+						{
+							// Enemy piece, can capture
+							yield return new(from, toPosition, MoveType.Capture);
+						}
+
+						// Path is blocked by a piece (friendly or enemy), so stop in this direction
 						break;
 					}
-
-					// Continue in this direction
-					newRow += dRow;
-					newCol += dCol;
 				}
 			}
 		}
