@@ -15,7 +15,7 @@ public class QueenPseudoLegalMovesGeneratorUnitTests
 	[Test]
 	public void Generate_WhenQueenAtCenterOfEmptyBoard_ReturnsCorrectMoves()
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var queen = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Queen);
 		Assert.That(queen, Is.Not.Null);
 		Assert.That(queen, Is.TypeOf<QueenModel>());

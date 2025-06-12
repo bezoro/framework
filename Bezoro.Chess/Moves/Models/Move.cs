@@ -14,21 +14,18 @@ namespace Bezoro.Chess.Moves.Models
 	{
 		// Private constructor to enforce creation via factory methods
 		private Move(
-			BoardPosition from,
-			BoardPosition to,
-			PlayerColor movingSide,
-			ChessPieceType pieceType,
-			MoveKind kind,
-			PromotionPieceType promoteTo,
-			CastleSide castleSide,
-			bool leavesKingInCheck)
+			BoardPosition from, BoardPosition to, PlayerColor movingSide, ChessPieceType pieceType, MoveKind kind,
+			PromotionPieceType promoteTo, CastleSide castleSide, bool leavesOwnKingInCheck = false,
+			bool isCheck = false, bool isCheckmate = false)
 		{
-			From              = from;
-			To                = to;
-			MovingSide        = movingSide;
-			PieceType         = pieceType;
-			Kind              = kind;
-			LeavesKingInCheck = leavesKingInCheck;
+			From                 = from;
+			To                   = to;
+			MovingSide           = movingSide;
+			PieceType            = pieceType;
+			Kind                 = kind;
+			LeavesOwnKingInCheck = leavesOwnKingInCheck;
+			IsCheck              = isCheck;
+			IsCheckmate          = isCheckmate;
 
 			// Initialize and validate type-specific properties
 			switch (kind)
@@ -171,13 +168,16 @@ namespace Bezoro.Chess.Moves.Models
 		///     Position the piece moves to.
 		/// </summary>
 		public BoardPosition To { get; }
+		public bool IsCapture   => Kind is MoveKind.Capture or MoveKind.EnPassant or MoveKind.PromotionCapture;
+		public bool IsCheck     { get; }
+		public bool IsCheckmate { get; }
 
 		public bool IsPromotion => Kind is MoveKind.PromotionQuiet or MoveKind.PromotionCapture;
 
 		/// <summary>
 		///     True if the move leaves the king in check.
 		/// </summary>
-		public bool LeavesKingInCheck { get; }
+		public bool LeavesOwnKingInCheck { get; }
 
 		/// <summary>
 		///     True if the move is a castling move.
@@ -211,14 +211,14 @@ namespace Bezoro.Chess.Moves.Models
 
 		// 1) Value equality
 		public bool Equals(Move other) =>
-			From.Equals(other.From)               &&
-			To.Equals(other.To)                   &&
-			MovingSide        == other.MovingSide &&
-			PieceType         == other.PieceType  &&
-			Kind              == other.Kind       &&
-			PromoteTo         == other.PromoteTo  &&
-			CastleSide        == other.CastleSide &&
-			LeavesKingInCheck == other.LeavesKingInCheck;
+			From.Equals(other.From)                  &&
+			To.Equals(other.To)                      &&
+			MovingSide           == other.MovingSide &&
+			PieceType            == other.PieceType  &&
+			Kind                 == other.Kind       &&
+			PromoteTo            == other.PromoteTo  &&
+			CastleSide           == other.CastleSide &&
+			LeavesOwnKingInCheck == other.LeavesOwnKingInCheck;
 
 	#endregion
 
@@ -227,7 +227,7 @@ namespace Bezoro.Chess.Moves.Models
 
 		// 2) Hashing
 		public override int GetHashCode() =>
-			HashCode.Combine(From, To, MovingSide, PieceType, Kind, PromoteTo, CastleSide, LeavesKingInCheck);
+			HashCode.Combine(From, To, MovingSide, PieceType, Kind, PromoteTo, CastleSide, LeavesOwnKingInCheck);
 
 		// 4) Optional: human-readable notation
 		public override string ToString()
@@ -260,7 +260,7 @@ namespace Bezoro.Chess.Moves.Models
 			kind              = Kind;
 			promoteTo         = PromoteTo;
 			castleSide        = CastleSide;
-			leavesKingInCheck = LeavesKingInCheck;
+			leavesKingInCheck = LeavesOwnKingInCheck;
 		}
 	}
 }

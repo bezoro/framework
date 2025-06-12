@@ -19,8 +19,8 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	[SetUp]
 	public void Setup()
 	{
-		_standardGame = new(FenUtils.StartPieces);
-		_emptyGame    = new(FenUtils.EmptyBoard);
+		_standardGame = new(FenUtils.StartPiecePlacement);
+		_emptyGame    = new(FenUtils.EmptyPiecePlacement);
 	}
 
 #endregion
@@ -65,7 +65,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	public void Generate_BlackPawnCanCaptureWhitePawnEnPassantFromLeft()
 	{
 		// Arrange
-		var game      = new GameModel(FenUtils.EmptyBoard);
+		var game      = new GameModel(FenUtils.EmptyPiecePlacement);
 		var blackPawn = game.Board.CreatePieceAt("e4", PlayerColor.Black, ChessPieceType.Pawn);
 		var whitePawn = game.Board.CreatePieceAt("f4", PlayerColor.White, ChessPieceType.Pawn);
 		game.Board.SetEnPassantTargetSquare(game.Board.GetSquareAt("f3"));
@@ -86,7 +86,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	public void Generate_BlackPawnCanCaptureWhitePawnEnPassantFromRight()
 	{
 		// Arrange
-		var game      = new GameModel(FenUtils.EmptyBoard);
+		var game      = new GameModel(FenUtils.EmptyPiecePlacement);
 		var blackPawn = game.Board.CreatePieceAt("c4", PlayerColor.Black, ChessPieceType.Pawn);
 		var whitePawn = game.Board.CreatePieceAt("b4", PlayerColor.White, ChessPieceType.Pawn);
 		game.Board.SetEnPassantTargetSquare(game.Board.GetSquareAt("b3"));
@@ -107,7 +107,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	public void Generate_NoEnPassantPossibleWhenTargetSquareNotSet()
 	{
 		// Arrange
-		var game      = new GameModel(FenUtils.EmptyBoard);
+		var game      = new GameModel(FenUtils.EmptyPiecePlacement);
 		var whitePawn = game.Board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn = game.Board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
 
@@ -137,7 +137,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	[Test]
 	public void Generate_PawnOn7thRankOnEmptyBoard_EmitsPromotionMoves()
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		Assert.That(board.BoardPieces, Is.Empty);
 		var pawn = board.CreatePieceAt("a7", PlayerColor.White, ChessPieceType.Pawn);
@@ -160,7 +160,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	[Test]
 	public void Generate_PawnOn7thRankWithCapturablePieces_EmitsPromotionMoves()
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		Assert.That(board.BoardPieces, Is.Empty);
 		var pawn = board.CreatePieceAt("b7", PlayerColor.White, ChessPieceType.Pawn);
@@ -182,7 +182,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	[Test]
 	public void Generate_PawnWithEnemyPiecesInDiagonals_GeneratesCaptures()
 	{
-		var game = new GameModel(FenUtils.EmptyBoard);
+		var game = new GameModel(FenUtils.EmptyPiecePlacement);
 		var pawn = game.Board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Pawn);
 		game.Board.CreatePieceAt("d5", PlayerColor.Black, ChessPieceType.Pawn);
 		game.Board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
@@ -259,7 +259,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	public void Generate_WhitePawnCanCaptureBlackPawnEnPassantFromLeft()
 	{
 		// Arrange
-		var game      = new GameModel(FenUtils.EmptyBoard);
+		var game      = new GameModel(FenUtils.EmptyPiecePlacement);
 		var whitePawn = game.Board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn = game.Board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
 		game.Board.SetEnPassantTargetSquare(game.Board.GetSquareAt("f6"));
@@ -280,7 +280,7 @@ public sealed class PawnPseudoLegalMovesGeneratorUnitTests
 	public void Generate_WhitePawnCanCaptureBlackPawnEnPassantFromRight()
 	{
 		// Arrange
-		var game      = new GameModel(FenUtils.EmptyBoard);
+		var game      = new GameModel(FenUtils.EmptyPiecePlacement);
 		var whitePawn = game.Board.CreatePieceAt("c5", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn = game.Board.CreatePieceAt("b5", PlayerColor.Black, ChessPieceType.Pawn);
 		game.Board.SetEnPassantTargetSquare(game.Board.GetSquareAt("b6"));

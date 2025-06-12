@@ -84,8 +84,8 @@ namespace Bezoro.Chess.Pieces.Models
 			int dx,
 			int dy)
 		{
-			var currentFile = from.Column + dx;
-			var currentRank = from.Row    + dy;
+			var currentFile = (int)(from.Column + dx);
+			var currentRank = (int)(from.Row    + dy);
 
 			while (board.IsInside(currentFile, currentRank))
 			{

@@ -24,9 +24,9 @@ namespace Bezoro.Chess.Pieces.Models
 			JustAdvancedTwoSquares = false;
 		}
 
-		public IChessPieceModel PromoteTo(IChessBoardSquareModel promotionSquare, PromotionPieceType newType)
+		public IChessPieceModel? PromoteTo(IChessBoardSquareModel promotionSquare, PromotionPieceType newType)
 		{
-			PieceModel newPiece = newType switch
+			PieceModel? newPiece = newType switch
 			{
 				PromotionPieceType.Queen => new QueenModel(Color),
 				PromotionPieceType.Rook => new RookModel(Color),

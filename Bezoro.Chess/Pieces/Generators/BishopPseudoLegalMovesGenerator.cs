@@ -102,13 +102,13 @@ namespace Bezoro.Chess.Pieces.Models
 			int dx,
 			int dy)
 		{
-			var currentFile = from.Column + dx;
-			var currentRank = from.Row    + dy;
+			var fromColumn = (int)(from.Column + dx);
+			var fromRow    = (int)(from.Row    + dy);
 
-			while (board.IsInside(currentFile, currentRank))
+			while (board.IsInside(fromColumn, fromRow))
 			{
-				var to           = new BoardPosition(currentFile, currentRank);
-				var targetSquare = board.Squares[currentFile, currentRank];
+				var to           = new BoardPosition(fromColumn, fromRow);
+				var targetSquare = board.Squares[fromColumn, fromRow];
 				var targetPiece  = targetSquare.GetPiece();
 
 				// If square is occupied by friendly piece, we can't move there
@@ -124,8 +124,8 @@ namespace Bezoro.Chess.Pieces.Models
 					break;
 
 				// Move to next square in this direction
-				currentFile += dx;
-				currentRank += dy;
+				fromColumn += dx;
+				fromRow    += dy;
 			}
 		}
 	}

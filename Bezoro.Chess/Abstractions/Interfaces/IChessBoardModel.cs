@@ -1,34 +1,37 @@
-using System.Collections.Generic;
 using Bezoro.Chess.Board;
-using Bezoro.Chess.Common.Enums;
-using Bezoro.Chess.Game.Models;
-using Bezoro.Chess.Moves.Models;
 
 namespace Bezoro.Chess.Abstractions.Interfaces
 {
 	public interface IChessBoardModel
 	{
-		Dictionary<IChessPieceModel, BoardPosition>       PieceIndex { get; }
-		IChessBoardSquareModel                            EnPassantTargetSquare { get; }
-		IChessBoardSquareModel[,]                         Squares { get; }
-		int                                               Height { get; }
-		int                                               Width { get; }
-		IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves { get; }
-		List<IChessPieceModel>                            BoardPieces { get; } // Pieces currently on the board
-		BoardPosition? GetPosition(IChessPieceModel piece);
-		bool IsEmpty(BoardPosition to);
-		bool IsEnemy(IChessBoardSquareModel targetSquare, PlayerColor myColor);
-		bool IsSquareAttacked(BoardPosition position, PlayerColor attackerColor);
-		IChessBoardModel Clear();
-		IEnumerable<IChessBoardSquareModel> GetStraightPath(BoardPosition from, BoardPosition to);
-		IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece);
+		IChessBoardSquareModel?   EnPassantSquare { get; }
+		IChessBoardSquareModel[,] Squares         { get; }
+		uint                      Height          { get; }
+		uint                      Width           { get; }
 
-		List<IEnumerable<Move>> GetAllLegalMovesForSide(GameModel game, PlayerColor side);
-		void CapturePieceAt(IChessPieceModel pieceToCapture, BoardPosition pos, GameModel game);
-		void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to);
-		void PerformCastle(IChessPieceModel rook, CastleSide side);
-		void RestoreLastCapturedPiece(ChessPieceType capturedPieceType, BoardPosition capturedPosition, GameModel game);
-		void SetEnPassantTargetSquare(IChessBoardSquareModel? enPassantSquare);
-		void SetPieceAt(IChessPieceModel pieceToMove, IChessBoardSquareModel to);
+		/// <summary>
+		///     Clears the board of pieces
+		/// </summary>
+		IChessBoardModel ClearPieces();
+
+		/// <summary>
+		///     Resets the entire board state to the starting setup.
+		/// </summary>
+		IChessBoardModel Reset();
+
+		/// <summary>
+		///     Moves the piece from the given position to the given position.
+		/// </summary>
+		/// <param name="from"></param>
+		/// <param name="to"></param>
+		void MovePiece(BoardPosition from, BoardPosition to);
+
+		/// <summary>
+		///     Sets the en passant square.
+		/// </summary>
+		/// <param name="enPassantSquare"></param>
+		void SetEnPassantSquare(IChessBoardSquareModel? enPassantSquare);
+
+		void SetPieceAt(BoardPosition position, IChessPieceModel? piece);
 	}
 }

@@ -81,8 +81,7 @@ namespace Bezoro.Chess.Common.Extensions
 		public static IChessBoardSquareModel? GetOffsetSquare(
 			this IChessBoardModel board,
 			BoardPosition position,
-			int dx,
-			int dy) =>
+			int dx, int dy) =>
 			board.GetOffsetSquare(position, (dx, dy));
 
 		/// <summary>
@@ -100,10 +99,10 @@ namespace Bezoro.Chess.Common.Extensions
 		{
 			if (board == null) throw new ArgumentNullException(nameof(board));
 
-			var file = position.File + offset.dx;
-			var rank = position.Rank + offset.dy;
+			var col = (int)position.Column + offset.dx;
+			var row = (int)position.Row    + offset.dy;
 
-			return board.IsInside(file, rank) ? board.Squares[file, rank] : null;
+			return board.IsInside(col, row) ? board.Squares[col, row] : null;
 		}
 
 		/// <summary>

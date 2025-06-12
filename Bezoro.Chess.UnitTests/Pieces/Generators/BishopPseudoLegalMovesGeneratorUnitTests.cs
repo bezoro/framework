@@ -16,7 +16,7 @@ public class BishopPseudoLegalMovesGeneratorUnitTests
 	public void Generate_BishopAtCenterOfEmptyBoard_ReturnsCorrectMoves()
 	{
 		// Arrange
-		var game   = new GameModel(FenUtils.EmptyBoard);
+		var game   = new GameModel(FenUtils.EmptyPiecePlacement);
 		var bishop = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Bishop);
 		Assert.That(bishop, Is.Not.Null);
 		var generator = new BishopPseudoLegalMovesGenerator();

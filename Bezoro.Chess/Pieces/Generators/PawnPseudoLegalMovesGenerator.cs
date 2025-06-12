@@ -62,7 +62,7 @@ namespace Bezoro.Chess.Pieces.Generators
 		/// <param name="rank">The rank to check.</param>
 		/// <param name="board">The chess board.</param>
 		/// <returns>True if the rank is a promotion rank, false otherwise.</returns>
-		private static bool IsPromotionRank(PlayerColor color, int rank, IChessBoardModel board) =>
+		private static bool IsPromotionRank(PlayerColor color, uint rank, IChessBoardModel board) =>
 			color == PlayerColor.White ? rank == board.Height - 1 : rank == 0;
 
 		/// <summary>
@@ -155,8 +155,8 @@ namespace Bezoro.Chess.Pieces.Generators
 			foreach (var dx in new[] { -1, 1 }) // Left and right captures
 			{
 				// Try regular capture
-				var captureTargetFile = from.Column + dx;
-				var captureTargetRank = from.Row    + pawnDirection;
+				var captureTargetFile = (int)(from.Column + dx);
+				var captureTargetRank = (int)(from.Row    + pawnDirection);
 
 				if (board.IsInside(captureTargetFile, captureTargetRank))
 				{
@@ -199,8 +199,8 @@ namespace Bezoro.Chess.Pieces.Generators
 			IChessBoardModel board,
 			int pawnDir)
 		{
-			var targetFile = from.Column;
-			var targetRank = from.Row + 2 * pawnDir;
+			var targetFile = (int)from.Column;
+			var targetRank = (int)(from.Row + 2 * pawnDir);
 
 			// Check if target is inside board
 			if (!board.IsInside(targetFile, targetRank))
@@ -237,8 +237,8 @@ namespace Bezoro.Chess.Pieces.Generators
 			int pawnDir,
 			int dx)
 		{
-			var targetFile = from.Column + dx;
-			var targetRank = from.Row    + pawnDir;
+			var targetFile = (int)(from.Column + dx);
+			var targetRank = (int)(from.Row    + pawnDir);
 
 			// Check if target is inside board
 			if (!board.IsInside(targetFile, targetRank))
@@ -247,7 +247,7 @@ namespace Bezoro.Chess.Pieces.Generators
 			var to = new BoardPosition(targetFile, targetRank);
 
 			// Check if target is a promotion rank (en passant can't result in promotion)
-			if (IsPromotionRank(pawn.Color, targetRank, board))
+			if (IsPromotionRank(pawn.Color, (uint)targetRank, board))
 				return null;
 
 			// Target square must be empty for en passant
@@ -255,7 +255,7 @@ namespace Bezoro.Chess.Pieces.Generators
 				return null;
 
 			// Must have a valid en passant target square
-			if (board.EnPassantTargetSquare == null || !board.EnPassantTargetSquare.Position.Equals(to))
+			if (board.EnPassantSquare == null || !board.EnPassantSquare.Position.Equals(to))
 				return null;
 
 			// Check for the captured pawn (must be on the same rank as the attacking pawn)
@@ -286,8 +286,8 @@ namespace Bezoro.Chess.Pieces.Generators
 			IChessBoardModel board,
 			int pawnDir)
 		{
-			var targetFile = from.Column;
-			var targetRank = from.Row + pawnDir;
+			var targetFile = (int)from.Column;
+			var targetRank = (int)(from.Row + pawnDir);
 
 			// Check if target is inside board
 			if (!board.IsInside(targetFile, targetRank))

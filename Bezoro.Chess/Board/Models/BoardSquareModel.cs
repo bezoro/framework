@@ -7,7 +7,7 @@ namespace Bezoro.Chess.Board.Models
 		public BoardSquareModel(BoardPosition position, IChessPieceModel? piece = null) : this(
 			position.Column, position.Row, piece) { }
 
-		public BoardSquareModel(int col, int row, IChessPieceModel? piece = null)
+		public BoardSquareModel(uint col, uint row, IChessPieceModel? piece = null)
 		{
 			Position = new(col, row);
 			Piece    = piece;

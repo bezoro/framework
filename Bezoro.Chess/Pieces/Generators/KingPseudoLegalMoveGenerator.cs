@@ -15,7 +15,7 @@ namespace Bezoro.Chess.Pieces.Generators
 	///     Generates pseudo-valid moves for a king piece, including regular moves, captures,
 	///     and castling. Checks for blocked paths during castling and captures.
 	/// </summary>
-	public sealed class KingPseudoValidMoveGenerator : IPseudoMoveGenerator
+	public sealed class KingPseudoLegalMoveGenerator : IPseudoMoveGenerator
 	{
 	#region Interface Implementations
 
@@ -91,8 +91,8 @@ namespace Bezoro.Chess.Pieces.Generators
 		{
 			foreach (var (dx, dy) in DirectionVectors.KING)
 			{
-				var targetFile = from.Column + dx;
-				var targetRank = from.Row    + dy;
+				var targetFile = (int)(from.Column + dx);
+				var targetRank = (int)(from.Row    + dy);
 
 				// Skip if position is outside the board
 				if (!board.IsInside(targetFile, targetRank))
@@ -173,12 +173,12 @@ namespace Bezoro.Chess.Pieces.Generators
 		private static Move? TryGenerateQueensideCastling(KingModel king, BoardPosition from, IChessBoardModel board)
 		{
 			// Determine rook starting file and king's castling destination file
-			var queenSideRookFile     = 0; // A-file (index 0)
+			var queenSideRookColumn   = 0u; // A-file (index 0)
 			var queenSideCastleToFile = from.Column - 2;
-			var kingRank              = from.Row;
+			var KingColumn            = from.Row;
 
 			// Check if queenside rook is in place and hasn't moved
-			var queenSideRookPos   = new BoardPosition(queenSideRookFile, kingRank);
+			var queenSideRookPos   = new BoardPosition(queenSideRookColumn, KingColumn);
 			var queenSideRookPiece = board.GetPieceAt(queenSideRookPos);
 
 			if (queenSideRookPiece is not RookModel queenSideRook ||
@@ -189,14 +189,14 @@ namespace Bezoro.Chess.Pieces.Generators
 			}
 
 			// Check if path between king and rook is clear
-			for (var file = from.Column - 1 ; file > queenSideRookFile ; file--)
+			for (var file = from.Column - 1 ; file > queenSideRookColumn ; file--)
 			{
-				if (board.GetPieceAt(new BoardPosition(file, kingRank)) != null)
+				if (board.GetPieceAt(new BoardPosition(file, KingColumn)) != null)
 					return null;
 			}
 
 			// Path is clear, return the castling move
-			var toQueenSide = new BoardPosition(queenSideCastleToFile, kingRank);
+			var toQueenSide = new BoardPosition(queenSideCastleToFile, KingColumn);
 			return Move.CastleQueenSide(from, toQueenSide, king.Color);
 		}
 	}

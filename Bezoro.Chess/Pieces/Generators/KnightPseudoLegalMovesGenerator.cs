@@ -62,8 +62,8 @@ namespace Bezoro.Chess.Pieces.Models
 			foreach (var (dx, dy) in DirectionVectors.KNIGHT)
 			{
 				// Calculate target position
-				var targetFile = from.Column + dx;
-				var targetRank = from.Row    + dy;
+				var targetFile = (int)(from.Column + dx);
+				var targetRank = (int)(from.Row    + dy);
 
 				// Skip if position is outside the board
 				if (!board.IsInside(targetFile, targetRank))

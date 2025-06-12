@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Bezoro.Chess.Common.Enums;
@@ -24,14 +25,29 @@ namespace Bezoro.Chess.Common.Helpers
 		public const string START_HALF_MOVE = " 0";
 		public const string START_PIECES =
 			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-		public static FenData StartBoard { get; } = Parse(START_FEN);
 
-		public static string EmptyBoard  => EMPTY_FEN;
-		public static string StartPieces => START_PIECES;
+		static FenUtils()
+		{
+			try
+			{
+				StartBoard = Parse(START_FEN);
+			}
+			catch (Exception ex)
+			{
+				Debug.Fail($"Failed to initialise StartBoard with START_FEN: {ex}");
+				StartBoard = default;
+			}
+		}
+
+		public static FenData            StartBoard          { get; }
+		public static ReadOnlySpan<char> EmptyPiecePlacement => EMPTY_FEN.AsSpan();
+		public static ReadOnlySpan<char> StartPiecePlacement => START_PIECES.AsSpan();
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsValidPiecePlacement(ReadOnlySpan<char> field)
 		{
+			if (field.Length > 71) return false;
+
 			var ranks = 0;
 			var files = 0;
 
@@ -51,13 +67,28 @@ namespace Bezoro.Chess.Common.Helpers
 					if (emptySquares < 1 || emptySquares > 8) return false;
 					files += emptySquares;
 				}
-				else if ("prnbqkPRNBQK".Contains(c))
-				{
-					files += 1;
-				}
 				else
 				{
-					return false;
+					switch (c)
+					{
+						case 'p':
+						case 'r':
+						case 'n':
+						case 'b':
+						case 'q':
+						case 'k':
+						case 'P':
+						case 'R':
+						case 'N':
+						case 'B':
+						case 'Q':
+						case 'K':
+							files += 1;
+							break;
+
+						default:
+							return false;
+					}
 				}
 
 				if (files > 8) return false; // Too many files in a rank
@@ -93,17 +124,17 @@ namespace Bezoro.Chess.Common.Helpers
 				return false;
 			}
 
-			// Use stack allocation for parts array (small, fixed size)
 			Span<Range> parts     = stackalloc Range[6];
 			var         partCount = SplitFenString(fen, parts);
 
-			if (partCount == 0 || partCount > 6)
+			// Strict FEN: must have exactly six space-separated fields
+			if (partCount != 6)
 			{
-				error = "FEN string must contain 1-6 space-separated fields.";
+				error = "FEN string must contain exactly six space-separated fields.";
 				return false;
 			}
 
-			// Field 1: Piece Placement (Mandatory)
+			// Field 1: Piece Placement
 			var piecePlacement = fen[parts[0]];
 			if (!IsValidPiecePlacement(piecePlacement))
 			{
@@ -111,40 +142,40 @@ namespace Bezoro.Chess.Common.Helpers
 				return false;
 			}
 
-			// Field 2: Active Color (Default: 'w')
-			var activeColorSpan = partCount > 1 ? fen[parts[1]] : "w".AsSpan();
+			// Field 2: Active Color
+			var activeColorSpan = fen[parts[1]];
 			if (!TryParseColor(activeColorSpan, out var color))
 			{
 				error = "Active color must be 'w' (white) or 'b' (black).";
 				return false;
 			}
 
-			// Field 3: Castling Availability (Default: '-')
-			var castlingSpan = partCount > 2 ? fen[parts[2]] : "-".AsSpan();
+			// Field 3: Castling Availability
+			var castlingSpan = fen[parts[2]];
 			if (!TryParseCastling(castlingSpan, out var rights))
 			{
 				error = "Invalid castling availability section.";
 				return false;
 			}
 
-			// Field 4: En Passant Target Square (Default: '-')
-			var enPassantSpan = partCount > 3 ? fen[parts[3]] : "-".AsSpan();
+			// Field 4: En Passant Target Square
+			var enPassantSpan = fen[parts[3]];
 			if (!TryParseEnPassant(enPassantSpan, out var epSquareString))
 			{
 				error = "Invalid en passant target square.";
 				return false;
 			}
 
-			// Field 5: Halfmove Clock (Default: 0)
-			var halfmoveClockSpan = partCount > 4 ? fen[parts[4]] : "0".AsSpan();
+			// Field 5: Halfmove Clock
+			var halfmoveClockSpan = fen[parts[4]];
 			if (!TryParseInt(halfmoveClockSpan, out var half) || half < 0)
 			{
 				error = "Halfmove clock must be a non-negative integer.";
 				return false;
 			}
 
-			// Field 6: Fullmove Number (Default: 1)
-			var fullmoveNumberSpan = partCount > 5 ? fen[parts[5]] : "1".AsSpan();
+			// Field 6: Fullmove Number
+			var fullmoveNumberSpan = fen[parts[5]];
 			if (!TryParseInt(fullmoveNumberSpan, out var full) || full < 1)
 			{
 				error = "Fullmove number must be a positive integer (>= 1).";
@@ -162,6 +193,9 @@ namespace Bezoro.Chess.Common.Helpers
 
 			if (token.Length == 1 && token[0] == '-')
 				return true;
+
+			if (token.Length > 4)
+				return false;
 
 			var tempRights = CastlingRights.None;
 			var seenFlags  = 0; // Bit flags to track duplicates: K=1, Q=2, k=4, q=8
@@ -333,7 +367,7 @@ namespace Bezoro.Chess.Common.Helpers
 			for (var i = startIndex ; i < span.Length ; i++)
 			{
 				var c = span[i];
-				if (c < '0' || c > '9')
+				if (c is < '0' or > '9')
 					return false;
 
 				var digit = c - '0';
@@ -365,28 +399,28 @@ namespace Bezoro.Chess.Common.Helpers
 
 			for (var i = 0 ; i < fen.Length && partCount < parts.Length ; i++)
 			{
-				if (fen[i] == ' ')
+				if (fen[i] != ' ')
+					continue;
+
+				if (i > start) // Skip empty parts
 				{
-					if (i > start) // Skip empty parts
-					{
-						parts[partCount] = new(start, i);
-						partCount++;
-					}
-
-					// Skip consecutive spaces
-					while (i < fen.Length - 1 && fen[i + 1] == ' ')
-						i++;
-
-					start = i + 1;
+					parts[partCount] = new(start, i);
+					partCount++;
 				}
+
+				// Skip consecutive spaces
+				while (i < fen.Length - 1 && fen[i + 1] == ' ')
+					i++;
+
+				start = i + 1;
 			}
 
 			// Add the last part if it exists
-			if (start < fen.Length && partCount < parts.Length)
-			{
-				parts[partCount] = new(start, fen.Length);
-				partCount++;
-			}
+			if (start >= fen.Length || partCount >= parts.Length)
+				return partCount;
+
+			parts[partCount] = new(start, fen.Length);
+			partCount++;
 
 			return partCount;
 		}
