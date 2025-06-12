@@ -25,11 +25,11 @@ namespace Bezoro.Chess.ChessLogic.Generators
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, toPosition, pieceAtDestination.Color);
+					yield return new(from, toPosition, gameState.ActiveColor);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(from, toPosition, pieceAtDestination.Color, MoveType.Capture);
+					yield return new(from, toPosition, gameState.ActiveColor, MoveType.Capture);
 				}
 			}
 		}

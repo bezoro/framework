@@ -19,15 +19,19 @@ namespace Bezoro.Chess.ChessLogic.Generators
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{
-						yield return new(from, to, pieceAtDestination.Color);
+						yield return new(from, to, gameState.ActiveColor);
 					}
 					else if (pieceAtDestination.Color != gameState.ActiveColor)
 					{
-						yield return new(from, to, pieceAtDestination.Color, MoveType.Capture);
+						yield return new(
+							from, to, gameState.ActiveColor, MoveType.Capture, pieceAtDestination.Type,
+							PromotionType.None);
+
 						break;
 					}
 					else
 					{
+						// Blocked by our own piece.
 						break;
 					}
 

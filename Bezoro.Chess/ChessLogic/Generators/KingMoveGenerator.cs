@@ -24,11 +24,12 @@ namespace Bezoro.Chess.ChessLogic.Generators
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, to, pieceAtDestination.Color);
+					yield return new(from, to, gameState.ActiveColor);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(from, to, pieceAtDestination.Color, MoveType.Capture);
+					yield return new(
+						from, to, gameState.ActiveColor, MoveType.Capture, pieceAtDestination.Type, PromotionType.None);
 				}
 			}
 
@@ -44,6 +45,7 @@ namespace Bezoro.Chess.ChessLogic.Generators
 			{
 				if (from.Row != 7 || from.Col != 4) yield break;
 
+				// Kingside Castling
 				if ((gameState.Castling & CastlingRights.WhiteKingside) != 0              &&
 					gameState.PiecePositions[7, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[7, 6].Type                 == PieceType.None)
@@ -51,6 +53,7 @@ namespace Bezoro.Chess.ChessLogic.Generators
 					yield return new(from, new(7, 6), PieceColor.White, MoveType.CastleKingside);
 				}
 
+				// Queenside Castling
 				if ((gameState.Castling & CastlingRights.WhiteQueenside) != 0              &&
 					gameState.PiecePositions[7, 3].Type                  == PieceType.None &&
 					gameState.PiecePositions[7, 2].Type                  == PieceType.None &&
@@ -59,10 +62,11 @@ namespace Bezoro.Chess.ChessLogic.Generators
 					yield return new(from, new(7, 2), PieceColor.White, MoveType.CastleQueenside);
 				}
 			}
-			else
+			else // Black
 			{
 				if (from.Row != 0 || from.Col != 4) yield break;
 
+				// Kingside Castling
 				if ((gameState.Castling & CastlingRights.BlackKingside) != 0              &&
 					gameState.PiecePositions[0, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[0, 6].Type                 == PieceType.None)
@@ -70,6 +74,7 @@ namespace Bezoro.Chess.ChessLogic.Generators
 					yield return new(from, new(0, 6), PieceColor.Black, MoveType.CastleKingside);
 				}
 
+				// Queenside Castling
 				if ((gameState.Castling & CastlingRights.BlackQueenside) != 0              &&
 					gameState.PiecePositions[0, 3].Type                  == PieceType.None &&
 					gameState.PiecePositions[0, 2].Type                  == PieceType.None &&
