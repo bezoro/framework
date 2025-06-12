@@ -1,4 +1,5 @@
 using System.Linq;
+using Bezoro.Chess.ChessLogic.Generators;
 
 namespace Bezoro.Chess.ChessLogic
 {

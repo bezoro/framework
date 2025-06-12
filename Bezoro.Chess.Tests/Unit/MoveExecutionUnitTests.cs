@@ -1,4 +1,5 @@
 using Bezoro.Chess.ChessLogic;
+using Bezoro.Chess.ChessLogic.MoveExecution;
 using FluentAssertions;
 
 namespace Bezoro.Chess.Tests.Unit;
@@ -20,7 +21,7 @@ public class MoveExecutionUnitTests
 			HalfMoveClock  = 10 // Arbitrary non-zero value
 		};
 
-		var move = new Move(new("e5"), new("d4"));
+		var move = new Move(new("e5"), new("d4"), PieceColor.Black);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);
@@ -43,7 +44,7 @@ public class MoveExecutionUnitTests
 		initialBoard[new Position("a2").Row, new Position("a2").Col] = new(PieceType.Pawn, PieceColor.Black);
 
 		var initialState = new GameState { PiecePositions = initialBoard, ActiveColor = PieceColor.Black };
-		var move         = new Move(new("a2"), new("a1"), MoveType.PawnPromotion);
+		var move         = new Move(new("a2"), new("a1"), PieceColor.Black, MoveType.PawnPromotion);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);
@@ -68,7 +69,7 @@ public class MoveExecutionUnitTests
 		var initialState = new GameState
 			{ PiecePositions = initialBoard, ActiveColor = PieceColor.Black, Castling = CastlingRights.BlackQueenside };
 
-		var move = new Move(new("e8"), new("c8"), MoveType.CastleQueenside);
+		var move = new Move(new("e8"), new("c8"), PieceColor.Black, MoveType.CastleQueenside);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);
@@ -99,7 +100,7 @@ public class MoveExecutionUnitTests
 			EnPassantTargetSquare = new Position("d6")
 		};
 
-		var move = new Move(new("e5"), new("d6"), MoveType.EnPassant);
+		var move = new Move(new("e5"), new("d6"), PieceColor.White, MoveType.EnPassant);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);
@@ -125,7 +126,7 @@ public class MoveExecutionUnitTests
 		var initialState = new GameState
 			{ PiecePositions = initialBoard, ActiveColor = PieceColor.White, Castling = CastlingRights.WhiteKingside };
 
-		var move = new Move(new("e1"), new("g1"), MoveType.CastleKingside);
+		var move = new Move(new("e1"), new("g1"), PieceColor.White, MoveType.CastleKingside);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);
@@ -144,7 +145,7 @@ public class MoveExecutionUnitTests
 	{
 		// Arrange
 		var initialState = BoardSetup.CreateStandardGame();
-		var move         = new Move(new("e2"), new("e4"));
+		var move         = new Move(new("e2"), new("e4"), PieceColor.White);
 
 		// Act
 		var newState = MoveExecution.ExecuteMove(initialState, move);

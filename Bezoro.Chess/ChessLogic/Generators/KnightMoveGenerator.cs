@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class KnightMoveGenerator
 	{
@@ -25,11 +25,11 @@ namespace Bezoro.Chess.ChessLogic
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, toPosition);
+					yield return new(from, toPosition, pieceAtDestination.Color);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(from, toPosition, MoveType.Capture);
+					yield return new(from, toPosition, pieceAtDestination.Color, MoveType.Capture);
 				}
 			}
 		}

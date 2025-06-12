@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	/// <summary>
 	///     A static utility class for generating all possible pseudo-legal moves for a given game state.

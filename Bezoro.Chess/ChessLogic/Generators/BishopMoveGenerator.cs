@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class BishopMoveGenerator
 	{

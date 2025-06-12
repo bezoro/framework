@@ -10,6 +10,11 @@ namespace Bezoro.Chess.ChessLogic
 		None, Pawn, Knight, Bishop, Rook, Queen, King
 	}
 
+	public enum PromotionType : byte
+	{
+		None, Queen = PieceType.Queen, Rook = PieceType.Rook, Bishop = PieceType.Bishop, Knight = PieceType.Knight
+	}
+
 	/// <summary>
 	///     Represents a chess piece. This is a struct for memory efficiency when storing the board state.
 	/// </summary>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.Chess.ChessLogic.Generators;
 
 namespace Bezoro.Chess.ChessLogic
 {
@@ -80,7 +81,7 @@ namespace Bezoro.Chess.ChessLogic
 		public bool IsMoveLegal(Move move)
 		{
 			// Execute the move to see if it would leave the king in check
-			var afterMoveState = MoveExecution.ExecuteMove(CurrentState, move);
+			var afterMoveState = MoveExecution.MoveExecution.ExecuteMove(CurrentState, move);
 
 			// The move has already switched the active player, so we need to check if the
 			// previous player's king is in check in the new state
@@ -129,7 +130,7 @@ namespace Bezoro.Chess.ChessLogic
 			}
 
 			// Execute the move
-			var newState = MoveExecution.ExecuteMove(CurrentState, move);
+			var newState = MoveExecution.MoveExecution.ExecuteMove(CurrentState, move);
 
 			// If we're not at the end of the history (i.e., we've done some undos),
 			// remove all future states
