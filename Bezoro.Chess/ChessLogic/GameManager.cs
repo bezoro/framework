@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	/// <summary>
 	///     Manages the current state of a chess game and provides methods to interact with it.

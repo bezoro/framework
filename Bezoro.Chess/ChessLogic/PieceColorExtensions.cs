@@ -1,4 +1,4 @@
-namespace ChessLogic
+namespace Bezoro.Chess.ChessLogic
 {
 	public static class PieceColorExtensions
 	{
