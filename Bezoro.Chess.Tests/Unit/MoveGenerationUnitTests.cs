@@ -139,8 +139,8 @@ public class MoveGenerationUnitTests
 	}
 
 	[Theory]
-	[InlineData(PieceColor.White, "e5", "d5")]
-	[InlineData(PieceColor.Black, "d4", "e4")]
+	[InlineData(PieceColor.White, "e5", "d6")]
+	[InlineData(PieceColor.Black, "d4", "e3")]
 	public void MoveGenerator_ForPawn_ShouldGenerateEnPassantMove(
 		PieceColor color, string from, string enPassantTarget)
 	{
