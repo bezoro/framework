@@ -58,7 +58,8 @@ public class ArrayMergeUnitTests
 	}
 
 	[Test]
-	public void Merge_WhenDestinationArrayHasExistingDataAndNulls_ThenOnlyNullsInDestinationReplacedBySourceElements()
+	public void
+		Merge_WhenDestinationArrayHasExistingDataAndNulls_ThenOnlyNullsInDestinationReplacedBySourceElements()
 	{
 		// Arrange
 		var from = new[] { "X", "Y", "Z" };

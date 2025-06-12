@@ -10,22 +10,6 @@ public class ArrayCompareUnitTests
 #region Test Methods
 
 	[Test]
-	public void CompareArrays_WhenArraysHaveDifferentLengths_ReturnsFalse()
-	{
-		// Arrange
-		var array1 = new[] { 1, 2, 3 };
-		var array2 = new[] { 1, 2, 3, 4 };
-
-		// Act
-		var result = ArrayHelpers.CompareArrays(array1, array2);
-
-		// Assert
-		Assert.That(
-			result, Is.False, "Comparing 2 arrays with different lengths should be considered unequal."
-		);
-	}
-
-	[Test]
 	public void CompareArrays_WhenArraysContainEqualCustomObjects_ReturnsTrue()
 	{
 		// Arrange
@@ -48,6 +32,22 @@ public class ArrayCompareUnitTests
 
 		Assert.That(
 			result2, Is.True, "Comparing arrays with element-wise equal custom objects should return true."
+		);
+	}
+
+	[Test]
+	public void CompareArrays_WhenArraysHaveDifferentLengths_ReturnsFalse()
+	{
+		// Arrange
+		var array1 = new[] { 1, 2, 3 };
+		var array2 = new[] { 1, 2, 3, 4 };
+
+		// Act
+		var result = ArrayHelpers.CompareArrays(array1, array2);
+
+		// Assert
+		Assert.That(
+			result, Is.False, "Comparing 2 arrays with different lengths should be considered unequal."
 		);
 	}
 
