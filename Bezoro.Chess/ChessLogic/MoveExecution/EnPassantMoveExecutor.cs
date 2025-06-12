@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.MoveExecution
 {
 	/// <summary>
 	///     Handles the execution of an en passant capture.

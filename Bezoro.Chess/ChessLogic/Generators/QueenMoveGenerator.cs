@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class QueenMoveGenerator
 	{

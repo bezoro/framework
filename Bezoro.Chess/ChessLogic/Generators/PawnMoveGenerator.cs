@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class PawnMoveGenerator
 	{
@@ -18,11 +18,11 @@ namespace Bezoro.Chess.ChessLogic
 			{
 				if (oneStepForward.Row == promotionRow)
 				{
-					yield return new(from, oneStepForward, MoveType.PawnPromotion);
+					yield return new(from, oneStepForward, pawn.Color, MoveType.PawnPromotion);
 				}
 				else
 				{
-					yield return new(from, oneStepForward, MoveType.Normal);
+					yield return new(from, oneStepForward, pawn.Color);
 				}
 
 				// 2. Two-square advance from starting position
@@ -32,7 +32,7 @@ namespace Bezoro.Chess.ChessLogic
 					if (BoardHelper.IsInsideBoard(twoStepsForward) &&
 						gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == PieceType.None)
 					{
-						yield return new(from, twoStepsForward, MoveType.Normal);
+						yield return new(from, twoStepsForward, pawn.Color);
 					}
 				}
 			}
@@ -54,11 +54,11 @@ namespace Bezoro.Chess.ChessLogic
 				{
 					if (toPosition.Row == promotionRow)
 					{
-						yield return new(from, toPosition, MoveType.PawnPromotion);
+						yield return new(from, toPosition, pawn.Color, MoveType.PawnPromotion);
 					}
 					else
 					{
-						yield return new(from, toPosition, MoveType.Capture);
+						yield return new(from, toPosition, pawn.Color, MoveType.Capture);
 					}
 				}
 
@@ -67,7 +67,7 @@ namespace Bezoro.Chess.ChessLogic
 					toPosition.Row == gameState.EnPassantTargetSquare.Value.Row &&
 					toPosition.Col == gameState.EnPassantTargetSquare.Value.Col)
 				{
-					yield return new(from, toPosition, MoveType.EnPassant);
+					yield return new(from, toPosition, pawn.Color, MoveType.EnPassant);
 				}
 			}
 		}

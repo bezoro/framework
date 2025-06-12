@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.MoveExecution
 {
 	/// <summary>
 	///     Responsible for applying moves to a game state and producing a new, updated game state.

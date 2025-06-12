@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.MoveExecution
 {
 	/// <summary>
 	///     Handles the execution of a castling move (both kingside and queenside).
@@ -18,7 +18,7 @@ namespace Bezoro.Chess.ChessLogic
 			var rookToCol   = isKingside ? 5 : 3;
 			var row         = move.From.Row;
 
-			var rookMove = new Move(new(row, rookFromCol), new(row, rookToCol));
+			var rookMove = new Move(new(row, rookFromCol), new(row, rookToCol), move.Color);
 			NormalMoveExecutor.Execute(state, rookMove);
 		}
 	}

@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.MoveExecution
 {
 	/// <summary>
 	///     Handles the execution of a normal move (moving a piece from one square to another).

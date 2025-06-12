@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class KingMoveGenerator
 	{
@@ -24,11 +24,11 @@ namespace Bezoro.Chess.ChessLogic
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, to);
+					yield return new(from, to, pieceAtDestination.Color);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(from, to, MoveType.Capture);
+					yield return new(from, to, pieceAtDestination.Color, MoveType.Capture);
 				}
 			}
 
@@ -48,7 +48,7 @@ namespace Bezoro.Chess.ChessLogic
 					gameState.PiecePositions[7, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[7, 6].Type                 == PieceType.None)
 				{
-					yield return new(from, new(7, 6), MoveType.CastleKingside);
+					yield return new(from, new(7, 6), PieceColor.White, MoveType.CastleKingside);
 				}
 
 				if ((gameState.Castling & CastlingRights.WhiteQueenside) != 0              &&
@@ -56,7 +56,7 @@ namespace Bezoro.Chess.ChessLogic
 					gameState.PiecePositions[7, 2].Type                  == PieceType.None &&
 					gameState.PiecePositions[7, 1].Type                  == PieceType.None)
 				{
-					yield return new(from, new(7, 2), MoveType.CastleQueenside);
+					yield return new(from, new(7, 2), PieceColor.White, MoveType.CastleQueenside);
 				}
 			}
 			else
@@ -67,7 +67,7 @@ namespace Bezoro.Chess.ChessLogic
 					gameState.PiecePositions[0, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[0, 6].Type                 == PieceType.None)
 				{
-					yield return new(from, new(0, 6), MoveType.CastleKingside);
+					yield return new(from, new(0, 6), PieceColor.Black, MoveType.CastleKingside);
 				}
 
 				if ((gameState.Castling & CastlingRights.BlackQueenside) != 0              &&
@@ -75,7 +75,7 @@ namespace Bezoro.Chess.ChessLogic
 					gameState.PiecePositions[0, 2].Type                  == PieceType.None &&
 					gameState.PiecePositions[0, 1].Type                  == PieceType.None)
 				{
-					yield return new(from, new(0, 2), MoveType.CastleQueenside);
+					yield return new(from, new(0, 2), PieceColor.Black, MoveType.CastleQueenside);
 				}
 			}
 		}

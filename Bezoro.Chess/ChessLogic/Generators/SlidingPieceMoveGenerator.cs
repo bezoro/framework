@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Chess.ChessLogic
+namespace Bezoro.Chess.ChessLogic.Generators
 {
 	internal static class SlidingPieceMoveGenerator
 	{
@@ -19,11 +19,11 @@ namespace Bezoro.Chess.ChessLogic
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{
-						yield return new(from, to);
+						yield return new(from, to, pieceAtDestination.Color);
 					}
 					else if (pieceAtDestination.Color != gameState.ActiveColor)
 					{
-						yield return new(from, to, MoveType.Capture);
+						yield return new(from, to, pieceAtDestination.Color, MoveType.Capture);
 						break;
 					}
 					else
