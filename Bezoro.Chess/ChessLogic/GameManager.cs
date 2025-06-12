@@ -33,6 +33,7 @@ namespace Bezoro.Chess.ChessLogic
 		public GameState CurrentState { get; private set; }
 
 		public event Action<GameOutcome>? GameEnded;
+		public event Action<GameOutcome>? GameStarted;
 
 		public bool IsKingInCheck(GameState state, PieceColor kingColor) =>
 			_statusChecker.IsKingInCheck(state, kingColor);
@@ -102,6 +103,7 @@ namespace Bezoro.Chess.ChessLogic
 			_currentStateIndex = 0;
 			Outcome            = GameOutcome.Ongoing;
 			_statusChecker.InvalidateCache();
+			GameStarted?.Invoke(Outcome);
 		}
 
 		internal void SetOutcome(GameOutcome outcome)
@@ -110,7 +112,9 @@ namespace Bezoro.Chess.ChessLogic
 				return;
 
 			Outcome = outcome;
-			GameEnded?.Invoke(outcome);
+
+			if (outcome.IsFinished())
+				GameEnded?.Invoke(outcome);
 		}
 
 		private void ExecuteAndRecordMove(Move move)
