@@ -17,7 +17,7 @@ public class MovePieceCommandUnitTests
 	[Test]
 	public void Execute_WhenMoveIsEnPassant_RemovesTargetPieceAndMovesPawn()
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		board.SetEnPassantTargetSquare(board.GetSquareAt("f6"));
 		var whitePawn = board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
@@ -37,7 +37,7 @@ public class MovePieceCommandUnitTests
 	[Test]
 	public void Execute_WhenPawnCaptures_RemovesTargetPieceAndMovesPawn()
 	{
-		var game        = new GameModel(FenUtils.EmptyBoard);
+		var game        = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board       = game.Board;
 		var whitePawn   = board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
@@ -77,7 +77,7 @@ public class MovePieceCommandUnitTests
 	[Test]
 	public void Undo_WhenMoveIsEnPassant_RestoresTargetPieceAndReturnsPawn()
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		board.SetEnPassantTargetSquare(board.GetSquareAt("f6"));
 		var whitePawn = board.CreatePieceAt("e5", PlayerColor.White, ChessPieceType.Pawn);
@@ -100,7 +100,7 @@ public class MovePieceCommandUnitTests
 	[Test]
 	public void Undo_WhenPawnCaptures_RestorePreviousState()
 	{
-		var game        = new GameModel(FenUtils.EmptyBoard);
+		var game        = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board       = game.Board;
 		var whitePawn   = board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Pawn);
 		var blackPawn   = board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);
@@ -148,7 +148,7 @@ public class MovePieceCommandUnitTests
 		string targetKingSquare,
 		string targetRookSquare)
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
 		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
@@ -176,7 +176,7 @@ public class MovePieceCommandUnitTests
 		string targetKingSquare,
 		string targetRookSquare)
 	{
-		var game  = new GameModel(FenUtils.EmptyBoard);
+		var game  = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board = game.Board;
 		board.CreatePieceAt(rookSquare, color, ChessPieceType.Rook);
 		board.CreatePieceAt(kingSquare, color, ChessPieceType.King);
@@ -199,7 +199,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Execute_WhenValidPromotionCapture_PerformsPromotion(PlayerColor color)
 	{
-		var game          = new GameModel(FenUtils.EmptyBoard);
+		var game          = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board         = game.Board;
 		var startSquare   = color == PlayerColor.White ? "a7" : "a2";
 		var endSquare     = color == PlayerColor.White ? "b8" : "b1";
@@ -223,7 +223,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Execute_WhenValidPromotionQuiet_PerformsPromotion(PlayerColor color)
 	{
-		var game        = new GameModel(FenUtils.EmptyBoard);
+		var game        = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board       = game.Board;
 		var startSquare = color == PlayerColor.White ? "a7" : "a2";
 		var endSquare   = color == PlayerColor.White ? "a8" : "a1";
@@ -245,7 +245,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Undo_WhenValidKingSideCastle_ResetsKingAndRook(PlayerColor color)
 	{
-		var game             = new GameModel(FenUtils.EmptyBoard);
+		var game             = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board            = game.Board;
 		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
 		var rookSquare       = color == PlayerColor.White ? "h1" : "h8";
@@ -278,7 +278,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Undo_WhenValidPromotionCapture_UndoesPromotion(PlayerColor color)
 	{
-		var game          = new GameModel(FenUtils.EmptyBoard);
+		var game          = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board         = game.Board;
 		var startSquare   = color == PlayerColor.White ? "a7" : "a2";
 		var endSquare     = color == PlayerColor.White ? "b8" : "b1";
@@ -309,7 +309,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Undo_WhenValidPromotionQuiet_UndoesPromotion(PlayerColor color)
 	{
-		var game        = new GameModel(FenUtils.EmptyBoard);
+		var game        = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board       = game.Board;
 		var startSquare = color == PlayerColor.White ? "a7" : "a2";
 		var endSquare   = color == PlayerColor.White ? "a8" : "a1";
@@ -336,7 +336,7 @@ public class MovePieceCommandUnitTests
 	[TestCase(PlayerColor.Black)]
 	public void Undo_WhenValidQueenSideCastle_ResetsKingAndRook(PlayerColor color)
 	{
-		var game             = new GameModel(FenUtils.EmptyBoard);
+		var game             = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board            = game.Board;
 		var kingSquare       = color == PlayerColor.White ? "e1" : "e8";
 		var rookSquare       = color == PlayerColor.White ? "a1" : "a8";

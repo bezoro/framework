@@ -15,7 +15,7 @@ public class KnightPseudoLegalMovesGeneratorUnitTest
 	[Test]
 	public void Generate_WhenKnightAtCenterOfEmptyBoard_ReturnsCorrectMoves()
 	{
-		var game   = new GameModel(FenUtils.EmptyBoard);
+		var game   = new GameModel(FenUtils.EmptyPiecePlacement);
 		var knight = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Knight);
 		Assert.That(knight, Is.Not.Null);
 		Assert.That(knight, Is.TypeOf<KnightModel>());
@@ -32,7 +32,7 @@ public class KnightPseudoLegalMovesGeneratorUnitTest
 	[Test]
 	public void Generate_WhenKnightBlockedByFriendlyPieces_ReturnsCorrectMoves()
 	{
-		var game   = new GameModel(FenUtils.EmptyBoard);
+		var game   = new GameModel(FenUtils.EmptyPiecePlacement);
 		var knight = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Knight);
 		game.Board.CreatePieceAt("c6", PlayerColor.White, ChessPieceType.Pawn);
 		game.Board.CreatePieceAt("f5", PlayerColor.White, ChessPieceType.Pawn);
@@ -52,7 +52,7 @@ public class KnightPseudoLegalMovesGeneratorUnitTest
 	[Test]
 	public void Generate_WhenKnightCanCapture_ReturnsCorrectMoves()
 	{
-		var game   = new GameModel(FenUtils.EmptyBoard);
+		var game   = new GameModel(FenUtils.EmptyPiecePlacement);
 		var knight = game.Board.CreatePieceAt("d4", PlayerColor.White, ChessPieceType.Knight);
 		game.Board.CreatePieceAt("c6", PlayerColor.Black, ChessPieceType.Pawn);
 		game.Board.CreatePieceAt("f5", PlayerColor.Black, ChessPieceType.Pawn);

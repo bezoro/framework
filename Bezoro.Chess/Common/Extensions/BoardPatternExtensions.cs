@@ -9,14 +9,31 @@ using Bezoro.Chess.Common.Helpers;
 
 namespace Bezoro.Chess.Common.Extensions
 {
+	/// <summary>
+	///     High-performance helpers for generating standard chess move patterns.
+	///     All methods avoid per-call allocations and use <c>yield</c> enumeration
+	///     so they can be consumed lazily by the move generator.
+	/// </summary>
 	public static class BoardPatternExtensions
 	{
+		private static readonly (int dx, int dy)[] _Diagonal   = DirectionVectors.DIAGONAL;
+		private static readonly (int dx, int dy)[] _Orthogonal = DirectionVectors.ORTHOGONAL;
+		private static readonly (int dx, int dy)[] _AllDirections =
+			_Orthogonal.Concat(_Diagonal).ToArray();
+
+		private static readonly (int dx, int dy)[] _KnightJumps =
+		{
+			(1, 2), (2, 1), (2, -1), (1, -2),
+			(-1, -2), (-2, -1), (-2, 1), (-1, 2)
+		};
+
+		/* Pre-computed direction vectors ─ allocated once at type-init time */
+
 		/// <summary>
-		///     Returns every square that lies directly next to
-		///     <paramref name="position" /> on the board.
-		///     Set <paramref name="includeDiagonals" /> to <c>true</c> to get all eight
-		///     neighbouring squares; otherwise only the four orthogonal ones are
-		///     returned.
+		///     Returns the squares directly adjacent to <paramref name="position" />.
+		///     Set <paramref name="includeDiagonals" /> to <c>true</c> to obtain the
+		///     full king neighbourhood (8 squares); otherwise only the four
+		///     orthogonal neighbours are returned.
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetAdjacentSquares(
@@ -24,141 +41,85 @@ namespace Bezoro.Chess.Common.Extensions
 			BoardPosition position,
 			bool includeDiagonals = false)
 		{
-			if (board    == null) throw new ArgumentNullException(nameof(board));
-			if (position == null) throw new ArgumentNullException(nameof(position));
+			if (board is null) throw new ArgumentNullException(nameof(board));
 
-			var dirs = includeDiagonals
-				? DirectionVectors.ORTHOGONAL.Concat(DirectionVectors.DIAGONAL)
-				: DirectionVectors.ORTHOGONAL;
+			var dirs = includeDiagonals ? _AllDirections : _Orthogonal;
 
 			foreach (var (dx, dy) in dirs)
 			{
-				if (board.IsInside(position.File + dx, position.Rank + dy))
-					yield return board.Squares[position.File + dx, position.Rank + dy];
+				if (board.IsInside((int)(position.Column + dx), (int)(position.Row + dy)))
+					yield return board.Squares[position.Column + dx, position.Row + dy];
 			}
 		}
 
-		/// <summary>
-		///     Returns all squares reachable by a bishop from the given position.
-		///     This includes all diagonal rays extending from the origin until the board edge or a piece is encountered.
-		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="origin">The starting position.</param>
-		/// <returns>A collection of squares along all diagonal rays from the origin.</returns>
+		/// <summary>Bishop move pattern (diagonal rays).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetDiagonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
-			board.GetSlidingSquares(origin, DirectionVectors.DIAGONAL);
+			board.GetSlidingSquares(origin, _Diagonal);
 
-		/// <summary>
-		///     Shortcut for king moves – simply returns the adjacent squares
-		///     (orthogonal + diagonal).
-		/// </summary>
+		/// <summary>King move pattern (all adjacent squares).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetKingSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
 			board.GetAdjacentSquares(origin, true);
 
-		/// <summary>
-		///     Returns squares in the eight knight-jump positions around
-		///     <paramref name="origin" />.
-		/// </summary>
+		/// <summary>Knight move pattern (eight L-shaped jumps).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static unsafe IEnumerable<IChessBoardSquareModel> GetKnightSquares(
+		public static IEnumerable<IChessBoardSquareModel> GetKnightSquares(
 			this IChessBoardModel board,
 			BoardPosition origin)
 		{
-			if (board == null) throw new ArgumentNullException(nameof(board));
+			if (board is null) throw new ArgumentNullException(nameof(board));
 
-			ReadOnlySpan<(int dx, int dy)> jumps = stackalloc (int, int)[]
+			foreach (var (dx, dy) in _KnightJumps)
 			{
-				(1, 2), (2, 1), (2, -1), (1, -2),
-				(-1, -2), (-2, -1), (-2, 1), (-1, 2)
-			};
-
-			var result = new List<IChessBoardSquareModel>(8);
-
-			foreach (var (dx, dy) in jumps)
-			{
-				if (board.IsInside(origin.File + dx, origin.Rank + dy))
-					result.Add(board.Squares[origin.File + dx, origin.Rank + dy]);
+				if (board.IsInside((int)(origin.Column + dx), (int)(origin.Row + dy)))
+					yield return board.Squares[origin.Column + dx, origin.Row + dy];
 			}
-
-			return result;
 		}
 
-		/// <summary>
-		///     Returns all squares reachable by a rook from the given position.
-		///     This includes all horizontal and vertical rays extending from the origin
-		///     until the board edge or a piece is encountered.
-		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="origin">The starting position.</param>
-		/// <returns>A collection of squares along all orthogonal rays from the origin.</returns>
+		/// <summary>Rook move pattern (orthogonal rays).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetOrthogonalSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
-			board.GetSlidingSquares(origin, DirectionVectors.ORTHOGONAL);
+			board.GetSlidingSquares(origin, _Orthogonal);
 
-		/// <summary>
-		///     Returns all squares reachable by a queen from the given position.
-		///     This combines diagonal and orthogonal rays extending from the origin
-		///     until the board edge or a piece is encountered.
-		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="origin">The starting position.</param>
-		/// <returns>A collection of squares along all queen-movement rays from the origin.</returns>
+		/// <summary>Queen move pattern (rook + bishop rays).</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetQueenSquares(
 			this IChessBoardModel board,
 			BoardPosition origin) =>
-			board.GetSlidingSquares(
-				origin,
-				DirectionVectors.ORTHOGONAL.Concat(DirectionVectors.DIAGONAL));
+			board.GetSlidingSquares(origin, _AllDirections);
 
 		/// <summary>
-		///     Returns all squares reachable by sliding from the origin in the specified directions
-		///     until a board edge or a blocking piece is encountered.
+		///     Returns every square reachable by sliding from <paramref name="origin" />
+		///     in each of <paramref name="directions" /> until the board edge or a
+		///     blocking piece is reached. The blocker square is yielded as well.
 		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="origin">The starting position.</param>
-		/// <param name="directions">A collection of direction vectors as (dx, dy) tuples.</param>
-		/// <returns>A collection of squares reachable by sliding in the specified directions.</returns>
-		/// <remarks>
-		///     When a blocking piece is encountered, that square is included in the results before stopping in that direction.
-		///     This method is used for generating moves for sliding pieces like bishops, rooks, and queens.
-		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetSlidingSquares(
 			this IChessBoardModel board,
 			BoardPosition origin,
 			IEnumerable<(int dx, int dy)> directions)
 		{
-			if (board      == null) throw new ArgumentNullException(nameof(board));
-			if (origin     == null) throw new ArgumentNullException(nameof(origin));
-			if (directions == null) throw new ArgumentNullException(nameof(directions));
+			if (board is null) throw new ArgumentNullException(nameof(board));
+			if (directions is null) throw new ArgumentNullException(nameof(directions));
 
 			foreach (var (dx, dy) in directions)
-			foreach (var sq in board.WalkRay(origin, dx, dy))
+			foreach (var square in board.WalkRay(origin, dx, dy))
 			{
-				yield return sq;
+				yield return square;
 			}
 		}
 
 		/// <summary>
-		///     Returns all squares along a ray in the specified cardinal direction from the given position.
+		///     Squares obtained by following a single <see cref="CardinalDirection" />
+		///     ray from <paramref name="position" />.
 		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="position">The starting position.</param>
-		/// <param name="direction">The cardinal direction to follow.</param>
-		/// <returns>A collection of squares along the ray in the specified direction.</returns>
-		/// <remarks>
-		///     This method walks the board in the specified direction until reaching the board edge or an occupied square.
-		///     If an occupied square is encountered, it is included in the results before stopping.
-		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> GetSquaresInDirection(
 			this IChessBoardModel board,
@@ -166,40 +127,53 @@ namespace Bezoro.Chess.Common.Extensions
 			CardinalDirection direction)
 		{
 			var (dx, dy) = BoardDirectionExtensions.MapDirectionToOffsets(direction);
-
 			return board.WalkRay(position, dx, dy);
 		}
+	}
 
+	/// <summary>
+	///     Helpers for scanning a straight “ray” of squares starting from
+	///     an origin and travelling in a constant <c>(dx,dy)</c> direction.
+	/// </summary>
+	public static class BoardRayExtensions
+	{
 		/// <summary>
-		///     Walks a ray starting from the position next to the origin in the specified direction
-		///     until reaching a board edge.
+		///     Enumerates all squares beginning one step away from
+		///     <paramref name="origin" /> in the direction (<paramref name="dx" />,
+		///     <paramref name="dy" />).
+		///     The iteration stops at the first blocker (inclusive) or
+		///     at the board edge.
 		/// </summary>
-		/// <param name="board">The chess board.</param>
-		/// <param name="from">The origin position (the walk starts from the adjacent square).</param>
-		/// <param name="dx">The horizontal direction component (-1, 0, or 1).</param>
-		/// <param name="dy">The vertical direction component (-1, 0, or 1).</param>
-		/// <returns>A collection of squares along the ray.</returns>
 		/// <remarks>
-		///     This method ignores occupied squares and continues walking until reaching a board edge.
-		///     This method is used by the sliding piece move generators and for checking lines of attack.
+		///     • The starting square itself (<paramref name="origin" />) is
+		///     never produced.<br />
+		///     • The square containing a blocking piece <em>is</em> yielded so
+		///     that the caller can decide whether a capture is legal.
 		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<IChessBoardSquareModel> WalkRay(
 			this IChessBoardModel board,
-			BoardPosition from,
+			BoardPosition origin,
 			int dx,
 			int dy)
 		{
-			var file = from.Column + dx;
-			var rank = from.Row    + dy;
+			if (board is null) throw new ArgumentNullException(nameof(board));
 
-			while (board.IsInside(file, rank))
+			// Advance one step to leave the origin square.
+			var x = (int)(origin.Column + dx);
+			var y = (int)(origin.Row    + dy);
+
+			while (board.IsInside(x, y))
 			{
-				var square = board.Squares[file, rank];
+				var square = board.Squares[x, y];
 				yield return square;
 
-				file += dx;
-				rank += dy;
+				// Stop when a piece blocks further travel.
+				if (square.Piece is not null)
+					yield break;
+
+				x += dx;
+				y += dy;
 			}
 		}
 	}

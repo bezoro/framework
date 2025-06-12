@@ -2,121 +2,95 @@ using System;
 
 namespace Bezoro.Chess.Common.Enums
 {
-	public enum CardinalDirection
+	/// <summary>Board files (columns) A–H.</summary>
+	public enum BoardFile : sbyte
 	{
 		None = -1,
-		North, South, East, West,
-		NorthEast, NorthWest, SouthEast, SouthWest
+		A, B, C, D, E, F, G, H
 	}
 
-	/// <summary>
-	///     Identifies which side (king- or queen-side) a player wishes to castle on.
-	///     A value of <see cref="None" /> should be supplied only when the caller
-	///     does not yet know which side is intended.
-	/// </summary>
-	public enum CastleSide
+	/// <summary>Board ranks (rows) 1–8.</summary>
+	public enum BoardRank : sbyte
+	{
+		None = -1,
+		Rank1, Rank2, Rank3, Rank4, Rank5, Rank6, Rank7, Rank8
+	}
+
+	/// <summary>Compass directions (combinable).</summary>
+	[Flags]
+	public enum CardinalDirection : byte
+	{
+		None      = 0,
+		North     = 1 << 0,
+		South     = 1 << 1,
+		East      = 1 << 2,
+		West      = 1 << 3,
+		NorthEast = North | East,
+		NorthWest = North | West,
+		SouthEast = South | East,
+		SouthWest = South | West
+	}
+
+	[Flags]
+	public enum CastleSide : byte
 	{
 		None  = 0,
 		King  = 1,
 		Queen = 2
 	}
 
-	/// <summary>
-	///     Represents the castling rights available to players.
-	///     Can be combined using bitwise operations as it's a flags enum.
-	/// </summary>
 	[Flags]
-	public enum CastlingRights
+	public enum CastlingRights : byte
 	{
-		/// <summary>
-		///     No castling rights are available. Useful for representing a state where
-		///     no player can castle, or as an initial value before specific rights are assigned.
-		/// </summary>
-		None = 0,
-		/// <summary>
-		///     White has the right to castle king-side.
-		/// </summary>
-		WhiteKingSide = 1,
-		/// <summary>
-		///     White has the right to castle queen-side.
-		/// </summary>
-		WhiteQueenSide = 2,
-		/// <summary>
-		///     Black has the right to castle king-side.
-		/// </summary>
-		BlackKingSide = 4,
-		/// <summary>
-		///     Black has the right to castle queen-side.
-		/// </summary>
-		BlackQueenSide = 8,
-		/// <summary>
-		///     All castling rights are available. Useful for initializing the game state
-		///     or for checks where all rights are expected.
-		/// </summary>
-		All = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
+		None           = 0,
+		WhiteKingSide  = 1 << 0,
+		WhiteQueenSide = 1 << 1,
+		BlackKingSide  = 1 << 2,
+		BlackQueenSide = 1 << 3,
+		All            = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
 	}
 
-	/// <summary>
-	///     Defines the types of chess pieces.
-	/// </summary>
-	public enum ChessPieceType
+	/// <summary>Standard chess piece ordering 0–5.</summary>
+	public enum ChessPieceType : sbyte
 	{
-		/// <summary>
-		///     Represents an empty square or an uninitialized/invalid piece type.
-		/// </summary>
 		None = -1,
-		Pawn, Knight, Bishop, Rook, Queen, King
+		Pawn = 0, Knight, Bishop, Rook, Queen, King
 	}
 
-	/// <summary>
-	///     Represents all 64 squares on a chessboard, with A1 = 0.
-	///     The visual layout in the definition lists ranks from 8 down to 1.
-	/// </summary>
-	public enum FileRank
+	public enum GameEndReason : sbyte
 	{
-		/// <summary>
-		///     Represents an invalid or off-board square. Useful for error states
-		///     or when a piece is not on any valid square.
-		/// </summary>
 		None = -1,
-		// Rank 1 (bottom of the board)
-		A1 = 0, B1 = 1, C1 = 2, D1 = 3, E1 = 4, F1 = 5, G1 = 6, H1 = 7,
-		// Rank 2
-		A2 = 8, B2 = 9, C2 = 10, D2 = 11, E2 = 12, F2 = 13, G2 = 14, H2 = 15,
-		// Rank 3
-		A3 = 16, B3 = 17, C3 = 18, D3 = 19, E3 = 20, F3 = 21, G3 = 22, H3 = 23,
-		// Rank 4
-		A4 = 24, B4 = 25, C4 = 26, D4 = 27, E4 = 28, F4 = 29, G4 = 30, H4 = 31,
-		// Rank 5
-		A5 = 32, B5 = 33, C5 = 34, D5 = 35, E5 = 36, F5 = 37, G5 = 38, H5 = 39,
-		// Rank 6
-		A6 = 40, B6 = 41, C6 = 42, D6 = 43, E6 = 44, F6 = 45, G6 = 46, H6 = 47,
-		// Rank 7
-		A7 = 48, B7 = 49, C7 = 50, D7 = 51, E7 = 52, F7 = 53, G7 = 54, H7 = 55,
-		// Rank 8 (top of the board)
-		A8 = 56, B8 = 57, C8 = 58, D8 = 59, E8 = 60, F8 = 61, G8 = 62, H8 = 63
+		Checkmate,
+		Resignation,
+		Timeout,
+		Stalemate,
+		Agreement,
+		InsufficientMaterial,
+		FiftyMoveRule,
+		Repetition,
+		Abandoned
 	}
 
-	/// <summary>
-	///     Defines the high-level progression status of a chess game.
-	/// </summary>
-	public enum GameStatus
+	public enum GameOutcome : sbyte
 	{
-		/// <summary> The game's status is uninitialized or unknown. </summary>
 		None = -1,
-		/// <summary> The game has been set up but has not yet started. </summary>
+		WhiteWin,
+		BlackWin,
+		Draw,
+		Abandoned
+	}
+
+	public enum GameStatus : sbyte
+	{
+		None = -1,
 		NotStarted,
-		/// <summary> The game is currently being played. </summary>
 		InProgress,
-		/// <summary> The game has concluded. The specific outcome is detailed by a GameOutcome object. </summary>
 		Finished
 	}
 
-	/// <summary>
-	///     Enumerates the high-level categories a move can belong to.
-	/// </summary>
-	public enum MoveKind
+	public enum MoveKind : sbyte
 	{
+		None = -1,
 		Normal,
 		Capture,
 		EnPassant,
@@ -125,28 +99,78 @@ namespace Bezoro.Chess.Common.Enums
 		Castle
 	}
 
-	/// <summary>
-	///     Defines the color of a chess player or piece.
-	/// </summary>
-	public enum PlayerColor
+	[Flags]
+	public enum PGNMoveAnnotation : byte
 	{
-		/// <summary>
-		///     Represents no specific color, an empty square's "owner" (if applicable),
-		///     an observer, or an uninitialized state.
-		/// </summary>
-		None = -1,
-		White, Black
+		None        = 0,
+		Check       = 1 << 0, // +
+		Checkmate   = 1 << 1, // #
+		Good        = 1 << 2, // !
+		Brilliant   = 1 << 3, // !!
+		Mistake     = 1 << 4, // ?
+		Blunder     = 1 << 5, // ??
+		Interesting = 1 << 6, // !?
+		Dubious     = 1 << 7  // ?!
 	}
 
-	/// <summary>
-	///     Defines the types of pieces a pawn can be promoted to.
-	/// </summary>
-	public enum PromotionPieceType
+	/// <summary>Player color (black or white)</summary>
+	public enum PlayerColor : sbyte
 	{
-		/// <summary>
-		///     No promotion is currently applicable, or this value is used as a default/uninitialized state.
-		/// </summary>
 		None = -1,
-		Queen, Rook, Bishop, Knight
+		White,
+		Black
 	}
+
+	/// <summary>Promotion targets (values match <see cref="ChessPieceType" />).</summary>
+	public enum PromotionPieceType : sbyte
+	{
+		None   = -1,
+		Knight = ChessPieceType.Knight,
+		Bishop = ChessPieceType.Bishop,
+		Rook   = ChessPieceType.Rook,
+		Queen  = ChessPieceType.Queen
+	}
+
+	/// <summary>Square index 0-63 (A1→H8).</summary>
+	public enum Square : sbyte
+	{
+		None = -1,
+		A1   = 0, B1, C1, D1, E1, F1, G1, H1,
+		A2, B2, C2, D2, E2, F2, G2, H2,
+		A3, B3, C3, D3, E3, F3, G3, H3,
+		A4, B4, C4, D4, E4, F4, G4, H4,
+		A5, B5, C5, D5, E5, F5, G5, H5,
+		A6, B6, C6, D6, E6, F6, G6, H6,
+		A7, B7, C7, D7, E7, F7, G7, H7,
+		A8, B8, C8, D8, E8, F8, G8, H8
+	}
+
+	/// <summary>Square color (light or dark).</summary>
+	public enum SquareColor : byte
+	{
+		None = 0,
+		Light,
+		Dark
+	}
+}
+
+/// <summary>Which textual notation to emit or parse.</summary>
+public enum NotationStyle : byte
+{
+	Coordinate, // e2e4
+	SAN,        // e4, Nf3, O-O
+	LAN,        // Pe2-e4
+	Uci         // e2e4 (but always lowercase, no symbols)
+}
+
+/// <summary>Special SAN prefixes or separators.</summary>
+[Flags]
+public enum SanModifiers : byte
+{
+	None      = 0,
+	Capture   = 1 << 0, // “x”
+	Equals    = 1 << 1, // “=”
+	Check     = 1 << 2, // “+”
+	Checkmate = 1 << 3  // “#”
+	// More can be added if you really need “ep” or “-”.
 }

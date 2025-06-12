@@ -6,7 +6,7 @@ namespace Bezoro.Chess.Pieces.Models
 	public class KingModel : PieceModel
 	{
 		public KingModel(PlayerColor color)
-			: base(color, new KingPseudoValidMoveGenerator()) { }
+			: base(color, new KingPseudoLegalMoveGenerator()) { }
 
 		public bool HasCastled   { get; private set; }
 		public bool IsCheckMated { get; private set; }

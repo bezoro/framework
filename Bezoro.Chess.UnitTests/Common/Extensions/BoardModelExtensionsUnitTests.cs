@@ -19,7 +19,7 @@ public class BoardModelExtensionsUnitTests
 
 	[SetUp]
 	public void SetUp() =>
-		_board = new BoardModel(8, 8, FenUtils.EmptyBoard);
+		_board = new BoardModel(8, 8, FenUtils.EmptyPiecePlacement);
 
 #endregion
 
@@ -56,7 +56,7 @@ public class BoardModelExtensionsUnitTests
 	[Test]
 	public void CreatePieceAt_String_PlacesPieceOnTargetSquare()
 	{
-		var emptyBoard = new BoardModel(8, 8, FenUtils.EmptyBoard);
+		var emptyBoard = new BoardModel(8, 8, FenUtils.EmptyPiecePlacement);
 		Assert.That(emptyBoard.GetPieceAt("a1"), Is.Null);
 
 		_board.CreatePieceAt("a1", PlayerColor.White, ChessPieceType.King);
@@ -90,10 +90,9 @@ public class BoardModelExtensionsUnitTests
 		public IChessBoardSquareModel                      EnPassantTargetSquare { get; }
 
 		public IChessBoardSquareModel[,] Squares { get; }
-		public int                       Height  { get; }
+		public uint                       Height  { get; }
 
-		public int                                               Width                  { get; }
-		public IReadOnlyDictionary<IChessPieceModel, List<Move>> CachedPseudoLegalMoves { get; }
+		public uint                                               Width                  { get; }
 
 		/* --- members not required by the extension code --- */
 		public List<IChessPieceModel> BoardPieces => new();
@@ -107,9 +106,6 @@ public class BoardModelExtensionsUnitTests
 
 		public bool IsEmpty(BoardPosition position) => this.GetSquareAt(position.Column, position.Row).IsEmpty;
 		public bool IsSquareAttacked(BoardPosition position, PlayerColor byColor) => false;
-
-		public IReadOnlyList<Move> GetCachedMovesFor(IChessPieceModel piece) =>
-			throw new NotImplementedException();
 
 		public void MovePieceTo(IChessPieceModel piece, BoardPosition from, BoardPosition to) =>
 			throw new NotImplementedException();
@@ -157,7 +153,7 @@ public class BoardModelExtensionsUnitTests
 		public BoardPosition Position { get; }
 
 		public bool IsEmpty    => Piece is null;
-		public bool IsOccupied => Piece is not null;
+		public bool  IsOccupied => Piece is not null;
 
 		public IChessPieceModel? Piece { get; private set; }
 

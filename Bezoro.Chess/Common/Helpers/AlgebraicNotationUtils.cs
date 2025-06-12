@@ -1,120 +1,99 @@
 using System;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Bezoro.Chess.Board;
 
 namespace Bezoro.Chess.Common.Helpers
 {
 	/// <summary>
-	///     Provides utility methods for working with chess algebraic notation for squares.
+	///     Utility helpers for converting between algebraic notation and <see cref="BoardPosition" />.
+	///     Supports boards of arbitrary width: “a”-“z”, “aa”-“az”, … “zz”, “aaa”… (Excel-style base-26).
 	/// </summary>
 	public static class AlgebraicNotationUtils
 	{
+		private const int _MAX_FILE_TOKEN_LENGTH = 8; // 26⁸ ≈ 2e11 columns – far beyond practical use.
+
 		/// <summary>
-		///     Converts an algebraic square notation string to a BoardPosition object (0-indexed file and rank).
-		///     Example: "a1" returns new BoardPosition(0, 0).
-		///     Example: "e4" returns new BoardPosition(4, 3).
+		///     Parse <paramref name="algebraic" /> (case-insensitive) into a position and
+		///     optionally validate it against <paramref name="boardWidth" /> / <paramref name="boardHeight" />.
 		/// </summary>
-		/// <param name="algebraicSquare">The algebraic notation string (e.g., "e4"). Case-insensitive.</param>
-		/// <returns>A BoardPosition object with 0-indexed File and Rank.</returns>
-		/// <exception cref="ArgumentNullException">If algebraicSquare is null or whitespace.</exception>
-		/// <exception cref="ArgumentException">
-		///     If algebraicSquare is not in a valid format (e.g., "a", "1e", "e0", "aa1", or rank
-		///     exceeds <see cref="MaxParseableRankNumber" />).
-		/// </exception>
+		/// <exception cref="ArgumentException">Malformed or out of range.</exception>
+		/// <exception cref="ArgumentNullException"><paramref name="algebraic" /> is null/whitespace.</exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static BoardPosition FromAlgebraic(string algebraicSquare, char maxFile = 'h', int maxRank = 8)
+		public static BoardPosition FromAlgebraic(string algebraic, uint boardWidth = 8, uint boardHeight = 8)
 		{
-			if (string.IsNullOrWhiteSpace(algebraicSquare))
-			{
-				throw new ArgumentNullException(
-					nameof(algebraicSquare), "Algebraic square notation cannot be null or whitespace.");
-			}
+			if (string.IsNullOrWhiteSpace(algebraic))
+				throw new ArgumentNullException(nameof(algebraic));
 
-			var normalizedSquare = algebraicSquare.ToLowerInvariant();
+			// Split the “file” token (letters) from the “rank” token (digits).
+			var i = 0;
+			while (i < algebraic.Length && (algebraic[i] | 0x20) - 'a' < 26) // branchless ASCII check
+				i++;
 
-			if (normalizedSquare.Length < 2)
-			{
-				throw new ArgumentException(
-					"Algebraic square notation must be at least 2 characters long (e.g., 'a1').",
-					nameof(algebraicSquare));
-			}
+			if (i == 0 || i == algebraic.Length)
+				throw new ArgumentException("Expected <letters><digits> (e.g. \"e4\").", nameof(algebraic));
 
-			var fileChar = normalizedSquare[0];
-			var rankPart = normalizedSquare[1..];
+			ReadOnlySpan<char> fileToken = algebraic[..i].ToLowerInvariant();
+			ReadOnlySpan<char> rankToken = algebraic[i..];
 
-			if (fileChar < 'a' || fileChar > maxFile)
-			{
-				throw new ArgumentException(
-					$"Invalid file character '{fileChar}' in notation '{algebraicSquare}'. Must be a letter 'a'-'z'.",
-					nameof(algebraicSquare));
-			}
+			var column = FileTokenToIndex(fileToken);
+			if (!int.TryParse(rankToken, NumberStyles.None, CultureInfo.InvariantCulture, out var rank1Based) ||
+				rank1Based <= 0)
+				throw new ArgumentException($"Invalid rank \"{rankToken.ToString()}\".", nameof(algebraic));
 
-			if (!int.TryParse(rankPart, out var rankNumber) || rankNumber < 1 || rankNumber > maxRank)
-			{
-				throw new ArgumentException(
-					$"Invalid rank part '{rankPart}' in notation '{algebraicSquare}'. Must be a positive number between 1 and {maxRank}.",
-					nameof(algebraicSquare));
-			}
+			var row = (uint)rank1Based - 1;
 
-			var fileIndex = fileChar   - 'a';
-			var rankIndex = rankNumber - 1;
+			// Optional board-size validation
+			if (column >= boardWidth)
+				throw new ArgumentException($"File exceeds board width ({boardWidth}).", nameof(algebraic));
 
-			return new(fileIndex, rankIndex);
+			if (row >= boardHeight)
+				throw new ArgumentException($"Rank exceeds board height ({boardHeight}).", nameof(algebraic));
+
+			return new(column, row);
 		}
 
-		/// <summary>
-		///     Converts a BoardPosition (0-indexed file and rank) to algebraic notation string.
-		///     Example: new BoardPosition(0, 0) returns "a1".
-		///     Example: new BoardPosition(4, 3) returns "e4".
-		/// </summary>
-		/// <param name="position">The BoardPosition object containing 0-indexed File and Rank.</param>
-		/// <returns>The algebraic notation string for the square.</returns>
-		/// <exception cref="ArgumentNullException">If position is null.</exception>
-		/// <exception cref="ArgumentOutOfRangeException">
-		///     If File or Rank in position are outside expected ranges for conversion
-		///     (File 0-25, Rank non-negative).
-		/// </exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static string ToAlgebraic(BoardPosition position)
+		public static string IndexToFileToken(uint index)
 		{
-			if (position == null)
+			Span<char> buf = stackalloc char[_MAX_FILE_TOKEN_LENGTH];
+			var        pos = buf.Length;
+
+			var value = index + 1u; // 1-based for easier math
+			while (value > 0)
 			{
-				throw new ArgumentNullException(nameof(position));
+				var rem = (value - 1) % 26;
+				buf[--pos] = (char)('a' + rem);
+				value      = (value     - 1) / 26;
 			}
 
-			return ToAlgebraic(position.Column, position.Rank);
+			return new(buf[pos..]);
 		}
 
-		/// <summary>
-		///     Converts 0-indexed file and rank integers to an algebraic notation string.
-		///     Example: (0, 0) returns "a1".
-		///     Example: (4, 3) returns "e4".
-		/// </summary>
-		/// <param name="fileIndex">The 0-indexed file (0 for 'a', 1 for 'b', ..., 7 for 'h', etc.).</param>
-		/// <param name="rankIndex">The 0-indexed rank (0 for rank '1', 1 for rank '2', ..., 7 for rank '8', etc.).</param>
-		/// <returns>The algebraic notation string for the square.</returns>
-		/// <exception cref="ArgumentOutOfRangeException">
-		///     If fileIndex or rankIndex are outside expected ranges (fileIndex 0-25,
-		///     rankIndex non-negative).
-		/// </exception>
+		/// <summary>Return algebraic form for an existing position.</summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static string ToAlgebraic(int fileIndex, int rankIndex)
+		public static string ToAlgebraic(BoardPosition pos) =>
+			ToAlgebraic(pos.Column, pos.Row);
+
+		/// <summary>Return algebraic form for zero-based indices.</summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static string ToAlgebraic(uint column, uint row) =>
+			$"{IndexToFileToken(column)}{row + 1}";
+
+		private static uint FileTokenToIndex(ReadOnlySpan<char> token)
 		{
-			if (fileIndex is < 0 or > 25)
+			if (token.Length > _MAX_FILE_TOKEN_LENGTH)
+				throw new ArgumentException("File token is too long for supported range.", nameof(token));
+
+			long index = 0;
+			foreach (var ch in token)
 			{
-				throw new ArgumentOutOfRangeException(
-					nameof(fileIndex), "File index must be between 0 ('a') and 25 ('z').");
+				if (ch is < 'a' or > 'z')
+					throw new ArgumentException($"Illegal file character '{ch}'.", nameof(token));
+
+				index = checked( index * 26 + (ch - 'a' + 1) );
 			}
 
-			if (rankIndex < 0)
-			{
-				throw new ArgumentOutOfRangeException(nameof(rankIndex), "Rank index must be non-negative.");
-			}
-
-			var fileChar   = (char)('a' + fileIndex);
-			var rankString = (rankIndex + 1).ToString();
-
-			return $"{fileChar}{rankString}";
+			return checked( (uint)(index - 1) ); // zero-based
 		}
 	}
 }

@@ -8,7 +8,7 @@ using Bezoro.Chess.Pieces.Models;
 namespace Bezoro.Chess.UnitTests.Pieces.Generators;
 
 [TestFixture]
-[TestOf(typeof(KingPseudoValidMoveGenerator))]
+[TestOf(typeof(KingPseudoLegalMoveGenerator))]
 public class KingPseudoLegalMovesGeneratorUnitTests
 {
 #region Test Methods
@@ -26,7 +26,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var kingPosition = game.Board.GetSquareAt("e4");
 		game.Board.SetPieceAt(king, kingPosition);
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king)
@@ -66,7 +66,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var kingPosition = game.Board.GetSquareAt("a1");
 		game.Board.SetPieceAt(king, kingPosition);
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king)
@@ -102,7 +102,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 
 		game.Board.SetPieceAt(king, kingPosition);
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king)
@@ -146,7 +146,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 
 		// f1 and g1 are implicitly empty due to Board.Clear()
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
@@ -191,7 +191,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		// game.Board.GetSquareAt("f1").Piece = null; // Implicitly empty by Board.Clear()
 		// game.Board.GetSquareAt("g1").Piece = null; // Implicitly empty by Board.Clear()
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
@@ -205,7 +205,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 
 		// Optional: Verify standard moves are still generated (e.g., 5 if e1 is unblocked)
 		// This depends on whether this generator is solely for castling or all king moves.
-		// Based on its name "KingPseudoValidMoveGenerator", it should likely generate all.
+		// Based on its name "KingPseudoLegalMoveGenerator", it should likely generate all.
 		var standardMovesCount = pseudoMoves.Count(m => m.Kind == MoveKind.Normal);
 		// Assuming d1, d2, e2, f1, f2 are the targets for standard moves from e1
 		// and none are blocked for the purpose of this generator.
@@ -240,7 +240,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 
 		// b1, c1, d1 are implicitly empty due to Board.Clear()
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
@@ -284,7 +284,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 
 		// b1, c1, d1 are implicitly empty due to Board.Clear()
 
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();
@@ -314,7 +314,7 @@ public class KingPseudoLegalMovesGeneratorUnitTests
 		var game = new GameModel();
 		var king = game.Board.GetPieceAt("e1");
 		Assert.That(king, Is.Not.Null);
-		var generator = new KingPseudoValidMoveGenerator();
+		var generator = new KingPseudoLegalMoveGenerator();
 
 		// Act
 		var pseudoMoves = generator.Generate(game, king).ToList();

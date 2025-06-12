@@ -18,7 +18,7 @@ namespace Bezoro.Chess.Common.Extensions
 		public static bool IsInside(this IChessBoardModel board, string algebraicPosition)
 		{
 			var position = AlgebraicNotationUtils.FromAlgebraic(algebraicPosition);
-			return IsInside(board, position.Column, position.Row);
+			return IsInside(board, (int)position.Column, (int)position.Row);
 		}
 
 		/// <summary>
@@ -32,11 +32,13 @@ namespace Bezoro.Chess.Common.Extensions
 		public static bool IsInside(this IChessBoardModel board, int col, int row)
 		{
 			if (board == null) throw new ArgumentNullException(nameof(board));
-			return col >= 0 && col < board.Width &&
-				   row >= 0 && row < board.Height;
+			return col >= 0          &&
+				   col < board.Width &&
+				   row >= 0          &&
+				   row < board.Height;
 		}
 
 		public static bool IsInside(this IChessBoardModel board, BoardPosition position) =>
-			board.IsInside(position.Column, position.Row);
+			board.IsInside((int)position.Column, (int)position.Row);
 	}
 }

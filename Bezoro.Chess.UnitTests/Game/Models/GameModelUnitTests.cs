@@ -45,7 +45,7 @@ public class GameModelUnitTests
 	[Test]
 	public void ToFenString_WhenCustomBoard_ReturnsExpectedFenString()
 	{
-		var game   = new GameModel(FenUtils.EmptyBoard);
+		var game   = new GameModel(FenUtils.EmptyPiecePlacement);
 		var board  = game.Board;
 		var pawn   = game.Board.CreatePieceAt("d2", PlayerColor.White, ChessPieceType.Pawn);
 		var knight = game.Board.CreatePieceAt("e4", PlayerColor.White, ChessPieceType.Knight);

@@ -13,6 +13,18 @@ namespace Bezoro.Chess.Common.Extensions
 	/// </summary>
 	public static class BoardModelExtensions
 	{
+		public static BoardPosition? GetPosition(this IChessBoardModel board, IChessPieceModel piece)
+		{
+			BoardPosition? position = null;
+			foreach (var square in board.Squares)
+			{
+				if (square.Piece == piece)
+					position = square.Position;
+			}
+
+			return position;
+		}
+
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool HasExactlyOneKingPerSide(this IChessBoardModel board)
 		{
@@ -31,12 +43,12 @@ namespace Bezoro.Chess.Common.Extensions
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, BoardPosition position) =>
-			board.GetSquareAt(position.Column, position.Row);
+		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, uint col, uint row) =>
+			!board.IsInside((int)col, (int)row) ? null! : board.Squares[col, row];
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessBoardSquareModel GetSquareAt(this IChessBoardModel board, int col, int row) =>
-			!board.IsInside(col, row) ? null! : board.Squares[col, row];
+		public static IChessBoardSquareModel? GetSquareAt(this IChessBoardModel board, BoardPosition position) =>
+			board.GetSquareAt(position.Column, position.Row);
 
 		/// <summary>
 		///     Creates a new chess piece of the specified type and color at the given algebraic position.
@@ -50,7 +62,7 @@ namespace Bezoro.Chess.Common.Extensions
 		///     a piece at the target position, it will be replaced by the new piece.
 		/// </remarks>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessPieceModel CreatePieceAt(
+		public static IChessPieceModel? CreatePieceAt(
 			this IChessBoardModel board,
 			string algebraicPosition,
 			PlayerColor color,
@@ -61,7 +73,7 @@ namespace Bezoro.Chess.Common.Extensions
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessPieceModel CreatePieceAt(
+		public static IChessPieceModel? CreatePieceAt(
 			this IChessBoardModel board,
 			BoardPosition position,
 			PlayerColor color,
@@ -69,23 +81,18 @@ namespace Bezoro.Chess.Common.Extensions
 			board.CreatePieceAt(position.Column, position.Row, color, pieceType);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessPieceModel CreatePieceAt(
+		public static IChessPieceModel? CreatePieceAt(
 			this IChessBoardModel board,
-			int col,
-			int row,
+			uint col,
+			uint row,
 			PlayerColor color,
 			ChessPieceType pieceType)
 		{
 			var square      = board.GetSquareAt(col, row);
-			var baseFenChar = pieceType.ToFenChar();
-			var piece = ChessUtils.GetPieceFromChar(
-				color == PlayerColor.White
-					? char.ToUpper(baseFenChar)
-					: baseFenChar);
+			var baseFenChar = pieceType.ToFenChar(color);
+			var piece       = ChessUtils.GetPieceFromChar(baseFenChar);
 
 			square.SetPiece(piece);
-			board.BoardPieces.Add(piece);
-			board.PieceIndex.TryAdd(piece, new(col, row));
 			return piece;
 		}
 
@@ -95,10 +102,10 @@ namespace Bezoro.Chess.Common.Extensions
 			ChessPieceType type,
 			PlayerColor color)
 		{
-			foreach (var piece in board.BoardPieces)
+			foreach (var square in board.Squares)
 			{
-				if (piece.GetPieceType() == type && piece.Color == color)
-					return piece;
+				if (square.Piece.GetPieceType() == type && square.Piece.Color == color)
+					return square.Piece;
 			}
 
 			return null;
@@ -126,8 +133,8 @@ namespace Bezoro.Chess.Common.Extensions
 			board.GetPieceAt(position.Column, position.Row);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, int col, int row) =>
-			!board.IsInside(col, row) ? null : board.Squares[col, row].Piece;
+		public static IChessPieceModel? GetPieceAt(this IChessBoardModel board, uint col, uint row) =>
+			!board.IsInside((int)col, (int)row) ? null : board.Squares[col, row].Piece;
 
 		/// <summary>
 		///     Generates the piece placement part of the Forsyth-Edwards Notation (FEN) string.
@@ -140,7 +147,7 @@ namespace Bezoro.Chess.Common.Extensions
 			for (var rank = board.Height - 1 ; rank >= 0 ; rank--)
 			{
 				var emptySquares = 0;
-				for (var file = 0 ; file < board.Width ; file++)
+				for (uint file = 0 ; file < board.Width ; file++)
 				{
 					var piece = board.GetPieceAt(new BoardPosition(file, rank));
 					if (piece == null)
