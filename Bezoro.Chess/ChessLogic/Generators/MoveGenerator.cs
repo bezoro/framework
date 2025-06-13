@@ -5,7 +5,7 @@ namespace Bezoro.Chess.ChessLogic.Generators
 {
 	/// <summary>
 	///     A static utility class for generating all possible pseudo-legal moves for a given game state.
-	///     It does not currently check for moves that would leave the king in check.
+	///     It does not check for moves that would leave the king in check.
 	/// </summary>
 	public static class MoveGenerator
 	{
