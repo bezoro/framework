@@ -19,7 +19,7 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 
 		public PieceType Type { get; }
 
-	#region Equality Members
+	#region Equality
 
 		public bool Equals(PieceViewModel other) => Type == other.Type && Color == other.Color;
 
