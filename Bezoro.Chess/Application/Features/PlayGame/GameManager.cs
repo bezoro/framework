@@ -27,11 +27,22 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			_currentStateIndex = 0;
 		}
 
-		private readonly GameStatusChecker        _statusChecker;
-		private          int                      _currentStateIndex = -1;
-		private readonly List<GameState>          _gameStateHistory  = new();
-		internal         IReadOnlyList<GameState> GameStateHistory => _gameStateHistory;
-		public           GameOutcome              Outcome          { get; private set; } = GameOutcome.None;
+		// Tracks captured pieces per colour.
+		private readonly Dictionary<PieceColor, List<Piece>> _capturedPieces = new()
+		{
+			{ PieceColor.White, new() },
+			{ PieceColor.Black, new() }
+		};
+
+		private readonly GameStatusChecker _statusChecker;
+		private          int               _currentStateIndex = -1;
+		private readonly List<GameState>   _gameStateHistory  = new();
+		private readonly List<Move>        _moveHistory       = new();
+		public IReadOnlyDictionary<PieceColor, IReadOnlyList<Piece>> CapturedPieces =>
+			_capturedPieces.ToDictionary(k => k.Key, k => (IReadOnlyList<Piece>)k.Value);
+		public   IReadOnlyList<Move>      MoveHistory      => _moveHistory;
+		internal IReadOnlyList<GameState> GameStateHistory => _gameStateHistory;
+		public   GameOutcome              Outcome          { get; private set; } = GameOutcome.None;
 
 		public GameState CurrentState { get; private set; }
 
@@ -101,10 +112,18 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		public void NewGame()
 		{
 			CurrentState = BoardSetup.CreateStandardGame();
+
+			// Reset state history
 			_gameStateHistory.Clear();
 			_gameStateHistory.Add(CurrentState);
 			_currentStateIndex = 0;
-			Outcome            = GameOutcome.Ongoing;
+
+			// Reset new members
+			_moveHistory.Clear();
+			_capturedPieces[PieceColor.White].Clear();
+			_capturedPieces[PieceColor.Black].Clear();
+
+			Outcome = GameOutcome.Ongoing;
 			_statusChecker.InvalidateCache();
 			GameStarted?.Invoke(Outcome);
 		}
@@ -122,7 +141,17 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 		private void ExecuteAndRecordMove(Move move)
 		{
+			// 1. make the move on the immutable board
 			CurrentState = MoveExecution.ExecuteMove(CurrentState, move);
+
+			// 2. store the capture – but only if there really was one
+			if (move.CapturedPiece.Color != PieceColor.None)
+			{
+				_capturedPieces[move.CapturedPiece.Color].Add(move.CapturedPiece);
+			}
+
+			// 3. keep the timelines in sync
+			_moveHistory.Add(move);
 			_gameStateHistory.Add(CurrentState);
 			_currentStateIndex++;
 			_statusChecker.InvalidateCache();
