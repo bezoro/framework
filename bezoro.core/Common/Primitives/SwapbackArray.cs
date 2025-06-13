@@ -2,7 +2,7 @@
 using Bezoro.Core.Common.Extensions;
 using Bezoro.Core.Logging;
 
-namespace Bezoro.Core.Collections
+namespace Bezoro.Core.Common.Primitives
 {
 	/// <summary>
 	///     Provides a dynamic array that allows for efficient addition of elements and removal
