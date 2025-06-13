@@ -51,6 +51,18 @@ Bezoro.Chess/
 │   └── ViewModels/         # DTOs for the UI layer
 │       ├── PieceViewModel.cs
 │       └── HighlightViewModel.cs
+├── Docs/                   # Project documentation
+│   ├── ChessEngine-Architecture.md   # Architectural overview
+│   ├── ChessEngine-Implementation-Plan.md  # Implementation roadmap
+│   ├── API/                # API documentation
+│   │   ├── GameManager.md
+│   │   └── GamePresenter.md
+│   ├── Diagrams/           # UML and other diagrams
+│   │   ├── ClassDiagram.png
+│   │   └── DomainModel.png
+│   └── Development/        # Development guidelines
+│       ├── CodingStandards.md
+│       └── TestingStrategy.md
 ├── Infrastructure/         # External concerns implementation
 │   ├── Persistence/        # Game storage implementations
 │   └── Serialization/      # FEN and PGN parsers
@@ -159,6 +171,18 @@ Assets/
     ├── Audio/             # Sound effects and music
     │   ├── Music/
     │   └── SFX/
+    ├── Docs/              # Unity project documentation
+    │   ├── README.md      # Project overview
+    │   ├── GettingStarted.md  # Setup and usage guide
+    │   ├── Architecture/  # Architecture documentation
+    │   │   ├── BoardView.md
+    │   │   └── InputSystem.md
+    │   ├── Screenshots/   # Visual documentation
+    │   │   ├── Gameplay.png
+    │   │   └── UI.png
+    │   └── Workflows/     # Common development workflows
+    │       ├── AddingNewPiece.md
+    │       └── CustomizingUI.md
     ├── Editor/           # Editor-only scripts
     │   ├── CustomInspectors/
     │   ├── Tools/
@@ -325,6 +349,49 @@ Assets/
 - **Tutorial System**: Interactive guidance for learning chess concepts
 - **Stage Progression**: Gradually increasing challenge across learning stages
 - **Hint System**: Contextual hints for players learning the game
+
+## Documentation Strategy
+
+Comprehensive documentation is maintained for both the core chess engine library and the Unity implementation:
+
+### Chess Engine Documentation
+
+The chess engine documentation is stored in the `Bezoro.Chess/Docs/` directory and includes:
+
+- **Architecture Documentation**: Detailed explanations of the system design
+  - `ChessEngine-Architecture.md` - Overview of the entire system
+  - `ChessEngine-Implementation-Plan.md` - Implementation roadmap
+
+- **API Documentation**: Details about public interfaces and classes
+  - Usage examples and method documentation
+  - Parameter descriptions and return values
+
+- **Diagrams**: Visual representations of the system
+  - Class diagrams showing relationships between components
+  - Sequence diagrams for key workflows
+
+- **Development Guidelines**: Standards for contributing to the project
+  - Coding standards and naming conventions
+  - Testing strategies and requirements
+
+### Unity Project Documentation
+
+The Unity implementation includes its own documentation in the `Assets/_Project/Docs/` directory:
+
+- **README and Getting Started**: Initial setup and usage instructions
+
+- **Architecture Documentation**: Unity-specific implementation details
+  - View component implementations
+  - Input system design
+
+- **Visual Documentation**: Screenshots and visual guides
+
+- **Workflow Guides**: Step-by-step instructions for common tasks
+  - Adding new features
+  - Customizing UI elements
+  - Building for different platforms
+
+All documentation is version controlled alongside the code to ensure it remains up-to-date with the implementation.
 
 ## Implementation Plan
 
