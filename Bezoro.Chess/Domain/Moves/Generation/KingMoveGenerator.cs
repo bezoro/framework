@@ -12,6 +12,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
 			};
 
+			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+
 			foreach (var (dRow, dCol) in directions)
 			{
 				var to = new Position(from.Row + dRow, from.Col + dCol);
@@ -25,12 +27,11 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, to, gameState.ActiveColor);
+					yield return Move.CreateNormal(from, to, movingPiece);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(
-						from, to, gameState.ActiveColor, MoveType.Capture, pieceAtDestination.Type, PromotionType.None);
+					yield return Move.CreateCapture(from, to, movingPiece, pieceAtDestination);
 				}
 			}
 
@@ -42,6 +43,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 		private static IEnumerable<Move> GenerateCastlingMoves(Position from, GameState gameState)
 		{
+			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+
 			if (gameState.ActiveColor == PieceColor.White)
 			{
 				if (from.Row != 7 || from.Col != 4) yield break;
@@ -51,7 +54,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					gameState.PiecePositions[7, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[7, 6].Type                 == PieceType.None)
 				{
-					yield return new(from, new(7, 6), PieceColor.White, MoveType.CastleKingside);
+					yield return Move.CreateCastleKingside(from, new(7, 6), movingPiece);
 				}
 
 				// Queenside Castling
@@ -60,7 +63,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					gameState.PiecePositions[7, 2].Type                  == PieceType.None &&
 					gameState.PiecePositions[7, 1].Type                  == PieceType.None)
 				{
-					yield return new(from, new(7, 2), PieceColor.White, MoveType.CastleQueenside);
+					yield return Move.CreateCastleQueenside(from, new(7, 2), movingPiece);
 				}
 			}
 			else // Black
@@ -72,7 +75,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					gameState.PiecePositions[0, 5].Type                 == PieceType.None &&
 					gameState.PiecePositions[0, 6].Type                 == PieceType.None)
 				{
-					yield return new(from, new(0, 6), PieceColor.Black, MoveType.CastleKingside);
+					yield return Move.CreateCastleKingside(from, new(0, 6), movingPiece);
 				}
 
 				// Queenside Castling
@@ -81,7 +84,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					gameState.PiecePositions[0, 2].Type                  == PieceType.None &&
 					gameState.PiecePositions[0, 1].Type                  == PieceType.None)
 				{
-					yield return new(from, new(0, 2), PieceColor.Black, MoveType.CastleQueenside);
+					yield return Move.CreateCastleQueenside(from, new(0, 2), movingPiece);
 				}
 			}
 		}

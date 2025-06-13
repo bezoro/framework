@@ -1,49 +1,8 @@
+using System;
 using Bezoro.Chess.Domain.Board;
 
 namespace Bezoro.Chess.Domain.Moves
 {
-	/// <summary>
-	///     Represents a single move from a starting position to an end position.
-	/// </summary>
-	public class Move
-	{
-		public Move(Position from, Position to, PieceColor color, MoveType type = MoveType.Normal)
-		{
-			From  = from;
-			To    = to;
-			Type  = type;
-			Color = color;
-		}
-
-		public Move(
-			Position from, Position to, PieceColor color, MoveType type, PieceType captured,
-			PromotionType promo) : this(
-			from, to, color, type)
-		{
-			CapturedPiece  = captured;
-			PromotionPiece = promo;
-		}
-
-		public MoveType      Type           { get; }
-		public PieceColor    Color          { get; }
-		public PieceType     CapturedPiece  { get; } = PieceType.None;
-		public Position      From           { get; }
-		public Position      To             { get; }
-		public PromotionType PromotionPiece { get; } = PromotionType.None;
-
-		public override string ToString() => $"Move {From} -> {To} ({Type})";
-
-		public Move CapturePromotion(
-			PieceColor color, Position from, Position to, PieceType captured,
-			PromotionType promo = PromotionType.Queen) =>
-			new(from, to, color, MoveType.Capture, captured, promo);
-
-		public Move QuietPromotion(
-			PieceColor color, Position from, Position to,
-			PromotionType promo = PromotionType.Queen) =>
-			new(from, to, color, MoveType.Normal, PieceType.None, promo);
-	}
-
 	/// <summary>
 	///     Enumerates the types of possible moves in chess.
 	/// </summary>
@@ -56,5 +15,85 @@ namespace Bezoro.Chess.Domain.Moves
 		EnPassant,
 		PawnPromotion,
 		PawnPromotionCapture
+	}
+
+	/// <summary>
+	///     Represents a single move from a starting position to an end position.
+	/// </summary>
+	public readonly struct Move : IEquatable<Move>
+	{
+		private Move(
+			Position from, Position to, Piece piece, Piece capturedPiece = default, MoveType type = MoveType.Normal,
+			PieceType promotionPiece = PieceType.None)
+		{
+			From           = from;
+			To             = to;
+			Piece          = piece;
+			CapturedPiece  = capturedPiece;
+			Type           = type;
+			PromotionPiece = promotionPiece;
+		}
+
+		public MoveType  Type           { get; }
+		public Piece     CapturedPiece  { get; }
+		public Piece     Piece          { get; }
+		public PieceType PromotionPiece { get; }
+		public Position  From           { get; }
+		public Position  To             { get; }
+
+		public override string ToString() => $"Move {From} -> {To} ({Type})";
+
+	#region Factory Methods
+
+		public static Move CreateNormal(Position from, Position to, Piece piece) =>
+			new(from, to, piece);
+
+		public static Move CreateCapture(Position from, Position to, Piece piece, Piece capturedPiece) =>
+			new(from, to, piece, capturedPiece, MoveType.Capture);
+
+		public static Move CreateCastleKingside(Position from, Position to, Piece king) =>
+			new(from, to, king, type: MoveType.CastleKingside);
+
+		public static Move CreateCastleQueenside(Position from, Position to, Piece king) =>
+			new(from, to, king, type: MoveType.CastleQueenside);
+
+		public static Move CreateEnPassant(Position from, Position to, Piece pawn, Piece capturedPawn) =>
+			new(from, to, pawn, capturedPawn, MoveType.EnPassant);
+
+		public static Move CreateQuietPromotion(Position from, Position to, Piece pawn, PieceType promotionPiece) =>
+			new(from, to, pawn, type: MoveType.PawnPromotion, promotionPiece: promotionPiece);
+
+		public static Move CreateCapturePromotion(
+			Position from, Position to, Piece pawn, Piece capturedPiece, PieceType promotionPiece) =>
+			new(from, to, pawn, capturedPiece, MoveType.PawnPromotionCapture, promotionPiece);
+
+	#endregion
+
+	#region Equality Members
+
+		public bool Equals(Move other) =>
+			Type == other.Type                        &&
+			Piece.Equals(other.Piece)                 &&
+			CapturedPiece.Equals(other.CapturedPiece) &&
+			From.Equals(other.From)                   &&
+			To.Equals(other.To)                       &&
+			PromotionPiece == other.PromotionPiece;
+
+		public override bool Equals(object? obj) => obj is Move other && Equals(other);
+
+		public override int GetHashCode() => HashCode.Combine(
+			(int)Type,
+			Piece,
+			CapturedPiece,
+			From,
+			To,
+			(int)PromotionPiece
+		);
+
+		public static bool operator ==(Move left, Move right) => left.Equals(right);
+
+		public static bool operator !=(Move left, Move right) => !left.Equals(right);
+
+	#endregion
 	}
 }

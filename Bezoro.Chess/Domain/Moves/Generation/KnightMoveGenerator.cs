@@ -13,6 +13,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				(1, 2), (1, -2), (-1, 2), (-1, -2)
 			};
 
+			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+
 			foreach (var (dRow, dCol) in moves)
 			{
 				var toPosition = new Position(from.Row + dRow, from.Col + dCol);
@@ -26,11 +28,11 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return new(from, toPosition, gameState.ActiveColor);
+					yield return Move.CreateNormal(from, toPosition, movingPiece);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return new(from, toPosition, gameState.ActiveColor, MoveType.Capture);
+					yield return Move.CreateCapture(from, toPosition, movingPiece, pieceAtDestination);
 				}
 			}
 		}
