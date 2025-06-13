@@ -4,6 +4,7 @@ using Bezoro.Chess.Application.Abstractions;
 using Bezoro.Chess.Application.Abstractions.ViewModels;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Notation;
 
 namespace Bezoro.Chess.Application.Features.PlayGame
 {
@@ -147,11 +148,33 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 	#endregion
 
+		public void OnHideSettings() =>
+			_view.HideSettingsUI();
+
+		public void OnShowSettings() =>
+			_view.ShowSettingsUI();
+
 		public void StartNewGame()
 		{
-			_gameManager.NewGame();
-			ClearSelection();
-			UpdateView();
+			if (_gameManager.Outcome == GameOutcome.Ongoing && _gameManager.MoveHistory.Any())
+			{
+				_view.ShowConfirmationDialog(
+					"A game is in progress. Are you sure you want to start a new one?",
+					() =>
+					{
+						_gameManager.NewGame();
+						ClearSelection();
+						UpdateView();
+					},
+					() => { } // On cancel, do nothing
+				);
+			}
+			else
+			{
+				_gameManager.NewGame();
+				ClearSelection();
+				UpdateView();
+			}
 		}
 
 		private void ClearSelection()
@@ -165,7 +188,14 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		private void OnGameEnded(GameOutcome outcome)
 		{
 			UpdateView(); // Update the view to show the final board and status.
-			_view.ShowMessage($"{outcome}");
+
+			var statistics = new Dictionary<string, string>
+			{
+				{ "Outcome", outcome.ToString() },
+				{ "Total Moves", _gameManager.MoveHistory.Count.ToString() }
+			};
+
+			_view.ShowGameResults(outcome.ToString(), statistics);
 		}
 
 		/// <summary>
@@ -210,14 +240,35 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 			_view.UpdateBoard(boardViewModel);
 
+			// Highlight the last move if there is one
+			var lastMove = _gameManager.MoveHistory.LastOrDefault();
+			if (lastMove.Type != MoveType.None)
+			{
+				_view.HighlightLastMove(lastMove.From, lastMove.To);
+			}
+
+			// Update the move history display
+			_view.UpdateMoveHistory(
+				_gameManager.MoveHistory
+							.Select(
+								(move, idx) =>
+									move.ToSan(_gameManager.GameStateHistory[idx])));
+
 			// Update the game status display.
-			var emptyCapturedList = new List<PieceViewModel>();
+			_gameManager.CapturedPieces.TryGetValue(PieceColor.White, out var whitePieces);
+			var whiteCaptured = (whitePieces ?? Enumerable.Empty<Piece>())
+								.Select(p => new PieceViewModel(p.Type, p.Color)).ToList();
+
+			_gameManager.CapturedPieces.TryGetValue(PieceColor.Black, out var blackPieces);
+			var blackCaptured = (blackPieces ?? Enumerable.Empty<Piece>())
+								.Select(p => new PieceViewModel(p.Type, p.Color)).ToList();
+
 			var statusViewModel = new GameStatusViewModel(
 				_gameManager.CurrentState.ActiveColor,
 				_gameManager.Outcome.ToString(),
 				_gameManager.IsKingInCheck(_gameManager.CurrentState, _gameManager.CurrentState.ActiveColor),
-				emptyCapturedList,
-				emptyCapturedList
+				whiteCaptured,
+				blackCaptured
 			);
 
 			_view.UpdateGameStatus(statusViewModel);
