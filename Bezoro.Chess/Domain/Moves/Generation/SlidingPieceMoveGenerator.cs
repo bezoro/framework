@@ -8,6 +8,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 		public static IEnumerable<Move> GenerateMoves(
 			Position from, GameState gameState, (int dRow, int dCol)[] directions)
 		{
+			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+
 			foreach (var (dRow, dCol) in directions)
 			{
 				var newRow = from.Row + dRow;
@@ -20,13 +22,11 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{
-						yield return new(from, to, gameState.ActiveColor);
+						yield return Move.CreateNormal(from, to, movingPiece);
 					}
 					else if (pieceAtDestination.Color != gameState.ActiveColor)
 					{
-						yield return new(
-							from, to, gameState.ActiveColor, MoveType.Capture, pieceAtDestination.Type,
-							PromotionType.None);
+						yield return Move.CreateCapture(from, to, movingPiece, pieceAtDestination);
 
 						break;
 					}

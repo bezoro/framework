@@ -1,3 +1,5 @@
+using Bezoro.Chess.Domain.Board;
+
 namespace Bezoro.Chess.Domain.Moves.Execution
 {
 	/// <summary>
@@ -18,7 +20,11 @@ namespace Bezoro.Chess.Domain.Moves.Execution
 			var rookToCol   = isKingside ? 5 : 3;
 			var row         = move.From.Row;
 
-			var rookMove = new Move(new(row, rookFromCol), new(row, rookToCol), move.Color);
+			var rookFromPosition = new Position(row, rookFromCol);
+			var rookToPosition   = new Position(row, rookToCol);
+			var rook             = state.GetPieceAt(rookFromPosition);
+			var rookMove         = Move.CreateNormal(rookFromPosition, rookToPosition, rook);
+
 			NormalMoveExecutor.Execute(state, rookMove);
 		}
 	}
