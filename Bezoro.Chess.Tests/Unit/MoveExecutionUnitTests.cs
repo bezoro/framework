@@ -6,6 +6,23 @@ namespace Bezoro.Chess.Tests.Unit;
 
 public class MoveExecutionUnitTests
 {
+	private GameState _standardGame = BoardSetup.CreateStandardGame();
+
+	[Fact]
+	public void ExecuteMove_BlackKingMoves_RevokesBlackCastlingRights()
+	{
+		// Arrange
+		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
+		var move = new Move(new(0, 4), new(1, 4), PieceColor.Black); // Black King e8 to e7
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
+
+		// Assert
+		var expectedRights = CastlingRights.WhiteBoth;
+		Assert.Equal(expectedRights, newState.Castling);
+	}
+
 	[Fact]
 	public void ExecuteMove_BlackPawnCapture_ShouldResetHalfMoveClock()
 	{
@@ -83,6 +100,64 @@ public class MoveExecutionUnitTests
 		newState.ActiveColor.Should().Be(PieceColor.White);
 	}
 
+	[Theory]
+	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.WhiteBoth)] // Black Kingside
+	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.WhiteBoth)] // Black Queenside
+	public void ExecuteMove_BlackRookMovesFromHome_RevokesCorrectRights(
+		int startRow, int startCol, CastlingRights expectedRights)
+	{
+		// Arrange
+		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
+		var move = new Move(new(startRow, startCol), new(2, startCol), PieceColor.Black);
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
+
+		// Assert
+		Assert.Equal(expectedRights, newState.Castling);
+	}
+
+	[Fact]
+	public void ExecuteMove_NonKingOrRookMove_DoesNotChangeCastlingRights()
+	{
+		// Arrange
+		var move = new Move(new(6, 4), new(4, 4), PieceColor.White); // White Pawn e2 to e4
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
+
+		// Assert
+		Assert.Equal(CastlingRights.All, newState.Castling);
+	}
+
+	[Fact]
+	public void ExecuteMove_RookMovesFromNonHomeSquare_DoesNotChangeCastlingRights()
+	{
+		// Arrange
+		// Create an initial state where the White Kingside rook has already been moved.
+		// This means the corresponding castling right is already revoked.
+		var piecePositions = (Piece[,])_standardGame.PiecePositions.Clone();
+		piecePositions[5, 3] = new(PieceType.Rook, PieceColor.White); // Place rook at d3
+		piecePositions[7, 7] = new(PieceType.None, PieceColor.None);  // Empty h1
+
+		var stateBeforeMove = _standardGame with
+		{
+			PiecePositions = piecePositions,
+			// Manually set the castling rights to be consistent with the board.
+			Castling = CastlingRights.All & ~CastlingRights.WhiteKingside
+		};
+
+		var move = new Move(new(5, 3), new(4, 3), PieceColor.White); // White Rook d3 to d4
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(stateBeforeMove, move);
+
+		// Assert
+		// The move should not have changed the castling rights further.
+		// They should remain the same as they were in stateBeforeMove.
+		Assert.Equal(stateBeforeMove.Castling, newState.Castling);
+	}
+
 	[Fact]
 	public void ExecuteMove_WhiteEnPassant_ShouldCapturePawn()
 	{
@@ -113,6 +188,20 @@ public class MoveExecutionUnitTests
 		// Captured pawn should be gone
 		newState.PiecePositions[new Position("d5").Row, new Position("d5").Col].Type.Should().Be(PieceType.None);
 		newState.ActiveColor.Should().Be(PieceColor.Black);
+	}
+
+	[Fact]
+	public void ExecuteMove_WhiteKingMoves_RevokesWhiteCastlingRights()
+	{
+		// Arrange
+		var move = new Move(new(7, 4), new(6, 4), PieceColor.White); // White King e1 to e2
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
+
+		// Assert
+		var expectedRights = CastlingRights.BlackBoth;
+		Assert.Equal(expectedRights, newState.Castling);
 	}
 
 	[Fact]
@@ -170,5 +259,21 @@ public class MoveExecutionUnitTests
 
 		// 6. Verify full-move number is unchanged (only increments after Black's move)
 		newState.FullMoveNumber.Should().Be(1);
+	}
+
+	[Theory]
+	[InlineData(7, 7, CastlingRights.WhiteQueenside | CastlingRights.BlackBoth)] // White Kingside
+	[InlineData(7, 0, CastlingRights.WhiteKingside  | CastlingRights.BlackBoth)] // White Queenside
+	public void ExecuteMove_WhiteRookMovesFromHome_RevokesCorrectRights(
+		int startRow, int startCol, CastlingRights expectedRights)
+	{
+		// Arrange
+		var move = new Move(new(startRow, startCol), new(5, startCol), PieceColor.White);
+
+		// Act
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
+
+		// Assert
+		Assert.Equal(expectedRights, newState.Castling);
 	}
 }
