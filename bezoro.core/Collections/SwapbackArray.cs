@@ -1,7 +1,8 @@
 ﻿using System;
+using Bezoro.Core.Common.Extensions;
 using Bezoro.Core.Logging;
 
-namespace Bezoro.Core.Collections.Array
+namespace Bezoro.Core.Collections
 {
 	/// <summary>
 	///     Provides a dynamic array that allows for efficient addition of elements and removal
@@ -103,7 +104,7 @@ namespace Bezoro.Core.Collections.Array
 		public void Clear()
 		{
 			Logger.LogInfo("Clearing all elements from the array.");
-			System.Array.Clear(_items, 0, _count);
+			Array.Clear(_items, 0, _count);
 			_count = 0;
 			Logger.LogSuccess("Array cleared.");
 		}
@@ -131,7 +132,7 @@ namespace Bezoro.Core.Collections.Array
 
 		private bool Validate_Remove_Index(int index)
 		{
-			if (_items.IsNullOrEmpty())
+			if (ArrayExtensions.IsNullOrEmpty(_items))
 			{
 				Logger.Log_Error("Remove operation failed. Array is empty.");
 				return false;
@@ -169,7 +170,7 @@ namespace Bezoro.Core.Collections.Array
 		private void Resize(int newSize)
 		{
 			var newItems = new T[newSize];
-			System.Array.Copy(_items, newItems, _count);
+			Array.Copy(_items, newItems, _count);
 			_items = newItems;
 
 			Logger.LogSuccess($"Resize operation complete. New size: {newSize}");

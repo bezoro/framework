@@ -2,17 +2,11 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Core", "Bezoro.Core\Bezoro.Core.csproj", "{84BADE82-78CE-4D01-8514-079517E96F89}"
 EndProject
-	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Core.UnitTests", "Bezoro.Core.UnitTests\Bezoro.Core.UnitTests.csproj", "{83D610CD-F0E9-4153-A162-6BA37DD879F0}"
-	EndProject
-	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Core.IntegrationTests", "Bezoro.Core.IntegrationTests\Bezoro.Core.IntegrationTests.csproj", "{35F9B27A-B2D2-4519-9C7E-8DD24290AA14}"
+	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Core.Tests", "Bezoro.Core.Tests\Bezoro.Core.Tests.csproj", "{83D610CD-F0E9-4153-A162-6BA37DD879F0}"
 	EndProject
 	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess", "Bezoro.Chess\Bezoro.Chess.csproj", "{CB05CD07-0642-4FDC-86B1-51DC0966B9A6}"
 	EndProject
-	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.UnitTests", "Bezoro.Chess.UnitTests\Bezoro.Chess.UnitTests.csproj", "{6AF93055-0CF3-4957-AAAD-B3F9E38E64DD}"
-	EndProject
 	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.GameSystems", "Bezoro.GameSystems\Bezoro.GameSystems.csproj", "{E5BBDEBC-1E69-4064-B613-BFDC93B7C52A}"
-	EndProject
-	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.IntegrationTests", "Bezoro.Chess.IntegrationTests\Bezoro.Chess.IntegrationTests.csproj", "{880823CD-AA53-4F3D-BE10-5E9114D355FF}"
 	EndProject
 	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.Tests", "Bezoro.Chess.Tests\Bezoro.Chess.Tests.csproj", "{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}"
 	EndProject
@@ -30,26 +24,14 @@ Global
 		{83D610CD-F0E9-4153-A162-6BA37DD879F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{83D610CD-F0E9-4153-A162-6BA37DD879F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{83D610CD-F0E9-4153-A162-6BA37DD879F0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{35F9B27A-B2D2-4519-9C7E-8DD24290AA14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{35F9B27A-B2D2-4519-9C7E-8DD24290AA14}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{35F9B27A-B2D2-4519-9C7E-8DD24290AA14}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{35F9B27A-B2D2-4519-9C7E-8DD24290AA14}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CB05CD07-0642-4FDC-86B1-51DC0966B9A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CB05CD07-0642-4FDC-86B1-51DC0966B9A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CB05CD07-0642-4FDC-86B1-51DC0966B9A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CB05CD07-0642-4FDC-86B1-51DC0966B9A6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6AF93055-0CF3-4957-AAAD-B3F9E38E64DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6AF93055-0CF3-4957-AAAD-B3F9E38E64DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6AF93055-0CF3-4957-AAAD-B3F9E38E64DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6AF93055-0CF3-4957-AAAD-B3F9E38E64DD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E5BBDEBC-1E69-4064-B613-BFDC93B7C52A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E5BBDEBC-1E69-4064-B613-BFDC93B7C52A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5BBDEBC-1E69-4064-B613-BFDC93B7C52A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5BBDEBC-1E69-4064-B613-BFDC93B7C52A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{880823CD-AA53-4F3D-BE10-5E9114D355FF}.Release|Any CPU.Build.0 = Release|Any CPU
 		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{96B5C1F9-3B43-4AE3-AA7E-5AF220E98C57}.Release|Any CPU.ActiveCfg = Release|Any CPU

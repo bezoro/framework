@@ -1,28 +1,24 @@
 ﻿using System;
-using Bezoro.Core.Collections.Array;
-using NUnit.Framework;
+using Xunit;
 
-namespace Bezoro.Core.UnitTests.Collections.Array;
+namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
 
-[TestFixture]
 public class ArrayMergeUnitTests
 {
-#region Test Methods
-
-	[Test]
+	[Fact]
 	public void Merge_WhenBothSourceAndDestinationArraysAreNull_ThenDestinationRemainsNull()
 	{
 		// Arrange
-		string[] to = null;
+		string?[]? to = null;
 
 		// Act
-		ArrayHelpers.Merge(null, ref to);
+		Common.Helpers.ArrayHelpers.Merge(null, ref to);
 
 		// Assert
-		Assert.That(to, Is.Null);
+		Assert.Null(to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenCustomObjectArrayAndDestinationSmaller_ThenDestinationResizedAndAllElementsCopied()
 	{
 		// Arrange
@@ -36,13 +32,13 @@ public class ArrayMergeUnitTests
 		var to = new TestObject[2]; // Smaller array than 'from'
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(from));
+		Assert.Equal(from, to);
 	}
 
-	[Test]
+	[Fact]
 	public void
 		Merge_WhenDestinationArrayContainsPartialNulls_ThenNullsInDestinationReplacedByCorrespondingSourceElements()
 	{
@@ -51,13 +47,13 @@ public class ArrayMergeUnitTests
 		var to   = new[] { "X", null, "Z" };
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { "X", "B", "Z" }));
+		Assert.Equal(new[] { "X", "B", "Z" }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void
 		Merge_WhenDestinationArrayHasExistingDataAndNulls_ThenOnlyNullsInDestinationReplacedBySourceElements()
 	{
@@ -66,41 +62,41 @@ public class ArrayMergeUnitTests
 		var to   = new[] { "A", "B", null };
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { "A", "B", "Z" }));
+		Assert.Equal(new[] { "A", "B", "Z" }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenDestinationArrayIsEmpty_ThenDestinationResizedAndAllSourceElementsCopied()
 	{
 		// Arrange
 		var from = new[] { "A", "B", "C" };
-		var to   = System.Array.Empty<string>();
+		var to   = Array.Empty<string>();
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(from));
+		Assert.Equal(from, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenDestinationArrayIsNull_ThenDestinationInitializedAndAllSourceElementsCopied()
 	{
 		// Arrange
-		var      from = new[] { "A", "B", "C" };
-		string[] to   = null;
+		var        from = new[] { "A", "B", "C" };
+		string?[]? to   = null;
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(from));
+		Assert.Equal(from, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenDestinationArrayLargerAndContainsElements_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
@@ -108,40 +104,40 @@ public class ArrayMergeUnitTests
 		var to   = new[] { 3, 4, 5 };
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { 3, 4, 5 }));
+		Assert.Equal(new[] { 3, 4, 5 }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenSourceArrayIsEmpty_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
-		var from = System.Array.Empty<string>();
+		var from = Array.Empty<string>();
 		var to   = new[] { "Existing" };
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { "Existing" }));
+		Assert.Equal(new[] { "Existing" }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenSourceArrayIsNull_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
 		string[] to = { "Existing" };
 
 		// Act
-		ArrayHelpers.Merge(null, ref to);
+		Common.Helpers.ArrayHelpers.Merge(null, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { "Existing" }));
+		Assert.Equal(new[] { "Existing" }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenSourceArrayLargerThanDestination_ThenDestinationResizedAndAllElementsCopied()
 	{
 		// Arrange
@@ -149,13 +145,13 @@ public class ArrayMergeUnitTests
 		var to   = new int[2]; // Smaller array than 'from'
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(new[] { 1, 2, 3 }));
+		Assert.Equal(new[] { 1, 2, 3 }, to);
 	}
 
-	[Test]
+	[Fact]
 	public void Merge_WhenSourceArrayLargerThanDestination_ThenDestinationResizedToFitSource()
 	{
 		// Arrange
@@ -163,18 +159,14 @@ public class ArrayMergeUnitTests
 		var to   = new int[1]; // Smaller array than 'from'
 
 		// Act
-		ArrayHelpers.Merge(from, ref to);
+		Common.Helpers.ArrayHelpers.Merge(from, ref to);
 
 		// Assert
-		Assert.That(to, Is.EqualTo(from));
+		Assert.Equal(from, to);
 	}
 
-#endregion
-
-#region Helper Methods/Other Members
-
 	// Test class for complex type checking
-	private class TestObject
+	private sealed class TestObject
 	{
 		public TestObject(int id, string name)
 		{
@@ -182,22 +174,13 @@ public class ArrayMergeUnitTests
 			Name = name;
 		}
 
-		public int    Id   { get; }
-		public string Name { get; }
+		private int    Id   { get; }
+		private string Name { get; }
 
-		public override bool Equals(object obj)
-		{
-			if (obj is TestObject other)
-			{
-				return Id == other.Id && Name == other.Name;
-			}
-
-			return false;
-		}
+		public override bool Equals(object? obj) =>
+			obj is TestObject other && Id == other.Id && Name == other.Name;
 
 		public override int GetHashCode() =>
 			HashCode.Combine(Id, Name);
 	}
-
-#endregion
 }

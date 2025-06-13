@@ -72,7 +72,10 @@ namespace Bezoro.Core
 				WriteIndent();
 				_builder.AppendLine(line);
 			}
-			else _builder.AppendLine();
+			else
+			{
+				_builder.AppendLine();
+			}
 
 			_isNewLine = true;
 			return this;
