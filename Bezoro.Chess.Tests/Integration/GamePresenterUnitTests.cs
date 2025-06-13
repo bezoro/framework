@@ -28,12 +28,13 @@ public class GamePresenterTests
 		_presenter.OnSquareSelected(whitePawnStart);
 
 		// Assert
-		_view.Received(1).HighlightLegalMoves(
-			Arg.Is<IEnumerable<Position>>(
-				moves =>
-					moves.Count() == 2        &&
-					moves.Contains(new("e3")) &&
-					moves.Contains(new("e4"))
+		_view.Received(1).UpdateMoveHighlights(
+			Arg.Is<IEnumerable<MoveHighlightViewModel>>(
+				highlights =>
+					highlights.Count() == 2                                         &&
+					highlights.All(h => h.HighlightType == MoveHighlightType.Legal) &&
+					highlights.Any(h => h.Position.Equals(new("e3")))               &&
+					highlights.Any(h => h.Position.Equals(new("e4")))
 			));
 	}
 
@@ -60,7 +61,8 @@ public class GamePresenterTests
 					Assert.Equal(default,                               board[6, 4]); // e2
 				}));
 
-		_view.Received(1).HighlightLegalMoves(Arg.Is<IEnumerable<Position>>(moves => !moves.Any()));
+		_view.Received(1)
+			 .UpdateMoveHighlights(Arg.Is<IEnumerable<MoveHighlightViewModel>>(highlights => !highlights.Any()));
 	}
 
 	[Fact]
@@ -72,10 +74,12 @@ public class GamePresenterTests
 
 		// Act
 		_presenter.OnSquareSelected(knightStart); // Select
+		_view.ClearReceivedCalls();
 		_presenter.OnSquareSelected(knightStart); // Select again to deselect
 
 		// Assert
-		_view.Received(1).HighlightLegalMoves(Arg.Is<IEnumerable<Position>>(moves => !moves.Any()));
+		_view.Received(1)
+			 .UpdateMoveHighlights(Arg.Is<IEnumerable<MoveHighlightViewModel>>(highlights => !highlights.Any()));
 	}
 
 	[Fact]
@@ -108,9 +112,7 @@ public class GamePresenterTests
 					for (var row = 2 ; row < 6 ; row++)
 					{
 						for (var col = 0 ; col < 8 ; col++)
-						{
 							Assert.Equal(default, board[row, col]);
-						}
 					}
 				}));
 	}
