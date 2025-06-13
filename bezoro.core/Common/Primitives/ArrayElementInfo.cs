@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Bezoro.Core.Collections.Array
+namespace Bezoro.Core.Common.Primitives
 {
 	/// <summary>
 	///     A structure to hold detailed information about an array and its data.

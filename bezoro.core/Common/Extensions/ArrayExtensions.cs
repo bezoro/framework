@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Core.Collections.Array
+namespace Bezoro.Core.Common.Extensions
 {
 	/// <summary>
 	///     Small set of helpers for quick null / empty checks on arrays.

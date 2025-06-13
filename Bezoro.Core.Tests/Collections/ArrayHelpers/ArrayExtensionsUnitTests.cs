@@ -1,136 +1,135 @@
-﻿using Bezoro.Core.Collections.Array;
-using NUnit.Framework;
+﻿using System;
+using Bezoro.Core.Common.Extensions;
+using Xunit;
 
-namespace Bezoro.Core.UnitTests.Collections.Array;
+namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
 
-[TestFixture]
-[TestOf(typeof(ArrayExtensions))]
 public class ArrayExtensionsUnitTests
 {
 #region IsEmpty
 
-	[Test]
+	[Fact]
 	public void IsEmpty_WhenArrayIsNull_ReturnsFalse()
 	{
 		int[]? ints = null;
-		Assert.That(ints.IsEmpty(), Is.False);
+		Assert.False(ints.IsEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsEmpty_WhenArrayIsEmpty_ReturnsTrue()
 	{
 		var ints = new int[0];
-		Assert.That(ints.IsEmpty(), Is.True);
+		Assert.True(ints.IsEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsEmpty_WhenArrayIsNotEmpty_ReturnsFalse()
 	{
 		var ints = new[] { 42 };
-		Assert.That(ints.IsEmpty(), Is.False);
+		Assert.False(ints.IsEmpty());
 	}
 
 #endregion
 
 #region IsNotEmpty
 
-	[Test]
+	[Fact]
 	public void IsNotEmpty_WhenArrayIsNull_ReturnsFalse()
 	{
 		string[]? strings = null;
-		Assert.That(strings.IsNotEmpty(), Is.False);
+		Assert.False(strings.IsNotEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNotEmpty_WhenArrayIsEmpty_ReturnsFalse()
 	{
-		var strings = System.Array.Empty<string>();
-		Assert.That(strings.IsNotEmpty(), Is.False);
+		var strings = Array.Empty<string>();
+		Assert.False(strings.IsNotEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNotEmpty_WhenArrayIsNotEmpty_ReturnsTrue()
 	{
 		var strings = new[] { "hello" };
-		Assert.That(strings.IsNotEmpty(), Is.True);
+		Assert.True(strings.IsNotEmpty());
 	}
 
 #endregion
 
 #region IsNotNull / IsNull
 
-	[Test]
+	[Fact]
 	public void IsNotNull_WhenArrayIsNull_ReturnsFalse()
 	{
 		int[]? ints = null;
-		Assert.That(ints.IsNotNull(), Is.False);
+		Assert.False(ints.IsNotNull());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNotNull_WhenArrayIsInstantiated_ReturnsTrue()
 	{
 		var ints = new int[0];
-		Assert.That(ints.IsNotNull(), Is.True);
+		Assert.True(ints.IsNotNull());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNull_WhenArrayIsNull_ReturnsTrue()
 	{
 		int[]? ints = null;
-		Assert.That(ints.IsNull(), Is.True);
+		Assert.True(ints.IsNull());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNull_WhenArrayIsInstantiated_ReturnsFalse()
 	{
 		var ints = new int[1];
-		Assert.That(ints.IsNull(), Is.False);
+		Assert.False(ints.IsNull());
 	}
 
 #endregion
 
 #region IsNotNullOrEmpty / IsNullOrEmpty
 
-	[Test]
+	[Fact]
 	public void IsNotNullOrEmpty_WhenArrayIsNull_ReturnsFalse()
 	{
 		int[]? ints = null;
-		Assert.That(ints.IsNotNullOrEmpty(), Is.False);
+		Assert.False(ints.IsNotNullOrEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNotNullOrEmpty_WhenArrayIsEmpty_ReturnsFalse()
 	{
 		var ints = new int[0];
-		Assert.That(ints.IsNotNullOrEmpty(), Is.False);
+		Assert.False(ints.IsNotNullOrEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNotNullOrEmpty_WhenArrayIsNotEmpty_ReturnsTrue()
 	{
 		var ints = new[] { 1, 2, 3 };
-		Assert.That(ints.IsNotNullOrEmpty(), Is.True);
+		Assert.True(ints.IsNotNullOrEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNullOrEmpty_WhenArrayIsNull_ReturnsTrue()
 	{
 		string[]? strings = null;
-		Assert.That(strings.IsNullOrEmpty(), Is.True);
+		Assert.True(strings.IsNullOrEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNullOrEmpty_WhenArrayIsEmpty_ReturnsTrue()
 	{
 		var strings = new string[0];
-		Assert.That(strings.IsNullOrEmpty(), Is.True);
+		Assert.True(strings.IsNullOrEmpty());
 	}
 
-	[Test]
+	[Fact]
 	public void IsNullOrEmpty_WhenArrayIsNotEmpty_ReturnsFalse()
 	{
 		var strings = new[] { "value" };
-		Assert.That(strings.IsNullOrEmpty(), Is.False);
+		Assert.False(strings.IsNullOrEmpty());
 	}
 
 #endregion

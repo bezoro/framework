@@ -4,7 +4,7 @@ using System.Numerics;
 namespace Bezoro.Core.Common.Primitives
 {
 	/// <summary>
-	///   A simple 2D vector of unsigned integers.
+	///     A simple 2D vector of unsigned integers.
 	/// </summary>
 	public readonly struct UIntVector2 : IEquatable<UIntVector2>
 	{
@@ -18,8 +18,8 @@ namespace Bezoro.Core.Common.Primitives
 		public static bool operator !=(UIntVector2 a, UIntVector2 b) => !a.Equals(b);
 
 		/// <summary>
-		///   Optionally convert from a floating‐point Vector2 if you really need to.
-		///   Throws if not a whole, non-negative number.
+		///     Optionally convert from a floating‐point Vector2 if you really need to.
+		///     Throws if not a whole, non-negative number.
 		/// </summary>
 		public static UIntVector2 FromVector2(Vector2 v)
 		{
