@@ -2,6 +2,7 @@ namespace Bezoro.Chess.ChessLogic
 {
 	public enum PieceColor : byte
 	{
+		None,
 		White, Black
 	}
 
