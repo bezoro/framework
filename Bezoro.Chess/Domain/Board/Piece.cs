@@ -10,12 +10,14 @@ namespace Bezoro.Chess.Domain.Board
 
 	public enum PieceType : byte
 	{
-		None, Pawn, Knight, Bishop, Rook, Queen, King
+		None,
+		Pawn, Knight, Bishop, Rook, Queen, King
 	}
 
 	public enum PromotionType : byte
 	{
-		None, Queen = PieceType.Queen, Rook = PieceType.Rook, Bishop = PieceType.Bishop, Knight = PieceType.Knight
+		None,
+		Queen = PieceType.Queen, Rook = PieceType.Rook, Bishop = PieceType.Bishop, Knight = PieceType.Knight
 	}
 
 	/// <summary>
