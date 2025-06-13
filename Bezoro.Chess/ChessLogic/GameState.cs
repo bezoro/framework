@@ -91,5 +91,10 @@ namespace Bezoro.Chess.ChessLogic
 		///     This is needed for en passant capture validation.
 		/// </summary>
 		public Position? EnPassantTargetSquare { get; init; }
+
+		public GameState ExecuteMove(Move move) =>
+			MoveExecution.MoveExecution.ExecuteMove(this, move);
+
+		public Piece GetPieceAt(Position position) => PiecePositions[position.Row, position.Col];
 	}
 }
