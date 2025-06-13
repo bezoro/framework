@@ -1,5 +1,6 @@
-using Bezoro.Chess.ChessLogic;
-using Bezoro.Chess.ChessLogic.Generators;
+using Bezoro.Chess.Domain;
+using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Moves;
 using FluentAssertions;
 using Xunit.Abstractions;
 

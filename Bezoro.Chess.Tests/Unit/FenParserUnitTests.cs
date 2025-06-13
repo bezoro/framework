@@ -1,4 +1,6 @@
-using Bezoro.Chess.ChessLogic;
+using Bezoro.Chess.Domain;
+using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Infrastructure.Fen;
 using FluentAssertions;
 
 namespace Bezoro.Chess.Tests.Unit;

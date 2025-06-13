@@ -1,6 +1,7 @@
-using Bezoro.Chess.ChessLogic;
-using Bezoro.Chess.ChessLogic.Presenter;
-using Bezoro.Chess.ChessLogic.Presenter.ViewModels;
+using Bezoro.Chess.Application.Abstractions;
+using Bezoro.Chess.Application.Abstractions.ViewModels;
+using Bezoro.Chess.Application.Features.PlayGame;
+using Bezoro.Chess.Domain.Board;
 using NSubstitute;
 
 namespace Bezoro.Chess.Tests.Integration;
