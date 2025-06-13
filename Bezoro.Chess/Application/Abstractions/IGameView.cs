@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Bezoro.Chess.Application.Abstractions.ViewModels;
+using Bezoro.Chess.Domain.Board;
 
 namespace Bezoro.Chess.Application.Abstractions
 {
@@ -16,6 +18,33 @@ namespace Bezoro.Chess.Application.Abstractions
 		void HidePromotionUI();
 
 		/// <summary>
+		///     Hides the game settings interface.
+		/// </summary>
+		void HideSettingsUI();
+
+		/// <summary>
+		///     Highlights the last move made on the board.
+		/// </summary>
+		/// <param name="fromPosition">The starting position of the move</param>
+		/// <param name="toPosition">The ending position of the move</param>
+		void HighlightLastMove(Position fromPosition, Position toPosition);
+
+		/// <summary>
+		///     Shows a confirmation dialog to the player.
+		/// </summary>
+		/// <param name="message">The message to display</param>
+		/// <param name="confirmCallback">Callback to execute when the user confirms</param>
+		/// <param name="cancelCallback">Callback to execute when the user cancels</param>
+		void ShowConfirmationDialog(string message, Action confirmCallback, Action cancelCallback);
+
+		/// <summary>
+		///     Shows the game results screen with detailed statistics.
+		/// </summary>
+		/// <param name="gameResult">The result of the game</param>
+		/// <param name="statistics">Game statistics to display</param>
+		void ShowGameResults(string gameResult, Dictionary<string, string> statistics);
+
+		/// <summary>
 		///     Displays a message to the player, typically used for game notifications or errors.
 		/// </summary>
 		/// <param name="message">The message text to display</param>
@@ -25,6 +54,11 @@ namespace Bezoro.Chess.Application.Abstractions
 		///     Displays the pawn promotion interface when a pawn reaches the opposite end of the board.
 		/// </summary>
 		void ShowPromotionUI();
+
+		/// <summary>
+		///     Shows the game settings interface to configure game options.
+		/// </summary>
+		void ShowSettingsUI();
 
 		/// <summary>
 		///     Updates the entire board with the latest piece positions.
@@ -41,5 +75,11 @@ namespace Bezoro.Chess.Application.Abstractions
 		///     Highlights squares on the board to show the player where a selected piece can move.
 		/// </summary>
 		void UpdateMoveHighlights(IEnumerable<MoveHighlightViewModel> highlights);
+
+		/// <summary>
+		///     Shows the move history in the UI.
+		/// </summary>
+		/// <param name="moveHistory">Collection of moves to display</param>
+		void UpdateMoveHistory(IEnumerable<string> moveHistory);
 	}
 }
