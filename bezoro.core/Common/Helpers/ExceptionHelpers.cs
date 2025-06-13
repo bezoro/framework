@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Core.Utils
+namespace Bezoro.Core.Common.Helpers
 {
 	public static class ExceptionHelpers
 	{

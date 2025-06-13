@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Core.Collections
+namespace Bezoro.Core.Common.Extensions
 {
 	public static class IEnumerableExtensions
 	{
