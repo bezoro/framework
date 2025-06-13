@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Chess.Application.Abstractions;
@@ -21,12 +20,35 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		private readonly GameManager                            _gameManager;
 		private          IEnumerable<(Move move, bool isLegal)> _movesForSelectedPiece;
 		private readonly IGameView                              _view;
+		private          Move?                                  _pendingPromotionMove;
 		private          Position?                              _selectedPosition;
 
 	#region Interface Implementations
 
+		/// <summary>
+		///     Handles the selection of a square on the chess board, managing piece selection,
+		///     move execution, and board state updates based on the player's interaction.
+		/// </summary>
+		/// <param name="position">The position of the selected square on the chess board.</param>
+		/// <remarks>
+		///     This method implements the following behavior:
+		///     - If a piece is already selected:
+		///     * Re-selecting the same piece deselects it
+		///     * Selecting a valid move destination executes the move
+		///     * Selecting another friendly piece changes selection to that piece
+		///     * Selecting an invalid square clears the selection
+		///     - If no piece is selected:
+		///     * Selecting a friendly piece initiates piece selection
+		/// </remarks>
 		public void OnSquareSelected(Position position)
 		{
+			// If we are waiting for a promotion choice, ignore board clicks until a piece is chosen.
+			if (_pendingPromotionMove.HasValue)
+			{
+				_view.ShowMessage("Please select a piece for promotion.");
+				return;
+			}
+
 			var pieceAtPosition = _gameManager.CurrentState.GetPieceAt(position);
 
 			if (_selectedPosition.HasValue)
@@ -43,14 +65,23 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 				// Check if a move to the selected square exists and is legal
 				if (moveTuple != default && moveTuple.isLegal)
 				{
+					// Check for pawn promotion
+					if (moveTuple.move.Type is MoveType.PawnPromotion or MoveType.PawnPromotionCapture)
+					{
+						_pendingPromotionMove = moveTuple.move;
+						_view.ShowPromotionUI();
+						return; // Wait for user to select promotion piece
+					}
+
 					if (_gameManager.TryMakeMove(moveTuple.move))
 					{
 						ClearSelection();
-						UpdateViewBoard();
+						UpdateView();
 					}
 					else
 					{
 						// This case should ideally not be reached if the logic is sound.
+						_view.ShowMessage("An unexpected error occurred with the move.");
 						ClearSelection();
 					}
 				}
@@ -62,7 +93,8 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 				}
 				else
 				{
-					// The user clicked an invalid square (empty or opponent's piece), so clear the selection.
+					// The user clicked an invalid square (empty or opponent's piece).
+					_view.ShowMessage("Invalid move.");
 					ClearSelection();
 				}
 			}
@@ -74,7 +106,44 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			}
 		}
 
-		public void OnPromotionPieceSelected(PieceType pieceType) => throw new NotImplementedException();
+		public void OnPromotionPieceSelected(PieceType pieceType)
+		{
+			if (!_pendingPromotionMove.HasValue)
+			{
+				// This should not be reached in normal gameplay.
+				return;
+			}
+
+			// Complete the promotion move with the selected piece type.
+			var  pendingMove = _pendingPromotionMove.Value;
+			Move promotionMove;
+
+			if (pendingMove.Type == MoveType.PawnPromotion)
+			{
+				promotionMove = Move.CreateQuietPromotion(
+					pendingMove.From, pendingMove.To, pendingMove.Piece, pieceType);
+			}
+			else // Assumes PawnPromotionCapture
+			{
+				promotionMove = Move.CreateCapturePromotion(
+					pendingMove.From, pendingMove.To, pendingMove.Piece, pendingMove.CapturedPiece, pieceType);
+			}
+
+			if (_gameManager.TryMakeMove(promotionMove))
+			{
+				ClearSelection();
+				UpdateView();
+			}
+			else
+			{
+				// This case should not be reached if the initial move was valid.
+				_view.ShowMessage("An error occurred during promotion.");
+				ClearSelection();
+			}
+
+			_view.HidePromotionUI();
+			_pendingPromotionMove = null;
+		}
 
 	#endregion
 
@@ -82,7 +151,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		{
 			_gameManager.NewGame();
 			ClearSelection();
-			UpdateViewBoard();
+			UpdateView();
 		}
 
 		private void ClearSelection()
@@ -90,13 +159,21 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			_selectedPosition      = null;
 			_movesForSelectedPiece = Enumerable.Empty<(Move move, bool isLegal)>();
 			_view.UpdateMoveHighlights(Enumerable.Empty<MoveHighlightViewModel>());
+			_view.HideMessage();
 		}
 
 		private void OnGameEnded(GameOutcome outcome)
 		{
-			// TODO: Handle the end of the game in the view
+			UpdateView(); // Update the view to show the final board and status.
+			_view.ShowMessage($"{outcome}");
 		}
 
+		/// <summary>
+		///     Selects a chess piece at the specified position and updates the view with available moves.
+		///     This method retrieves all possible moves for the selected piece, determines their legality,
+		///     and displays appropriate highlights on the board for each potential move.
+		/// </summary>
+		/// <param name="position">The position of the piece to be selected on the chess board.</param>
 		private void SelectPiece(Position position)
 		{
 			_selectedPosition      = position;
@@ -112,9 +189,13 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			_view.UpdateMoveHighlights(highlights);
 		}
 
-		private void UpdateViewBoard()
+		/// <summary>
+		///     Updates the entire view with the latest game state, including the board layout and game status.
+		/// </summary>
+		private void UpdateView()
 		{
-			var viewModel = new PieceViewModel[8, 8];
+			// Update the board with the current piece positions.
+			var boardViewModel = new PieceViewModel[8, 8];
 			for (var row = 0 ; row < 8 ; row++)
 			{
 				for (var col = 0 ; col < 8 ; col++)
@@ -122,12 +203,24 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 					var piece = _gameManager.CurrentState.PiecePositions[row, col];
 					if (piece != default)
 					{
-						viewModel[row, col] = new(piece.Type, piece.Color);
+						boardViewModel[row, col] = new(piece.Type, piece.Color);
 					}
 				}
 			}
 
-			_view.UpdateBoard(viewModel);
+			_view.UpdateBoard(boardViewModel);
+
+			// Update the game status display.
+			var emptyCapturedList = new List<PieceViewModel>();
+			var statusViewModel = new GameStatusViewModel(
+				_gameManager.CurrentState.ActiveColor,
+				_gameManager.Outcome.ToString(),
+				_gameManager.IsKingInCheck(_gameManager.CurrentState, _gameManager.CurrentState.ActiveColor),
+				emptyCapturedList,
+				emptyCapturedList
+			);
+
+			_view.UpdateGameStatus(statusViewModel);
 		}
 	}
 }
