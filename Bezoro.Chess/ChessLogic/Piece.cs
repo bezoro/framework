@@ -1,3 +1,5 @@
+using System;
+
 namespace Bezoro.Chess.ChessLogic
 {
 	public enum PieceColor : byte
@@ -19,7 +21,7 @@ namespace Bezoro.Chess.ChessLogic
 	/// <summary>
 	///     Represents a chess piece. This is a struct for memory efficiency when storing the board state.
 	/// </summary>
-	public readonly struct Piece
+	public readonly struct Piece : IEquatable<Piece>
 	{
 		public Piece(PieceType type, PieceColor color)
 		{
@@ -41,5 +43,19 @@ namespace Bezoro.Chess.ChessLogic
 		/// </summary>
 		public override string ToString() =>
 			Type == PieceType.None ? "Empty" : $"{Color} {Type}";
+
+	#region Equality Members
+
+		public bool Equals(Piece other) => Type == other.Type && Color == other.Color;
+
+		public override bool Equals(object obj) => obj is Piece other && Equals(other);
+
+		public override int GetHashCode() => HashCode.Combine((int)Type, (int)Color);
+
+		public static bool operator ==(Piece left, Piece right) => left.Equals(right);
+
+		public static bool operator !=(Piece left, Piece right) => !left.Equals(right);
+
+	#endregion
 	}
 }
