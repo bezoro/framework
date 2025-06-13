@@ -6,8 +6,9 @@ namespace Bezoro.Chess.Domain.Moves
 	/// <summary>
 	///     Enumerates the types of possible moves in chess.
 	/// </summary>
-	public enum MoveType
+	public enum MoveType : byte
 	{
+		None,
 		Normal,
 		Capture,
 		CastleKingside,
@@ -46,7 +47,7 @@ namespace Bezoro.Chess.Domain.Moves
 	#region Factory Methods
 
 		public static Move CreateNormal(Position from, Position to, Piece piece) =>
-			new(from, to, piece);
+			new(from, to, piece, type: MoveType.Normal);
 
 		public static Move CreateCapture(Position from, Position to, Piece piece, Piece capturedPiece) =>
 			new(from, to, piece, capturedPiece, MoveType.Capture);
