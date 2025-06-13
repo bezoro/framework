@@ -1,90 +1,112 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Bezoro.Chess.ChessLogic.Generators;
 using Bezoro.Chess.ChessLogic.Presenter.ViewModels;
 
 namespace Bezoro.Chess.ChessLogic.Presenter
 {
-	/// <summary>
-	///     The main coordinator that manages game flow, user interactions, and updates the View.
-	///     It acts as the bridge between the Model (GameState) and the View (IGameView).
-	/// </summary>
 	public class GamePresenter : IUserInputHandler
 	{
 		public GamePresenter(IGameView view)
 		{
-			_view                       = view;
-			_legalMovesForSelectedPiece = Enumerable.Empty<Move>();
+			_view                  =  view;
+			_gameManager           =  new();
+			_movesForSelectedPiece =  Enumerable.Empty<(Move move, bool isLegal)>();
+			_gameManager.GameEnded += OnGameEnded;
 		}
 
-		private          GameState         _gameState;
-		private          IEnumerable<Move> _legalMovesForSelectedPiece;
-		private readonly IGameView         _view;
-		private          Position?         _selectedPosition;
+		private readonly GameManager                            _gameManager;
+		private          IEnumerable<(Move move, bool isLegal)> _movesForSelectedPiece;
+		private readonly IGameView                              _view;
+		private          Position?                              _selectedPosition;
 
 	#region Interface Implementations
 
 		public void OnSquareSelected(Position position)
 		{
-			var pieceAtPosition = _gameState.GetPieceAt(position);
+			var pieceAtPosition = _gameManager.CurrentState.GetPieceAt(position);
 
-			// If a piece is already selected
 			if (_selectedPosition.HasValue)
 			{
-				var move = _legalMovesForSelectedPiece.FirstOrDefault(m => m.To == position);
-
-				// Case 1: The user clicked a legal move destination
-				if (move != default)
+				// If the user re-clicks the selected piece, deselect it.
+				if (_selectedPosition.Value.Equals(position))
 				{
-					_gameState = _gameState.ExecuteMove(move);
 					ClearSelection();
-					UpdateViewBoard();
+					return;
 				}
-				// Case 2: The user clicked a different piece of their own color
-				else if (pieceAtPosition != default && pieceAtPosition.Color == _gameState.ActiveColor)
+
+				var moveTuple = _movesForSelectedPiece.FirstOrDefault(m => m.move.To == position);
+
+				// Check if a move to the selected square exists and is legal
+				if (moveTuple != default && moveTuple.isLegal)
+				{
+					if (_gameManager.TryMakeMove(moveTuple.move))
+					{
+						ClearSelection();
+						UpdateViewBoard();
+					}
+					else
+					{
+						// This case should ideally not be reached if the logic is sound.
+						ClearSelection();
+					}
+				}
+				// If the user clicks another of their own pieces, switch selection to that piece.
+				else if (pieceAtPosition.Type  != PieceType.None &&
+						 pieceAtPosition.Color == _gameManager.CurrentState.ActiveColor)
 				{
 					SelectPiece(position);
 				}
-				// Case 3: The user clicked an invalid square or the same square
 				else
 				{
+					// The user clicked an invalid square (empty or opponent's piece), so clear the selection.
 					ClearSelection();
 				}
 			}
-			// If no piece is selected yet
-			else if (pieceAtPosition != default && pieceAtPosition.Color == _gameState.ActiveColor)
+			// If no piece is selected yet, and the clicked square has a piece of the active color.
+			else if (pieceAtPosition.Type  != PieceType.None &&
+					 pieceAtPosition.Color == _gameManager.CurrentState.ActiveColor)
 			{
-				// Case 4: The user selects one of their pieces
 				SelectPiece(position);
 			}
 		}
 
-		public void OnPromotionPieceSelected(PieceType pieceType) =>
-			// This will be implemented in a future step when we test pawn promotion.
-			throw new NotImplementedException();
+		public void OnPromotionPieceSelected(PieceType pieceType) => throw new NotImplementedException();
 
 	#endregion
 
 		public void StartNewGame()
 		{
-			_gameState = GameState.CreateInitial();
+			_gameManager.NewGame();
 			ClearSelection();
 			UpdateViewBoard();
 		}
 
 		private void ClearSelection()
 		{
-			_selectedPosition           = null;
-			_legalMovesForSelectedPiece = Enumerable.Empty<Move>();
-			_view.HighlightLegalMoves(Enumerable.Empty<Position>());
+			_selectedPosition      = null;
+			_movesForSelectedPiece = Enumerable.Empty<(Move move, bool isLegal)>();
+			_view.UpdateMoveHighlights(Enumerable.Empty<MoveHighlightViewModel>());
+		}
+
+		private void OnGameEnded(GameOutcome outcome)
+		{
+			// TODO: Handle the end of the game in the view
 		}
 
 		private void SelectPiece(Position position)
 		{
-			_selectedPosition           = position;
-			_legalMovesForSelectedPiece = MoveGenerator.GeneratePieceMoves(position, _gameState);
-			_view.HighlightLegalMoves(_legalMovesForSelectedPiece.Select(m => m.To));
+			_selectedPosition      = position;
+			_movesForSelectedPiece = _gameManager.GetMovesWithLegalityForPiece(position).ToList();
+
+			var highlights = _movesForSelectedPiece.Select(
+				m =>
+					new MoveHighlightViewModel(
+						m.move.To,
+						m.isLegal ? MoveHighlightType.Legal : MoveHighlightType.Illegal
+					));
+
+			_view.UpdateMoveHighlights(highlights);
 		}
 
 		private void UpdateViewBoard()
@@ -94,7 +116,7 @@ namespace Bezoro.Chess.ChessLogic.Presenter
 			{
 				for (var col = 0 ; col < 8 ; col++)
 				{
-					var piece = _gameState.PiecePositions[row, col];
+					var piece = _gameManager.CurrentState.PiecePositions[row, col];
 					if (piece != default)
 					{
 						viewModel[row, col] = new(piece.Type, piece.Color);
