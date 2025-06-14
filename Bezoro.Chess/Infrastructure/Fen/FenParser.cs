@@ -6,7 +6,7 @@ namespace Bezoro.Chess.Infrastructure.Fen
 {
 	public static class FenParser
 	{
-		public static GameState Parse(string fen)
+		public static GameState FenToGameState(string fen)
 		{
 			var parts = fen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -32,8 +32,6 @@ namespace Bezoro.Chess.Infrastructure.Fen
 				FullMoveNumber        = fullMoveNumber
 			};
 		}
-
-		// ----- unchanged helpers below -----
 
 		private static CastlingRights ParseCastlingRights(string castlingPart)
 		{

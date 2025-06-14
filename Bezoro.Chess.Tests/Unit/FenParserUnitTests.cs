@@ -14,7 +14,7 @@ public class FenParserUnitTests
 		var expectedGameState = BoardSetup.CreateStandardGame();
 
 		// Act
-		var actualGameState = FenParser.Parse(FenStrings.StandardStart);
+		var actualGameState = FenParser.FenToGameState(FenStrings.StandardStart);
 
 		// Assert
 		actualGameState.PiecePositions.Should().BeEquivalentTo(expectedGameState.PiecePositions);
