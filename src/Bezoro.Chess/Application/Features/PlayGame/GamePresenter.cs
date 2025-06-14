@@ -148,6 +148,13 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 	#endregion
 
+		public void OnForfeitRequested()
+		{
+			// ???: Here we could add logic to ask the user for confirmation via the view
+			_gameManager.Forfeit();
+			_view.ShowMessage($"{_gameManager.CurrentState.ActiveColor} forfeits.");
+		}
+
 		public void OnHideSettings() =>
 			_view.HideSettingsUI();
 
