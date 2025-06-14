@@ -252,7 +252,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 				_gameManager.MoveHistory
 							.Select(
 								(move, idx) =>
-									move.ToSan(_gameManager.GameStateHistory[idx])));
+									move.ToSAN(_gameManager.GameStateHistory[idx])));
 
 			// Update the game status display.
 			_gameManager.CapturedPieces.TryGetValue(PieceColor.White, out var whitePieces);
