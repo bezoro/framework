@@ -16,10 +16,15 @@ namespace Bezoro.Chess.Infrastructure.Fen
 		/// </summary>
 		public const string KpkExample =
 			"8/8/8/2k5/8/5K2/4P3/8 w - - 0 1";
-		/// <summary>
+
+			/// <summary>
 		///     The standard start position of an orthodox chess game.
+		///     All pieces are in their hom positions, white
+		///     no en passant target, zero half-moves since last capture or pawn advance, move number 1.
 		/// </summary>
 		public const string StandardStart =
 			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+		private to move, all available
+		private castling rights,
 	}
 }
