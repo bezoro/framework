@@ -29,29 +29,17 @@ namespace Bezoro.Chess.Domain.Notation
 
 			// Does the side to move have ANY legal reply that leaves its king safe?
 			var hasEscape =
-				MoveGenerator.GenerateMoves(stateAfterMove) // pseudo-legal replies
-							 .Any(
-								 reply =>
-									 !IsKingInCheck(
-										 MoveExecution.ExecuteMove(stateAfterMove, reply),
-										 sideToMove));
+				MoveGenerator.GenerateMoves(stateAfterMove).Any(
+					reply => !IsKingInCheck(MoveExecution.ExecuteMove(stateAfterMove, reply), sideToMove));
 
 			return san + (hasEscape ? "+" : "#");
 		}
-
-		/* ------------------------------------------------------------------ */
-		/*            INTERNAL – Check / mate detection helpers               */
-		/* ------------------------------------------------------------------ */
 
 		private static bool IsKingInCheck(GameState state, PieceColor kingColor)
 		{
 			var kingSquare = state.FindKingPosition(kingColor);
 			return kingSquare is not null && state.IsSquareAttackedBy(kingSquare.Value, kingColor.Opposite());
 		}
-
-		/* ------------------------------------------------------------------ */
-		/*                 INTERNAL – Board-free SAN generation               */
-		/* ------------------------------------------------------------------ */
 
 		private static string BaseSan(Move move)
 		{
