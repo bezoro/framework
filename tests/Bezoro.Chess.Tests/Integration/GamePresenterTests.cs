@@ -10,8 +10,9 @@ public class GamePresenterTests
 {
 	public GamePresenterTests()
 	{
-		_view      = Substitute.For<IGameView>();
-		_presenter = new(_view);
+		_view = Substitute.For<IGameView>();
+		var gameManager = new GameManager();
+		_presenter = new(_view, gameManager);
 	}
 
 	private readonly GamePresenter _presenter;

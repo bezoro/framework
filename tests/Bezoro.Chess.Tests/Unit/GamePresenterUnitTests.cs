@@ -13,8 +13,8 @@ public class GamePresenterUnitTests
 	public GamePresenterUnitTests()
 	{
 		_mockView    = Substitute.For<IGameView>();
-		_presenter   = new(_mockView);
-		_gameManager = _presenter.GameManager;
+		_gameManager = new();
+		_presenter   = new(_mockView, _gameManager);
 	}
 
 	private readonly GameManager   _gameManager;

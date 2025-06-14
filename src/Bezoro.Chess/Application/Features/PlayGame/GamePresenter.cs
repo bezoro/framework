@@ -4,16 +4,15 @@ using Bezoro.Chess.Application.Abstractions;
 using Bezoro.Chess.Application.Abstractions.ViewModels;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
-using Bezoro.Chess.Domain.Notation;
 
 namespace Bezoro.Chess.Application.Features.PlayGame
 {
 	public class GamePresenter : IUserInputHandler
 	{
-		public GamePresenter(IGameView view)
+		public GamePresenter(IGameView view, GameManager gameManager)
 		{
 			_view                  =  view;
-			_gameManager           =  new();
+			_gameManager           =  gameManager;
 			_movesForSelectedPiece =  Enumerable.Empty<(Move move, bool isLegal)>();
 			_gameManager.GameEnded += OnGameEnded;
 		}
@@ -23,8 +22,6 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		private readonly IGameView                              _view;
 		private          Move?                                  _pendingPromotionMove;
 		private          Position?                              _selectedPosition;
-
-		public GameManager GameManager => _gameManager;
 
 	#region Interface Implementations
 
@@ -257,11 +254,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			}
 
 			// Update the move history display
-			_view.UpdateMoveHistory(
-				_gameManager.MoveHistory
-							.Select(
-								(move, idx) =>
-									move.ToSAN(_gameManager.GameStateHistory[idx])));
+			_view.UpdateMoveHistory(_gameManager.GetMoveHistoryInSAN());
 
 			// Update the game status display.
 			_gameManager.CapturedPieces.TryGetValue(PieceColor.White, out var whitePieces);
