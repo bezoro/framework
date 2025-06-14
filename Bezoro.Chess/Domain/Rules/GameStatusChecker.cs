@@ -34,20 +34,40 @@ namespace Bezoro.Chess.Domain.Rules
 
 		public bool IsDrawByInsufficientMaterial()
 		{
+			// Get all non-king pieces on the board
 			var pieces = _gameManager.CurrentState.PiecePositions.Cast<Piece>()
 									 .Where(p => p.Type is not PieceType.None and not PieceType.King)
 									 .ToList();
 
+			// If there are any pawns, rooks, or queens, a checkmate is possible
 			if (pieces.Any(p => p.Type is PieceType.Pawn or PieceType.Rook or PieceType.Queen))
 				return false;
 
-			if (pieces.Count <= 1)
+			// No pieces other than kings means draw
+			if (pieces.Count == 0)
 				return true;
 
-			if (pieces.Count != 2 || pieces.Any(p => p.Type != PieceType.Bishop))
-				return false;
+			// Group pieces by player color
+			var whitePieces = pieces.Where(p => p.Color == PieceColor.White).ToList();
+			var blackPieces = pieces.Where(p => p.Color == PieceColor.Black).ToList();
 
-			var bishops = new List<(Position Position, PieceColor Color)>();
+			// One side has no pieces other than king
+			if (whitePieces.Count == 0 || blackPieces.Count == 0)
+			{
+				var remainingPieces = whitePieces.Count > 0 ? whitePieces : blackPieces;
+
+				// King vs King + single knight or bishop is a draw
+				if (remainingPieces.Count == 1 &&
+					(remainingPieces[0].Type == PieceType.Knight || remainingPieces[0].Type == PieceType.Bishop))
+					return true;
+
+				// King vs King + 2 Knights can't force checkmate (according to FIDE rules)
+				if (remainingPieces.Count == 2 && remainingPieces.All(p => p.Type == PieceType.Knight))
+					return true;
+			}
+
+			// Check for bishops of the same color scenario
+			var bishops = new List<(Position Position, PieceColor PlayerColor)>();
 			for (var r = 0 ; r < 8 ; r++)
 			{
 				for (var c = 0 ; c < 8 ; c++)
@@ -58,15 +78,28 @@ namespace Bezoro.Chess.Domain.Rules
 				}
 			}
 
-			// If bishops belong to the same player, it's not a draw
-			if (bishops[0].Color == bishops[1].Color)
+			// Special case: if all bishops are on same-colored squares
+			if (bishops.Count > 0 && pieces.All(p => p.Type == PieceType.Bishop || p.Type == PieceType.King))
 			{
-				return false;
+				// Check if all bishops move on same-colored squares
+				var allOnSameColoredSquares = true;
+				var squareColor             = (bishops[0].Position.Row + bishops[0].Position.Col) % 2;
+
+				for (var i = 1 ; i < bishops.Count ; i++)
+				{
+					if ((bishops[i].Position.Row + bishops[i].Position.Col) % 2 != squareColor)
+					{
+						allOnSameColoredSquares = false;
+						break;
+					}
+				}
+
+				if (allOnSameColoredSquares)
+					return true;
 			}
 
-			// Check if bishops are on same colored squares
-			var (pos1, pos2) = (bishops[0].Position, bishops[1].Position);
-			return (pos1.Row + pos1.Col) % 2 == (pos2.Row + pos2.Col) % 2;
+			// All other cases are not draws by insufficient material
+			return false;
 		}
 
 		public bool IsDrawByThreefoldRepetition() =>
@@ -124,10 +157,14 @@ namespace Bezoro.Chess.Domain.Rules
 
 		private (bool hasLegalMoves, bool isKingInCheck) GetGameStatus()
 		{
-			_gameStatusCache ??= (
-				_gameManager.GetLegalMoves().Any(),
-				IsKingInCheck(_gameManager.CurrentState, _gameManager.CurrentState.ActiveColor)
-			);
+			// If cache is null or invalidated, compute and store the game status
+			if (!_gameStatusCache.HasValue)
+			{
+				_gameStatusCache = (
+					_gameManager.GetLegalMoves().Any(),
+					IsKingInCheck(_gameManager.CurrentState, _gameManager.CurrentState.ActiveColor)
+				);
+			}
 
 			return _gameStatusCache.Value;
 		}
