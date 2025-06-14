@@ -19,6 +19,17 @@ namespace Bezoro.Chess.Domain
 
 	public record GameState
 	{
+		private static readonly (int, int)[] BishopAttackVectors = { (-1, -1), (-1, 1), (1, -1), (1, 1) };
+		private static readonly (int, int)[] KingAttackVectors =
+			{ (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1) };
+
+		// Attack vectors for non-sliding pieces
+		private static readonly (int, int)[] KnightAttackVectors =
+			{ (-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1) };
+
+		// Direction vectors for sliding pieces
+		private static readonly (int, int)[] RookAttackVectors = { (-1, 0), (1, 0), (0, -1), (0, 1) };
+
 		/// <summary>
 		///     Creates a game state with the standard chess starting position.
 		/// </summary>
@@ -94,9 +105,125 @@ namespace Bezoro.Chess.Domain
 		/// </summary>
 		public Position? EnPassantTargetSquare { get; init; }
 
+		/// <summary>
+		///     Checks if a square is attacked by any piece of the specified attacker color.
+		///     This implementation is non-recursive to prevent stack overflows during move generation.
+		///     It checks for attacks by looking "outward" from the target square for enemy pieces.
+		/// </summary>
+		/// <param name="square">The square to check.</param>
+		/// <param name="attackerColor">The color of the attacking pieces.</param>
+		public bool IsSquareAttackedBy(Position square, PieceColor attackerColor)
+		{
+			// Check for pawn attacks
+			if (IsAttackedByPawn(square, attackerColor)) return true;
+
+			// Check for knight attacks
+			if (IsAttackedByPiece(square, attackerColor, PieceType.Knight, KnightAttackVectors)) return true;
+
+			// Check for king attacks
+			if (IsAttackedByPiece(square, attackerColor, PieceType.King, KingAttackVectors)) return true;
+
+			// Check for sliding attacks (Rooks, Bishops, Queens)
+			if (IsAttackedBySlidingPiece(square, attackerColor, RookAttackVectors,   PieceType.Rook)) return true;
+			if (IsAttackedBySlidingPiece(square, attackerColor, BishopAttackVectors, PieceType.Bishop)) return true;
+
+			return false;
+		}
+
 		public GameState ExecuteMove(Move move) =>
 			MoveExecution.ExecuteMove(this, move);
 
 		public Piece GetPieceAt(Position position) => PiecePositions[position.Row, position.Col];
+
+		/// <summary>
+		///     Finds the position of the king for a given color.
+		///     Returns null if the king is not on the board.
+		/// </summary>
+		public Position? FindKingPosition(PieceColor kingColor)
+		{
+			for (var r = 0 ; r < 8 ; r++)
+			{
+				for (var c = 0 ; c < 8 ; c++)
+				{
+					var piece = PiecePositions[r, c];
+					if (piece.Type == PieceType.King && piece.Color == kingColor)
+					{
+						return new Position(r, c);
+					}
+				}
+			}
+
+			return null;
+		}
+
+		private bool IsAttackedByPawn(Position square, PieceColor attackerColor)
+		{
+			// Pawns attack diagonally forward. We check from the target square "backwards" 
+			// to where an attacking pawn would need to be.
+			// White pawns move from high row index to low, Black from low to high.
+			var pawnAttackDirection = attackerColor == PieceColor.White ? 1 : -1;
+			var leftAttackOrig      = new Position(square.Row + pawnAttackDirection, square.Col - 1);
+			var rightAttackOrig     = new Position(square.Row + pawnAttackDirection, square.Col + 1);
+
+			if (BoardHelper.IsInsideBoard(leftAttackOrig))
+			{
+				var piece = GetPieceAt(leftAttackOrig);
+				if (piece.Type == PieceType.Pawn && piece.Color == attackerColor) return true;
+			}
+
+			if (BoardHelper.IsInsideBoard(rightAttackOrig))
+			{
+				var piece = GetPieceAt(rightAttackOrig);
+				if (piece.Type == PieceType.Pawn && piece.Color == attackerColor) return true;
+			}
+
+			return false;
+		}
+
+		private bool IsAttackedByPiece(
+			Position square, PieceColor attackerColor, PieceType type, (int dRow, int dCol)[] vectors)
+		{
+			foreach (var (dRow, dCol) in vectors)
+			{
+				var potentialAttackerPos = new Position(square.Row + dRow, square.Col + dCol);
+				if (!BoardHelper.IsInsideBoard(potentialAttackerPos)) continue;
+
+				var piece = GetPieceAt(potentialAttackerPos);
+				if (piece.Type == type && piece.Color == attackerColor)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		private bool IsAttackedBySlidingPiece(
+			Position square, PieceColor attackerColor, (int dRow, int dCol)[] vectors, PieceType sliderType)
+		{
+			foreach (var (dRow, dCol) in vectors)
+			{
+				for (var i = 1 ; i < 8 ; i++)
+				{
+					var potentialAttackerPos = new Position(square.Row + i * dRow, square.Col + i * dCol);
+					if (!BoardHelper.IsInsideBoard(potentialAttackerPos)) break; // Off board
+
+					var piece = GetPieceAt(potentialAttackerPos);
+					if (piece.Type != PieceType.None)
+					{
+						// Found a piece. Is it an attacker?
+						if (piece.Color == attackerColor && (piece.Type == sliderType || piece.Type == PieceType.Queen))
+						{
+							return true;
+						}
+
+						// Any piece (friendly or not) blocks further, so stop searching in this direction.
+						break;
+					}
+				}
+			}
+
+			return false;
+		}
 	}
 }
