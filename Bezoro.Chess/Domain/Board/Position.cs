@@ -10,13 +10,6 @@ namespace Bezoro.Chess.Domain.Board
 	{
 		public Position(int row, int col)
 		{
-			if (row < 0 || row > 7 || col < 0 || col > 7)
-			{
-				throw new ArgumentOutOfRangeException(
-					$"{nameof(row)}, {nameof(col)}",
-					$"Position coordinates must be between 0-7. Got row: {row}, col: {col}");
-			}
-
 			Row = row;
 			Col = col;
 		}
