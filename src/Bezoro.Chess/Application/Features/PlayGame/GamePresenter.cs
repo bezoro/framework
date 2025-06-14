@@ -24,6 +24,8 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		private          Move?                                  _pendingPromotionMove;
 		private          Position?                              _selectedPosition;
 
+		public GameManager GameManager => _gameManager;
+
 	#region Interface Implementations
 
 		/// <summary>
