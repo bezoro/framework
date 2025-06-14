@@ -46,12 +46,19 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 		private static bool CanCastle(GameState gameState, CastlingSide side)
 		{
 			var color         = gameState.ActiveColor;
-			var kingPos       = gameState.FindKingPosition(color);
 			var opponentColor = color.Opposite();
 
-			if (kingPos == null) return false;
+			// The king must be on its home rank to castle.
+			var homeRow = color == PieceColor.White ? 7 : 0;
+			var kingPos = gameState.FindKingPosition(color);
 
-			var row = kingPos.Value.Row;
+			// Rule: King must be on its starting square (e1/e8).
+			if (kingPos == null || kingPos.Value.Row != homeRow || kingPos.Value.Col != 4)
+			{
+				return false;
+			}
+
+			// Rule: Check if castling rights are present.
 			var hasRights =
 				(gameState.Castling &
 				 (side == CastlingSide.Kingside
@@ -61,31 +68,46 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 			if (!hasRights) return false;
 
-			var pathSquares  = new List<Position>();
-			var emptySquares = new List<Position>();
+			var      pathSquares  = new List<Position>();
+			var      emptySquares = new List<Position>();
+			Position rookPos;
 
 			if (side == CastlingSide.Kingside)
 			{
-				pathSquares.Add(new(row, 5)); // f1/f8
-				emptySquares.Add(new(row, 5));
-				emptySquares.Add(new(row, 6)); // g1/g8
+				rookPos = new(homeRow, 7); // h-file
+				// Path king travels (f and g files)
+				pathSquares.Add(new(homeRow, 5));
+				pathSquares.Add(new(homeRow, 6));
+				// Squares that must be empty
+				emptySquares.Add(new(homeRow, 5));
+				emptySquares.Add(new(homeRow, 6));
 			}
 			else // Queenside
 			{
-				pathSquares.Add(new(row, 3)); // d1/d8
-				pathSquares.Add(new(row, 2)); // c1/c8
-				emptySquares.Add(new(row, 3));
-				emptySquares.Add(new(row, 2));
-				emptySquares.Add(new(row, 1)); // b1/b8
+				rookPos = new(homeRow, 0); // a-file
+				// Path king travels (d and c files)
+				pathSquares.Add(new(homeRow, 3));
+				pathSquares.Add(new(homeRow, 2));
+				// Squares that must be empty
+				emptySquares.Add(new(homeRow, 3));
+				emptySquares.Add(new(homeRow, 2));
+				emptySquares.Add(new(homeRow, 1));
 			}
 
-			// Rule: All squares between King and Rook must be empty
-			if (emptySquares.Exists(pos => gameState.PiecePositions[pos.Row, pos.Col].Type != PieceType.None))
+			// Rule: The rook must be on its starting square.
+			var rook = gameState.GetPieceAt(rookPos);
+			if (rook.Type != PieceType.Rook || rook.Color != color)
 			{
 				return false;
 			}
 
-			// Rule: King cannot pass through an attacked square.
+			// Rule: All squares between King and Rook must be empty
+			if (emptySquares.Exists(pos => gameState.GetPieceAt(pos).Type != PieceType.None))
+			{
+				return false;
+			}
+
+			// Rule: King cannot pass through or land on an attacked square.
 			return pathSquares.TrueForAll(pos => !gameState.IsSquareAttackedBy(pos, opponentColor));
 		}
 
