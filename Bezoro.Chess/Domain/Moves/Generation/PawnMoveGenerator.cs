@@ -12,14 +12,31 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			var startRow     = pawn.Color == PieceColor.White ? 6 : 1;
 			var promotionRow = pawn.Color == PieceColor.White ? 0 : 7;
 
+			// Use helper methods to generate moves for each category
+			foreach (var move in GenerateAdvanceMoves(from, gameState, pawn, direction, startRow, promotionRow))
+			{
+				yield return move;
+			}
+
+			foreach (var move in GenerateCaptureMoves(from, gameState, pawn, direction, promotionRow))
+			{
+				yield return move;
+			}
+		}
+
+		/// <summary>
+		///     Generates single and double square advances for a pawn.
+		/// </summary>
+		private static IEnumerable<Move> GenerateAdvanceMoves(
+			Position from, GameState gameState, Piece pawn, int direction, int startRow, int promotionRow)
+		{
 			// 1. Single-square advance
 			var oneStepForward = new Position(from.Row + direction, from.Col);
 			if (BoardHelper.IsInsideBoard(oneStepForward) &&
-				gameState.PiecePositions[oneStepForward.Row, oneStepForward.Col].Type == PieceType.None)
+				gameState.GetPieceAt(oneStepForward).Type == PieceType.None)
 			{
 				if (oneStepForward.Row == promotionRow)
 				{
-					// Quiet promotion: generate a move for each possible promotion piece.
 					foreach (var move in GeneratePromotionMoves(from, oneStepForward, pawn, default))
 					{
 						yield return move;
@@ -29,24 +46,28 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				{
 					yield return Move.CreateNormal(from, oneStepForward, pawn);
 				}
-			}
 
-			// 2. Two-square advance from starting position
-			if (from.Row == startRow)
-			{
-				var oneStepIsEmpty  = gameState.PiecePositions[from.Row + direction, from.Col].Type == PieceType.None;
-				var twoStepsForward = new Position(from.Row + 2 * direction, from.Col);
-				if (oneStepIsEmpty                             &&
-					BoardHelper.IsInsideBoard(twoStepsForward) &&
-					gameState.PiecePositions[twoStepsForward.Row, twoStepsForward.Col].Type == PieceType.None)
+				// 2. Two-square advance (only possible if one-step advance is also possible)
+				if (from.Row == startRow)
 				{
-					yield return Move.CreateNormal(from, twoStepsForward, pawn);
+					var twoStepsForward = new Position(from.Row + 2 * direction, from.Col);
+					if (BoardHelper.IsInsideBoard(twoStepsForward) &&
+						gameState.GetPieceAt(twoStepsForward).Type == PieceType.None)
+					{
+						yield return Move.CreateNormal(from, twoStepsForward, pawn);
+					}
 				}
 			}
+		}
 
-			// 3. Diagonal captures
-			(int dRow, int dCol)[] captureMoves = { (direction, -1), (direction, 1) };
-			foreach (var (dRow, dCol) in captureMoves)
+		/// <summary>
+		///     Generates standard diagonal captures and en passant captures.
+		/// </summary>
+		private static IEnumerable<Move> GenerateCaptureMoves(
+			Position from, GameState gameState, Piece pawn, int direction, int promotionRow)
+		{
+			(int dRow, int dCol)[] captureVectors = { (direction, -1), (direction, 1) };
+			foreach (var (dRow, dCol) in captureVectors)
 			{
 				var toPosition = new Position(from.Row + dRow, from.Col + dCol);
 
@@ -55,15 +76,13 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					continue;
 				}
 
-				// Standard capture
-				var pieceAtDestination = gameState.PiecePositions[toPosition.Row, toPosition.Col];
+				// 3. Standard diagonal capture
+				var pieceAtDestination = gameState.GetPieceAt(toPosition);
 				if (pieceAtDestination.Type != PieceType.None && pieceAtDestination.Color != pawn.Color)
 				{
 					if (toPosition.Row == promotionRow)
 					{
-						// Capture-promotion: generate a move for each possible promotion piece.
-						foreach (var move in GeneratePromotionMoves(
-									 from, toPosition, pawn, pieceAtDestination))
+						foreach (var move in GeneratePromotionMoves(from, toPosition, pawn, pieceAtDestination))
 						{
 							yield return move;
 						}
@@ -75,12 +94,10 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				}
 
 				// 4. En passant capture
-				if (gameState.EnPassantTargetSquare.HasValue                    &&
-					toPosition.Row == gameState.EnPassantTargetSquare.Value.Row &&
-					toPosition.Col == gameState.EnPassantTargetSquare.Value.Col)
+				if (gameState.EnPassantTargetSquare.HasValue && toPosition == gameState.EnPassantTargetSquare.Value)
 				{
 					var capturedPawnPosition = new Position(from.Row, toPosition.Col);
-					var capturedPawn = gameState.PiecePositions[capturedPawnPosition.Row, capturedPawnPosition.Col];
+					var capturedPawn         = gameState.GetPieceAt(capturedPawnPosition);
 					yield return Move.CreateEnPassant(from, toPosition, pawn, capturedPawn);
 				}
 			}
