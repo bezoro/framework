@@ -7,6 +7,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 	{
 		public static IEnumerable<Move> GenerateMoves(Position from, GameState gameState)
 		{
+			// Standard King Moves (1 square in any direction)
 			(int dRow, int dCol)[] directions =
 			{
 				(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
@@ -35,58 +36,89 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				}
 			}
 
+			// Castling Moves
 			foreach (var move in GenerateCastlingMoves(from, gameState))
 			{
 				yield return move;
 			}
 		}
 
+		private static bool CanCastle(GameState gameState, CastlingSide side)
+		{
+			var color         = gameState.ActiveColor;
+			var kingPos       = gameState.FindKingPosition(color);
+			var opponentColor = color.Opposite();
+
+			if (kingPos == null) return false;
+
+			var row = kingPos.Value.Row;
+			var hasRights =
+				(gameState.Castling &
+				 (side == CastlingSide.Kingside
+					 ? color == PieceColor.White ? CastlingRights.WhiteKingside : CastlingRights.BlackKingside
+					 : color == PieceColor.White ? CastlingRights.WhiteQueenside : CastlingRights.BlackQueenside)) !=
+				0;
+
+			if (!hasRights) return false;
+
+			var pathSquares  = new List<Position>();
+			var emptySquares = new List<Position>();
+
+			if (side == CastlingSide.Kingside)
+			{
+				pathSquares.Add(new(row, 5)); // f1/f8
+				emptySquares.Add(new(row, 5));
+				emptySquares.Add(new(row, 6)); // g1/g8
+			}
+			else // Queenside
+			{
+				pathSquares.Add(new(row, 3)); // d1/d8
+				pathSquares.Add(new(row, 2)); // c1/c8
+				emptySquares.Add(new(row, 3));
+				emptySquares.Add(new(row, 2));
+				emptySquares.Add(new(row, 1)); // b1/b8
+			}
+
+			// Rule: All squares between King and Rook must be empty
+			if (emptySquares.Exists(pos => gameState.PiecePositions[pos.Row, pos.Col].Type != PieceType.None))
+			{
+				return false;
+			}
+
+			// Rule: King cannot pass through an attacked square.
+			return pathSquares.TrueForAll(pos => !gameState.IsSquareAttackedBy(pos, opponentColor));
+		}
+
 		private static IEnumerable<Move> GenerateCastlingMoves(Position from, GameState gameState)
 		{
-			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			var movingPiece   = gameState.PiecePositions[from.Row, from.Col];
+			var opponentColor = gameState.ActiveColor.Opposite();
 
-			if (gameState.ActiveColor == PieceColor.White)
+			// Rule: King cannot be in check to castle.
+			if (gameState.IsSquareAttackedBy(from, opponentColor))
 			{
-				if (from.Row != 7 || from.Col != 4) yield break;
-
-				// Kingside Castling
-				if ((gameState.Castling & CastlingRights.WhiteKingside) != 0              &&
-					gameState.PiecePositions[7, 5].Type                 == PieceType.None &&
-					gameState.PiecePositions[7, 6].Type                 == PieceType.None)
-				{
-					yield return Move.CreateCastleKingside(from, new(7, 6), movingPiece);
-				}
-
-				// Queenside Castling
-				if ((gameState.Castling & CastlingRights.WhiteQueenside) != 0              &&
-					gameState.PiecePositions[7, 3].Type                  == PieceType.None &&
-					gameState.PiecePositions[7, 2].Type                  == PieceType.None &&
-					gameState.PiecePositions[7, 1].Type                  == PieceType.None)
-				{
-					yield return Move.CreateCastleQueenside(from, new(7, 2), movingPiece);
-				}
+				yield break;
 			}
-			else // Black
+
+			// Check Kingside Castling
+			if (CanCastle(gameState, CastlingSide.Kingside))
 			{
-				if (from.Row != 0 || from.Col != 4) yield break;
+				var to = new Position(from.Row, from.Col + 2);
+				yield return Move.CreateCastleKingside(from, to, movingPiece);
+			}
 
-				// Kingside Castling
-				if ((gameState.Castling & CastlingRights.BlackKingside) != 0              &&
-					gameState.PiecePositions[0, 5].Type                 == PieceType.None &&
-					gameState.PiecePositions[0, 6].Type                 == PieceType.None)
-				{
-					yield return Move.CreateCastleKingside(from, new(0, 6), movingPiece);
-				}
-
-				// Queenside Castling
-				if ((gameState.Castling & CastlingRights.BlackQueenside) != 0              &&
-					gameState.PiecePositions[0, 3].Type                  == PieceType.None &&
-					gameState.PiecePositions[0, 2].Type                  == PieceType.None &&
-					gameState.PiecePositions[0, 1].Type                  == PieceType.None)
-				{
-					yield return Move.CreateCastleQueenside(from, new(0, 2), movingPiece);
-				}
+			// Check Queenside Castling
+			if (CanCastle(gameState, CastlingSide.Queenside))
+			{
+				var to = new Position(from.Row, from.Col - 2);
+				yield return Move.CreateCastleQueenside(from, to, movingPiece);
 			}
 		}
+	}
+
+	internal enum CastlingSide
+	{
+		Kingside,
+		Queenside
 	}
 }
