@@ -6,31 +6,34 @@ namespace Bezoro.Chess.Infrastructure.Fen
 {
 	public static class FenParser
 	{
+		private const int BoardSize = 8;
+
 		public static GameState FenToGameState(string fen)
 		{
-			var parts = fen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-			// A valid FEN always contains exactly six space-separated fields.
-			if (parts.Length != 6)
-				throw new ArgumentException(
-					$"Invalid FEN string: expected 6 fields, found {parts.Length}.", nameof(fen));
-
-			var piecePositions  = ParsePiecePlacement(parts[0]);
-			var activeColor     = ParseActiveColor(parts[1]);
-			var castlingRights  = ParseCastlingRights(parts[2]);
-			var enPassantTarget = ParseEnPassantTarget(parts[3]);
-			var halfMoveClock   = ParseHalfMoveClock(parts[4]);
-			var fullMoveNumber  = ParseFullMoveNumber(parts[5]);
+			var (placement, color, castling, enPassant, halfMove, fullMove) = SplitFenString(fen);
 
 			return new()
 			{
-				PiecePositions        = piecePositions,
-				ActiveColor           = activeColor,
-				Castling              = castlingRights,
-				EnPassantTargetSquare = enPassantTarget,
-				HalfMoveClock         = halfMoveClock,
-				FullMoveNumber        = fullMoveNumber
+				PiecePositions        = ParsePiecePlacement(placement),
+				ActiveColor           = ParseActiveColor(color),
+				Castling              = ParseCastlingRights(castling),
+				EnPassantTargetSquare = ParseEnPassantTarget(enPassant),
+				HalfMoveClock         = ParseHalfMoveClock(halfMove),
+				FullMoveNumber        = ParseFullMoveNumber(fullMove)
 			};
+		}
+
+		private static (string placement, string color, string castling,
+			string enPassant, string halfMove, string fullMove) SplitFenString(string fen)
+		{
+			var parts = fen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+			const int expectedFenPartCount = 6;
+			if (parts.Length != expectedFenPartCount)
+				throw new ArgumentException(
+					$"Invalid FEN string: expected {expectedFenPartCount} fields, found {parts.Length}.", nameof(fen));
+
+			return (parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
 		}
 
 		private static CastlingRights ParseCastlingRights(string castlingPart)
@@ -78,26 +81,51 @@ namespace Bezoro.Chess.Infrastructure.Fen
 
 		private static Piece[,] ParsePiecePlacement(string placementPart)
 		{
-			var board = new Piece[8, 8];
+			var board = new Piece[BoardSize, BoardSize];
 			int row   = 0, col = 0;
 
 			foreach (var character in placementPart)
 			{
-				if (character == '/')
+				if (row >= BoardSize)
+					throw new ArgumentException($"Invalid FEN: Too many rows defined. Expected {BoardSize}.");
+
+				switch (character)
 				{
-					row++;
-					col = 0;
-				}
-				else if (char.IsDigit(character))
-				{
-					col += (int)char.GetNumericValue(character);
-				}
-				else
-				{
-					board[row, col] = FenCharToPiece(character);
-					col++;
+					case '/':
+						if (col != BoardSize)
+							throw new ArgumentException(
+								$"Invalid FEN: Row {row + 1} is not completely defined. It has {col} squares instead of {BoardSize}.");
+
+						row++;
+						col = 0;
+						break;
+					case >= '1' and <= '8' when char.IsDigit(character):
+						col += (int)char.GetNumericValue(character);
+						if (col > BoardSize)
+							throw new ArgumentException(
+								$"Invalid FEN: Row {row + 1} contains more than {BoardSize} squares.");
+
+						break;
+					default:
+					{
+						if (col >= BoardSize)
+							throw new ArgumentException(
+								$"Invalid FEN: Row {row + 1} contains more than {BoardSize} squares.");
+
+						board[row, col] = FenCharToPiece(character);
+						col++;
+						break;
+					}
 				}
 			}
+
+			if (row != BoardSize - 1)
+				throw new ArgumentException(
+					$"Invalid FEN: Not enough rows defined. Expected {BoardSize}, but found {row + 1}.");
+
+			if (col != BoardSize)
+				throw new ArgumentException(
+					$"Invalid FEN: The last row is not completely defined. It has {col} squares instead of {BoardSize}.");
 
 			return board;
 		}
