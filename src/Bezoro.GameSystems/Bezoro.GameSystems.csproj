@@ -1,23 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- Core project properties -->
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
         <LangVersion>9</LangVersion>
         <Nullable>enable</Nullable>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-    <!-- Items that affect compilation -->
     <ItemGroup>
-        <InternalsVisibleTo Include="Bezoro.Chess.Tests"/>
+        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
     </ItemGroup>
 
-    <!-- Custom build targets -->
     <Target Name="CopyToUnity" AfterTargets="Build">
+        <!-- copy built DLL into your Unity project -->
         <PropertyGroup>
-            <!-- Properties specific to this target -->
-            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\Chess\</UnityPluginDir>
+            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\GameSystems\</UnityPluginDir>
         </PropertyGroup>
 
         <ItemGroup>

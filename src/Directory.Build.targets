@@ -1,0 +1,13 @@
+<Project>
+    <Target Name="CopyToUnity" AfterTargets="Build">
+        <PropertyGroup>
+            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\$(AssemblyName)\</UnityPluginDir>
+        </PropertyGroup>
+        <ItemGroup>
+            <BuiltOutputs Include="$(TargetDir)$(AssemblyName).dll"/>
+            <BuiltOutputs Include="$(TargetDir)$(AssemblyName).pdb" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')"/>
+        </ItemGroup>
+        <MakeDir Directories="$(UnityPluginDir)" Condition="!Exists('$(UnityPluginDir)')"/>
+        <Copy SourceFiles="@(BuiltOutputs)" DestinationFolder="$(UnityPluginDir)" SkipUnchangedFiles="true"/>
+    </Target>
+</Project>
