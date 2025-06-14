@@ -16,19 +16,11 @@ namespace Bezoro.Core.Common.Primitives
 
 		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
 		{
-			_items  = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
-			_count  = 0;
-			_logger = logger;
+			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
+			_count = 0;
 
 			Logger.LogSuccess($"SwapbackArray initialized with capacity: {initialCapacity}");
 		}
-
-		/// <summary>
-		///     A logger interface instance used to record operational messages, errors, and warnings
-		///     within the <see cref="SwapbackArray{T}" />. It enables tracking and debugging of array-related
-		///     operations and processes, enhancing observability and diagnostics.
-		/// </summary>
-		private ILogger _logger;
 
 		/// <summary>
 		///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
@@ -68,16 +60,19 @@ namespace Bezoro.Core.Common.Primitives
 		/// </returns>
 		public bool Try_Get(int index, out T value)
 		{
-			if (index < 0 || index >= _count)
+			lock ( _lock )
 			{
-				Logger.Log_Error($"Attempted to access invalid index: {index}");
-				value = default;
-				return false;
-			}
+				if (index < 0 || index >= _count)
+				{
+					Logger.Log_Error($"Attempted to access invalid index: {index}");
+					value = default;
+					return false;
+				}
 
-			value = _items[index];
-			Logger.LogSuccess($"Item retrieved at index {index}: {value}");
-			return true;
+				value = _items[index];
+				Logger.LogSuccess($"Item retrieved at index {index}: {value}");
+				return true;
+			}
 		}
 
 		/// <summary>
@@ -87,15 +82,18 @@ namespace Bezoro.Core.Common.Primitives
 		/// <param name="item">The item to add to the SwapbackArray.</param>
 		public void Add(T item)
 		{
-			if (_count == _items.Length)
+			lock ( _lock )
 			{
-				Logger.LogWarning("Array capacity reached. Resizing...");
-				Resize(_items.Length * 2);
-				Logger.LogSuccess($"Array resized to new capacity: {_items.Length}");
-			}
+				if (_count == _items.Length)
+				{
+					Logger.LogWarning("Array capacity reached. Resizing...");
+					Resize(_items.Length * 2);
+					Logger.LogSuccess($"Array resized to new capacity: {_items.Length}");
+				}
 
-			_items[_count++] = item;
-			Logger.LogSuccess($"Item added. Current count: {_count}");
+				_items[_count++] = item;
+				Logger.LogSuccess($"Item added. Current count: {_count}");
+			}
 		}
 
 		/// <summary>
@@ -103,10 +101,13 @@ namespace Bezoro.Core.Common.Primitives
 		/// </summary>
 		public void Clear()
 		{
-			Logger.LogInfo("Clearing all elements from the array.");
-			Array.Clear(_items, 0, _count);
-			_count = 0;
-			Logger.LogSuccess("Array cleared.");
+			lock ( _lock )
+			{
+				Logger.LogInfo("Clearing all elements from the array.");
+				Array.Clear(_items, 0, _count);
+				_count = 0;
+				Logger.LogSuccess("Array cleared.");
+			}
 		}
 
 		public void Remove_At(int index)
@@ -118,7 +119,7 @@ namespace Bezoro.Core.Common.Primitives
 
 				Perform_Swap_And_Trim(index);
 
-				if (Should_Resize(_count, _items.Length))
+				if (ShouldResize(_count, _items.Length))
 				{
 					Logger.LogWarning("Array under-utilized. Resizing...");
 					Resize(Math.Max(_items.Length / 2, _MINIMUM_ARRAY_SIZE));
@@ -127,7 +128,7 @@ namespace Bezoro.Core.Common.Primitives
 			}
 		}
 
-		private bool Should_Resize(int currentCount, int currentCapacity) =>
+		private static bool ShouldResize(int currentCount, int currentCapacity) =>
 			currentCount <= currentCapacity / 4 && currentCapacity > _MINIMUM_ARRAY_SIZE;
 
 		private bool Validate_Remove_Index(int index)
@@ -179,8 +180,7 @@ namespace Bezoro.Core.Common.Primitives
 		~SwapbackArray()
 		{
 			Logger.LogSuccess("SwapbackArray finalized and resources released.");
-			_items  = null;
-			_logger = null;
+			_items = null;
 		}
 	}
 }
