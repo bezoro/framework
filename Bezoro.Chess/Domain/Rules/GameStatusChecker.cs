@@ -47,17 +47,25 @@ namespace Bezoro.Chess.Domain.Rules
 			if (pieces.Count != 2 || pieces.Any(p => p.Type != PieceType.Bishop))
 				return false;
 
-			var bishopPositions = new List<Position>();
+			var bishops = new List<(Position Position, PieceColor Color)>();
 			for (var r = 0 ; r < 8 ; r++)
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					if (_gameManager.CurrentState.PiecePositions[r, c].Type == PieceType.Bishop)
-						bishopPositions.Add(new(r, c));
+					var piece = _gameManager.CurrentState.PiecePositions[r, c];
+					if (piece.Type == PieceType.Bishop)
+						bishops.Add((new(r, c), piece.Color));
 				}
 			}
 
-			var (pos1, pos2) = (bishopPositions[0], bishopPositions[1]);
+			// If bishops belong to the same player, it's not a draw
+			if (bishops[0].Color == bishops[1].Color)
+			{
+				return false;
+			}
+
+			// Check if bishops are on same colored squares
+			var (pos1, pos2) = (bishops[0].Position, bishops[1].Position);
 			return (pos1.Row + pos1.Col) % 2 == (pos2.Row + pos2.Col) % 2;
 		}
 
@@ -68,7 +76,9 @@ namespace Bezoro.Chess.Domain.Rules
 		{
 			var kingPosition = state.FindKingPosition(kingColor);
 			if (!kingPosition.HasValue)
+			{
 				throw new InvalidOperationException($"No {kingColor} king found on the board");
+			}
 
 			var opponentColor = kingColor.Opposite();
 			return state.IsSquareAttackedBy(kingPosition.Value, opponentColor);
@@ -86,18 +96,28 @@ namespace Bezoro.Chess.Domain.Rules
 		public void CheckAndSetGameEndOutcome()
 		{
 			if (IsCheckmate())
+			{
 				_gameManager.SetOutcome(
 					_gameManager.CurrentState.ActiveColor == PieceColor.White
 						? GameOutcome.BlackWin
 						: GameOutcome.WhiteWin);
+			}
 			else if (IsStalemate())
+			{
 				_gameManager.SetOutcome(GameOutcome.DrawStalemate);
+			}
 			else if (IsDrawByThreefoldRepetition())
+			{
 				_gameManager.SetOutcome(GameOutcome.DrawThreefold);
+			}
 			else if (IsDrawByInsufficientMaterial())
+			{
 				_gameManager.SetOutcome(GameOutcome.DrawInsufficientMaterial);
+			}
 			else if (IsDrawByFiftyMoveRule())
+			{
 				_gameManager.SetOutcome(GameOutcome.DrawFiftyMoves);
+			}
 		}
 
 		public void InvalidateCache() => _gameStatusCache = null;
