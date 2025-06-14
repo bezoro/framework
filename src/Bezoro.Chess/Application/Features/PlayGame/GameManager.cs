@@ -4,6 +4,7 @@ using System.Linq;
 using Bezoro.Chess.Domain;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Notation;
 using Bezoro.Chess.Domain.Rules;
 
 namespace Bezoro.Chess.Application.Features.PlayGame
@@ -108,6 +109,9 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
 			return pieceMoves.Where(IsMoveLegal);
 		}
+
+		public IEnumerable<string> GetMoveHistoryInSAN() =>
+			_moveHistory.Select((move, idx) => move.ToSAN(_gameStateHistory[idx]));
 
 		public void Forfeit()
 		{
