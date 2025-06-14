@@ -27,7 +27,7 @@ public class MoveSanExtensionsUnitTests
 		var move          = Move.CreateCapture(fromPos, toPos, piece, capturedPiece);
 
 		// Act
-		var san = move.ToSan(gameState);
+		var san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -60,7 +60,7 @@ public class MoveSanExtensionsUnitTests
 		}
 
 		// Act
-		var result = move.ToSan(gameState);
+		var result = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, result);
@@ -84,7 +84,7 @@ public class MoveSanExtensionsUnitTests
 		var move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSan(gameState);
+		var san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -104,7 +104,7 @@ public class MoveSanExtensionsUnitTests
 		var move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSan(gameState);
+		var san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -139,7 +139,7 @@ public class MoveSanExtensionsUnitTests
 		}
 
 		// Act
-		var san = move.ToSan(gameState);
+		var san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -181,7 +181,7 @@ public class MoveSanExtensionsUnitTests
 		var move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSan(gameState);
+		var san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
