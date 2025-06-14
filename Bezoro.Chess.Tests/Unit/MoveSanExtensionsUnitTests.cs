@@ -19,7 +19,7 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState     = FenParser.Parse(fen);
+		var gameState     = FenParser.FenToGameState(fen);
 		var fromPos       = new Position(from);
 		var toPos         = new Position(to);
 		var piece         = new Piece(pieceType, gameState.ActiveColor);
@@ -43,7 +43,7 @@ public class MoveSanExtensionsUnitTests
 	public void ToSan_ShouldReturnCorrectSan_ForCastling(string fen, MoveType moveType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.Parse(fen);
+		var gameState = FenParser.FenToGameState(fen);
 		var kingPos   = gameState.FindKingPosition(gameState.ActiveColor)!.Value;
 		var king      = gameState.PiecePositions[kingPos.Row, kingPos.Col];
 
@@ -77,7 +77,7 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.Parse(fen);
+		var gameState = FenParser.FenToGameState(fen);
 		var fromPos   = new Position(from);
 		var toPos     = new Position(to);
 		var piece     = new Piece(pieceType, gameState.ActiveColor);
@@ -97,7 +97,7 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.Parse(fen);
+		var gameState = FenParser.FenToGameState(fen);
 		var fromPos   = new Position(from);
 		var toPos     = new Position(to);
 		var piece     = new Piece(pieceType, gameState.ActiveColor);
@@ -122,7 +122,7 @@ public class MoveSanExtensionsUnitTests
 		string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.Parse(fen);
+		var gameState = FenParser.FenToGameState(fen);
 		var fromPos   = new Position(from);
 		var toPos     = new Position(to);
 		var pawn      = new Piece(pieceType, gameState.ActiveColor);
@@ -174,7 +174,7 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, MoveType moveType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.Parse(fen);
+		var gameState = FenParser.FenToGameState(fen);
 		var fromPos   = new Position(from);
 		var toPos     = new Position(to);
 		var piece     = new Piece(pieceType, gameState.ActiveColor);
