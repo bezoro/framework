@@ -109,6 +109,21 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			return pieceMoves.Where(IsMoveLegal);
 		}
 
+		public void Forfeit()
+		{
+			if (Outcome.IsFinished())
+			{
+				return;
+			}
+
+			// The player whose turn it is forfeits. The other player wins.
+			var outcome = CurrentState.ActiveColor == PieceColor.White
+				? GameOutcome.BlackWin
+				: GameOutcome.WhiteWin;
+
+			SetOutcome(outcome);
+		}
+
 		public void NewGame()
 		{
 			CurrentState = BoardSetup.CreateStandardGame();

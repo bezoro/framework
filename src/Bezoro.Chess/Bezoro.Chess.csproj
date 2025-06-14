@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <InternalsVisibleTo Include="Bezoro.Chess.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
+    </ItemGroup>
+</Project>

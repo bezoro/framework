@@ -19,7 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Bezoro.Core\Bezoro.Core.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

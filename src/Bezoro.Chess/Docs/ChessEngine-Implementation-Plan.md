@@ -7,19 +7,36 @@ The core architecture separates the Model and Presenter components into a standa
 into Unity, which serves as the View layer. This separation ensures clean architecture boundaries and enables
 independent testing of game logic.
 
-## Current Implementation Status
+## Current Implementation Status (Updated June 2025)
 
 Phase 1 (Core Infrastructure) has been successfully completed, with all core chess logic components implemented and
 tested. The project includes:
 
-- Complete board representation and piece logic
-- Move generation and validation for all piece types
-- Special move handling (castling, en passant, promotion)
-- Game state management with immutable state
-- FEN parsing and generation
-- Presenter layer with view interfaces
+✅ Complete board representation and piece logic
+✅ Move generation and validation for all piece types
+✅ Special move handling (castling, en passant, promotion)
+✅ Game state management with immutable state
+✅ Game state history with undo/redo functionality
+✅ Game outcome detection (checkmate, draws)
+✅ Presenter layer with view interfaces
+✅ SAN notation support for moves
 
 The project is currently transitioning to Phase 2 with the focus on Unity integration and UI development.
+
+## TODO List (High Priority)
+
+1. **Complete Unity View Implementation**
+    - Implement the `IGameView` interface in Unity
+    - Create the board visualization system
+    - Design piece movement animations
+
+2. **Add FEN Support**
+    - Complete FEN parsing and generation
+    - Add position import/export functionality
+
+3. **Implement Basic AI**
+    - Create a simple computer opponent
+    - Implement multiple difficulty levels
 
 The project will follow a strict test-driven development (TDD) approach where comprehensive unit tests must be created
 and passed before proceeding to the next implementation step. This ensures all behaviors are validated early and

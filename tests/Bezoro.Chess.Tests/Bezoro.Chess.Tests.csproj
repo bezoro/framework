@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
+        <LangVersion>default</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,8 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Bezoro.Chess\Bezoro.Chess.csproj"/>
-        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Bezoro.Chess\Bezoro.Chess.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
