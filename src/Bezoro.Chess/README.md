@@ -31,6 +31,8 @@ Bezoro.Framework.sln
        │   ├─ Functions/     ← pure systems (Parsing, Move, Outcome)
        │   └─ Extensions/    ← extension helpers for domain types
        ├─ API/               ← public façade & engine-facing contracts
+       │   ├─ Interfaces/    ← contracts for API consumers
+       │   └─ ViewModels/    ← immutable data transfer objects
        └─ Bezoro.Chess.csproj
 └─ tests
    └─ Bezoro.Chess.Tests/
