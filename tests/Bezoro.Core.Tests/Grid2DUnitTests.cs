@@ -133,7 +133,7 @@ public class Grid2DUnitTests
 
 		// Act
 		grid[testX, testY] = testValue;
-		var retrievedValue = grid[testX, testY];
+		double retrievedValue = grid[testX, testY];
 
 		// Assert
 		Assert.Equal(testValue, retrievedValue);

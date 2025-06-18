@@ -9,12 +9,12 @@ public class EntityManagerTests
 	public void CreateEntity_Should_Generate_New_Id_When_Pool_Is_Empty()
 	{
 		// Arrange
-		var entityManager = new EntityManager();
-		var entity1       = entityManager.CreateEntity(); // Id 0
-		var entity2       = entityManager.CreateEntity(); // Id 1
+		var    entityManager = new EntityManager();
+		Entity entity1       = entityManager.CreateEntity(); // Id 0
+		Entity entity2       = entityManager.CreateEntity(); // Id 1
 
 		// Act
-		var entity3 = entityManager.CreateEntity();
+		Entity entity3 = entityManager.CreateEntity();
 
 		// Assert
 		Assert.Equal(2, entity3.Id);
@@ -27,8 +27,8 @@ public class EntityManagerTests
 		var entityManager = new EntityManager();
 
 		// Act
-		var entity1 = entityManager.CreateEntity();
-		var entity2 = entityManager.CreateEntity();
+		Entity entity1 = entityManager.CreateEntity();
+		Entity entity2 = entityManager.CreateEntity();
 
 		// Assert
 		Assert.NotEqual(entity1.Id, entity2.Id);
@@ -38,13 +38,13 @@ public class EntityManagerTests
 	public void DestroyEntity_Should_Recycle_Entity_Id()
 	{
 		// Arrange
-		var entityManager   = new EntityManager();
-		var entityToDestroy = entityManager.CreateEntity();
-		var originalId      = entityToDestroy.Id;
+		var    entityManager   = new EntityManager();
+		Entity entityToDestroy = entityManager.CreateEntity();
+		int    originalId      = entityToDestroy.Id;
 
 		// Act
 		entityManager.DestroyEntity(entityToDestroy);
-		var newEntity = entityManager.CreateEntity();
+		Entity newEntity = entityManager.CreateEntity();
 
 		// Assert
 		Assert.Equal(originalId, newEntity.Id);

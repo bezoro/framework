@@ -26,7 +26,7 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenArrayIsEmpty_ThenItRemainsUnchanged()
 	{
 		// Arrange
-		var       array           = Array.Empty<int>();
+		int[]     array           = Array.Empty<int>();
 		const int elementToRemove = 3;
 
 		// Act
@@ -54,9 +54,9 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenArraySizeExceedsThreshold_ThenTargetElementIsRemoved()
 	{
 		// Arrange
-		var parallelThreshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
-		var array             = Enumerable.Range(1, parallelThreshold * 2).ToArray();
-		var elementToRemove   = parallelThreshold;
+		int   parallelThreshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
+		int[] array             = Enumerable.Range(1, parallelThreshold * 2).ToArray();
+		int   elementToRemove   = parallelThreshold;
 
 		// Act
 		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
@@ -85,7 +85,7 @@ public class ArrayRemoveElementUnitTests
 		// Arrange
 		var       array             = new[] { 1, 2, 3, 4, 5 };
 		const int elementNotInArray = 6;
-		var       initialLength     = array.Length;
+		int       initialLength     = array.Length;
 
 		// Act
 		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementNotInArray);
@@ -100,7 +100,7 @@ public class ArrayRemoveElementUnitTests
 	{
 		// Arrange
 		var array         = new int?[] { 1, 2, 3, 4, 5 };
-		var initialLength = array.Length;
+		int initialLength = array.Length;
 
 		// Act
 		Common.Helpers.ArrayHelpers.RemoveElement(ref array, null);
@@ -149,7 +149,7 @@ public class ArrayRemoveElementUnitTests
 	{
 		// Arrange
 		var       array           = new int?[] { 1, 2, 3, 4, 5 };
-		var       initialLength   = array.Length;
+		int       initialLength   = array.Length;
 		const int elementToRemove = 3;
 
 		// Act

@@ -24,7 +24,7 @@ public class RookMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(14);
@@ -40,8 +40,8 @@ public class RookMoveGenerationUnitTests
 	public void MoveGenerator_ForRookOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition  = new Position("d4");
-		var opponentColor = color.Opposite();
+		var        fromPosition  = new Position("d4");
+		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Rook, color);
@@ -62,7 +62,7 @@ public class RookMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves:
@@ -84,13 +84,13 @@ public class RookMoveGenerationUnitTests
 	public void MoveGenerator_ForStandardStartingRook_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
-		var isWhite = color == PieceColor.White;
+		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the rooks on a1/a8 are blocked by pawns.
-		var fromPosition = new Position(isWhite ? "a1" : "a8");
-		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var       fromPosition = new Position(isWhite ? "a1" : "a8");
+		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

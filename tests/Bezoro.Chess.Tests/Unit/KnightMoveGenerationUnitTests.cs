@@ -24,7 +24,7 @@ public class KnightMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(8);
@@ -36,8 +36,8 @@ public class KnightMoveGenerationUnitTests
 	public void MoveGenerator_ForKnightOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition  = new Position("d4");
-		var opponentColor = color.Opposite();
+		var        fromPosition  = new Position("d4");
+		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Knight, color);
@@ -57,7 +57,7 @@ public class KnightMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves: e6, f5, c2, b3 (open) + e2, b5 (captures) = 6 moves
@@ -77,11 +77,11 @@ public class KnightMoveGenerationUnitTests
 		PieceColor color, string from, string[] expectedMoves)
 	{
 		// Arrange
-		var fromPosition = new Position(from);
-		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var       fromPosition = new Position(from);
+		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(2);

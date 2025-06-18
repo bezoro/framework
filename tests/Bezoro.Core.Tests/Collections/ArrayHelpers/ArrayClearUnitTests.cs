@@ -9,7 +9,7 @@ public class ArrayClearUnitTests
 	public void Clear_WhenArrayExceedsParallelThreshold_UsesParallelMethodToResetAllElements()
 	{
 		// Arrange
-		var threshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
+		int threshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
 		var array     = new int[threshold * 2];
 
 		for (var i = 0 ; i < array.Length ; i++)
@@ -39,7 +39,7 @@ public class ArrayClearUnitTests
 	public void Clear_WhenArrayIsEmpty_DoesNotModifyArray()
 	{
 		// Arrange
-		var array = Array.Empty<int>();
+		int[] array = Array.Empty<int>();
 
 		// Act
 		Common.Helpers.ArrayHelpers.Clear(ref array);
@@ -55,7 +55,7 @@ public class ArrayClearUnitTests
 		int[]? array = null;
 
 		// Act
-		var exception = Record.Exception(() => Common.Helpers.ArrayHelpers.Clear(ref array));
+		Exception? exception = Record.Exception(() => Common.Helpers.ArrayHelpers.Clear(ref array));
 
 		// Assert
 		Assert.Null(exception);

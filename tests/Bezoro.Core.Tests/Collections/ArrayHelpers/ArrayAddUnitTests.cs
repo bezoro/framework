@@ -26,7 +26,7 @@ public class ArrayAddUnitTests
 		// Arrange
 		TestObject?[] array         = { };
 		var           elementToAdd  = new TestObject();
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 
 		// Act
 		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
@@ -44,7 +44,7 @@ public class ArrayAddUnitTests
 		// Arrange
 		TestObject?[] array         = { new(), new() };
 		var           elementToAdd  = new TestObject();
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 
 		// Act
 		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
@@ -77,7 +77,7 @@ public class ArrayAddUnitTests
 	{
 		// Arrange
 		var array         = new[] { new TestObject(), new TestObject() };
-		var initialLength = array.Length;
+		int initialLength = array.Length;
 
 		// Act
 		Common.Helpers.ArrayHelpers.Add(ref array, null);
@@ -93,10 +93,10 @@ public class ArrayAddUnitTests
 		// Arrange
 		TestObject?[] array         = { new(), new(), new() };
 		var           elementToAdd  = new TestObject();
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd, out var index);
+		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.Contains(elementToAdd, array);

@@ -11,9 +11,9 @@ public class MoveGenerationUnitTests(ITestOutputHelper output) : TestBase(output
 	[Fact]
 	public void GenerateMoves_ForStandardStartingPosition_ShouldReturnCorrectNumberOfMoves()
 	{
-		var gameState = BoardSetup.CreateStandardGame();
+		GameState gameState = BoardSetup.CreateStandardGame();
 
-		var moves = MoveGenerator.GenerateMoves(gameState).ToList();
+		List<Move> moves = MoveGenerator.GenerateMoves(gameState).ToList();
 
 		moves.Should().NotBeNullOrEmpty();
 		moves.Should().HaveCount(20);
@@ -24,7 +24,7 @@ public class MoveGenerationUnitTests(ITestOutputHelper output) : TestBase(output
 	{
 		var gameState = new GameState();
 
-		var moves = MoveGenerator.GeneratePieceMoves(new("d4"), gameState);
+		IEnumerable<Move> moves = MoveGenerator.GeneratePieceMoves(new("d4"), gameState);
 
 		moves.Should().BeEmpty();
 	}

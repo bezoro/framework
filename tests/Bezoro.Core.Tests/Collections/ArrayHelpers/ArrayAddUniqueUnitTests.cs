@@ -9,7 +9,7 @@ public class ArrayAddUniqueUnitTests
 	{
 		// Arrange
 		string?[]     array         = { "Element1", "Element2" };
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 		const string? element       = "Element3";
 
 		// Act
@@ -21,7 +21,7 @@ public class ArrayAddUniqueUnitTests
 		Assert.Equal(element, array[initialLength]);
 
 		// Attempt to add a duplicate element
-		var newLength = array.Length;
+		int newLength = array.Length;
 		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out _);
 
 		// Assert that duplicate is not added
@@ -33,14 +33,14 @@ public class ArrayAddUniqueUnitTests
 	{
 		// Arrange
 		var           array         = new string?[Common.Helpers.ArrayHelpers.ParallelThreshold * 2];
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 		const string? elementToAdd  = "Element999";
 
 		for (var i = 0 ; i < array.Length ; i++)
 			array[i] = $"Element{i + 1}";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -57,7 +57,7 @@ public class ArrayAddUniqueUnitTests
 		const string? element = "Element2";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -71,11 +71,11 @@ public class ArrayAddUniqueUnitTests
 	{
 		// Arrange
 		string?[]     array         = { "Element1", "Element2" };
-		var           initialLength = array.Length;
+		int           initialLength = array.Length;
 		const string? elementToAdd  = "Element3";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -92,7 +92,7 @@ public class ArrayAddUniqueUnitTests
 		var       element = "Element2";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -109,7 +109,7 @@ public class ArrayAddUniqueUnitTests
 		const string? element = "Element1";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -126,7 +126,7 @@ public class ArrayAddUniqueUnitTests
 		var       element = "Element1";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.Single(array);
@@ -140,7 +140,7 @@ public class ArrayAddUniqueUnitTests
 		string[] array = { "Element1" };
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, null, out var index);
+		Common.Helpers.ArrayHelpers.AddUnique(ref array, null, out int index);
 
 		// Assert
 		Assert.Single(array);

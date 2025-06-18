@@ -24,7 +24,7 @@ public class QueenMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// 14 rook moves + 13 bishop moves = 27
@@ -47,8 +47,8 @@ public class QueenMoveGenerationUnitTests
 	public void MoveGenerator_ForQueenOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition  = new Position("d4");
-		var opponentColor = color.Opposite();
+		var        fromPosition  = new Position("d4");
+		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Queen, color);
@@ -72,7 +72,7 @@ public class QueenMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves:
@@ -100,13 +100,13 @@ public class QueenMoveGenerationUnitTests
 	public void MoveGenerator_ForStandardStartingQueen_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
-		var isWhite = color == PieceColor.White;
+		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the queen is blocked by pawns.
-		var fromPosition = new Position(isWhite ? "d1" : "d8");
-		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var       fromPosition = new Position(isWhite ? "d1" : "d8");
+		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

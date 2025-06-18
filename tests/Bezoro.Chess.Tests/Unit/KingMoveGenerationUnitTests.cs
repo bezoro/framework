@@ -13,9 +13,9 @@ public class KingMoveGenerationUnitTests
 	public void MoveGenerator_ForKingOnE1_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
-		var opponentColor   = color.Opposite();
-		var opponentPawnRow = color == PieceColor.White ? fromPosition.Row - 1 : fromPosition.Row + 1;
+		var        fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
+		PieceColor opponentColor   = color.Opposite();
+		int        opponentPawnRow = color == PieceColor.White ? fromPosition.Row - 1 : fromPosition.Row + 1;
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.King, color);
@@ -36,7 +36,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// King can move to d2, e2, f2 (or d7, e7, f7 for black)
@@ -55,9 +55,9 @@ public class KingMoveGenerationUnitTests
 	public void MoveGenerator_ForKingWithBlockedPath_ShouldNotGenerateCastlingMoves(PieceColor color)
 	{
 		// Arrange
-		var isWhite      = color == PieceColor.White;
-		var kingRow      = isWhite ? 7 : 0;
-		var fromPosition = new Position(kingRow, 4);
+		bool isWhite      = color == PieceColor.White;
+		int  kingRow      = isWhite ? 7 : 0;
+		var  fromPosition = new Position(kingRow, 4);
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[kingRow, 4] = new(PieceType.King, color);
@@ -75,7 +75,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().NotContain(m => m.Type == MoveType.CastleKingside);
@@ -88,9 +88,9 @@ public class KingMoveGenerationUnitTests
 	public void MoveGenerator_ForKingWithClearPath_ShouldGenerateCastlingMoves(PieceColor color)
 	{
 		// Arrange
-		var isWhite      = color == PieceColor.White;
-		var kingRow      = isWhite ? 7 : 0;
-		var fromPosition = new Position(kingRow, 4);
+		bool isWhite      = color == PieceColor.White;
+		int  kingRow      = isWhite ? 7 : 0;
+		var  fromPosition = new Position(kingRow, 4);
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[kingRow, 4] = new(PieceType.King, color);
@@ -105,7 +105,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().Contain(m => m.Type == MoveType.CastleKingside);
@@ -129,7 +129,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(8);
@@ -149,13 +149,13 @@ public class KingMoveGenerationUnitTests
 	public void MoveGenerator_ForStandardStartingKing_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
-		var isWhite = color == PieceColor.White;
+		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the king is blocked by its own pieces.
-		var fromPosition = new Position(isWhite ? "e1" : "e8");
-		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var       fromPosition = new Position(isWhite ? "e1" : "e8");
+		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

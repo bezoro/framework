@@ -8,15 +8,15 @@ namespace Bezoro.Chess.Tests.Integration;
 
 public class GamePresenterTests
 {
+	private readonly GamePresenter _presenter;
+	private readonly IGameView     _view;
+
 	public GamePresenterTests()
 	{
 		_view = Substitute.For<IGameView>();
 		var gameManager = new GameManager();
 		_presenter = new(_view, gameManager);
 	}
-
-	private readonly GamePresenter _presenter;
-	private readonly IGameView     _view;
 
 	[Fact]
 	public void OnSquareSelected_WhenNoPieceIsSelectedAndSquareHasPlayersPiece_HighlightsLegalMoves()

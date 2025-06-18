@@ -1,3 +1,4 @@
+using Bezoro.Chess.Domain;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
 using Bezoro.Chess.Domain.Notation;
@@ -18,15 +19,15 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState     = FenParser.FenToGameState(fen);
-		var fromPos       = new Position(from);
-		var toPos         = new Position(to);
-		var piece         = new Piece(pieceType, gameState.ActiveColor);
-		var capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
-		var move          = Move.CreateCapture(fromPos, toPos, piece, capturedPiece);
+		GameState gameState     = FenParser.FenToGameState(fen);
+		var       fromPos       = new Position(from);
+		var       toPos         = new Position(to);
+		var       piece         = new Piece(pieceType, gameState.ActiveColor);
+		Piece     capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
+		var       move          = Move.CreateCapture(fromPos, toPos, piece, capturedPiece);
 
 		// Act
-		var san = move.ToSAN(gameState);
+		string san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -42,9 +43,9 @@ public class MoveSanExtensionsUnitTests
 	public void ToSan_ShouldReturnCorrectSan_ForCastling(string fen, MoveType moveType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.FenToGameState(fen);
-		var kingPos   = gameState.FindKingPosition(gameState.ActiveColor)!.Value;
-		var king      = gameState.PiecePositions[kingPos.Row, kingPos.Col];
+		GameState gameState = FenParser.FenToGameState(fen);
+		Position  kingPos   = gameState.FindKingPosition(gameState.ActiveColor)!.Value;
+		Piece     king      = gameState.PiecePositions[kingPos.Row, kingPos.Col];
 
 		Move move;
 		if (moveType == MoveType.CastleKingside)
@@ -59,7 +60,7 @@ public class MoveSanExtensionsUnitTests
 		}
 
 		// Act
-		var result = move.ToSAN(gameState);
+		string result = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, result);
@@ -76,14 +77,14 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.FenToGameState(fen);
-		var fromPos   = new Position(from);
-		var toPos     = new Position(to);
-		var piece     = new Piece(pieceType, gameState.ActiveColor);
-		var move      = Move.CreateNormal(fromPos, toPos, piece);
+		GameState gameState = FenParser.FenToGameState(fen);
+		var       fromPos   = new Position(from);
+		var       toPos     = new Position(to);
+		var       piece     = new Piece(pieceType, gameState.ActiveColor);
+		var       move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSAN(gameState);
+		string san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -96,14 +97,14 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.FenToGameState(fen);
-		var fromPos   = new Position(from);
-		var toPos     = new Position(to);
-		var piece     = new Piece(pieceType, gameState.ActiveColor);
-		var move      = Move.CreateNormal(fromPos, toPos, piece);
+		GameState gameState = FenParser.FenToGameState(fen);
+		var       fromPos   = new Position(from);
+		var       toPos     = new Position(to);
+		var       piece     = new Piece(pieceType, gameState.ActiveColor);
+		var       move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSAN(gameState);
+		string san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -121,10 +122,10 @@ public class MoveSanExtensionsUnitTests
 		string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.FenToGameState(fen);
-		var fromPos   = new Position(from);
-		var toPos     = new Position(to);
-		var pawn      = new Piece(pieceType, gameState.ActiveColor);
+		GameState gameState = FenParser.FenToGameState(fen);
+		var       fromPos   = new Position(from);
+		var       toPos     = new Position(to);
+		var       pawn      = new Piece(pieceType, gameState.ActiveColor);
 
 		Move move;
 		if (moveType == MoveType.PawnPromotion)
@@ -133,12 +134,12 @@ public class MoveSanExtensionsUnitTests
 		}
 		else // PawnPromotionCapture
 		{
-			var capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
+			Piece capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
 			move = Move.CreateCapturePromotion(fromPos, toPos, pawn, capturedPiece, promotionPiece);
 		}
 
 		// Act
-		var san = move.ToSAN(gameState);
+		string san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
@@ -173,14 +174,14 @@ public class MoveSanExtensionsUnitTests
 		string fen, string from, string to, PieceType pieceType, MoveType moveType, string expectedSan)
 	{
 		// Arrange
-		var gameState = FenParser.FenToGameState(fen);
-		var fromPos   = new Position(from);
-		var toPos     = new Position(to);
-		var piece     = new Piece(pieceType, gameState.ActiveColor);
-		var move      = Move.CreateNormal(fromPos, toPos, piece);
+		GameState gameState = FenParser.FenToGameState(fen);
+		var       fromPos   = new Position(from);
+		var       toPos     = new Position(to);
+		var       piece     = new Piece(pieceType, gameState.ActiveColor);
+		var       move      = Move.CreateNormal(fromPos, toPos, piece);
 
 		// Act
-		var san = move.ToSAN(gameState);
+		string san = move.ToSAN(gameState);
 
 		// Assert
 		Assert.Equal(expectedSan, san);
