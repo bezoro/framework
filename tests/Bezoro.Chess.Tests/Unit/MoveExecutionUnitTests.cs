@@ -22,7 +22,7 @@ public class MoveExecutionUnitTests
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
-		var expectedRights = CastlingRights.WhiteBoth;
+		var expectedRights = CastlingRights.White;
 		Assert.Equal(expectedRights, newState.Castling);
 	}
 
@@ -112,13 +112,13 @@ public class MoveExecutionUnitTests
 		newState.PiecePositions[new Position("d8").Row, new Position("d8").Col].Type.Should().Be(PieceType.Rook);
 		newState.PiecePositions[new Position("e8").Row, new Position("e8").Col].Type.Should().Be(PieceType.None);
 		newState.PiecePositions[new Position("a8").Row, new Position("a8").Col].Type.Should().Be(PieceType.None);
-		newState.Castling.Should().NotHaveFlag(CastlingRights.BlackBoth);
+		newState.Castling.Should().NotHaveFlag(CastlingRights.Black);
 		newState.ActiveColor.Should().Be(PieceColor.White);
 	}
 
 	[Theory]
-	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.WhiteBoth)] // Black Kingside
-	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.WhiteBoth)] // Black Queenside
+	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.White)] // Black Kingside
+	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.White)] // Black Queenside
 	public void ExecuteMove_BlackRookMovesFromHome_RevokesCorrectRights(
 		int startRow, int startCol, CastlingRights expectedRights)
 	{
@@ -230,7 +230,7 @@ public class MoveExecutionUnitTests
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
-		var expectedRights = CastlingRights.BlackBoth;
+		var expectedRights = CastlingRights.Black;
 		Assert.Equal(expectedRights, newState.Castling);
 	}
 
@@ -260,7 +260,7 @@ public class MoveExecutionUnitTests
 		newState.PiecePositions[new Position("f1").Row, new Position("f1").Col].Type.Should().Be(PieceType.Rook);
 		newState.PiecePositions[new Position("e1").Row, new Position("e1").Col].Type.Should().Be(PieceType.None);
 		newState.PiecePositions[new Position("h1").Row, new Position("h1").Col].Type.Should().Be(PieceType.None);
-		newState.Castling.Should().NotHaveFlag(CastlingRights.WhiteBoth);
+		newState.Castling.Should().NotHaveFlag(CastlingRights.White);
 		newState.ActiveColor.Should().Be(PieceColor.Black);
 	}
 
@@ -300,8 +300,8 @@ public class MoveExecutionUnitTests
 	}
 
 	[Theory]
-	[InlineData(7, 7, CastlingRights.WhiteQueenside | CastlingRights.BlackBoth)] // White Kingside
-	[InlineData(7, 0, CastlingRights.WhiteKingside  | CastlingRights.BlackBoth)] // White Queenside
+	[InlineData(7, 7, CastlingRights.WhiteQueenside | CastlingRights.Black)] // White Kingside
+	[InlineData(7, 0, CastlingRights.WhiteKingside  | CastlingRights.Black)] // White Queenside
 	public void ExecuteMove_WhiteRookMovesFromHome_RevokesCorrectRights(
 		int startRow, int startCol, CastlingRights expectedRights)
 	{

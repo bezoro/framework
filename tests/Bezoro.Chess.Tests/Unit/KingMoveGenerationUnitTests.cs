@@ -71,7 +71,7 @@ public class KingMoveGenerationUnitTests
 		{
 			PiecePositions = initialBoard,
 			ActiveColor    = color,
-			Castling       = isWhite ? CastlingRights.WhiteBoth : CastlingRights.BlackBoth
+			Castling       = isWhite ? CastlingRights.White : CastlingRights.Black
 		};
 
 		// Act
@@ -101,7 +101,7 @@ public class KingMoveGenerationUnitTests
 		{
 			PiecePositions = initialBoard,
 			ActiveColor    = color,
-			Castling       = isWhite ? CastlingRights.WhiteBoth : CastlingRights.BlackBoth
+			Castling       = isWhite ? CastlingRights.White : CastlingRights.Black
 		};
 
 		// Act
