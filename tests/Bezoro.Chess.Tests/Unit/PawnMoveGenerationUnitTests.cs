@@ -14,9 +14,9 @@ public class PawnMoveGenerationUnitTests
 		PieceColor color, string from, string capture)
 	{
 		// Arrange
-		var fromPosition    = new Position(from);
-		var capturePosition = new Position(capture);
-		var opponentColor   = color.Opposite();
+		var        fromPosition    = new Position(from);
+		var        capturePosition = new Position(capture);
+		PieceColor opponentColor   = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col]       = new(PieceType.Pawn, color);
@@ -29,7 +29,7 @@ public class PawnMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().Contain(m => m.To == capturePosition);
@@ -42,10 +42,10 @@ public class PawnMoveGenerationUnitTests
 		PieceColor color, string from, string enPassantTarget)
 	{
 		// Arrange
-		var fromPosition          = new Position(from);
-		var enPassantTargetSquare = new Position(enPassantTarget);
-		var opponentColor         = color.Opposite();
-		var opponentPawnPosition  = new Position(fromPosition.Row, enPassantTargetSquare.Col);
+		var        fromPosition          = new Position(from);
+		var        enPassantTargetSquare = new Position(enPassantTarget);
+		PieceColor opponentColor         = color.Opposite();
+		var        opponentPawnPosition  = new Position(fromPosition.Row, enPassantTargetSquare.Col);
 
 		var initialBoard = new Piece[8, 8];
 		initialBoard[fromPosition.Row, fromPosition.Col]                 = new(PieceType.Pawn, color);
@@ -59,7 +59,7 @@ public class PawnMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().Contain(m => m.Type == MoveType.EnPassant && m.To == enPassantTargetSquare);
@@ -84,7 +84,7 @@ public class PawnMoveGenerationUnitTests
 		};
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().Contain(m => m.Type == MoveType.PawnPromotion);
@@ -97,11 +97,11 @@ public class PawnMoveGenerationUnitTests
 		PieceColor color, string from, string[] expectedMoves)
 	{
 		// Arrange
-		var fromPosition = new Position(from);
-		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var       fromPosition = new Position(from);
+		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(2);

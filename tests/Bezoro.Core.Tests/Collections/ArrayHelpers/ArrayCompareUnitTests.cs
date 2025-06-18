@@ -36,13 +36,13 @@ public class ArrayCompareUnitTests
 		var obj2 = new TestObject(2, "Test2");
 		var obj3 = new TestObject(1, "Test1"); // Equal to obj1 by value
 
-		var array1 = new[] { obj1, obj2 };
-		var array2 = new[] { obj1, obj2 }; // Identical instance and values to array1
-		var array3 = new[] { obj3, obj2 }; // Different instance for first element, but value-equal to array1
+		TestObject[] array1 = new[] { obj1, obj2 };
+		TestObject[] array2 = new[] { obj1, obj2 }; // Identical instance and values to array1
+		TestObject[] array3 = new[] { obj3, obj2 }; // Different instance for first element, but value-equal to array1
 
 		// Act
-		var result1 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2); // array1 vs array2 (identical)
-		var result2 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array3);                // array1 vs array3 (value-equal)
+		bool result1 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2); // array1 vs array2 (identical)
+		bool result2 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array3);                // array1 vs array3 (value-equal)
 
 		// Assert
 		Assert.True(result1, "Comparing an array to itself or an identical array should return true.");
@@ -54,7 +54,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenArraysHaveDifferentElements_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
-		var comparisonResult = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool comparisonResult = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
 
 		// Assert
 		Assert.False(
@@ -71,7 +71,7 @@ public class ArrayCompareUnitTests
 		var array2 = new[] { 1, 2, 3, 4 };
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
+		bool result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
 
 		// Assert
 		Assert.False(result, "Comparing 2 arrays with different lengths should be considered unequal.");
@@ -82,7 +82,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenArraysOfSimpleTypesAreEqual_ReturnsTrue(object[]? a, object[]? b)
 	{
 		// Act
-		var result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
 
 		// Assert
 		Assert.True(
@@ -95,7 +95,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenBothArraysAreNull_ReturnsTrue()
 	{
 		// Act
-		var result = Common.Helpers.ArrayHelpers.CompareArrays<object>(null, null);
+		bool result = Common.Helpers.ArrayHelpers.CompareArrays<object>(null, null);
 
 		// Assert
 		Assert.True(result, "Comparing 2 null arrays should be considered equal.");
@@ -109,7 +109,7 @@ public class ArrayCompareUnitTests
 		string?[] array2 = { null, null, null };
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
+		bool result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
 
 		// Assert
 		Assert.True(
@@ -123,7 +123,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenOneArrayIsNullAndOtherIsNot_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
-		var result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
 
 		// Assert
 		Assert.False(result, "Comparing a null array with a valid array should return false.");
@@ -138,8 +138,8 @@ public class ArrayCompareUnitTests
 		string?[] array3Different = { "a", null, "b" };
 
 		// Act
-		var resultForIdentical = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array2Identical);
-		var resultForDifferent = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array3Different);
+		bool resultForIdentical = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array2Identical);
+		bool resultForDifferent = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array3Different);
 
 		// Assert
 		Assert.True(resultForIdentical, "Identical arrays with null elements should return true.");
@@ -148,19 +148,23 @@ public class ArrayCompareUnitTests
 
 	private class TestObject
 	{
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
-
 		private int    Id   { get; }
 		private string Name { get; }
+
+		#region Equality
 
 		public override bool Equals(object? obj) =>
 			obj is TestObject other && Id == other.Id && Name == other.Name;
 
 		public override int GetHashCode() =>
 			HashCode.Combine(Id, Name);
+
+		#endregion
+
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
 	}
 }

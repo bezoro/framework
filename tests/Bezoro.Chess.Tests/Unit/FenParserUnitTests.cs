@@ -11,10 +11,10 @@ public class FenParserUnitTests
 	public void Parse_StandardStartingPosition_ShouldReturnCorrectGameState()
 	{
 		// Arrange
-		var expectedGameState = BoardSetup.CreateStandardGame();
+		GameState expectedGameState = BoardSetup.CreateStandardGame();
 
 		// Act
-		var actualGameState = FenParser.FenToGameState(FenStrings.StandardStart);
+		GameState actualGameState = FenParser.FenToGameState(FenStrings.StandardStart);
 
 		// Assert
 		actualGameState.PiecePositions.Should().BeEquivalentTo(expectedGameState.PiecePositions);

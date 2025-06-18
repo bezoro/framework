@@ -9,11 +9,11 @@ public class ArraySetupWithFirstElementUnitTests
 	public void SetupArrayWithFirstElement_WhenArrayIsEmpty_ThenInitializesWithGivenElementAndReturnsTrue()
 	{
 		// Arrange
-		var array   = Array.Empty<int>();
-		var element = 42;
+		int[] array   = Array.Empty<int>();
+		var   element = 42;
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.True(result);
@@ -29,7 +29,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var   element = 42;
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.False(result);
@@ -44,7 +44,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var   element = 42;
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.False(result);
@@ -58,7 +58,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var    element = 42;
 
 		// Act
-		var result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.True(result);

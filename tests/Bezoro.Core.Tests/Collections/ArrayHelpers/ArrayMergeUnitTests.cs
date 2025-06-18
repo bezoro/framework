@@ -72,8 +72,8 @@ public class ArrayMergeUnitTests
 	public void Merge_WhenDestinationArrayIsEmpty_ThenDestinationResizedAndAllSourceElementsCopied()
 	{
 		// Arrange
-		var from = new[] { "A", "B", "C" };
-		var to   = Array.Empty<string>();
+		var      from = new[] { "A", "B", "C" };
+		string[] to   = Array.Empty<string>();
 
 		// Act
 		Common.Helpers.ArrayHelpers.Merge(from, ref to);
@@ -114,8 +114,8 @@ public class ArrayMergeUnitTests
 	public void Merge_WhenSourceArrayIsEmpty_ThenDestinationArrayUnchanged()
 	{
 		// Arrange
-		var from = Array.Empty<string>();
-		var to   = new[] { "Existing" };
+		string[] from = Array.Empty<string>();
+		var      to   = new[] { "Existing" };
 
 		// Act
 		Common.Helpers.ArrayHelpers.Merge(from, ref to);
@@ -168,19 +168,23 @@ public class ArrayMergeUnitTests
 	// Test class for complex type checking
 	private sealed class TestObject
 	{
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
-
 		private int    Id   { get; }
 		private string Name { get; }
+
+		#region Equality
 
 		public override bool Equals(object? obj) =>
 			obj is TestObject other && Id == other.Id && Name == other.Name;
 
 		public override int GetHashCode() =>
 			HashCode.Combine(Id, Name);
+
+		#endregion
+
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
 	}
 }

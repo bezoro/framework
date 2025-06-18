@@ -44,30 +44,30 @@ public class SystemManagerTests
 
 	private class OrderTestSystem : ISystem
 	{
+		private readonly List<string> _executionOrder;
+		private readonly string       _name;
+
 		public OrderTestSystem(string name, List<string> executionOrder)
 		{
 			_name           = name;
 			_executionOrder = executionOrder;
 		}
 
-		private readonly List<string> _executionOrder;
-		private readonly string       _name;
-
-	#region Interface Implementations
+		#region Interface Implementations
 
 		public void Update() => _executionOrder.Add(_name);
 
-	#endregion
+		#endregion
 	}
 
 	private class TestSystem : ISystem
 	{
 		public bool WasUpdated { get; private set; }
 
-	#region Interface Implementations
+		#region Interface Implementations
 
 		public void Update() => WasUpdated = true;
 
-	#endregion
+		#endregion
 	}
 }

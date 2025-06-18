@@ -10,16 +10,16 @@ namespace Bezoro.Chess.Tests.Unit;
 
 public class GamePresenterUnitTests
 {
+	private readonly GameManager   _gameManager;
+	private readonly GamePresenter _presenter;
+	private readonly IGameView     _mockView;
+
 	public GamePresenterUnitTests()
 	{
 		_mockView    = Substitute.For<IGameView>();
 		_gameManager = new();
 		_presenter   = new(_mockView, _gameManager);
 	}
-
-	private readonly GameManager   _gameManager;
-	private readonly GamePresenter _presenter;
-	private readonly IGameView     _mockView;
 
 	[Fact]
 	public void StartNewGame_WhenGameIsFinished_StartsNewGameDirectly()

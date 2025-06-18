@@ -21,7 +21,7 @@ public class ArrayInitializeNullUnitTests
 		int[]? nullArray    = null;
 		var    nonNullArray = new[] { 1, 2, 3 };
 
-		var originalNonNullReference = nonNullArray;
+		int[] originalNonNullReference = nonNullArray;
 
 		// Act
 		Common.Helpers.ArrayHelpers.InitializeNullArray(ref nullArray);
@@ -47,7 +47,7 @@ public class ArrayInitializeNullUnitTests
 	public void InitializeNullArray_WhenInputIsEmpty_ThenRemainsEmpty()
 	{
 		// Arrange
-		var input = Array.Empty<int>();
+		int[] input = Array.Empty<int>();
 
 		// Act
 		Common.Helpers.ArrayHelpers.InitializeNullArray(ref input);

@@ -34,7 +34,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeFalse("because a king and bishops on opposite-colored squares can force checkmate");
@@ -66,7 +66,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeTrue("because bishops on same-colored squares cannot force checkmate");
@@ -92,7 +92,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeTrue("because king vs king is a theoretical draw");
@@ -123,7 +123,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeTrue("because a king and knight cannot checkmate a lone king");
@@ -153,7 +153,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeTrue("because a king and two knights cannot force checkmate against a lone king");
@@ -185,7 +185,7 @@ public class GameStatusCheckerUnitTests
 		var statusChecker = new GameStatusChecker(gameManager);
 
 		// Act
-		var result = statusChecker.IsDrawByInsufficientMaterial();
+		bool result = statusChecker.IsDrawByInsufficientMaterial();
 
 		// Assert
 		result.Should().BeFalse($"because a king and {pieceType} can force checkmate against a lone king");

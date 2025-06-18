@@ -9,7 +9,7 @@ public class ArrayResizeByFactorUnitTests
 	public void ResizeByFactor_WhenArrayIsEmpty_ThenArraySizeRemainsZeroRegardlessOfFactor()
 	{
 		// Arrange
-		var       array  = Array.Empty<int>();
+		int[]     array  = Array.Empty<int>();
 		const int factor = 3;
 
 		// Act

@@ -113,7 +113,7 @@ public class ArrayRemoveDuplicatesUnitTests
 	public void RemoveDuplicates_WhenArrayIsEmpty_ThenItRemainsUnchanged()
 	{
 		// Arrange
-		var array = Array.Empty<int>();
+		int[] array = Array.Empty<int>();
 
 		// Act
 		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
@@ -137,19 +137,23 @@ public class ArrayRemoveDuplicatesUnitTests
 
 	private sealed class TestObject
 	{
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
-
 		private int    Id   { get; }
 		private string Name { get; }
+
+		#region Equality
 
 		public override bool Equals(object? obj) =>
 			obj is TestObject other && Id == other.Id && Name == other.Name;
 
 		public override int GetHashCode() =>
 			HashCode.Combine(Id, Name);
+
+		#endregion
+
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
 	}
 }

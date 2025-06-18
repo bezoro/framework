@@ -6,7 +6,7 @@ namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
 
 public class ArrayExtensionsUnitTests
 {
-#region IsEmpty
+	#region IsEmpty
 
 	[Fact]
 	public void IsEmpty_WhenArrayIsNull_ReturnsFalse()
@@ -29,9 +29,9 @@ public class ArrayExtensionsUnitTests
 		Assert.False(ints.IsEmpty());
 	}
 
-#endregion
+	#endregion
 
-#region IsNotEmpty
+	#region IsNotEmpty
 
 	[Fact]
 	public void IsNotEmpty_WhenArrayIsNull_ReturnsFalse()
@@ -43,7 +43,7 @@ public class ArrayExtensionsUnitTests
 	[Fact]
 	public void IsNotEmpty_WhenArrayIsEmpty_ReturnsFalse()
 	{
-		var strings = Array.Empty<string>();
+		string[] strings = Array.Empty<string>();
 		Assert.False(strings.IsNotEmpty());
 	}
 
@@ -54,9 +54,9 @@ public class ArrayExtensionsUnitTests
 		Assert.True(strings.IsNotEmpty());
 	}
 
-#endregion
+	#endregion
 
-#region IsNotNull / IsNull
+	#region IsNotNull / IsNull
 
 	[Fact]
 	public void IsNotNull_WhenArrayIsNull_ReturnsFalse()
@@ -86,9 +86,9 @@ public class ArrayExtensionsUnitTests
 		Assert.False(ints.IsNull());
 	}
 
-#endregion
+	#endregion
 
-#region IsNotNullOrEmpty / IsNullOrEmpty
+	#region IsNotNullOrEmpty / IsNullOrEmpty
 
 	[Fact]
 	public void IsNotNullOrEmpty_WhenArrayIsNull_ReturnsFalse()
@@ -132,5 +132,5 @@ public class ArrayExtensionsUnitTests
 		Assert.False(strings.IsNullOrEmpty());
 	}
 
-#endregion
+	#endregion
 }
