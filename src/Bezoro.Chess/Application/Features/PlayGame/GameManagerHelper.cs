@@ -1,6 +1,4 @@
-using Bezoro.Chess.Application.Features.PlayGame;
-
-namespace Bezoro.Chess.Domain.Rules
+namespace Bezoro.Chess.Application.Features.PlayGame
 {
 	public static class GameManagerHelper
 	{

@@ -10,8 +10,8 @@ namespace Bezoro.Chess.Domain.Moves.Execution
 			NormalMoveExecutor.Execute(state, move);
 
 			// Remove the captured pawn, which is on the same rank as the moving pawn's starting square.
-			var capturedPawnRow = move.From.Row;
-			var capturedPawnCol = move.To.Col;
+			int capturedPawnRow = move.From.Row;
+			int capturedPawnCol = move.To.Col;
 			state.PiecePositions[capturedPawnRow, capturedPawnCol] = default;
 		}
 	}

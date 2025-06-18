@@ -8,17 +8,17 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 		public static IEnumerable<Move> GenerateMoves(
 			Position from, GameState gameState, (int dRow, int dCol)[] directions)
 		{
-			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			Piece movingPiece = gameState.PiecePositions[from.Row, from.Col];
 
-			foreach (var (dRow, dCol) in directions)
+			foreach ((int dRow, int dCol) in directions)
 			{
-				var newRow = from.Row + dRow;
-				var newCol = from.Col + dCol;
+				int newRow = from.Row + dRow;
+				int newCol = from.Col + dCol;
 
 				while (BoardHelper.IsInsideBoard(new(newRow, newCol)))
 				{
-					var to                 = new Position(newRow, newCol);
-					var pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
+					var   to                 = new Position(newRow, newCol);
+					Piece pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{

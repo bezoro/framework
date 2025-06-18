@@ -11,11 +11,6 @@ namespace Bezoro.Chess.Domain.Rules
 	/// </summary>
 	internal class GameStatusChecker
 	{
-		public GameStatusChecker(GameManager gameManager)
-		{
-			_gameManager = gameManager;
-		}
-
 		/// <summary>
 		///     Caches the result of expensive end-of-game calculations.
 		///     Invalidated whenever the game state changes.
@@ -23,9 +18,14 @@ namespace Bezoro.Chess.Domain.Rules
 		private (bool hasLegalMoves, bool isKingInCheck)? _gameStatusCache;
 		private readonly GameManager _gameManager;
 
+		public GameStatusChecker(GameManager gameManager)
+		{
+			_gameManager = gameManager;
+		}
+
 		public bool IsCheckmate()
 		{
-			var (hasLegalMoves, isKingInCheck) = GetGameStatus();
+			(bool hasLegalMoves, bool isKingInCheck) = GetGameStatus();
 			return !hasLegalMoves && isKingInCheck;
 		}
 
@@ -35,35 +35,43 @@ namespace Bezoro.Chess.Domain.Rules
 		public bool IsDrawByInsufficientMaterial()
 		{
 			// Get all non-king pieces on the board
-			var pieces = _gameManager.CurrentState.PiecePositions.Cast<Piece>()
-									 .Where(p => p.Type is not PieceType.None and not PieceType.King)
-									 .ToList();
+			List<Piece> pieces = _gameManager.CurrentState.PiecePositions.Cast<Piece>()
+											 .Where(p => p.Type is not PieceType.None and not PieceType.King)
+											 .ToList();
 
 			// If there are any pawns, rooks, or queens, a checkmate is possible
 			if (pieces.Any(p => p.Type is PieceType.Pawn or PieceType.Rook or PieceType.Queen))
+			{
 				return false;
+			}
 
 			// No pieces other than kings means draw
 			if (pieces.Count == 0)
+			{
 				return true;
+			}
 
 			// Group pieces by player color
-			var whitePieces = pieces.Where(p => p.Color == PieceColor.White).ToList();
-			var blackPieces = pieces.Where(p => p.Color == PieceColor.Black).ToList();
+			List<Piece> whitePieces = pieces.Where(p => p.Color == PieceColor.White).ToList();
+			List<Piece> blackPieces = pieces.Where(p => p.Color == PieceColor.Black).ToList();
 
 			// One side has no pieces other than king
 			if (whitePieces.Count == 0 || blackPieces.Count == 0)
 			{
-				var remainingPieces = whitePieces.Count > 0 ? whitePieces : blackPieces;
+				List<Piece> remainingPieces = whitePieces.Count > 0 ? whitePieces : blackPieces;
 
 				// King vs King + single knight or bishop is a draw
 				if (remainingPieces.Count == 1 &&
 					(remainingPieces[0].Type == PieceType.Knight || remainingPieces[0].Type == PieceType.Bishop))
+				{
 					return true;
+				}
 
 				// King vs King + 2 Knights can't force checkmate (according to FIDE rules)
 				if (remainingPieces.Count == 2 && remainingPieces.All(p => p.Type == PieceType.Knight))
+				{
 					return true;
+				}
 			}
 
 			// Check for bishops of the same color scenario
@@ -72,9 +80,11 @@ namespace Bezoro.Chess.Domain.Rules
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					var piece = _gameManager.CurrentState.PiecePositions[r, c];
+					Piece piece = _gameManager.CurrentState.PiecePositions[r, c];
 					if (piece.Type == PieceType.Bishop)
+					{
 						bishops.Add((new(r, c), piece.Color));
+					}
 				}
 			}
 
@@ -83,7 +93,7 @@ namespace Bezoro.Chess.Domain.Rules
 			{
 				// Check if all bishops move on same-colored squares
 				var allOnSameColoredSquares = true;
-				var squareColor             = (bishops[0].Position.Row + bishops[0].Position.Col) % 2;
+				int squareColor             = (bishops[0].Position.Row + bishops[0].Position.Col) % 2;
 
 				for (var i = 1 ; i < bishops.Count ; i++)
 				{
@@ -95,7 +105,9 @@ namespace Bezoro.Chess.Domain.Rules
 				}
 
 				if (allOnSameColoredSquares)
+				{
 					return true;
+				}
 			}
 
 			// All other cases are not draws by insufficient material
@@ -107,19 +119,19 @@ namespace Bezoro.Chess.Domain.Rules
 
 		public bool IsKingInCheck(GameState state, PieceColor kingColor)
 		{
-			var kingPosition = state.FindKingPosition(kingColor);
+			Position? kingPosition = state.FindKingPosition(kingColor);
 			if (!kingPosition.HasValue)
 			{
 				throw new InvalidOperationException($"No {kingColor} king found on the board");
 			}
 
-			var opponentColor = kingColor.Opposite();
+			PieceColor opponentColor = kingColor.Opposite();
 			return state.IsSquareAttackedBy(kingPosition.Value, opponentColor);
 		}
 
 		public bool IsStalemate()
 		{
-			var (hasLegalMoves, isKingInCheck) = GetGameStatus();
+			(bool hasLegalMoves, bool isKingInCheck) = GetGameStatus();
 			return !hasLegalMoves && !isKingInCheck;
 		}
 

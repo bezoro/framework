@@ -23,7 +23,9 @@ namespace Bezoro.Core
 			LoggerInstance?.LogException(log);
 
 			if (throwException)
+			{
 				ExceptionDispatchInfo.Capture(exception).Throw();
+			}
 		}
 
 		public static void LogInfo(string message, object contextObject = null, string category = "Uncategorized")
@@ -55,6 +57,13 @@ namespace Bezoro.Core
 
 		public class LogEntry
 		{
+			public LogType Type           { get; }
+			public object  Context_Object { get; }
+
+			public string Category { get; }
+
+			public string Message { get; }
+
 			public LogEntry(string message, object contextObject, LogType type, string category)
 			{
 				Type           = type;
@@ -62,13 +71,6 @@ namespace Bezoro.Core
 				Message        = message;
 				Context_Object = contextObject;
 			}
-
-			public LogType Type           { get; }
-			public object  Context_Object { get; }
-
-			public string Category { get; }
-
-			public string Message { get; }
 
 			public enum LogType
 			{

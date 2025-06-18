@@ -6,6 +6,12 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 {
 	public readonly struct GameStatusViewModel : IEquatable<GameStatusViewModel>
 	{
+		public bool                          IsInCheck           { get; }
+		public IReadOnlyList<PieceViewModel> CapturedBlackPieces { get; }
+		public IReadOnlyList<PieceViewModel> CapturedWhitePieces { get; }
+		public PieceColor                    CurrentTurn         { get; }
+		public string                        GameResult          { get; }
+
 		public GameStatusViewModel(
 			PieceColor currentTurn,
 			string gameResult,
@@ -20,13 +26,7 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 			CapturedBlackPieces = capturedBlackPieces;
 		}
 
-		public bool                          IsInCheck           { get; }
-		public IReadOnlyList<PieceViewModel> CapturedBlackPieces { get; }
-		public IReadOnlyList<PieceViewModel> CapturedWhitePieces { get; }
-		public PieceColor                    CurrentTurn         { get; }
-		public string                        GameResult          { get; }
-
-	#region Equalilty
+		#region Equalilty
 
 		public bool Equals(GameStatusViewModel other) =>
 			IsInCheck == other.IsInCheck                          &&
@@ -45,6 +45,6 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 
 		public static bool operator !=(GameStatusViewModel left, GameStatusViewModel right) => !left.Equals(right);
 
-	#endregion
+		#endregion
 	}
 }

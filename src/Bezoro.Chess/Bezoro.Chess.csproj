@@ -5,4 +5,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
     </ItemGroup>
+    <ItemGroup>
+        <Folder Include="Docs\"/>
+    </ItemGroup>
 </Project>

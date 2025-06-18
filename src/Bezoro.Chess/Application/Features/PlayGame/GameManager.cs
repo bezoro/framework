@@ -11,23 +11,6 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 {
 	public sealed class GameManager
 	{
-		/// <summary>
-		///     Creates a new game manager with a standard chess starting position.
-		/// </summary>
-		public GameManager()
-		{
-			_statusChecker = new(this);
-			NewGame();
-		}
-
-		public GameManager(GameState initialState)
-		{
-			_statusChecker = new(this);
-			CurrentState   = initialState;
-			_gameStateHistory.Add(initialState);
-			_currentStateIndex = 0;
-		}
-
 		// Tracks captured pieces per colour.
 		private readonly Dictionary<PieceColor, List<Piece>> _capturedPieces = new()
 		{
@@ -47,6 +30,23 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 		public GameState CurrentState { get; private set; }
 
+		/// <summary>
+		///     Creates a new game manager with a standard chess starting position.
+		/// </summary>
+		public GameManager()
+		{
+			_statusChecker = new(this);
+			NewGame();
+		}
+
+		public GameManager(GameState initialState)
+		{
+			_statusChecker = new(this);
+			CurrentState   = initialState;
+			_gameStateHistory.Add(initialState);
+			_currentStateIndex = 0;
+		}
+
 		public event Action<GameOutcome>? GameEnded;
 		public event Action<GameOutcome>? GameStarted;
 
@@ -55,14 +55,16 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 		public bool IsMoveLegal(Move move)
 		{
-			var afterMoveState = MoveExecution.ExecuteMove(CurrentState, move);
+			GameState afterMoveState = MoveExecution.ExecuteMove(CurrentState, move);
 			return !IsKingInCheck(afterMoveState, CurrentState.ActiveColor);
 		}
 
 		public bool Redo()
 		{
 			if (_currentStateIndex >= _gameStateHistory.Count - 1)
+			{
 				return false;
+			}
 
 			_currentStateIndex++;
 			CurrentState = _gameStateHistory[_currentStateIndex];
@@ -73,7 +75,9 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		public bool TryMakeMove(Move move)
 		{
 			if (Outcome.IsFinished() || !IsMoveLegal(move))
+			{
 				return false;
+			}
 
 			HandleTrimGameStateHistory();
 			ExecuteAndRecordMove(move);
@@ -84,7 +88,9 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		public bool Undo()
 		{
 			if (_currentStateIndex <= 0)
+			{
 				return false;
+			}
 
 			_currentStateIndex--;
 			CurrentState = _gameStateHistory[_currentStateIndex];
@@ -94,19 +100,19 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 
 		public IEnumerable<(Move move, bool isLegal)> GetMovesWithLegalityForPiece(Position position)
 		{
-			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
+			IEnumerable<Move> pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
 			return pieceMoves.Select(move => (move, IsMoveLegal(move)));
 		}
 
 		public IEnumerable<Move> GetLegalMoves()
 		{
-			var allMoves = MoveGenerator.GenerateMoves(CurrentState);
+			IEnumerable<Move> allMoves = MoveGenerator.GenerateMoves(CurrentState);
 			return allMoves.Where(IsMoveLegal);
 		}
 
 		public IEnumerable<Move> GetLegalMovesForPiece(Position position)
 		{
-			var pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
+			IEnumerable<Move> pieceMoves = MoveGenerator.GeneratePieceMoves(position, CurrentState);
 			return pieceMoves.Where(IsMoveLegal);
 		}
 
@@ -121,7 +127,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			}
 
 			// The player whose turn it is forfeits. The other player wins.
-			var outcome = CurrentState.ActiveColor == PieceColor.White
+			GameOutcome outcome = CurrentState.ActiveColor == PieceColor.White
 				? GameOutcome.BlackWin
 				: GameOutcome.WhiteWin;
 
@@ -150,12 +156,16 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		internal void SetOutcome(GameOutcome outcome)
 		{
 			if (Outcome.IsFinished())
+			{
 				return;
+			}
 
 			Outcome = outcome;
 
 			if (outcome.IsFinished())
+			{
 				GameEnded?.Invoke(outcome);
+			}
 		}
 
 		private void ExecuteAndRecordMove(Move move)
@@ -179,7 +189,9 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		private void HandleTrimGameStateHistory()
 		{
 			if (_currentStateIndex < _gameStateHistory.Count - 1)
+			{
 				_gameStateHistory.RemoveRange(_currentStateIndex + 1, _gameStateHistory.Count - _currentStateIndex - 1);
+			}
 		}
 	}
 

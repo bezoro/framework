@@ -4,19 +4,6 @@ namespace Bezoro.Core
 {
 	public abstract class Singleton<T> where T : class
 	{
-		protected Singleton()
-		{
-			if (!_INSTANCE.IsValueCreated || ReferenceEquals(_INSTANCE.Value, this))
-				return;
-
-			// Prevent instantiation via reflection, if desired
-			if (_INSTANCE.IsValueCreated)
-			{
-				throw new InvalidOperationException(
-					$"Cannot create a second instance of {typeof(T).Name}. Use {typeof(T).Name}.Instance instead.");
-			}
-		}
-
 		private static readonly Lazy<T> _INSTANCE = new(
 			() =>
 			{
@@ -33,5 +20,20 @@ namespace Bezoro.Core
 			});
 
 		public static T Instance => _INSTANCE.Value;
+
+		protected Singleton()
+		{
+			if (!_INSTANCE.IsValueCreated || ReferenceEquals(_INSTANCE.Value, this))
+			{
+				return;
+			}
+
+			// Prevent instantiation via reflection, if desired
+			if (_INSTANCE.IsValueCreated)
+			{
+				throw new InvalidOperationException(
+					$"Cannot create a second instance of {typeof(T).Name}. Use {typeof(T).Name}.Instance instead.");
+			}
+		}
 	}
 }

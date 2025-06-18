@@ -14,14 +14,6 @@ namespace Bezoro.Core.Common.Primitives
 	{
 		private const int _MINIMUM_ARRAY_SIZE = 4;
 
-		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
-		{
-			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
-			_count = 0;
-
-			Logger.LogSuccess($"SwapbackArray initialized with capacity: {initialCapacity}");
-		}
-
 		/// <summary>
 		///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
@@ -46,6 +38,14 @@ namespace Bezoro.Core.Common.Primitives
 		///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
 		public int Count => _count;
+
+		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
+		{
+			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
+			_count = 0;
+
+			Logger.LogSuccess($"SwapbackArray initialized with capacity: {initialCapacity}");
+		}
 
 		/// <summary>
 		///     Attempts to retrieve the value at the specified index in the dynamic array.
@@ -115,7 +115,9 @@ namespace Bezoro.Core.Common.Primitives
 			lock ( _lock ) // Ensure atomicity
 			{
 				if (!Validate_Remove_Index(index))
+				{
 					return;
+				}
 
 				Perform_Swap_And_Trim(index);
 

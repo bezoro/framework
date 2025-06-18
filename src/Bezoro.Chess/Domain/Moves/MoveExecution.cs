@@ -15,7 +15,7 @@ namespace Bezoro.Chess.Domain.Moves
 		public static GameState ExecuteMove(GameState state, Move move)
 		{
 			// Get the piece that's moving
-			var movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
+			Piece movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
 
 			// Determine the en passant target square for the *next* state.
 			// This is only set when a pawn makes a two-square advance.
@@ -23,7 +23,7 @@ namespace Bezoro.Chess.Domain.Moves
 			if (movingPiece.Type == PieceType.Pawn && Math.Abs(move.From.Row - move.To.Row) == 2)
 			{
 				// The target square is the one "behind" the pawn's destination.
-				var behindRow = move.From.Row + (move.To.Row - move.From.Row) / 2;
+				int behindRow = move.From.Row + (move.To.Row - move.From.Row) / 2;
 				newEnPassantTargetSquare = new Position(behindRow, move.From.Col);
 			}
 
@@ -57,21 +57,27 @@ namespace Bezoro.Chess.Domain.Moves
 		{
 			// Half-move clock resets on pawn moves or captures
 			if (state.PiecePositions[move.From.Row, move.From.Col].Type == PieceType.Pawn)
+			{
 				return true;
+			}
 
 			if (state.PiecePositions[move.To.Row, move.To.Col].Type != default)
+			{
 				return true;
+			}
 
 			if (move.Type == MoveType.EnPassant)
+			{
 				return true;
+			}
 
 			return false;
 		}
 
 		private static CastlingRights UpdateCastlingRights(GameState state, Move move)
 		{
-			var newRights   = state.Castling;
-			var movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
+			CastlingRights newRights   = state.Castling;
+			Piece          movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
 
 			// King moves remove all castling rights for that color
 			if (movingPiece.Type == PieceType.King)
@@ -91,26 +97,54 @@ namespace Bezoro.Chess.Domain.Moves
 			{
 				if (move.From.Row == 7) // White's back rank
 				{
-					if (move.From.Col == 0) newRights &= ~CastlingRights.WhiteQueenside;
-					if (move.From.Col == 7) newRights &= ~CastlingRights.WhiteKingside;
+					if (move.From.Col == 0)
+					{
+						newRights &= ~CastlingRights.WhiteQueenside;
+					}
+
+					if (move.From.Col == 7)
+					{
+						newRights &= ~CastlingRights.WhiteKingside;
+					}
 				}
 				else if (move.From.Row == 0) // Black's back rank
 				{
-					if (move.From.Col == 0) newRights &= ~CastlingRights.BlackQueenside;
-					if (move.From.Col == 7) newRights &= ~CastlingRights.BlackKingside;
+					if (move.From.Col == 0)
+					{
+						newRights &= ~CastlingRights.BlackQueenside;
+					}
+
+					if (move.From.Col == 7)
+					{
+						newRights &= ~CastlingRights.BlackKingside;
+					}
 				}
 			}
 
 			// If a rook is captured on its home square, remove the corresponding castling right
 			if (move.To.Row == 0)
 			{
-				if (move.To.Col == 0) newRights &= ~CastlingRights.BlackQueenside;
-				if (move.To.Col == 7) newRights &= ~CastlingRights.BlackKingside;
+				if (move.To.Col == 0)
+				{
+					newRights &= ~CastlingRights.BlackQueenside;
+				}
+
+				if (move.To.Col == 7)
+				{
+					newRights &= ~CastlingRights.BlackKingside;
+				}
 			}
 			else if (move.To.Row == 7)
 			{
-				if (move.To.Col == 0) newRights &= ~CastlingRights.WhiteQueenside;
-				if (move.To.Col == 7) newRights &= ~CastlingRights.WhiteKingside;
+				if (move.To.Col == 0)
+				{
+					newRights &= ~CastlingRights.WhiteQueenside;
+				}
+
+				if (move.To.Col == 7)
+				{
+					newRights &= ~CastlingRights.WhiteKingside;
+				}
 			}
 
 			return newRights;

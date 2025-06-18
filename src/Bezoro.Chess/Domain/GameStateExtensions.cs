@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
@@ -12,10 +13,10 @@ namespace Bezoro.Chess.Domain
 		public static bool IsSquareAttackedBy(this GameState state, Position square, PieceColor attackerColor)
 		{
 			// Temporarily set the active color to the attacker's color to generate their moves
-			var tempState = state with { ActiveColor = attackerColor };
+			GameState tempState = state with { ActiveColor = attackerColor };
 
 			// Generate all possible moves for the attacker
-			var attackerMoves = MoveGenerator.GenerateMoves(tempState);
+			IEnumerable<Move> attackerMoves = MoveGenerator.GenerateMoves(tempState);
 
 			// If any of the generated moves target the square, it's under attack
 			return attackerMoves.Any(move => move.To.Equals(square));
@@ -31,7 +32,7 @@ namespace Bezoro.Chess.Domain
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					var piece = state.PiecePositions[r, c];
+					Piece piece = state.PiecePositions[r, c];
 					if (piece.Type == PieceType.King && piece.Color == kingColor)
 					{
 						return new Position(r, c);
