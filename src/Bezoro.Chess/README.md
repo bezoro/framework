@@ -6,9 +6,6 @@ There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking
 
 * Target framework`netstandard2.1`
 * Language version C# 9.0
-* Build`dotnet build src/Bezoro.Chess -c Release`
-* Tests`dotnet test tests/Bezoro.Chess.Tests`
-
 ---
 
 ## Design Principles
