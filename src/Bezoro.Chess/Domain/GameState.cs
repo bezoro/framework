@@ -12,9 +12,9 @@ namespace Bezoro.Chess.Domain
 		WhiteQueenside = 1 << 1,
 		BlackKingside  = 1 << 2,
 		BlackQueenside = 1 << 3,
-		WhiteBoth      = WhiteKingside | WhiteQueenside,
-		BlackBoth      = BlackKingside | BlackQueenside,
-		All            = WhiteBoth     | BlackBoth
+		White          = WhiteKingside | WhiteQueenside,
+		Black          = BlackKingside | BlackQueenside,
+		All            = White         | Black
 	}
 
 	public record GameState

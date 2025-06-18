@@ -84,11 +84,11 @@ namespace Bezoro.Chess.Domain.Moves
 			{
 				if (state.ActiveColor == PieceColor.White)
 				{
-					newRights &= ~CastlingRights.WhiteBoth;
+					newRights &= ~CastlingRights.White;
 				}
 				else
 				{
-					newRights &= ~CastlingRights.BlackBoth;
+					newRights &= ~CastlingRights.Black;
 				}
 			}
 
