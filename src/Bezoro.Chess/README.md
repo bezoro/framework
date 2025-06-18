@@ -157,10 +157,37 @@ them.
 ## Quick Start Example
 
 ```csharp
-// Assuming IMakeMoveResultReceiver
-var chessPresenter = new ChessPresenter();
-var game = chessPresenter.NewGame("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-var move = chessPresenter.CreateMove("a2", "a4");
-chessPresenter.MakeMove(game, move);
-public void Receive(MoveViewModel move) => Console.WriteLine(move.Source, move.Destination);
+// ── Entry point ────────────────────────────────────────────────────────────────
+var receiver   = new ConsoleMoveReceiver();
+var presenter  = new ChessPresenter(receiver);          // single composition root
+var controller = new GameController(presenter);
+
+var game = controller.StartNewGame();                   // ← app logic
+controller.MakeMove(game, A2, A4)
+// ── Supporting types ──────────────────────────────────────────────────────────
+sealed class GameController
+{
+    readonly IChessPresenter _presenter;
+
+    public GameController(IChessPresenter presenter) => 
+        _presenter = presenter;
+
+    public async Task<GameStateViewModel> StartNewGame()
+    {
+        const string fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        await _presenter.NewGame(fen);
+    }
+    
+    public async Task<MoveViewModel> MakeMove(GameStateViewModel game, SquarePosition from, SquarePosition to)
+    {
+        var move = _presenter.CreateMove(from, to);
+        await _presenter.MakeMoveAsync(game, move);
+    }
+}
+
+sealed class ConsoleMoveReceiver : IMakeMoveResultReceiver
+{
+    public ValueTask ReceiveAsync(MoveViewModel m, CancellationToken _ = default) =>
+        new(Console.WriteLine($"{m.Source} → {m.Destination}"));
+}
 ```
