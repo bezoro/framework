@@ -29,13 +29,16 @@ namespace Bezoro.Core.Common.Helpers
 				return new(-1, default, array.Length);
 			}
 
-			var resultIndex = -1;
+			int resultIndex = -1;
 			var locker      = new object();
 
 			Parallel.For(
 				0, array.Length, (i, state) =>
 				{
-					if (array[i]?.Equals(elementToFind) != true) return;
+					if (array[i]?.Equals(elementToFind) != true)
+					{
+						return;
+					}
 
 					lock ( locker )
 					{
@@ -46,9 +49,13 @@ namespace Bezoro.Core.Common.Helpers
 			);
 
 			if (resultIndex != -1)
+			{
 				Logger.LogSuccess($"Element {elementToFind} found at index {resultIndex}.");
+			}
 			else
+			{
 				Logger.LogWarning($"Element {elementToFind} not found in array.");
+			}
 
 			return new(resultIndex, elementToFind, array.Length);
 		}
@@ -82,7 +89,11 @@ namespace Bezoro.Core.Common.Helpers
 
 			for (var i = 0 ; i < array.Length ; i++)
 			{
-				if (!EqualityComparer<T>.Default.Equals(array[i], elementToFind)) continue;
+				if (!EqualityComparer<T>.Default.Equals(array[i], elementToFind))
+				{
+					continue;
+				}
+
 				Logger.LogSuccess($"Element {elementToFind} found at index {i}");
 				return new(i, elementToFind, array.Length);
 			}
@@ -93,13 +104,27 @@ namespace Bezoro.Core.Common.Helpers
 
 		public static bool CompareArrays<T>(T[]? a, T[]? b)
 		{
-			if (a == null && b == null) return true;
-			if (a == null || b == null) return false;
-			if (a.Length != b.Length) return false;
+			if (a == null && b == null)
+			{
+				return true;
+			}
+
+			if (a == null || b == null)
+			{
+				return false;
+			}
+
+			if (a.Length != b.Length)
+			{
+				return false;
+			}
 
 			for (var i = 0 ; i < a.Length ; i++)
 			{
-				if (EqualityComparer<T>.Default.Equals(a[i], b[i])) continue;
+				if (EqualityComparer<T>.Default.Equals(a[i], b[i]))
+				{
+					continue;
+				}
 
 				Logger.LogInfo($"Array comparison failed at index {i}.");
 				return false;
@@ -133,7 +158,7 @@ namespace Bezoro.Core.Common.Helpers
 				return false;
 			}
 
-			var foundIndex = Array.IndexOf(array, element);
+			int foundIndex = Array.IndexOf(array, element);
 
 			if (foundIndex < 0)
 			{
@@ -153,7 +178,10 @@ namespace Bezoro.Core.Common.Helpers
 			T element
 		)
 		{
-			if (array != null && array.Length != 0) return false;
+			if (array != null && array.Length != 0)
+			{
+				return false;
+			}
 
 			array    = new T[1];
 			array[0] = element;
@@ -164,14 +192,19 @@ namespace Bezoro.Core.Common.Helpers
 		public static int CountNonNullElements<T>(T[] array)
 			where T : class
 		{
-			if (array == null) return 0;
+			if (array == null)
+			{
+				return 0;
+			}
 
 			var nonNullCount = 0;
 
 			foreach (var element in array)
 			{
 				if (element != null)
+				{
 					nonNullCount++;
+				}
 			}
 
 			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.");
@@ -220,7 +253,7 @@ namespace Bezoro.Core.Common.Helpers
 				return;
 			}
 
-			var nullIndex = FindNullIndex(array);
+			int nullIndex = FindNullIndex(array);
 
 			if (nullIndex != -1)
 			{
@@ -269,9 +302,13 @@ namespace Bezoro.Core.Common.Helpers
 			bool elementExists;
 
 			if (array.Length > ParallelThreshold)
+			{
 				elementExists = FindElementInParallel(array, element).RelevantIndex >= 0;
+			}
 			else
+			{
 				elementExists = FindElementSequentially(array, element).RelevantIndex >= 0;
+			}
 
 			if (elementExists)
 			{
@@ -280,7 +317,7 @@ namespace Bezoro.Core.Common.Helpers
 				return;
 			}
 
-			Add(ref array, element, out var i, resizeFactor);
+			Add(ref array, element, out int i, resizeFactor);
 			index = i;
 			Logger.LogSuccess($"Adding unique element: {element}");
 		}
@@ -300,9 +337,13 @@ namespace Bezoro.Core.Common.Helpers
 			}
 
 			if (array.Length < ParallelThreshold)
+			{
 				ClearSequential(ref array);
+			}
 			else
+			{
 				ClearParallel(array);
+			}
 
 			Logger.LogSuccess("Cleared array.");
 		}
@@ -316,7 +357,9 @@ namespace Bezoro.Core.Common.Helpers
 		public static void ClearParallel<T>(T[] array)
 		{
 			if (array.IsNullOrEmpty())
+			{
 				return;
+			}
 
 			Parallel.For(0, array.Length, i => array[i] = default);
 		}
@@ -332,7 +375,10 @@ namespace Bezoro.Core.Common.Helpers
 		/// </param>
 		public static void ClearSequential<T>(ref T[] array)
 		{
-			if (array.IsNullOrEmpty()) return;
+			if (array.IsNullOrEmpty())
+			{
+				return;
+			}
 
 			Array.Clear(array, 0, array.Length);
 		}
@@ -363,7 +409,10 @@ namespace Bezoro.Core.Common.Helpers
 
 		public static void InitializeNullArray<T>(ref T[] array)
 		{
-			if (array != null) return;
+			if (array != null)
+			{
+				return;
+			}
 
 			array = Array.Empty<T>();
 		}
@@ -408,7 +457,10 @@ namespace Bezoro.Core.Common.Helpers
 
 			for (var i = 0 ; i < source.Length ; i++)
 			{
-				if (!Equals(target[i], default(T))) continue;
+				if (!Equals(target[i], default(T)))
+				{
+					continue;
+				}
 
 				target[i] = source[i];
 			}
@@ -469,18 +521,30 @@ namespace Bezoro.Core.Common.Helpers
 		public static void RemoveDuplicates<T>(ref T[] array)
 		{
 			if (array.IsNullOrEmpty())
+			{
 				return;
+			}
 
 			if (array.Length <= 1)
+			{
 				return;
+			}
 
 			var uniqueElements = new List<T>();
 			var seenElements   = new HashSet<T>();
 
-			foreach (var element in array)
+			foreach (T element in array)
 			{
-				if (Equals(element, default(T))) continue;
-				if (!seenElements.Add(element)) continue;
+				if (Equals(element, default(T)))
+				{
+					continue;
+				}
+
+				if (!seenElements.Add(element))
+				{
+					continue;
+				}
+
 				uniqueElements.Add(element);
 				Logger.LogInfo($"Removing duplicate: {element}");
 			}
@@ -554,18 +618,24 @@ namespace Bezoro.Core.Common.Helpers
 			Enums removalApproach
 		)
 		{
-			var foundIndex = -1;
+			int foundIndex = -1;
 			var lockObj    = new object();
-			var localArray = array;
+			T[] localArray = array;
 
 			Parallel.For(
 				0, localArray.Length, (i, state) =>
 				{
-					if (!EqualityComparer<T>.Default.Equals(localArray[i], element)) return;
+					if (!EqualityComparer<T>.Default.Equals(localArray[i], element))
+					{
+						return;
+					}
 
 					lock ( lockObj )
 					{
-						if (foundIndex != -1) return;
+						if (foundIndex != -1)
+						{
+							return;
+						}
 
 						foundIndex = i;
 						state.Stop();
@@ -606,7 +676,7 @@ namespace Bezoro.Core.Common.Helpers
 		)
 		{
 			// Find the index of the element
-			var index = Array.IndexOf(array, element);
+			int index = Array.IndexOf(array, element);
 
 			if (index < 0)
 			{
@@ -619,7 +689,7 @@ namespace Bezoro.Core.Common.Helpers
 			{
 				case Enums.Resize:
 					// Shift elements and resize the array
-					for (var i = index ; i < array.Length - 1 ; i++)
+					for (int i = index ; i < array.Length - 1 ; i++)
 						array[i] = array[i + 1];
 
 					Array.Resize(ref array, array.Length - 1);
@@ -642,7 +712,7 @@ namespace Bezoro.Core.Common.Helpers
 		{
 			// Create a new array with one less element
 			var tempArray  = new T[array.Length - 1];
-			var localArray = array;
+			T[] localArray = array;
 			var copyLock   = new object();
 
 			// Copy elements into the new array in parallel
@@ -650,9 +720,13 @@ namespace Bezoro.Core.Common.Helpers
 				0, localArray.Length, i =>
 				{
 					if (i < index)
+					{
 						tempArray[i] = localArray[i];
+					}
 					else if (i > index)
+					{
 						tempArray[i - 1] = localArray[i];
+					}
 				}
 			);
 
@@ -680,7 +754,7 @@ namespace Bezoro.Core.Common.Helpers
 			int resizeFactor
 		) where T : class
 		{
-			var oldLength = array.Length;
+			int oldLength = array.Length;
 			ResizeByFactor(ref array, resizeFactor);
 			array[oldLength] = element;
 			index            = oldLength;
@@ -712,7 +786,10 @@ namespace Bezoro.Core.Common.Helpers
 		) where T : class
 		{
 			// Validate input arrays. Log warnings if null and exit early if validation fails.
-			if (!ValidateSource(source)) return;
+			if (!ValidateSource(source))
+			{
+				return;
+			}
 
 			var elementsToAppendCount = 0;
 
@@ -720,7 +797,9 @@ namespace Bezoro.Core.Common.Helpers
 			foreach (var element in source)
 			{
 				if (elementInclusionStrategy == ElementInclusionStrategy.Include || element != null)
+				{
 					elementsToAppendCount++;
+				}
 			}
 
 			// If there are no valid elements to append, exit early.
@@ -731,16 +810,18 @@ namespace Bezoro.Core.Common.Helpers
 			}
 
 			// Resize the target array to hold the new elements.
-			var originalLength = target.Length;
+			int originalLength = target.Length;
 			Array.Resize(ref target, originalLength + elementsToAppendCount);
 
 			// Append elements directly to the target array.
-			var appendIndex = originalLength;
+			int appendIndex = originalLength;
 
 			foreach (var element in source)
 			{
 				if (elementInclusionStrategy == ElementInclusionStrategy.Include || element != null)
+				{
 					target[appendIndex++] = element;
+				}
 			}
 
 			Logger.LogSuccess($"Appended {elementsToAppendCount} elements to the end of the target array.");
@@ -767,13 +848,19 @@ namespace Bezoro.Core.Common.Helpers
 		) where T : class
 		{
 			// Validate the input arrays. Logs warnings and exit early if validation fails.
-			if (source == null || target == null) return;
+			if (source == null || target == null)
+			{
+				return;
+			}
 
 			// Cache the condition to skip null elements in the source
-			var excludeNulls      = elementInclusionStrategy == ElementInclusionStrategy.Exclude;
-			var targetInitialized = HandleNullTargetInitialization(source, ref target, excludeNulls);
+			bool excludeNulls      = elementInclusionStrategy == ElementInclusionStrategy.Exclude;
+			bool targetInitialized = HandleNullTargetInitialization(source, ref target, excludeNulls);
 
-			if (targetInitialized) return;
+			if (targetInitialized)
+			{
+				return;
+			}
 
 			var sourceIndex = 0;
 
@@ -781,8 +868,10 @@ namespace Bezoro.Core.Common.Helpers
 			sourceIndex = PopulateTargetWithSource(source, target, sourceIndex, excludeNulls);
 
 			// Step 2: Calculate remaining valid source elements.
-			if (CheckForRemainingElements(source, sourceIndex, excludeNulls, out var appendCount))
+			if (CheckForRemainingElements(source, sourceIndex, excludeNulls, out int appendCount))
+			{
 				return;
+			}
 
 			// Resize target and append remaining valid source elements.
 			AppendValidElements(source, ref target, appendCount, sourceIndex, excludeNulls);
@@ -795,7 +884,10 @@ namespace Bezoro.Core.Common.Helpers
 		) where T : class
 		{
 			// Validate input arrays. Log warnings if null and exit early if validation fails.
-			if (!ValidateSource(source)) return;
+			if (!ValidateSource(source))
+			{
+				return;
+			}
 
 			// Step 1: Fill null elements in the target array using the source array.
 			var sourceIndex = 0;
@@ -811,11 +903,13 @@ namespace Bezoro.Core.Common.Helpers
 				}
 
 				if (elementInclusionStrategy == ElementInclusionStrategy.Exclude || source[sourceIndex] != null)
+				{
 					sourceIndex++;
+				}
 			}
 
 			// Step 2: Prepend remaining source elements directly to the target array.
-			var remainingLength = source.Length - sourceIndex;
+			int remainingLength = source.Length - sourceIndex;
 
 			if (remainingLength > 0)
 			{
@@ -847,7 +941,10 @@ namespace Bezoro.Core.Common.Helpers
 			where T : class
 		{
 			// Validate input arrays. Log warnings if null and exit early if validation fails.
-			if (!ValidateSource(source)) return;
+			if (!ValidateSource(source))
+			{
+				return;
+			}
 
 			// Keep track of source and target array indices.
 			var sourceIndex = 0;
@@ -869,7 +966,7 @@ namespace Bezoro.Core.Common.Helpers
 			if (sourceIndex < source.Length)
 			{
 				// Add remaining elements to a resized array.
-				var totalNewSize  = target.Length + (source.Length - sourceIndex);
+				int totalNewSize  = target.Length + (source.Length - sourceIndex);
 				var resizedTarget = new T[totalNewSize];
 
 				// Use Array.Copy for better memory and performance efficiency.
@@ -903,7 +1000,10 @@ namespace Bezoro.Core.Common.Helpers
 			where T : class
 		{
 			// Validate input arrays. Log warnings if null and exit early if validation fails.
-			if (!ValidateSource(source)) return;
+			if (!ValidateSource(source))
+			{
+				return;
+			}
 
 			// If the target array is null, initialize it with the source array and log the operation.
 			if (target == null || target.Length == 0)
@@ -921,13 +1021,19 @@ namespace Bezoro.Core.Common.Helpers
 			for (var targetIndex = 0 ; targetIndex < target.Length ; targetIndex++)
 			{
 				// Skip non-null elements in the target.
-				if (target[targetIndex] != null) continue;
+				if (target[targetIndex] != null)
+				{
+					continue;
+				}
 
 				// Exit early if there are no more source elements.
-				if (sourceIndex >= source.Length) break;
+				if (sourceIndex >= source.Length)
+				{
+					break;
+				}
 
 				// Get the next element from the source array.
-				var sourceElement = source[sourceIndex];
+				T? sourceElement = source[sourceIndex];
 
 				if (sourceElement != null)
 				{
@@ -971,10 +1077,13 @@ namespace Bezoro.Core.Common.Helpers
 		) where T : class
 		{
 			// Validate source and target arrays. Log warnings and exit early if validation fails.
-			if (!ValidateSource(source)) return;
+			if (!ValidateSource(source))
+			{
+				return;
+			}
 
 			// Calculate the size of the new array.
-			var nonNullCount = preserveElements == ElementInclusionStrategy.Include
+			int nonNullCount = preserveElements == ElementInclusionStrategy.Include
 				? source.Length
 				: source.Count(item => item != null);
 
@@ -985,7 +1094,10 @@ namespace Bezoro.Core.Common.Helpers
 
 			foreach (var element in source)
 			{
-				if (preserveElements == ElementInclusionStrategy.Exclude && element == null) continue;
+				if (preserveElements == ElementInclusionStrategy.Exclude && element == null)
+				{
+					continue;
+				}
 
 				newArray[currentIndex++] = element;
 			}
@@ -1008,14 +1120,18 @@ namespace Bezoro.Core.Common.Helpers
 		{
 			appendCount = 0;
 
-			for (var i = sourceIndex ; i < source.Length ; i++)
+			for (int i = sourceIndex ; i < source.Length ; i++)
 			{
 				if (!excludeNulls || source[i] != null)
+				{
 					appendCount++;
+				}
 			}
 
 			if (appendCount != 0)
+			{
 				return false;
+			}
 
 			Logger.LogSuccess("Filled null elements in the target array.");
 			return true;
@@ -1028,7 +1144,10 @@ namespace Bezoro.Core.Common.Helpers
 		)
 			where T : class
 		{
-			if (target != null && target.Length != 0) return false;
+			if (target != null && target.Length != 0)
+			{
+				return false;
+			}
 
 			if (excludeNulls)
 			{
@@ -1050,7 +1169,10 @@ namespace Bezoro.Core.Common.Helpers
 
 		private static bool ValidateSource<T>(T[] source) where T : class
 		{
-			if (source != null) return true;
+			if (source != null)
+			{
+				return true;
+			}
 
 			Logger.Log_Exception(new NullReferenceException("Source array must not be null. Aborting operation."));
 			return false;
@@ -1058,7 +1180,10 @@ namespace Bezoro.Core.Common.Helpers
 
 		private static bool ValidateTarget<T>(T[] target) where T : class
 		{
-			if (target != null) return true;
+			if (target != null)
+			{
+				return true;
+			}
 
 			Logger.LogWarning("Target array must not be null. Aborting operation.");
 			return false;
@@ -1072,8 +1197,8 @@ namespace Bezoro.Core.Common.Helpers
 		) where T : class
 		{
 			// Cache lengths for performance
-			var sourceLength = source.Length;
-			var targetLength = target.Length;
+			int sourceLength = source.Length;
+			int targetLength = target.Length;
 
 			for (var targetIndex = 0 ;
 				 targetIndex < targetLength && sourceIndex < sourceLength ;
@@ -1081,7 +1206,9 @@ namespace Bezoro.Core.Common.Helpers
 			{
 				// Skip non-null entries in the target array
 				if (target[targetIndex] != null)
+				{
 					continue;
+				}
 
 				// Find the next valid source element (non-null if exclude_nulls is true)
 				T sourceElement = null;
@@ -1091,12 +1218,16 @@ namespace Bezoro.Core.Common.Helpers
 					sourceElement = source[sourceIndex++];
 
 					if (!excludeNulls || sourceElement != null)
+					{
 						break;
+					}
 				}
 
 				// Assign to target only if a valid source element was found
 				if (sourceElement != null || !excludeNulls)
+				{
 					target[targetIndex] = sourceElement;
+				}
 			}
 
 			return sourceIndex;
@@ -1112,20 +1243,24 @@ namespace Bezoro.Core.Common.Helpers
 		{
 			// Combined guard clauses for early exit
 			if (sourceArray.IsNullOrEmpty() || elementsToAppend == 0 || sourceStartIndex >= sourceArray.Length)
+			{
 				return;
+			}
 
 			Logger.LogInfo("Filling null elements and appending remaining elements from source.");
 
-			var originalLength = targetArray.Length;
-			var newLength      = originalLength + elementsToAppend; // Introduced variable
+			int originalLength = targetArray.Length;
+			int newLength      = originalLength + elementsToAppend; // Introduced variable
 			Array.Resize(ref targetArray, newLength);
 
 			for (int srcIdx = sourceStartIndex, tgtIdx = originalLength ; srcIdx < sourceArray.Length ; srcIdx++)
 			{
-				var shouldCopy = !excludeNulls || sourceArray[srcIdx] != null;
+				bool shouldCopy = !excludeNulls || sourceArray[srcIdx] != null;
 
 				if (shouldCopy)
+				{
 					targetArray[tgtIdx++] = sourceArray[srcIdx];
+				}
 			}
 
 			Logger.LogSuccess($"Filled null elements and appended {elementsToAppend} elements from source.");

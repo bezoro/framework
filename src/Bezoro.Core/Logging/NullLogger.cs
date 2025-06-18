@@ -2,7 +2,7 @@
 {
 	public class NullLogger : ILogger
 	{
-	#region Interface Implementations
+		#region Interface Implementations
 
 		public void Log(Logger.LogEntry log) { }
 		public void LogSuccess(Logger.LogEntry log) { }
@@ -10,6 +10,6 @@
 		public void LogError(Logger.LogEntry log) { }
 		public void LogException(Logger.LogEntry log) { }
 
-	#endregion
+		#endregion
 	}
 }

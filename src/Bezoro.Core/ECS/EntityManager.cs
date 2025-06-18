@@ -9,7 +9,7 @@ namespace Bezoro.Core.ECS
 
 		public Entity CreateEntity()
 		{
-			var id = availableIds.Count > 0 ? availableIds.Dequeue() : nextId++;
+			int id = availableIds.Count > 0 ? availableIds.Dequeue() : nextId++;
 			return new(id);
 		}
 

@@ -25,12 +25,15 @@ namespace Bezoro.Core
 			finalBuilder.AppendLine();
 
 			// Write usings
-			foreach (var @using in _usings.OrderBy(x => x))
+			foreach (string? @using in _usings.OrderBy(x => x))
 			{
 				finalBuilder.AppendLine($"using {@using};");
 			}
 
-			if (_usings.Any()) finalBuilder.AppendLine();
+			if (_usings.Any())
+			{
+				finalBuilder.AppendLine();
+			}
 
 			// Write main content
 			finalBuilder.Append(_builder.ToString());
@@ -45,7 +48,7 @@ namespace Bezoro.Core
 
 		public CodeWriter AddUsingRange(IEnumerable<string> namespaces)
 		{
-			foreach (var @namespace in namespaces)
+			foreach (string? @namespace in namespaces)
 			{
 				AddUsing(@namespace);
 			}
@@ -83,7 +86,11 @@ namespace Bezoro.Core
 
 		public IDisposable BeginScope(string declaration = null)
 		{
-			if (declaration != null) WriteLine(declaration);
+			if (declaration != null)
+			{
+				WriteLine(declaration);
+			}
+
 			WriteLine("{");
 			_indentLevel++;
 			return new ScopeGuard(this);
@@ -102,12 +109,12 @@ namespace Bezoro.Core
 
 		private class ScopeGuard : IDisposable
 		{
+			private readonly CodeWriter _writer;
+
 			public ScopeGuard(CodeWriter writer)
 			{
 				_writer = writer;
 			}
-
-			private readonly CodeWriter _writer;
 
 			public void Dispose() =>
 				_writer.EndScope();
@@ -129,16 +136,24 @@ namespace Bezoro.Core
 		)
 		{
 			if (!_isInClass)
+			{
 				throw new InvalidOperationException("Must be in a class to add a field");
+			}
 
 			var declaration = new StringBuilder();
 			declaration.Append($"{accessibility} ");
 
-			if (isReadonly) declaration.Append("readonly ");
+			if (isReadonly)
+			{
+				declaration.Append("readonly ");
+			}
 
 			declaration.Append($"{type} {name}");
 
-			if (initialValue != null) declaration.Append($" = {initialValue}");
+			if (initialValue != null)
+			{
+				declaration.Append($" = {initialValue}");
+			}
 
 			declaration.Append(";");
 
@@ -156,12 +171,15 @@ namespace Bezoro.Core
 			string[] attributes = null
 		)
 		{
-			if (!_isInClass) throw new InvalidOperationException("Must be in a class to add a method");
+			if (!_isInClass)
+			{
+				throw new InvalidOperationException("Must be in a class to add a method");
+			}
 
 			// Write attributes
 			if (attributes != null)
 			{
-				foreach (var attribute in attributes)
+				foreach (string attribute in attributes)
 				{
 					_writer.WriteLine($"[{attribute}]");
 				}
@@ -170,11 +188,17 @@ namespace Bezoro.Core
 			var declaration = new StringBuilder();
 			declaration.Append($"{accessibility} ");
 
-			if (isStatic) declaration.Append("static ");
+			if (isStatic)
+			{
+				declaration.Append("static ");
+			}
 
 			declaration.Append($"{returnType} {name}(");
 
-			if (parameters is { Length: > 0 }) declaration.Append(string.Join(", ", parameters));
+			if (parameters is { Length: > 0 })
+			{
+				declaration.Append(string.Join(", ", parameters));
+			}
 
 			declaration.Append(")");
 			_writer.WriteLine(declaration.ToString());
@@ -193,19 +217,31 @@ namespace Bezoro.Core
 			string setterAccessibility = null
 		)
 		{
-			if (!_isInClass) throw new InvalidOperationException("Must be in a class to add a property");
+			if (!_isInClass)
+			{
+				throw new InvalidOperationException("Must be in a class to add a property");
+			}
 
 			var declaration = $"{accessibility} {type} {name}";
 
 			if (!hasGetter && !hasSetter)
+			{
 				throw new ArgumentException("Property must have at least a getter or setter");
+			}
 
 			_writer.Write(declaration);
 
 			using ( _writer.BeginScope(" {") )
 			{
-				if (hasGetter) _writer.WriteLine("get;");
-				if (hasSetter) _writer.WriteLine($"{setterAccessibility ?? ""} set;".TrimStart());
+				if (hasGetter)
+				{
+					_writer.WriteLine("get;");
+				}
+
+				if (hasSetter)
+				{
+					_writer.WriteLine($"{setterAccessibility ?? ""} set;".TrimStart());
+				}
 			}
 
 			return this;
@@ -225,13 +261,23 @@ namespace Bezoro.Core
 			string[] interfaces = null
 		)
 		{
-			if (_isInClass) throw new InvalidOperationException("Already in a class definition");
+			if (_isInClass)
+			{
+				throw new InvalidOperationException("Already in a class definition");
+			}
 
 			var declaration = new StringBuilder();
 			declaration.Append($"{accessibility} ");
-			if (isStatic) declaration.Append("static ");
+			if (isStatic)
+			{
+				declaration.Append("static ");
+			}
+
 			declaration.Append($"class {className}");
-			if (baseClass != null) declaration.Append($" : {baseClass}");
+			if (baseClass != null)
+			{
+				declaration.Append($" : {baseClass}");
+			}
 
 			if (interfaces is { Length: > 0 })
 			{
@@ -255,7 +301,10 @@ namespace Bezoro.Core
 
 		public CSharpCodeBuilder EndClass()
 		{
-			if (!_isInClass) throw new InvalidOperationException("Not in a class definition");
+			if (!_isInClass)
+			{
+				throw new InvalidOperationException("Not in a class definition");
+			}
 
 			_writer.EndScope();
 			_isInClass = false;
@@ -265,7 +314,9 @@ namespace Bezoro.Core
 		public CSharpCodeBuilder EndNamespace()
 		{
 			if (_namespaceStack.Count == 0)
+			{
 				throw new InvalidOperationException("No namespace to end");
+			}
 
 			_namespaceStack.Pop();
 			_writer.EndScope();
@@ -275,9 +326,14 @@ namespace Bezoro.Core
 		public string Generate()
 		{
 			if (_namespaceStack.Count > 0)
+			{
 				throw new InvalidOperationException("Unclosed namespace definitions");
+			}
 
-			if (_isInClass) throw new InvalidOperationException("Unclosed class definition");
+			if (_isInClass)
+			{
+				throw new InvalidOperationException("Unclosed class definition");
+			}
 
 			return _writer.ToString();
 		}
@@ -285,21 +341,21 @@ namespace Bezoro.Core
 
 	public class CSharpFileGenerator
 	{
+		private readonly CSharpCodeBuilder _builder;
+		private readonly string            _outputPath;
+
 		public CSharpFileGenerator(string outputPath)
 		{
 			_outputPath = outputPath;
 			_builder    = new();
 		}
 
-		private readonly CSharpCodeBuilder _builder;
-		private readonly string            _outputPath;
-
 		public CSharpCodeBuilder GetBuilder() =>
 			_builder;
 
 		public void Generate()
 		{
-			var code = _builder.Generate();
+			string code = _builder.Generate();
 			File.WriteAllText(_outputPath, code);
 		}
 	}

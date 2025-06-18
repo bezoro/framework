@@ -9,19 +9,6 @@ namespace Bezoro.Core.Common.Primitives
 	public readonly struct ArrayElementInfo<T>
 	{
 		/// <summary>
-		///     Constructor for creating an Array_Element_Info instance.
-		/// </summary>
-		/// <param name="relevantIndex">The index of the element in the array.</param>
-		/// <param name="element">The specific array element.</param>
-		/// <param name="length">The length of the array.</param>
-		public ArrayElementInfo(int relevantIndex, T element, int length)
-		{
-			RelevantIndex = relevantIndex;
-			Element       = element;
-			Length        = length;
-		}
-
-		/// <summary>
 		///     The total length of the array.
 		/// </summary>
 		public int Length { get; }
@@ -44,6 +31,19 @@ namespace Bezoro.Core.Common.Primitives
 		///     The element's type in the array.
 		/// </summary>
 		public Type ElementType => Element?.GetType() ?? typeof(T);
+
+		/// <summary>
+		///     Constructor for creating an Array_Element_Info instance.
+		/// </summary>
+		/// <param name="relevantIndex">The index of the element in the array.</param>
+		/// <param name="element">The specific array element.</param>
+		/// <param name="length">The length of the array.</param>
+		public ArrayElementInfo(int relevantIndex, T element, int length)
+		{
+			RelevantIndex = relevantIndex;
+			Element       = element;
+			Length        = length;
+		}
 
 		/// <summary>
 		///     Returns a string representation of the array data.

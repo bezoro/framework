@@ -45,7 +45,10 @@ namespace Bezoro.Core
 			string? msg
 		)
 		{
-			if (func == null) throw new ArgumentNullException(nameof(func));
+			if (func == null)
+			{
+				throw new ArgumentNullException(nameof(func));
+			}
 
 			try { return func(); }
 			catch (Exception e) { Throw(custom, msg, e); }
@@ -60,7 +63,10 @@ namespace Bezoro.Core
 			string? msg
 		)
 		{
-			if (func == null) throw new ArgumentNullException(nameof(func));
+			if (func == null)
+			{
+				throw new ArgumentNullException(nameof(func));
+			}
 
 			try { await func().ConfigureAwait(false); }
 			catch (Exception e) { Throw(custom, msg, e); }
@@ -73,7 +79,10 @@ namespace Bezoro.Core
 			string? msg
 		)
 		{
-			if (func == null) throw new ArgumentNullException(nameof(func));
+			if (func == null)
+			{
+				throw new ArgumentNullException(nameof(func));
+			}
 
 			try { return await func().ConfigureAwait(false); }
 			catch (Exception e) { Throw(custom, msg, e); }
@@ -88,7 +97,10 @@ namespace Bezoro.Core
 			string? msg
 		)
 		{
-			if (action == null) throw new ArgumentNullException(nameof(action));
+			if (action == null)
+			{
+				throw new ArgumentNullException(nameof(action));
+			}
 
 			try { action(); }
 			catch (Exception e) { Throw(custom, msg, e); }
@@ -97,8 +109,16 @@ namespace Bezoro.Core
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void Throw(Exception? custom, string? msg, Exception original)
 		{
-			if (custom != null) throw custom;
-			if (!string.IsNullOrEmpty(msg)) throw new(msg, original);
+			if (custom != null)
+			{
+				throw custom;
+			}
+
+			if (!string.IsNullOrEmpty(msg))
+			{
+				throw new(msg, original);
+			}
+
 			throw original;
 		}
 	}

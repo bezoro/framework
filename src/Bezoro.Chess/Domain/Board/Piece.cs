@@ -25,12 +25,6 @@ namespace Bezoro.Chess.Domain.Board
 	/// </summary>
 	public readonly struct Piece : IEquatable<Piece>
 	{
-		public Piece(PieceType type, PieceColor color)
-		{
-			Type  = type;
-			Color = color;
-		}
-
 		/// <summary>
 		///     The color of the piece (White or Black)
 		/// </summary>
@@ -40,13 +34,11 @@ namespace Bezoro.Chess.Domain.Board
 		/// </summary>
 		public PieceType Type { get; }
 
-		/// <summary>
-		///     Returns a string representation of the piece, primarily for debugging.
-		/// </summary>
-		public override string ToString() =>
-			Type == PieceType.None ? "Empty" : $"{Color} {Type}";
+		#region Equality
 
-	#region Equality Members
+		public static bool operator ==(Piece left, Piece right) => left.Equals(right);
+
+		public static bool operator !=(Piece left, Piece right) => !left.Equals(right);
 
 		public bool Equals(Piece other) => Type == other.Type && Color == other.Color;
 
@@ -54,10 +46,18 @@ namespace Bezoro.Chess.Domain.Board
 
 		public override int GetHashCode() => HashCode.Combine((int)Type, (int)Color);
 
-		public static bool operator ==(Piece left, Piece right) => left.Equals(right);
+		#endregion
 
-		public static bool operator !=(Piece left, Piece right) => !left.Equals(right);
+		public Piece(PieceType type, PieceColor color)
+		{
+			Type  = type;
+			Color = color;
+		}
 
-	#endregion
+		/// <summary>
+		///     Returns a string representation of the piece, primarily for debugging.
+		/// </summary>
+		public override string ToString() =>
+			Type == PieceType.None ? "Empty" : $"{Color} {Type}";
 	}
 }

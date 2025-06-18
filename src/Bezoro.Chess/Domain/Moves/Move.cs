@@ -23,6 +23,40 @@ namespace Bezoro.Chess.Domain.Moves
 	/// </summary>
 	public readonly struct Move : IEquatable<Move>
 	{
+		public MoveType  Type           { get; }
+		public Piece     CapturedPiece  { get; }
+		public Piece     Piece          { get; }
+		public PieceType PromotionPiece { get; }
+		public Position  From           { get; }
+		public Position  To             { get; }
+
+		#region Equality
+
+		public static bool operator ==(Move left, Move right) => left.Equals(right);
+
+		public static bool operator !=(Move left, Move right) => !left.Equals(right);
+
+		public bool Equals(Move other) =>
+			Type == other.Type                        &&
+			Piece.Equals(other.Piece)                 &&
+			CapturedPiece.Equals(other.CapturedPiece) &&
+			From.Equals(other.From)                   &&
+			To.Equals(other.To)                       &&
+			PromotionPiece == other.PromotionPiece;
+
+		public override bool Equals(object? obj) => obj is Move other && Equals(other);
+
+		public override int GetHashCode() => HashCode.Combine(
+			(int)Type,
+			Piece,
+			CapturedPiece,
+			From,
+			To,
+			(int)PromotionPiece
+		);
+
+		#endregion
+
 		private Move(
 			Position from, Position to, Piece piece, Piece capturedPiece = default, MoveType type = MoveType.Normal,
 			PieceType promotionPiece = PieceType.None)
@@ -35,16 +69,9 @@ namespace Bezoro.Chess.Domain.Moves
 			PromotionPiece = promotionPiece;
 		}
 
-		public MoveType  Type           { get; }
-		public Piece     CapturedPiece  { get; }
-		public Piece     Piece          { get; }
-		public PieceType PromotionPiece { get; }
-		public Position  From           { get; }
-		public Position  To             { get; }
-
 		public override string ToString() => $"Move {From} -> {To} ({Type})";
 
-	#region Factory Methods
+		#region Factory Methods
 
 		public static Move CreateNormal(Position from, Position to, Piece piece) =>
 			new(from, to, piece, type: MoveType.Normal);
@@ -68,33 +95,6 @@ namespace Bezoro.Chess.Domain.Moves
 			Position from, Position to, Piece pawn, Piece capturedPiece, PieceType promotionPiece) =>
 			new(from, to, pawn, capturedPiece, MoveType.PawnPromotionCapture, promotionPiece);
 
-	#endregion
-
-	#region Equality Members
-
-		public bool Equals(Move other) =>
-			Type == other.Type                        &&
-			Piece.Equals(other.Piece)                 &&
-			CapturedPiece.Equals(other.CapturedPiece) &&
-			From.Equals(other.From)                   &&
-			To.Equals(other.To)                       &&
-			PromotionPiece == other.PromotionPiece;
-
-		public override bool Equals(object? obj) => obj is Move other && Equals(other);
-
-		public override int GetHashCode() => HashCode.Combine(
-			(int)Type,
-			Piece,
-			CapturedPiece,
-			From,
-			To,
-			(int)PromotionPiece
-		);
-
-		public static bool operator ==(Move left, Move right) => left.Equals(right);
-
-		public static bool operator !=(Move left, Move right) => !left.Equals(right);
-
-	#endregion
+		#endregion
 	}
 }

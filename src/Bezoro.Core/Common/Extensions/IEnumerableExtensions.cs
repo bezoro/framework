@@ -17,12 +17,16 @@ namespace Bezoro.Core.Common.Extensions
 		public static bool IsNullOrEmpty(this IEnumerable? enumerable)
 		{
 			if (enumerable is null)
+			{
 				return true;
+			}
 
 			if (enumerable is ICollection nonGeneric)
+			{
 				return nonGeneric.Count == 0;
+			}
 
-			var enumerator = enumerable.GetEnumerator();
+			IEnumerator enumerator = enumerable.GetEnumerator();
 			try
 			{
 				return !enumerator.MoveNext();
@@ -30,7 +34,9 @@ namespace Bezoro.Core.Common.Extensions
 			finally
 			{
 				if (enumerator is IDisposable d)
+				{
 					d.Dispose();
+				}
 			}
 		}
 
@@ -38,17 +44,23 @@ namespace Bezoro.Core.Common.Extensions
 		public static bool IsNullOrEmpty<T>(this IEnumerable<T>? enumerable)
 		{
 			if (enumerable is null)
+			{
 				return true;
+			}
 
 			// Fast-path for mutable collections
 			if (enumerable is ICollection<T> coll)
+			{
 				return coll.Count == 0;
+			}
 
 			// Fast-path for read-only collections
 			if (enumerable is IReadOnlyCollection<T> readOnly)
+			{
 				return readOnly.Count == 0;
+			}
 
-			using var e = enumerable.GetEnumerator();
+			using IEnumerator<T> e = enumerable.GetEnumerator();
 			return !e.MoveNext();
 		}
 	}

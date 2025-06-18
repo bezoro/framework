@@ -7,18 +7,18 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 	{
 		public static IEnumerable<Move> GenerateMoves(Position from, GameState gameState)
 		{
-			var pawn         = gameState.PiecePositions[from.Row, from.Col];
-			var direction    = pawn.Color == PieceColor.White ? -1 : 1;
-			var startRow     = pawn.Color == PieceColor.White ? 6 : 1;
-			var promotionRow = pawn.Color == PieceColor.White ? 0 : 7;
+			Piece pawn         = gameState.PiecePositions[from.Row, from.Col];
+			int   direction    = pawn.Color == PieceColor.White ? -1 : 1;
+			int   startRow     = pawn.Color == PieceColor.White ? 6 : 1;
+			int   promotionRow = pawn.Color == PieceColor.White ? 0 : 7;
 
 			// Use helper methods to generate moves for each category
-			foreach (var move in GenerateAdvanceMoves(from, gameState, pawn, direction, startRow, promotionRow))
+			foreach (Move move in GenerateAdvanceMoves(from, gameState, pawn, direction, startRow, promotionRow))
 			{
 				yield return move;
 			}
 
-			foreach (var move in GenerateCaptureMoves(from, gameState, pawn, direction, promotionRow))
+			foreach (Move move in GenerateCaptureMoves(from, gameState, pawn, direction, promotionRow))
 			{
 				yield return move;
 			}
@@ -37,7 +37,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			{
 				if (oneStepForward.Row == promotionRow)
 				{
-					foreach (var move in GeneratePromotionMoves(from, oneStepForward, pawn, default))
+					foreach (Move move in GeneratePromotionMoves(from, oneStepForward, pawn, default))
 					{
 						yield return move;
 					}
@@ -67,7 +67,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			Position from, GameState gameState, Piece pawn, int direction, int promotionRow)
 		{
 			(int dRow, int dCol)[] captureVectors = { (direction, -1), (direction, 1) };
-			foreach (var (dRow, dCol) in captureVectors)
+			foreach ((int dRow, int dCol) in captureVectors)
 			{
 				var toPosition = new Position(from.Row + dRow, from.Col + dCol);
 
@@ -77,12 +77,12 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				}
 
 				// 3. Standard diagonal capture
-				var pieceAtDestination = gameState.GetPieceAt(toPosition);
+				Piece pieceAtDestination = gameState.GetPieceAt(toPosition);
 				if (pieceAtDestination.Type != PieceType.None && pieceAtDestination.Color != pawn.Color)
 				{
 					if (toPosition.Row == promotionRow)
 					{
-						foreach (var move in GeneratePromotionMoves(from, toPosition, pawn, pieceAtDestination))
+						foreach (Move move in GeneratePromotionMoves(from, toPosition, pawn, pieceAtDestination))
 						{
 							yield return move;
 						}
@@ -96,8 +96,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				// 4. En passant capture
 				if (gameState.EnPassantTargetSquare.HasValue && toPosition == gameState.EnPassantTargetSquare.Value)
 				{
-					var capturedPawnPosition = new Position(from.Row, toPosition.Col);
-					var capturedPawn         = gameState.GetPieceAt(capturedPawnPosition);
+					var   capturedPawnPosition = new Position(from.Row, toPosition.Col);
+					Piece capturedPawn         = gameState.GetPieceAt(capturedPawnPosition);
 					yield return Move.CreateEnPassant(from, toPosition, pawn, capturedPawn);
 				}
 			}
@@ -111,7 +111,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 		{
 			var promotionPieceTypes = new[] { PieceType.Queen, PieceType.Rook, PieceType.Bishop, PieceType.Knight };
 
-			foreach (var pieceType in promotionPieceTypes)
+			foreach (PieceType pieceType in promotionPieceTypes)
 			{
 				if (capturedPiece.Type == PieceType.None)
 				{

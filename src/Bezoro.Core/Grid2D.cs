@@ -64,7 +64,9 @@ namespace Bezoro.Core
 		public Grid2D(int width, int height)
 		{
 			if (width <= 0 || height <= 0)
+			{
 				throw new ArgumentException("Grid dimensions must be greater than zero.");
+			}
 
 			Width  = width;
 			Height = height;

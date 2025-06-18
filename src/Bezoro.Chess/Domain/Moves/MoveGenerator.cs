@@ -20,7 +20,7 @@ namespace Bezoro.Chess.Domain.Moves
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					var piece = gameState.PiecePositions[r, c];
+					Piece piece = gameState.PiecePositions[r, c];
 
 					// Skip empty squares or pieces of the inactive color
 					if (piece.Type == PieceType.None || piece.Color != gameState.ActiveColor)
@@ -29,7 +29,7 @@ namespace Bezoro.Chess.Domain.Moves
 					}
 
 					var from = new Position(r, c);
-					foreach (var move in GeneratePieceMoves(from, piece, gameState))
+					foreach (Move move in GeneratePieceMoves(from, piece, gameState))
 					{
 						yield return move;
 					}
@@ -43,7 +43,7 @@ namespace Bezoro.Chess.Domain.Moves
 		/// </summary>
 		public static IEnumerable<Move> GeneratePieceMoves(Position from, GameState gameState)
 		{
-			var piece = gameState.PiecePositions[from.Row, from.Col];
+			Piece piece = gameState.PiecePositions[from.Row, from.Col];
 
 			// Can't move an empty square or a piece of the wrong color
 			if (piece.Type == PieceType.None || piece.Color != gameState.ActiveColor)
@@ -51,7 +51,7 @@ namespace Bezoro.Chess.Domain.Moves
 				yield break;
 			}
 
-			foreach (var move in GeneratePieceMoves(from, piece, gameState))
+			foreach (Move move in GeneratePieceMoves(from, piece, gameState))
 			{
 				yield return move;
 			}

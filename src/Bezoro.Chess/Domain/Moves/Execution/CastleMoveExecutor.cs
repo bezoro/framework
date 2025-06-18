@@ -13,17 +13,17 @@ namespace Bezoro.Chess.Domain.Moves.Execution
 			NormalMoveExecutor.Execute(state, move);
 
 			// Determine if it's kingside or queenside based on the king's destination.
-			var isKingside = move.To.Col > move.From.Col;
+			bool isKingside = move.To.Col > move.From.Col;
 
 			// Now, move the corresponding rook.
-			var rookFromCol = isKingside ? 7 : 0;
-			var rookToCol   = isKingside ? 5 : 3;
-			var row         = move.From.Row;
+			int rookFromCol = isKingside ? 7 : 0;
+			int rookToCol   = isKingside ? 5 : 3;
+			int row         = move.From.Row;
 
-			var rookFromPosition = new Position(row, rookFromCol);
-			var rookToPosition   = new Position(row, rookToCol);
-			var rook             = state.GetPieceAt(rookFromPosition);
-			var rookMove         = Move.CreateNormal(rookFromPosition, rookToPosition, rook);
+			var   rookFromPosition = new Position(row, rookFromCol);
+			var   rookToPosition   = new Position(row, rookToCol);
+			Piece rook             = state.GetPieceAt(rookFromPosition);
+			var   rookMove         = Move.CreateNormal(rookFromPosition, rookToPosition, rook);
 
 			NormalMoveExecutor.Execute(state, rookMove);
 		}

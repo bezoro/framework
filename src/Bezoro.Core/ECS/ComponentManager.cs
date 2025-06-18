@@ -10,16 +10,16 @@ namespace Bezoro.Core.ECS
 
 		public bool HasComponent<T>(Entity entity) where T : struct, IComponent
 		{
-			var componentType = typeof(T);
-			return _componentArrays.TryGetValue(componentType, out var array) &&
+			Type componentType = typeof(T);
+			return _componentArrays.TryGetValue(componentType, out IComponentArray? array) &&
 				   ((ComponentArray<T>)array).Components.ContainsKey(entity.Id);
 		}
 
 		public T GetComponent<T>(Entity entity) where T : struct, IComponent
 		{
-			var componentType = typeof(T);
-			if (_componentArrays.TryGetValue(componentType, out var array) &&
-				((ComponentArray<T>)array).Components.TryGetValue(entity.Id, out var component))
+			Type componentType = typeof(T);
+			if (_componentArrays.TryGetValue(componentType, out IComponentArray? array) &&
+				((ComponentArray<T>)array).Components.TryGetValue(entity.Id, out T component))
 			{
 				return component;
 			}
@@ -29,8 +29,8 @@ namespace Bezoro.Core.ECS
 
 		public void AddComponent<T>(Entity entity, T component) where T : struct, IComponent
 		{
-			var componentType = typeof(T);
-			if (!_componentArrays.TryGetValue(componentType, out var array))
+			Type componentType = typeof(T);
+			if (!_componentArrays.TryGetValue(componentType, out IComponentArray? array))
 			{
 				array                           = new ComponentArray<T>();
 				_componentArrays[componentType] = array;
@@ -49,14 +49,14 @@ namespace Bezoro.Core.ECS
 
 		public void RemoveAllComponents(Entity entity)
 		{
-			if (!_entityComponents.TryGetValue(entity.Id, out var componentsForEntity))
+			if (!_entityComponents.TryGetValue(entity.Id, out Dictionary<Type, IComponent>? componentsForEntity))
 			{
 				return;
 			}
 
-			foreach (var componentType in componentsForEntity.Keys)
+			foreach (Type? componentType in componentsForEntity.Keys)
 			{
-				if (_componentArrays.TryGetValue(componentType, out var componentArray))
+				if (_componentArrays.TryGetValue(componentType, out IComponentArray? componentArray))
 				{
 					componentArray.Remove(entity.Id);
 				}
@@ -67,13 +67,13 @@ namespace Bezoro.Core.ECS
 
 		public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
 		{
-			var componentType = typeof(T);
-			if (_componentArrays.TryGetValue(componentType, out var array))
+			Type componentType = typeof(T);
+			if (_componentArrays.TryGetValue(componentType, out IComponentArray? array))
 			{
 				((ComponentArray<T>)array).Remove(entity.Id);
 			}
 
-			if (_entityComponents.TryGetValue(entity.Id, out var components))
+			if (_entityComponents.TryGetValue(entity.Id, out Dictionary<Type, IComponent>? components))
 			{
 				components.Remove(componentType);
 				if (components.Count == 0)
@@ -88,12 +88,12 @@ namespace Bezoro.Core.ECS
 		{
 			internal readonly Dictionary<int, T> Components = new();
 
-		#region Interface Implementations
+			#region Interface Implementations
 
 			public void Remove(int entityId) =>
 				Components.Remove(entityId);
 
-		#endregion
+			#endregion
 		}
 
 		// Private interface to abstract component removal.

@@ -11,17 +11,16 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 
 	public readonly struct MoveHighlightViewModel : IEquatable<MoveHighlightViewModel>
 	{
-		public MoveHighlightViewModel(Position position, MoveHighlightType highlightType)
-		{
-			Position      = position;
-			HighlightType = highlightType;
-		}
-
 		public MoveHighlightType HighlightType { get; }
 
 		public Position Position { get; }
 
-	#region Equality
+		#region Equality
+
+		public static bool operator ==(MoveHighlightViewModel left, MoveHighlightViewModel right) => left.Equals(right);
+
+		public static bool operator !=(MoveHighlightViewModel left, MoveHighlightViewModel right) =>
+			!left.Equals(right);
 
 		public bool Equals(MoveHighlightViewModel other) =>
 			Position.Equals(other.Position) && HighlightType == other.HighlightType;
@@ -32,11 +31,12 @@ namespace Bezoro.Chess.Application.Abstractions.ViewModels
 		public override int GetHashCode() =>
 			HashCode.Combine(Position, (int)HighlightType);
 
-		public static bool operator ==(MoveHighlightViewModel left, MoveHighlightViewModel right) => left.Equals(right);
+		#endregion
 
-		public static bool operator !=(MoveHighlightViewModel left, MoveHighlightViewModel right) =>
-			!left.Equals(right);
-
-	#endregion
+		public MoveHighlightViewModel(Position position, MoveHighlightType highlightType)
+		{
+			Position      = position;
+			HighlightType = highlightType;
+		}
 	}
 }

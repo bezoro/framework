@@ -13,9 +13,9 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 				(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
 			};
 
-			var movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			Piece movingPiece = gameState.PiecePositions[from.Row, from.Col];
 
-			foreach (var (dRow, dCol) in directions)
+			foreach ((int dRow, int dCol) in directions)
 			{
 				var to = new Position(from.Row + dRow, from.Col + dCol);
 
@@ -24,7 +24,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 					continue;
 				}
 
-				var pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
+				Piece pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
@@ -37,7 +37,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			}
 
 			// Castling Moves
-			foreach (var move in GenerateCastlingMoves(from, gameState))
+			foreach (Move move in GenerateCastlingMoves(from, gameState))
 			{
 				yield return move;
 			}
@@ -45,12 +45,12 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 		private static bool CanCastle(GameState gameState, CastlingSide side)
 		{
-			var color         = gameState.ActiveColor;
-			var opponentColor = color.Opposite();
+			PieceColor color         = gameState.ActiveColor;
+			PieceColor opponentColor = color.Opposite();
 
 			// The king must be on its home rank to castle.
-			var homeRow = color == PieceColor.White ? 7 : 0;
-			var kingPos = gameState.FindKingPosition(color);
+			int       homeRow = color == PieceColor.White ? 7 : 0;
+			Position? kingPos = gameState.FindKingPosition(color);
 
 			// Rule: King must be on its starting square (e1/e8).
 			if (kingPos == null || kingPos.Value.Row != homeRow || kingPos.Value.Col != 4)
@@ -59,14 +59,17 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			}
 
 			// Rule: Check if castling rights are present.
-			var hasRights =
+			bool hasRights =
 				(gameState.Castling &
 				 (side == CastlingSide.Kingside
 					 ? color == PieceColor.White ? CastlingRights.WhiteKingside : CastlingRights.BlackKingside
 					 : color == PieceColor.White ? CastlingRights.WhiteQueenside : CastlingRights.BlackQueenside)) !=
 				0;
 
-			if (!hasRights) return false;
+			if (!hasRights)
+			{
+				return false;
+			}
 
 			var      pathSquares  = new List<Position>();
 			var      emptySquares = new List<Position>();
@@ -95,7 +98,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 			}
 
 			// Rule: The rook must be on its starting square.
-			var rook = gameState.GetPieceAt(rookPos);
+			Piece rook = gameState.GetPieceAt(rookPos);
 			if (rook.Type != PieceType.Rook || rook.Color != color)
 			{
 				return false;
@@ -113,8 +116,8 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 
 		private static IEnumerable<Move> GenerateCastlingMoves(Position from, GameState gameState)
 		{
-			var movingPiece   = gameState.PiecePositions[from.Row, from.Col];
-			var opponentColor = gameState.ActiveColor.Opposite();
+			Piece      movingPiece   = gameState.PiecePositions[from.Row, from.Col];
+			PieceColor opponentColor = gameState.ActiveColor.Opposite();
 
 			// Rule: King cannot be in check to castle.
 			if (gameState.IsSquareAttackedBy(from, opponentColor))

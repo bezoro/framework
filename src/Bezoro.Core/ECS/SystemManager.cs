@@ -11,7 +11,7 @@ namespace Bezoro.Core.ECS
 
 		public void UpdateAll()
 		{
-			foreach (var system in systems)
+			foreach (ISystem? system in systems)
 			{
 				system.Update();
 			}

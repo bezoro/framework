@@ -40,7 +40,9 @@ namespace Bezoro.Core.Common.Helpers
 		public static void IsNotNull<T>(T obj) where T : class
 		{
 			if (obj == null)
+			{
 				throw new ArgumentNullException(nameof(obj));
+			}
 		}
 
 		public static void IsPositiveValue(
