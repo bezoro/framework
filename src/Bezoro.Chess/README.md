@@ -37,6 +37,11 @@ Bezoro.Framework.sln
        └─ Bezoro.Chess.csproj
 └─ tests
    └─ Bezoro.Chess.Tests/
+       ├─ Unit/          ← unit tests
+       ├─ Integration/   ← integration tests
+       ├─ Properties/    ← property-based tests
+       ├─ Performance/   ← performance tests
+       └─ Multi-thread/  ← multi-threading tests 
 ```
 
 ---
