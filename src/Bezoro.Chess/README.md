@@ -8,8 +8,13 @@ systems, making it completely portable.
 
 ## Technical Specifications
 
-* Framework: `netstandard2.1`
-* Language: C# 9.0
+* Frameworks:
+	* `netstandard2.1` – Library (stable)
+	* `net9.0-preview` – Tests (preview)
+	* Language Versions:
+	* C# 9.0 – Library (stable)
+	* C# 13.0-preview – Tests (preview)
+
 * Deployment: Drop-in library for any compatible host
 
 ---
@@ -120,7 +125,7 @@ down through the layers.
 
 ### Shared Components
 
-#### Enumerations (`Shared/Enums.cs`)
+#### Enumerations (`Domain/Shared/Enums.cs`)
 
 | Enum               | Values                                                                                    | Description                         |
 |--------------------|-------------------------------------------------------------------------------------------|-------------------------------------|
@@ -131,7 +136,7 @@ down through the layers.
 | `CastlingRights`   | `None`, `WhiteKingside`, `WhiteQueenside`, `BlackKingside`, `BlackQueenside`, `All`       | Bit-flags for castling availability |
 | `FailureReason`    | `None`, `TriedMovingFromEmptySquare`, etc.                                                | Error conditions for move attempts  |
 
-#### Constants (`Shared/Consts.cs`)
+#### Constants (`Domain/Shared/Consts.cs`)
 
 | Constant         | Description                                          |
 |------------------|------------------------------------------------------|
@@ -143,27 +148,27 @@ down through the layers.
 
 > Immutable value objects and aggregates containing data without behavior
 
-#### Value Types (`Types/Structs/`)
+#### Value Types (`Domain/Types/Structs/`)
 
 | Type      | Properties                                                                                             | Description                                      |
 |-----------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------|
 | `Piece`   | `PieceColor Color`<br>`PieceType Type`                                                                 | Represents a chess piece with its color and type |
 | `Square`  | `PieceType Occupant`<br>`uint Rank` (derived)<br>`uint File` (derived)<br>`char RankChar` (derived)    | Represents a single square on the chess board    |
 | `Move`    | `SquareCoordinate From`<br>`SquareCoordinate To`<br>`MoveType Type`<br>`CastlingRights CastlingRights` | Represents a chess move with all necessary data  |
-| `Board`   | `Square[] Squares.AsSpan()`                                                                            | Represents the entire chess board state          |
+| `Board`   | `ReadOnlySpan<Square> Squares`                                                                         | Represents the entire chess board state          |
 | `FenData` | `ReadOnlySpan<Square> Pieces`<br>`CastlingRights Castling`<br>...                                      | Forsyth-Edwards Notation data structure          |
 
-#### Reference Types (`Types/Records/`)
+#### Reference Types (`Domain/Types/Records/`)
 
 | Type        | Properties                                                                                                            | Description                                   |
 |-------------|-----------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
 | `GameState` | `Board Board`<br>`SquareCoordinate EnPassantSquare`<br>`uint HalfmoveClock`<br>`CastlingRights CastlingRights`<br>... | Complete representation of a chess game state |
 
-### Functions/
+### Functions (`Domain/Functions/...`)
 
 Pure systems that operate on types; Applies changes and generates new state
 
-**MoveGeneration/**
+**Domain/Functions/MoveGeneration/**
 
 | File                      | Description                                                    |
 |---------------------------|----------------------------------------------------------------|
@@ -172,14 +177,14 @@ Pure systems that operate on types; Applies changes and generates new state
 | `FilterLegalMoves.cs`     | (in Moves[]) Remove moves that leave own king in check         |
 | `GenerateIllegalMoves.cs` | (in GameState) Generates all **illegal** moves                 |
 
-**MoveApplication/**
+**Domain/Functions/MoveApplication/**
 
 | File                   | Description                                                               |
 |------------------------|---------------------------------------------------------------------------|
 | `ApplyMove.cs`         | (in GameState, in Move move) – applies `move` and returns a new GameState |
 | `...MoveApplicator.cs` | Individual piece move applicator used by `ApplyMove`                      |
 
-**Undo/**
+**Domain/Functions/Undo/**
 
 | File                 | Description                                |
 |----------------------|--------------------------------------------| 
@@ -187,7 +192,7 @@ Pure systems that operate on types; Applies changes and generates new state
 | `RedoLastMove.cs`    | Replays a previously undone move           |
 | `TrimUndoHistory.cs` | Cleans up/removes old undo history entries |
 
-**Outcome/**
+**Domain/Functions/Outcome/**
 
 | File                        | Description                                                    |
 |-----------------------------|----------------------------------------------------------------|
@@ -199,7 +204,7 @@ Pure systems that operate on types; Applies changes and generates new state
 
 ### Utility Components
 
-#### Helper Functions (`Helpers/`)
+#### Helper Functions (`Domain/Helpers/...`)
 
 | Helper      | Purpose                                                      |
 |-------------|--------------------------------------------------------------|
@@ -207,7 +212,7 @@ Pure systems that operate on types; Applies changes and generates new state
 | `UCIParser` | Parses Universal Chess Interface commands                    |
 | `PGNParser` | Parses Portable Game Notation files                          |
 
-#### Extension Methods (`Extensions/`)
+#### Extension Methods (`Domain/Extensions/...`)
 
 | Extension          | Methods                                                                                       | Purpose                              |
 |--------------------|-----------------------------------------------------------------------------------------------|--------------------------------------|
@@ -222,7 +227,7 @@ Pure systems that operate on types; Applies changes and generates new state
 The public-facing interface layer that exposes functionality to host applications. While still prioritizing functional
 approaches, this layer allows for more OOP patterns where they benefit API consumers.
 
-### Engine Component (`API/Engine/`)
+### Engine Component (`API/Engine/...`)
 
 The primary entry point for host applications is `ChessEngine.cs`. All methods are asynchronous (`ValueTask<T>`) to
 support future AI integration. Methods follow a `Try` pattern returning `Result<T>` with success/failure status and
@@ -237,7 +242,7 @@ relevant data.
 | `TryApplyPromotion(string position, PieceType promotionPiece)` | Handles pawn promotion                              |
 | `TrySerializePGNtoJSON(string pgn)`                            | Converts PGN to JSON format                         |
 
-### Data Transfer Objects (`API/ViewModels/`)
+### Data Transfer Objects (`API/ViewModels/...`)
 
 Immutable objects that transfer domain state to host applications.
 
