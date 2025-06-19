@@ -4,6 +4,7 @@ A simple **pure-logic** chess library--for personal use--that can be dropped int
 server, …).  
 There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking, or any other I/O.
 
+Technical Limitations: (Unity support)
 * Target framework`netstandard2.1`
 * Language version C# 9.0
 ---
@@ -17,6 +18,15 @@ There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking
 * **Minimal to No OOP** – favor composition and plain data.
 * **Library-only** – hosts handle input, view, persistence, threading.
 * **Minimal GC pressure** – favor value types and pooling.
+* **Aggressive inlining** – heavy use of MethodImpl(MethodImplOptions.AggressiveInlining) for hot paths.
+
+Coordinate system:
+
+- Board represented as a linear array (0–63)
+- A1 = index 0
+- H8 = index 63
+- File (A-H) determines column
+- Rank (1-8) determines row
 
 ---
 
@@ -75,7 +85,7 @@ Unity / Godot (host)/ ...
 	* `CastlingRights` – bit-flags (`WhiteKingside`, `WhiteQueenside`, …, `All`)
 	* `CastleSide` – `None, BlackKing, BlackQueen, WhiteKing, WhiteQueen`
 
-* **Consts.cs**
+* **Consts.cs** – static readonly & const
 	* `AttackVectors` – pre-computed directional vectors for each piece type.
 	* `FENStrings` – Standard FEN string setups
 	* `BoardConstants` – A1 = SquarePosition.A1, ...
@@ -86,31 +96,38 @@ Unity / Godot (host)/ ...
 	* `Piece.cs(PieceColor color, PieceType type)`
 	* `Square.cs(PieceType, uint file, uint rank)`
 	* `Move.cs(SquarePosition source, SquarePosition destination)`
-	* `Board.cs(ImmutableArray<Square> squares)` – Exposed as a ReadOnlySpan
+	* `Board.cs(ImmutableArray<Square> squares)` – Exposed as a ReadOnlySpan getter
 	* `FenData.cs()`
-	* `GameState.cs(FenData fen)`
 * **Records/** (reference types are to be avoided)
-	* (Just in case)
+	* `GameState.cs(FenData fen)`
 
 ### Functions/ – Applies changes and generates new state
 
-* **Parsing/**
-	* `FENToGameState.cs(string)` – create a `GameState` from FEN.
-	* `GameStateToUCI.cs(in GameState)` – convert game state to UCI move string.
-	* `PGNSerialization.cs(in GameState)` – serialise to PGN-like JSON.
-
-* **MoveGeneration/**
-	* `GeneratePseudoMoves.cs(in GameState)` – all pseudo-legal moves (en passant, castling, promotion).
-	* `Piece/`
+* **Hot/** – performance critical
+	* **MoveGeneration/**
+		* `GeneratePseudoMoves.cs(in GameState)` – all pseudo-legal moves (en passant, castling, promotion).
 		* `…MoveGenerator.cs` – one generator per piece type.
-	* `MakeMove.cs(in GameState, in Move move)` – apply a move and return new state.
-* **Rules Compliance/**
-	* `FilterLegalMoves.cs(in GameState, in ImmutableArray<Move> moves)` – remove moves leaving own king in check.
-	* `CheckHandling.cs(in GameState)` – detect check / checkmate.
+		* `FilterLegalMoves.cs(in GameState, in ImmutableArray<Move> moves)` – remove moves leaving own king in check.
 
-* **Outcome/**
-	* `DrawHandling.cs(in GameState)` – stalemate, threefold, 50-move, insufficient material.
-	* `VictoryHandling.cs(in GameState)` – win by checkmate or resignation.
+	* `MakeMove.cs(in GameState, in Move move)` – apply a move and return new state.
+
+* **Support/** – helpers
+	* **Parsing/**
+		* `FENToGameState.cs(string)` – create a `GameState` from FEN.
+		* `GameStateToUCI.cs(in GameState)` – convert game state to UCI move string.
+		* `PGNSerialization.cs(in GameState)` – serialise to PGN-like JSON.
+
+	* **Rules Compliance/**
+		* `CheckHandling.cs(in GameState)` – detect check / checkmate.
+
+	* **Outcome/**
+		* `DrawHandling.cs(in GameState)` – stalemate, threefold, 50-move, insufficient material.
+		* `VictoryHandling.cs(in GameState)` – win by checkmate or resignation.
+
+	* **Undo/**
+		* `UndoLastMove.cs(in GameState)`
+		* `RedoLastMove.cs(in GameState)`
+		* `TrimUndoHistory.cs(in GameState)`
 
 ### Extensions/ – Facilitate common read operations
 
@@ -124,12 +141,12 @@ Unity / Godot (host)/ ...
 
 Public façade consumed by host engines. OOP is allowed--but still not encouraged, here.
 
-* **Presenter/**
-	* `ChessPresenter.cs` – Mediates between the host and the domain
+* **Engine/**
+	* `ChessEngine.cs` – The entrypoint to the entire system
 		* `void ReceiveInput(InputViewModel)`
-		* `MoveViewModel[] GetLegalMovesForPositionAsync(GameStateViewModel, string)`
-		* `MoveViewModel[] GetPseudoLegalMovesForPositionAsync(GameStateViewModel, string)`
-		* `MoveViewModel[] GetIllegalMovesForPositionAsync(GameStateViewModel, string)`
+		* `Task<MoveViewModel[]> GetLegalMovesForPosition(GameStateViewModel, string)`
+		* `Task<MoveViewModel[]> GetPseudoLegalMovesForPosition(GameStateViewModel, string)`
+		* `Task<MoveViewModel[]> GetIllegalMovesForPosition(GameStateViewModel, string)`
 
 * **Interfaces/**
 	* `IMakeMoveResultReceiver.cs`
@@ -171,34 +188,46 @@ them.
 ```csharp
 // ── Entry point ────────────────────────────────────────────────────────────────
 var receiver   = new ConsoleMoveReceiver();
-var presenter  = new ChessPresenter(receiver);          // single composition root
-var controller = new GameController(presenter);
+var engine  = new ChessEngine(receiver);          // single composition root
+var controller = new GameController(engine);
 
 var game = controller.StartNewGame();                   // ← app logic
 controller.MakeMove(game, (A2, A4))
 // ── Supporting types ──────────────────────────────────────────────────────────
 sealed class GameController
 {
-    readonly IChessPresenter _presenter;
+    readonly IChessEngine _engine;
 
-    public GameController(IChessPresenter presenter) => 
-        _presenter = presenter;
+    public GameController(IChessEngine engine) => 
+        _engine = engine;
 
     public async Task<GameStateViewModel> StartNewGame()
     {
         const string fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        await _presenter.NewGame(fen);
+        await _engine.NewGame(fen);
     }
     
     public async Task<MoveViewModel> MakeMove(GameStateViewModel game, (SquarePosition from, SquarePosition to))
     {
-        await _presenter.MakeMoveAsync(game, (from, to));
+        await _engine.MakeMoveAsync(game, (from, to));
     }
 }
 
 sealed class ConsoleMoveReceiver : IMakeMoveResultReceiver
 {
-    public ValueTask ReceiveAsync(MoveViewModel m, CancellationToken _ = default) =>
+    public ValueTask Receive(MoveViewModel m, CancellationToken _ = default) =>
         new(Console.WriteLine($"{m.Source} → {m.Destination}"));
 }
 ```
+
+## Versioning Strategy
+
+- Semantic Versioning (MAJOR.MINOR.PATCH)
+	- MAJOR version for incompatible API changes
+	- MINOR version for backwards-compatible functionality
+	- PATCH version for backwards-compatible bug fixes
+
+## Wishlist
+
+- Bitboard
+- AI
