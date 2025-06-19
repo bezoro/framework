@@ -6,6 +6,10 @@
         <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
     </ItemGroup>
     <ItemGroup>
+        <Folder Include="API\Engine\"/>
+        <Folder Include="API\Extensions\"/>
         <Folder Include="Docs\"/>
+        <Folder Include="Domain\Functions\"/>
+        <Folder Include="Domain\Shared\Enums\"/>
     </ItemGroup>
 </Project>
