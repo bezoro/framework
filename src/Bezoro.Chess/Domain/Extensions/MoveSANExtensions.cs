@@ -9,7 +9,7 @@ namespace Bezoro.Chess.Domain.Notation
 	/// <summary>
 	///     Extension helpers that convert <see cref="Move" /> instances to Standard Algebraic Notation (SAN).
 	/// </summary>
-	public static class MoveSanExtensions
+	public static class MoveSANExtensions
 	{
 		/// <summary>
 		///     Returns fully qualified SAN (captures, promotions, check, mate, castling).
