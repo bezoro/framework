@@ -1,233 +1,342 @@
-# Simple Chess Engine
+# Bezoro Chess Engine
 
-A simple **pure-logic** chess library--for personal use--that can be dropped into any host (Unity, Godot, console app,
-server, …).  
-There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking, or any other I/O.
+A lightweight, **pure-logic** chess library designed for integration into any host environment (Unity, Godot, console
+applications, servers, etc.).
 
-Technical Limitations: (Unity support)
-* Target framework`netstandard2.1`
-* Language version C# 9.0
+This library contains **no dependencies** on `UnityEngine`, `Godot.*`, file-system, networking, or any other I/O
+systems, making it completely portable.
+
+## Technical Specifications
+
+* Framework: `netstandard2.1`
+* Language: C# 9.0
+* Deployment: Drop-in library for any compatible host
+
 ---
 
 ## Design Principles
 
-* **Immutable domain** – every value object and record is immutable. Ideally readonly structs.
-* **Pure functions** – receive state, return new state; no hidden mutation.
-* **One-way coupling** – callers only depend on downward; no cyclic calls.
-* **Data-Oriented where hot** – SoA, cache-friendly layout, minimal branching inside tight loops.
-* **Minimal to No OOP** – favor composition and plain data.
-* **Library-only** – hosts handle input, view, persistence, threading.
-* **Minimal GC pressure** – favor value types and pooling.
-* **Aggressive inlining** – heavy use of MethodImpl(MethodImplOptions.AggressiveInlining) for hot paths.
+### Core Architecture
 
-Coordinate system:
+* **Immutable Domain** – All **internal** value objects/records are immutable (primarily `readonly struct`s)
+* **Public-API Convenience** – The façade may expose *mutable* DTOs for ease-of-use, but it converts them to immutable
+  domain types before invoking core logic.
+* **Pure Functions** – Functions receive state and return new state with no hidden mutations
+* **One-Way Coupling** – Dependencies flow downward only, eliminating cyclic references
+* **Data-Oriented Design** – Cache-friendly layouts and minimal branching in hot paths
+* **Composition Over Inheritance** – Favors functional composition and plain data over OOP hierarchies
+* **Library-Only Approach** – Host applications handle all I/O concerns (input, rendering, persistence, threading)
+* **Memory Efficiency** – Minimizes GC pressure through value types and object pooling
+* **Performance Optimizations** – Strategic use of `MethodImpl(MethodImplOptions.AggressiveInlining)` on hot paths
 
-- Board represented as a linear array (0–63)
-- A1 = index 0
-- H8 = index 63
-- File (A-H) determines column
-- Rank (1-8) determines row
+### Board Representation
+
+* **Linear Array** – The chess board is represented as a 64-element array (indices 0-63)
+* **Coordinate System**:
+	- A1 = index 0
+	- H8 = index 63
+	- Files (A-H) determine columns
+	- Ranks (1-8) determine rows
 
 ---
 
-## Repository Layout
+## Repository Structure
 
 ```
 Bezoro.Framework.sln
-└─ src
+└─ src/
    └─ Bezoro.Chess/
-       ├─ Domain/            ← 100% internal
-       │   ├─ Shared/        ← enums & constants
-       │   ├─ Types/         ← value objects & aggregates, no logic, only data
-       │   ├─ Functions/     ← pure systems (Parsing, Move, Outcome)
-       │   └─ Extensions/    ← extension helpers for domain types
-       ├─ API/               ← public façade & engine-facing contracts
-       │   ├─ Interfaces/    ← contracts for API consumers
-       │   └─ ViewModels/    ← immutable data transfer objects
+       ├─ Domain/                 # Core chess logic and domain model
+       │   ├─ Shared/             # Enums, constants, and shared types
+       │   ├─ Types/              # Immutable value objects
+       │   ├─ Functions/          # Pure functional systems
+       │   ├─ Helpers/            # Domain-specific utility functions
+       │   └─ Extensions/         # Extension methods for domain types
+       │
+       ├─ API/                    # Public interface layer
+       │   ├─ Engine/             # Main engine and entry points
+       │   ├─ Abstractions/       # Interfaces and contracts
+       │   ├─ Extensions/         # API extension methods
+       │   ├─ Helpers/            # API-specific utilities
+       │   └─ ViewModels/         # Data transfer objects
+       │
+       ├─ Docs/                   # Internal documentation and design decisions
        └─ Bezoro.Chess.csproj
-└─ tests
-   └─ Bezoro.Chess.Tests/
-       ├─ Unit/          ← unit tests
-       ├─ Integration/   ← integration tests
-       ├─ Properties/    ← property-based tests
-       ├─ Performance/   ← performance tests
-       └─ Multi-thread/  ← multi-threading tests 
+│
+└─ tests/
+    └─ Bezoro.Chess.Tests/
+        ├─ Unit/                  # Unit tests
+        ├─ Integration/           # Integration tests
+        ├─ Properties/            # Property-based tests
+        ├─ Performance/           # Performance benchmarks
+        └─ Multi-thread/          # Multi-threading tests
 ```
 
 ---
 
-## Project Dependencies
+## Architecture Overview
 
 ```
-Unity / Godot (host)/ ...
-          │
-          ▼
-    (Bezoro.Chess)
-      API façade
-          │
-          ▼
-        Domain
-          │
-          ▼
-    (Bezoro.Core)
+┌─────────────────────────┐
+│                         │
+│  Host Application       │
+│  (Unity/Godot/etc.)     │
+│                         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│                         │
+│  Bezoro.Chess           │
+│  Public API Façade      │
+│                         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│                         │
+│  Chess Domain Layer     │
+│  (Core Chess Logic)     │
+│                         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│                         │
+│  Bezoro.Core            │
+│  (Shared Utilities)     │
+│                         │
+└─────────────────────────┘
 ```
 
----
-
-## Domain Folder Details
-
-### Shared/ – Core code used across the domain
-
-* **Enums.cs**
-	* `PieceType` – `None, Pawn, Knight, Bishop, Rook, Queen, King`
-	* `PieceColor` – `None, White, Black`
-	* `SquarePosition` – `None, A1 … H8`
-	* `CastlingRights` – bit-flags (`WhiteKingside`, `WhiteQueenside`, …, `All`)
-	* `CastleSide` – `None, BlackKing, BlackQueen, WhiteKing, WhiteQueen`
-
-* **Consts.cs** – static readonly & const
-	* `AttackVectors` – pre-computed directional vectors for each piece type.
-	* `FENStrings` – Standard FEN string setups
-	* `BoardConstants` – A1 = SquarePosition.A1, ...
-
-### Types/ – Immutable data objects
-
-* **Structs/** (readonly)
-	* `Piece.cs(PieceColor color, PieceType type)`
-	* `Square.cs(PieceType, uint file, uint rank)`
-	* `Move.cs(SquarePosition source, SquarePosition destination)`
-	* `Board.cs(ImmutableArray<Square> squares)` – Exposed as a ReadOnlySpan getter
-	* `FenData.cs()`
-* **Records/** (reference types are to be avoided)
-	* `GameState.cs(FenData fen)`
-
-### Functions/ – Applies changes and generates new state
-
-* **Hot/** – performance critical
-	* **MoveGeneration/**
-		* `GeneratePseudoMoves.cs(in GameState)` – all pseudo-legal moves (en passant, castling, promotion).
-		* `…MoveGenerator.cs` – one generator per piece type.
-		* `FilterLegalMoves.cs(in GameState, in ImmutableArray<Move> moves)` – remove moves leaving own king in check.
-
-	* `MakeMove.cs(in GameState, in Move move)` – apply a move and return new state.
-
-* **Support/** – helpers
-	* **Parsing/**
-		* `FENToGameState.cs(string)` – create a `GameState` from FEN.
-		* `GameStateToUCI.cs(in GameState)` – convert game state to UCI move string.
-		* `PGNSerialization.cs(in GameState)` – serialise to PGN-like JSON.
-
-	* **Rules Compliance/**
-		* `CheckHandling.cs(in GameState)` – detect check / checkmate.
-
-	* **Outcome/**
-		* `DrawHandling.cs(in GameState)` – stalemate, threefold, 50-move, insufficient material.
-		* `VictoryHandling.cs(in GameState)` – win by checkmate or resignation.
-
-	* **Undo/**
-		* `UndoLastMove.cs(in GameState)`
-		* `RedoLastMove.cs(in GameState)`
-		* `TrimUndoHistory.cs(in GameState)`
-
-### Extensions/ – Facilitate common read operations
-
-* `PieceExtensions.cs` – `Is(PieceColor color, PieceType type)`
-* `SquareExtensions.cs` – `IsOccupied()`, `Algebraic()`
-* `BoardExtensions.cs` – `GetPieceAt`, `GetSquareAt`, `GetSquareIndex`
+This layered architecture ensures separation of concerns and maintains a clean dependency flow from the host application
+down through the layers.
 
 ---
 
-## API Folder
+## Domain Layer Details
 
-Public façade consumed by host engines. OOP is allowed--but still not encouraged, here.
+> 100% internal
 
-* **Engine/**
-	* `ChessEngine.cs` – The entrypoint to the entire system
-		* `void ReceiveInput(InputViewModel)`
-		* `Task<MoveViewModel[]> GetLegalMovesForPosition(GameStateViewModel, string)`
-		* `Task<MoveViewModel[]> GetPseudoLegalMovesForPosition(GameStateViewModel, string)`
-		* `Task<MoveViewModel[]> GetIllegalMovesForPosition(GameStateViewModel, string)`
+### Shared Components
 
-* **Interfaces/**
-	* `IMakeMoveResultReceiver.cs`
-		* `MoveViewModel Receive()`
+#### Enumerations (`Shared/Enums.cs`)
 
-	* `IGameStateUpdateReceiver.cs`
-		* `GameStateViewModel Receive()`
+| Enum               | Values                                                                                    | Description                         |
+|--------------------|-------------------------------------------------------------------------------------------|-------------------------------------|
+| `PieceType`        | `None`, `Pawn`, `Knight`, `Bishop`, `Rook`, `Queen`, `King`                               | Types of chess pieces               |
+| `PieceColor`       | `None`, `White`, `Black`                                                                  | Color of chess pieces               |
+| `SquareCoordinate` | `None`, `A1`...`H8`                                                                       | Standard chess board coordinates    |
+| `MoveType`         | `None`, `Quiet`, `Capture`, `Castling`, `QuietPromotion`, `CapturePromotion`, `EnPassant` | Classifications of chess moves      |
+| `CastlingRights`   | `None`, `WhiteKingside`, `WhiteQueenside`, `BlackKingside`, `BlackQueenside`, `All`       | Bit-flags for castling availability |
+| `FailureReason`    | `None`, `TriedMovingFromEmptySquare`, etc.                                                | Error conditions for move attempts  |
 
-	* ...
+#### Constants (`Shared/Consts.cs`)
 
-* **ViewModels/** (readonly structs)
-	* `InputViewModel.cs` – input data object
-	* `GameStateViewModel.cs` – full match state data object
-	* `BoardViewModel.cs` – board state data object
-	* `MoveViewModel.cs` – move state data object
-	* ...
+| Constant         | Description                                          |
+|------------------|------------------------------------------------------|
+| `AttackVectors`  | Pre-computed directional vectors for each piece type |
+| `FENStrings`     | Standard Forsyth-Edwards Notation starting positions |
+| `BoardConstants` | Mapping constants (e.g., A1 = SquareCoordinate.A1)   |
 
-Thread-safety: all API calls are **pure** and can be performed off the main thread; the host decides where to invoke
-them.
+### Domain Types
+
+> Immutable value objects and aggregates containing data without behavior
+
+#### Value Types (`Types/Structs/`)
+
+| Type      | Properties                                                                                             | Description                                      |
+|-----------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------|
+| `Piece`   | `PieceColor Color`<br>`PieceType Type`                                                                 | Represents a chess piece with its color and type |
+| `Square`  | `PieceType Occupant`<br>`uint Rank` (derived)<br>`uint File` (derived)<br>`char RankChar` (derived)    | Represents a single square on the chess board    |
+| `Move`    | `SquareCoordinate From`<br>`SquareCoordinate To`<br>`MoveType Type`<br>`CastlingRights CastlingRights` | Represents a chess move with all necessary data  |
+| `Board`   | `Square[] Squares.AsSpan()`                                                                            | Represents the entire chess board state          |
+| `FenData` | `ReadOnlySpan<Square> Pieces`<br>`CastlingRights Castling`<br>...                                      | Forsyth-Edwards Notation data structure          |
+
+#### Reference Types (`Types/Records/`)
+
+| Type        | Properties                                                                                                            | Description                                   |
+|-------------|-----------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| `GameState` | `Board Board`<br>`SquareCoordinate EnPassantSquare`<br>`uint HalfmoveClock`<br>`CastlingRights CastlingRights`<br>... | Complete representation of a chess game state |
+
+### Functions/
+
+Pure systems that operate on types; Applies changes and generates new state
+
+**MoveGeneration/**
+
+| File                      | Description                                                    |
+|---------------------------|----------------------------------------------------------------|
+| `GeneratePseudoMoves.cs`  | (in GameState) Generates **all** pseudo moves for all pieces   |
+| `…MoveGenerator.cs`       | Individual piece move generators used by `GeneratePseudoMoves` |
+| `FilterLegalMoves.cs`     | (in Moves[]) Remove moves that leave own king in check         |
+| `GenerateIllegalMoves.cs` | (in GameState) Generates all **illegal** moves                 |
+
+**MoveApplication/**
+
+| File                   | Description                                                               |
+|------------------------|---------------------------------------------------------------------------|
+| `ApplyMove.cs`         | (in GameState, in Move move) – applies `move` and returns a new GameState |
+| `...MoveApplicator.cs` | Individual piece move applicator used by `ApplyMove`                      |
+
+**Undo/**
+
+| File                 | Description                                |
+|----------------------|--------------------------------------------| 
+| `UndoLastMove.cs`    | Reverts the game state to previous move    |
+| `RedoLastMove.cs`    | Replays a previously undone move           |
+| `TrimUndoHistory.cs` | Cleans up/removes old undo history entries |
+
+**Outcome/**
+
+| File                        | Description                                                    |
+|-----------------------------|----------------------------------------------------------------|
+| `ProcessDraw.cs`            | Processes stalemate, threefold, 50-move, insufficient material |
+| `ProcessVictory.cs`         | Processes win by checkmate or concede                          |
+| `CreateGameStateFromFEN.cs` | Creates a `GameState` from a valid FEN string                  |
+| `GameStateToUCI.cs`         | Converts `GameState` to UCI move string                        |
+| `CheckHandling.cs`          | Detects check / checkmate                                      |
+
+### Utility Components
+
+#### Helper Functions (`Helpers/`)
+
+| Helper      | Purpose                                                      |
+|-------------|--------------------------------------------------------------|
+| `FenParser` | Parses Forsyth-Edwards Notation strings into structured data |
+| `UCIParser` | Parses Universal Chess Interface commands                    |
+| `PGNParser` | Parses Portable Game Notation files                          |
+
+#### Extension Methods (`Extensions/`)
+
+| Extension          | Methods                                                                                       | Purpose                              |
+|--------------------|-----------------------------------------------------------------------------------------------|--------------------------------------|
+| `PieceExtensions`  | `Is(PieceColor color, PieceType type)`                                                        | Piece type/color checking            |
+| `SquareExtensions` | `IsOccupied()`<br>`Algebraic()`                                                               | Square state and notation conversion |
+| `BoardExtensions`  | `GetPieceAt(SquareCoordinate)`<br>`GetSquareAt(SquareCoordinate)`<br>`GetSquareIndex(Square)` | Board navigation and lookup          |
 
 ---
 
-## Testing (xUnit)
+## Public API
 
-* Unit tests in `tests/Bezoro.Chess.Tests/Unit`.
-* Coverage goal ≥ 90 % for core move generation and rule logic.
-* Integration tests in `tests/Bezoro.Chess.Tests/Integration`.
-	* Castling
-	* Promotion
-	* Threefold
-	* ...
-* Optional: Performance tests is `tests/Bezoro.Chess.Tests/Perf`.
-* Optional: Multi-threading tests is `tests/Bezoro.Chess.Tests/Multi-thread`.
+The public-facing interface layer that exposes functionality to host applications. While still prioritizing functional
+approaches, this layer allows for more OOP patterns where they benefit API consumers.
+
+### Engine Component (`API/Engine/`)
+
+The primary entry point for host applications is `ChessEngine.cs`. All methods are asynchronous (`ValueTask<T>`) to
+support future AI integration. Methods follow a `Try` pattern returning `Result<T>` with success/failure status and
+relevant data.
+
+| Method                                                         | Purpose                                             |
+|----------------------------------------------------------------|-----------------------------------------------------|
+| `TryGetLegalMovesForPosition(string position)`                 | Returns legal moves for a position                  |
+| `TryGetPseudoLegalMovesForPosition(string position)`           | Returns pseudo-legal moves for a position           |
+| `TryGetIllegalMovesForPosition(string position)`               | Returns illegal moves for a position (for UI hints) |
+| `TryApplyMove(string from, string to)`                         | Attempts to execute a move between positions        |
+| `TryApplyPromotion(string position, PieceType promotionPiece)` | Handles pawn promotion                              |
+| `TrySerializePGNtoJSON(string pgn)`                            | Converts PGN to JSON format                         |
+
+### Data Transfer Objects (`API/ViewModels/`)
+
+Immutable objects that transfer domain state to host applications.
+
+| ViewModel            | Properties                                                                                                                    | Purpose                                   |
+|----------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
+| `MoveViewModel`      | `MoveType Type`<br>`CapturedPiece Captured`<br>`SquareCoordinate From`<br>`SquareCoordinate To`<br>...                        | Represents a chess move for API consumers |
+| `BoardViewModel`     | `Squares Squares`                                                                                                             | Represents board state for API consumers  |
+| `GameStateViewModel` | `SquareCoordinate[] Pieces`<br>`CastlingRights CastlingRights`<br>`uint HalfmoveClock`<br>`SquareCoordinate EnPassant`<br>... | Complete game state for API consumers     |
+
+### Thread Safety
+
+All API calls are **pure** and can be performed off the main thread. The host application controls threading and
+synchronization.
 
 ---
 
-## Quick Start Example
+## Testing Strategy
+
+### Test Categories
+
+| Test Type             | Location                                | Purpose                                        |
+|-----------------------|-----------------------------------------|------------------------------------------------|
+| **Unit Tests**        | `tests/Bezoro.Chess.Tests/Unit`         | Tests individual components in isolation       |
+| **Integration Tests** | `tests/Bezoro.Chess.Tests/Integration`  | Tests interactions between components          |
+| **Property Tests**    | `tests/Bezoro.Chess.Tests/Properties`   | Tests invariant properties using random inputs |
+| **Performance Tests** | `tests/Bezoro.Chess.Tests/Performance`  | Benchmarks critical code paths                 |
+| **Threading Tests**   | `tests/Bezoro.Chess.Tests/Multi-thread` | Verifies behavior under concurrent access      |
+
+### Coverage Goals
+
+* Core move generation and rule logic: ≥90% code coverage
+* Integration test scenarios include: castling, promotion, threefold repetition, en passant, etc.
+
+---
+
+## Usage Examples
+
+### Basic Integration
 
 ```csharp
-// ── Entry point ────────────────────────────────────────────────────────────────
-var receiver   = new ConsoleMoveReceiver();
-var engine  = new ChessEngine(receiver);          // single composition root
+// Initialize the chess engine with a receiver for events
+var engine = new ChessEngine(receiver);
 var controller = new GameController(engine);
 
-var game = controller.StartNewGame();                   // ← app logic
-controller.MakeMove(game, (A2, A4))
-// ── Supporting types ──────────────────────────────────────────────────────────
-sealed class GameController
+// Start a new game with standard position
+var newGameResult = await controller.TryStartNewGame();
+if (!newGameResult.Success)
+    return; // Handle initialization failure
+
+// Make a move (pawn from A2 to A4)
+var moveResult = await controller.TryApplyMove(SquareCoordinate.A2, SquareCoordinate.A4);
+if (!moveResult.Success)
+    return; // Handle illegal move
+
+// Process move events
+foreach (var e in moveResult.Events.Span)
 {
-    readonly IChessEngine _engine;
-
-    public GameController(IChessEngine engine) => 
-        _engine = engine;
-
-    public async Task<GameStateViewModel> StartNewGame()
-    {
-        const string fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        await _engine.NewGame(fen);
-    }
-    
-    public async Task<MoveViewModel> MakeMove(GameStateViewModel game, (SquarePosition from, SquarePosition to))
-    {
-        await _engine.MakeMoveAsync(game, (from, to));
-    }
+    if (e is PieceMoved pm)
+        Console.WriteLine($"{pm.From}->{pm.To}");
 }
+```
 
-sealed class ConsoleMoveReceiver : IMakeMoveResultReceiver
+### Supporting Controller
+
+```csharp
+public sealed class GameController
 {
-    public ValueTask Receive(MoveViewModel m, CancellationToken _ = default) =>
-        new(Console.WriteLine($"{m.Source} → {m.Destination}"));
+    private readonly IChessEngine _engine;
+
+    public GameController(IChessEngine engine) => _engine = engine;
+
+    public async ValueTask<GameStateViewModel> TryStartNewGame()
+    {
+        // Standard starting position in FEN notation
+        const string fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        return await _engine.NewGameAsync(fen);
+    }
+
+    public async ValueTask<MoveAttempt> TryApplyMove(SquareCoordinate from, SquareCoordinate to)
+    {
+        return await _engine.TryApplyMoveAsync(from, to);
+    }
 }
 ```
 
 ## Versioning Strategy
 
-- Semantic Versioning (MAJOR.MINOR.PATCH)
-	- MAJOR version for incompatible API changes
-	- MINOR version for backwards-compatible functionality
-	- PATCH version for backwards-compatible bug fixes
+This project follows [Semantic Versioning 2.0.0](https://semver.org/):
 
-## Wishlist
+| Version Component | Incremented When                                     |
+|-------------------|------------------------------------------------------|
+| **MAJOR**         | Making incompatible API changes                      |
+| **MINOR**         | Adding functionality in a backward-compatible manner |
+| **PATCH**         | Making backward-compatible bug fixes                 |
 
-- Bitboard
-- AI
+## Future Enhancements
+
+* **Bitboard Implementation** - For improved performance
+* **AI Integration** - Chess engine with configurable difficulty levels
+* **Opening Book Support** - Standard chess openings database
+* **PGN Import/Export** - Full support for chess notation standards
+* **Position Evaluation** - Static evaluation of board positions
