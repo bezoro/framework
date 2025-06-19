@@ -72,7 +72,7 @@ public class MoveExecutionUnitTests
 
 		var   initialState = new GameState { PiecePositions = initialBoard, ActiveColor = PieceColor.Black };
 		Piece pawn         = initialState.GetPieceAt(fromPos);
-		var   move         = Move.CreateQuietPromotion(fromPos, toPos, pawn, PieceType.Queen);
+		var   move         = Move.CreateQuietPromotion(fromPos, toPos, pawn, PromotionType.Queen);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(initialState, move);

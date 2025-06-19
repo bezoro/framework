@@ -113,12 +113,12 @@ public class MoveSanExtensionsUnitTests
 	[Theory]
 	[InlineData(
 		"rnbqkb1r/pp5P/2p1p3/3p4/8/8/PPPP1PP1/RNBQKBNR w KQkq - 0 8",
-		"h7", "h8", PieceType.Pawn, MoveType.PawnPromotion, PieceType.Queen, "h8=Q")]
+		"h7", "h8", PieceType.Pawn, MoveType.PawnPromotion, PromotionType.Queen, "h8=Q")]
 	[InlineData(
 		"r1b2k1r/p1Ppppb1/1n2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQ - 1 2",
-		"c7", "b8", PieceType.Pawn, MoveType.PawnPromotionCapture, PieceType.Rook, "cxb8=R")]
+		"c7", "b8", PieceType.Pawn, MoveType.PawnPromotionCapture, PromotionType.Rook, "cxb8=R")]
 	public void ToSan_ShouldReturnCorrectSan_ForPromotions(
-		string fen, string from, string to, PieceType pieceType, MoveType moveType, PieceType promotionPiece,
+		string fen, string from, string to, PieceType pieceType, MoveType moveType, PromotionType promotionPiece,
 		string expectedSan)
 	{
 		// Arrange

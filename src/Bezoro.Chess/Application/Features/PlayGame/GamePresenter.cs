@@ -235,7 +235,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 			}
 		}
 
-		public void OnPromotionPieceSelected(PieceType pieceType)
+		public void OnPromotionPieceSelected(PromotionType pieceType)
 		{
 			if (!_pendingPromotionMove.HasValue)
 			{

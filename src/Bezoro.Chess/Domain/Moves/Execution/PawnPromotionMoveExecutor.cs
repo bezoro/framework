@@ -13,12 +13,12 @@ namespace Bezoro.Chess.Domain.Moves.Execution
 			NormalMoveExecutor.Execute(state, move);
 
 			// Chosen promotion piece, defaulting to Queen.
-			PieceType promotionPieceType = move.PromotionPiece == PieceType.None
-				? PieceType.Queen
-				: move.PromotionPiece;
+			PromotionType promotionPieceType = move.PromotionPieceType == PromotionType.None
+				? PromotionType.Queen
+				: move.PromotionPieceType;
 
 			state.PiecePositions[move.To.Row, move.To.Col] =
-				new(promotionPieceType, move.Piece.Color);
+				new Piece((PieceType)promotionPieceType, move.Piece.Color);
 		}
 	}
 }
