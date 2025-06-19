@@ -10,12 +10,13 @@ There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking
 
 ## Design Principles
 
-* **Immutable domain** – every value object and record is immutable.
+* **Immutable domain** – every value object and record is immutable. Ideally readonly structs.
 * **Pure functions** – receive state, return new state; no hidden mutation.
 * **One-way coupling** – callers only depend on downward; no cyclic calls.
 * **Data-Oriented where hot** – SoA, cache-friendly layout, minimal branching inside tight loops.
-* **Minimal to No inheritance** – favour composition and plain data.
+* **Minimal to No OOP** – favor composition and plain data.
 * **Library-only** – hosts handle input, view, persistence, threading.
+* **Minimal GC pressure** – favor value types and pooling.
 
 ---
 
@@ -25,7 +26,7 @@ There is **zero** reference to `UnityEngine`, `Godot.*`, file-system, networking
 Bezoro.Framework.sln
 └─ src
    └─ Bezoro.Chess/
-       ├─ Domain/
+       ├─ Domain/            ← 100% internal
        │   ├─ Shared/        ← enums & constants
        │   ├─ Types/         ← value objects & aggregates, no logic, only data
        │   ├─ Functions/     ← pure systems (Parsing, Move, Outcome)
@@ -48,23 +49,24 @@ Bezoro.Framework.sln
 ## Project Dependencies
 
 ```
-Unity / Godot (host)
+Unity / Godot (host)/ ...
           │
           ▼
+    (Bezoro.Chess)
       API façade
           │
           ▼
-   Bezoro.Chess (this repo)
+        Domain
           │
           ▼
-    Bezoro.Core (utilities)
+    (Bezoro.Core)
 ```
 
 ---
 
 ## Domain Folder Details
 
-### Shared/
+### Shared/ – Core code used across the domain
 
 * **Enums.cs**
 	* `PieceType` – `None, Pawn, Knight, Bishop, Rook, Queen, King`
@@ -75,44 +77,46 @@ Unity / Godot (host)
 
 * **Consts.cs**
 	* `AttackVectors` – pre-computed directional vectors for each piece type.
+	* `FENStrings` – Standard FEN string setups
+	* `BoardConstants` – A1 = SquarePosition.A1, ...
 
-### Types/
+### Types/ – Immutable data objects
 
 * **Structs/** (readonly)
-	* `Piece(PieceColor color, PieceType type)`
-	* `Square(Piece occupant, uint file, uint rank)`
-	* `Move(SquarePosition source, SquarePosition destination)`
-	* `Board(Square[] squares)`
-	* `FenData()`
-	* `GameState(FenData fen)`
+	* `Piece.cs(PieceColor color, PieceType type)`
+	* `Square.cs(PieceType, uint file, uint rank)`
+	* `Move.cs(SquarePosition source, SquarePosition destination)`
+	* `Board.cs(ImmutableArray<Square> squares)` – Exposed as a ReadOnlySpan
+	* `FenData.cs()`
+	* `GameState.cs(FenData fen)`
 * **Records/** (reference types are to be avoided)
-	* Just in case
+	* (Just in case)
 
-### Functions/
+### Functions/ – Applies changes and generates new state
 
 * **Parsing/**
-	* `FENToGameState(string fen)` – create a `GameState` from FEN.
-	* `GameStateToUCI(GameState)` – convert game state to UCI move string.
-	* `PGNSerialization(GameState)` – serialise to PGN-like JSON.
+	* `FENToGameState.cs(string)` – create a `GameState` from FEN.
+	* `GameStateToUCI.cs(in GameState)` – convert game state to UCI move string.
+	* `PGNSerialization.cs(in GameState)` – serialise to PGN-like JSON.
 
 * **MoveGeneration/**
-	* `GeneratePseudoMoves(in GameState)` – all pseudo-legal moves (en passant, castling, promotion).
+	* `GeneratePseudoMoves.cs(in GameState)` – all pseudo-legal moves (en passant, castling, promotion).
 	* `Piece/`
-		* `…MoveGenerator` – one generator per piece type.
-	* `MakeMove(in GameState, Move move)` – apply a move and return new state.
+		* `…MoveGenerator.cs` – one generator per piece type.
+	* `MakeMove.cs(in GameState, in Move move)` – apply a move and return new state.
 * **Rules Compliance/**
-	* `FilterLegalMoves(in GameState, Move[] moves)` – remove moves leaving own king in check.
-	* `CheckHandling(in GameState)` – detect check / checkmate.
+	* `FilterLegalMoves.cs(in GameState, in ImmutableArray<Move> moves)` – remove moves leaving own king in check.
+	* `CheckHandling.cs(in GameState)` – detect check / checkmate.
 
 * **Outcome/**
-	* `DrawHandling(in GameState)` – stalemate, threefold, 50-move, insufficient material.
-	* `VictoryHandling(in GameState)` – win by checkmate or resignation.
+	* `DrawHandling.cs(in GameState)` – stalemate, threefold, 50-move, insufficient material.
+	* `VictoryHandling.cs(in GameState)` – win by checkmate or resignation.
 
-### Extensions/
+### Extensions/ – Facilitate common read operations
 
-* `PieceExtensions` – `Is(PieceColor color, PieceType type)`
-* `SquareExtensions` – `IsOccupied()`, `Algebraic()`
-* `BoardExtensions` – `GetPieceAt`, `GetSquareAt`, `GetSquareIndex`
+* `PieceExtensions.cs` – `Is(PieceColor color, PieceType type)`
+* `SquareExtensions.cs` – `IsOccupied()`, `Algebraic()`
+* `BoardExtensions.cs` – `GetPieceAt`, `GetSquareAt`, `GetSquareIndex`
 
 ---
 
@@ -120,19 +124,27 @@ Unity / Godot (host)
 
 Public façade consumed by host engines. OOP is allowed--but still not encouraged, here.
 
+* **Presenter/**
+	* `ChessPresenter.cs` – Mediates between the host and the domain
+		* `void ReceiveInput(InputViewModel)`
+		* `MoveViewModel[] GetLegalMovesForPositionAsync(GameStateViewModel, string)`
+		* `MoveViewModel[] GetPseudoLegalMovesForPositionAsync(GameStateViewModel, string)`
+		* `MoveViewModel[] GetIllegalMovesForPositionAsync(GameStateViewModel, string)`
+
 * **Interfaces/**
-	* `IMakeMoveResultReceiver`
+	* `IMakeMoveResultReceiver.cs`
 		* `MoveViewModel Receive()`
 
-	* `IGameStateViewReceiver`
+	* `IGameStateUpdateReceiver.cs`
 		* `GameStateViewModel Receive()`
 
 	* ...
 
-* **ViewModels/** (immutable record classes)
-	* `GameStateViewModel` - full match state
-	* `BoardViewModel`
-	* `MoveViewModel` - Info of a specific move
+* **ViewModels/** (readonly structs)
+	* `InputViewModel.cs` – input data object
+	* `GameStateViewModel.cs` – full match state data object
+	* `BoardViewModel.cs` – board state data object
+	* `MoveViewModel.cs` – move state data object
 	* ...
 
 Thread-safety: all API calls are **pure** and can be performed off the main thread; the host decides where to invoke
@@ -163,7 +175,7 @@ var presenter  = new ChessPresenter(receiver);          // single composition ro
 var controller = new GameController(presenter);
 
 var game = controller.StartNewGame();                   // ← app logic
-controller.MakeMove(game, A2, A4)
+controller.MakeMove(game, (A2, A4))
 // ── Supporting types ──────────────────────────────────────────────────────────
 sealed class GameController
 {
@@ -178,10 +190,9 @@ sealed class GameController
         await _presenter.NewGame(fen);
     }
     
-    public async Task<MoveViewModel> MakeMove(GameStateViewModel game, SquarePosition from, SquarePosition to)
+    public async Task<MoveViewModel> MakeMove(GameStateViewModel game, (SquarePosition from, SquarePosition to))
     {
-        var move = _presenter.CreateMove(from, to);
-        await _presenter.MakeMoveAsync(game, move);
+        await _presenter.MakeMoveAsync(game, (from, to));
     }
 }
 
