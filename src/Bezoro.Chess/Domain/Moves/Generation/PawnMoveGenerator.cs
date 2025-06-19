@@ -111,7 +111,7 @@ namespace Bezoro.Chess.Domain.Moves.Generation
 		{
 			var promotionPieceTypes = new[] { PieceType.Queen, PieceType.Rook, PieceType.Bishop, PieceType.Knight };
 
-			foreach (PieceType pieceType in promotionPieceTypes)
+			foreach (PromotionType pieceType in promotionPieceTypes)
 			{
 				if (capturedPiece.Type == PieceType.None)
 				{

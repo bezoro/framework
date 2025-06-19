@@ -89,7 +89,7 @@ namespace Bezoro.Chess.Domain.Notation
 			}
 
 			sanBuilder.Append('=');
-			sanBuilder.Append(PieceTypeToLetter(move.PromotionPiece));
+			sanBuilder.Append(PieceTypeToLetter((PieceType)move.PromotionPieceType));
 
 			return sanBuilder.ToString();
 		}

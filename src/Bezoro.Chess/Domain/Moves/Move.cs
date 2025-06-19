@@ -23,12 +23,19 @@ namespace Bezoro.Chess.Domain.Moves
 	/// </summary>
 	public readonly struct Move : IEquatable<Move>
 	{
-		public MoveType  Type           { get; }
-		public Piece     CapturedPiece  { get; }
-		public Piece     Piece          { get; }
-		public PieceType PromotionPiece { get; }
-		public Position  From           { get; }
-		public Position  To             { get; }
+		public bool IsCapture   => CapturedPiece.Type != PieceType.None && Type == MoveType.Capture;
+		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
+		public bool IsEnPassant => Type == MoveType.EnPassant;
+		public bool IsPromotion => PromotionPieceType != PromotionType.None && Type == MoveType.PawnPromotion;
+		public bool IsQuiet     => Type == MoveType.Normal;
+		public bool IsValid     => Type != MoveType.None;
+
+		public MoveType      Type               { get; }
+		public Piece         CapturedPiece      { get; }
+		public Piece         Piece              { get; } // TODO: refactor to piece type for a smaller struct
+		public Position      From               { get; }
+		public Position      To                 { get; }
+		public PromotionType PromotionPieceType { get; }
 
 		#region Equality
 
@@ -42,7 +49,7 @@ namespace Bezoro.Chess.Domain.Moves
 			CapturedPiece.Equals(other.CapturedPiece) &&
 			From.Equals(other.From)                   &&
 			To.Equals(other.To)                       &&
-			PromotionPiece == other.PromotionPiece;
+			PromotionPieceType == other.PromotionPieceType;
 
 		public override bool Equals(object? obj) => obj is Move other && Equals(other);
 
@@ -52,21 +59,21 @@ namespace Bezoro.Chess.Domain.Moves
 			CapturedPiece,
 			From,
 			To,
-			(int)PromotionPiece
+			(int)PromotionPieceType
 		);
 
 		#endregion
 
 		private Move(
 			Position from, Position to, Piece piece, Piece capturedPiece = default, MoveType type = MoveType.Normal,
-			PieceType promotionPiece = PieceType.None)
+			PromotionType promotionPieceType = PromotionType.None)
 		{
-			From           = from;
-			To             = to;
-			Piece          = piece;
-			CapturedPiece  = capturedPiece;
-			Type           = type;
-			PromotionPiece = promotionPiece;
+			From               = from;
+			To                 = to;
+			Piece              = piece;
+			CapturedPiece      = capturedPiece;
+			Type               = type;
+			PromotionPieceType = promotionPieceType;
 		}
 
 		public override string ToString() => $"Move {From} -> {To} ({Type})";
@@ -88,11 +95,11 @@ namespace Bezoro.Chess.Domain.Moves
 		public static Move CreateEnPassant(Position from, Position to, Piece pawn, Piece capturedPawn) =>
 			new(from, to, pawn, capturedPawn, MoveType.EnPassant);
 
-		public static Move CreateQuietPromotion(Position from, Position to, Piece pawn, PieceType promotionPiece) =>
-			new(from, to, pawn, type: MoveType.PawnPromotion, promotionPiece: promotionPiece);
+		public static Move CreateQuietPromotion(Position from, Position to, Piece pawn, PromotionType promotionPiece) =>
+			new(from, to, pawn, type: MoveType.PawnPromotion, promotionPieceType: promotionPiece);
 
 		public static Move CreateCapturePromotion(
-			Position from, Position to, Piece pawn, Piece capturedPiece, PieceType promotionPiece) =>
+			Position from, Position to, Piece pawn, Piece capturedPiece, PromotionType promotionPiece) =>
 			new(from, to, pawn, capturedPiece, MoveType.PawnPromotionCapture, promotionPiece);
 
 		#endregion

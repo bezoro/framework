@@ -12,7 +12,7 @@ namespace Bezoro.Chess.Application.Features.PlayGame
 		///     Called by the View when the user selects a piece to promote a pawn to.
 		/// </summary>
 		/// <param name="pieceType">The type of piece chosen for promotion (e.g., Queen, Rook).</param>
-		void OnPromotionPieceSelected(PieceType pieceType);
+		void OnPromotionPieceSelected(PromotionType pieceType);
 
 		/// <summary>
 		///     Called by the View when the user selects a square on the chessboard.
