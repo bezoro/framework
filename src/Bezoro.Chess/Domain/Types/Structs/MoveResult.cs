@@ -1,20 +1,49 @@
+using System;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Board;
 using Bezoro.Chess.Domain.Moves;
 
-public readonly struct MoveResult
+public readonly struct MoveResult : IEquatable<MoveResult>
 {
-	public static MoveResult Failed(FailureReason reason) =>
-		new(reason);
+	/// <summary>A sentinel “no-op” result (e.g., for initialisation).</summary>
+	public static readonly MoveResult None = default;
 
-	public static MoveResult Succeeded(in Move move) =>
-		new(move);
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static MoveResult Failed(FailureReason reason) => new(reason);
 
-	public bool IsCapture   => CapturedPieceType != PieceType.None;
-	public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
-	public bool IsPromotion => PromotionPieceType != PromotionType.None;
-	public bool IsQuiet     => Type               == MoveType.Normal;
-	public bool IsValid     => Type               != MoveType.None;
-	public bool Success     => Failure            == FailureReason.None;
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static MoveResult Succeeded(in Move move) => new(move);
+
+	public bool IsCapture
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => CapturedPieceType != PieceType.None;
+	}
+	public bool IsCastle
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
+	}
+	public bool IsPromotion
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => PromotionPieceType != PromotionType.None;
+	}
+	public bool IsQuiet
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => Type == MoveType.Normal;
+	}
+	public bool IsValid
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => Type != MoveType.None;
+	}
+	public bool Success
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => Failure == FailureReason.None;
+	}
 
 	public FailureReason Failure            { get; }
 	public MoveType      Type               { get; }
@@ -23,6 +52,29 @@ public readonly struct MoveResult
 	public Position      From               { get; }
 	public Position      To                 { get; }
 	public PromotionType PromotionPieceType { get; }
+
+	#region Equality
+
+	public static bool operator ==(MoveResult left, MoveResult right) => left.Equals(right);
+	public static bool operator !=(MoveResult left, MoveResult right) => !left.Equals(right);
+
+	public bool Equals(MoveResult other) =>
+		Failure            == other.Failure           &&
+		Type               == other.Type              &&
+		CapturedPieceType  == other.CapturedPieceType &&
+		MovingPieceType    == other.MovingPieceType   &&
+		From               == other.From              &&
+		To                 == other.To                &&
+		PromotionPieceType == other.PromotionPieceType;
+
+	public override bool Equals(object? obj) => obj is MoveResult other && Equals(other);
+
+	public override int GetHashCode() =>
+		HashCode.Combine(
+			(int)Failure, (int)Type, (int)CapturedPieceType,
+			(int)MovingPieceType, From, To, (int)PromotionPieceType);
+
+	#endregion
 
 	private MoveResult(in Move m)
 	{
@@ -49,6 +101,6 @@ public readonly struct MoveResult
 	public enum FailureReason
 	{
 		None,
-		InvalidMove, InvalidPosition, InvalidCastling, InvalidPromotion, InvalidEnPassant, KingInCheck
+		InvalidMove
 	}
 }
