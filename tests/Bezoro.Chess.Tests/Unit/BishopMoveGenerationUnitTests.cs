@@ -1,6 +1,7 @@
 using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Functions.Moves;
 using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;

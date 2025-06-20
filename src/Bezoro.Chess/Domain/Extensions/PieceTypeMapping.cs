@@ -4,26 +4,26 @@ namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class PieceTypeMapping
 	{
-		public static PieceType ToAPI(this Types.Structs.PieceType p) => p switch
+		public static PieceType ToAPI(this Shared.Enums.PieceType p) => p switch
 		{
-			Types.Structs.PieceType.Pawn   => PieceType.Pawn,
-			Types.Structs.PieceType.Knight => PieceType.Knight,
-			Types.Structs.PieceType.Bishop => PieceType.Bishop,
-			Types.Structs.PieceType.Rook   => PieceType.Rook,
-			Types.Structs.PieceType.Queen  => PieceType.Queen,
-			Types.Structs.PieceType.King   => PieceType.King,
-			_                              => PieceType.None
+			Shared.Enums.PieceType.Pawn   => PieceType.Pawn,
+			Shared.Enums.PieceType.Knight => PieceType.Knight,
+			Shared.Enums.PieceType.Bishop => PieceType.Bishop,
+			Shared.Enums.PieceType.Rook   => PieceType.Rook,
+			Shared.Enums.PieceType.Queen  => PieceType.Queen,
+			Shared.Enums.PieceType.King   => PieceType.King,
+			_                             => PieceType.None
 		};
 
-		public static Types.Structs.PieceType ToDomain(this PieceType p) => p switch
+		public static Shared.Enums.PieceType ToDomain(this PieceType p) => p switch
 		{
-			PieceType.Pawn   => Types.Structs.PieceType.Pawn,
-			PieceType.Knight => Types.Structs.PieceType.Knight,
-			PieceType.Bishop => Types.Structs.PieceType.Bishop,
-			PieceType.Rook   => Types.Structs.PieceType.Rook,
-			PieceType.Queen  => Types.Structs.PieceType.Queen,
-			PieceType.King   => Types.Structs.PieceType.King,
-			_                => Types.Structs.PieceType.None
+			PieceType.Pawn   => Shared.Enums.PieceType.Pawn,
+			PieceType.Knight => Shared.Enums.PieceType.Knight,
+			PieceType.Bishop => Shared.Enums.PieceType.Bishop,
+			PieceType.Rook   => Shared.Enums.PieceType.Rook,
+			PieceType.Queen  => Shared.Enums.PieceType.Queen,
+			PieceType.King   => Shared.Enums.PieceType.King,
+			_                => Shared.Enums.PieceType.None
 		};
 	}
 }
