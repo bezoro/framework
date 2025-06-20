@@ -80,24 +80,24 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 
 			if (side == CastlingSide.Kingside)
 			{
-				rookPos = new(homeRow, 7); // h-file
+				rookPos = new Position(homeRow, 7); // h-file
 				// Path king travels (f and g files)
-				pathSquares.Add(new(homeRow, 5));
-				pathSquares.Add(new(homeRow, 6));
+				pathSquares.Add(new Position(homeRow, 5));
+				pathSquares.Add(new Position(homeRow, 6));
 				// Squares that must be empty
-				emptySquares.Add(new(homeRow, 5));
-				emptySquares.Add(new(homeRow, 6));
+				emptySquares.Add(new Position(homeRow, 5));
+				emptySquares.Add(new Position(homeRow, 6));
 			}
 			else // Queenside
 			{
-				rookPos = new(homeRow, 0); // a-file
+				rookPos = new Position(homeRow, 0); // a-file
 				// Path king travels (d and c files)
-				pathSquares.Add(new(homeRow, 3));
-				pathSquares.Add(new(homeRow, 2));
+				pathSquares.Add(new Position(homeRow, 3));
+				pathSquares.Add(new Position(homeRow, 2));
 				// Squares that must be empty
-				emptySquares.Add(new(homeRow, 3));
-				emptySquares.Add(new(homeRow, 2));
-				emptySquares.Add(new(homeRow, 1));
+				emptySquares.Add(new Position(homeRow, 3));
+				emptySquares.Add(new Position(homeRow, 2));
+				emptySquares.Add(new Position(homeRow, 1));
 			}
 
 			// Rule: The rook must be on its starting square.

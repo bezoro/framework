@@ -41,7 +41,7 @@ namespace Bezoro.Core.ECS
 
 			if (!_entityComponents.ContainsKey(entity.Id))
 			{
-				_entityComponents[entity.Id] = new();
+				_entityComponents[entity.Id] = new Dictionary<Type, IComponent>();
 			}
 
 			_entityComponents[entity.Id][componentType] = component;

@@ -38,7 +38,7 @@ public class SystemManagerTests
 
 		// Assert
 		Assert.Equal(
-			new()
+			new List<string>
 				{ "System1", "System2" }, executionOrder);
 	}
 

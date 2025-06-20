@@ -13,7 +13,7 @@ namespace Bezoro.Chess.API.Helpers
 			(string placement, string color, string castling, string enPassant, string halfMove, string fullMove) =
 				SplitFenString(fen);
 
-			return new()
+			return new GameState
 			{
 				PiecePositions        = ParsePiecePlacement(placement),
 				ActiveColor           = ParseActiveColor(color),
@@ -99,7 +99,7 @@ namespace Bezoro.Chess.API.Helpers
 				_   => throw new ArgumentException($"Invalid FEN piece character: {fenChar}")
 			};
 
-			return new(type, color);
+			return new Piece(type, color);
 		}
 
 		private static Piece[,] ParsePiecePlacement(string placementPart)

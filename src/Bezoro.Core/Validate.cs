@@ -116,7 +116,7 @@ namespace Bezoro.Core
 
 			if (!string.IsNullOrEmpty(msg))
 			{
-				throw new(msg, original);
+				throw new Exception(msg, original);
 			}
 
 			throw original;

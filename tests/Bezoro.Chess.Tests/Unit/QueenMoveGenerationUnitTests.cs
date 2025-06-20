@@ -17,7 +17,7 @@ public class QueenMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Queen, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Queen, color);
 
 		var gameState = new GameState
 		{
@@ -53,19 +53,24 @@ public class QueenMoveGenerationUnitTests
 		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Queen, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Queen, color);
 
 		// Add pieces to block and be captured
 		// Friendly (blocking)
-		initialBoard[new Position("d6").Row, new Position("d6").Col] = new(PieceType.Pawn, color); // Up
-		initialBoard[new Position("b4").Row, new Position("b4").Col] = new(PieceType.Pawn, color); // Left
-		initialBoard[new Position("b6").Row, new Position("b6").Col] = new(PieceType.Pawn, color); // Up-Left
-		initialBoard[new Position("f2").Row, new Position("f2").Col] = new(PieceType.Pawn, color); // Down-Right
+		initialBoard[new Position("d6").Row, new Position("d6").Col] = new Piece(PieceType.Pawn, color); // Up
+		initialBoard[new Position("b4").Row, new Position("b4").Col] = new Piece(PieceType.Pawn, color); // Left
+		initialBoard[new Position("b6").Row, new Position("b6").Col] = new Piece(PieceType.Pawn, color); // Up-Left
+		initialBoard[new Position("f2").Row, new Position("f2").Col] = new Piece(PieceType.Pawn, color); // Down-Right
 		// Enemy (capturable)
-		initialBoard[new Position("d2").Row, new Position("d2").Col] = new(PieceType.Pawn, opponentColor); // Down
-		initialBoard[new Position("g4").Row, new Position("g4").Col] = new(PieceType.Pawn, opponentColor); // Right
-		initialBoard[new Position("f6").Row, new Position("f6").Col] = new(PieceType.Pawn, opponentColor); // Up-Right
-		initialBoard[new Position("b2").Row, new Position("b2").Col] = new(PieceType.Pawn, opponentColor); // Down-Left
+		initialBoard[new Position("d2").Row, new Position("d2").Col] = new Piece(PieceType.Pawn, opponentColor); // Down
+		initialBoard[new Position("g4").Row, new Position("g4").Col] =
+			new Piece(PieceType.Pawn, opponentColor); // Right
+
+		initialBoard[new Position("f6").Row, new Position("f6").Col] =
+			new Piece(PieceType.Pawn, opponentColor); // Up-Right
+
+		initialBoard[new Position("b2").Row, new Position("b2").Col] =
+			new Piece(PieceType.Pawn, opponentColor); // Down-Left
 
 		var gameState = new GameState
 		{

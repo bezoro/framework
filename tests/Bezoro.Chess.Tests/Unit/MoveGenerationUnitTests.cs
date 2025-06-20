@@ -25,7 +25,7 @@ public class MoveGenerationUnitTests(ITestOutputHelper output) : TestBase(output
 	{
 		var gameState = new GameState();
 
-		IEnumerable<Move> moves = MoveGenerator.GeneratePieceMoves(new("d4"), gameState);
+		IEnumerable<Move> moves = MoveGenerator.GeneratePieceMoves(new Position("d4"), gameState);
 
 		moves.Should().BeEmpty();
 	}
