@@ -17,14 +17,18 @@ namespace Bezoro.Chess.API.ViewModels
 			From               = move.From.Coordinate;
 			To                 = move.To.Coordinate;
 			PromotionPieceType = move.PromotionPieceType.ToAPI();
+			Piece              = new PieceViewModel(move.Piece.Type.ToAPI(),         move.Piece.Color.ToAPI());
+			CapturedPiece      = new PieceViewModel(move.CapturedPiece.Type.ToAPI(), move.CapturedPiece.Color.ToAPI());
 		}
 
 		public ChessSquareCoordinate From { get; }
 		public ChessSquareCoordinate To   { get; }
 
-		public MoveType      Type               { get; }
-		public PieceType     CapturedPieceType  { get; }
-		public PieceType     MovingPieceType    { get; }
-		public PromotionType PromotionPieceType { get; }
+		public MoveType       Type               { get; }
+		public PieceType      CapturedPieceType  { get; }
+		public PieceType      MovingPieceType    { get; }
+		public PieceViewModel CapturedPiece      { get; }
+		public PieceViewModel Piece              { get; }
+		public PromotionType  PromotionPieceType { get; }
 	}
 }
