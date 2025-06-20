@@ -1,5 +1,3 @@
-using Bezoro.Chess.Domain.Shared.Consts;
-
 namespace Bezoro.Chess.Domain.Types.Structs
 {
 	/// <summary>
@@ -41,9 +39,5 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public ulong Empty       => ~Occupied;
 		public ulong Occupied    => WhitePieces | BlackPieces;
 		public ulong WhitePieces => WhitePawns  | WhiteKnights | WhiteBishops | WhiteRooks | WhiteQueens | WhiteKing;
-
-		/// <summary>Return the classical initial position.</summary>
-		public static BoardBitboards FromStartPosition() =>
-			BitboardConsts.StartPosition;
 	}
 }
