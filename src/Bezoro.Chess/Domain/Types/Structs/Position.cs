@@ -1,6 +1,6 @@
 using System;
 using Bezoro.Chess.API.Shared.Enums;
-using Bezoro.Chess.API.Shared.Extensions;
+using Bezoro.Chess.Domain.Extensions;
 
 namespace Bezoro.Chess.Domain.Types.Structs
 {

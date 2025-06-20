@@ -1,5 +1,5 @@
-using Bezoro.Chess.API.Helpers;
 using Bezoro.Chess.Domain.Extensions;
+using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 

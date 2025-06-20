@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.API.Types
+namespace Bezoro.Chess.API.Shared.Enums
 {
 	/// <summary>
 	///     Enumerates the types of possible moves in chess.

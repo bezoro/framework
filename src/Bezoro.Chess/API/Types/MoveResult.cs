@@ -1,5 +1,9 @@
+using Bezoro.Chess.API.ViewModels;
 using Bezoro.Chess.Domain.Types.Structs;
 using Bezoro.Core;
+using MoveType = Bezoro.Chess.API.Shared.Enums.MoveType;
+using PieceType = Bezoro.Chess.API.Shared.Enums.PieceType;
+using PromotionType = Bezoro.Chess.API.Shared.Enums.PromotionType;
 
 namespace Bezoro.Chess.API.Types
 {

@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.API.ViewModels
+namespace Bezoro.Chess.API.Shared.Enums
 {
 	public enum PieceColor : byte
 	{

@@ -6,8 +6,9 @@
         <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
     </ItemGroup>
     <ItemGroup>
-        <Folder Include="API\Engine\"/>
+        <Folder Include="API\Abstractions\"/>
         <Folder Include="API\Extensions\"/>
+        <Folder Include="API\Helpers\"/>
         <Folder Include="API\Shared\Consts\"/>
         <Folder Include="Docs\"/>
         <Folder Include="Domain\Functions\"/>

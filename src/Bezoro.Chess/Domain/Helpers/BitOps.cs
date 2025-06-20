@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Chess.Domain.Types.Structs
+namespace Bezoro.Chess.Domain.Helpers
 {
 	/// <summary>
 	///     Low-level static helpers used by move-generation code.
