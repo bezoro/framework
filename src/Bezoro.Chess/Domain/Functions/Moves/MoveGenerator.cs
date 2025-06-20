@@ -9,7 +9,7 @@ namespace Bezoro.Chess.Domain.Moves
 	///     A static utility class for generating all possible pseudo-legal moves for a given game state.
 	///     It does not check for moves that would leave the king in check.
 	/// </summary>
-	public static class MoveGenerator
+	internal static class MoveGenerator
 	{
 		/// <summary>
 		///     Generates all moves for the currently active player.

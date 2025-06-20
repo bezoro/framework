@@ -4,7 +4,7 @@ using Bezoro.Chess.Domain.Board;
 
 namespace Bezoro.Chess.Infrastructure.Fen
 {
-	public static class FenParser
+	internal static class FenParser
 	{
 		private const int BoardSize = 8;
 

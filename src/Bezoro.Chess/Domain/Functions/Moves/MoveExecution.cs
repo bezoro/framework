@@ -7,7 +7,7 @@ namespace Bezoro.Chess.Domain.Moves
 	/// <summary>
 	///     Responsible for applying moves to a game state and producing a new, updated game state.
 	/// </summary>
-	public static class MoveExecution
+	internal static class MoveExecution
 	{
 		/// <summary>
 		///     Executes <paramref name="move" /> on <paramref name="state" /> and returns the resulting state.
