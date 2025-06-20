@@ -18,24 +18,23 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		// ── White ────────────────────────────────────────────────────────────
 		public readonly ulong WhitePawns, WhiteKnights, WhiteBishops, WhiteRooks, WhiteQueens, WhiteKing;
 
-		public BoardBitboards(
-			ulong whitePawns, ulong whiteKnights, ulong whiteBishops,
-			ulong whiteRooks, ulong whiteQueens, ulong whiteKing,
-			ulong blackPawns, ulong blackKnights, ulong blackBishops,
-			ulong blackRooks, ulong blackQueens, ulong blackKing)
+		/// <summary>Main, public constructor – uses colour-specific value objects.</summary>
+		public BoardBitboards(ColorBitboards white, ColorBitboards black)
+
 		{
-			WhitePawns   = whitePawns;
-			WhiteKnights = whiteKnights;
-			WhiteBishops = whiteBishops;
-			WhiteRooks   = whiteRooks;
-			WhiteQueens  = whiteQueens;
-			WhiteKing    = whiteKing;
-			BlackPawns   = blackPawns;
-			BlackKnights = blackKnights;
-			BlackBishops = blackBishops;
-			BlackRooks   = blackRooks;
-			BlackQueens  = blackQueens;
-			BlackKing    = blackKing;
+			WhitePawns   = white.Pawns;
+			WhiteKnights = white.Knights;
+			WhiteBishops = white.Bishops;
+			WhiteRooks   = white.Rooks;
+			WhiteQueens  = white.Queens;
+			WhiteKing    = white.King;
+
+			BlackPawns   = black.Pawns;
+			BlackKnights = black.Knights;
+			BlackBishops = black.Bishops;
+			BlackRooks   = black.Rooks;
+			BlackQueens  = black.Queens;
+			BlackKing    = black.King;
 		}
 
 		public ulong BlackPieces => BlackPawns | BlackKnights | BlackBishops | BlackRooks | BlackQueens | BlackKing;
