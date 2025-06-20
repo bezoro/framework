@@ -41,8 +41,8 @@ public class ArrayCompareUnitTests
 		TestObject[] array3 = new[] { obj3, obj2 }; // Different instance for first element, but value-equal to array1
 
 		// Act
-		bool result1 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2); // array1 vs array2 (identical)
-		bool result2 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array3);                // array1 vs array3 (value-equal)
+		bool result1 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
+		bool result2 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array3);
 
 		// Assert
 		Assert.True(result1, "Comparing an array to itself or an identical array should return true.");
