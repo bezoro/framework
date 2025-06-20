@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Chess.API.ViewModels;
-using Bezoro.Chess.Domain.Types.Structs;
 
 namespace Bezoro.Chess.API.Abstractions
 {
@@ -23,11 +22,13 @@ namespace Bezoro.Chess.API.Abstractions
 		void HideSettingsUI();
 
 		/// <summary>
-		///     Highlights the last move made on the board.
+		///     Highlights the last move made on the board by visually marking the source and destination squares.
 		/// </summary>
-		/// <param name="fromPosition">The starting position of the move</param>
-		/// <param name="toPosition">The ending position of the move</param>
-		void HighlightLastMove(Position fromPosition, Position toPosition);
+		/// <param name="lastMove">
+		///     A tuple containing the source square (from) and destination square (to) coordinates in algebraic
+		///     notation
+		/// </param>
+		void HighlightLastMove((string from, string to) lastMove);
 
 		/// <summary>
 		///     Shows a confirmation dialog to the player.

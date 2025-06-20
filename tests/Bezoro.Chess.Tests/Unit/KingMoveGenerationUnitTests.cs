@@ -12,7 +12,7 @@ public class KingMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForKingOnE1_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
+	internal void MoveGenerator_ForKingOnE1_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
 		var        fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
@@ -54,7 +54,7 @@ public class KingMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForKingWithBlockedPath_ShouldNotGenerateCastlingMoves(PieceColor color)
+	internal void MoveGenerator_ForKingWithBlockedPath_ShouldNotGenerateCastlingMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite      = color == PieceColor.White;
@@ -87,7 +87,7 @@ public class KingMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForKingWithClearPath_ShouldGenerateCastlingMoves(PieceColor color)
+	internal void MoveGenerator_ForKingWithClearPath_ShouldGenerateCastlingMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite      = color == PieceColor.White;
@@ -117,7 +117,7 @@ public class KingMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForLoneKingOnD4_ShouldGenerate8Moves(PieceColor color)
+	internal void MoveGenerator_ForLoneKingOnD4_ShouldGenerate8Moves(PieceColor color)
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
@@ -148,7 +148,7 @@ public class KingMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForStandardStartingKing_ShouldGenerateZeroMoves(PieceColor color)
+	internal void MoveGenerator_ForStandardStartingKing_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite = color == PieceColor.White;

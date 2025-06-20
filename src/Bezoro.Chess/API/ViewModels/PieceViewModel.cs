@@ -1,5 +1,5 @@
 using System;
-using Bezoro.Chess.Domain.Types.Structs;
+using Bezoro.Chess.API.Types;
 
 namespace Bezoro.Chess.API.ViewModels
 {

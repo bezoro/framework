@@ -12,7 +12,7 @@ public class KnightMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForKnightOnD4_ShouldGenerate8Moves(PieceColor color)
+	internal void MoveGenerator_ForKnightOnD4_ShouldGenerate8Moves(PieceColor color)
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
@@ -35,7 +35,7 @@ public class KnightMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForKnightOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
+	internal void MoveGenerator_ForKnightOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
 		var        fromPosition  = new Position("d4");
@@ -75,7 +75,7 @@ public class KnightMoveGenerationUnitTests
 	[InlineData(PieceColor.White, "g1", new[] { "f3", "h3" })]
 	[InlineData(PieceColor.Black, "b8", new[] { "a6", "c6" })]
 	[InlineData(PieceColor.Black, "g8", new[] { "f6", "h6" })]
-	public void MoveGenerator_ForStandardStartingKnight_ShouldGenerateTwoMoves(
+	internal void MoveGenerator_ForStandardStartingKnight_ShouldGenerateTwoMoves(
 		PieceColor color, string from, string[] expectedMoves)
 	{
 		// Arrange

@@ -8,6 +8,7 @@
     <ItemGroup>
         <Folder Include="API\Engine\"/>
         <Folder Include="API\Extensions\"/>
+        <Folder Include="API\Shared\Consts\"/>
         <Folder Include="Docs\"/>
         <Folder Include="Domain\Functions\"/>
         <Folder Include="Domain\Shared\Enums\"/>

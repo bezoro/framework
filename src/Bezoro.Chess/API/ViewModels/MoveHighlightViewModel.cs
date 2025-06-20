@@ -1,5 +1,5 @@
 using System;
-using Bezoro.Chess.Domain.Types.Structs;
+using Bezoro.Chess.API.Shared.Enums;
 
 namespace Bezoro.Chess.API.ViewModels
 {
@@ -11,15 +11,15 @@ namespace Bezoro.Chess.API.ViewModels
 
 	public readonly struct MoveHighlightViewModel : IEquatable<MoveHighlightViewModel>
 	{
-		public MoveHighlightViewModel(Position position, MoveHighlightType highlightType)
+		public MoveHighlightViewModel(ChessSquareCoordinate position, MoveHighlightType highlightType)
 		{
 			Position      = position;
 			HighlightType = highlightType;
 		}
 
-		public MoveHighlightType HighlightType { get; }
+		public ChessSquareCoordinate Position { get; }
 
-		public Position Position { get; }
+		public MoveHighlightType HighlightType { get; }
 
 		public static bool operator ==(MoveHighlightViewModel left, MoveHighlightViewModel right) => left.Equals(right);
 

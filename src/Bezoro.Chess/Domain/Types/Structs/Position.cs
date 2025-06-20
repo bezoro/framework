@@ -1,4 +1,6 @@
 using System;
+using Bezoro.Chess.API.Shared.Enums;
+using Bezoro.Chess.API.Shared.Extensions;
 
 namespace Bezoro.Chess.Domain.Types.Structs
 {
@@ -6,7 +8,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	///     Represents a position on the chessboard using both 0-indexed row/column
 	///     and standard algebraic notation (e.g., "e4").
 	/// </summary>
-	public readonly struct Position : IEquatable<Position>
+	internal readonly struct Position : IEquatable<Position>
 	{
 		public Position(int row, int col)
 		{
@@ -36,6 +38,8 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			Col = file - 'a';
 			Row = 8    - (rank - '0');
 		}
+
+		public ChessSquareCoordinate Coordinate => (Col, Row).ToSquareCoordinate();
 
 		public int Col { get; }
 		public int Row { get; }

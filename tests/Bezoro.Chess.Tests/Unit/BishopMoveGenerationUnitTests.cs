@@ -12,7 +12,7 @@ public class BishopMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForBishopOnD4WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
+	internal void MoveGenerator_ForBishopOnD4WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
 		var        fromPosition  = new Position("d4");
@@ -59,7 +59,7 @@ public class BishopMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForLoneBishopOnD4_ShouldGenerate13Moves(PieceColor color)
+	internal void MoveGenerator_ForLoneBishopOnD4_ShouldGenerate13Moves(PieceColor color)
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
@@ -86,7 +86,7 @@ public class BishopMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForStandardStartingBishop_ShouldGenerateZeroMoves(PieceColor color)
+	internal void MoveGenerator_ForStandardStartingBishop_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite = color == PieceColor.White;

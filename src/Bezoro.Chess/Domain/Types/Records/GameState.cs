@@ -6,7 +6,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 namespace Bezoro.Chess.Domain.Types.Records
 {
 	[Flags]
-	public enum CastlingRights
+	internal enum CastlingRights
 	{
 		None           = 0,
 		WhiteKingside  = 1 << 0,

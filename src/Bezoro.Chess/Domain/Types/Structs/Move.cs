@@ -5,7 +5,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// <summary>
 	///     Enumerates the types of possible moves in chess.
 	/// </summary>
-	public enum MoveType : byte
+	internal enum MoveType : byte
 	{
 		None,
 		Normal,
