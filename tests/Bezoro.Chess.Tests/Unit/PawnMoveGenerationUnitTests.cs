@@ -12,7 +12,7 @@ public class PawnMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White, "e4", "d5")]
 	[InlineData(PieceColor.Black, "d5", "e4")]
-	public void MoveGenerator_ForPawn_ShouldGenerateCaptureMoves(
+	internal void MoveGenerator_ForPawn_ShouldGenerateCaptureMoves(
 		PieceColor color, string from, string capture)
 	{
 		// Arrange
@@ -40,7 +40,7 @@ public class PawnMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White, "e5", "d6")]
 	[InlineData(PieceColor.Black, "d4", "e3")]
-	public void MoveGenerator_ForPawn_ShouldGenerateEnPassantMove(
+	internal void MoveGenerator_ForPawn_ShouldGenerateEnPassantMove(
 		PieceColor color, string from, string enPassantTarget)
 	{
 		// Arrange
@@ -70,7 +70,7 @@ public class PawnMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White, "e7")]
 	[InlineData(PieceColor.Black, "d2")]
-	public void MoveGenerator_ForPawnOnPromotionRank_ShouldGeneratePromotionMoves(
+	internal void MoveGenerator_ForPawnOnPromotionRank_ShouldGeneratePromotionMoves(
 		PieceColor color, string from)
 	{
 		// Arrange
@@ -95,7 +95,7 @@ public class PawnMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White, "e2", new[] { "e3", "e4" })]
 	[InlineData(PieceColor.Black, "d7", new[] { "d6", "d5" })]
-	public void MoveGenerator_ForPawnOnStartingRank_ShouldGenerateOneAndTwoSquareMoves(
+	internal void MoveGenerator_ForPawnOnStartingRank_ShouldGenerateOneAndTwoSquareMoves(
 		PieceColor color, string from, string[] expectedMoves)
 	{
 		// Arrange

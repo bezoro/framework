@@ -2,19 +2,19 @@ using System;
 
 namespace Bezoro.Chess.Domain.Types.Structs
 {
-	public enum PieceColor : byte
+	internal enum PieceColor : byte
 	{
 		None,
 		White, Black
 	}
 
-	public enum PieceType : byte
+	internal enum PieceType : byte
 	{
 		None,
 		Pawn, Knight, Bishop, Rook, Queen, King
 	}
 
-	public enum PromotionType : byte
+	internal enum PromotionType : byte
 	{
 		None,
 		Queen = PieceType.Queen, Rook = PieceType.Rook, Bishop = PieceType.Bishop, Knight = PieceType.Knight
@@ -23,7 +23,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// <summary>
 	///     Represents a chess piece. This is a struct for memory efficiency when storing the board state.
 	/// </summary>
-	public readonly struct Piece : IEquatable<Piece>
+	internal readonly struct Piece : IEquatable<Piece>
 	{
 		public Piece(PieceType type, PieceColor color)
 		{

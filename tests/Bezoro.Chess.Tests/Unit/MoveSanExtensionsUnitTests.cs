@@ -14,7 +14,7 @@ public class MoveSanExtensionsUnitTests
 	[InlineData(
 		"rnbqkb1r/ppp1pppp/5n2/3p4/4P3/2N5/PPPP1PPP/R1BQKBNR b KQkq - 1 3",
 		"f6", "e4", PieceType.Knight, "Nxe4")]
-	public void ToSan_ShouldReturnCorrectSan_ForCaptures(
+	internal void ToSan_ShouldReturnCorrectSan_ForCaptures(
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
@@ -39,7 +39,7 @@ public class MoveSanExtensionsUnitTests
 	[InlineData(
 		"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
 		MoveType.CastleQueenside, "O-O-O")]
-	public void ToSan_ShouldReturnCorrectSan_ForCastling(string fen, MoveType moveType, string expectedSan)
+	internal void ToSan_ShouldReturnCorrectSan_ForCastling(string fen, MoveType moveType, string expectedSan)
 	{
 		// Arrange
 		GameState gameState = FenParser.FenToGameState(fen);
@@ -72,7 +72,7 @@ public class MoveSanExtensionsUnitTests
 	[InlineData(
 		"7k/R7/8/8/8/3B4/8/6R1 w - - 0 1",
 		"a7", "a8", PieceType.Rook, "Ra8#")]
-	public void ToSan_ShouldReturnCorrectSan_ForCheckmates(
+	internal void ToSan_ShouldReturnCorrectSan_ForCheckmates(
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
@@ -92,7 +92,7 @@ public class MoveSanExtensionsUnitTests
 	[Theory]
 	[InlineData("5k2/8/8/8/8/8/8/4K2R w K - 0 1", "h1", "h8", PieceType.Rook,   "Rh8+")]
 	[InlineData("8/5k2/8/8/8/8/8/4KB2 w - - 0 1", "f1", "c4", PieceType.Bishop, "Bc4+")]
-	public void ToSan_ShouldReturnCorrectSan_ForChecks(
+	internal void ToSan_ShouldReturnCorrectSan_ForChecks(
 		string fen, string from, string to, PieceType pieceType, string expectedSan)
 	{
 		// Arrange
@@ -116,7 +116,7 @@ public class MoveSanExtensionsUnitTests
 	[InlineData(
 		"r1b2k1r/p1Ppppb1/1n2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQ - 1 2",
 		"c7", "b8", PieceType.Pawn, MoveType.PawnPromotionCapture, PromotionType.Rook, "cxb8=R")]
-	public void ToSan_ShouldReturnCorrectSan_ForPromotions(
+	internal void ToSan_ShouldReturnCorrectSan_ForPromotions(
 		string fen, string from, string to, PieceType pieceType, MoveType moveType, PromotionType promotionPiece,
 		string expectedSan)
 	{
@@ -169,7 +169,7 @@ public class MoveSanExtensionsUnitTests
 	[InlineData(
 		"rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
 		"d1", "h5", PieceType.Queen, MoveType.Normal, "Qh5")]
-	public void ToSan_ShouldReturnCorrectSan_ForSimpleMoves(
+	internal void ToSan_ShouldReturnCorrectSan_ForSimpleMoves(
 		string fen, string from, string to, PieceType pieceType, MoveType moveType, string expectedSan)
 	{
 		// Arrange

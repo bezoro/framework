@@ -11,7 +11,7 @@ public class MoveExecutionUnitTests
 	private GameState _standardGame = BoardSetup.CreateStandardGame();
 
 	[Fact]
-	public void ExecuteMove_BlackKingMoves_RevokesBlackCastlingRights()
+	internal void ExecuteMove_BlackKingMoves_RevokesBlackCastlingRights()
 	{
 		// Arrange
 		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
@@ -28,7 +28,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_BlackPawnCapture_ShouldResetHalfMoveClock()
+	internal void ExecuteMove_BlackPawnCapture_ShouldResetHalfMoveClock()
 	{
 		// Arrange
 		var initialBoard = new Piece[8, 8];
@@ -63,7 +63,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_BlackPawnPromotesToQueen_ShouldReplacePawn()
+	internal void ExecuteMove_BlackPawnPromotesToQueen_ShouldReplacePawn()
 	{
 		// Arrange
 		var initialBoard = new Piece[8, 8];
@@ -88,7 +88,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_BlackQueensideCastle_ShouldMoveKingAndRook()
+	internal void ExecuteMove_BlackQueensideCastle_ShouldMoveKingAndRook()
 	{
 		// Arrange
 		var initialBoard = new Piece[8, 8];
@@ -120,7 +120,7 @@ public class MoveExecutionUnitTests
 	[Theory]
 	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.White)] // Black Kingside
 	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.White)] // Black Queenside
-	public void ExecuteMove_BlackRookMovesFromHome_RevokesCorrectRights(
+	internal void ExecuteMove_BlackRookMovesFromHome_RevokesCorrectRights(
 		int startRow, int startCol, CastlingRights expectedRights)
 	{
 		// Arrange
@@ -137,7 +137,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_NonKingOrRookMove_DoesNotChangeCastlingRights()
+	internal void ExecuteMove_NonKingOrRookMove_DoesNotChangeCastlingRights()
 	{
 		// Arrange
 		var   from = new Position(6, 4);
@@ -152,7 +152,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_RookMovesFromNonHomeSquare_DoesNotChangeCastlingRights()
+	internal void ExecuteMove_RookMovesFromNonHomeSquare_DoesNotChangeCastlingRights()
 	{
 		// Arrange
 		// Create an initial state where the White Kingside rook has already been moved.
@@ -182,7 +182,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_WhiteEnPassant_ShouldCapturePawn()
+	internal void ExecuteMove_WhiteEnPassant_ShouldCapturePawn()
 	{
 		// Arrange
 		var initialBoard = new Piece[8, 8];
@@ -220,7 +220,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_WhiteKingMoves_RevokesWhiteCastlingRights()
+	internal void ExecuteMove_WhiteKingMoves_RevokesWhiteCastlingRights()
 	{
 		// Arrange
 		var   from = new Position(7, 4);
@@ -236,7 +236,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_WhiteKingsideCastle_ShouldMoveKingAndRook()
+	internal void ExecuteMove_WhiteKingsideCastle_ShouldMoveKingAndRook()
 	{
 		// Arrange
 		var initialBoard = new Piece[8, 8];
@@ -266,7 +266,7 @@ public class MoveExecutionUnitTests
 	}
 
 	[Fact]
-	public void ExecuteMove_WhitePawnE2ToE4_ShouldUpdateStateCorrectly()
+	internal void ExecuteMove_WhitePawnE2ToE4_ShouldUpdateStateCorrectly()
 	{
 		// Arrange
 		GameState initialState = BoardSetup.CreateStandardGame();
@@ -303,7 +303,7 @@ public class MoveExecutionUnitTests
 	[Theory]
 	[InlineData(7, 7, CastlingRights.WhiteQueenside | CastlingRights.Black)] // White Kingside
 	[InlineData(7, 0, CastlingRights.WhiteKingside  | CastlingRights.Black)] // White Queenside
-	public void ExecuteMove_WhiteRookMovesFromHome_RevokesCorrectRights(
+	internal void ExecuteMove_WhiteRookMovesFromHome_RevokesCorrectRights(
 		int startRow, int startCol, CastlingRights expectedRights)
 	{
 		// Arrange

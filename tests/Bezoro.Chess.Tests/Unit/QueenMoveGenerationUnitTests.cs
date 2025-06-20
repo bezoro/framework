@@ -12,7 +12,7 @@ public class QueenMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForLoneQueenOnD4_ShouldGenerate27Moves(PieceColor color)
+	internal void MoveGenerator_ForLoneQueenOnD4_ShouldGenerate27Moves(PieceColor color)
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
@@ -46,7 +46,7 @@ public class QueenMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForQueenOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
+	internal void MoveGenerator_ForQueenOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
 		var        fromPosition  = new Position("d4");
@@ -104,7 +104,7 @@ public class QueenMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForStandardStartingQueen_ShouldGenerateZeroMoves(PieceColor color)
+	internal void MoveGenerator_ForStandardStartingQueen_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite = color == PieceColor.White;

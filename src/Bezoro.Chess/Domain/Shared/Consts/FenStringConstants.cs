@@ -3,7 +3,7 @@ namespace Bezoro.Chess.Domain.Shared.Consts
 	/// <summary>
 	///     Well-known FEN strings that are reused in tests and demo code.
 	/// </summary>
-	public static class FenStrings
+	internal static class FenStrings
 	{
 		/// <summary>
 		///     An entirely empty board (useful for isolated piece-movement tests).

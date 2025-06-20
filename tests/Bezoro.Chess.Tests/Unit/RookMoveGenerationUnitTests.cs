@@ -12,7 +12,7 @@ public class RookMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForLoneRookOnD4_ShouldGenerate14Moves(PieceColor color)
+	internal void MoveGenerator_ForLoneRookOnD4_ShouldGenerate14Moves(PieceColor color)
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
@@ -39,7 +39,7 @@ public class RookMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForRookOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
+	internal void MoveGenerator_ForRookOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
 		var        fromPosition  = new Position("d4");
@@ -83,7 +83,7 @@ public class RookMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White)]
 	[InlineData(PieceColor.Black)]
-	public void MoveGenerator_ForStandardStartingRook_ShouldGenerateZeroMoves(PieceColor color)
+	internal void MoveGenerator_ForStandardStartingRook_ShouldGenerateZeroMoves(PieceColor color)
 	{
 		// Arrange
 		bool isWhite = color == PieceColor.White;
