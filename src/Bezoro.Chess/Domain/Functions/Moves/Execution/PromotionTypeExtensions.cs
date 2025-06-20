@@ -1,4 +1,4 @@
-using Bezoro.Chess.Domain.Types.Structs;
+using Bezoro.Chess.Domain.Shared.Enums;
 
 namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 {

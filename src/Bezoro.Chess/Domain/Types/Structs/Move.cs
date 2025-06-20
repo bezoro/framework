@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Chess.Domain.Shared.Enums;
 
 namespace Bezoro.Chess.Domain.Types.Structs
 {

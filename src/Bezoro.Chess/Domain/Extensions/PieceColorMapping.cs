@@ -4,18 +4,18 @@ namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class PieceColorMapping
 	{
-		public static PieceColor ToAPI(this Types.Structs.PieceColor p) => p switch
+		public static PieceColor ToAPI(this Shared.Enums.PieceColor p) => p switch
 		{
-			Types.Structs.PieceColor.White => PieceColor.White,
-			Types.Structs.PieceColor.Black => PieceColor.Black,
-			_                              => PieceColor.None
+			Shared.Enums.PieceColor.White => PieceColor.White,
+			Shared.Enums.PieceColor.Black => PieceColor.Black,
+			_                             => PieceColor.None
 		};
 
-		public static Types.Structs.PieceColor ToDomain(this PieceColor p) => p switch
+		public static Shared.Enums.PieceColor ToDomain(this PieceColor p) => p switch
 		{
-			PieceColor.White => Types.Structs.PieceColor.White,
-			PieceColor.Black => Types.Structs.PieceColor.Black,
-			_                => Types.Structs.PieceColor.None
+			PieceColor.White => Shared.Enums.PieceColor.White,
+			PieceColor.Black => Shared.Enums.PieceColor.Black,
+			_                => Shared.Enums.PieceColor.None
 		};
 	}
 }

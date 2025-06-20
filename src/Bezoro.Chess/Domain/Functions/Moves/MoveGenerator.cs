@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Chess.Domain.Functions.Moves.Generation;
+using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 
