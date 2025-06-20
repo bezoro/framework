@@ -19,7 +19,7 @@ namespace Bezoro.Chess.API.Engine
 	{
 		private GameState _state;
 
-		public Result<MoveViewModel[]> GetCurrentLegalMoves()
+		public Result<ImmutableArray<MoveViewModel>> GetCurrentLegalMoves()
 		{
 			IEnumerable<Move> moves = MoveGenerator.GenerateMoves(_state);
 
@@ -29,7 +29,7 @@ namespace Bezoro.Chess.API.Engine
 				viewModels.Add(new MoveViewModel(move));
 			}
 
-			Result<MoveViewModel[]> result = Result<MoveViewModel[]>.Succeeded(viewModels.ToArray());
+			Result<ImmutableArray<MoveViewModel>> result = Result.Succeeded(viewModels.ToImmutableArray());
 			return result;
 		}
 
