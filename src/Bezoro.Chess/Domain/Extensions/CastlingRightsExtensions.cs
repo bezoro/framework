@@ -6,11 +6,13 @@ namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class CastlingRightsExtensions
 	{
-		/* ---------- Faster flag test (avoids boxing) ---------- */
-
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool Has(this CastlingRights rights, CastlingRights flag) =>
 			(rights & flag) == flag;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool HasAny(this CastlingRights rights, CastlingRights flags) =>
+			(rights & flags) != 0;
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool HasKingside(this CastlingRights rights, bool isWhite) =>
@@ -40,7 +42,6 @@ namespace Bezoro.Chess.Domain.Extensions
 		public static CastlingRights Add(this CastlingRights rights, CastlingRights toAdd) =>
 			rights | toAdd;
 
-		// Parses a FEN castling segment back into CastlingRights
 		public static CastlingRights FromFen(this string fenSegment)
 		{
 			if (string.IsNullOrWhiteSpace(fenSegment) || fenSegment == "-")
