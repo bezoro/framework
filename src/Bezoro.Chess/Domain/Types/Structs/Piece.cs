@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Shared.Enums;
 
 namespace Bezoro.Chess.Domain.Types.Structs
@@ -23,17 +24,27 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		/// </summary>
 		public PieceType Type { get; }
 
-		public static bool operator ==(Piece left, Piece right) => left.Equals(right);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool operator ==(in Piece left, in Piece right) =>
+			left.Equals(right);
 
-		public static bool operator !=(Piece left, Piece right) => !left.Equals(right);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool operator !=(in Piece left, in Piece right) =>
+			!left.Equals(right);
 
 		#region Equality
 
-		public bool Equals(Piece other) => Type == other.Type && Color == other.Color;
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public bool Equals(Piece other) =>
+			Type == other.Type && Color == other.Color;
 
-		public override bool Equals(object obj) => obj is Piece other && Equals(other);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public override bool Equals(object? obj) =>
+			obj is Piece other && Equals(other);
 
-		public override int GetHashCode() => HashCode.Combine((int)Type, (int)Color);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public override int GetHashCode() =>
+			HashCode.Combine((int)Type, (int)Color);
 
 		#endregion
 
