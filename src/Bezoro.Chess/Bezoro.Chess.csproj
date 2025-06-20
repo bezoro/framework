@@ -7,11 +7,13 @@
     </ItemGroup>
     <ItemGroup>
         <Folder Include="API\Abstractions\"/>
-        <Folder Include="API\Extensions\"/>
         <Folder Include="API\Helpers\"/>
         <Folder Include="API\Shared\Consts\"/>
         <Folder Include="Docs\"/>
         <Folder Include="Domain\Functions\"/>
         <Folder Include="Domain\Shared\Enums\"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="System.Collections.Immutable" Version="10.0.0-preview.5.25277.114"/>
     </ItemGroup>
 </Project>
