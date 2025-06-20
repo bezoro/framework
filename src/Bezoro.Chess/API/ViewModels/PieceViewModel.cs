@@ -1,5 +1,6 @@
 using System;
-using Bezoro.Chess.API.Shared.Enums;
+using PieceColor = Bezoro.Chess.API.Shared.Enums.PieceColor;
+using PieceType = Bezoro.Chess.API.Shared.Enums.PieceType;
 
 namespace Bezoro.Chess.API.ViewModels
 {
@@ -20,7 +21,6 @@ namespace Bezoro.Chess.API.ViewModels
 		public PieceType Type { get; }
 
 		public static bool operator ==(PieceViewModel left, PieceViewModel right) => left.Equals(right);
-
 		public static bool operator !=(PieceViewModel left, PieceViewModel right) => !left.Equals(right);
 
 		#region Equality
