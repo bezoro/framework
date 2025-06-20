@@ -19,8 +19,6 @@ namespace Bezoro.Core
 				}
 			});
 
-		public static T Instance => _INSTANCE.Value;
-
 		protected Singleton()
 		{
 			if (!_INSTANCE.IsValueCreated || ReferenceEquals(_INSTANCE.Value, this))
@@ -35,5 +33,7 @@ namespace Bezoro.Core
 					$"Cannot create a second instance of {typeof(T).Name}. Use {typeof(T).Name}.Instance instead.");
 			}
 		}
+
+		public static T Instance => _INSTANCE.Value;
 	}
 }

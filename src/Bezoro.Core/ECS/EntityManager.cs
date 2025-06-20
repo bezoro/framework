@@ -4,8 +4,8 @@ namespace Bezoro.Core.ECS
 {
 	public class EntityManager
 	{
-		private          int        nextId;
 		private readonly Queue<int> availableIds = new();
+		private          int        nextId;
 
 		public Entity CreateEntity()
 		{

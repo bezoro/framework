@@ -8,20 +8,6 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// </summary>
 	public readonly struct Position : IEquatable<Position>
 	{
-		public int Col { get; }
-		public int Row { get; }
-
-		#region Equality
-
-		public static bool operator ==(Position left, Position right) => left.Equals(right);
-		public static bool operator !=(Position left, Position right) => !left.Equals(right);
-
-		public bool Equals(Position other) => Row == other.Row           && Col == other.Col;
-		public override bool Equals(object obj) => obj is Position other && Equals(other);
-		public override int GetHashCode() => HashCode.Combine(Row, Col);
-
-		#endregion
-
 		public Position(int row, int col)
 		{
 			Row = row;
@@ -50,6 +36,20 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			Col = file - 'a';
 			Row = 8    - (rank - '0');
 		}
+
+		public int Col { get; }
+		public int Row { get; }
+
+		public static bool operator ==(Position left, Position right) => left.Equals(right);
+		public static bool operator !=(Position left, Position right) => !left.Equals(right);
+
+		#region Equality
+
+		public bool Equals(Position other) => Row == other.Row           && Col == other.Col;
+		public override bool Equals(object obj) => obj is Position other && Equals(other);
+		public override int GetHashCode() => HashCode.Combine(Row, Col);
+
+		#endregion
 
 		/// <summary>
 		///     Converts the position to its standard algebraic notation (e.g., "e4").

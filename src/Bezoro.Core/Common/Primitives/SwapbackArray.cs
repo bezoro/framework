@@ -14,12 +14,12 @@ namespace Bezoro.Core.Common.Primitives
 	{
 		private const int _MINIMUM_ARRAY_SIZE = 4;
 
+		private readonly object _lock = new();
+
 		/// <summary>
 		///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
 		private int _count;
-
-		private readonly object _lock = new();
 
 		/// <summary>
 		///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -28,6 +28,20 @@ namespace Bezoro.Core.Common.Primitives
 		///     of elements when removing items.
 		/// </summary>
 		private T[] _items;
+
+		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
+		{
+			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
+			_count = 0;
+
+			Logger.LogSuccess($"SwapbackArray initialized with capacity: {initialCapacity}");
+		}
+
+		~SwapbackArray()
+		{
+			Logger.LogSuccess("SwapbackArray finalized and resources released.");
+			_items = null;
+		}
 
 		/// <summary>
 		///     Gets the total number of elements that the internal array can hold without resizing.
@@ -38,14 +52,6 @@ namespace Bezoro.Core.Common.Primitives
 		///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 		/// </summary>
 		public int Count => _count;
-
-		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
-		{
-			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
-			_count = 0;
-
-			Logger.LogSuccess($"SwapbackArray initialized with capacity: {initialCapacity}");
-		}
 
 		/// <summary>
 		///     Attempts to retrieve the value at the specified index in the dynamic array.
@@ -177,12 +183,6 @@ namespace Bezoro.Core.Common.Primitives
 			_items = newItems;
 
 			Logger.LogSuccess($"Resize operation complete. New size: {newSize}");
-		}
-
-		~SwapbackArray()
-		{
-			Logger.LogSuccess("SwapbackArray finalized and resources released.");
-			_items = null;
 		}
 	}
 }
