@@ -1,17 +1,11 @@
 namespace Bezoro.Chess.Domain.Types.Structs
 {
 	/// <summary>
-	///     A compact, immutable container for the six piece-specific bitboards of one colour.
+	///     A compact, immutable container for the six piece-specific bitboards of one color.
 	/// </summary>
 	internal readonly struct ColorBitboards
 	{
-		public ColorBitboards(
-			ulong pawns,
-			ulong knights,
-			ulong bishops,
-			ulong rooks,
-			ulong queens,
-			ulong king)
+		public ColorBitboards(ulong pawns, ulong knights, ulong bishops, ulong rooks, ulong queens, ulong king)
 		{
 			Pawns   = pawns;
 			Knights = knights;
