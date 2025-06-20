@@ -20,17 +20,6 @@ namespace Bezoro.Chess.Domain.Types.Records
 
 	internal record GameState
 	{
-		private static readonly (int, int)[] BishopAttackVectors = { (-1, -1), (-1, 1), (1, -1), (1, 1) };
-		private static readonly (int, int)[] KingAttackVectors =
-			{ (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1) };
-
-		// Attack vectors for non-sliding pieces
-		private static readonly (int, int)[] KnightAttackVectors =
-			{ (-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1) };
-
-		// Direction vectors for sliding pieces
-		private static readonly (int, int)[] RookAttackVectors = { (-1, 0), (1, 0), (0, -1), (0, 1) };
-
 		/// <summary>
 		///     A bitmask representing the current castling availability.
 		/// </summary>
@@ -122,24 +111,24 @@ namespace Bezoro.Chess.Domain.Types.Records
 			}
 
 			// Check for knight attacks
-			if (IsAttackedByPiece(square, attackerColor, PieceType.Knight, KnightAttackVectors))
+			if (IsAttackedByPiece(square, attackerColor, PieceType.Knight, AttackVectors.KnightAttackVectors))
 			{
 				return true;
 			}
 
 			// Check for king attacks
-			if (IsAttackedByPiece(square, attackerColor, PieceType.King, KingAttackVectors))
+			if (IsAttackedByPiece(square, attackerColor, PieceType.King, AttackVectors.KingAttackVectors))
 			{
 				return true;
 			}
 
 			// Check for sliding attacks (Rooks, Bishops, Queens)
-			if (IsAttackedBySlidingPiece(square, attackerColor, RookAttackVectors, PieceType.Rook))
+			if (IsAttackedBySlidingPiece(square, attackerColor, AttackVectors.RookAttackVectors, PieceType.Rook))
 			{
 				return true;
 			}
 
-			if (IsAttackedBySlidingPiece(square, attackerColor, BishopAttackVectors, PieceType.Bishop))
+			if (IsAttackedBySlidingPiece(square, attackerColor, AttackVectors.BishopAttackVectors, PieceType.Bishop))
 			{
 				return true;
 			}
