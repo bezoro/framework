@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Chess.API.Types
+namespace Bezoro.Core
 {
 	public enum FailureReason
 	{
