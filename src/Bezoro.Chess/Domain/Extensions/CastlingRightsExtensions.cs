@@ -35,6 +35,10 @@ namespace Bezoro.Chess.Domain.Extensions
 			rights == CastlingRights.None;
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsValid(this CastlingRights rights) =>
+			(rights & ~CastlingRights.All) == 0;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsWhite(this CastlingRights rights) =>
 			(rights & CastlingRights.White) != 0;
 
