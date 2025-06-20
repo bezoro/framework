@@ -17,7 +17,7 @@ namespace Bezoro.Chess.Domain
 		All            = White         | Black
 	}
 
-	public record GameState
+	internal record GameState
 	{
 		private static readonly (int, int)[] BishopAttackVectors = { (-1, -1), (-1, 1), (1, -1), (1, 1) };
 		private static readonly (int, int)[] KingAttackVectors =

@@ -5,7 +5,7 @@ using Bezoro.Chess.Domain.Moves;
 
 namespace Bezoro.Chess.Domain
 {
-	public static class GameStateExtensions
+	internal static class GameStateExtensions
 	{
 		/// <summary>
 		///     Determines if a specific square on the board is under attack by the given color.

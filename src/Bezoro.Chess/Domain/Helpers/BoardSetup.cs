@@ -3,7 +3,7 @@ namespace Bezoro.Chess.Domain.Board
 	/// <summary>
 	///     Utility class for creating initial game states with different board setups.
 	/// </summary>
-	public static class BoardSetup
+	internal static class BoardSetup
 	{
 		/// <summary>
 		///     Creates an empty game state with no pieces on the board.

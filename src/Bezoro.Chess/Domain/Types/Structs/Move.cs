@@ -21,7 +21,7 @@ namespace Bezoro.Chess.Domain.Moves
 	/// <summary>
 	///     Represents a single move from a starting position to an end position.
 	/// </summary>
-	public readonly struct Move : IEquatable<Move>
+	internal readonly struct Move : IEquatable<Move>
 	{
 		public bool IsCapture   => CapturedPiece.Type != PieceType.None && Type == MoveType.Capture;
 		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
