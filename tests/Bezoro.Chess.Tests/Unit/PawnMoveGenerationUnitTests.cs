@@ -21,8 +21,8 @@ public class PawnMoveGenerationUnitTests
 		PieceColor opponentColor   = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col]       = new(PieceType.Pawn, color);
-		initialBoard[capturePosition.Row, capturePosition.Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[fromPosition.Row, fromPosition.Col]       = new Piece(PieceType.Pawn, color);
+		initialBoard[capturePosition.Row, capturePosition.Col] = new Piece(PieceType.Pawn, opponentColor);
 
 		var gameState = new GameState
 		{
@@ -50,8 +50,8 @@ public class PawnMoveGenerationUnitTests
 		var        opponentPawnPosition  = new Position(fromPosition.Row, enPassantTargetSquare.Col);
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col]                 = new(PieceType.Pawn, color);
-		initialBoard[opponentPawnPosition.Row, opponentPawnPosition.Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[fromPosition.Row, fromPosition.Col]                 = new Piece(PieceType.Pawn, color);
+		initialBoard[opponentPawnPosition.Row, opponentPawnPosition.Col] = new Piece(PieceType.Pawn, opponentColor);
 
 		var gameState = new GameState
 		{
@@ -77,7 +77,7 @@ public class PawnMoveGenerationUnitTests
 		var fromPosition = new Position(from);
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Pawn, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Pawn, color);
 
 		var gameState = new GameState
 		{

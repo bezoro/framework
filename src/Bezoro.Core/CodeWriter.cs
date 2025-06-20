@@ -347,7 +347,7 @@ namespace Bezoro.Core
 		public CSharpFileGenerator(string outputPath)
 		{
 			_outputPath = outputPath;
-			_builder    = new();
+			_builder    = new CSharpCodeBuilder();
 		}
 
 		public CSharpCodeBuilder GetBuilder() =>

@@ -43,32 +43,32 @@ namespace Bezoro.Chess.Domain.Types.Records
 				PiecePositions =
 				{
 					// Setup white pieces
-					[7, 0] = new(PieceType.Rook, PieceColor.White),
-					[7, 1] = new(PieceType.Knight, PieceColor.White),
-					[7, 2] = new(PieceType.Bishop, PieceColor.White),
-					[7, 3] = new(PieceType.Queen, PieceColor.White),
-					[7, 4] = new(PieceType.King, PieceColor.White),
-					[7, 5] = new(PieceType.Bishop, PieceColor.White),
-					[7, 6] = new(PieceType.Knight, PieceColor.White),
-					[7, 7] = new(PieceType.Rook, PieceColor.White),
+					[7, 0] = new Piece(PieceType.Rook,   PieceColor.White),
+					[7, 1] = new Piece(PieceType.Knight, PieceColor.White),
+					[7, 2] = new Piece(PieceType.Bishop, PieceColor.White),
+					[7, 3] = new Piece(PieceType.Queen,  PieceColor.White),
+					[7, 4] = new Piece(PieceType.King,   PieceColor.White),
+					[7, 5] = new Piece(PieceType.Bishop, PieceColor.White),
+					[7, 6] = new Piece(PieceType.Knight, PieceColor.White),
+					[7, 7] = new Piece(PieceType.Rook,   PieceColor.White),
 
 					// Setup black pieces
-					[0, 0] = new(PieceType.Rook, PieceColor.Black),
-					[0, 1] = new(PieceType.Knight, PieceColor.Black),
-					[0, 2] = new(PieceType.Bishop, PieceColor.Black),
-					[0, 3] = new(PieceType.Queen, PieceColor.Black),
-					[0, 4] = new(PieceType.King, PieceColor.Black),
-					[0, 5] = new(PieceType.Bishop, PieceColor.Black),
-					[0, 6] = new(PieceType.Knight, PieceColor.Black),
-					[0, 7] = new(PieceType.Rook, PieceColor.Black)
+					[0, 0] = new Piece(PieceType.Rook,   PieceColor.Black),
+					[0, 1] = new Piece(PieceType.Knight, PieceColor.Black),
+					[0, 2] = new Piece(PieceType.Bishop, PieceColor.Black),
+					[0, 3] = new Piece(PieceType.Queen,  PieceColor.Black),
+					[0, 4] = new Piece(PieceType.King,   PieceColor.Black),
+					[0, 5] = new Piece(PieceType.Bishop, PieceColor.Black),
+					[0, 6] = new Piece(PieceType.Knight, PieceColor.Black),
+					[0, 7] = new Piece(PieceType.Rook,   PieceColor.Black)
 				}
 			};
 
 			// Setup pawns for both colors
 			for (var col = 0 ; col < 8 ; col++)
 			{
-				gameState.PiecePositions[6, col] = new(PieceType.Pawn, PieceColor.White);
-				gameState.PiecePositions[1, col] = new(PieceType.Pawn, PieceColor.Black);
+				gameState.PiecePositions[6, col] = new Piece(PieceType.Pawn, PieceColor.White);
+				gameState.PiecePositions[1, col] = new Piece(PieceType.Pawn, PieceColor.Black);
 			}
 
 			return gameState;

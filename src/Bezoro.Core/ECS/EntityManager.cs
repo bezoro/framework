@@ -10,7 +10,7 @@ namespace Bezoro.Core.ECS
 		public Entity CreateEntity()
 		{
 			int id = availableIds.Count > 0 ? availableIds.Dequeue() : nextId++;
-			return new(id);
+			return new Entity(id);
 		}
 
 		public void DestroyEntity(Entity entity) =>

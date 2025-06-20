@@ -20,16 +20,16 @@ public class KingMoveGenerationUnitTests
 		int        opponentPawnRow = color == PieceColor.White ? fromPosition.Row - 1 : fromPosition.Row + 1;
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.King, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.King, color);
 
 		// Friendly pieces (blocking)
-		initialBoard[fromPosition.Row, fromPosition.Col - 1] = new(PieceType.Pawn, color); // d1/d8
-		initialBoard[fromPosition.Row, fromPosition.Col + 1] = new(PieceType.Pawn, color); // f1/f8
+		initialBoard[fromPosition.Row, fromPosition.Col - 1] = new Piece(PieceType.Pawn, color); // d1/d8
+		initialBoard[fromPosition.Row, fromPosition.Col + 1] = new Piece(PieceType.Pawn, color); // f1/f8
 
 		// Enemy pieces (capturable)
-		initialBoard[opponentPawnRow, fromPosition.Col - 1] = new(PieceType.Pawn, opponentColor); // d2/d7
-		initialBoard[opponentPawnRow, fromPosition.Col]     = new(PieceType.Pawn, opponentColor); // e2/e7
-		initialBoard[opponentPawnRow, fromPosition.Col + 1] = new(PieceType.Pawn, opponentColor); // f2/f7
+		initialBoard[opponentPawnRow, fromPosition.Col - 1] = new Piece(PieceType.Pawn, opponentColor); // d2/d7
+		initialBoard[opponentPawnRow, fromPosition.Col]     = new Piece(PieceType.Pawn, opponentColor); // e2/e7
+		initialBoard[opponentPawnRow, fromPosition.Col + 1] = new Piece(PieceType.Pawn, opponentColor); // f2/f7
 
 		var gameState = new GameState
 		{
@@ -62,12 +62,12 @@ public class KingMoveGenerationUnitTests
 		var  fromPosition = new Position(kingRow, 4);
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[kingRow, 4] = new(PieceType.King, color);
-		initialBoard[kingRow, 0] = new(PieceType.Rook, color);
-		initialBoard[kingRow, 7] = new(PieceType.Rook, color);
+		initialBoard[kingRow, 4] = new Piece(PieceType.King, color);
+		initialBoard[kingRow, 0] = new Piece(PieceType.Rook, color);
+		initialBoard[kingRow, 7] = new Piece(PieceType.Rook, color);
 		// Add blocking pieces
-		initialBoard[kingRow, 1] = new(PieceType.Knight, color); // Queenside
-		initialBoard[kingRow, 6] = new(PieceType.Bishop, color); // Kingside
+		initialBoard[kingRow, 1] = new Piece(PieceType.Knight, color); // Queenside
+		initialBoard[kingRow, 6] = new Piece(PieceType.Bishop, color); // Kingside
 
 		var gameState = new GameState
 		{
@@ -95,9 +95,9 @@ public class KingMoveGenerationUnitTests
 		var  fromPosition = new Position(kingRow, 4);
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[kingRow, 4] = new(PieceType.King, color);
-		initialBoard[kingRow, 0] = new(PieceType.Rook, color);
-		initialBoard[kingRow, 7] = new(PieceType.Rook, color);
+		initialBoard[kingRow, 4] = new Piece(PieceType.King, color);
+		initialBoard[kingRow, 0] = new Piece(PieceType.Rook, color);
+		initialBoard[kingRow, 7] = new Piece(PieceType.Rook, color);
 
 		var gameState = new GameState
 		{
@@ -122,7 +122,7 @@ public class KingMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.King, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.King, color);
 
 		var gameState = new GameState
 		{

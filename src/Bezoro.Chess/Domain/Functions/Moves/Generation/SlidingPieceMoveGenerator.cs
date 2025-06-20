@@ -17,7 +17,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				int newRow = from.Row + dRow;
 				int newCol = from.Col + dCol;
 
-				while (BoardHelper.IsInsideBoard(new(newRow, newCol)))
+				while (BoardHelper.IsInsideBoard(new Position(newRow, newCol)))
 				{
 					var   to                 = new Position(newRow, newCol);
 					Piece pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];

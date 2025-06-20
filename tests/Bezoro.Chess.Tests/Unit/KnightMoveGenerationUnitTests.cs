@@ -17,7 +17,7 @@ public class KnightMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Knight, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Knight, color);
 
 		var gameState = new GameState
 		{
@@ -42,15 +42,15 @@ public class KnightMoveGenerationUnitTests
 		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Knight, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Knight, color);
 
 		// The 8 potential moves from d4 are: c6, e6, f5, f3, e2, c2, b3, b5.
 		// Friendly pieces (blocking)
-		initialBoard[new Position("c6").Row, new Position("c6").Col] = new(PieceType.Pawn, color);
-		initialBoard[new Position("f3").Row, new Position("f3").Col] = new(PieceType.Pawn, color);
+		initialBoard[new Position("c6").Row, new Position("c6").Col] = new Piece(PieceType.Pawn, color);
+		initialBoard[new Position("f3").Row, new Position("f3").Col] = new Piece(PieceType.Pawn, color);
 		// Enemy pieces (capturable)
-		initialBoard[new Position("e2").Row, new Position("e2").Col] = new(PieceType.Pawn, opponentColor);
-		initialBoard[new Position("b5").Row, new Position("b5").Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("e2").Row, new Position("e2").Col] = new Piece(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("b5").Row, new Position("b5").Col] = new Piece(PieceType.Pawn, opponentColor);
 
 		var gameState = new GameState
 		{

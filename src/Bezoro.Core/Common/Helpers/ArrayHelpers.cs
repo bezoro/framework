@@ -20,13 +20,13 @@ namespace Bezoro.Core.Common.Helpers
 			if (array == null || array.Length == 0)
 			{
 				Logger.LogWarning("Array is null or empty. Aborting search.");
-				return new(-1, elementToFind, array?.Length ?? 0);
+				return new ArrayElementInfo<T>(-1, elementToFind, array?.Length ?? 0);
 			}
 
 			if (Equals(elementToFind, default(T)))
 			{
 				Logger.LogWarning("Element to find is null. Aborting search.");
-				return new(-1, default, array.Length);
+				return new ArrayElementInfo<T>(-1, default, array.Length);
 			}
 
 			int resultIndex = -1;
@@ -57,7 +57,7 @@ namespace Bezoro.Core.Common.Helpers
 				Logger.LogWarning($"Element {elementToFind} not found in array.");
 			}
 
-			return new(resultIndex, elementToFind, array.Length);
+			return new ArrayElementInfo<T>(resultIndex, elementToFind, array.Length);
 		}
 
 		/// <summary>
@@ -84,7 +84,7 @@ namespace Bezoro.Core.Common.Helpers
 			if (array.IsNullOrEmpty())
 			{
 				Logger.LogWarning("Array is null or empty. Aborting search.");
-				return new(-1, elementToFind, array?.Length ?? 0);
+				return new ArrayElementInfo<T>(-1, elementToFind, array?.Length ?? 0);
 			}
 
 			for (var i = 0 ; i < array.Length ; i++)
@@ -95,11 +95,11 @@ namespace Bezoro.Core.Common.Helpers
 				}
 
 				Logger.LogSuccess($"Element {elementToFind} found at index {i}");
-				return new(i, elementToFind, array.Length);
+				return new ArrayElementInfo<T>(i, elementToFind, array.Length);
 			}
 
 			Logger.LogWarning($"Element {elementToFind} not found in array.");
-			return new(-1, elementToFind, array.Length);
+			return new ArrayElementInfo<T>(-1, elementToFind, array.Length);
 		}
 
 		public static bool CompareArrays<T>(T[]? a, T[]? b)

@@ -19,7 +19,7 @@ namespace Bezoro.Core.Common.Primitives
 				throw new ArgumentException("Vector2 must be non-negative whole values", nameof(v));
 			}
 
-			return new((uint)v.X, (uint)v.Y);
+			return new UIntVector2((uint)v.X, (uint)v.Y);
 		}
 
 		public uint X { get; }

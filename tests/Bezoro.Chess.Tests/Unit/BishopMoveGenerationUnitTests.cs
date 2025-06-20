@@ -19,16 +19,16 @@ public class BishopMoveGenerationUnitTests
 		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Bishop, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Bishop, color);
 
 		// Friendly piece (blocking)
-		initialBoard[new Position("b6").Row, new Position("b6").Col] = new(PieceType.Pawn, color);
+		initialBoard[new Position("b6").Row, new Position("b6").Col] = new Piece(PieceType.Pawn, color);
 		// Enemy piece (capturable)
-		initialBoard[new Position("f6").Row, new Position("f6").Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("f6").Row, new Position("f6").Col] = new Piece(PieceType.Pawn, opponentColor);
 		// Enemy piece (capturable)
-		initialBoard[new Position("b2").Row, new Position("b2").Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("b2").Row, new Position("b2").Col] = new Piece(PieceType.Pawn, opponentColor);
 		// Friendly piece (blocking)
-		initialBoard[new Position("f2").Row, new Position("f2").Col] = new(PieceType.Pawn, color);
+		initialBoard[new Position("f2").Row, new Position("f2").Col] = new Piece(PieceType.Pawn, color);
 
 		var gameState = new GameState
 		{
@@ -64,7 +64,7 @@ public class BishopMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Bishop, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Bishop, color);
 
 		var gameState = new GameState
 		{

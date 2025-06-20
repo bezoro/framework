@@ -17,7 +17,7 @@ public class RookMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Rook, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Rook, color);
 
 		var gameState = new GameState
 		{
@@ -46,16 +46,16 @@ public class RookMoveGenerationUnitTests
 		PieceColor opponentColor = color.Opposite();
 
 		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new(PieceType.Rook, color);
+		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Rook, color);
 
 		// Friendly piece (blocking)
-		initialBoard[new Position("d6").Row, new Position("d6").Col] = new(PieceType.Pawn, color);
+		initialBoard[new Position("d6").Row, new Position("d6").Col] = new Piece(PieceType.Pawn, color);
 		// Enemy piece (capturable)
-		initialBoard[new Position("d2").Row, new Position("d2").Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("d2").Row, new Position("d2").Col] = new Piece(PieceType.Pawn, opponentColor);
 		// Friendly piece (blocking)
-		initialBoard[new Position("b4").Row, new Position("b4").Col] = new(PieceType.Pawn, color);
+		initialBoard[new Position("b4").Row, new Position("b4").Col] = new Piece(PieceType.Pawn, color);
 		// Enemy piece (capturable)
-		initialBoard[new Position("g4").Row, new Position("g4").Col] = new(PieceType.Pawn, opponentColor);
+		initialBoard[new Position("g4").Row, new Position("g4").Col] = new Piece(PieceType.Pawn, opponentColor);
 
 		var gameState = new GameState
 		{
