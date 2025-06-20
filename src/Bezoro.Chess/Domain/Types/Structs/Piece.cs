@@ -25,6 +25,12 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// </summary>
 	public readonly struct Piece : IEquatable<Piece>
 	{
+		public Piece(PieceType type, PieceColor color)
+		{
+			Type  = type;
+			Color = color;
+		}
+
 		/// <summary>
 		///     The color of the piece (White or Black)
 		/// </summary>
@@ -34,11 +40,11 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		/// </summary>
 		public PieceType Type { get; }
 
-		#region Equality
-
 		public static bool operator ==(Piece left, Piece right) => left.Equals(right);
 
 		public static bool operator !=(Piece left, Piece right) => !left.Equals(right);
+
+		#region Equality
 
 		public bool Equals(Piece other) => Type == other.Type && Color == other.Color;
 
@@ -47,12 +53,6 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public override int GetHashCode() => HashCode.Combine((int)Type, (int)Color);
 
 		#endregion
-
-		public Piece(PieceType type, PieceColor color)
-		{
-			Type  = type;
-			Color = color;
-		}
 
 		/// <summary>
 		///     Returns a string representation of the piece, primarily for debugging.

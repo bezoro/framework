@@ -139,25 +139,8 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	///     …
 	///     56 57 … 63   →  A8 … H8
 	/// </summary>
-	public readonly struct BoardBitboards
+	internal readonly struct BoardBitboards
 	{
-		/// <summary>Return the classical initial position.</summary>
-		public static BoardBitboards FromStartPosition() =>
-			new(
-				0x0000_0000_0000_FF00UL, // WP
-				0x0000_0000_0000_0042UL, // WN
-				0x0000_0000_0000_0024UL, // WB
-				0x0000_0000_0000_0081UL, // WR
-				0x0000_0000_0000_0008UL, // WQ
-				0x0000_0000_0000_0010UL, // WK
-				0x00FF_0000_0000_0000UL, // BP
-				0x4200_0000_0000_0000UL, // BN
-				0x2400_0000_0000_0000UL, // BB
-				0x8100_0000_0000_0000UL, // BR
-				0x0800_0000_0000_0000UL, // BQ
-				0x1000_0000_0000_0000UL  // BK
-			);
-
 		// ── Black ────────────────────────────────────────────────────────────
 		public readonly ulong BlackPawns,
 							  BlackKnights,
@@ -172,24 +155,6 @@ namespace Bezoro.Chess.Domain.Types.Structs
 							  WhiteRooks,
 							  WhiteQueens,
 							  WhiteKing;
-
-		public ulong BlackPieces => BlackPawns   |
-									BlackKnights |
-									BlackBishops |
-									BlackRooks   |
-									BlackQueens  |
-									BlackKing;
-		public ulong Empty => ~Occupied;
-
-		public ulong Occupied => WhitePieces | BlackPieces;
-
-		// ── Derived masks (computed on demand, thus always in sync) ──────────
-		public ulong WhitePieces => WhitePawns   |
-									WhiteKnights |
-									WhiteBishops |
-									WhiteRooks   |
-									WhiteQueens  |
-									WhiteKing;
 
 		public BoardBitboards(
 			ulong whitePawns, ulong whiteKnights, ulong whiteBishops,
@@ -210,5 +175,40 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			BlackQueens  = blackQueens;
 			BlackKing    = blackKing;
 		}
+
+		public ulong BlackPieces => BlackPawns   |
+									BlackKnights |
+									BlackBishops |
+									BlackRooks   |
+									BlackQueens  |
+									BlackKing;
+		public ulong Empty => ~Occupied;
+
+		public ulong Occupied => WhitePieces | BlackPieces;
+
+		// ── Derived masks (computed on demand, thus always in sync) ──────────
+		public ulong WhitePieces => WhitePawns   |
+									WhiteKnights |
+									WhiteBishops |
+									WhiteRooks   |
+									WhiteQueens  |
+									WhiteKing;
+
+		/// <summary>Return the classical initial position.</summary>
+		public static BoardBitboards FromStartPosition() =>
+			new(
+				0x0000_0000_0000_FF00UL, // WP
+				0x0000_0000_0000_0042UL, // WN
+				0x0000_0000_0000_0024UL, // WB
+				0x0000_0000_0000_0081UL, // WR
+				0x0000_0000_0000_0008UL, // WQ
+				0x0000_0000_0000_0010UL, // WK
+				0x00FF_0000_0000_0000UL, // BP
+				0x4200_0000_0000_0000UL, // BN
+				0x2400_0000_0000_0000UL, // BB
+				0x8100_0000_0000_0000UL, // BR
+				0x0800_0000_0000_0000UL, // BQ
+				0x1000_0000_0000_0000UL  // BK
+			);
 	}
 }

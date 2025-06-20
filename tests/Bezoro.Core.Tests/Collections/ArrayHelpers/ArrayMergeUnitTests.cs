@@ -168,6 +168,12 @@ public class ArrayMergeUnitTests
 	// Test class for complex type checking
 	private sealed class TestObject
 	{
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
+
 		private int    Id   { get; }
 		private string Name { get; }
 
@@ -180,11 +186,5 @@ public class ArrayMergeUnitTests
 			HashCode.Combine(Id, Name);
 
 		#endregion
-
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
 	}
 }

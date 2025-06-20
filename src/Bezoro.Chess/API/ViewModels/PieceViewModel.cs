@@ -9,15 +9,21 @@ namespace Bezoro.Chess.API.ViewModels
 	/// </summary>
 	public readonly struct PieceViewModel : IEquatable<PieceViewModel>
 	{
+		public PieceViewModel(PieceType type, PieceColor color)
+		{
+			Type  = type;
+			Color = color;
+		}
+
 		public PieceColor Color { get; }
 
 		public PieceType Type { get; }
 
-		#region Equality
-
 		public static bool operator ==(PieceViewModel left, PieceViewModel right) => left.Equals(right);
 
 		public static bool operator !=(PieceViewModel left, PieceViewModel right) => !left.Equals(right);
+
+		#region Equality
 
 		public bool Equals(PieceViewModel other) => Type == other.Type && Color == other.Color;
 
@@ -26,11 +32,5 @@ namespace Bezoro.Chess.API.ViewModels
 		public override int GetHashCode() => HashCode.Combine((int)Type, (int)Color);
 
 		#endregion
-
-		public PieceViewModel(PieceType type, PieceColor color)
-		{
-			Type  = type;
-			Color = color;
-		}
 	}
 }

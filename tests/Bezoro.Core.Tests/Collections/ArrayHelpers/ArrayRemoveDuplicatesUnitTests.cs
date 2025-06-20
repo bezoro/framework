@@ -137,6 +137,12 @@ public class ArrayRemoveDuplicatesUnitTests
 
 	private sealed class TestObject
 	{
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
+
 		private int    Id   { get; }
 		private string Name { get; }
 
@@ -149,11 +155,5 @@ public class ArrayRemoveDuplicatesUnitTests
 			HashCode.Combine(Id, Name);
 
 		#endregion
-
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
 	}
 }

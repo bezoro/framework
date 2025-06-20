@@ -22,6 +22,18 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// </summary>
 	internal readonly struct Move : IEquatable<Move>
 	{
+		private Move(
+			Position from, Position to, Piece piece, Piece capturedPiece = default, MoveType type = MoveType.Normal,
+			PromotionType promotionPieceType = PromotionType.None)
+		{
+			From               = from;
+			To                 = to;
+			Piece              = piece;
+			CapturedPiece      = capturedPiece;
+			Type               = type;
+			PromotionPieceType = promotionPieceType;
+		}
+
 		public bool IsCapture   => CapturedPiece.Type != PieceType.None && Type == MoveType.Capture;
 		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
 		public bool IsEnPassant => Type == MoveType.EnPassant;
@@ -36,11 +48,11 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public Position      To                 { get; }
 		public PromotionType PromotionPieceType { get; }
 
-		#region Equality
-
 		public static bool operator ==(Move left, Move right) => left.Equals(right);
 
 		public static bool operator !=(Move left, Move right) => !left.Equals(right);
+
+		#region Equality
 
 		public bool Equals(Move other) =>
 			Type == other.Type                        &&
@@ -62,18 +74,6 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		);
 
 		#endregion
-
-		private Move(
-			Position from, Position to, Piece piece, Piece capturedPiece = default, MoveType type = MoveType.Normal,
-			PromotionType promotionPieceType = PromotionType.None)
-		{
-			From               = from;
-			To                 = to;
-			Piece              = piece;
-			CapturedPiece      = capturedPiece;
-			Type               = type;
-			PromotionPieceType = promotionPieceType;
-		}
 
 		public override string ToString() => $"Move {From} -> {To} ({Type})";
 

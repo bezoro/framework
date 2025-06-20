@@ -6,12 +6,6 @@ namespace Bezoro.Chess.API.ViewModels
 {
 	public readonly struct GameStatusViewModel : IEquatable<GameStatusViewModel>
 	{
-		public bool                          IsInCheck           { get; }
-		public IReadOnlyList<PieceViewModel> CapturedBlackPieces { get; }
-		public IReadOnlyList<PieceViewModel> CapturedWhitePieces { get; }
-		public PieceColor                    CurrentTurn         { get; }
-		public string                        GameResult          { get; }
-
 		public GameStatusViewModel(
 			PieceColor currentTurn,
 			string gameResult,
@@ -25,6 +19,12 @@ namespace Bezoro.Chess.API.ViewModels
 			CapturedWhitePieces = capturedWhitePieces;
 			CapturedBlackPieces = capturedBlackPieces;
 		}
+
+		public bool                          IsInCheck           { get; }
+		public IReadOnlyList<PieceViewModel> CapturedBlackPieces { get; }
+		public IReadOnlyList<PieceViewModel> CapturedWhitePieces { get; }
+		public PieceColor                    CurrentTurn         { get; }
+		public string                        GameResult          { get; }
 
 		#region Equalilty
 

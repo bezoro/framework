@@ -8,27 +8,19 @@ namespace Bezoro.Core.Common.Primitives
 	/// </summary>
 	public readonly struct UIntVector2 : IEquatable<UIntVector2>
 	{
-		/// <summary>
-		///     Optionally convert from a floating‐point Vector2 if you really need to.
-		///     Throws if not a whole, non-negative number.
-		/// </summary>
-		public static UIntVector2 FromVector2(Vector2 v)
+		public UIntVector2(uint x, uint y)
 		{
-			if (v.X < 0 || v.Y < 0 || v.X % 1 != 0 || v.Y % 1 != 0)
-			{
-				throw new ArgumentException("Vector2 must be non-negative whole values", nameof(v));
-			}
-
-			return new UIntVector2((uint)v.X, (uint)v.Y);
+			X = x;
+			Y = y;
 		}
 
 		public uint X { get; }
 		public uint Y { get; }
 
-		#region Equality
-
 		public static bool operator ==(UIntVector2 a, UIntVector2 b) => a.Equals(b);
 		public static bool operator !=(UIntVector2 a, UIntVector2 b) => !a.Equals(b);
+
+		#region Equality
 
 		#region Interface Implementations
 
@@ -41,10 +33,18 @@ namespace Bezoro.Core.Common.Primitives
 
 		#endregion
 
-		public UIntVector2(uint x, uint y)
+		/// <summary>
+		///     Optionally convert from a floating‐point Vector2 if you really need to.
+		///     Throws if not a whole, non-negative number.
+		/// </summary>
+		public static UIntVector2 FromVector2(Vector2 v)
 		{
-			X = x;
-			Y = y;
+			if (v.X < 0 || v.Y < 0 || v.X % 1 != 0 || v.Y % 1 != 0)
+			{
+				throw new ArgumentException("Vector2 must be non-negative whole values", nameof(v));
+			}
+
+			return new UIntVector2((uint)v.X, (uint)v.Y);
 		}
 
 		public override string ToString() => $"({X}, {Y})";

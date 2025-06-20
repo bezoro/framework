@@ -148,6 +148,12 @@ public class ArrayCompareUnitTests
 
 	private class TestObject
 	{
+		public TestObject(int id, string name)
+		{
+			Id   = id;
+			Name = name;
+		}
+
 		private int    Id   { get; }
 		private string Name { get; }
 
@@ -160,11 +166,5 @@ public class ArrayCompareUnitTests
 			HashCode.Combine(Id, Name);
 
 		#endregion
-
-		public TestObject(int id, string name)
-		{
-			Id   = id;
-			Name = name;
-		}
 	}
 }

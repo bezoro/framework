@@ -9,12 +9,12 @@ namespace Bezoro.Core
 	public class CodeWriter
 	{
 		private const    string          _INDENT_STRING = "    "; // 4 spaces
-		private          bool            _isNewLine     = true;
 		private readonly HashSet<string> _usings        = new();
 
-		private int _indentLevel;
+		private readonly StringBuilder _builder   = new();
+		private          bool          _isNewLine = true;
 
-		private readonly StringBuilder _builder = new();
+		private int _indentLevel;
 
 		public override string ToString()
 		{
@@ -123,9 +123,9 @@ namespace Bezoro.Core
 
 	public class CSharpCodeBuilder
 	{
-		private          bool          _isInClass;
 		private readonly CodeWriter    _writer         = new();
 		private readonly Stack<string> _namespaceStack = new();
+		private          bool          _isInClass;
 
 		public CSharpCodeBuilder AddField(
 			string name,
