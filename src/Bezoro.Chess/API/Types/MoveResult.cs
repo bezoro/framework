@@ -8,14 +8,21 @@ namespace Bezoro.Chess.API.Types
 	/// </summary>
 	public readonly struct MoveResult
 	{
+		private MoveResult(in Move m)
+		{
+			Type               = m.Type;
+			MovingPieceType    = m.Piece.Type;
+			CapturedPieceType  = m.CapturedPiece.Type;
+			From               = m.From;
+			To                 = m.To;
+			PromotionPieceType = m.PromotionPieceType;
+		}
+
 		/// <summary>
 		///     Create a <see cref="Result{T}" /> that already wraps a <see cref="MoveResult" />.
 		/// </summary>
 		internal static Result<MoveResult> Create(in Move move) =>
 			Result<MoveResult>.Succeeded(new MoveResult(move));
-
-		internal static Result<MoveResult> Failed(FailureReason reason) =>
-			Result<MoveResult>.Failed(reason);
 
 		public bool IsCapture   => CapturedPieceType != PieceType.None;
 		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
@@ -36,14 +43,7 @@ namespace Bezoro.Chess.API.Types
 		public static implicit operator Result<MoveResult>(MoveResult mr) =>
 			Result<MoveResult>.Succeeded(mr);
 
-		private MoveResult(in Move m)
-		{
-			Type               = m.Type;
-			MovingPieceType    = m.Piece.Type;
-			CapturedPieceType  = m.CapturedPiece.Type;
-			From               = m.From;
-			To                 = m.To;
-			PromotionPieceType = m.PromotionPieceType;
-		}
+		internal static Result<MoveResult> Failed(FailureReason reason) =>
+			Result<MoveResult>.Failed(reason);
 	}
 }
