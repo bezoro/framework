@@ -1,4 +1,7 @@
-namespace Bezoro.Chess.Domain.Moves.Execution
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
+
+namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 {
 	/// <summary>
 	///     Handles the execution of an en passant capture.

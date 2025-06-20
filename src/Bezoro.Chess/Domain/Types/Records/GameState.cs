@@ -1,8 +1,9 @@
 using System;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Functions.Moves;
+using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain
+namespace Bezoro.Chess.Domain.Types.Records
 {
 	[Flags]
 	public enum CastlingRights

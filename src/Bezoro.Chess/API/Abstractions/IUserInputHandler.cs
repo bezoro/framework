@@ -1,6 +1,6 @@
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Application.Features.PlayGame
+namespace Bezoro.Chess.API.Abstractions
 {
 	/// <summary>
 	///     Implemented by the Presenter to handle input events from the View (e.g., Unity).

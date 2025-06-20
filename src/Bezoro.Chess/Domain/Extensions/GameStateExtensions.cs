@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Functions.Moves;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain
+namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class GameStateExtensions
 	{

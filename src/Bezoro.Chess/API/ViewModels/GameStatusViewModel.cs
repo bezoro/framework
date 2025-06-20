@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Application.Abstractions.ViewModels
+namespace Bezoro.Chess.API.ViewModels
 {
 	public readonly struct GameStatusViewModel : IEquatable<GameStatusViewModel>
 	{

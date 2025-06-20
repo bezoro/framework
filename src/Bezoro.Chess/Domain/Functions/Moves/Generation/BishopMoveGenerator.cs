@@ -1,7 +1,8 @@
 using System.Collections.Generic;
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain.Moves.Generation
+namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 {
 	/// <summary>
 	///     Generates legal moves for bishop pieces on the chess board.

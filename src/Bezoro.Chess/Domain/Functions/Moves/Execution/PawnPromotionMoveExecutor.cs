@@ -1,6 +1,7 @@
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain.Moves.Execution
+namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 {
 	/// <summary>
 	///     Executes a pawn-promotion move on the <see cref="GameState" />.

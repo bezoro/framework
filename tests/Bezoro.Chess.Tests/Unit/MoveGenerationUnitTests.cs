@@ -1,6 +1,7 @@
-using Bezoro.Chess.Domain;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Functions.Moves;
+using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using Xunit.Abstractions;
 

@@ -1,10 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Functions.Moves;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain.Notation
+namespace Bezoro.Chess.Domain.Extensions
 {
 	/// <summary>
 	///     Extension helpers that convert <see cref="Move" /> instances to Standard Algebraic Notation (SAN).

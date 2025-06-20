@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Chess.Domain.Board
+namespace Bezoro.Chess.Domain.Types.Structs
 {
 	/// <summary>
 	///     Represents a position on the chessboard using both 0-indexed row/column
