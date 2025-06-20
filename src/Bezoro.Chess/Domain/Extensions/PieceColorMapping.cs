@@ -1,19 +1,21 @@
-namespace Bezoro.Chess.API.ViewModels
+using Bezoro.Chess.API.Shared.Enums;
+
+namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class PieceColorMapping
 	{
-		public static PieceColor ToAPI(this Domain.Types.Structs.PieceColor p) => p switch
+		public static PieceColor ToAPI(this Types.Structs.PieceColor p) => p switch
 		{
-			Domain.Types.Structs.PieceColor.White => PieceColor.White,
-			Domain.Types.Structs.PieceColor.Black => PieceColor.Black,
-			_                                     => PieceColor.None
+			Types.Structs.PieceColor.White => PieceColor.White,
+			Types.Structs.PieceColor.Black => PieceColor.Black,
+			_                              => PieceColor.None
 		};
 
-		public static Domain.Types.Structs.PieceColor ToDomain(this PieceColor p) => p switch
+		public static Types.Structs.PieceColor ToDomain(this PieceColor p) => p switch
 		{
-			PieceColor.White => Domain.Types.Structs.PieceColor.White,
-			PieceColor.Black => Domain.Types.Structs.PieceColor.Black,
-			_                => Domain.Types.Structs.PieceColor.None
+			PieceColor.White => Types.Structs.PieceColor.White,
+			PieceColor.Black => Types.Structs.PieceColor.Black,
+			_                => Types.Structs.PieceColor.None
 		};
 	}
 }

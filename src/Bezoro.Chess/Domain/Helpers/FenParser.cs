@@ -2,7 +2,7 @@ using System;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.API.Helpers
+namespace Bezoro.Chess.Domain.Helpers
 {
 	internal static class FenParser
 	{

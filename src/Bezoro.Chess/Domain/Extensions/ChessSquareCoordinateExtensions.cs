@@ -1,7 +1,7 @@
 using System;
 using Bezoro.Chess.API.Shared.Enums;
 
-namespace Bezoro.Chess.API.Shared.Extensions
+namespace Bezoro.Chess.Domain.Extensions
 {
 	/// <summary>
 	///     Helpers for converting between <see cref="ChessSquareCoordinate" />,
@@ -14,7 +14,7 @@ namespace Bezoro.Chess.API.Shared.Extensions
 		///     –1 returns <see cref="ChessSquareCoordinate.None" />.
 		/// </summary>
 		/// <param name="index">–1 or a value in 0 … 63.</param>
-		/// <exception cref="ArgumentOutOfRangeException">
+		/// <exception cref="index">
 		///     Thrown if <paramref name="index" /> is not –1 and not in 0 … 63.
 		/// </exception>
 		public static ChessSquareCoordinate ToSquare(this int index)

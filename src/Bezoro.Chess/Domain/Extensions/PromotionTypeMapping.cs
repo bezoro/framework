@@ -1,23 +1,25 @@
-namespace Bezoro.Chess.API.Types
+using Bezoro.Chess.API.Shared.Enums;
+
+namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class PromotionTypeMapping
 	{
-		public static PromotionType ToAPI(this Domain.Types.Structs.PromotionType p) => p switch
+		public static PromotionType ToAPI(this Types.Structs.PromotionType p) => p switch
 		{
-			Domain.Types.Structs.PromotionType.Bishop => PromotionType.Bishop,
-			Domain.Types.Structs.PromotionType.Knight => PromotionType.Knight,
-			Domain.Types.Structs.PromotionType.Queen  => PromotionType.Queen,
-			Domain.Types.Structs.PromotionType.Rook   => PromotionType.Rook,
-			_                                         => PromotionType.None
+			Types.Structs.PromotionType.Bishop => PromotionType.Bishop,
+			Types.Structs.PromotionType.Knight => PromotionType.Knight,
+			Types.Structs.PromotionType.Queen  => PromotionType.Queen,
+			Types.Structs.PromotionType.Rook   => PromotionType.Rook,
+			_                                  => PromotionType.None
 		};
 
-		public static Domain.Types.Structs.PromotionType ToDomain(this PromotionType p) => p switch
+		public static Types.Structs.PromotionType ToDomain(this PromotionType p) => p switch
 		{
-			PromotionType.Bishop => Domain.Types.Structs.PromotionType.Bishop,
-			PromotionType.Knight => Domain.Types.Structs.PromotionType.Knight,
-			PromotionType.Queen  => Domain.Types.Structs.PromotionType.Queen,
-			PromotionType.Rook   => Domain.Types.Structs.PromotionType.Rook,
-			_                    => Domain.Types.Structs.PromotionType.None
+			PromotionType.Bishop => Types.Structs.PromotionType.Bishop,
+			PromotionType.Knight => Types.Structs.PromotionType.Knight,
+			PromotionType.Queen  => Types.Structs.PromotionType.Queen,
+			PromotionType.Rook   => Types.Structs.PromotionType.Rook,
+			_                    => Types.Structs.PromotionType.None
 		};
 	}
 }

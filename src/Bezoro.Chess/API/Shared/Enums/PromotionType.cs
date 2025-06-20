@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.API.Types
+namespace Bezoro.Chess.API.Shared.Enums
 {
 	public enum PromotionType : byte
 	{
