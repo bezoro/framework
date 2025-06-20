@@ -1,6 +1,8 @@
-using Bezoro.Chess.Domain;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Infrastructure.Fen;
+using Bezoro.Chess.API.Helpers;
+using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Shared.Consts;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 
 namespace Bezoro.Chess.Tests.Unit;

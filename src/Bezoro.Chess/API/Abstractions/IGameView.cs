@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Bezoro.Chess.Application.Abstractions.ViewModels;
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.API.ViewModels;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Application.Abstractions
+namespace Bezoro.Chess.API.Abstractions
 {
 	public interface IGameView
 	{

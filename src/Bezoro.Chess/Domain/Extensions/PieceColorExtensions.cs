@@ -1,4 +1,6 @@
-namespace Bezoro.Chess.Domain.Board
+using Bezoro.Chess.Domain.Types.Structs;
+
+namespace Bezoro.Chess.Domain.Extensions
 {
 	public static class PieceColorExtensions
 	{

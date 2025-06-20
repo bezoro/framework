@@ -1,5 +1,4 @@
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
+using Bezoro.Chess.Domain.Types.Structs;
 using Bezoro.Core;
 
 namespace Bezoro.Chess.API.Types

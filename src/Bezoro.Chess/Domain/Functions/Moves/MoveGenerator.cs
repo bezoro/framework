@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves.Generation;
+using Bezoro.Chess.Domain.Functions.Moves.Generation;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Domain.Moves
+namespace Bezoro.Chess.Domain.Functions.Moves
 {
 	/// <summary>
 	///     A static utility class for generating all possible pseudo-legal moves for a given game state.

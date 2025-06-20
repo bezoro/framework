@@ -1,6 +1,6 @@
 using System;
 
-namespace Bezoro.Chess.Domain.Board
+namespace Bezoro.Chess.Domain.Types.Structs
 {
 	public enum PieceColor : byte
 	{

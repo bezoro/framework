@@ -1,7 +1,6 @@
 using System;
-using Bezoro.Chess.Domain.Board;
 
-namespace Bezoro.Chess.Domain.Moves
+namespace Bezoro.Chess.Domain.Types.Structs
 {
 	/// <summary>
 	///     Enumerates the types of possible moves in chess.

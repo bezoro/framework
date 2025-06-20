@@ -1,8 +1,7 @@
-using Bezoro.Chess.Domain;
-using Bezoro.Chess.Domain.Board;
-using Bezoro.Chess.Domain.Moves;
-using Bezoro.Chess.Domain.Notation;
-using Bezoro.Chess.Infrastructure.Fen;
+using Bezoro.Chess.API.Helpers;
+using Bezoro.Chess.Domain.Extensions;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
 
 namespace Bezoro.Chess.Tests.Unit;
 

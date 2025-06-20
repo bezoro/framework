@@ -1,4 +1,7 @@
-namespace Bezoro.Chess.Domain.Board
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
+
+namespace Bezoro.Chess.Domain.Helpers
 {
 	/// <summary>
 	///     Utility class for creating initial game states with different board setups.

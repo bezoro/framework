@@ -1,7 +1,7 @@
 using System;
-using Bezoro.Chess.Domain.Board;
+using Bezoro.Chess.Domain.Types.Structs;
 
-namespace Bezoro.Chess.Application.Abstractions.ViewModels
+namespace Bezoro.Chess.API.ViewModels
 {
 	/// <summary>
 	///     A simple data structure to represent a piece for the View.

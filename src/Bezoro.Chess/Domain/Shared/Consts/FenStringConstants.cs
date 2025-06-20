@@ -1,4 +1,4 @@
-namespace Bezoro.Chess.Infrastructure.Fen
+namespace Bezoro.Chess.Domain.Shared.Consts
 {
 	/// <summary>
 	///     Well-known FEN strings that are reused in tests and demo code.
