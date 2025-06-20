@@ -1,5 +1,6 @@
 using System;
 using Bezoro.Chess.API.Shared.Enums;
+using Bezoro.Chess.Domain.Types.Structs;
 
 namespace Bezoro.Chess.Domain.Extensions
 {
@@ -55,11 +56,36 @@ namespace Bezoro.Chess.Domain.Extensions
 		}
 
 		/// <summary>
+		///     Returns the zero-based column (file) of the square:
+		///     A → 0, …, H → 7.
+		///     Returns –1 for <see cref="ChessSquareCoordinate.None" />.
+		/// </summary>
+		public static int GetColumn(this ChessSquareCoordinate square)
+		{
+			int index = square.ToIndex();
+			return index == -1 ? -1 : index % 8;
+		}
+
+		/// <summary>
+		///     Returns the zero-based row (rank) of the square:
+		///     1 → 0, …, 8 → 7.
+		///     Returns –1 for <see cref="ChessSquareCoordinate.None" />.
+		/// </summary>
+		public static int GetRow(this ChessSquareCoordinate square)
+		{
+			int index = square.ToIndex();
+			return index == -1 ? -1 : index / 8;
+		}
+
+		/// <summary>
 		///     Maps a square to its zero-based index:
 		///     A1 → 0, …, H8 → 63.
 		///     <see cref="ChessSquareCoordinate.None" /> maps to –1.
 		/// </summary>
 		public static int ToIndex(this ChessSquareCoordinate square) =>
 			square == ChessSquareCoordinate.None ? -1 : (int)square - 1;
+
+		public static Position ToDomain(this ChessSquareCoordinate squareCoordinate) =>
+			new(squareCoordinate.GetRow(), squareCoordinate.GetColumn());
 	}
 }
