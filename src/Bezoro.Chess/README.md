@@ -11,11 +11,12 @@ systems, making it completely portable.
 * Frameworks:
 	* `netstandard2.1` – Library (stable)
 	* `net9.0-preview` – Tests (preview)
-	* Language Versions:
+### Language Versions
 	* C# 9.0 – Library (stable)
 	* C# 13.0-preview – Tests (preview)
 
-* Deployment: Drop-in library for any compatible host
+### Deployment
+* Drop-in library for any compatible .NET host
 
 ---
 
@@ -24,8 +25,7 @@ systems, making it completely portable.
 ### Core Architecture
 
 * **Immutable Domain** – All **internal** value objects/records are immutable (primarily `readonly struct`s)
-* **Public-API Convenience** – The façade may expose *mutable* DTOs for ease-of-use, but it converts them to immutable
-  domain types before invoking core logic.
+* **Public-API Convenience** – The façade may expose *mutable* DTOs for ease-of-use, but it converts them to immutable domain types before invoking core logic
 * **Pure Functions** – Functions receive state and return new state with no hidden mutations
 * **One-Way Coupling** – Dependencies flow downward only, eliminating cyclic references
 * **Data-Oriented Design** – Cache-friendly layouts and minimal branching in hot paths
