@@ -11,11 +11,13 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	internal readonly struct Position : IEquatable<Position>
 	{
 		private readonly bool _initialized;
+		private readonly int  _col;
+		private readonly int  _row;
 
 		public Position(int row, int col)
 		{
-			Row          = row;
-			Col          = col;
+			_row         = row;
+			_col         = col;
 			_initialized = true;
 		}
 
@@ -38,37 +40,62 @@ namespace Bezoro.Chess.Domain.Types.Structs
 					$"Invalid algebraic notation: {algebraicNotation}", nameof(algebraicNotation));
 			}
 
-			Col          = file - 'a';
-			Row          = rank - '1';
+			_col         = file - 'a';
+			_row         = rank - '1';
 			_initialized = true;
 		}
 
-		public bool IsValid => _initialized && Row is >= 0 and < 8 && Col is >= 0 and < 8;
+		public bool IsValid => _initialized && _row is >= 0 and < 8 && _col is >= 0 and < 8;
 
-		public ChessSquareCoordinate Coordinate => (Col, Row).ToSquareCoordinate();
+		public ChessSquareCoordinate Coordinate => (_col, _row).ToSquareCoordinate();
 
-		public int Col { get; }
-		public int Row { get; }
+		public int Col
+		{
+			get
+			{
+				EnsureInitialized();
+				return _col;
+			}
+		}
+
+		public int Row
+		{
+			get
+			{
+				EnsureInitialized();
+				return _row;
+			}
+		}
 
 		public static bool operator ==(Position left, Position right) => left.Equals(right);
 		public static bool operator !=(Position left, Position right) => !left.Equals(right);
 
 		#region Equality
 
-		public bool Equals(Position other) => Row == other.Row           && Col == other.Col;
-		public override bool Equals(object obj) => obj is Position other && Equals(other);
-		public override int GetHashCode() => HashCode.Combine(Row, Col);
+		public bool Equals(Position other) =>
+			_row         == other._row &&
+			_col         == other._col &&
+			_initialized == other._initialized;
+
+		public override bool Equals(object? obj) => obj is Position other && Equals(other);
+		public override int GetHashCode() => HashCode.Combine(_row, _col, _initialized);
 
 		#endregion
 
 		/// <summary>
 		///     Converts the position to its standard algebraic notation (e.g., "e4").
 		/// </summary>
-		public override string ToString()
+		public override string ToString() => IsValid
+			? $"{(char)('a' + _col)}{(char)('1' + _row)}"
+			: "<invalid>";
+
+		private void EnsureInitialized()
 		{
-			var file = (char)('a' + Col);
-			var rank = (char)('1' + Row);
-			return $"{file}{rank}";
+			if (!_initialized)
+			{
+				throw new InvalidOperationException(
+					"Attempted to use a default / uninitialised Position instance.");
+			}
 		}
 	}
 }

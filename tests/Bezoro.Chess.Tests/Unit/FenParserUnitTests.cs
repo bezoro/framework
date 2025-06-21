@@ -26,6 +26,6 @@ public class FenParserUnitTests
 			CastlingRights.BlackKingside  |
 			CastlingRights.BlackQueenside);
 
-		actualGameState.EnPassantTargetSquare.Should().BeNull();
+		actualGameState.EnPassantTargetSquare.IsValid.Should().Be(false);
 	}
 }

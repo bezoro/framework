@@ -97,7 +97,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				}
 
 				// 4. En passant capture
-				if (gameState.EnPassantTargetSquare.HasValue && toPosition == gameState.EnPassantTargetSquare.Value)
+				if (gameState.EnPassantTargetSquare.IsValid && toPosition == gameState.EnPassantTargetSquare)
 				{
 					var   capturedPawnPosition = new Position(from.Row, toPosition.Col);
 					Piece capturedPawn         = gameState.GetPieceAt(capturedPawnPosition);

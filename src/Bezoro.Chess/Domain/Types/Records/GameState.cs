@@ -18,13 +18,13 @@ namespace Bezoro.Chess.Domain.Types.Records
 		/// <summary>
 		///     The number of full moves in the game. Starts at 1 and increments after Black moves.
 		/// </summary>
-		public int FullMoveNumber { get; init; } = 1;
+		public uint FullMoveNumber { get; init; } = 1;
 
 		/// <summary>
 		///     The number of half-moves since the last capture or pawn advance.
 		///     Used for the fifty-move rule.
 		/// </summary>
-		public int HalfMoveClock { get; init; }
+		public uint HalfMoveClock { get; init; }
 
 		/// <summary>
 		///     The color of the player whose turn it is to move.
@@ -35,7 +35,7 @@ namespace Bezoro.Chess.Domain.Types.Records
 		///     If a pawn has just made a two-square move, this is the position "behind" the pawn.
 		///     This is needed for en passant capture validation.
 		/// </summary>
-		public Position? EnPassantTargetSquare { get; init; }
+		public Position EnPassantTargetSquare { get; init; }
 
 		/// <summary>
 		///     Creates an initial <see cref="GameState" /> that represents the
@@ -53,7 +53,7 @@ namespace Bezoro.Chess.Domain.Types.Records
 				FullMoveNumber        = 1,
 				HalfMoveClock         = 0,
 				ActiveColor           = activeColor,
-				EnPassantTargetSquare = null
+				EnPassantTargetSquare = default
 			};
 
 		/// <summary>

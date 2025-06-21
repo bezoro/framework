@@ -5,11 +5,11 @@ using Bezoro.Chess.API.Extensions;
 using Bezoro.Chess.API.ViewModels;
 using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Functions.Moves;
-using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using Bezoro.Core;
 using MoveType = Bezoro.Chess.API.Shared.Enums.MoveType;
+using PromotionType = Bezoro.Chess.Domain.Shared.Enums.PromotionType;
 
 namespace Bezoro.Chess.API.Engine
 {
@@ -19,6 +19,12 @@ namespace Bezoro.Chess.API.Engine
 	public record ChessEngine
 	{
 		private GameState _state;
+
+		public GameStateViewModel GetGameState()
+		{
+			var vm = new GameStateViewModel(_state);
+			return vm;
+		}
 
 		public Result<ImmutableArray<MoveViewModel>> GetCurrentLegalMoves()
 		{
@@ -77,17 +83,5 @@ namespace Bezoro.Chess.API.Engine
 			_state = newState;
 			return Result<MoveViewModel>.Succeeded(moveViewModel);
 		}
-	}
-
-	public readonly struct GameStateViewModel
-	{
-		private readonly ImmutableArray<PieceViewModel> _board;
-
-		public GameStateViewModel(ImmutableArray<PieceViewModel> board)
-		{
-			_board = board;
-		}
-
-		public ReadOnlySpan<PieceViewModel> Board => _board.AsSpan();
 	}
 }
