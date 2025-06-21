@@ -132,24 +132,24 @@ namespace Bezoro.Chess.Domain.Helpers
 			return rights;
 		}
 
-		private static int ParseFullMoveNumber(string fullMovePart)
+		private static uint ParseFullMoveNumber(string fullMovePart)
 		{
 			if (!int.TryParse(fullMovePart, out int value) || value <= 0)
 			{
 				throw new ArgumentException($"Invalid full-move number value: {fullMovePart}");
 			}
 
-			return value;
+			return (uint)value;
 		}
 
-		private static int ParseHalfMoveClock(string halfMovePart)
+		private static uint ParseHalfMoveClock(string halfMovePart)
 		{
 			if (!int.TryParse(halfMovePart, out int value) || value < 0)
 			{
 				throw new ArgumentException($"Invalid half-move clock value: {halfMovePart}");
 			}
 
-			return value;
+			return (uint)value;
 		}
 
 		private static Piece FenCharToPiece(char fenChar)
@@ -176,11 +176,11 @@ namespace Bezoro.Chess.Domain.Helpers
 			_   => throw new ArgumentException($"Invalid active color specifier: {colorPart}")
 		};
 
-		private static Position? ParseEnPassantTarget(string enPassantPart)
+		private static Position ParseEnPassantTarget(string enPassantPart)
 		{
 			if (enPassantPart == "-")
 			{
-				return null;
+				return default;
 			}
 
 			return new Position(enPassantPart);

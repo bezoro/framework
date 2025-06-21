@@ -21,7 +21,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 
 			// Determine the en passant target square for the *next* state.
 			// This is only set when a pawn makes a two-square advance.
-			Position? newEnPassantTargetSquare = null;
+			Position newEnPassantTargetSquare = default;
 			if (movingPiece.Type == PieceType.Pawn && Math.Abs(move.From.Row - move.To.Row) == 2)
 			{
 				// The target square is the one "behind" the pawn's destination.

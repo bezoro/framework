@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Structs;
 
@@ -170,6 +171,40 @@ namespace Bezoro.Chess.Domain.Types.Records
 			}
 
 			return default;
+		}
+
+		public Piece[] GetPieces()
+		{
+			// 64 squares, default(Piece) means “empty”
+			var arr = new Piece[64];
+
+			// Local helper – writes `piece` to every bit set in `bb`
+			static void WritePieces(ulong bb, Piece piece, Piece[] target)
+			{
+				while (bb != 0)
+				{
+					int idx = BitOps.PopLsb(ref bb); // returns and clears LS1B
+					target[idx] = piece;
+				}
+			}
+
+			// White pieces
+			WritePieces(Bitboards.WhitePawns,   WP, arr);
+			WritePieces(Bitboards.WhiteKnights, WN, arr);
+			WritePieces(Bitboards.WhiteBishops, WB, arr);
+			WritePieces(Bitboards.WhiteRooks,   WR, arr);
+			WritePieces(Bitboards.WhiteQueens,  WQ, arr);
+			WritePieces(Bitboards.WhiteKing,    WK, arr);
+
+			// Black pieces
+			WritePieces(Bitboards.BlackPawns,   BP, arr);
+			WritePieces(Bitboards.BlackKnights, BN, arr);
+			WritePieces(Bitboards.BlackBishops, BB, arr);
+			WritePieces(Bitboards.BlackRooks,   BR, arr);
+			WritePieces(Bitboards.BlackQueens,  BQ, arr);
+			WritePieces(Bitboards.BlackKing,    BK, arr);
+
+			return arr;
 		}
 
 		private static BoardBitboards ClearBit(in BoardBitboards bb, ulong msk)
