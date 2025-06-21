@@ -16,7 +16,7 @@ namespace Bezoro.Chess.Domain.Helpers
 
 			return new GameState
 			{
-				PiecePositions        = ParsePiecePlacement(placement),
+				Board                 = ParsePiecePlacement(placement),
 				ActiveColor           = ParseActiveColor(color),
 				Castling              = ParseCastlingRights(castling),
 				EnPassantTargetSquare = ParseEnPassantTarget(enPassant),
@@ -38,6 +38,72 @@ namespace Bezoro.Chess.Domain.Helpers
 			}
 
 			return (parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
+		}
+
+		private static Board ParsePiecePlacement(string placementPart)
+		{
+			// Bit containers we will fill while scanning the FEN
+			ulong wP = 0, wN = 0, wB = 0, wR = 0, wQ = 0, wK = 0;
+			ulong bP = 0, bN = 0, bB = 0, bR = 0, bQ = 0, bK = 0;
+
+			// FEN lists ranks from 8 down to 1.  Bit 0 = a1, so the first square
+			// we encounter (a8) is bit 56.
+			var rankOffset = 56; // a8
+			foreach (string rank in placementPart.Split('/'))
+			{
+				var file = 0; // a-file
+				foreach (char c in rank)
+				{
+					if (char.IsDigit(c))
+					{
+						file += c - '0'; // Skip empty squares
+						continue;
+					}
+
+					int   squareIndex = rankOffset + file; // 0 ≤ index ≤ 63
+					ulong bit         = 1UL << squareIndex;
+
+					switch (c)
+					{
+						case 'P': wP |= bit; break;
+						case 'N': wN |= bit; break;
+						case 'B': wB |= bit; break;
+						case 'R': wR |= bit; break;
+						case 'Q': wQ |= bit; break;
+						case 'K': wK |= bit; break;
+
+						case 'p': bP |= bit; break;
+						case 'n': bN |= bit; break;
+						case 'b': bB |= bit; break;
+						case 'r': bR |= bit; break;
+						case 'q': bQ |= bit; break;
+						case 'k': bK |= bit; break;
+
+						default:
+							throw new ArgumentException(
+								$"Illegal piece character ‘{c}’ in FEN.", nameof(placementPart));
+					}
+
+					file++; // next file
+				}
+
+				if (file != 8)
+				{
+					throw new ArgumentException(
+						$"Rank “{rank}” in FEN does not contain 8 files.", nameof(placementPart));
+				}
+
+				rankOffset -= 8; // Move one rank down
+			}
+
+			// Build immutable bitboard objects
+			var white = new ColorBitboards(wP, wN, wB, wR, wQ, wK);
+			var black = new ColorBitboards(bP, bN, bB, bR, bQ, bK);
+
+			BoardBitboards bitboards = new(white, black);
+
+			// The Board record / class in the engine has a ctor that takes the 12 bitboards.
+			return new Board(bitboards);
 		}
 
 		private static CastlingRights ParseCastlingRights(string castlingPart)
@@ -101,69 +167,6 @@ namespace Bezoro.Chess.Domain.Helpers
 			};
 
 			return new Piece(type, color);
-		}
-
-		private static Piece[,] ParsePiecePlacement(string placementPart)
-		{
-			var board = new Piece[BoardSize, BoardSize];
-			int row   = 0, col = 0;
-
-			foreach (char character in placementPart)
-			{
-				if (row >= BoardSize)
-				{
-					throw new ArgumentException($"Invalid FEN: Too many rows defined. Expected {BoardSize}.");
-				}
-
-				switch (character)
-				{
-					case '/':
-						if (col != BoardSize)
-						{
-							throw new ArgumentException(
-								$"Invalid FEN: Row {row + 1} is not completely defined. It has {col} squares instead of {BoardSize}.");
-						}
-
-						row++;
-						col = 0;
-						break;
-					case >= '1' and <= '8' when char.IsDigit(character):
-						col += (int)char.GetNumericValue(character);
-						if (col > BoardSize)
-						{
-							throw new ArgumentException(
-								$"Invalid FEN: Row {row + 1} contains more than {BoardSize} squares.");
-						}
-
-						break;
-					default:
-					{
-						if (col >= BoardSize)
-						{
-							throw new ArgumentException(
-								$"Invalid FEN: Row {row + 1} contains more than {BoardSize} squares.");
-						}
-
-						board[row, col] = FenCharToPiece(character);
-						col++;
-						break;
-					}
-				}
-			}
-
-			if (row != BoardSize - 1)
-			{
-				throw new ArgumentException(
-					$"Invalid FEN: Not enough rows defined. Expected {BoardSize}, but found {row + 1}.");
-			}
-
-			if (col != BoardSize)
-			{
-				throw new ArgumentException(
-					$"Invalid FEN: The last row is not completely defined. It has {col} squares instead of {BoardSize}.");
-			}
-
-			return board;
 		}
 
 		private static PieceColor ParseActiveColor(string colorPart) => colorPart switch

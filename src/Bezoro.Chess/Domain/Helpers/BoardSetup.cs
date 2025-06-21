@@ -18,7 +18,7 @@ namespace Bezoro.Chess.Domain.Helpers
 		///     Creates a game state with the standard chess starting position where White moves first.
 		/// </summary>
 		public static GameState CreateStandardGame() =>
-			GameState.CreateInitial();
+			GameState.CreateInitial(PieceColor.White);
 
 		/// <summary>
 		///     Creates a game state with the standard chess starting position where Black moves first.

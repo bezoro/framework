@@ -18,7 +18,7 @@ public class FenParserUnitTests
 		GameState actualGameState = FenParser.FenToGameState(FenStrings.StandardStart);
 
 		// Assert
-		actualGameState.PiecePositions.Should().BeEquivalentTo(expectedGameState.PiecePositions);
+		actualGameState.Board.Should().BeEquivalentTo(expectedGameState.Board);
 		actualGameState.ActiveColor.Should().Be(PieceColor.White);
 		actualGameState.Castling.Should().Be(
 			CastlingRights.WhiteKingside  |

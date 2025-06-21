@@ -9,10 +9,13 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 	/// </summary>
 	internal static class NormalMoveExecutor
 	{
-		public static void Execute(GameState state, Move move)
+		public static Board Execute(in GameState state, in Move move)
 		{
-			state.PiecePositions[move.To.Row, move.To.Col]     = state.PiecePositions[move.From.Row, move.From.Col];
-			state.PiecePositions[move.From.Row, move.From.Col] = default;
+			Board board = state.Board;
+
+			board = board.SetPiece(move.To, board.GetPiece(move.From));
+			board = board.RemovePiece(move.From);
+			return board;
 		}
 	}
 }

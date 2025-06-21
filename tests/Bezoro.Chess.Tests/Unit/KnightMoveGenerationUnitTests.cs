@@ -17,13 +17,13 @@ public class KnightMoveGenerationUnitTests
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Knight, color);
+		var board        = new Board(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Knight, color));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act
@@ -42,21 +42,17 @@ public class KnightMoveGenerationUnitTests
 		var        fromPosition  = new Position("d4");
 		PieceColor opponentColor = color.Opposite();
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Knight, color);
-
-		// The 8 potential moves from d4 are: c6, e6, f5, f3, e2, c2, b3, b5.
-		// Friendly pieces (blocking)
-		initialBoard[new Position("c6").Row, new Position("c6").Col] = new Piece(PieceType.Pawn, color);
-		initialBoard[new Position("f3").Row, new Position("f3").Col] = new Piece(PieceType.Pawn, color);
-		// Enemy pieces (capturable)
-		initialBoard[new Position("e2").Row, new Position("e2").Col] = new Piece(PieceType.Pawn, opponentColor);
-		initialBoard[new Position("b5").Row, new Position("b5").Col] = new Piece(PieceType.Pawn, opponentColor);
+		var board = new Board(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPieces((new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.Knight, color)),
+			(new Position("c6"), new Piece(PieceType.Pawn, color)),
+			(new Position("f3"), new Piece(PieceType.Pawn, color)),
+			(new Position("e2"), new Piece(PieceType.Pawn, opponentColor)),
+			(new Position("b5"), new Piece(PieceType.Pawn, opponentColor)));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act
@@ -80,8 +76,17 @@ public class KnightMoveGenerationUnitTests
 		PieceColor color, string from, string[] expectedMoves)
 	{
 		// Arrange
-		var       fromPosition = new Position(from);
-		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var fromPosition = new Position(from);
+		var board        = new Board(BoardFactory.CreateInitialBitboards());
+		var gameState = new GameState
+		{
+			Board       = board,
+			ActiveColor = color
+		};
+
+		Piece piece = board.GetPiece(fromPosition); //  <-- add this
+		piece.Type.Should().Be(PieceType.Knight);
+		piece.Color.Should().Be(color);
 
 		// Act
 		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();

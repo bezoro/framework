@@ -13,22 +13,21 @@ public class PawnMoveGenerationUnitTests
 	[Theory]
 	[InlineData(PieceColor.White, "e4", "d5")]
 	[InlineData(PieceColor.Black, "d5", "e4")]
-	internal void MoveGenerator_ForPawn_ShouldGenerateCaptureMoves(
-		PieceColor color, string from, string capture)
+	internal void MoveGenerator_ForPawn_ShouldGenerateCaptureMoves(PieceColor color, string from, string capture)
 	{
 		// Arrange
 		var        fromPosition    = new Position(from);
 		var        capturePosition = new Position(capture);
 		PieceColor opponentColor   = color.Opposite();
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col]       = new Piece(PieceType.Pawn, color);
-		initialBoard[capturePosition.Row, capturePosition.Col] = new Piece(PieceType.Pawn, opponentColor);
+		var board = new Board(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Pawn,    color))
+					 .SetPiece(capturePosition, new Piece(PieceType.Pawn, opponentColor));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act
@@ -49,14 +48,13 @@ public class PawnMoveGenerationUnitTests
 		var        enPassantTargetSquare = new Position(enPassantTarget);
 		PieceColor opponentColor         = color.Opposite();
 		var        opponentPawnPosition  = new Position(fromPosition.Row, enPassantTargetSquare.Col);
-
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col]                 = new Piece(PieceType.Pawn, color);
-		initialBoard[opponentPawnPosition.Row, opponentPawnPosition.Col] = new Piece(PieceType.Pawn, opponentColor);
+		var        board                 = new Board(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Pawn,         color))
+					 .SetPiece(opponentPawnPosition, new Piece(PieceType.Pawn, opponentColor));
 
 		var gameState = new GameState
 		{
-			PiecePositions        = initialBoard,
+			Board                 = board,
 			ActiveColor           = color,
 			EnPassantTargetSquare = enPassantTargetSquare
 		};
@@ -76,14 +74,12 @@ public class PawnMoveGenerationUnitTests
 	{
 		// Arrange
 		var fromPosition = new Position(from);
-
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Pawn, color);
-
+		var board        = new Board(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Pawn, color));
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act

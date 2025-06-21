@@ -22,7 +22,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					Piece piece = gameState.PiecePositions[r, c];
+					Piece piece = gameState.Board.GetPiece(new Position(r, c));
 
 					// Skip empty squares or pieces of the inactive color
 					if (piece.Type == PieceType.None || piece.Color != gameState.ActiveColor)
@@ -45,7 +45,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		/// </summary>
 		public static IEnumerable<Move> GeneratePieceMoves(Position from, GameState gameState)
 		{
-			Piece piece = gameState.PiecePositions[from.Row, from.Col];
+			Piece piece = gameState.Board.GetPiece(from);
 
 			// Can't move an empty square or a piece of the wrong color
 			if (piece.Type == PieceType.None || piece.Color != gameState.ActiveColor)

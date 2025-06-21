@@ -17,7 +17,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		public static GameState ExecuteMove(GameState state, Move move)
 		{
 			// Get the piece that's moving
-			Piece movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
+			Piece movingPiece = state.Board.GetPiece(move.From);
 
 			// Determine the en passant target square for the *next* state.
 			// This is only set when a pawn makes a two-square advance.
@@ -29,11 +29,11 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 				newEnPassantTargetSquare = new Position(behindRow, move.From.Col);
 			}
 
-			// Create a new game state (we're using an immutable approach)
+			// Create a new game state
 			var newState = new GameState
 			{
 				// Copy the current board
-				PiecePositions = (Piece[,])state.PiecePositions.Clone(),
+				Board = state.Board,
 
 				// Switch the active color
 				ActiveColor = state.ActiveColor == PieceColor.White ? PieceColor.Black : PieceColor.White,
@@ -50,7 +50,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 			};
 
 			// Delegate the actual board modification to the correct executor.
-			ExecuteMoveOnBoard(newState, move);
+			newState = ApplyMoveToBoard(newState, move);
 
 			return newState;
 		}
@@ -58,12 +58,17 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		private static bool ShouldResetHalfMoveClock(GameState state, Move move)
 		{
 			// Half-move clock resets on pawn moves or captures
-			if (state.PiecePositions[move.From.Row, move.From.Col].Type == PieceType.Pawn)
+			if (move.Type is MoveType.CastleKingside or MoveType.CastleQueenside)
+			{
+				return false;
+			}
+
+			if (state.Board.GetPiece(move.From).Type == PieceType.Pawn)
 			{
 				return true;
 			}
 
-			if (state.PiecePositions[move.To.Row, move.To.Col].Type != default)
+			if (state.Board.GetPiece(move.To).Type != default)
 			{
 				return true;
 			}
@@ -79,7 +84,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		private static CastlingRights UpdateCastlingRights(GameState state, Move move)
 		{
 			CastlingRights newRights   = state.Castling;
-			Piece          movingPiece = state.PiecePositions[move.From.Row, move.From.Col];
+			Piece          movingPiece = state.Board.GetPiece(move.From);
 
 			// King moves remove all castling rights for that color
 			if (movingPiece.Type == PieceType.King)
@@ -155,33 +160,36 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		/// <summary>
 		///     Dispatches the move to the appropriate executor based on its type.
 		/// </summary>
-		private static void ExecuteMoveOnBoard(GameState state, Move move)
+		private static GameState ApplyMoveToBoard(in GameState state, in Move move)
 		{
+			GameState newState = state;
 			switch (move.Type)
 			{
 				case MoveType.Normal:
 				case MoveType.Capture:
-					NormalMoveExecutor.Execute(state, move);
+					newState = newState with { Board = NormalMoveExecutor.Execute(state, move) };
 					break;
 
 				case MoveType.CastleKingside:
 				case MoveType.CastleQueenside:
-					CastleMoveExecutor.Execute(state, move);
+					newState = newState with { Board = CastleMoveExecutor.Execute(state, move) };
 					break;
 
 				case MoveType.EnPassant:
-					EnPassantMoveExecutor.Execute(state, move);
+					newState = newState with { Board = EnPassantMoveExecutor.Execute(state, move) };
 					break;
 
 				case MoveType.PawnPromotion:
 				case MoveType.PawnPromotionCapture:
-					PawnPromotionMoveExecutor.Execute(state, move);
+					newState = newState with { Board = PawnPromotionMoveExecutor.Execute(state, move) };
 					break;
 
 				default:
 					// It's good practice to handle unexpected cases.
 					throw new ArgumentOutOfRangeException(nameof(move), $"Unknown move type: {move.Type}");
 			}
+
+			return newState;
 		}
 	}
 }

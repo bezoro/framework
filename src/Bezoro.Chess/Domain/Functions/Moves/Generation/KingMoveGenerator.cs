@@ -17,7 +17,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
 			};
 
-			Piece movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			Piece movingPiece = gameState.Board.GetPiece(from);
 
 			foreach ((int dRow, int dCol) in directions)
 			{
@@ -28,7 +28,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 					continue;
 				}
 
-				Piece pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
+				Piece pieceAtDestination = gameState.Board.GetPiece(to);
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
@@ -120,7 +120,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 
 		private static IEnumerable<Move> GenerateCastlingMoves(Position from, GameState gameState)
 		{
-			Piece      movingPiece   = gameState.PiecePositions[from.Row, from.Col];
+			Piece      movingPiece   = gameState.Board.GetPiece(from);
 			PieceColor opponentColor = gameState.ActiveColor.Opposite();
 
 			// Rule: King cannot be in check to castle.
