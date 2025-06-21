@@ -9,18 +9,19 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 	/// </summary>
 	internal static class PawnPromotionMoveExecutor
 	{
-		public static void Execute(GameState state, Move move)
+		public static Board Execute(GameState state, Move move)
 		{
 			// Move the pawn to its destination first.
-			NormalMoveExecutor.Execute(state, move);
+			Board newBoard = NormalMoveExecutor.Execute(state, move);
 
 			// Chosen promotion piece, defaulting to Queen.
 			PromotionType promotionPieceType = move.PromotionPieceType == PromotionType.None
 				? PromotionType.Queen
 				: move.PromotionPieceType;
 
-			state.PiecePositions[move.To.Row, move.To.Col] =
-				new Piece((PieceType)promotionPieceType, move.Piece.Color);
+			state    = state with { Board = newBoard };
+			newBoard = state.Board.SetPiece(move.To, new Piece((PieceType)promotionPieceType, move.Piece.Color));
+			return newBoard;
 		}
 	}
 }

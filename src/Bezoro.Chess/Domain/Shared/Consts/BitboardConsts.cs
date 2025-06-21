@@ -4,33 +4,32 @@ namespace Bezoro.Chess.Domain.Shared.Consts
 {
 	internal static class BitboardConsts
 	{
-		/// <summary>
-		///     Pre-defined bitboard constants for initial black piece positions.
-		///     Arranged in order: pawns, knights, bishops, rooks, queen, king.
-		///     Example: 0xFF_FF represents black pawns in their starting position (rank 7).
-		/// </summary>
-		public static readonly ColorBitboards BlackPieces = new(
-			0xFF_FF_00_00_00_00_00_00,
-			0x42_00_00_00_00_00_00_00,
-			0x24_00_00_00_00_00_00_00,
-			0x81_00_00_00_00_00_00_00,
-			0x08_00_00_00_00_00_00_00,
-			0x10_00_00_00_00_00_00_00);
-		/// <summary>
-		///     Pre-defined bitboard constants for initial white piece positions.
-		///     Arranged in order: pawns, knights, bishops, rooks, queen, king.
-		///     Example: 0xFF_FF represents white pawns in their starting position (rank 2).
-		/// </summary>
+		/// <summary>Empty board with no pieces.</summary>
+		public static readonly BoardBitboards EmptyBoard = new(
+			new ColorBitboards(0, 0, 0, 0, 0, 0),
+			new ColorBitboards(0, 0, 0, 0, 0, 0));
+
+		/* ─────────────  Correct initial positions (a1 = bit 0) ───────────── */
+
 		public static readonly ColorBitboards WhitePieces = new(
-			0x00_00_00_00_00_00_FF_FF,
-			0x00_00_00_00_00_00_00_42,
-			0x00_00_00_00_00_00_00_24,
-			0x00_00_00_00_00_00_00_81,
-			0x00_00_00_00_00_00_00_08,
-			0x00_00_00_00_00_00_00_10);
-		/// <summary>
-		///     Classical initial position – created once and cached.
-		/// </summary>
+			0x0000_0000_0000_FF00UL, // pawns  a2-h2
+			0x0000_0000_0000_0042UL, // knights b1, g1
+			0x0000_0000_0000_0024UL, // bishops c1, f1
+			0x0000_0000_0000_0081UL, // rooks   a1, h1
+			0x0000_0000_0000_0008UL, // queen   d1
+			0x0000_0000_0000_0010UL  // king    e1
+		);
+
+		public static readonly ColorBitboards BlackPieces = new(
+			0x00FF_0000_0000_0000UL, // pawns  a7-h7
+			0x4200_0000_0000_0000UL, // knights b8, g8
+			0x2400_0000_0000_0000UL, // bishops c8, f8
+			0x8100_0000_0000_0000UL, // rooks   a8, h8
+			0x0800_0000_0000_0000UL, // queen   d8
+			0x1000_0000_0000_0000UL  // king    e8
+		);
+
+		/// <summary>The classical starting position.</summary>
 		public static readonly BoardBitboards StartPosition = new(WhitePieces, BlackPieces);
 	}
 }

@@ -34,7 +34,7 @@ namespace Bezoro.Chess.Domain.Extensions
 			{
 				for (var c = 0 ; c < 8 ; c++)
 				{
-					Piece piece = state.PiecePositions[r, c];
+					Piece piece = state.Board.GetPiece(new Position(r, c));
 					if (piece.Type == PieceType.King && piece.Color == kingColor)
 					{
 						return new Position(r, c);

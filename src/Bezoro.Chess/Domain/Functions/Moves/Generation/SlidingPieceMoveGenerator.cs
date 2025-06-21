@@ -11,7 +11,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 		public static IEnumerable<Move> GenerateMoves(
 			Position from, GameState gameState, (int dRow, int dCol)[] directions)
 		{
-			Piece movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			Piece movingPiece = gameState.Board.GetPiece(from);
 
 			foreach ((int dRow, int dCol) in directions)
 			{
@@ -21,7 +21,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				while (BoardHelper.IsInsideBoard(new Position(newRow, newCol)))
 				{
 					var   to                 = new Position(newRow, newCol);
-					Piece pieceAtDestination = gameState.PiecePositions[to.Row, to.Col];
+					Piece pieceAtDestination = gameState.Board.GetPiece(to);
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{

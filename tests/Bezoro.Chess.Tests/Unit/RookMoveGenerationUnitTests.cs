@@ -16,14 +16,13 @@ public class RookMoveGenerationUnitTests
 	internal void MoveGenerator_ForLoneRookOnD4_ShouldGenerate14Moves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition = new Position("d4");
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Rook, color);
-
+		var   fromPosition = new Position("d4");
+		Board board        = new(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.Rook, color));
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act
@@ -46,22 +45,19 @@ public class RookMoveGenerationUnitTests
 		var        fromPosition  = new Position("d4");
 		PieceColor opponentColor = color.Opposite();
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Rook, color);
+		Board board = new(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Rook, color));
 
 		// Friendly piece (blocking)
-		initialBoard[new Position("d6").Row, new Position("d6").Col] = new Piece(PieceType.Pawn, color);
-		// Enemy piece (capturable)
-		initialBoard[new Position("d2").Row, new Position("d2").Col] = new Piece(PieceType.Pawn, opponentColor);
-		// Friendly piece (blocking)
-		initialBoard[new Position("b4").Row, new Position("b4").Col] = new Piece(PieceType.Pawn, color);
-		// Enemy piece (capturable)
-		initialBoard[new Position("g4").Row, new Position("g4").Col] = new Piece(PieceType.Pawn, opponentColor);
+		board = board.SetPiece(new Position("d6"), new Piece(PieceType.Pawn, color))
+					 .SetPiece(new Position("b4"), new Piece(PieceType.Pawn, color))
+					 .SetPiece(new Position("d2"), new Piece(PieceType.Pawn, opponentColor))
+					 .SetPiece(new Position("g4"), new Piece(PieceType.Pawn, opponentColor));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act

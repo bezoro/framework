@@ -153,7 +153,7 @@ namespace Bezoro.Chess.Domain.Extensions
 		private static string SquareToString(Position pos)
 		{
 			var file = (char)('a' + pos.Col); // Col 0 -> 'a'
-			int rank = 8 - pos.Row;           // Row 0 -> 8
+			int rank = pos.Row + 1;           // Row 0 -> 8
 			return $"{file}{rank}";
 		}
 	}

@@ -10,10 +10,13 @@ namespace Bezoro.Chess.Domain.Types.Structs
 	/// </summary>
 	internal readonly struct Position : IEquatable<Position>
 	{
+		private readonly bool _initialized;
+
 		public Position(int row, int col)
 		{
-			Row = row;
-			Col = col;
+			Row          = row;
+			Col          = col;
+			_initialized = true;
 		}
 
 		/// <summary>
@@ -35,9 +38,12 @@ namespace Bezoro.Chess.Domain.Types.Structs
 					$"Invalid algebraic notation: {algebraicNotation}", nameof(algebraicNotation));
 			}
 
-			Col = file - 'a';
-			Row = 8    - (rank - '0');
+			Col          = file - 'a';
+			Row          = rank - '1';
+			_initialized = true;
 		}
+
+		public bool IsValid => _initialized && Row is >= 0 and < 8 && Col is >= 0 and < 8;
 
 		public ChessSquareCoordinate Coordinate => (Col, Row).ToSquareCoordinate();
 
@@ -61,7 +67,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public override string ToString()
 		{
 			var file = (char)('a' + Col);
-			var rank = (char)('0' + (8 - Row));
+			var rank = (char)('1' + Row);
 			return $"{file}{rank}";
 		}
 	}

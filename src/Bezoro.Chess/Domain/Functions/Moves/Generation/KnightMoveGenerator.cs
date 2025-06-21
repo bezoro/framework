@@ -16,7 +16,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				(1, 2), (1, -2), (-1, 2), (-1, -2)
 			};
 
-			Piece movingPiece = gameState.PiecePositions[from.Row, from.Col];
+			Piece movingPiece = gameState.Board.GetPiece(from);
 
 			foreach ((int dRow, int dCol) in moves)
 			{
@@ -27,7 +27,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 					continue;
 				}
 
-				Piece pieceAtDestination = gameState.PiecePositions[toPosition.Row, toPosition.Col];
+				Piece pieceAtDestination = gameState.Board.GetPiece(toPosition);
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{

@@ -1,24 +1,20 @@
+using System;
+using System.Runtime.CompilerServices;
+
 namespace Bezoro.Chess.Domain.Types.Structs
 {
 	/// <summary>
 	///     Immutable collection of the 12 piece-specific bitboards used by the engine.
-	///     Also provides on-the-fly occupancy masks (WhitePieces, BlackPieces, etc.).
-	///     Square numbering = little-endian ranks:
-	///     0  1 …  7   →  A1 … H1
-	///     8  9 … 15   →  A2 … H2
-	///     …
-	///     56 57 … 63   →  A8 … H8
 	/// </summary>
-	internal readonly struct BoardBitboards
+	internal readonly struct BoardBitboards : IEquatable<BoardBitboards>
 	{
 		// ── Black ────────────────────────────────────────────────────────────
 		public readonly ulong BlackPawns, BlackKnights, BlackBishops, BlackRooks, BlackQueens, BlackKing;
 		// ── White ────────────────────────────────────────────────────────────
 		public readonly ulong WhitePawns, WhiteKnights, WhiteBishops, WhiteRooks, WhiteQueens, WhiteKing;
 
-		/// <summary>Main, public constructor – uses colour-specific value objects.</summary>
+		/// <summary>Main constructor – uses colour-specific value objects.</summary>
 		public BoardBitboards(ColorBitboards white, ColorBitboards black)
-
 		{
 			WhitePawns   = white.Pawns;
 			WhiteKnights = white.Knights;
@@ -39,5 +35,51 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public ulong Empty       => ~Occupied;
 		public ulong Occupied    => WhitePieces | BlackPieces;
 		public ulong WhitePieces => WhitePawns  | WhiteKnights | WhiteBishops | WhiteRooks | WhiteQueens | WhiteKing;
+
+		public static bool operator ==(BoardBitboards left, BoardBitboards right) => left.Equals(right);
+		public static bool operator !=(BoardBitboards left, BoardBitboards right) => !left.Equals(right);
+
+		#region Equality
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public bool Equals(BoardBitboards other)
+		{
+			ulong diff = BlackPawns ^ other.BlackPawns;
+			diff |= BlackKnights ^ other.BlackKnights;
+			diff |= BlackBishops ^ other.BlackBishops;
+			diff |= BlackRooks   ^ other.BlackRooks;
+			diff |= BlackQueens  ^ other.BlackQueens;
+			diff |= BlackKing    ^ other.BlackKing;
+			diff |= WhitePawns   ^ other.WhitePawns;
+			diff |= WhiteKnights ^ other.WhiteKnights;
+			diff |= WhiteBishops ^ other.WhiteBishops;
+			diff |= WhiteRooks   ^ other.WhiteRooks;
+			diff |= WhiteQueens  ^ other.WhiteQueens;
+			diff |= WhiteKing    ^ other.WhiteKing;
+
+			return diff == 0;
+		}
+
+		public override bool Equals(object? obj) => obj is BoardBitboards other && Equals(other);
+
+		public override int GetHashCode()
+		{
+			HashCode hash = new();
+			hash.Add(BlackPawns);
+			hash.Add(BlackKnights);
+			hash.Add(BlackBishops);
+			hash.Add(BlackRooks);
+			hash.Add(BlackQueens);
+			hash.Add(BlackKing);
+			hash.Add(WhitePawns);
+			hash.Add(WhiteKnights);
+			hash.Add(WhiteBishops);
+			hash.Add(WhiteRooks);
+			hash.Add(WhiteQueens);
+			hash.Add(WhiteKing);
+			return hash.ToHashCode();
+		}
+
+		#endregion
 	}
 }

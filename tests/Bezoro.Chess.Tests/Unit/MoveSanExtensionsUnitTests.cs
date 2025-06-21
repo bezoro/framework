@@ -23,7 +23,7 @@ public class MoveSanExtensionsUnitTests
 		var       fromPos       = new Position(from);
 		var       toPos         = new Position(to);
 		var       piece         = new Piece(pieceType, gameState.ActiveColor);
-		Piece     capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
+		Piece     capturedPiece = gameState.Board.GetPiece(toPos);
 		var       move          = Move.CreateCapture(fromPos, toPos, piece, capturedPiece);
 
 		// Act
@@ -44,8 +44,8 @@ public class MoveSanExtensionsUnitTests
 	{
 		// Arrange
 		GameState gameState = FenParser.FenToGameState(fen);
-		Position  kingPos   = gameState.FindKingPosition(gameState.ActiveColor)!.Value;
-		Piece     king      = gameState.PiecePositions[kingPos.Row, kingPos.Col];
+		Position  kingPos   = gameState.FindKingPosition(gameState.ActiveColor);
+		Piece     king      = gameState.Board.GetPiece(kingPos);
 
 		Move move;
 		if (moveType == MoveType.CastleKingside)
@@ -134,7 +134,7 @@ public class MoveSanExtensionsUnitTests
 		}
 		else // PawnPromotionCapture
 		{
-			Piece capturedPiece = gameState.PiecePositions[toPos.Row, toPos.Col];
+			Piece capturedPiece = gameState.Board.GetPiece(toPos);
 			move = Move.CreateCapturePromotion(fromPos, toPos, pawn, capturedPiece, promotionPiece);
 		}
 

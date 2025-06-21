@@ -10,10 +10,10 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 	{
 		public static IEnumerable<Move> GenerateMoves(Position from, GameState gameState)
 		{
-			Piece pawn         = gameState.PiecePositions[from.Row, from.Col];
-			int   direction    = pawn.Color == PieceColor.White ? -1 : 1;
-			int   startRow     = pawn.Color == PieceColor.White ? 6 : 1;
-			int   promotionRow = pawn.Color == PieceColor.White ? 0 : 7;
+			Piece pawn         = gameState.Board.GetPiece(from);
+			int   direction    = pawn.Color == PieceColor.White ? 1 : -1;
+			int   startRow     = pawn.Color == PieceColor.White ? 1 : 6;
+			int   promotionRow = pawn.Color == PieceColor.White ? 7 : 0;
 
 			// Use helper methods to generate moves for each category
 			foreach (Move move in GenerateAdvanceMoves(from, gameState, pawn, direction, startRow, promotionRow))

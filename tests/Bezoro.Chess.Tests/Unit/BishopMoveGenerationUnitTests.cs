@@ -19,22 +19,22 @@ public class BishopMoveGenerationUnitTests
 		var        fromPosition  = new Position("d4");
 		PieceColor opponentColor = color.Opposite();
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Bishop, color);
+		Board board = new(BoardFactory.CreateEmptyBitboards());
+		board = board.SetPiece(fromPosition, new Piece(PieceType.Bishop, color));
 
 		// Friendly piece (blocking)
-		initialBoard[new Position("b6").Row, new Position("b6").Col] = new Piece(PieceType.Pawn, color);
-		// Enemy piece (capturable)
-		initialBoard[new Position("f6").Row, new Position("f6").Col] = new Piece(PieceType.Pawn, opponentColor);
-		// Enemy piece (capturable)
-		initialBoard[new Position("b2").Row, new Position("b2").Col] = new Piece(PieceType.Pawn, opponentColor);
-		// Friendly piece (blocking)
-		initialBoard[new Position("f2").Row, new Position("f2").Col] = new Piece(PieceType.Pawn, color);
+		board = board.SetPieces(
+			(new Position("b6"), new Piece(PieceType.Pawn, color)),
+			(new Position("f2"), new Piece(PieceType.Pawn, color)),
+			(new Position("f2"), new Piece(PieceType.Pawn, color)), // Friendly, blocking
+			(new Position("f6"), new Piece(PieceType.Pawn, opponentColor)),
+			(new Position("b2"), new Piece(PieceType.Pawn, opponentColor))
+		);
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act
@@ -64,13 +64,14 @@ public class BishopMoveGenerationUnitTests
 	{
 		// Arrange
 		var fromPosition = new Position("d4");
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.Bishop, color);
+
+		Board board = new Board(BoardFactory.CreateEmptyBitboards())
+			.SetPiece(fromPosition, new Piece(PieceType.Bishop, color));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = board,
+			ActiveColor = color
 		};
 
 		// Act

@@ -18,24 +18,21 @@ public class KingMoveGenerationUnitTests
 		// Arrange
 		var        fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
 		PieceColor opponentColor   = color.Opposite();
-		int        opponentPawnRow = color == PieceColor.White ? fromPosition.Row - 1 : fromPosition.Row + 1;
+		int        opponentPawnRow = color == PieceColor.White ? fromPosition.Row + 1 : fromPosition.Row - 1;
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.King, color);
-
-		// Friendly pieces (blocking)
-		initialBoard[fromPosition.Row, fromPosition.Col - 1] = new Piece(PieceType.Pawn, color); // d1/d8
-		initialBoard[fromPosition.Row, fromPosition.Col + 1] = new Piece(PieceType.Pawn, color); // f1/f8
-
-		// Enemy pieces (capturable)
-		initialBoard[opponentPawnRow, fromPosition.Col - 1] = new Piece(PieceType.Pawn, opponentColor); // d2/d7
-		initialBoard[opponentPawnRow, fromPosition.Col]     = new Piece(PieceType.Pawn, opponentColor); // e2/e7
-		initialBoard[opponentPawnRow, fromPosition.Col + 1] = new Piece(PieceType.Pawn, opponentColor); // f2/f7
+		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
+		initialBoard = initialBoard.SetPieces(
+			(new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.King,     color)),
+			(new Position(fromPosition.Row, fromPosition.Col - 1), new Piece(PieceType.Pawn, color)),
+			(new Position(fromPosition.Row, fromPosition.Col + 1), new Piece(PieceType.Pawn, color)),
+			(new Position(opponentPawnRow,  fromPosition.Col - 1), new Piece(PieceType.Pawn, opponentColor)),
+			(new Position(opponentPawnRow,  fromPosition.Col), new Piece(PieceType.Pawn,     opponentColor)),
+			(new Position(opponentPawnRow,  fromPosition.Col + 1), new Piece(PieceType.Pawn, opponentColor)));
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = initialBoard,
+			ActiveColor = color
 		};
 
 		// Act
@@ -62,19 +59,20 @@ public class KingMoveGenerationUnitTests
 		int  kingRow      = isWhite ? 7 : 0;
 		var  fromPosition = new Position(kingRow, 4);
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[kingRow, 4] = new Piece(PieceType.King, color);
-		initialBoard[kingRow, 0] = new Piece(PieceType.Rook, color);
-		initialBoard[kingRow, 7] = new Piece(PieceType.Rook, color);
-		// Add blocking pieces
-		initialBoard[kingRow, 1] = new Piece(PieceType.Knight, color); // Queenside
-		initialBoard[kingRow, 6] = new Piece(PieceType.Bishop, color); // Kingside
+		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
+		initialBoard.SetPiece(new Position(kingRow, 4), new Piece(PieceType.King, color));
+		initialBoard.SetPiece(new Position(kingRow, 4), new Piece(PieceType.King, color));
+		initialBoard.SetPiece(new Position(kingRow, 0), new Piece(PieceType.Rook, color));
+		initialBoard.SetPiece(new Position(kingRow, 7), new Piece(PieceType.Rook, color));
+		// Add blocking pieces  
+		initialBoard.SetPiece(new Position(kingRow, 1), new Piece(PieceType.Knight, color)); // Queenside
+		initialBoard.SetPiece(new Position(kingRow, 6), new Piece(PieceType.Bishop, color)); // Kingside
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color,
-			Castling       = isWhite ? CastlingRights.White : CastlingRights.Black
+			Board       = initialBoard,
+			ActiveColor = color,
+			Castling    = isWhite ? CastlingRights.White : CastlingRights.Black
 		};
 
 		// Act
@@ -95,16 +93,18 @@ public class KingMoveGenerationUnitTests
 		int  kingRow      = isWhite ? 7 : 0;
 		var  fromPosition = new Position(kingRow, 4);
 
-		var initialBoard = new Piece[8, 8];
-		initialBoard[kingRow, 4] = new Piece(PieceType.King, color);
-		initialBoard[kingRow, 0] = new Piece(PieceType.Rook, color);
-		initialBoard[kingRow, 7] = new Piece(PieceType.Rook, color);
+		var initialBoard = new Board(BoardFactory.CreateEmptyBitboards());
+		initialBoard = initialBoard.SetPieces(
+			(new Position(kingRow, 4), new Piece(PieceType.King, color)),
+			(new Position(kingRow, 0), new Piece(PieceType.Rook, color)),
+			(new Position(kingRow, 7), new Piece(PieceType.Rook, color))
+		);
 
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color,
-			Castling       = isWhite ? CastlingRights.White : CastlingRights.Black
+			Board       = initialBoard,
+			ActiveColor = color,
+			Castling    = isWhite ? CastlingRights.White : CastlingRights.Black
 		};
 
 		// Act
@@ -121,14 +121,14 @@ public class KingMoveGenerationUnitTests
 	internal void MoveGenerator_ForLoneKingOnD4_ShouldGenerate8Moves(PieceColor color)
 	{
 		// Arrange
-		var fromPosition = new Position("d4");
-		var initialBoard = new Piece[8, 8];
-		initialBoard[fromPosition.Row, fromPosition.Col] = new Piece(PieceType.King, color);
-
+		var   fromPosition = new Position("d4");
+		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
+		initialBoard = initialBoard.SetPiece(new Position(fromPosition.Row, fromPosition.Col),
+			new Piece(PieceType.King, color));
 		var gameState = new GameState
 		{
-			PiecePositions = initialBoard,
-			ActiveColor    = color
+			Board       = initialBoard,
+			ActiveColor = color
 		};
 
 		// Act

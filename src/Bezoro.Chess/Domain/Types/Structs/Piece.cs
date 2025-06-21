@@ -15,6 +15,8 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			Color = color;
 		}
 
+		public bool IsValid => Type != PieceType.None && Color != PieceColor.None;
+
 		/// <summary>
 		///     The color of the piece (White or Black)
 		/// </summary>
