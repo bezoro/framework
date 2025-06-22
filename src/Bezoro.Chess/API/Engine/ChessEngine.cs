@@ -20,11 +20,8 @@ namespace Bezoro.Chess.API.Engine
 	{
 		private GameState _state;
 
-		public GameStateViewModel GetGameState()
-		{
-			var vm = new GameStateViewModel(_state);
-			return vm;
-		}
+		public GameStateViewModel GetGameState() =>
+			_state.ToViewModel();
 
 		public Result<ImmutableArray<MoveViewModel>> GetCurrentLegalMoves()
 		{
@@ -42,7 +39,7 @@ namespace Bezoro.Chess.API.Engine
 
 		public Result<MoveViewModel> TryApplyMove(MoveViewModel moveViewModel)
 		{
-			Move          move           = default;
+			Move          move;
 			Position      from           = moveViewModel.From.ToDomain();
 			Position      to             = moveViewModel.To.ToDomain();
 			MoveType      type           = moveViewModel.Type;
@@ -53,7 +50,7 @@ namespace Bezoro.Chess.API.Engine
 			switch (type)
 			{
 				case MoveType.None:
-					break;
+					throw new InvalidOperationException("Invalid move");
 				case MoveType.Normal:
 					move = Move.CreateNormal(from, to, piece);
 					break;
@@ -79,8 +76,7 @@ namespace Bezoro.Chess.API.Engine
 					throw new ArgumentOutOfRangeException();
 			}
 
-			GameState newState = MoveExecution.ExecuteMove(_state, move);
-			_state = newState;
+			_state = MoveExecution.ExecuteMove(_state, move);
 			return Result<MoveViewModel>.Succeeded(moveViewModel);
 		}
 	}
