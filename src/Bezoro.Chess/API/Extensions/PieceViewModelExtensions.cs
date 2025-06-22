@@ -12,7 +12,7 @@ namespace Bezoro.Chess.API.Extensions
 			new(pieceViewModel.Type.ToDomain(), pieceViewModel.Color.ToDomain());
 
 		internal static PieceViewModel ToViewModel(this Piece piece) =>
-			new(piece.Type.ToAPI(), piece.Color.ToAPI());
+			new((piece.Type, piece.Color));
 
 		internal static IEnumerable<PieceViewModel> ToViewModel(this IEnumerable<Piece> pieces) =>
 			pieces.Select(p => p.ToViewModel());

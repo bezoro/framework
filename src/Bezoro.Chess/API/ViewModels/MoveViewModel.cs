@@ -17,8 +17,8 @@ namespace Bezoro.Chess.API.ViewModels
 			From               = move.From.Coordinate;
 			To                 = move.To.Coordinate;
 			PromotionPieceType = move.PromotionPieceType.ToAPI();
-			Piece              = new PieceViewModel(move.Piece.Type.ToAPI(),         move.Piece.Color.ToAPI());
-			CapturedPiece      = new PieceViewModel(move.CapturedPiece.Type.ToAPI(), move.CapturedPiece.Color.ToAPI());
+			Piece              = new PieceViewModel((move.Piece.Type, move.Piece.Color));
+			CapturedPiece      = new PieceViewModel((move.CapturedPiece.Type, move.CapturedPiece.Color));
 		}
 
 		public ChessSquareCoordinate From { get; }
