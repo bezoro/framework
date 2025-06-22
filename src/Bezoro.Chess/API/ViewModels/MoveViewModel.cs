@@ -10,21 +10,19 @@ namespace Bezoro.Chess.API.ViewModels
 	{
 		internal MoveViewModel(in Move move)
 		{
-			Type = move.Type.ToAPI();
-			From = move.From.Coordinate;
-			To   = move.To.Coordinate;
-			move.TryAsPromotion(out Move.PromotionView promotionView);
-			PromotionPieceType = promotionView.PromotionPieceType.ToAPI();
+			Type               = move.Type.ToAPI();
+			From               = move.From.Coordinate;
+			To                 = move.To.Coordinate;
+			PromotionPieceType = move.PromotionPieceType.ToAPI();
 			Piece              = new PieceViewModel((move.Piece.Type, move.Piece.Color));
-			CapturedPiece = new PieceViewModel(
-				(move.AsCapture().Value.CapturedPiece.Type, move.AsCapture().Value.CapturedPiece.Color));
+			CapturedPiece      = new PieceViewModel((move.CapturedPiece.Type, move.CapturedPiece.Color));
 		}
 
 		public ChessSquareCoordinate From               { get; }
 		public ChessSquareCoordinate To                 { get; }
 		public MoveType              Type               { get; }
-		public PieceViewModel        CapturedPiece      { get; }
 		public PieceViewModel        Piece              { get; }
+		public PieceViewModel?       CapturedPiece      { get; }
 		public PromotionType         PromotionPieceType { get; }
 	}
 }
