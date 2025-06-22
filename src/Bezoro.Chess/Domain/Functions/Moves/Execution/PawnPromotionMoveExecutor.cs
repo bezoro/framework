@@ -11,8 +11,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 	{
 		public static Board Execute(GameState state, Move move)
 		{
-			Move.PromotionView? promotionMove = move.AsPromotion();
-			if (promotionMove == null)
+			if (!move.IsPromotion)
 			{
 				return state.Board;
 			}
@@ -20,9 +19,9 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 			// Move the pawn to its destination first.
 			Board newBoard = NormalMoveExecutor.Execute(state, move);
 			// Chosen promotion piece, defaulting to Queen.
-			PromotionType promotionPieceType = promotionMove.Value.PromotionPieceType == PromotionType.None
+			PromotionType promotionPieceType = move.PromotionPieceType == PromotionType.None
 				? PromotionType.Queen
-				: promotionMove.Value.PromotionPieceType;
+				: move.PromotionPieceType;
 
 			state    = state with { Board = newBoard };
 			newBoard = state.Board.SetPiece(move.To, new Piece((PieceType)promotionPieceType, move.Piece.Color));
