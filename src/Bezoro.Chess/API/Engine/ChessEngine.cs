@@ -59,13 +59,14 @@ namespace Bezoro.Chess.API.Engine
 		/// <exception cref="ArgumentOutOfRangeException">Thrown when the move type is not recognized.</exception>
 		public Result<MoveViewModel> TryApplyMove(MoveViewModel moveViewModel)
 		{
-			Move          move;
 			Position      from           = moveViewModel.From.ToDomain();
 			Position      to             = moveViewModel.To.ToDomain();
 			MoveType      type           = moveViewModel.Type;
 			Piece         piece          = moveViewModel.Piece.ToDomain();
 			Piece?        capturedPiece  = moveViewModel.CapturedPiece.Value.ToDomain();
 			PromotionType promotionPiece = moveViewModel.PromotionPieceType.ToDomain();
+
+			Move move;
 
 			switch (type)
 			{
