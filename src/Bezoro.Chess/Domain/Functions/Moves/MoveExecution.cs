@@ -179,8 +179,8 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 					newState = newState with { Board = EnPassantMoveExecutor.Execute(state, move) };
 					break;
 
-				case MoveType.PawnPromotion:
-				case MoveType.PawnPromotionCapture:
+				case MoveType.Promotion:
+				case MoveType.PromotionCapture:
 					newState = newState with { Board = PawnPromotionMoveExecutor.Execute(state, move) };
 					break;
 

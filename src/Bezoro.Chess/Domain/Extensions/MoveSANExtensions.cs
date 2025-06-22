@@ -64,7 +64,7 @@ namespace Bezoro.Chess.Domain.Extensions
 
 			string pieceLetter = PieceTypeToLetter(move.Piece.Type);
 			bool   isPawnMove  = move.Piece.Type == PieceType.Pawn;
-			bool   isCapture   = move.Type is MoveType.Capture or MoveType.EnPassant or MoveType.PawnPromotionCapture;
+			bool   isCapture   = move.Type is MoveType.Capture or MoveType.EnPassant or MoveType.PromotionCapture;
 			var    sanBuilder  = new StringBuilder();
 
 			if (!isPawnMove)
@@ -85,14 +85,13 @@ namespace Bezoro.Chess.Domain.Extensions
 
 			sanBuilder.Append(SquareToString(move.To));
 
-			if (move.Type is not (MoveType.PawnPromotion or MoveType.PawnPromotionCapture))
+			if (move.Type is not (MoveType.Promotion or MoveType.PromotionCapture))
 			{
 				return sanBuilder.ToString();
 			}
 
 			sanBuilder.Append('=');
-			move.TryAsPromotion(out Move.PromotionView promotionView);
-			sanBuilder.Append(PieceTypeToLetter((PieceType)promotionView.PromotionPieceType));
+			sanBuilder.Append(PieceTypeToLetter((PieceType)move.PromotionPieceType));
 
 			return sanBuilder.ToString();
 		}

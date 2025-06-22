@@ -64,7 +64,7 @@ namespace Bezoro.Chess.API.Engine
 			Position      to             = moveViewModel.To.ToDomain();
 			MoveType      type           = moveViewModel.Type;
 			Piece         piece          = moveViewModel.Piece.ToDomain();
-			Piece         capturedPiece  = moveViewModel.CapturedPiece.ToDomain();
+			Piece?        capturedPiece  = moveViewModel.CapturedPiece.Value.ToDomain();
 			PromotionType promotionPiece = moveViewModel.PromotionPieceType.ToDomain();
 
 			switch (type)
@@ -75,7 +75,7 @@ namespace Bezoro.Chess.API.Engine
 					move = Move.Normal(from, to, piece);
 					break;
 				case MoveType.Capture:
-					move = Move.Capture(from, to, piece, capturedPiece);
+					move = Move.Capture(from, to, piece, capturedPiece.Value);
 					break;
 				case MoveType.CastleKingside:
 					move = Move.CastleKingside(from, to, piece);
@@ -84,13 +84,13 @@ namespace Bezoro.Chess.API.Engine
 					move = Move.CastleQueenside(from, to, piece);
 					break;
 				case MoveType.EnPassant:
-					move = Move.EnPassant(from, to, piece, capturedPiece);
+					move = Move.EnPassant(from, to, piece, capturedPiece.Value);
 					break;
 				case MoveType.QuietPromotion:
 					move = Move.Promotion(from, to, piece, promotionPiece);
 					break;
 				case MoveType.CapturePromotion:
-					move = Move.PromotionCapture(from, to, piece, capturedPiece, promotionPiece);
+					move = Move.PromotionCapture(from, to, piece, capturedPiece.Value, promotionPiece);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();
