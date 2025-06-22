@@ -2,9 +2,11 @@ using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
+using JetBrains.Annotations;
 
 namespace Bezoro.Chess.Tests.Unit;
 
+[TestSubject(typeof(Board))]
 public sealed class BoardUnitTests
 {
 	private static readonly Position A1 = new(0, 0);

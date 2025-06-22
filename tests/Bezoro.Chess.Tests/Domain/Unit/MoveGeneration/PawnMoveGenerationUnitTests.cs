@@ -1,13 +1,16 @@
 using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Functions.Moves;
+using Bezoro.Chess.Domain.Functions.Moves.Generation;
 using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
+using JetBrains.Annotations;
 
 namespace Bezoro.Chess.Tests.Unit;
 
+[TestSubject(typeof(PawnMoveGenerator))]
 public class PawnMoveGenerationUnitTests
 {
 	[Theory]

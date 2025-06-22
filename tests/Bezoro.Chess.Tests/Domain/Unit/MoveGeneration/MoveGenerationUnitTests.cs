@@ -3,10 +3,12 @@ using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit.Abstractions;
 
 namespace Bezoro.Chess.Tests.Unit;
 
+[TestSubject(typeof(MoveGenerator))]
 public class MoveGenerationUnitTests(ITestOutputHelper output) : TestBase(output)
 {
 	[Fact]

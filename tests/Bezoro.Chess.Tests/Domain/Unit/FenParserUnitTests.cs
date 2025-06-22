@@ -3,9 +3,11 @@ using Bezoro.Chess.Domain.Shared.Consts;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using FluentAssertions;
+using JetBrains.Annotations;
 
 namespace Bezoro.Chess.Tests.Unit;
 
+[TestSubject(typeof(FenParser))]
 public class FenParserUnitTests
 {
 	[Fact]
