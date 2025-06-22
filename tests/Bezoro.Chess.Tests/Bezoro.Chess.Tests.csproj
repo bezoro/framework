@@ -26,8 +26,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Integration\"/>
-        <Folder Include="Performance\"/>
+        <Folder Include="API\Integration\" />
+        <Folder Include="API\Performance\" />
+        <Folder Include="API\Unit\" />
+        <Folder Include="Domain\Integration\" />
+        <Folder Include="Domain\Performance\" />
     </ItemGroup>
 
 </Project>

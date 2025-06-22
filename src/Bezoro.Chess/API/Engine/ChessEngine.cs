@@ -72,25 +72,25 @@ namespace Bezoro.Chess.API.Engine
 				case MoveType.None:
 					throw new InvalidOperationException("Invalid move");
 				case MoveType.Normal:
-					move = Move.CreateNormal(from, to, piece);
+					move = Move.Normal(from, to, piece);
 					break;
 				case MoveType.Capture:
-					move = Move.CreateCapture(from, to, piece, capturedPiece);
+					move = Move.Capture(from, to, piece, capturedPiece);
 					break;
 				case MoveType.CastleKingside:
-					move = Move.CreateCastleKingside(from, to, piece);
+					move = Move.CastleKingside(from, to, piece);
 					break;
 				case MoveType.CastleQueenside:
-					move = Move.CreateCastleQueenside(from, to, piece);
+					move = Move.CastleQueenside(from, to, piece);
 					break;
 				case MoveType.EnPassant:
-					move = Move.CreateEnPassant(from, to, piece, capturedPiece);
+					move = Move.EnPassant(from, to, piece, capturedPiece);
 					break;
 				case MoveType.QuietPromotion:
-					move = Move.CreateQuietPromotion(from, to, piece, promotionPiece);
+					move = Move.Promotion(from, to, piece, promotionPiece);
 					break;
 				case MoveType.CapturePromotion:
-					move = Move.CreateCapturePromotion(from, to, piece, capturedPiece, promotionPiece);
+					move = Move.PromotionCapture(from, to, piece, capturedPiece, promotionPiece);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();

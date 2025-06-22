@@ -24,7 +24,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Execution
 			var   rookFromPosition = new Position(row, rookFromCol);
 			var   rookToPosition   = new Position(row, rookToCol);
 			Piece rook             = state.GetPieceAt(rookFromPosition);
-			var   rookMove         = Move.CreateNormal(rookFromPosition, rookToPosition, rook);
+			Move  rookMove         = Move.Normal(rookFromPosition, rookToPosition, rook);
 
 			state = state with { Board = board };
 			board = NormalMoveExecutor.Execute(state, rookMove);

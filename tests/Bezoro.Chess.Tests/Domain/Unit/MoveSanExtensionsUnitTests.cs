@@ -24,7 +24,7 @@ public class MoveSanExtensionsUnitTests
 		var       toPos         = new Position(to);
 		var       piece         = new Piece(pieceType, gameState.ActiveColor);
 		Piece     capturedPiece = gameState.Board.GetPiece(toPos);
-		var       move          = Move.CreateCapture(fromPos, toPos, piece, capturedPiece);
+		Move      move          = Move.Capture(fromPos, toPos, piece, capturedPiece);
 
 		// Act
 		string san = move.ToSAN(gameState);
@@ -51,12 +51,12 @@ public class MoveSanExtensionsUnitTests
 		if (moveType == MoveType.CastleKingside)
 		{
 			var toPos = new Position(kingPos.Row, kingPos.Col + 2);
-			move = Move.CreateCastleKingside(kingPos, toPos, king);
+			move = Move.CastleKingside(kingPos, toPos, king);
 		}
 		else // Queenside
 		{
 			var toPos = new Position(kingPos.Row, kingPos.Col - 2);
-			move = Move.CreateCastleQueenside(kingPos, toPos, king);
+			move = Move.CastleQueenside(kingPos, toPos, king);
 		}
 
 		// Act
@@ -81,7 +81,7 @@ public class MoveSanExtensionsUnitTests
 		var       fromPos   = new Position(from);
 		var       toPos     = new Position(to);
 		var       piece     = new Piece(pieceType, gameState.ActiveColor);
-		var       move      = Move.CreateNormal(fromPos, toPos, piece);
+		Move      move      = Move.Normal(fromPos, toPos, piece);
 
 		// Act
 		string san = move.ToSAN(gameState);
@@ -101,7 +101,7 @@ public class MoveSanExtensionsUnitTests
 		var       fromPos   = new Position(from);
 		var       toPos     = new Position(to);
 		var       piece     = new Piece(pieceType, gameState.ActiveColor);
-		var       move      = Move.CreateNormal(fromPos, toPos, piece);
+		Move      move      = Move.Normal(fromPos, toPos, piece);
 
 		// Act
 		string san = move.ToSAN(gameState);
@@ -130,12 +130,12 @@ public class MoveSanExtensionsUnitTests
 		Move move;
 		if (moveType == MoveType.PawnPromotion)
 		{
-			move = Move.CreateQuietPromotion(fromPos, toPos, pawn, promotionPiece);
+			move = Move.Promotion(fromPos, toPos, pawn, promotionPiece);
 		}
 		else // PawnPromotionCapture
 		{
 			Piece capturedPiece = gameState.Board.GetPiece(toPos);
-			move = Move.CreateCapturePromotion(fromPos, toPos, pawn, capturedPiece, promotionPiece);
+			move = Move.PromotionCapture(fromPos, toPos, pawn, capturedPiece, promotionPiece);
 		}
 
 		// Act
@@ -178,7 +178,7 @@ public class MoveSanExtensionsUnitTests
 		var       fromPos   = new Position(from);
 		var       toPos     = new Position(to);
 		var       piece     = new Piece(pieceType, gameState.ActiveColor);
-		var       move      = Move.CreateNormal(fromPos, toPos, piece);
+		Move      move      = Move.Normal(fromPos, toPos, piece);
 
 		// Act
 		string san = move.ToSAN(gameState);

@@ -47,7 +47,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				}
 				else
 				{
-					yield return Move.CreateNormal(from, oneStepForward, pawn);
+					yield return Move.Normal(from, oneStepForward, pawn);
 				}
 
 				// 2. Two-square advance (only possible if one-step advance is also possible)
@@ -57,7 +57,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 					if (BoardHelper.IsInsideBoard(twoStepsForward) &&
 						gameState.GetPieceAt(twoStepsForward).Type == PieceType.None)
 					{
-						yield return Move.CreateNormal(from, twoStepsForward, pawn);
+						yield return Move.Normal(from, twoStepsForward, pawn);
 					}
 				}
 			}
@@ -92,7 +92,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 					}
 					else
 					{
-						yield return Move.CreateCapture(from, toPosition, pawn, pieceAtDestination);
+						yield return Move.Capture(from, toPosition, pawn, pieceAtDestination);
 					}
 				}
 
@@ -101,7 +101,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 				{
 					var   capturedPawnPosition = new Position(from.Row, toPosition.Col);
 					Piece capturedPawn         = gameState.GetPieceAt(capturedPawnPosition);
-					yield return Move.CreateEnPassant(from, toPosition, pawn, capturedPawn);
+					yield return Move.EnPassant(from, toPosition, pawn, capturedPawn);
 				}
 			}
 		}
@@ -118,11 +118,11 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 			{
 				if (capturedPiece.Type == PieceType.None)
 				{
-					yield return Move.CreateQuietPromotion(from, to, pawn, pieceType);
+					yield return Move.Promotion(from, to, pawn, pieceType);
 				}
 				else
 				{
-					yield return Move.CreateCapturePromotion(from, to, pawn, capturedPiece, pieceType);
+					yield return Move.PromotionCapture(from, to, pawn, capturedPiece, pieceType);
 				}
 			}
 		}
