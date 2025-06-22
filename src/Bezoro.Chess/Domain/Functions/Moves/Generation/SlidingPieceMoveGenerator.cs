@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
@@ -8,6 +9,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 {
 	internal static class SlidingPieceMoveGenerator
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GenerateMoves(
 			Position from, GameState gameState, (int dRow, int dCol)[] directions)
 		{

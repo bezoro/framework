@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Functions.Moves.Generation;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
@@ -16,6 +17,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		/// <summary>
 		///     Generates all moves for the currently active player.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GenerateMoves(GameState gameState)
 		{
 			for (var r = 0 ; r < 8 ; r++)
@@ -43,6 +45,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		///     Generates all valid moves for a specific piece at the given position.
 		///     This can be used by the UI to show possible moves when a piece is selected.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GeneratePieceMoves(Position from, GameState gameState)
 		{
 			Piece piece = gameState.Board.GetPiece(from);
@@ -59,6 +62,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 			}
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static IEnumerable<Move> GeneratePieceMoves(Position from, Piece piece, GameState gameState) =>
 			piece.Type switch
 			{
