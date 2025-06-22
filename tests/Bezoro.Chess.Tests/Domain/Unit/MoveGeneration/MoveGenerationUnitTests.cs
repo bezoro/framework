@@ -15,7 +15,7 @@ public class MoveGenerationUnitTests(ITestOutputHelper output) : TestBase(output
 		GameState gameState = BoardSetup.CreateStandardGame();
 
 		List<Move> moves = MoveGenerator.GenerateMoves(gameState).ToList();
-
+		
 		moves.Should().NotBeNullOrEmpty();
 		moves.Should().HaveCount(20);
 	}
