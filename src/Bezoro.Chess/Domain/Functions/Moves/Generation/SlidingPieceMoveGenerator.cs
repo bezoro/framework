@@ -25,11 +25,11 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 
 					if (pieceAtDestination.Type == PieceType.None)
 					{
-						yield return Move.CreateNormal(from, to, movingPiece);
+						yield return Move.Normal(from, to, movingPiece);
 					}
 					else if (pieceAtDestination.Color != gameState.ActiveColor)
 					{
-						yield return Move.CreateCapture(from, to, movingPiece, pieceAtDestination);
+						yield return Move.Capture(from, to, movingPiece, pieceAtDestination);
 
 						break;
 					}

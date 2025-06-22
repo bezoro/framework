@@ -91,7 +91,8 @@ namespace Bezoro.Chess.Domain.Extensions
 			}
 
 			sanBuilder.Append('=');
-			sanBuilder.Append(PieceTypeToLetter((PieceType)move.PromotionPieceType));
+			move.TryAsPromotion(out Move.PromotionView promotionView);
+			sanBuilder.Append(PieceTypeToLetter((PieceType)promotionView.PromotionPieceType));
 
 			return sanBuilder.ToString();
 		}

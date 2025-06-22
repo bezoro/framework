@@ -18,7 +18,7 @@ public class MoveExecutionUnitTests
 		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
 		var   from = new Position(0, 4);
 		Piece king = _standardGame.GetPieceAt(from);
-		var   move = Move.CreateNormal(from, new Position(1, 4), king); // Black King e8 to e7
+		Move  move = Move.Normal(from, new Position(1, 4), king); // Black King e8 to e7
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
@@ -48,7 +48,7 @@ public class MoveExecutionUnitTests
 
 		Piece movingPiece   = gameState.GetPieceAt(fromPos);
 		Piece capturedPiece = gameState.GetPieceAt(toPos);
-		var   move          = Move.CreateCapture(fromPos, toPos, movingPiece, capturedPiece);
+		Move  move          = Move.Capture(fromPos, toPos, movingPiece, capturedPiece);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(gameState, move);
@@ -74,7 +74,7 @@ public class MoveExecutionUnitTests
 
 		var   gameState = new GameState { Board = board, ActiveColor = PieceColor.Black };
 		Piece pawn      = gameState.GetPieceAt(from);
-		var   move      = Move.CreateQuietPromotion(from, to, pawn, PromotionType.Queen);
+		Move  move      = Move.Promotion(from, to, pawn, PromotionType.Queen);
 
 		// Act
 		gameState = MoveExecution.ExecuteMove(gameState, move);
@@ -106,7 +106,7 @@ public class MoveExecutionUnitTests
 		};
 
 		Piece king = gameState.GetPieceAt(fromPos);
-		var   move = Move.CreateCastleQueenside(fromPos, toPos, king);
+		Move  move = Move.CastleQueenside(fromPos, toPos, king);
 
 		// Act
 		gameState = MoveExecution.ExecuteMove(gameState, move);
@@ -130,7 +130,7 @@ public class MoveExecutionUnitTests
 		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
 		var   from = new Position(startRow, startCol);
 		Piece rook = _standardGame.GetPieceAt(from);
-		var   move = Move.CreateNormal(from, new Position(2, startCol), rook);
+		Move  move = Move.Normal(from, new Position(2, startCol), rook);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
@@ -145,7 +145,7 @@ public class MoveExecutionUnitTests
 		// Arrange
 		var   from = new Position(6, 4);
 		Piece pawn = _standardGame.GetPieceAt(from);
-		var   move = Move.CreateNormal(from, new Position(4, 4), pawn); // White Pawn e2 to e4
+		Move  move = Move.Normal(from, new Position(4, 4), pawn); // White Pawn e2 to e4
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
@@ -175,7 +175,7 @@ public class MoveExecutionUnitTests
 		};
 
 		Piece rook = stateBeforeMove.GetPieceAt(fromPos);
-		var   move = Move.CreateNormal(fromPos, new Position(4, 3), rook); // White Rook d3 to d4
+		Move  move = Move.Normal(fromPos, new Position(4, 3), rook); // White Rook d3 to d4
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(stateBeforeMove, move);
@@ -209,7 +209,7 @@ public class MoveExecutionUnitTests
 
 		Piece movingPawn   = gameState.GetPieceAt(startPos);
 		Piece capturedPawn = gameState.GetPieceAt(capturedPawnPos);
-		var   move         = Move.CreateEnPassant(startPos, enPassantPos, movingPawn, capturedPawn);
+		Move  move         = Move.EnPassant(startPos, enPassantPos, movingPawn, capturedPawn);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(gameState, move);
@@ -230,7 +230,7 @@ public class MoveExecutionUnitTests
 		// Arrange
 		var   from = new Position(7, 4);
 		Piece king = _standardGame.GetPieceAt(from);
-		var   move = Move.CreateNormal(from, new Position(6, 4), king); // White King e1 to e2
+		Move  move = Move.Normal(from, new Position(6, 4), king); // White King e1 to e2
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
@@ -261,7 +261,7 @@ public class MoveExecutionUnitTests
 		};
 
 		Piece king = gameState.GetPieceAt(kingStartPos);
-		var   move = Move.CreateCastleKingside(kingStartPos, kingEndPos, king);
+		Move  move = Move.CastleKingside(kingStartPos, kingEndPos, king);
 
 		// Act
 		gameState = MoveExecution.ExecuteMove(gameState, move);
@@ -282,7 +282,7 @@ public class MoveExecutionUnitTests
 		var       fromPos      = new Position("e2");
 		var       toPos        = new Position("e4");
 		Piece     pawn         = initialState.GetPieceAt(fromPos);
-		var       move         = Move.CreateNormal(fromPos, toPos, pawn);
+		Move      move         = Move.Normal(fromPos, toPos, pawn);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(initialState, move);
@@ -316,7 +316,7 @@ public class MoveExecutionUnitTests
 		// Arrange
 		var   from = new Position(startRow, startCol);
 		Piece rook = _standardGame.GetPieceAt(from);
-		var   move = Move.CreateNormal(from, new Position(5, startCol), rook);
+		Move  move = Move.Normal(from, new Position(5, startCol), rook);
 
 		// Act
 		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);

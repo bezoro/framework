@@ -32,11 +32,11 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 
 				if (pieceAtDestination.Type == PieceType.None)
 				{
-					yield return Move.CreateNormal(from, to, movingPiece);
+					yield return Move.Normal(from, to, movingPiece);
 				}
 				else if (pieceAtDestination.Color != gameState.ActiveColor)
 				{
-					yield return Move.CreateCapture(from, to, movingPiece, pieceAtDestination);
+					yield return Move.Capture(from, to, movingPiece, pieceAtDestination);
 				}
 			}
 
@@ -133,14 +133,14 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 			if (CanCastle(gameState, CastlingSide.Kingside))
 			{
 				var to = new Position(from.Row, from.Col + 2);
-				yield return Move.CreateCastleKingside(from, to, movingPiece);
+				yield return Move.CastleKingside(from, to, movingPiece);
 			}
 
 			// Check Queenside Castling
 			if (CanCastle(gameState, CastlingSide.Queenside))
 			{
 				var to = new Position(from.Row, from.Col - 2);
-				yield return Move.CreateCastleQueenside(from, to, movingPiece);
+				yield return Move.CastleQueenside(from, to, movingPiece);
 			}
 		}
 	}
