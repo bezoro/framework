@@ -86,7 +86,7 @@ public class PawnMoveGenerationUnitTests
 		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
-		moves.Should().Contain(m => m.Type == MoveType.PawnPromotion);
+		moves.Should().Contain(m => m.Type == MoveType.Promotion);
 	}
 
 	[Theory]

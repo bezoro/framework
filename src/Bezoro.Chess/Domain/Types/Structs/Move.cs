@@ -14,188 +14,122 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		CastleKingside,
 		CastleQueenside,
 		EnPassant,
-		PawnPromotion,
-		PawnPromotionCapture
+		Promotion,
+		PromotionCapture
 	}
 
 	/// <summary>
-	///     A single chess move.
-	///     The struct itself exposes only the data common to every move.
-	///     Payload that exists only for some kinds is kept private and accessed
-	///     through zero-allocation “view” structs returned by <c>TryAs…</c>.
+	///     Immutable value that represents one legal chess move.
+	///     Use the static factories to create instances and <see cref="Match{T}" /> to
+	///     perform variant-specific logic without casts or allocations.
 	/// </summary>
 	internal readonly struct Move : IEquatable<Move>
 	{
-		// Optional payload – never exposed directly.
-		private readonly Piece         _captured;
-		private readonly PromotionType _promotion;
-
 		private Move(
+			MoveType kind,
 			Position from,
 			Position to,
 			Piece piece,
-			MoveType type,
-			Piece captured = default,
-			PromotionType promotion = PromotionType.None)
+			Piece capturedPiece = default,
+			PromotionType promotionPieceType = PromotionType.None)
 		{
-			From       = from;
-			To         = to;
-			Piece      = piece;
-			Type       = type;
-			_captured  = captured;
-			_promotion = promotion;
+			Type               = kind;
+			From               = from;
+			To                 = to;
+			Piece              = piece;
+			CapturedPiece      = capturedPiece;
+			PromotionPieceType = promotionPieceType;
 		}
 
-		public bool IsCapture   => Type is MoveType.Capture or MoveType.EnPassant or MoveType.PawnPromotionCapture;
+		public bool IsCapture   => Type is MoveType.Capture or MoveType.PromotionCapture;
 		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
 		public bool IsEnPassant => Type == MoveType.EnPassant;
-		public bool IsPromotion => Type is MoveType.PawnPromotion or MoveType.PawnPromotionCapture;
+		public bool IsPromotion => Type is MoveType.Promotion or MoveType.PromotionCapture;
 		public bool IsQuiet     => Type == MoveType.Normal;
 
-		public bool     IsValid => Type != MoveType.None;
-		public MoveType Type    { get; }
-		public Piece    Piece   { get; }
-		public Position From    { get; }
-		public Position To      { get; }
+		public bool          IsValid            => Type != MoveType.None;
+		public MoveType      Type               { get; }
+		public Piece         CapturedPiece      { get; } // only valid for captures
+		public Piece         Piece              { get; }
+		public Position      From               { get; }
+		public Position      To                 { get; }
+		public PromotionType PromotionPieceType { get; } // only valid for promotions
 
-		public static bool operator ==(Move l, Move r) => l.Equals(r);
-		public static bool operator !=(Move l, Move r) => !l.Equals(r);
+		public static bool operator ==(Move left, Move right) => left.Equals(right);
+		public static bool operator !=(Move left, Move right) => !left.Equals(right);
 
 		#region Equality
 
 		public bool Equals(Move other) =>
-			Type == other.Type                &&
-			Piece.Equals(other.Piece)         &&
-			From.Equals(other.From)           &&
-			To.Equals(other.To)               &&
-			_captured.Equals(other._captured) &&
-			_promotion == other._promotion;
+			(From, To, Piece, CapturedPiece, PromotionPieceType, Type) ==
+			(other.From, other.To, other.Piece, other.CapturedPiece, other.PromotionPieceType, other.Type);
 
 		public override bool Equals(object? obj) => obj is Move m && Equals(m);
 
 		public override int GetHashCode() =>
-			HashCode.Combine((int)Type, Piece, From, To, _captured, (int)_promotion);
+			(From, To, Piece, CapturedPiece, PromotionPieceType, MoveKind: Type).GetHashCode();
 
 		#endregion
 
 		public static Move Capture(Position from, Position to, Piece piece, Piece captured) =>
-			new(from, to, piece, MoveType.Capture, captured);
+			new(MoveType.Capture, from, to, piece, captured);
 
 		public static Move CastleKingside(Position from, Position to, Piece king) =>
-			new(from, to, king, MoveType.CastleKingside);
+			new(MoveType.CastleKingside, from, to, king);
 
 		public static Move CastleQueenside(Position from, Position to, Piece king) =>
-			new(from, to, king, MoveType.CastleQueenside);
+			new(MoveType.CastleQueenside, from, to, king);
 
 		public static Move EnPassant(Position from, Position to, Piece pawn, Piece capturedPawn) =>
-			new(from, to, pawn, MoveType.EnPassant, capturedPawn);
+			new(MoveType.EnPassant, from, to, pawn, capturedPawn);
 
 		public static Move Normal(Position from, Position to, Piece piece) =>
-			new(from, to, piece, MoveType.Normal);
+			new(MoveType.Normal, from, to, piece);
 
-		public static Move Promotion(Position from, Position to, Piece pawn, PromotionType promotion) =>
-			new(from, to, pawn, MoveType.PawnPromotion, promotion: promotion);
+		public static Move Promotion(Position from, Position to, Piece pawn, PromotionType promoteTo) =>
+			new(MoveType.Promotion, from, to, pawn, promotionPieceType: promoteTo);
 
 		public static Move PromotionCapture(
 			Position from,
 			Position to,
 			Piece pawn,
 			Piece captured,
-			PromotionType promotion) =>
-			new(from, to, pawn, MoveType.PawnPromotionCapture, captured, promotion);
+			PromotionType promoteTo) =>
+			new(MoveType.PromotionCapture, from, to, pawn, captured, promoteTo);
 
 		public override string ToString() => $"{Type}: {From}->{To}";
 
-		public bool TryAsCapture(out CaptureView view)
+		public T Match<T>(
+			Func<Move, T> onNormal,
+			Func<Move, T> onCapture,
+			Func<Move, T> onCastleKs,
+			Func<Move, T> onCastleQs,
+			Func<Move, T> onEnPassant,
+			Func<Move, T> onPromotion,
+			Func<Move, T> onPromotionCapture,
+			Func<T>? onNone = null)
 		{
-			if (IsCapture)
+			return Type switch
 			{
-				view = new CaptureView(this);
-				return true;
-			}
-
-			view = default;
-			return false;
+				MoveType.Normal           => onNormal(this),
+				MoveType.Capture          => onCapture(this),
+				MoveType.CastleKingside   => onCastleKs(this),
+				MoveType.CastleQueenside  => onCastleQs(this),
+				MoveType.EnPassant        => onEnPassant(this),
+				MoveType.Promotion        => onPromotion(this),
+				MoveType.PromotionCapture => onPromotionCapture(this),
+				_ => onNone is null
+					? throw new InvalidOperationException("Move is None")
+					: onNone()
+			};
 		}
 
-		public bool TryAsCastle(out CastleView view)
+		public void Deconstruct(out Position from, out Position to, out Piece piece, out MoveType kind)
 		{
-			if (IsCastle)
-			{
-				view = new CastleView(this);
-				return true;
-			}
-
-			view = default;
-			return false;
-		}
-
-		public bool TryAsPromotion(out PromotionView view)
-		{
-			if (IsPromotion)
-			{
-				view = new PromotionView(this);
-				return true;
-			}
-
-			view = default;
-			return false;
-		}
-
-		public CaptureView?   AsCapture()   => IsCapture ? new CaptureView(this) : null;
-		public CastleView?    AsCastle()    => IsCastle ? new CastleView(this) : null;
-		public PromotionView? AsPromotion() => IsPromotion ? new PromotionView(this) : null;
-
-		public readonly struct CaptureView
-		{
-			private readonly Move _m;
-
-			internal CaptureView(in Move m)
-			{
-				_m = m;
-			}
-
-			public bool  IsEnPassant   => _m.Type == MoveType.EnPassant;
-			public bool  IsPromotion   => _m.Type == MoveType.PawnPromotionCapture;
-			public Piece CapturedPiece => _m._captured;
-			public Piece Piece         => _m.Piece;
-
-			public Position From => _m.From;
-			public Position To   => _m.To;
-		}
-
-		public readonly struct CastleView
-		{
-			private readonly Move _m;
-
-			internal CastleView(in Move m)
-			{
-				_m = m;
-			}
-
-			public bool  IsKingside  => _m.Type == MoveType.CastleKingside;
-			public bool  IsQueenside => _m.Type == MoveType.CastleQueenside;
-			public Piece King        => _m.Piece;
-
-			public Position From => _m.From;
-			public Position To   => _m.To;
-		}
-
-		public readonly struct PromotionView
-		{
-			private readonly Move _m;
-
-			internal PromotionView(in Move m)
-			{
-				_m = m;
-			}
-
-			public bool  IsCapture => _m.Type == MoveType.PawnPromotionCapture;
-			public Piece Pawn      => _m.Piece;
-
-			public Position      From               => _m.From;
-			public Position      To                 => _m.To;
-			public PromotionType PromotionPieceType => _m._promotion;
+			from  = From;
+			to    = To;
+			piece = Piece;
+			kind  = Type;
 		}
 	}
 }
