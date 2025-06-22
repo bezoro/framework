@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.Chess.API.ViewModels;
 using Bezoro.Chess.Domain.Functions.Moves;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
@@ -44,5 +45,8 @@ namespace Bezoro.Chess.Domain.Extensions
 
 			return null;
 		}
+
+		public static GameStateViewModel ToViewModel(this GameState state) =>
+			new(state);
 	}
 }
