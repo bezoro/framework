@@ -2,27 +2,33 @@ using System.Diagnostics;
 using Bezoro.Chess.Domain.Functions.Moves;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
+using Bezoro.Chess.Tests.Unit;
 using FluentAssertions;
 using JetBrains.Annotations;
+using Xunit.Abstractions;
 
 namespace Bezoro.Chess.Tests.Domain.Performance;
 
 [TestSubject(typeof(MoveGenerator))]
-public class MoveGeneratorPerformanceTests
+public class MoveGeneratorPerformanceTests : TestBase
 {
-	/* Implement this function */
+	public MoveGeneratorPerformanceTests(ITestOutputHelper output) : base(output) { }
+
 	[Fact]
 	public void GenerateMoves_WhenOneHundredMillionGenerations_ShouldbeFast()
 	{
 		// Arrange
 		var       gameState = GameState.CreateInitial(); // initial (default) board position
-		const int runs      = 100_000_000;
+		const int Runs      = 1_000_000;
 		var       stopwatch = Stopwatch.StartNew();
 
 		// Act
-		for (var i = 0 ; i < runs ; i++)
+		for (var i = 0 ; i < Runs ; i++)
 		{
-			IEnumerable<Move> moves = MoveGenerator.GenerateMoves(gameState);
+			foreach (Move _ in MoveGenerator.GenerateMoves(gameState))
+			{
+				// do nothing – we just want to force enumeration
+			}
 		}
 
 		stopwatch.Stop();
@@ -32,6 +38,8 @@ public class MoveGeneratorPerformanceTests
 				 .Should()
 				 .BeLessThan(
 					 TimeSpan.FromSeconds(2),
-					 $"generating moves {runs:N0} times should be reasonably fast (elapsed: {stopwatch.Elapsed})");
+					 $"generating moves {Runs:N0} times should be reasonably fast (elapsed: {stopwatch.Elapsed})");
+
+		Output.WriteLine(stopwatch.Elapsed.ToString());
 	}
 }

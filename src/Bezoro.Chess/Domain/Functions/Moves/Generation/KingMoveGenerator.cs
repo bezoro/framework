@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
@@ -9,17 +10,12 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 {
 	internal static class KingMoveGenerator
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GenerateMoves(Position from, GameState gameState)
 		{
-			// Standard King Moves (1 square in any direction)
-			(int dRow, int dCol)[] directions =
-			{
-				(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
-			};
-
 			Piece movingPiece = gameState.Board.GetPiece(from);
 
-			foreach ((int dRow, int dCol) in directions)
+			foreach ((int dRow, int dCol) in AttackVectors.KingAttackVectors)
 			{
 				var to = new Position(from.Row + dRow, from.Col + dCol);
 

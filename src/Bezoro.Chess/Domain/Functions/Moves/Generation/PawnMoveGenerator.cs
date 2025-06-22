@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Helpers;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
@@ -8,6 +9,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 {
 	internal static class PawnMoveGenerator
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static IEnumerable<Move> GenerateMoves(Position from, GameState gameState)
 		{
 			Piece pawn         = gameState.Board.GetPiece(from);
@@ -30,6 +32,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 		/// <summary>
 		///     Generates single and double square advances for a pawn.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static IEnumerable<Move> GenerateAdvanceMoves(
 			Position from, GameState gameState, Piece pawn, int direction, int startRow, int promotionRow)
 		{
@@ -66,6 +69,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 		/// <summary>
 		///     Generates standard diagonal captures and en passant captures.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static IEnumerable<Move> GenerateCaptureMoves(
 			Position from, GameState gameState, Piece pawn, int direction, int promotionRow)
 		{
@@ -109,6 +113,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 		/// <summary>
 		///     Generates all possible promotion moves (quiet or capture) for a pawn reaching the back rank.
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static IEnumerable<Move> GeneratePromotionMoves(
 			Position from, Position to, Piece pawn, Piece capturedPiece)
 		{
