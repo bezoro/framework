@@ -26,7 +26,7 @@ namespace Bezoro.Chess.API.Engine
 		public Result<GameStateViewModel> StartNewGame()
 		{
 			_state = GameState.CreateInitial();
-			return Result<GameStateViewModel>.Succeeded(_state.ToViewModel());
+			return Result.Succeeded(_state.ToViewModel());
 		}
 
 		/// <summary>
@@ -47,8 +47,7 @@ namespace Bezoro.Chess.API.Engine
 				viewModels.Add(new MoveViewModel(move));
 			}
 
-			Result<ImmutableArray<MoveViewModel>> result = Result.Succeeded(viewModels.ToImmutableArray());
-			return result;
+			return Result.Succeeded(viewModels.ToImmutableArray());
 		}
 
 		/// <summary>
@@ -98,7 +97,7 @@ namespace Bezoro.Chess.API.Engine
 			}
 
 			_state = MoveExecution.ExecuteMove(_state, move);
-			return Result<MoveViewModel>.Succeeded(moveViewModel);
+			return Result.Succeeded(moveViewModel);
 		}
 	}
 }
