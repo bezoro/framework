@@ -45,7 +45,7 @@ namespace Bezoro.Chess.Domain.Types.Records
 		///     Which side is to make the first move – defaults to White but may be
 		///     set to Black for testing or special game modes.
 		/// </param>
-		public static GameState CreateInitial(PieceColor activeColor) =>
+		public static GameState CreateInitial(PieceColor activeColor = PieceColor.White) =>
 			new()
 			{
 				Board                 = new Board(BoardFactory.CreateInitialBitboards()),
