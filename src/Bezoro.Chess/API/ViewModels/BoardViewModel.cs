@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Types.Structs;
 using Bezoro.Core.Common.Helpers;
 
@@ -21,7 +20,7 @@ namespace Bezoro.Chess.API.ViewModels
 			for (var i = 0 ; i < from2Dto1D.Length ; i++)
 			{
 				Piece piece = from2Dto1D[i];
-				pieces.Add(new PieceViewModel(piece.Type.ToAPI(), piece.Color.ToAPI()));
+				pieces.Add(new PieceViewModel((piece.Type, piece.Color)));
 			}
 
 			return new BoardViewModel(pieces);

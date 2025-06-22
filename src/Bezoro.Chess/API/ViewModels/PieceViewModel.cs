@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Chess.Domain.Extensions;
 using PieceColor = Bezoro.Chess.API.Shared.Enums.PieceColor;
 using PieceType = Bezoro.Chess.API.Shared.Enums.PieceType;
 
@@ -10,11 +11,14 @@ namespace Bezoro.Chess.API.ViewModels
 	/// </summary>
 	public readonly struct PieceViewModel : IEquatable<PieceViewModel>
 	{
-		public PieceViewModel(PieceType type, PieceColor color)
+		public PieceViewModel((PieceType type, PieceColor color) piece)
 		{
-			Type  = type;
-			Color = color;
+			Type  = piece.type;
+			Color = piece.color;
 		}
+
+		internal PieceViewModel((Domain.Shared.Enums.PieceType type, Domain.Shared.Enums.PieceColor color) piece) :
+			this((piece.type.ToAPI(), piece.color.ToAPI())) { }
 
 		public PieceColor Color { get; }
 
