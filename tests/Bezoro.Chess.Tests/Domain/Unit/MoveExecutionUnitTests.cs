@@ -4,9 +4,11 @@ using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
+using JetBrains.Annotations;
 
 namespace Bezoro.Chess.Tests.Unit;
 
+[TestSubject(typeof(MoveExecution))]
 public class MoveExecutionUnitTests
 {
 	private GameState _standardGame = BoardSetup.CreateStandardGame();
