@@ -23,6 +23,20 @@ namespace Bezoro.Chess.API.Engine
 		public GameStateViewModel GetGameState() =>
 			_state.ToViewModel();
 
+		public Result<GameStateViewModel> StartNewGame()
+		{
+			_state = GameState.CreateInitial();
+			return Result<GameStateViewModel>.Succeeded(_state.ToViewModel());
+		}
+
+		/// <summary>
+		///     Generates and returns all legal moves available in the current game state.
+		/// </summary>
+		/// <returns>A Result containing an immutable array of legal moves represented as MoveViewModel objects if successful.</returns>
+		/// <remarks>
+		///     The method uses MoveGenerator to create all possible legal moves from the current game state
+		///     and converts them to view models for external use.
+		/// </remarks>
 		public Result<ImmutableArray<MoveViewModel>> GetCurrentLegalMoves()
 		{
 			IEnumerable<Move> moves = MoveGenerator.GenerateMoves(_state);
@@ -37,6 +51,13 @@ namespace Bezoro.Chess.API.Engine
 			return result;
 		}
 
+		/// <summary>
+		///     Attempts to apply a chess move to the current game state using the provided move view model.
+		/// </summary>
+		/// <param name="moveViewModel">The view model containing the move details to be applied.</param>
+		/// <returns>A Result containing the applied move view model if successful.</returns>
+		/// <exception cref="InvalidOperationException">Thrown when the move type is invalid (None).</exception>
+		/// <exception cref="ArgumentOutOfRangeException">Thrown when the move type is not recognized.</exception>
 		public Result<MoveViewModel> TryApplyMove(MoveViewModel moveViewModel)
 		{
 			Move          move;
