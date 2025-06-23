@@ -1,36 +1,39 @@
 # C# UCI Chess Engine Connector
 
-This C# library provides a simple and effective way to communicate with any chess engine that follows the Universal
-Chess Interface (UCI) protocol, such as Stockfish, Leela Chess Zero, and others. It allows you to start an engine
-process, send UCI commands, and parse the engine's responses asynchronously. This is a personal implementation that will
-be used as a DLL imported into Unity, where Unity will function as a view layer.
+This C# library provides a robust and efficient interface for communicating with chess engines that implement the
+Universal Chess Interface (UCI) protocol, including popular engines such as Stockfish, Leela Chess Zero, and others. The
+library enables seamless engine process management, UCI command transmission, and asynchronous response parsing. It is
+designed as a reusable component suitable for integration into various .NET applications, including Unity-based chess
+applications where it serves as the engine communication layer.
 
 ## Features
 
-- **Easy to Use:** A straightforward API for sending and receiving UCI commands.
-- **Fully Asynchronous:** Uses `async/await` for non-blocking communication with the engine process and supports
-  `IAsyncDisposable` for proper resource management.
-- **Process Management:** Reliably handles starting and stopping the chess engine process.
-- **Engine Introspection:** Automatically parses engine identification info (like name and author) and supported UCI
-  options upon startup.
-- **Real-time Search Analysis:** Subscribe to an `InfoReceived` event to get live updates from the engine's search,
-  including depth, score, and principal variation.
-- **Flexible Position Setup:** Set board positions using FEN strings or "startpos," and apply a sequence of subsequent
-  moves.
-- **Comprehensive Search Control:** Initiate searches with various parameters, including time controls, fixed depth, or
-  infinite analysis.
-- **Engine Difficulty Control:** Easily adjust the engine's playing strength using common UCI options like `Skill Level`
-  or Elo-based limits (`UCI_LimitStrength` and `UCI_Elo`).
-- **Robust Input Validation:** Includes internal helpers to validate FEN strings and UCI moves, ensuring that only
-  well-formed commands are sent to the engine.
-- **Thread-Safe:** Designed for safe concurrent access in multi-threaded environments.
-- **Broad Compatibility:** Targets .NET Standard 2.1 and is written in C# 9.0, allowing it to be used in a wide range of
-  .NET applications.
+- **Intuitive API:** A clean and straightforward interface for UCI command communication.
+- **Asynchronous Architecture:** Leverages `async/await` patterns for non-blocking engine communication and implements
+  `IAsyncDisposable` for proper resource lifecycle management.
+- **Reliable Process Management:** Handles chess engine process initialization and termination with robust error
+  handling.
+- **Engine Discovery:** Automatically retrieves and parses engine identification information (name, author) and
+  available UCI configuration options during startup.
+- **Real-time Analysis:** Provides an `InfoReceived` event subscription model for live engine search updates, including
+  evaluation depth, positional scores, and principal variation lines.
+- **Flexible Position Management:** Supports board position configuration via FEN notation or standard starting
+  position, with move sequence application capabilities.
+- **Comprehensive Search Parameters:** Enables search initiation with configurable time controls, fixed depth analysis,
+  or unlimited search modes.
+- **Engine Strength Configuration:** Simplifies engine difficulty adjustment through standard UCI options such as
+  `Skill Level` and Elo-based limitations (`UCI_LimitStrength` and `UCI_Elo`).
+- **Input Validation:** Incorporates built-in validation for FEN strings and UCI move notation to ensure protocol
+  compliance.
+- **Thread-Safe Design:** Architected for safe operation in multi-threaded environments with proper synchronization.
+- **Wide Compatibility:** Targets .NET Standard 2.1 with C# 9.0 language features, ensuring broad compatibility across
+  .NET ecosystem implementations.
 
 ## Quick Start
 
-Here's a simple example of how to use the `UCIConnector` to start an engine, get the best move from the starting
-position, and see real-time analysis.
+Before you begin, ensure you have a UCI-compliant chess engine like [Stockfish](https://stockfishchess.org/download/) downloaded and know the path to its executable.
+
+The following example demonstrates basic `UCIConnector` usage for engine initialization, position analysis, and real-time search monitoring:
 
 ```csharp
 using Bezoro.UCI;
@@ -42,7 +45,9 @@ public class Program
     public static async Task Main(string[] args)
     {
         // IMPORTANT: Replace with the actual path to your UCI engine executable.
-        var enginePath = "C:/path/to/your/stockfish.exe";
+        // For example: "C:/engines/stockfish_15_x64_avx2.exe" on Windows,
+        // or "/home/user/stockfish" on Linux.
+        var enginePath = "path/to/your/engine";
 
         // The 'await using' statement ensures the connector is properly disposed,
         // which also handles stopping the engine process gracefully.
@@ -88,4 +93,3 @@ public class Program
         }
     }
 }
-```
