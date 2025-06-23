@@ -18,6 +18,20 @@ namespace Bezoro.UCI
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
+		private const string BestMoveResponse  = "bestmove";
+		private const string GoCommand         = "go";
+		private const string IsReadyCommand    = "isready";
+		private const string PositionCommand   = "position";
+		private const string QuitCommand       = "quit";
+		private const string ReadyOkResponse   = "readyok";
+		private const string SetOptionCommand  = "setoption name";
+		private const string StopCommand       = "stop";
+		private const string UCICommand        = "uci";
+		private const string UCINewGameCommand = "ucinewgame";
+		private const string UCIOkResponse     = "uciok";
+
+		private static readonly Regex MoveRegex =
+			new(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+", RegexOptions.Compiled);
 		private readonly List<string>    _engineInfo       = new();
 		private readonly List<UCIOption> _supportedOptions = new();
 		private readonly Process         _engineProcess;
@@ -76,7 +90,7 @@ namespace Bezoro.UCI
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task SetOptionAsync(string name, string value, CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync($"setoption name {name} value {value}", cancellationToken);
+			await SendCommandAndWaitForReadyAsync($"{SetOptionCommand} {name} value {value}", cancellationToken);
 		}
 
 		/// <summary>
@@ -88,7 +102,7 @@ namespace Bezoro.UCI
 		public async Task SetPositionAsync(
 			string fen = "startpos", IEnumerable<string> moves = null, CancellationToken cancellationToken = default)
 		{
-			string command = "position " + (fen.ToLower() == "startpos" ? "startpos" : $"fen {fen}");
+			string command = PositionCommand + " " + (fen.ToLower() == "startpos" ? "startpos" : $"fen {fen}");
 			if (moves?.Any() == true)
 			{
 				command += " moves " + string.Join(" ", moves);
@@ -157,7 +171,7 @@ namespace Bezoro.UCI
 			_processInput  = _engineProcess.StandardInput;
 			_processOutput = _engineProcess.StandardOutput;
 
-			await _processInput.WriteLineAsync("uci");
+			await _processInput.WriteLineAsync(UCICommand);
 
 			var uciOkReceived = false;
 
@@ -182,7 +196,7 @@ namespace Bezoro.UCI
 						_supportedOptions.Add(option);
 					}
 				}
-				else if (line == "uciok")
+				else if (line == UCIOkResponse)
 				{
 					uciOkReceived = true;
 					break;
@@ -210,7 +224,7 @@ namespace Bezoro.UCI
 
 			try
 			{
-				await _processInput.WriteLineAsync("quit");
+				await _processInput.WriteLineAsync(QuitCommand);
 
 				// Asynchronously wait for the process to exit with a timeout.
 				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -237,7 +251,7 @@ namespace Bezoro.UCI
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			await _processInput.WriteLineAsync("stop");
+			await _processInput.WriteLineAsync(StopCommand);
 		}
 
 		/// <summary>
@@ -248,7 +262,7 @@ namespace Bezoro.UCI
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task UCINewGameAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync("ucinewgame", cancellationToken);
+			await SendCommandAndWaitForReadyAsync(UCINewGameCommand, cancellationToken);
 		}
 
 		/// <summary>
@@ -382,8 +396,7 @@ namespace Bezoro.UCI
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			var moves     = new List<string>();
-			var moveRegex = new Regex(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+");
+			var moves = new List<string>();
 
 			if (acquireSemaphore)
 			{
@@ -405,7 +418,8 @@ namespace Bezoro.UCI
 						break;
 					}
 
-					Match match = moveRegex.Match(line);
+					Match match = MoveRegex.Match(line);
+
 					if (match.Success)
 					{
 						moves.Add(match.Groups[1].Value);
@@ -509,7 +523,7 @@ namespace Bezoro.UCI
 					{
 						InfoReceived?.Invoke(this, InfoParser.Parse(line));
 					}
-					else if (line.StartsWith("bestmove"))
+					else if (line.StartsWith(BestMoveResponse))
 					{
 						string[]? parts = line.Split(' ');
 						return parts.Length > 1 ? parts[1] : null;
@@ -585,7 +599,7 @@ namespace Bezoro.UCI
 
 		internal static string BuildGoCommand(SearchParameters parameters)
 		{
-			var commandBuilder = new StringBuilder("go");
+			var commandBuilder = new StringBuilder(GoCommand);
 
 			if (parameters.SearchMoves?.Any() == true)
 			{
@@ -776,7 +790,7 @@ namespace Bezoro.UCI
 
 		private async Task WaitUntilReadyAsync(CancellationToken cancellationToken)
 		{
-			await _processInput.WriteLineAsync("isready");
+			await _processInput.WriteLineAsync(IsReadyCommand);
 
 			while (true)
 			{
@@ -786,7 +800,7 @@ namespace Bezoro.UCI
 					throw new UCIException("Engine process exited unexpectedly while waiting for readyok.");
 				}
 
-				if (line == "readyok")
+				if (line == ReadyOkResponse)
 				{
 					break;
 				}
