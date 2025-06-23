@@ -25,6 +25,12 @@ namespace Bezoro.UCI
 		private StreamWriter _processInput;
 
 		/// <summary>
+		///     Fires whenever the engine sends real-time analysis information.
+		///     Subscribe to this event to get updates on the engine's search progress.
+		/// </summary>
+		public event EventHandler<EngineAnalysisEventArgs> InfoReceived;
+
+		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
 		/// </summary>
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
@@ -53,14 +59,6 @@ namespace Bezoro.UCI
 		///     Provides information about the connected engine (e.g., name, author).
 		/// </summary>
 		public IReadOnlyList<string> EngineInfo => _engineInfo.AsReadOnly();
-
-		/// <summary>
-		///     Tells the engine that the next search will be from a new game.
-		/// </summary>
-		public async Task NewGameAsync(CancellationToken cancellationToken = default)
-		{
-			await SendCommandAndWaitForReadyAsync("ucinewgame", cancellationToken);
-		}
 
 		/// <summary>
 		///     Sets a UCI option on the engine.
@@ -135,18 +133,9 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
-		///     Stops the engine's current calculation and asks it to return the best move found so far.
-		/// </summary>
-		public async Task StopCalculationAsync()
-		{
-			// This command doesn't need to wait for "readyok", it just needs to be sent.
-			await _processInput.WriteLineAsync("stop");
-		}
-
-		/// <summary>
 		///     Stops the engine gracefully.
 		/// </summary>
-		public async Task StopEngineAsync(CancellationToken cancellationToken = default)
+		public async Task StopAsync(CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed || _engineProcess.HasExited)
 			{
@@ -241,7 +230,8 @@ namespace Bezoro.UCI
 		/// <param name="thinkingTime">The maximum time the engine should think.</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string> GetBestMoveAsync(TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		public async Task<string?> GetBestMoveAsync(
+			TimeSpan thinkingTime, CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed)
 			{
@@ -265,9 +255,13 @@ namespace Bezoro.UCI
 						throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
 					}
 
-					if (line.StartsWith("bestmove"))
+					if (line.StartsWith("info"))
 					{
-						string[]? parts = line.Split(' ');
+						InfoReceived?.Invoke(this, InfoParser.Parse(line));
+					}
+					else if (line.StartsWith("bestmove"))
+					{
+						string?[]? parts = line.Split(' ');
 						return parts.Length > 1 ? parts[1] : null;
 					}
 				}
@@ -290,7 +284,7 @@ namespace Bezoro.UCI
 
 			_isDisposed = true;
 
-			await StopEngineAsync();
+			await StopAsync();
 
 			_processInput?.Dispose();
 			_processOutput?.Dispose();

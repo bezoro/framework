@@ -49,7 +49,7 @@ public class UCIConnectorTests : IAsyncLifetime
 		await _connector!.SetPositionAsync();
 
 		// Act: Give the engine 100ms to think.
-		string bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
+		string? bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		// We can't know the exact best move, but we can check if it's a valid move format.
@@ -111,7 +111,7 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Act
 		// Ask the engine for the best move in this position.
-		string bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
+		string? bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		// If we get a valid move, it means the engine processed the position correctly.

@@ -19,7 +19,7 @@ namespace Bezoro.UCI
         /// </summary>
         /// <param name="move">The move string to validate.</param>
         /// <returns>True if the move is in valid UCI format, false otherwise.</returns>
-        public static bool IsValidUciMove(string move) =>
+		public static bool IsValidUciMove(string? move) =>
 			!string.IsNullOrWhiteSpace(move) && UciMoveRegex.IsMatch(move.ToLower());
 
         /// <summary>
