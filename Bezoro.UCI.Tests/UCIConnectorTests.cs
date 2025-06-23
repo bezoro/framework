@@ -143,7 +143,7 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
-	public async Task StopAsync_WhenEngineIsRunning_ShouldStopEngine()
+	public async Task StopEngineAsync_WhenEngineIsRunning_ShouldStopEngine()
 	{
 		// Arrange
 		// Use a new connector instance to ensure test isolation.

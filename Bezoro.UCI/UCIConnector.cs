@@ -135,7 +135,7 @@ namespace Bezoro.UCI
 		/// <summary>
 		///     Stops the engine gracefully.
 		/// </summary>
-		public async Task StopAsync(CancellationToken cancellationToken = default)
+		public async Task StopEngineAsync(CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed || _engineProcess.HasExited)
 			{
@@ -284,7 +284,7 @@ namespace Bezoro.UCI
 
 			_isDisposed = true;
 
-			await StopAsync();
+			await StopEngineAsync();
 
 			_processInput?.Dispose();
 			_processOutput?.Dispose();
