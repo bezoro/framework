@@ -271,12 +271,12 @@ namespace Bezoro.UCI
 		/// <summary>
 		///     Asks the engine to find the best move for the current position using a fixed amount of time.
 		/// </summary>
-		/// <param name="thinkingTime">The maximum time the engine should think.</param>
+		/// <param name="thinkingTimeMs">The maximum time the engine should think, in milliseconds.</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string> GetBestMoveAsync(TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		public async Task<string> GetBestMoveAsync(int thinkingTimeMs, CancellationToken cancellationToken = default)
 		{
-			var searchParameters = new SearchParameters { MoveTimeMs = (int)thinkingTime.TotalMilliseconds };
+			var searchParameters = new SearchParameters { MoveTimeMs = thinkingTimeMs };
 			return await GetBestMoveAsync(searchParameters, cancellationToken);
 		}
 
@@ -337,6 +337,34 @@ namespace Bezoro.UCI
 			{
 				_commandSemaphore.Release();
 			}
+		}
+
+		/// <summary>
+		///     Asks the engine to find the best move for the current position using a fixed amount of time.
+		/// </summary>
+		/// <param name="thinkingTime">The maximum time the engine should think.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
+		public async Task<string> GetBestMoveAsync(TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		{
+			var searchParameters = new SearchParameters { MoveTimeMs = (int)thinkingTime.TotalMilliseconds };
+			return await GetBestMoveAsync(searchParameters, cancellationToken);
+		}
+
+		/// <summary>
+		///     A helper method that sets the board to a specific position and then immediately finds the best move.
+		///     This simplifies the common workflow of setting a position and then searching.
+		/// </summary>
+		/// <param name="fen">The FEN string for the position. Use "startpos" for the starting position.</param>
+		/// <param name="moves">An optional sequence of moves to apply to the position.</param>
+		/// <param name="thinkingTime">The maximum time the engine should think.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine for the given position.</returns>
+		public async Task<string> GetBestMoveForPositionAsync(
+			string fen, IEnumerable<string> moves, TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		{
+			await SetPositionAsync(fen, moves, cancellationToken);
+			return await GetBestMoveAsync(thinkingTime, cancellationToken);
 		}
 
 		/// <summary>
