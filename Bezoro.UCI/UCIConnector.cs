@@ -97,6 +97,51 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
+		///     Sets the engine's difficulty by adjusting its "Skill Level".
+		///     Note: This is a common option for engines like Stockfish, but not all engines support it.
+		///     The method will first check if the loaded engine supports this option.
+		/// </summary>
+		/// <param name="level">The skill level to set (e.g., 0-20 for Stockfish).</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task SetSkillLevelAsync(int level, CancellationToken cancellationToken = default)
+		{
+			if (SupportedOptions.Any(o => o.Name.Equals("Skill Level", StringComparison.OrdinalIgnoreCase)))
+			{
+				await SetOptionAsync("Skill Level", level.ToString(), cancellationToken);
+			}
+			else
+			{
+				// We can log a warning or simply do nothing if the option isn't supported.
+				Console.WriteLine("Warning: 'Skill Level' option not supported by this engine.");
+			}
+		}
+
+		/// <summary>
+		///     Limits the engine's strength to a specific Elo rating.
+		///     Note: This requires the engine to support the "UCI_LimitStrength" and "UCI_Elo" options.
+		///     The method will first check if the loaded engine supports these options.
+		/// </summary>
+		/// <param name="elo">The Elo rating to target.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task SetStrengthAsync(int elo, CancellationToken cancellationToken = default)
+		{
+			bool limitStrengthSupported =
+				SupportedOptions.Any(o => o.Name.Equals("UCI_LimitStrength", StringComparison.OrdinalIgnoreCase));
+
+			bool eloSupported = SupportedOptions.Any(o => o.Name.Equals("UCI_Elo", StringComparison.OrdinalIgnoreCase));
+
+			if (limitStrengthSupported && eloSupported)
+			{
+				await SetOptionAsync("UCI_LimitStrength", "true",         cancellationToken);
+				await SetOptionAsync("UCI_Elo",           elo.ToString(), cancellationToken);
+			}
+			else
+			{
+				Console.WriteLine("Warning: Elo-based strength limiting not supported by this engine.");
+			}
+		}
+
+		/// <summary>
 		///     Starts the engine process and initializes UCI communication.
 		/// </summary>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -269,6 +314,29 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
+		///     Retrieves a list of all legal moves in the current position that start from a specific square.
+		///     This is useful for UI implementations where you want to highlight valid destination squares when a user selects a piece.
+		/// </summary>
+		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>A list of legal moves originating from the specified square.</returns>
+		public async Task<List<string>> GetLegalMovesForSquareAsync(
+			string square, CancellationToken cancellationToken = default)
+		{
+			if (!UCIHelper.IsValidAlgebraicNotation(square))
+			{
+				// Return an empty list if the square format is invalid.
+				return new List<string>();
+			}
+
+			// Get all legal moves for the current position.
+			List<string> allLegalMoves = await GetLegalMovesAsync(cancellationToken);
+
+			// Filter the list to include only moves that start with the specified square.
+			return allLegalMoves.Where(move => move.StartsWith(square, StringComparison.OrdinalIgnoreCase)).ToList();
+		}
+
+		/// <summary>
 		///     Asks the engine to find the best move for the current position using a fixed amount of time.
 		/// </summary>
 		/// <param name="thinkingTimeMs">The maximum time the engine should think, in milliseconds.</param>
@@ -365,6 +433,18 @@ namespace Bezoro.UCI
 		{
 			await SetPositionAsync(fen, moves, cancellationToken);
 			return await GetBestMoveAsync(thinkingTime, cancellationToken);
+		}
+
+		/// <summary>
+		///     Asks the engine to find the best move for the current position by searching to a specific depth.
+		/// </summary>
+		/// <param name="depth">The maximum depth for the engine to search.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
+		public async Task<string> GetBestMoveWithDepthAsync(int depth, CancellationToken cancellationToken = default)
+		{
+			var searchParameters = new SearchParameters { Depth = depth };
+			return await GetBestMoveAsync(searchParameters, cancellationToken);
 		}
 
 		/// <summary>
