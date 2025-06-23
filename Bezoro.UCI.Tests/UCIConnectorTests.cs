@@ -195,4 +195,56 @@ public class UCIConnectorTests : IAsyncLifetime
 		// We expect an ObjectDisposedException, as the resources should be cleaned up.
 		await Assert.ThrowsAsync<IOException>(() => connector.GetLegalMovesAsync());
 	}
+
+	[Fact]
+	public async Task StopSearchAsync_WhenCalled_ShouldStopSearchAndReturnBestMoveFoundSoFar()
+	{
+		// Arrange
+		// Set the engine to the starting position.
+		await _connector!.SetPositionAsync();
+
+		// Start a long search in the background. We don't await this task yet because we intend to
+		// interrupt it. A 10-second thinking time is plenty for us to stop it manually.
+		Task<string?> searchTask = _connector.GetBestMoveAsync(TimeSpan.FromSeconds(10));
+
+		// Give the engine a moment to begin its analysis and find at least one move.
+		await Task.Delay(TimeSpan.FromMilliseconds(500));
+		Assert.False(searchTask.IsCompleted, "The search task should still be running before we stop it.");
+
+		// Act
+		// This is the core action: we command the engine to stop its current search.
+		// The `StopSearchAsync` method is expected to send the "stop" command to the UCI engine.
+		await _connector.StopSearchAsync();
+
+		// Awaiting the original search task should now complete almost instantly,
+		// because the "stop" command makes the engine emit its best move found so far.
+		string? bestMove = await searchTask;
+
+		// Assert
+		// The engine should have returned a valid best move it found in the short time it was thinking.
+		Assert.NotNull(bestMove);
+		Assert.True(UCIHelper.IsValidUciMove(bestMove), $"The move '{bestMove}' is not in valid UCI format.");
+	}
+
+	[Fact]
+	public async Task UCINewGameAsync_WhenCalled_ShouldResetPositionAndClearSearchHistory()
+	{
+		// Arrange
+		// Set a position that is not the start position to confirm that UCINewGame resets it.
+		// After 1. e4 e5, there are 29 possible moves for White.
+		await _connector!.SetPositionAsync("startpos", [ "e2e4", "e7e5" ]);
+		List<string> movesBeforeReset = await _connector.GetLegalMovesAsync();
+		Assert.NotEqual(20, movesBeforeReset.Count);
+
+		// Act
+		// 'ucinewgame' readies the engine for a new game by clearing caches.
+		// It must be followed by a 'position' command to set the board.
+		await _connector.UCINewGameAsync();
+		await _connector.SetPositionAsync(); // Explicitly set the position to "startpos"
+
+		// Assert
+		// After resetting, the engine should be at the standard starting position, which has 20 legal moves.
+		List<string> movesAfterReset = await _connector.GetLegalMovesAsync();
+		Assert.Equal(20, movesAfterReset.Count);
+	}
 }
