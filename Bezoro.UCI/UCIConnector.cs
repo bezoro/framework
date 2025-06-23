@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using UCIEngine.Models;
 
 namespace Bezoro.UCI
 {
@@ -263,6 +264,54 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
+		///     Retrieves a list of all legal moves for the current position and classifies each one
+		///     by its type (e.g., capture, castling). This is ideal for rich UI feedback.
+		///     Note: This feature relies on the "d" command to get the current FEN from the engine,
+		///     which is supported by many engines like Stockfish but is not part of the core UCI standard.
+		/// </summary>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>A list of <see cref="MoveClassification" /> objects, one for each legal move.</returns>
+		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
+			CancellationToken cancellationToken = default)
+		{
+			string       currentFen      = await GetCurrentFenAsync(cancellationToken);
+			BoardState   boardState      = ParseFen(currentFen);
+			List<string> legalMoves      = await GetLegalMovesAsync(cancellationToken);
+			var          classifiedMoves = new List<MoveClassification>();
+
+			foreach (string? move in legalMoves)
+			{
+				classifiedMoves.Add(ClassifyMove(move, boardState));
+			}
+
+			return classifiedMoves;
+		}
+
+		/// <summary>
+		///     Retrieves and classifies all legal moves that start from a specific square.
+		///     This is ideal for UI scenarios where a user clicks on a piece and you want to show
+		///     all possible destinations for that piece, color-coded by move type.
+		/// </summary>
+		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>A list of classified legal moves originating from the given square.</returns>
+		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
+			string square, CancellationToken cancellationToken = default)
+		{
+			// Get all classified legal moves for the current position.
+			List<MoveClassification> allMovesWithDetails = await GetAllLegalMovesWithDetailsAsync(cancellationToken);
+
+			// Filter the list to include only moves that start with the specified square.
+			// The comparison is case-insensitive to be robust.
+			List<MoveClassification> movesForSquare = allMovesWithDetails
+													  .Where(m => m.Move.StartsWith(square,
+														  StringComparison.OrdinalIgnoreCase))
+													  .ToList();
+
+			return movesForSquare;
+		}
+
+		/// <summary>
 		///     Retrieves a list of all legal moves in the current position.
 		///     Note: This uses the 'go perft 1' command, which is a common but non-standard way to get legal moves.
 		/// </summary>
@@ -315,7 +364,8 @@ namespace Bezoro.UCI
 
 		/// <summary>
 		///     Retrieves a list of all legal moves in the current position that start from a specific square.
-		///     This is useful for UI implementations where you want to highlight valid destination squares when a user selects a piece.
+		///     This is useful for UI implementations where you want to highlight valid destination squares when a user selects a
+		///     piece.
 		/// </summary>
 		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -557,6 +607,89 @@ namespace Bezoro.UCI
 			return new UCIOption(name, type, defaultValue, min, max, vars.ToArray());
 		}
 
+		/// <summary>
+		///     Parses a FEN string to extract the piece positions and the en passant target square.
+		/// </summary>
+		private BoardState ParseFen(string fen)
+		{
+			string[]? parts           = fen.Split(' ');
+			string    piecePlacement  = parts[0];
+			string?   enPassantTarget = parts.Length > 3 && parts[3] != "-" ? parts[3] : null;
+
+			var positions = new Dictionary<string, char>();
+			var rank      = 8;
+			var file      = 0; // 'a' is 0
+
+			foreach (char c in piecePlacement)
+			{
+				if (c == '/')
+				{
+					rank--;
+					file = 0;
+				}
+				else if (char.IsDigit(c))
+				{
+					file += (int)char.GetNumericValue(c);
+				}
+				else
+				{
+					var square = $"{(char)('a' + file)}{rank}";
+					positions.Add(square, c);
+					file++;
+				}
+			}
+
+			return new BoardState(positions, enPassantTarget);
+		}
+
+		/// <summary>
+		///     Analyzes a single move based on the current board state to determine its type.
+		/// </summary>
+		private MoveClassification ClassifyMove(string move, BoardState boardState)
+		{
+			string fromSquare     = move.Substring(0, 2);
+			string toSquare       = move.Substring(2, 2);
+			char   promotionPiece = move.Length == 5 ? move[4] : ' ';
+
+			boardState.PiecePositions.TryGetValue(fromSquare, out char movingPiece);
+			bool isCapture = boardState.PiecePositions.ContainsKey(toSquare);
+
+			bool isPawnMove = char.ToLower(movingPiece) == 'p';
+			bool isKingMove = char.ToLower(movingPiece) == 'k';
+
+			// 1. Check for Castling (a king moving two squares)
+			if (isKingMove && Math.Abs(fromSquare[0] - toSquare[0]) == 2)
+			{
+				return new MoveClassification(move) { IsCastling = true };
+			}
+
+			// 2. Check for En Passant (a pawn moving diagonally to an empty square that is the en passant target)
+			bool isEnPassant = isPawnMove                   &&
+							   fromSquare[0] != toSquare[0] &&
+							   !isCapture                   &&
+							   toSquare.Equals(boardState.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
+
+			if (isEnPassant)
+			{
+				return new MoveClassification(move) { IsCapture = true, IsEnPassant = true };
+			}
+
+			// 3. Check for Promotion (a pawn move with a 5th character)
+			if (isPawnMove && promotionPiece != ' ')
+			{
+				return new MoveClassification(move) { IsPromotion = true, IsCapture = isCapture };
+			}
+
+			// 4. Check for a standard capture
+			if (isCapture)
+			{
+				return new MoveClassification(move) { IsCapture = true };
+			}
+
+			// 5. If none of the above, it's a normal move
+			return new MoveClassification(move);
+		}
+
 		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
 		{
 			if (_isDisposed)
@@ -595,6 +728,36 @@ namespace Bezoro.UCI
 			}
 		}
 
+		/// <summary>
+		///     Sends the "d" command to the engine to get a text representation of the current board state,
+		///     and extracts the FEN (Forsyth-Edwards Notation) string from the output.
+		/// </summary>
+		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken = default)
+		{
+			await SendCommandAndWaitForReadyAsync("d", cancellationToken);
+			var fen = string.Empty;
+			while (true)
+			{
+				string line = await ReadLineAsync(cancellationToken);
+				if (string.IsNullOrWhiteSpace(line))
+				{
+					continue;
+				}
+
+				if (line.StartsWith("Fen: ", StringComparison.OrdinalIgnoreCase))
+				{
+					fen = line.Substring(5);
+				}
+				// The "Checkers" line usually follows the FEN, marking the end of the position block.
+				else if (line.StartsWith("Checkers:", StringComparison.OrdinalIgnoreCase))
+				{
+					break;
+				}
+			}
+
+			return fen;
+		}
+
 		private async Task<string> ReadLineAsync(CancellationToken cancellationToken, int timeoutMilliseconds = -1)
 		{
 			Task<string>? readTask = _processOutput.ReadLineAsync();
@@ -624,6 +787,11 @@ namespace Bezoro.UCI
 				return await readTask;
 			}
 		}
+
+		/// <summary>
+		///     A simple record to hold the essential parts of a board state parsed from a FEN string.
+		/// </summary>
+		private record BoardState(Dictionary<string, char> PiecePositions, string? EnPassantTarget);
 	}
 
 	/// <summary>
