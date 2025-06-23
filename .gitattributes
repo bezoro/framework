@@ -232,7 +232,7 @@ docker-compose.yml    text eol=lf
 *.rar                 binary filter=lfs diff=lfs merge=lfs
 *.7z                  binary filter=lfs diff=lfs merge=lfs
 *.unitypackage        binary filter=lfs diff=lfs merge=lfs
-.exe                  binary filter=lfs diff=lfs merge=lfs
+*.exe                 binary filter=lfs diff=lfs merge=lfs
 
 # Misc.
 *.leo                binary filter=lfs diff=lfs merge=lfs
