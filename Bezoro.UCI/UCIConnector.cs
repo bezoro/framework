@@ -1,277 +1,389 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
-public class UCIConnector : IDisposable
+namespace Bezoro.UCI
 {
-	private readonly Process      _engineProcess;
-	private          StreamReader _processOutput;
-	private          StreamWriter _processInput;
-
-	public UCIConnector(string enginePath)
+	/// <summary>
+	///     Represents a connection to a UCI-compliant chess engine.
+	///     This class handles process management, command serialization, and asynchronous communication.
+	///     It is designed to be thread-safe and robust.
+	/// </summary>
+	public sealed class UCIConnector : IAsyncDisposable
 	{
-		if (string.IsNullOrWhiteSpace(enginePath))
-		{
-			throw new ArgumentException("Engine path cannot be null or whitespace.", nameof(enginePath));
-		}
+		private readonly List<string>  _engineInfo = new();
+		private readonly Process       _engineProcess;
+		private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
+		private volatile bool          _isDisposed;
+		private          StreamReader  _processOutput;
 
-		_engineProcess = new Process
+		private StreamWriter _processInput;
+
+		/// <summary>
+		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
+		/// </summary>
+		/// <param name="enginePath">The file path to the UCI engine executable.</param>
+		public UCIConnector(string enginePath)
 		{
-			StartInfo = new ProcessStartInfo
+			if (string.IsNullOrWhiteSpace(enginePath))
 			{
-				FileName               = enginePath,
-				UseShellExecute        = false,
-				RedirectStandardInput  = true,
-				RedirectStandardOutput = true,
-				CreateNoWindow         = true
+				throw new ArgumentException("Engine path cannot be null or whitespace.", nameof(enginePath));
 			}
-		};
-	}
 
-	/// <summary>
-	///     Extracts the active player color from a FEN string.
-	/// </summary>
-	/// <param name="fen">The FEN string to parse.</param>
-	/// <returns>The active player color ('w' for white, 'b' for black), or null if invalid FEN.</returns>
-	public static char? GetPlayerColorFromFen(string fen)
-	{
-		if (string.IsNullOrWhiteSpace(fen))
-		{
-			return null;
-		}
-
-		// FEN format: "pieces activeColor castling enPassant halfmove fullmove"
-		// The active color is the second field (index 1) when split by spaces
-		string[] fenParts = fen.Split(' ');
-
-		if (fenParts.Length < 2)
-		{
-			return null;
-		}
-
-		string activeColor = fenParts[1].ToLower();
-
-		if (activeColor == "w")
-		{
-			return 'w'; // White to move
-		}
-
-		if (activeColor == "b")
-		{
-			return 'b'; // Black to move
-		}
-
-		return null; // Invalid active color
-	}
-
-	/// <summary>
-	///     Makes a move from one square to another using algebraic notation.
-	/// </summary>
-	/// <param name="from">The source square in algebraic notation (e.g., "a1", "e4").</param>
-	/// <param name="to">The destination square in algebraic notation (e.g., "a2", "e5").</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
-	/// <exception cref="ArgumentException">Thrown when from or to parameters are invalid.</exception>
-	public async Task MakeMove(string from, string to)
-	{
-		if (string.IsNullOrWhiteSpace(from))
-		{
-			throw new ArgumentException("From square cannot be null or whitespace.", nameof(from));
-		}
-
-		if (string.IsNullOrWhiteSpace(to))
-		{
-			throw new ArgumentException("To square cannot be null or whitespace.", nameof(to));
-		}
-
-		// Validate algebraic notation format (basic validation)
-		if (!IsValidAlgebraicNotation(from))
-		{
-			throw new ArgumentException($"Invalid algebraic notation for from square: {from}", nameof(from));
-		}
-
-		if (!IsValidAlgebraicNotation(to))
-		{
-			throw new ArgumentException($"Invalid algebraic notation for to square: {to}", nameof(to));
-		}
-
-		// Create the move string in UCI format (from + to)
-		string move = from.ToLower() + to.ToLower();
-
-		// Send the position command with the move
-		await SendCommand($"position startpos moves {move}");
-	}
-
-	public async Task SendCommand(string command)
-	{
-		if (_processInput == null)
-		{
-			throw new InvalidOperationException("The engine process has not been started.");
-		}
-
-		await _processInput.WriteLineAsync(command);
-	}
-
-	/// <summary>
-	///     Sets the current game state using a FEN string.
-	/// </summary>
-	/// <param name="fen">The FEN string representing the desired game state.</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
-	/// <exception cref="ArgumentException">Thrown when the FEN string is null or empty.</exception>
-	public async Task SetGameStateFromFen(string fen)
-	{
-		if (string.IsNullOrWhiteSpace(fen))
-		{
-			throw new ArgumentException("FEN string cannot be null or whitespace.", nameof(fen));
-		}
-
-		// The UCI protocol uses the "position fen" command to set a position
-		await SendCommand($"position fen {fen}");
-	}
-
-	public async Task StartEngine()
-	{
-		_engineProcess.Start();
-		_processInput  = _engineProcess.StandardInput;
-		_processOutput = _engineProcess.StandardOutput;
-
-		await SendCommand("uci");
-
-		string line;
-		var    uciOkReceived = false;
-		while ((line = await _processOutput.ReadLineAsync()) != null)
-		{
-			if (line == "uciok")
+			_engineProcess = new Process
 			{
-				uciOkReceived = true;
-				break;
-			}
-		}
-
-		if (!uciOkReceived)
-		{
-			throw new Exception("UCI engine did not respond with 'uciok'.");
-		}
-	}
-
-	/// <summary>
-	///     Checks if it's black's turn to move.
-	/// </summary>
-	/// <returns>True if it's black's turn, false if it's white's turn, null if unable to determine.</returns>
-	public async Task<bool?> IsBlackToMove()
-	{
-		char? currentPlayer = await GetCurrentPlayerColor();
-		return currentPlayer == 'b' ? true : currentPlayer == 'w' ? false : null;
-	}
-
-	/// <summary>
-	///     Checks if it's white's turn to move.
-	/// </summary>
-	/// <returns>True if it's white's turn, false if it's black's turn, null if unable to determine.</returns>
-	public async Task<bool?> IsWhiteToMove()
-	{
-		char? currentPlayer = await GetCurrentPlayerColor();
-		return currentPlayer == 'w' ? true : currentPlayer == 'b' ? false : null;
-	}
-
-	/// <summary>
-	///     Gets the current player's color from the chess position.
-	/// </summary>
-	/// <returns>The current player's color ('w' for white, 'b' for black), or null if unable to determine.</returns>
-	public async Task<char?> GetCurrentPlayerColor()
-	{
-		string fen = await GetFen();
-
-		if (string.IsNullOrWhiteSpace(fen))
-		{
-			return null;
-		}
-
-		return GetPlayerColorFromFen(fen);
-	}
-
-	public async Task<string> GetBestMove(string command)
-	{
-		await SendCommand(command);
-
-		string bestMove = null;
-		string line;
-		while ((line = await _processOutput.ReadLineAsync()) != null)
-		{
-			if (line.StartsWith("bestmove"))
-			{
-				string[]? parts = line.Split(' ');
-				if (parts.Length > 1)
+				StartInfo = new ProcessStartInfo
 				{
-					bestMove = parts[1];
+					FileName               = enginePath,
+					UseShellExecute        = false,
+					RedirectStandardInput  = true,
+					RedirectStandardOutput = true,
+					CreateNoWindow         = true
+				},
+				EnableRaisingEvents = true
+			};
+		}
+
+		/// <summary>
+		///     Provides information about the connected engine (e.g., name, author).
+		/// </summary>
+		public IReadOnlyList<string> EngineInfo => _engineInfo.AsReadOnly();
+
+		/// <summary>
+		///     Sets a UCI option on the engine.
+		/// </summary>
+		/// <param name="name">The name of the option to set.</param>
+		/// <param name="value">The value to set for the option.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task SetOptionAsync(string name, string value, CancellationToken cancellationToken = default)
+		{
+			await SendCommandAndWaitForReadyAsync($"setoption name {name} value {value}", cancellationToken);
+		}
+
+		/// <summary>
+		///     Sets the board position using a FEN string and, optionally, a sequence of moves.
+		/// </summary>
+		/// <param name="fen">The FEN string for the position. Use "startpos" for the starting position.</param>
+		/// <param name="moves">An optional sequence of moves to apply to the position.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task SetPositionAsync(
+			string fen = "startpos", IEnumerable<string> moves = null, CancellationToken cancellationToken = default)
+		{
+			string command = "position " + (fen.ToLower() == "startpos" ? "startpos" : $"fen {fen}");
+			if (moves?.Any() == true)
+			{
+				command += " moves " + string.Join(" ", moves);
+			}
+
+			await SendCommandAndWaitForReadyAsync(command, cancellationToken);
+		}
+
+		/// <summary>
+		///     Starts the engine process and initializes UCI communication.
+		/// </summary>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task StartEngineAsync(CancellationToken cancellationToken = default)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			_engineProcess.Start();
+			_processInput  = _engineProcess.StandardInput;
+			_processOutput = _engineProcess.StandardOutput;
+
+			await _processInput.WriteLineAsync("uci");
+
+			var uciOkReceived = false;
+
+			while (true)
+			{
+				string line = await ReadLineAsync(cancellationToken, 10000); // 10-second timeout
+
+				if (line.StartsWith("id "))
+				{
+					_engineInfo.Add(line);
+				}
+				else if (line == "uciok")
+				{
+					uciOkReceived = true;
+					break;
+				}
+			}
+
+			if (!uciOkReceived)
+			{
+				throw new UCIException(
+					"Engine did not respond with 'uciok'. Ensure the path points to a valid UCI engine.");
+			}
+
+			await WaitUntilReadyAsync(cancellationToken);
+		}
+
+		/// <summary>
+		///     Stops the engine gracefully.
+		/// </summary>
+		public async Task StopAsync(CancellationToken cancellationToken = default)
+		{
+			if (_isDisposed || _engineProcess.HasExited)
+			{
+				return;
+			}
+
+			try
+			{
+				await _processInput.WriteLineAsync("quit");
+
+				// Asynchronously wait for the process to exit with a timeout.
+				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+				await _engineProcess.WaitForExitAsync(linkedCts.Token);
+			}
+			catch (Exception)
+			{
+				// If graceful shutdown fails, kill the process.
+				if (!_engineProcess.HasExited)
+				{
+					_engineProcess.Kill();
+				}
+			}
+		}
+
+		/// <summary>
+		///     Checks if a single move is legal in the current position.
+		/// </summary>
+		/// <param name="move">The move to check, in UCI format (e.g., "e2e4").</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>True if the move is legal, otherwise false.</returns>
+		public async Task<bool> IsMoveLegalAsync(string move, CancellationToken cancellationToken = default)
+		{
+			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken);
+			return legalMoves.Contains(move);
+		}
+
+		/// <summary>
+		///     Retrieves a list of all legal moves in the current position.
+		///     Note: This uses the 'go perft 1' command, which is a common but non-standard way to get legal moves.
+		/// </summary>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>A list of legal moves in UCI format.</returns>
+		public async Task<List<string>> GetLegalMovesAsync(CancellationToken cancellationToken = default)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			var moves     = new List<string>();
+			var moveRegex = new Regex(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+");
+
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				await _processInput.WriteLineAsync("go perft 1");
+
+				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+
+				while (true)
+				{
+					string? line = await ReadLineAsync(linkedCts.Token);
+					if (line == null || line.Contains("Nodes searched"))
+					{
+						break;
+					}
+
+					Match match = moveRegex.Match(line);
+					if (match.Success)
+					{
+						moves.Add(match.Groups[1].Value);
+					}
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				// Timeout is an acceptable way to exit if the engine is stuck.
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
+
+			return moves;
+		}
+
+		/// <summary>
+		///     Asks the engine to find the best move for the current position.
+		/// </summary>
+		/// <param name="thinkingTime">The maximum time the engine should think.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
+		public async Task<string> GetBestMoveAsync(TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				await _processInput.WriteLineAsync($"go movetime {(int)thinkingTime.TotalMilliseconds}");
+
+				// Give the engine extra time to respond after thinking.
+				using var cts       = new CancellationTokenSource(thinkingTime + TimeSpan.FromSeconds(5));
+				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+
+				while (true)
+				{
+					string? line = await ReadLineAsync(linkedCts.Token);
+					if (line == null)
+					{
+						throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
+					}
+
+					if (line.StartsWith("bestmove"))
+					{
+						string[]? parts = line.Split(' ');
+						return parts.Length > 1 ? parts[1] : null;
+					}
+				}
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
+		}
+
+		/// <summary>
+		///     Disposes the connector and stops the engine.
+		/// </summary>
+		public async ValueTask DisposeAsync()
+		{
+			if (_isDisposed)
+			{
+				return;
+			}
+
+			_isDisposed = true;
+
+			await StopAsync();
+
+			_processInput?.Dispose();
+			_processOutput?.Dispose();
+			_engineProcess?.Dispose();
+			_commandSemaphore?.Dispose();
+			GC.SuppressFinalize(this);
+		}
+
+		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				await _processInput.WriteLineAsync(command);
+				await WaitUntilReadyAsync(cancellationToken);
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
+		}
+
+		private async Task WaitUntilReadyAsync(CancellationToken cancellationToken)
+		{
+			await _processInput.WriteLineAsync("isready");
+
+			while (true)
+			{
+				string? line = await ReadLineAsync(cancellationToken, 10000); // 10-second timeout
+				if (line == null)
+				{
+					throw new UCIException("Engine process exited unexpectedly while waiting for readyok.");
 				}
 
-				break;
+				if (line == "readyok")
+				{
+					break;
+				}
 			}
 		}
 
-		return bestMove;
-	}
-
-	/// <summary>
-	///     Asks the engine for the current board state and returns the FEN string.
-	/// </summary>
-	/// <returns>The FEN string representing the current game state.</returns>
-	public async Task<string> GetFen()
-	{
-		await SendCommand("d");
-		string line;
-		while ((line = await _processOutput.ReadLineAsync()) != null)
+		private async Task<string> ReadLineAsync(CancellationToken cancellationToken, int timeoutMilliseconds = -1)
 		{
-			if (line.StartsWith("Fen: "))
+			Task<string>? readTask = _processOutput.ReadLineAsync();
+			if (timeoutMilliseconds < 0)
 			{
-				return line.Substring(5);
+				// This custom implementation makes ReadLineAsync cancellable.
+				var tcs = new TaskCompletionSource<string>();
+				using ( cancellationToken.Register(() => tcs.TrySetCanceled()) )
+				{
+					return await await Task.WhenAny(readTask, tcs.Task);
+				}
 			}
 
-			// The "d" command output is terminated by a line showing the board's checksum.
-			// If we see this, it means we've missed the Fen line and should stop reading.
-			if (line.StartsWith("Checkers: "))
+			using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+			var       tcsWithTimeout = new TaskCompletionSource<string>();
+			using ( linkedCts.Token.Register(() => tcsWithTimeout.TrySetCanceled()) )
 			{
-				break;
+				Task<string>? completedTask = await Task.WhenAny(readTask, tcsWithTimeout.Task);
+				if (completedTask != readTask)
+				{
+					throw new TimeoutException("The engine response timed out.");
+				}
+
+				return await readTask;
 			}
-		}
-
-		return null; // Return null if the FEN string couldn't be found.
-	}
-
-	public void Dispose()
-	{
-		StopEngine();
-		_processInput?.Dispose();
-		_processOutput?.Dispose();
-		_engineProcess?.Dispose();
-		GC.SuppressFinalize(this);
-	}
-
-	public void StopEngine()
-	{
-		if (_engineProcess != null && !_engineProcess.HasExited)
-		{
-			SendCommand("quit").Wait();
-			_engineProcess.WaitForExit();
 		}
 	}
 
 	/// <summary>
-	///     Validates if a string is in proper algebraic notation format.
+	///     A custom exception for errors related to the UCI protocol or engine communication.
 	/// </summary>
-	/// <param name="square">The square notation to validate.</param>
-	/// <returns>True if valid, false otherwise.</returns>
-	private static bool IsValidAlgebraicNotation(string square)
+	public class UCIException : Exception
 	{
-		if (string.IsNullOrWhiteSpace(square) || square.Length != 2)
+		public UCIException(string message) : base(message) { }
+		public UCIException(string message, Exception innerException) : base(message, innerException) { }
+	}
+
+	internal static class ProcessExtensions
+	{
+		/// <summary>
+		///     Asynchronously waits for the process to exit.
+		/// </summary>
+		/// <param name="process">The process to wait for.</param>
+		/// <param name="cancellationToken">A token to cancel the wait operation.</param>
+		/// <returns>A task that completes when the process exits.</returns>
+		public static Task WaitForExitAsync(this Process process, CancellationToken cancellationToken = default)
 		{
-			return false;
+			if (process.HasExited)
+			{
+				return Task.CompletedTask;
+			}
+
+			var tcs = new TaskCompletionSource<object>();
+			process.Exited += (sender, args) => tcs.TrySetResult(null);
+			cancellationToken.Register(() => tcs.TrySetCanceled());
+
+			// A final check in case the process exited after the initial check but before the event handler was attached.
+			if (process.HasExited)
+			{
+				return Task.CompletedTask;
+			}
+
+			return tcs.Task;
 		}
-
-		char file = char.ToLower(square[0]);
-		char rank = square[1];
-
-		return file >= 'a' && file <= 'h' && rank >= '1' && rank <= '8';
 	}
 }
