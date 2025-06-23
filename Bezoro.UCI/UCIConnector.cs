@@ -316,7 +316,7 @@ namespace Bezoro.UCI
 			GC.SuppressFinalize(this);
 		}
 
-		private static string BuildGoCommand(SearchParameters parameters)
+		internal static string BuildGoCommand(SearchParameters parameters)
 		{
 			var commandBuilder = new StringBuilder("go");
 
