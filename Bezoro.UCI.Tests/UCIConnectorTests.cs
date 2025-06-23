@@ -153,7 +153,7 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Act
 		// Stop the engine process.
-		await connector.StopAsync();
+		await connector.StopEngineAsync();
 
 		// Assert
 		// After stopping, any attempt to communicate with the engine should fail

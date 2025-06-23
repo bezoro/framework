@@ -55,6 +55,14 @@ namespace Bezoro.UCI
 		public IReadOnlyList<string> EngineInfo => _engineInfo.AsReadOnly();
 
 		/// <summary>
+		///     Tells the engine that the next search will be from a new game.
+		/// </summary>
+		public async Task NewGameAsync(CancellationToken cancellationToken = default)
+		{
+			await SendCommandAndWaitForReadyAsync("ucinewgame", cancellationToken);
+		}
+
+		/// <summary>
 		///     Sets a UCI option on the engine.
 		/// </summary>
 		/// <param name="name">The name of the option to set.</param>
@@ -127,9 +135,18 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
+		///     Stops the engine's current calculation and asks it to return the best move found so far.
+		/// </summary>
+		public async Task StopCalculationAsync()
+		{
+			// This command doesn't need to wait for "readyok", it just needs to be sent.
+			await _processInput.WriteLineAsync("stop");
+		}
+
+		/// <summary>
 		///     Stops the engine gracefully.
 		/// </summary>
-		public async Task StopAsync(CancellationToken cancellationToken = default)
+		public async Task StopEngineAsync(CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed || _engineProcess.HasExited)
 			{
@@ -273,7 +290,7 @@ namespace Bezoro.UCI
 
 			_isDisposed = true;
 
-			await StopAsync();
+			await StopEngineAsync();
 
 			_processInput?.Dispose();
 			_processOutput?.Dispose();
