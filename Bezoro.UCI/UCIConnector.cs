@@ -8,6 +8,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
+public record UCIOption(string Name, string Type, string Default, string Min, string Max, string[] Vars);
+
 namespace Bezoro.UCI
 {
 	/// <summary>
@@ -17,12 +19,13 @@ namespace Bezoro.UCI
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private readonly List<string>  _engineInfo = new();
-		private readonly Process       _engineProcess;
-		private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
-		private volatile bool          _isDisposed;
-		private          StreamReader  _processOutput;
-		private          StreamWriter  _processInput;
+		private readonly List<string>    _engineInfo       = new();
+		private readonly List<UCIOption> _supportedOptions = new();
+		private readonly Process         _engineProcess;
+		private readonly SemaphoreSlim   _commandSemaphore = new(1, 1);
+		private volatile bool            _isDisposed;
+		private          StreamReader    _processOutput;
+		private          StreamWriter    _processInput;
 
 		/// <summary>
 		///     Fires whenever the engine sends real-time analysis information.
@@ -59,6 +62,12 @@ namespace Bezoro.UCI
 		///     Provides information about the connected engine (e.g., name, author).
 		/// </summary>
 		public IReadOnlyList<string> EngineInfo => _engineInfo.AsReadOnly();
+
+		/// <summary>
+		///     Provides a list of options supported by the engine.
+		///     This list is populated after the engine has started.
+		/// </summary>
+		public IReadOnlyList<UCIOption> SupportedOptions => _supportedOptions.AsReadOnly();
 
 		/// <summary>
 		///     Sets a UCI option on the engine.
@@ -112,9 +121,22 @@ namespace Bezoro.UCI
 			{
 				string line = await ReadLineAsync(cancellationToken, 10000); // 10-second timeout
 
+				if (string.IsNullOrEmpty(line))
+				{
+					continue;
+				}
+
 				if (line.StartsWith("id "))
 				{
 					_engineInfo.Add(line);
+				}
+				else if (line.StartsWith("option name"))
+				{
+					UCIOption? option = ParseOptionLine(line);
+					if (option != null)
+					{
+						_supportedOptions.Add(option);
+					}
 				}
 				else if (line == "uciok")
 				{
@@ -395,6 +417,38 @@ namespace Bezoro.UCI
 			}
 
 			return commandBuilder.ToString();
+		}
+
+		private static UCIOption ParseOptionLine(string line)
+		{
+			string[] parts        = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+			string   name         = null, type = null, defaultValue = null, min = null, max = null;
+			var      vars         = new List<string>();
+			var      isVarSection = false;
+
+			for (var i = 0 ; i < parts.Length ; i++)
+			{
+				switch (parts[i])
+				{
+					case "name":    name         = parts[++i]; break;
+					case "type":    type         = parts[++i]; break;
+					case "default": defaultValue = parts[++i]; break;
+					case "min":     min          = parts[++i]; break;
+					case "max":     max          = parts[++i]; break;
+					case "var":
+						isVarSection = true;
+						break;
+					default:
+						if (isVarSection)
+						{
+							vars.Add(parts[i]);
+						}
+
+						break;
+				}
+			}
+
+			return new UCIOption(name, type, defaultValue, min, max, vars.ToArray());
 		}
 
 		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
