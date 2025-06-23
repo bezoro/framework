@@ -1,5 +1,6 @@
-using Bezoro.UCI;
 using JetBrains.Annotations;
+
+namespace Bezoro.UCI.Tests.Unit;
 
 [TestSubject(typeof(UCIConnector))]
 public class BuildGoCommandUnitTests
