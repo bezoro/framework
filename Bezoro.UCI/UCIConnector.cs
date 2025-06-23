@@ -162,6 +162,30 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
+		///     Stops the engine's current calculation and asks for the best move found so far.
+		/// </summary>
+		public async Task StopSearchAsync()
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			await _processInput.WriteLineAsync("stop");
+		}
+
+		/// <summary>
+		///     Tells the engine that the next search will be for a new game.
+		///     This is used to clear hash tables and other game-specific data.
+		///     Must be followed by a SetPositionAsync call to actually reset the board to a starting state.
+		/// </summary>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		public async Task UCINewGameAsync(CancellationToken cancellationToken = default)
+		{
+			await SendCommandAndWaitForReadyAsync("ucinewgame", cancellationToken);
+		}
+
+		/// <summary>
 		///     Checks if a single move is legal in the current position.
 		/// </summary>
 		/// <param name="move">The move to check, in UCI format (e.g., "e2e4").</param>
