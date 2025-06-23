@@ -274,17 +274,66 @@ namespace Bezoro.UCI
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
 			CancellationToken cancellationToken = default)
 		{
-			string       currentFen      = await GetCurrentFenAsync(cancellationToken);
-			BoardState   boardState      = ParseFen(currentFen);
-			List<string> legalMoves      = await GetLegalMovesAsync(cancellationToken);
-			var          classifiedMoves = new List<MoveClassification>();
-
-			foreach (string? move in legalMoves)
+			if (_isDisposed)
 			{
-				classifiedMoves.Add(ClassifyMove(move, boardState));
+				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			return classifiedMoves;
+			// Acquire the semaphore once to ensure both commands are sent in a controlled sequence.
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				// --- Part 1: Get the FEN string using the 'd' command ---
+				await _processInput.WriteLineAsync("d");
+				var currentFen = "";
+				// Read lines until we find the FEN string. The 'd' command in Stockfish
+				// doesn't have a clear "readyok" end signal, so we read until we find what we need
+				// or time out. The timeout is critical to prevent a deadlock.
+				using ( var fenCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)) )
+				{
+					using var linkedFenCts =
+						CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, fenCts.Token);
+
+					while (true)
+					{
+						string? line = await ReadLineAsync(linkedFenCts.Token);
+						if (line == null)
+						{
+							break;
+						}
+
+						if (line.StartsWith("Fen: "))
+						{
+							currentFen = line.Substring(5).Trim();
+							break; // Found the FEN, we can stop reading for this command.
+						}
+					}
+				}
+
+				if (string.IsNullOrEmpty(currentFen))
+				{
+					throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
+				}
+
+				// --- Part 2: Get the list of legal moves ---
+				List<string>
+					legalMoves =
+						await GetLegalMovesAsync(cancellationToken, false); // `false` to not re-acquire the semaphore
+
+				// --- Part 3: Classify the moves ---
+				BoardState boardState      = ParseFen(currentFen);
+				var        classifiedMoves = new List<MoveClassification>();
+				foreach (string move in legalMoves)
+				{
+					classifiedMoves.Add(ClassifyMove(move, boardState));
+				}
+
+				return classifiedMoves;
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
 		}
 
 		/// <summary>
@@ -312,12 +361,21 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
-		///     Retrieves a list of all legal moves in the current position.
-		///     Note: This uses the 'go perft 1' command, which is a common but non-standard way to get legal moves.
+		///     Retrieves a list of all legal moves available in the current position.
+		///     Uses the engine's 'perft' command at depth 1 to get move information.
 		/// </summary>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>A list of legal moves in UCI format.</returns>
-		public async Task<List<string>> GetLegalMovesAsync(CancellationToken cancellationToken = default)
+		/// <param name="acquireSemaphore">
+		///     Whether to acquire the command semaphore. Set to false when called from methods that already hold the semaphore.
+		/// </param>
+		/// <returns>A list of legal moves in UCI format (e.g., "e2e4", "e1g1" for castling).</returns>
+		/// <remarks>
+		///     This method uses the 'perft' (performance test) command at depth 1, which is supported by most UCI engines.
+		///     It includes a 5-second timeout to prevent hanging if the engine becomes unresponsive.
+		///     The moves are parsed from the engine's output using a regular expression that matches UCI move format.
+		/// </remarks>
+		public async Task<List<string>> GetLegalMovesAsync(
+			CancellationToken cancellationToken = default, bool acquireSemaphore = true)
 		{
 			if (_isDisposed)
 			{
@@ -327,7 +385,11 @@ namespace Bezoro.UCI
 			var moves     = new List<string>();
 			var moveRegex = new Regex(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+");
 
-			await _commandSemaphore.WaitAsync(cancellationToken);
+			if (acquireSemaphore)
+			{
+				await _commandSemaphore.WaitAsync(cancellationToken);
+			}
+
 			try
 			{
 				await _processInput.WriteLineAsync("go perft 1");
@@ -356,7 +418,10 @@ namespace Bezoro.UCI
 			}
 			finally
 			{
-				_commandSemaphore.Release();
+				if (acquireSemaphore)
+				{
+					_commandSemaphore.Release();
+				}
 			}
 
 			return moves;
