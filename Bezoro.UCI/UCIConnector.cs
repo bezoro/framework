@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,8 +22,7 @@ namespace Bezoro.UCI
 		private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
 		private volatile bool          _isDisposed;
 		private          StreamReader  _processOutput;
-
-		private StreamWriter _processInput;
+		private          StreamWriter  _processInput;
 
 		/// <summary>
 		///     Fires whenever the engine sends real-time analysis information.
@@ -225,13 +225,25 @@ namespace Bezoro.UCI
 		}
 
 		/// <summary>
-		///     Asks the engine to find the best move for the current position.
+		///     Asks the engine to find the best move for the current position using a fixed amount of time.
 		/// </summary>
 		/// <param name="thinkingTime">The maximum time the engine should think.</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string?> GetBestMoveAsync(
-			TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		public async Task<string> GetBestMoveAsync(TimeSpan thinkingTime, CancellationToken cancellationToken = default)
+		{
+			var searchParameters = new SearchParameters { MoveTimeMs = (int)thinkingTime.TotalMilliseconds };
+			return await GetBestMoveAsync(searchParameters, cancellationToken);
+		}
+
+		/// <summary>
+		///     Asks the engine to find the best move for the current position using a flexible set of search parameters.
+		/// </summary>
+		/// <param name="parameters">The parameters that define the search (e.g., time controls, depth).</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
+		public async Task<string> GetBestMoveAsync(
+			SearchParameters parameters, CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed)
 			{
@@ -241,11 +253,22 @@ namespace Bezoro.UCI
 			await _commandSemaphore.WaitAsync(cancellationToken);
 			try
 			{
-				await _processInput.WriteLineAsync($"go movetime {(int)thinkingTime.TotalMilliseconds}");
+				string goCommand = BuildGoCommand(parameters);
+				await _processInput.WriteLineAsync(goCommand);
 
-				// Give the engine extra time to respond after thinking.
-				using var cts       = new CancellationTokenSource(thinkingTime + TimeSpan.FromSeconds(5));
-				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+				// Create an appropriate timeout for the read operation.
+				// If the search is infinite, we don't time out here; we wait for a 'stop' or cancellation.
+				CancellationTokenSource cts = null;
+				if (!parameters.Infinite)
+				{
+					// Add a 5-second buffer to the longest possible thinking time.
+					int timeout = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
+					cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeout));
+				}
+
+				using var linkedCts =
+					CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,
+						cts?.Token ?? CancellationToken.None);
 
 				while (true)
 				{
@@ -261,7 +284,7 @@ namespace Bezoro.UCI
 					}
 					else if (line.StartsWith("bestmove"))
 					{
-						string?[]? parts = line.Split(' ');
+						string[]? parts = line.Split(' ');
 						return parts.Length > 1 ? parts[1] : null;
 					}
 				}
@@ -291,6 +314,63 @@ namespace Bezoro.UCI
 			_engineProcess?.Dispose();
 			_commandSemaphore?.Dispose();
 			GC.SuppressFinalize(this);
+		}
+
+		private static string BuildGoCommand(SearchParameters parameters)
+		{
+			var commandBuilder = new StringBuilder("go");
+
+			if (parameters.SearchMoves?.Any() == true)
+			{
+				commandBuilder.Append(" searchmoves ").Append(string.Join(" ", parameters.SearchMoves));
+			}
+
+			if (parameters.WhiteTimeMs.HasValue)
+			{
+				commandBuilder.Append(" wtime ").Append(parameters.WhiteTimeMs.Value);
+			}
+
+			if (parameters.BlackTimeMs.HasValue)
+			{
+				commandBuilder.Append(" btime ").Append(parameters.BlackTimeMs.Value);
+			}
+
+			if (parameters.WhiteIncrementMs.HasValue)
+			{
+				commandBuilder.Append(" winc ").Append(parameters.WhiteIncrementMs.Value);
+			}
+
+			if (parameters.BlackIncrementMs.HasValue)
+			{
+				commandBuilder.Append(" binc ").Append(parameters.BlackIncrementMs.Value);
+			}
+
+			if (parameters.Depth.HasValue)
+			{
+				commandBuilder.Append(" depth ").Append(parameters.Depth.Value);
+			}
+
+			if (parameters.Nodes.HasValue)
+			{
+				commandBuilder.Append(" nodes ").Append(parameters.Nodes.Value);
+			}
+
+			if (parameters.Mate.HasValue)
+			{
+				commandBuilder.Append(" mate ").Append(parameters.Mate.Value);
+			}
+
+			if (parameters.MoveTimeMs.HasValue)
+			{
+				commandBuilder.Append(" movetime ").Append(parameters.MoveTimeMs.Value);
+			}
+
+			if (parameters.Infinite)
+			{
+				commandBuilder.Append(" infinite");
+			}
+
+			return commandBuilder.ToString();
 		}
 
 		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
@@ -340,7 +420,9 @@ namespace Bezoro.UCI
 				var tcs = new TaskCompletionSource<string>();
 				using ( cancellationToken.Register(() => tcs.TrySetCanceled()) )
 				{
-					return await await Task.WhenAny(readTask, tcs.Task);
+					// Awaiting Task.WhenAny returns the task that completed. We then await that task to get its result or exception.
+					Task<string>? completedTask = await Task.WhenAny(readTask, tcs.Task);
+					return await completedTask;
 				}
 			}
 
