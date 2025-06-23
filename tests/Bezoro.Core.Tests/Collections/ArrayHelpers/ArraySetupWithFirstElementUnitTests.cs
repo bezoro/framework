@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -13,7 +14,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var   element = 42;
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = ArrayHelper.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.True(result);
@@ -29,7 +30,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var   element = 42;
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = ArrayHelper.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.False(result);
@@ -44,7 +45,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var   element = 42;
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = ArrayHelper.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.False(result);
@@ -58,7 +59,7 @@ public class ArraySetupWithFirstElementUnitTests
 		var    element = 42;
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.SetupArrayWithFirstElement(ref array, element);
+		bool result = ArrayHelper.SetupArrayWithFirstElement(ref array, element);
 
 		// Assert
 		Assert.True(result);

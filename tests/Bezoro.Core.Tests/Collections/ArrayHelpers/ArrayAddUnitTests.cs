@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -13,7 +14,7 @@ public class ArrayAddUnitTests
 		var elementToAdd = new TestObject();
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
+		ArrayHelper.Add(ref array, elementToAdd);
 
 		// Assert
 		Assert.Contains(elementToAdd, array);
@@ -29,7 +30,7 @@ public class ArrayAddUnitTests
 		int           initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
+		ArrayHelper.Add(ref array, elementToAdd);
 
 		// Assert
 		Assert.NotNull(array);
@@ -47,7 +48,7 @@ public class ArrayAddUnitTests
 		int           initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
+		ArrayHelper.Add(ref array, elementToAdd);
 
 		// Assert
 		Assert.NotNull(array);
@@ -64,7 +65,7 @@ public class ArrayAddUnitTests
 		var           elementToAdd = new TestObject();
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd);
+		ArrayHelper.Add(ref array, elementToAdd);
 
 		// Assert
 		Assert.NotNull(array);
@@ -80,7 +81,7 @@ public class ArrayAddUnitTests
 		int initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, null);
+		ArrayHelper.Add(ref array, null);
 
 		// Assert
 		Assert.Equal(initialLength, array.Length);
@@ -96,7 +97,7 @@ public class ArrayAddUnitTests
 		int           initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Add(ref array, elementToAdd, out int index);
+		ArrayHelper.Add(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.Contains(elementToAdd, array);

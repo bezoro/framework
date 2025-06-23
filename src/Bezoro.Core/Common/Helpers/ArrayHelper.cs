@@ -8,7 +8,7 @@ using Bezoro.Core.Logging;
 
 namespace Bezoro.Core.Common.Helpers
 {
-	public static class ArrayHelpers
+	public static class ArrayHelper
 	{
 		public static int ParallelThreshold { get; private set; } = 100;
 
@@ -1152,7 +1152,7 @@ namespace Bezoro.Core.Common.Helpers
 			if (excludeNulls)
 			{
 				// Initialize target with enough space for source elements
-				target = new T[ArrayHelpers.CountNonNullElements(source)];
+				target = new T[ArrayHelper.CountNonNullElements(source)];
 
 				// Fill the target with elements from the source array
 				PopulateTargetWithSource(source, target, 0, true);

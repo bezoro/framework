@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -24,8 +25,8 @@ public class ArrayInitializeNullUnitTests
 		int[] originalNonNullReference = nonNullArray;
 
 		// Act
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref nullArray);
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref nonNullArray);
+		ArrayHelper.InitializeNullArray(ref nullArray);
+		ArrayHelper.InitializeNullArray(ref nonNullArray);
 
 		// Assert
 		Assert.NotNull(nullArray);
@@ -37,7 +38,7 @@ public class ArrayInitializeNullUnitTests
 	public void InitializeNullArray_WhenInputArrayProvided_ThenReturnsExpectedResult(int[]? input, int[] expected)
 	{
 		// Act
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input);
 
 		// Assert
 		Assert.Equal(expected, input);
@@ -50,7 +51,7 @@ public class ArrayInitializeNullUnitTests
 		int[] input = Array.Empty<int>();
 
 		// Act
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input);
 
 		// Assert
 		Assert.NotNull(input);
@@ -65,7 +66,7 @@ public class ArrayInitializeNullUnitTests
 		var expected = new[] { 1, 2, 3 };
 
 		// Act
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input);
 
 		// Assert
 		Assert.Equal(expected, input);
@@ -78,7 +79,7 @@ public class ArrayInitializeNullUnitTests
 		int[]? input = null;
 
 		// Act
-		Common.Helpers.ArrayHelpers.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input);
 
 		// Assert
 		Assert.NotNull(input);

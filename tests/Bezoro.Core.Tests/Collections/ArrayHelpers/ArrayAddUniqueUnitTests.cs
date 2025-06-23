@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using Bezoro.Core.Common.Helpers;
+using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
 
@@ -13,7 +14,7 @@ public class ArrayAddUniqueUnitTests
 		const string? element       = "Element3";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out _);
+		ArrayHelper.AddUnique(ref array, element, out _);
 
 		// Assert
 		Assert.NotNull(array);
@@ -22,7 +23,7 @@ public class ArrayAddUniqueUnitTests
 
 		// Attempt to add a duplicate element
 		int newLength = array.Length;
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out _);
+		ArrayHelper.AddUnique(ref array, element, out _);
 
 		// Assert that duplicate is not added
 		Assert.Equal(newLength, array.Length);
@@ -32,7 +33,7 @@ public class ArrayAddUniqueUnitTests
 	public void AddUnique_WhenArrayExceedsParallelThreshold_UsesParallelMethodAndReturnsCorrectIndex()
 	{
 		// Arrange
-		var           array         = new string?[Common.Helpers.ArrayHelpers.ParallelThreshold * 2];
+		var           array         = new string?[ArrayHelper.ParallelThreshold * 2];
 		int           initialLength = array.Length;
 		const string? elementToAdd  = "Element999";
 
@@ -40,7 +41,7 @@ public class ArrayAddUniqueUnitTests
 			array[i] = $"Element{i + 1}";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out int index);
+		ArrayHelper.AddUnique(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -57,7 +58,7 @@ public class ArrayAddUniqueUnitTests
 		const string? element = "Element2";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
+		ArrayHelper.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -75,7 +76,7 @@ public class ArrayAddUniqueUnitTests
 		const string? elementToAdd  = "Element3";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, elementToAdd, out int index);
+		ArrayHelper.AddUnique(ref array, elementToAdd, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -92,7 +93,7 @@ public class ArrayAddUniqueUnitTests
 		var       element = "Element2";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
+		ArrayHelper.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -109,7 +110,7 @@ public class ArrayAddUniqueUnitTests
 		const string? element = "Element1";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
+		ArrayHelper.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.NotNull(array);
@@ -126,7 +127,7 @@ public class ArrayAddUniqueUnitTests
 		var       element = "Element1";
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, element, out int index);
+		ArrayHelper.AddUnique(ref array, element, out int index);
 
 		// Assert
 		Assert.Single(array);
@@ -140,7 +141,7 @@ public class ArrayAddUniqueUnitTests
 		string[] array = { "Element1" };
 
 		// Act
-		Common.Helpers.ArrayHelpers.AddUnique(ref array, null, out int index);
+		ArrayHelper.AddUnique(ref array, null, out int index);
 
 		// Assert
 		Assert.Single(array);

@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -9,14 +10,14 @@ public class ArrayClearUnitTests
 	public void Clear_WhenArrayExceedsParallelThreshold_UsesParallelMethodToResetAllElements()
 	{
 		// Arrange
-		int threshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
+		int threshold = ArrayHelper.ParallelThreshold;
 		var array     = new int[threshold * 2];
 
 		for (var i = 0 ; i < array.Length ; i++)
 			array[i] = i + 1;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Clear(ref array);
+		ArrayHelper.Clear(ref array);
 
 		// Assert
 		Assert.All(array, element => Assert.Equal(default, element));
@@ -29,7 +30,7 @@ public class ArrayClearUnitTests
 		int[] array = { 1, 2, 3, 4, 5 };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Clear(ref array);
+		ArrayHelper.Clear(ref array);
 
 		// Assert
 		Assert.All(array, element => Assert.Equal(default, element));
@@ -42,7 +43,7 @@ public class ArrayClearUnitTests
 		int[] array = Array.Empty<int>();
 
 		// Act
-		Common.Helpers.ArrayHelpers.Clear(ref array);
+		ArrayHelper.Clear(ref array);
 
 		// Assert
 		Assert.Empty(array);
@@ -55,7 +56,7 @@ public class ArrayClearUnitTests
 		int[]? array = null;
 
 		// Act
-		Exception? exception = Record.Exception(() => Common.Helpers.ArrayHelpers.Clear(ref array));
+		Exception? exception = Record.Exception(() => ArrayHelper.Clear(ref array));
 
 		// Assert
 		Assert.Null(exception);
