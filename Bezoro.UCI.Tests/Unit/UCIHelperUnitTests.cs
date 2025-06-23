@@ -46,4 +46,33 @@ public class UCIHelperUnitTests
 		// Assert
 		Assert.True(result);
 	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("   ")]
+	[InlineData("invalid")]
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")]
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")]
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1")]
+	public void IsValidFen_WhenInValidFen_ReturnsFalse(string invalidFEN)
+	{
+		// Act
+		bool result = UCIHelper.IsValidFen(invalidFEN);
+
+		// Assert 
+		Assert.False(result);
+	}
+
+	[Theory]
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")]
+	[InlineData("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")]
+	[InlineData("8/2k5/8/8/8/8/3K4/8 w - - 0 1")]
+	public void IsValidFen_WhenValidFen_ReturnsTrue(string validFEN)
+	{
+		// Act
+		bool result = UCIHelper.IsValidFen(validFEN);
+
+		// Assert
+		Assert.True(result);
+	}
 }
