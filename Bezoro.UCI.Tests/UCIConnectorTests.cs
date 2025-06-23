@@ -43,6 +43,40 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
+	public async Task GetBestMoveAsync_WhenEngineIsThinking_RaisesInfoReceivedEventWithValidData()
+	{
+		// Arrange
+		await _connector!.SetPositionAsync();
+
+		var validInfoReceivedTcs = new TaskCompletionSource<EngineAnalysisEventArgs>();
+		_connector.InfoReceived += (sender, args) =>
+		{
+			// The engine might send multiple 'info' lines.
+			// We only complete our task when we receive one that contains a search depth.
+			if (args.Depth > 0)
+			{
+				validInfoReceivedTcs.TrySetResult(args);
+			}
+		};
+
+		// Act
+		// Start the search, but we don't need to await it yet.
+		Task<string?> bestMoveTask = _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(500));
+
+		// Assert
+		// Wait for an InfoReceived event with a valid depth to arrive.
+		// The timeout will cause the test to fail if no such event is received.
+		EngineAnalysisEventArgs receivedArgs = await validInfoReceivedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+		// If we reach this point, we know our condition was met.
+		Assert.NotNull(receivedArgs);
+		Assert.True(receivedArgs.Depth > 0);
+
+		// It's good practice to ensure the main search task also completes.
+		await bestMoveTask;
+	}
+
+	[Fact]
 	public async Task GetBestMoveAsync_WhenGivenEnoughTime_ShouldReturnValidMove()
 	{
 		// Arrange
