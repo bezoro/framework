@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -50,7 +51,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		};
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Equal(expectedArray, array);
@@ -63,7 +64,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		object[] expectedArray)
 	{
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Equal(expectedArray, array);
@@ -76,7 +77,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		object[] expectedArray)
 	{
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Equal(expectedArray, array);
@@ -90,7 +91,7 @@ public class ArrayRemoveDuplicatesUnitTests
 			object[] expected)
 	{
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Equal(expected, array);
@@ -103,7 +104,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		var array = new[] { 42 };
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Equal(new[] { 42 }, array);
@@ -116,7 +117,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		int[] array = Array.Empty<int>();
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Empty(array);
@@ -129,7 +130,7 @@ public class ArrayRemoveDuplicatesUnitTests
 		int[]? array = null;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveDuplicates(ref array);
+		ArrayHelper.RemoveDuplicates(ref array);
 
 		// Assert
 		Assert.Null(array);

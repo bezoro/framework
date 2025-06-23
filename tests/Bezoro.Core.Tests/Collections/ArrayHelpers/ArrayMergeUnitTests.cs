@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -12,7 +13,7 @@ public class ArrayMergeUnitTests
 		string?[]? to = null;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(null, ref to);
+		ArrayHelper.Merge(null, ref to);
 
 		// Assert
 		Assert.Null(to);
@@ -32,7 +33,7 @@ public class ArrayMergeUnitTests
 		var to = new TestObject[2]; // Smaller array than 'from'
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(from, to);
@@ -47,7 +48,7 @@ public class ArrayMergeUnitTests
 		var to   = new[] { "X", null, "Z" };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(new[] { "X", "B", "Z" }, to);
@@ -62,7 +63,7 @@ public class ArrayMergeUnitTests
 		var to   = new[] { "A", "B", null };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(new[] { "A", "B", "Z" }, to);
@@ -76,7 +77,7 @@ public class ArrayMergeUnitTests
 		string[] to   = Array.Empty<string>();
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(from, to);
@@ -90,7 +91,7 @@ public class ArrayMergeUnitTests
 		string?[]? to   = null;
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(from, to);
@@ -104,7 +105,7 @@ public class ArrayMergeUnitTests
 		var to   = new[] { 3, 4, 5 };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(new[] { 3, 4, 5 }, to);
@@ -118,7 +119,7 @@ public class ArrayMergeUnitTests
 		var      to   = new[] { "Existing" };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(new[] { "Existing" }, to);
@@ -131,7 +132,7 @@ public class ArrayMergeUnitTests
 		string[] to = { "Existing" };
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(null, ref to);
+		ArrayHelper.Merge(null, ref to);
 
 		// Assert
 		Assert.Equal(new[] { "Existing" }, to);
@@ -145,7 +146,7 @@ public class ArrayMergeUnitTests
 		var to   = new int[2]; // Smaller array than 'from'
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(new[] { 1, 2, 3 }, to);
@@ -159,7 +160,7 @@ public class ArrayMergeUnitTests
 		var to   = new int[1]; // Smaller array than 'from'
 
 		// Act
-		Common.Helpers.ArrayHelpers.Merge(from, ref to);
+		ArrayHelper.Merge(from, ref to);
 
 		// Assert
 		Assert.Equal(from, to);

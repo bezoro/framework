@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -41,8 +42,8 @@ public class ArrayCompareUnitTests
 		TestObject[] array3 = new[] { obj3, obj2 }; // Different instance for first element, but value-equal to array1
 
 		// Act
-		bool result1 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
-		bool result2 = Common.Helpers.ArrayHelpers.CompareArrays(array1, array3);
+		bool result1 = ArrayHelper.CompareArrays(array1, array2);
+		bool result2 = ArrayHelper.CompareArrays(array1, array3);
 
 		// Assert
 		Assert.True(result1, "Comparing an array to itself or an identical array should return true.");
@@ -54,7 +55,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenArraysHaveDifferentElements_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
-		bool comparisonResult = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool comparisonResult = ArrayHelper.CompareArrays(a, b);
 
 		// Assert
 		Assert.False(
@@ -71,7 +72,7 @@ public class ArrayCompareUnitTests
 		var array2 = new[] { 1, 2, 3, 4 };
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
+		bool result = ArrayHelper.CompareArrays(array1, array2);
 
 		// Assert
 		Assert.False(result, "Comparing 2 arrays with different lengths should be considered unequal.");
@@ -82,7 +83,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenArraysOfSimpleTypesAreEqual_ReturnsTrue(object[]? a, object[]? b)
 	{
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool result = ArrayHelper.CompareArrays(a, b);
 
 		// Assert
 		Assert.True(
@@ -95,7 +96,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenBothArraysAreNull_ReturnsTrue()
 	{
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.CompareArrays<object>(null, null);
+		bool result = ArrayHelper.CompareArrays<object>(null, null);
 
 		// Assert
 		Assert.True(result, "Comparing 2 null arrays should be considered equal.");
@@ -109,7 +110,7 @@ public class ArrayCompareUnitTests
 		string?[] array2 = { null, null, null };
 
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.CompareArrays(array1, array2);
+		bool result = ArrayHelper.CompareArrays(array1, array2);
 
 		// Assert
 		Assert.True(
@@ -123,7 +124,7 @@ public class ArrayCompareUnitTests
 	public void CompareArrays_WhenOneArrayIsNullAndOtherIsNot_ReturnsFalse(object[]? a, object[]? b)
 	{
 		// Act
-		bool result = Common.Helpers.ArrayHelpers.CompareArrays(a, b);
+		bool result = ArrayHelper.CompareArrays(a, b);
 
 		// Assert
 		Assert.False(result, "Comparing a null array with a valid array should return false.");
@@ -138,8 +139,8 @@ public class ArrayCompareUnitTests
 		string?[] array3Different = { "a", null, "b" };
 
 		// Act
-		bool resultForIdentical = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array2Identical);
-		bool resultForDifferent = Common.Helpers.ArrayHelpers.CompareArrays(array1Identical, array3Different);
+		bool resultForIdentical = ArrayHelper.CompareArrays(array1Identical, array2Identical);
+		bool resultForDifferent = ArrayHelper.CompareArrays(array1Identical, array3Different);
 
 		// Assert
 		Assert.True(resultForIdentical, "Identical arrays with null elements should return true.");

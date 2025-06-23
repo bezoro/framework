@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 using Array = System.Array;
 
@@ -15,7 +16,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
+		ArrayHelper.RemoveElement(ref array, elementToRemove);
 
 		// Assert
 		Assert.Equal(new[] { 1, 2, 3, 4, 5 }, array);
@@ -30,7 +31,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
+		ArrayHelper.RemoveElement(ref array, elementToRemove);
 
 		// Assert
 		Assert.Empty(array);
@@ -44,7 +45,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
+		ArrayHelper.RemoveElement(ref array, elementToRemove);
 
 		// Assert
 		Assert.Null(array);
@@ -54,12 +55,12 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenArraySizeExceedsThreshold_ThenTargetElementIsRemoved()
 	{
 		// Arrange
-		int   parallelThreshold = Common.Helpers.ArrayHelpers.ParallelThreshold;
+		int   parallelThreshold = ArrayHelper.ParallelThreshold;
 		int[] array             = Enumerable.Range(1, parallelThreshold * 2).ToArray();
 		int   elementToRemove   = parallelThreshold;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
+		ArrayHelper.RemoveElement(ref array, elementToRemove);
 
 		// Assert
 		Assert.DoesNotContain(elementToRemove, array);
@@ -73,7 +74,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove);
+		ArrayHelper.RemoveElement(ref array, elementToRemove);
 
 		// Assert
 		Assert.DoesNotContain(elementToRemove, array);
@@ -88,7 +89,7 @@ public class ArrayRemoveElementUnitTests
 		int       initialLength     = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementNotInArray);
+		ArrayHelper.RemoveElement(ref array, elementNotInArray);
 
 		// Assert
 		Assert.Equal(new[] { 1, 2, 3, 4, 5 }, array);
@@ -103,7 +104,7 @@ public class ArrayRemoveElementUnitTests
 		int initialLength = array.Length;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, null);
+		ArrayHelper.RemoveElement(ref array, null);
 
 		// Assert
 		Assert.Equal(new int?[] { 1, 2, 3, 4, 5 }, array);
@@ -125,7 +126,7 @@ public class ArrayRemoveElementUnitTests
 		// We expect an ArgumentOutOfRangeException when the default case in the switch statement is hit.
 		Assert.Throws<ArgumentOutOfRangeException>(
 			() =>
-				Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove, invalidApproach)
+				ArrayHelper.RemoveElement(ref array, elementToRemove, invalidApproach)
 		);
 	}
 
@@ -137,7 +138,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove); // Default is Resize
+		ArrayHelper.RemoveElement(ref array, elementToRemove); // Default is Resize
 
 		// Assert
 		Assert.Equal(new[] { 1, 2, 4, 5 }, array);
@@ -153,7 +154,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.RemoveElement(ref array, elementToRemove, Enums.SetToNull);
+		ArrayHelper.RemoveElement(ref array, elementToRemove, Enums.SetToNull);
 
 		// Assert
 		Assert.Equal(new int?[] { 1, 2, null, 4, 5 }, array);

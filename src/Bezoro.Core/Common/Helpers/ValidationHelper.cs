@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Bezoro.Core.Common.Helpers
 {
-	public class ValidationHelpers
+	public class ValidationHelper
 	{
 		public static void Condition(
 			bool condition,

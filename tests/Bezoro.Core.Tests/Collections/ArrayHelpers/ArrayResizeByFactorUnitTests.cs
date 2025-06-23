@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Common.Helpers;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -13,7 +14,7 @@ public class ArrayResizeByFactorUnitTests
 		const int factor = 3;
 
 		// Act
-		Common.Helpers.ArrayHelpers.ResizeByFactor(ref array, factor);
+		ArrayHelper.ResizeByFactor(ref array, factor);
 
 		// Assert
 		Assert.Equal(0, array.Length);
@@ -33,7 +34,7 @@ public class ArrayResizeByFactorUnitTests
 		int[] array = { 1, 2, 3 };
 
 		// Act
-		Common.Helpers.ArrayHelpers.ResizeByFactor(ref array, factor);
+		ArrayHelper.ResizeByFactor(ref array, factor);
 
 		// Assert
 		Assert.Equal(3, array.Length);
@@ -47,7 +48,7 @@ public class ArrayResizeByFactorUnitTests
 		var   factor = 2;
 
 		// Act
-		Common.Helpers.ArrayHelpers.ResizeByFactor(ref array, factor);
+		ArrayHelper.ResizeByFactor(ref array, factor);
 
 		// Assert
 		Assert.Equal(6, array.Length);
