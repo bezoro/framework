@@ -154,12 +154,34 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
-	public void StartAsync_ShouldPopulateEngineInfo()
+	public void StartEngineAsync_ShouldPopulateEngineInfo()
 	{
 		// Assert
 		Assert.NotNull(_connector!.EngineInfo);
 		Assert.Contains(_connector.EngineInfo, line => line.Contains("id name Stockfish"));
 		Assert.Contains(_connector.EngineInfo, line => line.Contains("id author"));
+	}
+
+	[Fact]
+	public void StartEngineAsync_ShouldPopulateSupportedOptions()
+	{
+		// Arrange: The connector is initialized by the IAsyncLifetime fixture,
+		// which calls StartEngineAsync automatically.
+
+		// Assert
+		// The SupportedOptions list should be populated after initialization.
+		Assert.NotNull(_connector!.SupportedOptions);
+		Assert.NotEmpty(_connector.SupportedOptions);
+
+		// Check for a specific, well-known option like "Hash".
+		UCIOption? hashOption = _connector.SupportedOptions.FirstOrDefault(o => o.Name == "Hash");
+		Assert.NotNull(hashOption);
+
+		// Verify that the details of the option were parsed correctly.
+		Assert.Equal("spin", hashOption.Type);
+		Assert.NotNull(hashOption.Default);
+		Assert.NotNull(hashOption.Min);
+		Assert.NotNull(hashOption.Max);
 	}
 
 	[Fact]
