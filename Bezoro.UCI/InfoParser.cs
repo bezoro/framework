@@ -3,10 +3,10 @@ using System.Linq;
 
 namespace Bezoro.UCI
 {
-    /// <summary>
-    ///     Provides static helper methods for parsing UCI 'info' strings.
-    /// </summary>
-    internal static class InfoParser
+	/// <summary>
+	///     Provides static helper methods for parsing UCI 'info' strings.
+	/// </summary>
+	internal static class InfoParser
 	{
 		public static EngineAnalysisEventArgs Parse(string infoLine)
 		{

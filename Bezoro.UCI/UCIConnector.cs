@@ -8,8 +8,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-public record UCIOption(string Name, string Type, string Default, string Min, string Max, string[] Vars);
-
 namespace Bezoro.UCI
 {
 	/// <summary>
@@ -557,4 +555,6 @@ namespace Bezoro.UCI
 			return tcs.Task;
 		}
 	}
+
+	public record UCIOption(string Name, string Type, string Default, string Min, string Max, string[] Vars);
 }
