@@ -649,13 +649,24 @@ namespace Bezoro.UCI.API
 		/// </summary>
 		private static MoveClassification ClassifyMove(string move, BoardState boardState)
 		{
+			if (string.IsNullOrEmpty(move) || move.Length < 4)
+			{
+				throw new InvalidOperationException($"Invalid move '{move}'.");
+			}
+
 			var parsedMove = new ParsedMove(
 				move[..2],
 				move[2..4],
 				move.Length == 5 ? move[4] : ' '
 			);
 
-			boardState.PiecePositions.TryGetValue(parsedMove.From, out char movingPiece);
+			if (!boardState.PiecePositions.TryGetValue(parsedMove.From, out char movingPiece))
+			{
+				// This indicates a severe inconsistency between the board state and the move.
+				throw new InvalidOperationException(
+					$"No piece found at the 'From' square '{parsedMove.From}' for move '{move}'.");
+			}
+
 			bool isCaptureOnToSquare = boardState.PiecePositions.ContainsKey(parsedMove.To);
 
 			if (IsCastling(parsedMove, movingPiece))
