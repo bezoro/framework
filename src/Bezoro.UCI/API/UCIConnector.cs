@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +11,7 @@ using Bezoro.UCI.API.Exceptions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Extensions;
 using Bezoro.UCI.Helpers;
+using Bezoro.UCI.Internals;
 using Bezoro.UCI.Types;
 
 namespace Bezoro.UCI.API
@@ -194,7 +194,7 @@ namespace Bezoro.UCI.API
 				}
 				else if (line.StartsWith("option name"))
 				{
-					UCIOption? option = ParseOptionLine(line);
+					UCIOption? option = UCIOptionParser.ParseOptionLine(line);
 					if (option != null)
 					{
 						_supportedOptions.Add(option);
@@ -339,11 +339,11 @@ namespace Bezoro.UCI.API
 						await GetLegalMovesAsync(cancellationToken, false); // `false` to not re-acquire the semaphore
 
 				// --- Part 3: Classify the moves ---
-				BoardState boardState      = ParseFen(currentFen);
+				BoardState boardState      = BoardStateParser.ParseFen(currentFen);
 				var        classifiedMoves = new List<MoveClassification>();
 				foreach (string move in legalMoves)
 				{
-					classifiedMoves.Add(ClassifyMove(move, boardState));
+					classifiedMoves.Add(MoveClassifier.ClassifyMove(move, boardState));
 				}
 
 				return classifiedMoves;
@@ -480,7 +480,7 @@ namespace Bezoro.UCI.API
 			await _commandSemaphore.WaitAsync(cancellationToken);
 			try
 			{
-				string goCommand = BuildGoCommand(parameters);
+				string goCommand = SearchHelper.BuildGoCommand(parameters);
 				await _processInput.WriteLineAsync(goCommand);
 				return await WaitForBestMoveResponseAsync(parameters, cancellationToken);
 			}
@@ -563,208 +563,7 @@ namespace Bezoro.UCI.API
 			GC.SuppressFinalize(this);
 		}
 
-		internal static string BuildGoCommand(SearchParameters parameters)
-		{
-			var commandBuilder = new StringBuilder(UCIConstants.GoCommand);
-
-			if (parameters.SearchMoves?.Any() == true)
-			{
-				commandBuilder.Append($" {UCIConstants.SearchMoves} ").Append(string.Join(" ", parameters.SearchMoves));
-			}
-
-			if (parameters.WhiteTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Wtime} ").Append(parameters.WhiteTimeMs.Value);
-			}
-
-			if (parameters.BlackTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Btime} ").Append(parameters.BlackTimeMs.Value);
-			}
-
-			if (parameters.WhiteIncrementMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Winc} ").Append(parameters.WhiteIncrementMs.Value);
-			}
-
-			if (parameters.BlackIncrementMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Binc} ").Append(parameters.BlackIncrementMs.Value);
-			}
-
-			if (parameters.Depth.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Depth} ").Append(parameters.Depth.Value);
-			}
-
-			if (parameters.Nodes.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Nodes} ").Append(parameters.Nodes.Value);
-			}
-
-			if (parameters.Mate.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Mate} ").Append(parameters.Mate.Value);
-			}
-
-			if (parameters.MoveTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.Movetime} ").Append(parameters.MoveTimeMs.Value);
-			}
-
-			if (parameters.Infinite)
-			{
-				commandBuilder.Append($" {UCIConstants.Infinite}");
-			}
-
-			return commandBuilder.ToString();
-		}
-
-		private static bool IsCastling(ParsedMove move, char movingPiece) =>
-			char.ToLower(movingPiece) == 'k' && Math.Abs(move.From[0] - move.To[0]) == 2;
-
-		private static bool IsEnPassant(ParsedMove move, char movingPiece, bool isCapture, BoardState boardState) =>
-			char.ToLower(movingPiece) == 'p'        &&
-			move.From[0]              != move.To[0] &&
-			!isCapture                              &&
-			move.To.Equals(boardState.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
-
-		private static bool IsPromotion(char movingPiece, char promotionChar) =>
-			char.ToLower(movingPiece) == 'p' && promotionChar != ' ';
-
-		private static CancellationTokenSource? CreateTimeoutCtsForSearch(SearchParameters parameters)
-		{
-			if (parameters.Infinite)
-			{
-				return null;
-			}
-
-			// Add a 5-second buffer to the longest possible thinking time to allow for communication overhead.
-			int timeoutMilliseconds = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
-			return new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMilliseconds));
-		}
-
-		/// <summary>
-		///     Analyzes a single move based on the current board state to determine its type.
-		/// </summary>
-		private static MoveClassification ClassifyMove(string move, BoardState boardState)
-		{
-			if (string.IsNullOrEmpty(move) || move.Length < 4)
-			{
-				throw new InvalidOperationException($"Invalid move '{move}'.");
-			}
-
-			var parsedMove = new ParsedMove(
-				move[..2],
-				move[2..4],
-				move.Length == 5 ? move[4] : ' '
-			);
-
-			if (!boardState.PiecePositions.TryGetValue(parsedMove.From, out char movingPiece))
-			{
-				// This indicates a severe inconsistency between the board state and the move.
-				throw new InvalidOperationException(
-					$"No piece found at the 'From' square '{parsedMove.From}' for move '{move}'.");
-			}
-
-			bool isCaptureOnToSquare = boardState.PiecePositions.ContainsKey(parsedMove.To);
-
-			if (IsCastling(parsedMove, movingPiece))
-			{
-				return new MoveClassification(move) { IsCastling = true };
-			}
-
-			if (IsEnPassant(parsedMove, movingPiece, isCaptureOnToSquare, boardState))
-			{
-				return new MoveClassification(move) { IsCapture = true, IsEnPassant = true };
-			}
-
-			if (IsPromotion(movingPiece, parsedMove.PromotionChar))
-			{
-				return new MoveClassification(move) { IsPromotion = true, IsCapture = isCaptureOnToSquare };
-			}
-
-			if (isCaptureOnToSquare)
-			{
-				return new MoveClassification(move) { IsCapture = true };
-			}
-
-			return new MoveClassification(move);
-		}
-
-		private static string? ParseBestMoveFromResponse(string bestMoveLine)
-		{
-			// Expected format is "bestmove <move> [ponder <move>]"
-			string[] parts = bestMoveLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-			return parts.Length > 1 ? parts[1] : null;
-		}
-
-		private static UCIOption ParseOptionLine(string line)
-		{
-			string[] parts        = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-			string   name         = null, type = null, defaultValue = null, min = null, max = null;
-			var      vars         = new List<string>();
-			var      isVarSection = false;
-
-			for (var i = 0 ; i < parts.Length ; i++)
-			{
-				switch (parts[i])
-				{
-					case "name":    name         = parts[++i]; break;
-					case "type":    type         = parts[++i]; break;
-					case "default": defaultValue = parts[++i]; break;
-					case "min":     min          = parts[++i]; break;
-					case "max":     max          = parts[++i]; break;
-					case "var":
-						isVarSection = true;
-						break;
-					default:
-						if (isVarSection)
-						{
-							vars.Add(parts[i]);
-						}
-
-						break;
-				}
-			}
-
-			return new UCIOption(name, type, defaultValue, min, max, vars.ToArray());
-		}
-
-		/// <summary>
-		///     Parses a FEN string to extract the piece positions and the en passant target square.
-		/// </summary>
-		private BoardState ParseFen(string fen)
-		{
-			string[]? parts           = fen.Split(' ');
-			string    piecePlacement  = parts[0];
-			string?   enPassantTarget = parts.Length > 3 && parts[3] != "-" ? parts[3] : null;
-
-			var positions = new Dictionary<string, char>();
-			var rank      = 8;
-			var file      = 0; // 'a' is 0
-
-			foreach (char c in piecePlacement)
-			{
-				if (c == '/')
-				{
-					rank--;
-					file = 0;
-				}
-				else if (char.IsDigit(c))
-				{
-					file += (int)char.GetNumericValue(c);
-				}
-				else
-				{
-					var square = $"{(char)('a' + file)}{rank}";
-					positions.Add(square, c);
-					file++;
-				}
-			}
-
-			return new BoardState(positions, enPassantTarget);
-		}
+		internal static string BuildGoCommand(SearchParameters parameters) => SearchHelper.BuildGoCommand(parameters);
 
 		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
 		{
@@ -807,7 +606,7 @@ namespace Bezoro.UCI.API
 		private async Task<string?> WaitForBestMoveResponseAsync(
 			SearchParameters parameters, CancellationToken cancellationToken)
 		{
-			using CancellationTokenSource? timeoutCts = CreateTimeoutCtsForSearch(parameters);
+			using CancellationTokenSource? timeoutCts = SearchHelper.CreateTimeoutCtsForSearch(parameters);
 			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
 
@@ -825,7 +624,7 @@ namespace Bezoro.UCI.API
 				}
 				else if (line.StartsWith(UCIConstants.BestMoveResponse))
 				{
-					return ParseBestMoveFromResponse(line);
+					return SearchHelper.ParseBestMoveFromResponse(line);
 				}
 			}
 		}
@@ -888,25 +687,6 @@ namespace Bezoro.UCI.API
 
 				return await readTask;
 			}
-		}
-
-		/// <summary>
-		///     A simple record to hold the essential parts of a board state parsed from a FEN string.
-		/// </summary>
-		private sealed record BoardState(Dictionary<string, char> PiecePositions, string? EnPassantTarget);
-
-		private readonly struct ParsedMove
-		{
-			public ParsedMove(string from, string to, char promotionChar)
-			{
-				PromotionChar = promotionChar;
-				From          = from;
-				To            = to;
-			}
-
-			public char PromotionChar { get; }
-			public string From { get; }
-			public string To { get; }
 		}
 	}
 }
