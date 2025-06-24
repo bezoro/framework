@@ -9,16 +9,25 @@ namespace Bezoro.UCI
 	/// </summary>
 	internal static class InfoParser
 	{
+		private const string TokenDepth    = "depth";
+		private const string TokenScore    = "score";
+		private const string TokenNodes    = "nodes";
+		private const string TokenNps      = "nps";
+		private const string TokenPv       = "pv";
+		private const string ScoreTypeCp   = "cp";
+		private const string ScoreTypeMate = "mate";
+		private const string InfoPrefix    = "info ";
+
 		private static readonly Dictionary<string, Action<Queue<string>, EngineAnalysisEventArgs>> TokenHandlers = new()
 		{
-			["depth"] = static (tokens, args) =>
+			[TokenDepth] = static (tokens, args) =>
 			{
 				if (tokens.TryDequeue(out string value) && int.TryParse(value, out int depth))
 				{
 					args.Depth = depth;
 				}
 			},
-			["score"] = static (tokens, args) =>
+			[TokenScore] = static (tokens, args) =>
 			{
 				if (!tokens.TryDequeue(out string type) || !tokens.TryDequeue(out string value))
 				{
@@ -27,22 +36,22 @@ namespace Bezoro.UCI
 
 				switch (type)
 				{
-					case "cp" when int.TryParse(value, out int cp):
+					case ScoreTypeCp when int.TryParse(value, out int cp):
 						args.ScoreCp = cp;
 						break;
-					case "mate" when int.TryParse(value, out int mate):
+					case ScoreTypeMate when int.TryParse(value, out int mate):
 						args.Mate = mate;
 						break;
 				}
 			},
-			["nodes"] = static (tokens, args) =>
+			[TokenNodes] = static (tokens, args) =>
 			{
 				if (tokens.TryDequeue(out string value) && long.TryParse(value, out long nodes))
 				{
 					args.Nodes = nodes;
 				}
 			},
-			["nps"] = static (tokens, args) =>
+			[TokenNps] = static (tokens, args) =>
 			{
 				if (tokens.TryDequeue(out string value) && long.TryParse(value, out long nps))
 				{
@@ -54,7 +63,7 @@ namespace Bezoro.UCI
 		public static EngineAnalysisEventArgs Parse(string infoLine)
 		{
 			var args = new EngineAnalysisEventArgs(infoLine);
-			if (!infoLine.StartsWith("info "))
+			if (!infoLine.StartsWith(InfoPrefix))
 			{
 				return args;
 			}
@@ -65,7 +74,7 @@ namespace Bezoro.UCI
 			{
 				string token = tokens.Dequeue();
 
-				if (token == "pv")
+				if (token == TokenPv)
 				{
 					args.PrincipalVariation = tokens.ToList().AsReadOnly();
 					return args; // PV is always the last part of the info string.
