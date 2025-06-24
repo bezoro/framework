@@ -7,6 +7,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.UCI.API.Constants;
+using Bezoro.UCI.API.Exceptions;
+using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Extensions;
 using Bezoro.UCI.Helpers;
 using Bezoro.UCI.Types;
@@ -20,33 +23,19 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private const string BestMoveResponse  = "bestmove";
-		private const string GoCommand         = "go";
-		private const string IsReadyCommand    = "isready";
-		private const string PositionCommand   = "position";
-		private const string QuitCommand       = "quit";
-		private const string ReadyOkResponse   = "readyok";
-		private const string SetOptionCommand  = "setoption name";
-		private const string StopCommand       = "stop";
-		private const string UCICommand        = "uci";
-		private const string UCINewGameCommand = "ucinewgame";
-		private const string UCIOkResponse     = "uciok";
-
-		private static readonly Regex MoveRegex =
-			new(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+", RegexOptions.Compiled);
 		private readonly List<string>    _engineInfo       = new();
 		private readonly List<UCIOption> _supportedOptions = new();
 		private readonly Process         _engineProcess;
 		private readonly SemaphoreSlim   _commandSemaphore = new(1, 1);
 		private volatile bool            _isDisposed;
-		private          StreamReader    _processOutput;
-		private          StreamWriter    _processInput;
+		private          StreamReader?   _processOutput;
+		private          StreamWriter?   _processInput;
 
 		/// <summary>
 		///     Fires whenever the engine sends real-time analysis information.
 		///     Subscribe to this event to get updates on the engine's search progress.
 		/// </summary>
-		public event EventHandler<EngineAnalysisEventArgs> InfoReceived;
+		public event EventHandler<EngineAnalysisEventArgs>? InfoReceived;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -54,6 +43,10 @@ namespace Bezoro.UCI.API
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
 		public UCIConnector(string enginePath)
 		{
+			_processInput  = null;
+			_processOutput = null;
+			InfoReceived   = null;
+
 			if (string.IsNullOrWhiteSpace(enginePath))
 			{
 				throw new ArgumentException("Engine path cannot be null or whitespace.", nameof(enginePath));
@@ -92,7 +85,8 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task SetOptionAsync(string name, string value, CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync($"{SetOptionCommand} {name} value {value}", cancellationToken);
+			await SendCommandAndWaitForReadyAsync($"{UCIConstants.SetOptionCommand} {name} value {value}",
+				cancellationToken);
 		}
 
 		/// <summary>
@@ -102,9 +96,15 @@ namespace Bezoro.UCI.API
 		/// <param name="moves">An optional sequence of moves to apply to the position.</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task SetPositionAsync(
-			string fen = "startpos", IEnumerable<string> moves = null, CancellationToken cancellationToken = default)
+			string fen = UCIConstants.StartPosCommand, IEnumerable<string> moves = null,
+			CancellationToken cancellationToken = default)
 		{
-			string command = PositionCommand + " " + (fen.ToLower() == "startpos" ? "startpos" : $"fen {fen}");
+			string command = UCIConstants.PositionCommand +
+							 " "                          +
+							 (fen.ToLower() == UCIConstants.StartPosCommand
+								 ? UCIConstants.StartPosCommand
+								 : $"fen {fen}");
+
 			if (moves?.Any() == true)
 			{
 				command += " moves " + string.Join(" ", moves);
@@ -143,14 +143,16 @@ namespace Bezoro.UCI.API
 		public async Task SetStrengthAsync(int elo, CancellationToken cancellationToken = default)
 		{
 			bool limitStrengthSupported =
-				SupportedOptions.Any(o => o.Name.Equals("UCI_LimitStrength", StringComparison.OrdinalIgnoreCase));
+				SupportedOptions.Any(o =>
+					o.Name.Equals(UCIConstants.UCILimitstrength, StringComparison.OrdinalIgnoreCase));
 
-			bool eloSupported = SupportedOptions.Any(o => o.Name.Equals("UCI_Elo", StringComparison.OrdinalIgnoreCase));
+			bool eloSupported =
+				SupportedOptions.Any(o => o.Name.Equals(UCIConstants.UCIElo, StringComparison.OrdinalIgnoreCase));
 
 			if (limitStrengthSupported && eloSupported)
 			{
-				await SetOptionAsync("UCI_LimitStrength", "true",         cancellationToken);
-				await SetOptionAsync("UCI_Elo",           elo.ToString(), cancellationToken);
+				await SetOptionAsync(UCIConstants.UCILimitstrength, "true",         cancellationToken);
+				await SetOptionAsync(UCIConstants.UCIElo,           elo.ToString(), cancellationToken);
 			}
 			else
 			{
@@ -173,7 +175,7 @@ namespace Bezoro.UCI.API
 			_processInput  = _engineProcess.StandardInput;
 			_processOutput = _engineProcess.StandardOutput;
 
-			await _processInput.WriteLineAsync(UCICommand);
+			await _processInput.WriteLineAsync(UCIConstants.UCICommand);
 
 			var uciOkReceived = false;
 
@@ -198,7 +200,7 @@ namespace Bezoro.UCI.API
 						_supportedOptions.Add(option);
 					}
 				}
-				else if (line == UCIOkResponse)
+				else if (line == UCIConstants.UCIOkResponse)
 				{
 					uciOkReceived = true;
 					break;
@@ -226,7 +228,7 @@ namespace Bezoro.UCI.API
 
 			try
 			{
-				await _processInput.WriteLineAsync(QuitCommand);
+				await _processInput.WriteLineAsync(UCIConstants.QuitCommand);
 
 				// Asynchronously wait for the process to exit with a timeout.
 				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -253,7 +255,7 @@ namespace Bezoro.UCI.API
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			await _processInput.WriteLineAsync(StopCommand);
+			await _processInput.WriteLineAsync(UCIConstants.StopCommand);
 		}
 
 		/// <summary>
@@ -264,7 +266,7 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task UCINewGameAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync(UCINewGameCommand, cancellationToken);
+			await SendCommandAndWaitForReadyAsync(UCIConstants.UCINewGameCommand, cancellationToken);
 		}
 
 		/// <summary>
@@ -300,7 +302,7 @@ namespace Bezoro.UCI.API
 			try
 			{
 				// --- Part 1: Get the FEN string using the 'd' command ---
-				await _processInput.WriteLineAsync("d");
+				await _processInput.WriteLineAsync(UCIConstants.DCommand);
 				var currentFen = "";
 				// Read lines until we find the FEN string. The 'd' command in Stockfish
 				// doesn't have a clear "readyok" end signal, so we read until we find what we need
@@ -407,7 +409,7 @@ namespace Bezoro.UCI.API
 
 			try
 			{
-				await _processInput.WriteLineAsync("go perft 1");
+				await _processInput.WriteLineAsync(UCIConstants.GOPerftOne);
 
 				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
@@ -420,7 +422,7 @@ namespace Bezoro.UCI.API
 						break;
 					}
 
-					Match match = MoveRegex.Match(line);
+					Match match = UCIConstants.MoveRegex.Match(line);
 
 					if (match.Success)
 					{
@@ -563,56 +565,56 @@ namespace Bezoro.UCI.API
 
 		internal static string BuildGoCommand(SearchParameters parameters)
 		{
-			var commandBuilder = new StringBuilder(GoCommand);
+			var commandBuilder = new StringBuilder(UCIConstants.GoCommand);
 
 			if (parameters.SearchMoves?.Any() == true)
 			{
-				commandBuilder.Append(" searchmoves ").Append(string.Join(" ", parameters.SearchMoves));
+				commandBuilder.Append($" {UCIConstants.SearchMoves} ").Append(string.Join(" ", parameters.SearchMoves));
 			}
 
 			if (parameters.WhiteTimeMs.HasValue)
 			{
-				commandBuilder.Append(" wtime ").Append(parameters.WhiteTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.Wtime} ").Append(parameters.WhiteTimeMs.Value);
 			}
 
 			if (parameters.BlackTimeMs.HasValue)
 			{
-				commandBuilder.Append(" btime ").Append(parameters.BlackTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.Btime} ").Append(parameters.BlackTimeMs.Value);
 			}
 
 			if (parameters.WhiteIncrementMs.HasValue)
 			{
-				commandBuilder.Append(" winc ").Append(parameters.WhiteIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.Winc} ").Append(parameters.WhiteIncrementMs.Value);
 			}
 
 			if (parameters.BlackIncrementMs.HasValue)
 			{
-				commandBuilder.Append(" binc ").Append(parameters.BlackIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.Binc} ").Append(parameters.BlackIncrementMs.Value);
 			}
 
 			if (parameters.Depth.HasValue)
 			{
-				commandBuilder.Append(" depth ").Append(parameters.Depth.Value);
+				commandBuilder.Append($" {UCIConstants.Depth} ").Append(parameters.Depth.Value);
 			}
 
 			if (parameters.Nodes.HasValue)
 			{
-				commandBuilder.Append(" nodes ").Append(parameters.Nodes.Value);
+				commandBuilder.Append($" {UCIConstants.Nodes} ").Append(parameters.Nodes.Value);
 			}
 
 			if (parameters.Mate.HasValue)
 			{
-				commandBuilder.Append(" mate ").Append(parameters.Mate.Value);
+				commandBuilder.Append($" {UCIConstants.Mate} ").Append(parameters.Mate.Value);
 			}
 
 			if (parameters.MoveTimeMs.HasValue)
 			{
-				commandBuilder.Append(" movetime ").Append(parameters.MoveTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.Movetime} ").Append(parameters.MoveTimeMs.Value);
 			}
 
 			if (parameters.Infinite)
 			{
-				commandBuilder.Append(" infinite");
+				commandBuilder.Append($" {UCIConstants.Infinite}");
 			}
 
 			return commandBuilder.ToString();
@@ -774,7 +776,7 @@ namespace Bezoro.UCI.API
 
 		private async Task WaitUntilReadyAsync(CancellationToken cancellationToken)
 		{
-			await _processInput.WriteLineAsync(IsReadyCommand);
+			await _processInput.WriteLineAsync(UCIConstants.IsReadyCommand);
 
 			while (true)
 			{
@@ -784,7 +786,7 @@ namespace Bezoro.UCI.API
 					throw new UCIException("Engine process exited unexpectedly while waiting for readyok.");
 				}
 
-				if (line == ReadyOkResponse)
+				if (line == UCIConstants.ReadyOkResponse)
 				{
 					break;
 				}
@@ -810,7 +812,7 @@ namespace Bezoro.UCI.API
 				{
 					InfoReceived?.Invoke(this, InfoParser.Parse(line));
 				}
-				else if (line.StartsWith(BestMoveResponse))
+				else if (line.StartsWith(UCIConstants.BestMoveResponse))
 				{
 					return ParseBestMoveFromResponse(line);
 				}
@@ -823,7 +825,7 @@ namespace Bezoro.UCI.API
 		/// </summary>
 		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync("d", cancellationToken);
+			await SendCommandAndWaitForReadyAsync(UCIConstants.DCommand, cancellationToken);
 			var fen = string.Empty;
 			while (true)
 			{
@@ -898,15 +900,4 @@ namespace Bezoro.UCI.API
 			public string To { get; }
 		}
 	}
-
-	/// <summary>
-	///     A custom exception for errors related to the UCI protocol or engine communication.
-	/// </summary>
-	public class UCIException : Exception
-	{
-		public UCIException(string message) : base(message) { }
-		public UCIException(string message, Exception innerException) : base(message, innerException) { }
-	}
-
-	public record UCIOption(string Name, string Type, string Default, string Min, string Max, string[] Vars);
 }
