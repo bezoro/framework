@@ -16,7 +16,7 @@ namespace Bezoro.UCI
 			@"^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+\s[bw]\s(-|K?Q?k?q?)\s(-|[a-h][36])\s\d+\s\d+$",
 			RegexOptions.Compiled);
 		// Regex for a UCI move (e.g., "e2e4" or "a7a8q" for promotion).
-		private static readonly Regex UciMoveRegex = new(@"^[a-h][1-8][a-h][1-8]([qrbn])?$", RegexOptions.Compiled);
+		private static readonly Regex UCIMoveRegex = new(@"^[a-h][1-8][a-h][1-8]([qrbn])?$", RegexOptions.Compiled);
 
 		/// <summary>
 		///     Validates if a string is in proper algebraic notation for a single square.
@@ -40,7 +40,7 @@ namespace Bezoro.UCI
 		/// <param name="move">The move string to validate.</param>
 		/// <returns>True if the move is in valid UCI format, false otherwise.</returns>
 		public static bool IsValidUciMove(string? move) =>
-			!string.IsNullOrWhiteSpace(move) && UciMoveRegex.IsMatch(move.ToLower());
+			!string.IsNullOrWhiteSpace(move) && UCIMoveRegex.IsMatch(move.ToLower());
 
 		/// <summary>
 		///     Extracts the active player color from a FEN string.
