@@ -618,6 +618,18 @@ namespace Bezoro.UCI.API
 			return commandBuilder.ToString();
 		}
 
+		private static bool IsCastling(ParsedMove move, char movingPiece) =>
+			char.ToLower(movingPiece) == 'k' && Math.Abs(move.From[0] - move.To[0]) == 2;
+
+		private static bool IsEnPassant(ParsedMove move, char movingPiece, bool isCapture, BoardState boardState) =>
+			char.ToLower(movingPiece) == 'p'        &&
+			move.From[0]              != move.To[0] &&
+			!isCapture                              &&
+			move.To.Equals(boardState.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
+
+		private static bool IsPromotion(char movingPiece, char promotionChar) =>
+			char.ToLower(movingPiece) == 'p' && promotionChar != ' ';
+
 		private static CancellationTokenSource? CreateTimeoutCtsForSearch(SearchParameters parameters)
 		{
 			if (parameters.Infinite)
@@ -628,6 +640,43 @@ namespace Bezoro.UCI.API
 			// Add a 5-second buffer to the longest possible thinking time to allow for communication overhead.
 			int timeoutMilliseconds = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
 			return new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+		}
+
+		/// <summary>
+		///     Analyzes a single move based on the current board state to determine its type.
+		/// </summary>
+		private static MoveClassification ClassifyMove(string move, BoardState boardState)
+		{
+			var parsedMove = new ParsedMove(
+				move[..2],
+				move[2..4],
+				move.Length == 5 ? move[4] : ' '
+			);
+
+			boardState.PiecePositions.TryGetValue(parsedMove.From, out char movingPiece);
+			bool isCaptureOnToSquare = boardState.PiecePositions.ContainsKey(parsedMove.To);
+
+			if (IsCastling(parsedMove, movingPiece))
+			{
+				return new MoveClassification(move) { IsCastling = true };
+			}
+
+			if (IsEnPassant(parsedMove, movingPiece, isCaptureOnToSquare, boardState))
+			{
+				return new MoveClassification(move) { IsCapture = true, IsEnPassant = true };
+			}
+
+			if (IsPromotion(movingPiece, parsedMove.PromotionChar))
+			{
+				return new MoveClassification(move) { IsPromotion = true, IsCapture = isCaptureOnToSquare };
+			}
+
+			if (isCaptureOnToSquare)
+			{
+				return new MoveClassification(move) { IsCapture = true };
+			}
+
+			return new MoveClassification(move);
 		}
 
 		private static string? ParseBestMoveFromResponse(string bestMoveLine)
@@ -702,54 +751,6 @@ namespace Bezoro.UCI.API
 			}
 
 			return new BoardState(positions, enPassantTarget);
-		}
-
-		/// <summary>
-		///     Analyzes a single move based on the current board state to determine its type.
-		/// </summary>
-		private MoveClassification ClassifyMove(string move, BoardState boardState)
-		{
-			string fromSquare     = move.Substring(0, 2);
-			string toSquare       = move.Substring(2, 2);
-			char   promotionPiece = move.Length == 5 ? move[4] : ' ';
-
-			boardState.PiecePositions.TryGetValue(fromSquare, out char movingPiece);
-			bool isCapture = boardState.PiecePositions.ContainsKey(toSquare);
-
-			bool isPawnMove = char.ToLower(movingPiece) == 'p';
-			bool isKingMove = char.ToLower(movingPiece) == 'k';
-
-			// 1. Check for Castling (a king moving two squares)
-			if (isKingMove && Math.Abs(fromSquare[0] - toSquare[0]) == 2)
-			{
-				return new MoveClassification(move) { IsCastling = true };
-			}
-
-			// 2. Check for En Passant (a pawn moving diagonally to an empty square that is the en passant target)
-			bool isEnPassant = isPawnMove                   &&
-							   fromSquare[0] != toSquare[0] &&
-							   !isCapture                   &&
-							   toSquare.Equals(boardState.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
-
-			if (isEnPassant)
-			{
-				return new MoveClassification(move) { IsCapture = true, IsEnPassant = true };
-			}
-
-			// 3. Check for Promotion (a pawn move with a 5th character)
-			if (isPawnMove && promotionPiece != ' ')
-			{
-				return new MoveClassification(move) { IsPromotion = true, IsCapture = isCapture };
-			}
-
-			// 4. Check for a standard capture
-			if (isCapture)
-			{
-				return new MoveClassification(move) { IsCapture = true };
-			}
-
-			// 5. If none of the above, it's a normal move
-			return new MoveClassification(move);
 		}
 
 		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
@@ -879,7 +880,23 @@ namespace Bezoro.UCI.API
 		/// <summary>
 		///     A simple record to hold the essential parts of a board state parsed from a FEN string.
 		/// </summary>
-		private record BoardState(Dictionary<string, char> PiecePositions, string? EnPassantTarget);
+		private sealed record BoardState(Dictionary<string, char> PiecePositions, string? EnPassantTarget);
+
+		private readonly struct ParsedMove
+		{
+			public ParsedMove(string from, string to, char promotionChar)
+			{
+				From          = from;
+				To            = to;
+				PromotionChar = promotionChar;
+			}
+
+			public char PromotionChar { get; }
+
+			public string From { get; }
+
+			public string To { get; }
+		}
 	}
 
 	/// <summary>
