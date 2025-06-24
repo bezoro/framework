@@ -9,6 +9,10 @@ namespace Bezoro.UCI
 	/// </summary>
 	public class EngineAnalysisEventArgs : EventArgs
 	{
+		public EngineAnalysisEventArgs(string rawInfo)
+		{
+			RawInfo = rawInfo;
+		}
 		/// <summary> Search depth in plies. </summary>
 		public int? Depth { get; set; }
 

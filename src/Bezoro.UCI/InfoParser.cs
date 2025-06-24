@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Bezoro.UCI
@@ -8,58 +9,71 @@ namespace Bezoro.UCI
 	/// </summary>
 	internal static class InfoParser
 	{
+		private static readonly Dictionary<string, Action<Queue<string>, EngineAnalysisEventArgs>> TokenHandlers = new()
+		{
+			["depth"] = static (tokens, args) =>
+			{
+				if (tokens.TryDequeue(out string value) && int.TryParse(value, out int depth))
+				{
+					args.Depth = depth;
+				}
+			},
+			["score"] = static (tokens, args) =>
+			{
+				if (!tokens.TryDequeue(out string type) || !tokens.TryDequeue(out string value))
+				{
+					return;
+				}
+
+				switch (type)
+				{
+					case "cp" when int.TryParse(value, out int cp):
+						args.ScoreCp = cp;
+						break;
+					case "mate" when int.TryParse(value, out int mate):
+						args.Mate = mate;
+						break;
+				}
+			},
+			["nodes"] = static (tokens, args) =>
+			{
+				if (tokens.TryDequeue(out string value) && long.TryParse(value, out long nodes))
+				{
+					args.Nodes = nodes;
+				}
+			},
+			["nps"] = static (tokens, args) =>
+			{
+				if (tokens.TryDequeue(out string value) && long.TryParse(value, out long nps))
+				{
+					args.Nps = nps;
+				}
+			}
+		};
+
 		public static EngineAnalysisEventArgs Parse(string infoLine)
 		{
-			var args = new EngineAnalysisEventArgs { RawInfo = infoLine };
+			var args = new EngineAnalysisEventArgs(infoLine);
 			if (!infoLine.StartsWith("info "))
 			{
 				return args;
 			}
 
-			string[] tokens = infoLine.Substring(5).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+			var tokens = new Queue<string>(infoLine[5..].Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-			for (var i = 0 ; i < tokens.Length - 1 ; i++)
+			while (tokens.Count > 0)
 			{
-				switch (tokens[i])
+				string token = tokens.Dequeue();
+
+				if (token == "pv")
 				{
-					case "depth":
-						if (int.TryParse(tokens[i + 1], out int depth))
-						{
-							args.Depth = depth;
-						}
+					args.PrincipalVariation = tokens.ToList().AsReadOnly();
+					return args; // PV is always the last part of the info string.
+				}
 
-						break;
-					case "score":
-						if (i + 2 < tokens.Length)
-						{
-							if (tokens[i + 1] == "cp" && int.TryParse(tokens[i + 2], out int cp))
-							{
-								args.ScoreCp = cp;
-							}
-							else if (tokens[i + 1] == "mate" && int.TryParse(tokens[i + 2], out int mate))
-							{
-								args.Mate = mate;
-							}
-						}
-
-						break;
-					case "nodes":
-						if (long.TryParse(tokens[i + 1], out long nodes))
-						{
-							args.Nodes = nodes;
-						}
-
-						break;
-					case "nps":
-						if (long.TryParse(tokens[i + 1], out long nps))
-						{
-							args.Nps = nps;
-						}
-
-						break;
-					case "pv":
-						args.PrincipalVariation = tokens.Skip(i + 1).ToList().AsReadOnly();
-						return args; // PV is always the last part of the info string.
+				if (TokenHandlers.TryGetValue(token, out Action<Queue<string>, EngineAnalysisEventArgs>? handler))
+				{
+					handler(tokens, args);
 				}
 			}
 
