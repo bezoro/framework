@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.UCI.Types;
 
-namespace Bezoro.UCI
+namespace Bezoro.UCI.Helpers
 {
 	/// <summary>
 	///     Provides static helper methods for parsing UCI 'info' strings.

@@ -1,7 +1,9 @@
 // In your test project
 
+using Bezoro.UCI.API;
+using Bezoro.UCI.Helpers;
+using Bezoro.UCI.Types;
 using JetBrains.Annotations;
-using UCIEngine.Models;
 
 namespace Bezoro.UCI.Tests;
 
