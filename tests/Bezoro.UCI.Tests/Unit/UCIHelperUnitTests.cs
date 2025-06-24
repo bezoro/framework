@@ -1,3 +1,4 @@
+using Bezoro.UCI.Helpers;
 using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests.Unit;

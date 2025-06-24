@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Bezoro.UCI
+namespace Bezoro.UCI.Helpers
 {
 	/// <summary>
 	///     Provides static helper methods for working with UCI and FEN notations.

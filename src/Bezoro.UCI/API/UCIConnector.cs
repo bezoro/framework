@@ -7,9 +7,11 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using UCIEngine.Models;
+using Bezoro.UCI.Extensions;
+using Bezoro.UCI.Helpers;
+using Bezoro.UCI.Types;
 
-namespace Bezoro.UCI
+namespace Bezoro.UCI.API
 {
 	/// <summary>
 	///     Represents a connection to a UCI-compliant chess engine.
@@ -465,25 +467,7 @@ namespace Bezoro.UCI
 			return allLegalMoves.Where(move => move.StartsWith(square, StringComparison.OrdinalIgnoreCase)).ToList();
 		}
 
-		/// <summary>
-		///     Asks the engine to find the best move for the current position using a fixed amount of time.
-		/// </summary>
-		/// <param name="thinkingTimeMs">The maximum time the engine should think, in milliseconds.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string> GetBestMoveAsync(int thinkingTimeMs, CancellationToken cancellationToken = default)
-		{
-			var searchParameters = new SearchParameters { MoveTimeMs = thinkingTimeMs };
-			return await GetBestMoveAsync(searchParameters, cancellationToken);
-		}
-
-		/// <summary>
-		///     Asks the engine to find the best move for the current position using a flexible set of search parameters.
-		/// </summary>
-		/// <param name="parameters">The parameters that define the search (e.g., time controls, depth).</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string> GetBestMoveAsync(
+		public async Task<string?> GetBestMoveAsync(
 			SearchParameters parameters, CancellationToken cancellationToken = default)
 		{
 			if (_isDisposed)
@@ -496,44 +480,24 @@ namespace Bezoro.UCI
 			{
 				string goCommand = BuildGoCommand(parameters);
 				await _processInput.WriteLineAsync(goCommand);
-
-				// Create an appropriate timeout for the read operation.
-				// If the search is infinite, we don't time out here; we wait for a 'stop' or cancellation.
-				CancellationTokenSource cts = null;
-				if (!parameters.Infinite)
-				{
-					// Add a 5-second buffer to the longest possible thinking time.
-					int timeout = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
-					cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeout));
-				}
-
-				using var linkedCts =
-					CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,
-						cts?.Token ?? CancellationToken.None);
-
-				while (true)
-				{
-					string? line = await ReadLineAsync(linkedCts.Token);
-					if (line == null)
-					{
-						throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
-					}
-
-					if (line.StartsWith("info"))
-					{
-						InfoReceived?.Invoke(this, InfoParser.Parse(line));
-					}
-					else if (line.StartsWith(BestMoveResponse))
-					{
-						string[]? parts = line.Split(' ');
-						return parts.Length > 1 ? parts[1] : null;
-					}
-				}
+				return await WaitForBestMoveResponseAsync(parameters, cancellationToken);
 			}
 			finally
 			{
 				_commandSemaphore.Release();
 			}
+		}
+
+		/// <summary>
+		///     Asks the engine to find the best move for the current position using a fixed amount of time.
+		/// </summary>
+		/// <param name="thinkingTimeMs">The maximum time the engine should think, in milliseconds.</param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
+		public async Task<string> GetBestMoveAsync(int thinkingTimeMs, CancellationToken cancellationToken = default)
+		{
+			var searchParameters = new SearchParameters { MoveTimeMs = thinkingTimeMs };
+			return await GetBestMoveAsync(searchParameters, cancellationToken);
 		}
 
 		/// <summary>
@@ -652,6 +616,25 @@ namespace Bezoro.UCI
 			}
 
 			return commandBuilder.ToString();
+		}
+
+		private static CancellationTokenSource? CreateTimeoutCtsForSearch(SearchParameters parameters)
+		{
+			if (parameters.Infinite)
+			{
+				return null;
+			}
+
+			// Add a 5-second buffer to the longest possible thinking time to allow for communication overhead.
+			int timeoutMilliseconds = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
+			return new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+		}
+
+		private static string? ParseBestMoveFromResponse(string bestMoveLine)
+		{
+			// Expected format is "bestmove <move> [ponder <move>]"
+			string[] parts = bestMoveLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			return parts.Length > 1 ? parts[1] : null;
 		}
 
 		private static UCIOption ParseOptionLine(string line)
@@ -807,6 +790,32 @@ namespace Bezoro.UCI
 			}
 		}
 
+		private async Task<string?> WaitForBestMoveResponseAsync(
+			SearchParameters parameters, CancellationToken cancellationToken)
+		{
+			using CancellationTokenSource? timeoutCts = CreateTimeoutCtsForSearch(parameters);
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+				cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
+
+			while (true)
+			{
+				string? line = await ReadLineAsync(linkedCts.Token);
+				if (line == null)
+				{
+					throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
+				}
+
+				if (line.StartsWith("info"))
+				{
+					InfoReceived?.Invoke(this, InfoParser.Parse(line));
+				}
+				else if (line.StartsWith(BestMoveResponse))
+				{
+					return ParseBestMoveFromResponse(line);
+				}
+			}
+		}
+
 		/// <summary>
 		///     Sends the "d" command to the engine to get a text representation of the current board state,
 		///     and extracts the FEN (Forsyth-Edwards Notation) string from the output.
@@ -880,35 +889,6 @@ namespace Bezoro.UCI
 	{
 		public UCIException(string message) : base(message) { }
 		public UCIException(string message, Exception innerException) : base(message, innerException) { }
-	}
-
-	internal static class ProcessExtensions
-	{
-		/// <summary>
-		///     Asynchronously waits for the process to exit.
-		/// </summary>
-		/// <param name="process">The process to wait for.</param>
-		/// <param name="cancellationToken">A token to cancel the wait operation.</param>
-		/// <returns>A task that completes when the process exits.</returns>
-		public static Task WaitForExitAsync(this Process process, CancellationToken cancellationToken = default)
-		{
-			if (process.HasExited)
-			{
-				return Task.CompletedTask;
-			}
-
-			var tcs = new TaskCompletionSource<object>();
-			process.Exited += (sender, args) => tcs.TrySetResult(null);
-			cancellationToken.Register(() => tcs.TrySetCanceled());
-
-			// A final check in case the process exited after the initial check but before the event handler was attached.
-			if (process.HasExited)
-			{
-				return Task.CompletedTask;
-			}
-
-			return tcs.Task;
-		}
 	}
 
 	public record UCIOption(string Name, string Type, string Default, string Min, string Max, string[] Vars);

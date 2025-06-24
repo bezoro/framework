@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Bezoro.UCI
+namespace Bezoro.UCI.Types
 {
 	/// <summary>
 	///     Provides data for the InfoReceived event.
