@@ -888,15 +888,13 @@ namespace Bezoro.UCI.API
 		{
 			public ParsedMove(string from, string to, char promotionChar)
 			{
+				PromotionChar = promotionChar;
 				From          = from;
 				To            = to;
-				PromotionChar = promotionChar;
 			}
 
 			public char PromotionChar { get; }
-
 			public string From { get; }
-
 			public string To { get; }
 		}
 	}
