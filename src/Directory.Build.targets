@@ -1,7 +1,7 @@
 <Project>
     <Target Name="CopyToUnity" AfterTargets="Build">
         <PropertyGroup>
-            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\$(AssemblyName)\</UnityPluginDir>
+            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\Framework\$(AssemblyName)\</UnityPluginDir>
         </PropertyGroup>
         <ItemGroup>
             <BuiltOutputs Include="$(TargetDir)$(AssemblyName).dll"/>
