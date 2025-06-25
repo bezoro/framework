@@ -5,7 +5,7 @@ using System.Threading;
 using Bezoro.UCI.API.Constants;
 using Bezoro.UCI.Types;
 
-namespace Bezoro.UCI.Internals
+namespace Bezoro.UCI.Helpers
 {
 	/// <summary>
 	///     Helper class for UCI search-related functionality.
@@ -21,52 +21,55 @@ namespace Bezoro.UCI.Internals
 
 			if (parameters.SearchMoves?.Any() == true)
 			{
-				commandBuilder.Append($" {UCIConstants.SearchMoves} ").Append(string.Join(" ", parameters.SearchMoves));
+				commandBuilder.Append($" {UCIConstants.SearchMovesParameter} ")
+							  .Append(string.Join(" ", parameters.SearchMoves));
 			}
 
 			if (parameters.WhiteTimeMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Wtime} ").Append(parameters.WhiteTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.WhiteTimeParameter} ").Append(parameters.WhiteTimeMs.Value);
 			}
 
 			if (parameters.BlackTimeMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Btime} ").Append(parameters.BlackTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.BlackTimeParameter} ").Append(parameters.BlackTimeMs.Value);
 			}
 
 			if (parameters.WhiteIncrementMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Winc} ").Append(parameters.WhiteIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.WhiteTimeIncrementParameter} ")
+							  .Append(parameters.WhiteIncrementMs.Value);
 			}
 
 			if (parameters.BlackIncrementMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Binc} ").Append(parameters.BlackIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.BlackTimeIncrementParameter} ")
+							  .Append(parameters.BlackIncrementMs.Value);
 			}
 
 			if (parameters.Depth.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Depth} ").Append(parameters.Depth.Value);
+				commandBuilder.Append($" {UCIConstants.DepthParameter} ").Append(parameters.Depth.Value);
 			}
 
 			if (parameters.Nodes.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Nodes} ").Append(parameters.Nodes.Value);
+				commandBuilder.Append($" {UCIConstants.NodesSearchParameter} ").Append(parameters.Nodes.Value);
 			}
 
 			if (parameters.Mate.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Mate} ").Append(parameters.Mate.Value);
+				commandBuilder.Append($" {UCIConstants.MateSearchParameter} ").Append(parameters.Mate.Value);
 			}
 
 			if (parameters.MoveTimeMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.Movetime} ").Append(parameters.MoveTimeMs.Value);
+				commandBuilder.Append($" {UCIConstants.MoveTimeParameter} ").Append(parameters.MoveTimeMs.Value);
 			}
 
 			if (parameters.Infinite)
 			{
-				commandBuilder.Append($" {UCIConstants.Infinite}");
+				commandBuilder.Append($" {UCIConstants.InfiniteSearchParameter}");
 			}
 
 			return commandBuilder.ToString();

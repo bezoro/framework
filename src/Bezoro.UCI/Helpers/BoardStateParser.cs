@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Bezoro.UCI.Internals
+namespace Bezoro.UCI.Helpers
 {
 	/// <summary>
 	///     Helper class for parsing FEN strings and managing board state information.

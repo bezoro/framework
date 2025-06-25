@@ -1,7 +1,7 @@
 using System;
 using Bezoro.UCI.Types;
 
-namespace Bezoro.UCI.Internals
+namespace Bezoro.UCI.Helpers
 {
 	/// <summary>
 	///     Helper class for classifying chess moves by their type.
