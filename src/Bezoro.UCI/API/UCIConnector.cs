@@ -11,7 +11,6 @@ using Bezoro.UCI.API.Exceptions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Extensions;
 using Bezoro.UCI.Helpers;
-using Bezoro.UCI.Internals;
 using Bezoro.UCI.Types;
 
 namespace Bezoro.UCI.API
@@ -144,15 +143,15 @@ namespace Bezoro.UCI.API
 		{
 			bool limitStrengthSupported =
 				SupportedOptions.Any(o =>
-					o.Name.Equals(UCIConstants.UCILimitstrength, StringComparison.OrdinalIgnoreCase));
+					o.Name.Equals(UCIConstants.LimitStrengthOption, StringComparison.OrdinalIgnoreCase));
 
 			bool eloSupported =
-				SupportedOptions.Any(o => o.Name.Equals(UCIConstants.UCIElo, StringComparison.OrdinalIgnoreCase));
+				SupportedOptions.Any(o => o.Name.Equals(UCIConstants.EloOption, StringComparison.OrdinalIgnoreCase));
 
 			if (limitStrengthSupported && eloSupported)
 			{
-				await SetOptionAsync(UCIConstants.UCILimitstrength, "true",         cancellationToken);
-				await SetOptionAsync(UCIConstants.UCIElo,           elo.ToString(), cancellationToken);
+				await SetOptionAsync(UCIConstants.LimitStrengthOption, "true",         cancellationToken);
+				await SetOptionAsync(UCIConstants.EloOption,           elo.ToString(), cancellationToken);
 			}
 			else
 			{
@@ -302,7 +301,7 @@ namespace Bezoro.UCI.API
 			try
 			{
 				// --- Part 1: Get the FEN string using the 'd' command ---
-				await _processInput.WriteLineAsync(UCIConstants.DCommand);
+				await _processInput.WriteLineAsync(UCIConstants.DisplayBoardCommand);
 				var currentFen = "";
 				// Read lines until we find the FEN string. The 'd' command in Stockfish
 				// doesn't have a clear "readyok" end signal, so we read until we find what we need
@@ -409,7 +408,7 @@ namespace Bezoro.UCI.API
 
 			try
 			{
-				await _processInput.WriteLineAsync(UCIConstants.GOPerftOne);
+				await _processInput.WriteLineAsync(UCIConstants.GoPerftDepth1Command);
 
 				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
@@ -622,7 +621,7 @@ namespace Bezoro.UCI.API
 				{
 					InfoReceived?.Invoke(this, InfoParser.Parse(line));
 				}
-				else if (line.StartsWith(UCIConstants.BestMoveResponse))
+				else if (line.StartsWith(UCIConstants.BestMoveResponsePrefix))
 				{
 					return SearchHelper.ParseBestMoveFromResponse(line);
 				}
@@ -635,7 +634,7 @@ namespace Bezoro.UCI.API
 		/// </summary>
 		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync(UCIConstants.DCommand, cancellationToken);
+			await SendCommandAndWaitForReadyAsync(UCIConstants.DisplayBoardCommand, cancellationToken);
 			var fen = string.Empty;
 			while (true)
 			{
