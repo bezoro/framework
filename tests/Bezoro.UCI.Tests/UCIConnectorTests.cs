@@ -303,9 +303,9 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Verify that the move was found and its classification properties are correct.
 		Assert.NotNull(specificMove);
-		Assert.Equal(isCapture,   specificMove.IsCapture);
-		Assert.Equal(isCastling,  specificMove.IsCastling);
-		Assert.Equal(isPromotion, specificMove.IsPromotion);
-		Assert.Equal(isEnPassant, specificMove.IsEnPassant);
+		Assert.Equal(isCapture,   specificMove.Value.IsCapture);
+		Assert.Equal(isCastling,  specificMove.Value.IsCastling);
+		Assert.Equal(isPromotion, specificMove.Value.IsPromotion);
+		Assert.Equal(isEnPassant, specificMove.Value.IsEnPassant);
 	}
 }

@@ -5,7 +5,7 @@ namespace Bezoro.UCI.Types
 	///     such as whether it's a capture, castling, or promotion.
 	///     This is used to provide detailed feedback in a user interface.
 	/// </summary>
-	public class MoveClassification
+	public readonly struct MoveClassification
 	{
 		/// <summary>
 		///     Initializes a new instance of the <see cref="MoveClassification" /> class.
@@ -13,7 +13,11 @@ namespace Bezoro.UCI.Types
 		/// <param name="move">The move in long algebraic notation.</param>
 		public MoveClassification(string move)
 		{
-			Move = move;
+			Move        = move;
+			IsCapture   = false;
+			IsCastling  = false;
+			IsEnPassant = false;
+			IsPromotion = false;
 		}
 
 		/// <summary>
