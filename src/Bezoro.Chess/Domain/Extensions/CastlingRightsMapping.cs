@@ -1,29 +1,31 @@
-namespace Bezoro.Chess.API.Shared.Enums
+using Bezoro.Chess.API.Shared.Enums;
+
+namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class CastlingRightsMapping
 	{
-		public static CastlingRights ToAPI(this Domain.Shared.Enums.CastlingRights p) => p switch
+		public static CastlingRights ToAPI(this Shared.Enums.CastlingRights p) => p switch
 		{
-			Domain.Shared.Enums.CastlingRights.WhiteKingside  => CastlingRights.WhiteKingside,
-			Domain.Shared.Enums.CastlingRights.WhiteQueenside => CastlingRights.WhiteQueenside,
-			Domain.Shared.Enums.CastlingRights.BlackKingside  => CastlingRights.BlackKingside,
-			Domain.Shared.Enums.CastlingRights.BlackQueenside => CastlingRights.BlackQueenside,
-			Domain.Shared.Enums.CastlingRights.White          => CastlingRights.White,
-			Domain.Shared.Enums.CastlingRights.Black          => CastlingRights.Black,
-			Domain.Shared.Enums.CastlingRights.All            => CastlingRights.All,
-			Domain.Shared.Enums.CastlingRights.None           => CastlingRights.None
+			Shared.Enums.CastlingRights.WhiteKingside  => CastlingRights.WhiteKingside,
+			Shared.Enums.CastlingRights.WhiteQueenside => CastlingRights.WhiteQueenside,
+			Shared.Enums.CastlingRights.BlackKingside  => CastlingRights.BlackKingside,
+			Shared.Enums.CastlingRights.BlackQueenside => CastlingRights.BlackQueenside,
+			Shared.Enums.CastlingRights.White          => CastlingRights.White,
+			Shared.Enums.CastlingRights.Black          => CastlingRights.Black,
+			Shared.Enums.CastlingRights.All            => CastlingRights.All,
+			Shared.Enums.CastlingRights.None           => CastlingRights.None
 		};
 
-		public static Domain.Shared.Enums.CastlingRights ToDomain(this CastlingRights p) => p switch
+		public static Shared.Enums.CastlingRights ToDomain(this CastlingRights p) => p switch
 		{
-			CastlingRights.WhiteKingside  => Domain.Shared.Enums.CastlingRights.WhiteKingside,
-			CastlingRights.WhiteQueenside => Domain.Shared.Enums.CastlingRights.WhiteQueenside,
-			CastlingRights.BlackKingside  => Domain.Shared.Enums.CastlingRights.BlackKingside,
-			CastlingRights.BlackQueenside => Domain.Shared.Enums.CastlingRights.BlackQueenside,
-			CastlingRights.White          => Domain.Shared.Enums.CastlingRights.White,
-			CastlingRights.Black          => Domain.Shared.Enums.CastlingRights.Black,
-			CastlingRights.All            => Domain.Shared.Enums.CastlingRights.All,
-			CastlingRights.None           => Domain.Shared.Enums.CastlingRights.None
+			CastlingRights.WhiteKingside  => Shared.Enums.CastlingRights.WhiteKingside,
+			CastlingRights.WhiteQueenside => Shared.Enums.CastlingRights.WhiteQueenside,
+			CastlingRights.BlackKingside  => Shared.Enums.CastlingRights.BlackKingside,
+			CastlingRights.BlackQueenside => Shared.Enums.CastlingRights.BlackQueenside,
+			CastlingRights.White          => Shared.Enums.CastlingRights.White,
+			CastlingRights.Black          => Shared.Enums.CastlingRights.Black,
+			CastlingRights.All            => Shared.Enums.CastlingRights.All,
+			CastlingRights.None           => Shared.Enums.CastlingRights.None
 		};
 	}
 }

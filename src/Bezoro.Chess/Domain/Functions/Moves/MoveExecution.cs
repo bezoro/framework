@@ -58,7 +58,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 		private static bool ShouldResetHalfMoveClock(GameState state, Move move)
 		{
 			// Half-move clock resets on pawn moves or captures
-			if (move.Type is MoveType.CastleKingside or MoveType.CastleQueenside)
+			if (move.Type is MoveType.Castling)
 			{
 				return false;
 			}
@@ -170,8 +170,7 @@ namespace Bezoro.Chess.Domain.Functions.Moves
 					newState = newState with { Board = NormalMoveExecutor.Execute(state, move) };
 					break;
 
-				case MoveType.CastleKingside:
-				case MoveType.CastleQueenside:
+				case MoveType.Castling:
 					newState = newState with { Board = CastleMoveExecutor.Execute(state, move) };
 					break;
 

@@ -31,10 +31,10 @@ namespace Bezoro.Chess.Domain.Extensions
 			return (type, type == PieceType.None ? PieceColor.None : color);
 		}
 
-		public static bool IsBishop(this PieceType type) => type   == PieceType.Bishop;
+		public static bool IsBishop(this PieceType type)  => type  == PieceType.Bishop;
 		public static bool IsBlack(this PieceColor color) => color == PieceColor.Black;
-		public static bool IsKing(this PieceType type) => type     == PieceType.King;
-		public static bool IsKnight(this PieceType type) => type   == PieceType.Knight;
+		public static bool IsKing(this PieceType type)    => type  == PieceType.King;
+		public static bool IsKnight(this PieceType type)  => type  == PieceType.Knight;
 
 		public static bool IsMajorPiece(this PieceType type) =>
 			type is PieceType.Rook or PieceType.Queen;
@@ -44,10 +44,10 @@ namespace Bezoro.Chess.Domain.Extensions
 
 		public static bool IsNone(this PieceColor color) => color == PieceColor.None;
 
-		public static bool IsNone(this PieceType type) => type  == PieceType.None;
-		public static bool IsPawn(this PieceType type) => type  == PieceType.Pawn;
+		public static bool IsNone(this PieceType type)  => type == PieceType.None;
+		public static bool IsPawn(this PieceType type)  => type == PieceType.Pawn;
 		public static bool IsQueen(this PieceType type) => type == PieceType.Queen;
-		public static bool IsRook(this PieceType type) => type  == PieceType.Rook;
+		public static bool IsRook(this PieceType type)  => type == PieceType.Rook;
 
 		public static bool IsSlidingPiece(this PieceType type) =>
 			type is PieceType.Bishop or PieceType.Rook or PieceType.Queen;

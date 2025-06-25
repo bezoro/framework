@@ -1,5 +1,6 @@
 using Bezoro.Chess.Domain.Functions.Moves;
 using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Shared.Consts;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Structs;
 
@@ -16,17 +17,6 @@ namespace Bezoro.Chess.Domain.Types.Records
 		public CastlingRights Castling { get; init; } = CastlingRights.All;
 
 		/// <summary>
-		///     The number of full moves in the game. Starts at 1 and increments after Black moves.
-		/// </summary>
-		public uint FullMoveNumber { get; init; } = 1;
-
-		/// <summary>
-		///     The number of half-moves since the last capture or pawn advance.
-		///     Used for the fifty-move rule.
-		/// </summary>
-		public uint HalfMoveClock { get; init; }
-
-		/// <summary>
 		///     The color of the player whose turn it is to move.
 		/// </summary>
 		public PieceColor ActiveColor { get; init; } = PieceColor.White;
@@ -36,6 +26,17 @@ namespace Bezoro.Chess.Domain.Types.Records
 		///     This is needed for en passant capture validation.
 		/// </summary>
 		public Position EnPassantTargetSquare { get; init; }
+
+		/// <summary>
+		///     The number of full moves in the game. Starts at 1 and increments after Black moves.
+		/// </summary>
+		public uint FullMoveNumber { get; init; } = 1;
+
+		/// <summary>
+		///     The number of half-moves since the last capture or pawn advance.
+		///     Used for the fifty-move rule.
+		/// </summary>
+		public uint HalfMoveClock { get; init; }
 
 		/// <summary>
 		///     Creates an initial <see cref="GameState" /> that represents the

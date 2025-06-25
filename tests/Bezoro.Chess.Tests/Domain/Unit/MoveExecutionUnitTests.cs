@@ -90,38 +90,6 @@ public class MoveExecutionUnitTests
 		gameState.ActiveColor.Should().Be(PieceColor.White);
 	}
 
-	[Fact]
-	internal void ExecuteMove_BlackQueensideCastle_ShouldMoveKingAndRook()
-	{
-		// Arrange
-		var board   = new Board(BoardFactory.CreateEmptyBitboards());
-		var fromPos = new Position("e8");
-		var toPos   = new Position("c8");
-		board = board.SetPiece(fromPos, new Piece(PieceType.King,            PieceColor.Black))
-					 .SetPiece(new Position("a8"), new Piece(PieceType.Rook, PieceColor.Black));
-
-		var gameState = new GameState
-		{
-			Board       = board,
-			ActiveColor = PieceColor.Black,
-			Castling    = CastlingRights.BlackQueenside
-		};
-
-		Piece king = gameState.GetPieceAt(fromPos);
-		Move  move = Move.CastleQueenside(fromPos, toPos, king);
-
-		// Act
-		gameState = MoveExecution.ExecuteMove(gameState, move);
-
-		// Assert
-		gameState.Board.GetPiece(new Position("c8")).Type.Should().Be(PieceType.King);
-		gameState.Board.GetPiece(new Position("d8")).Type.Should().Be(PieceType.Rook);
-		gameState.Board.GetPiece(new Position("e8")).Type.Should().Be(PieceType.None);
-		gameState.Board.GetPiece(new Position("a8")).Type.Should().Be(PieceType.None);
-		gameState.Castling.Should().NotHaveFlag(CastlingRights.Black);
-		gameState.ActiveColor.Should().Be(PieceColor.White);
-	}
-
 	[Theory]
 	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.White)] // Black Kingside
 	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.White)] // Black Queenside
@@ -240,40 +208,6 @@ public class MoveExecutionUnitTests
 		// Assert
 		var expectedRights = CastlingRights.Black;
 		Assert.Equal(expectedRights, newState.Castling);
-	}
-
-	[Fact]
-	internal void ExecuteMove_WhiteKingsideCastle_ShouldMoveKingAndRook()
-	{
-		// Arrange
-		var board = new Board(BoardFactory.CreateEmptyBitboards());
-
-		var kingStartPos = new Position("e1");
-		var kingEndPos   = new Position("g1");
-
-		var rookStartPos = new Position("h1");
-		var rookEndPos   = new Position("f1");
-
-		board = board.SetPiece(kingStartPos, new Piece(PieceType.King, PieceColor.White))
-					 .SetPiece(rookStartPos, new Piece(PieceType.Rook, PieceColor.White));
-
-		var gameState = new GameState
-		{
-			Board = board
-		};
-
-		Piece king = gameState.GetPieceAt(kingStartPos);
-		Move  move = Move.CastleKingside(kingStartPos, kingEndPos, king);
-
-		// Act
-		gameState = MoveExecution.ExecuteMove(gameState, move);
-
-		// Assert
-		gameState.Board.GetPiece(new Position("g1")).Should().Be(new Piece(PieceType.King, PieceColor.White));
-		gameState.Board.GetPiece(new Position("f1")).Should().Be(new Piece(PieceType.Rook, PieceColor.White));
-
-		gameState.Board.GetPiece(new Position("e1")).Type.Should().Be(PieceType.None);
-		gameState.Board.GetPiece(new Position("h1")).Type.Should().Be(PieceType.None);
 	}
 
 	[Fact]

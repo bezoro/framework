@@ -7,14 +7,14 @@ namespace Bezoro.Chess.Domain.Helpers
 	/// </summary>
 	internal static class BoardFactory
 	{
+		public static BoardBitboards CreateEmptyBitboards() =>
+			BitboardHelper.EmptyBoard();
+
 		/// <summary>
 		///     Classical starting position – delegates to the cached value inside
 		///     <see cref="BitboardHelper" /> / <see cref="BitboardConsts" />.
 		/// </summary>
 		public static BoardBitboards CreateInitialBitboards() =>
 			BitboardHelper.StartPosition();
-
-		public static BoardBitboards CreateEmptyBitboards() =>
-			BitboardHelper.EmptyBoard();
 	}
 }

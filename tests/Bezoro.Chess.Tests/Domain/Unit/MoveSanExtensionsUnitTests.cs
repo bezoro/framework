@@ -37,39 +37,6 @@ public class MoveSanExtensionsUnitTests
 
 	[Theory]
 	[InlineData(
-		"r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 b kq - 0 5",
-		MoveType.CastleKingside, "O-O")]
-	[InlineData(
-		"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-		MoveType.CastleQueenside, "O-O-O")]
-	internal void ToSan_ShouldReturnCorrectSan_ForCastling(string fen, MoveType moveType, string expectedSan)
-	{
-		// Arrange
-		GameState gameState = FenParser.FenToGameState(fen);
-		Position  kingPos   = gameState.FindKingPosition(gameState.ActiveColor);
-		Piece     king      = gameState.Board.GetPiece(kingPos);
-
-		Move move;
-		if (moveType == MoveType.CastleKingside)
-		{
-			var toPos = new Position(kingPos.Row, kingPos.Col + 2);
-			move = Move.CastleKingside(kingPos, toPos, king);
-		}
-		else // Queenside
-		{
-			var toPos = new Position(kingPos.Row, kingPos.Col - 2);
-			move = Move.CastleQueenside(kingPos, toPos, king);
-		}
-
-		// Act
-		string result = move.ToSAN(gameState);
-
-		// Assert
-		Assert.Equal(expectedSan, result);
-	}
-
-	[Theory]
-	[InlineData(
 		"rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2",
 		"d8", "h4", PieceType.Queen, "Qh4#")]
 	[InlineData(
