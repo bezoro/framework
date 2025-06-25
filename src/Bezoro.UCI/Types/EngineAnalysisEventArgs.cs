@@ -23,7 +23,7 @@ namespace Bezoro.UCI.Types
 		public int? ScoreCp { get; set; }
 
 		/// <summary> The principal variation (the best line of moves found). </summary>
-		public IReadOnlyList<string> PrincipalVariation { get; set; }
+		public IReadOnlyList<string>? PrincipalVariation { get; set; }
 
 		/// <summary> The number of nodes searched. </summary>
 		public long? Nodes { get; set; }
