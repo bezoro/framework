@@ -5,11 +5,11 @@ namespace Bezoro.Chess.Domain.Helpers
 {
 	internal static class BitboardHelper
 	{
+		public static BoardBitboards EmptyBoard() =>
+			BitboardConsts.EmptyBoard;
+
 		/// <summary>Return the classical initial position.</summary>
 		public static BoardBitboards StartPosition() =>
 			BitboardConsts.StartPosition;
-
-		public static BoardBitboards EmptyBoard() =>
-			BitboardConsts.EmptyBoard;
 	}
 }

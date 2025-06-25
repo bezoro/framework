@@ -7,7 +7,7 @@ namespace Bezoro.Chess.API.Shared.Enums
 	{
 		None,
 		Normal, Capture,
-		CastleKingside, CastleQueenside,
-		EnPassant, QuietPromotion, CapturePromotion
+		Castling, EnPassant,
+		QuietPromotion, CapturePromotion
 	}
 }

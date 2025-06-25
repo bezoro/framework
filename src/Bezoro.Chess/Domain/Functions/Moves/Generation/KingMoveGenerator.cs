@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Bezoro.Chess.Domain.Extensions;
 using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Shared.Consts;
 using Bezoro.Chess.Domain.Shared.Enums;
 using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
@@ -129,14 +130,14 @@ namespace Bezoro.Chess.Domain.Functions.Moves.Generation
 			if (CanCastle(gameState, CastlingSide.Kingside))
 			{
 				var to = new Position(from.Row, from.Col + 2);
-				yield return Move.CastleKingside(from, to, movingPiece);
+				yield return Move.Castling(movingPiece.Color, CastlingSide.Kingside);
 			}
 
 			// Check Queenside Castling
 			if (CanCastle(gameState, CastlingSide.Queenside))
 			{
 				var to = new Position(from.Row, from.Col - 2);
-				yield return Move.CastleQueenside(from, to, movingPiece);
+				yield return Move.Castling(movingPiece.Color, CastlingSide.Queenside);
 			}
 		}
 	}

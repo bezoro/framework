@@ -25,6 +25,9 @@ namespace Bezoro.Chess.Domain.Extensions
 			return attackerMoves.Any(move => move.To.Equals(square));
 		}
 
+		public static GameStateViewModel ToViewModel(this GameState state) =>
+			new(state);
+
 		/// <summary>
 		///     Finds the position of the king for a given color.
 		/// </summary>
@@ -45,8 +48,5 @@ namespace Bezoro.Chess.Domain.Extensions
 
 			return null;
 		}
-
-		public static GameStateViewModel ToViewModel(this GameState state) =>
-			new(state);
 	}
 }

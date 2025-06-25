@@ -4,18 +4,18 @@ using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core
 {
+	public static class Result
+	{
+		public static Result<T> Failed<T>(FailureReason reason) => Result<T>.Failed(reason);
+		public static Result<T> Succeeded<T>(in T data)         => Result<T>.Succeeded(data);
+	}
+
 	public enum FailureReason
 	{
 		None,
 		InvalidMove
 	}
 
-	public static class Result
-	{
-		public static Result<T> Failed<T>(FailureReason reason) => Result<T>.Failed(reason);
-		public static Result<T> Succeeded<T>(in T data) => Result<T>.Succeeded(data);
-	}
-	
 	/// <summary>
 	///     Represents a result that can either be successful with data of type T or failed with a reason.
 	/// </summary>

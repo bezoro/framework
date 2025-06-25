@@ -4,28 +4,26 @@ namespace Bezoro.Chess.Domain.Extensions
 {
 	internal static class MoveTypeMapping
 	{
-		public static MoveType ToAPI(this Types.Structs.MoveType p) => p switch
+		public static MoveType ToAPI(this Shared.Enums.MoveType p) => p switch
 		{
-			Types.Structs.MoveType.Normal           => MoveType.Normal,
-			Types.Structs.MoveType.Capture          => MoveType.Capture,
-			Types.Structs.MoveType.CastleKingside   => MoveType.CastleKingside,
-			Types.Structs.MoveType.CastleQueenside  => MoveType.CastleQueenside,
-			Types.Structs.MoveType.EnPassant        => MoveType.EnPassant,
-			Types.Structs.MoveType.Promotion        => MoveType.QuietPromotion,
-			Types.Structs.MoveType.PromotionCapture => MoveType.CapturePromotion,
-			_                                       => MoveType.None
+			Shared.Enums.MoveType.Normal           => MoveType.Normal,
+			Shared.Enums.MoveType.Capture          => MoveType.Capture,
+			Shared.Enums.MoveType.Castling         => MoveType.Castling,
+			Shared.Enums.MoveType.EnPassant        => MoveType.EnPassant,
+			Shared.Enums.MoveType.Promotion        => MoveType.QuietPromotion,
+			Shared.Enums.MoveType.PromotionCapture => MoveType.CapturePromotion,
+			_                                      => MoveType.None
 		};
 
-		public static Types.Structs.MoveType ToDomain(this MoveType p) => p switch
+		public static Shared.Enums.MoveType ToDomain(this MoveType p) => p switch
 		{
-			MoveType.Normal           => Types.Structs.MoveType.Normal,
-			MoveType.Capture          => Types.Structs.MoveType.Capture,
-			MoveType.CastleKingside   => Types.Structs.MoveType.CastleKingside,
-			MoveType.CastleQueenside  => Types.Structs.MoveType.CastleQueenside,
-			MoveType.EnPassant        => Types.Structs.MoveType.EnPassant,
-			MoveType.QuietPromotion   => Types.Structs.MoveType.Promotion,
-			MoveType.CapturePromotion => Types.Structs.MoveType.PromotionCapture,
-			_                         => Types.Structs.MoveType.None
+			MoveType.Normal           => Shared.Enums.MoveType.Normal,
+			MoveType.Capture          => Shared.Enums.MoveType.Capture,
+			MoveType.Castling         => Shared.Enums.MoveType.Castling,
+			MoveType.EnPassant        => Shared.Enums.MoveType.EnPassant,
+			MoveType.QuietPromotion   => Shared.Enums.MoveType.Promotion,
+			MoveType.CapturePromotion => Shared.Enums.MoveType.PromotionCapture,
+			_                         => Shared.Enums.MoveType.None
 		};
 	}
 }

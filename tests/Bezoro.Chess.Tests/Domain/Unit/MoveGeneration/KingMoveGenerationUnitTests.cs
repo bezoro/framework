@@ -82,8 +82,7 @@ public class KingMoveGenerationUnitTests
 		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
-		moves.Should().NotContain(m => m.Type == MoveType.CastleKingside);
-		moves.Should().NotContain(m => m.Type == MoveType.CastleQueenside);
+		moves.Should().NotContain(m => m.Type == MoveType.Castling);
 	}
 
 	[Theory]
@@ -114,8 +113,7 @@ public class KingMoveGenerationUnitTests
 		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
-		moves.Should().Contain(m => m.Type == MoveType.CastleKingside);
-		moves.Should().Contain(m => m.Type == MoveType.CastleQueenside);
+		moves.Should().Contain(m => m.Type == MoveType.Castling);
 	}
 
 	[Theory]

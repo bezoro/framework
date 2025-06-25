@@ -9,7 +9,7 @@
         <Folder Include="API\Abstractions\"/>
         <Folder Include="API\Helpers\"/>
         <Folder Include="API\Shared\Consts\"/>
-        <Folder Include="API\Types\" />
+        <Folder Include="API\Types\"/>
         <Folder Include="Docs\"/>
         <Folder Include="Domain\Functions\"/>
     </ItemGroup>

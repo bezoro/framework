@@ -78,11 +78,8 @@ namespace Bezoro.Chess.API.Engine
 				case MoveType.Capture:
 					move = Move.Capture(from, to, piece, capturedPiece.Value);
 					break;
-				case MoveType.CastleKingside:
-					move = Move.CastleKingside(from, to, piece);
-					break;
-				case MoveType.CastleQueenside:
-					move = Move.CastleQueenside(from, to, piece);
+				case MoveType.Castling:
+					throw new NotImplementedException();
 					break;
 				case MoveType.EnPassant:
 					move = Move.EnPassant(from, to, piece, capturedPiece.Value);

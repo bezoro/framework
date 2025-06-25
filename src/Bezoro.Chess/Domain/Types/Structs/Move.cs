@@ -1,23 +1,9 @@
 using System;
+using Bezoro.Chess.Domain.Functions.Moves.Generation;
 using Bezoro.Chess.Domain.Shared.Enums;
 
 namespace Bezoro.Chess.Domain.Types.Structs
 {
-	/// <summary>
-	///     All legal move kinds supported by the engine.
-	/// </summary>
-	internal enum MoveType : byte
-	{
-		None,
-		Normal,
-		Capture,
-		CastleKingside,
-		CastleQueenside,
-		EnPassant,
-		Promotion,
-		PromotionCapture
-	}
-
 	/// <summary>
 	///     Immutable value that represents one legal chess move.
 	///     Use the static factories to create instances and <see cref="Match{T}" /> to
@@ -41,8 +27,18 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			PromotionPieceType = promotionPieceType;
 		}
 
+		private Move(MoveType type, PieceColor color, CastlingSide side)
+		{
+			Type               = type;
+			From               = default;
+			To                 = default;
+			Piece              = new Piece(PieceType.King, color);
+			CapturedPiece      = default;
+			PromotionPieceType = PromotionType.None;
+		}
+
 		public bool IsCapture   => Type is MoveType.Capture or MoveType.PromotionCapture;
-		public bool IsCastle    => Type is MoveType.CastleKingside or MoveType.CastleQueenside;
+		public bool IsCastle    => Type is MoveType.Castling;
 		public bool IsEnPassant => Type == MoveType.EnPassant;
 		public bool IsPromotion => Type is MoveType.Promotion or MoveType.PromotionCapture;
 		public bool IsQuiet     => Type == MoveType.Normal;
@@ -74,11 +70,8 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public static Move Capture(Position from, Position to, Piece piece, Piece captured) =>
 			new(MoveType.Capture, from, to, piece, captured);
 
-		public static Move CastleKingside(Position from, Position to, Piece king) =>
-			new(MoveType.CastleKingside, from, to, king);
-
-		public static Move CastleQueenside(Position from, Position to, Piece king) =>
-			new(MoveType.CastleQueenside, from, to, king);
+		public static Move Castling(PieceColor color, CastlingSide side) =>
+			new(MoveType.Castling, color, side);
 
 		public static Move EnPassant(Position from, Position to, Piece pawn, Piece capturedPawn) =>
 			new(MoveType.EnPassant, from, to, pawn, capturedPawn);
@@ -102,8 +95,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 		public T Match<T>(
 			Func<Move, T> onNormal,
 			Func<Move, T> onCapture,
-			Func<Move, T> onCastleKs,
-			Func<Move, T> onCastleQs,
+			Func<Move, T> onCastle,
 			Func<Move, T> onEnPassant,
 			Func<Move, T> onPromotion,
 			Func<Move, T> onPromotionCapture,
@@ -113,8 +105,7 @@ namespace Bezoro.Chess.Domain.Types.Structs
 			{
 				MoveType.Normal           => onNormal(this),
 				MoveType.Capture          => onCapture(this),
-				MoveType.CastleKingside   => onCastleKs(this),
-				MoveType.CastleQueenside  => onCastleQs(this),
+				MoveType.Castling         => onCastle(this),
 				MoveType.EnPassant        => onEnPassant(this),
 				MoveType.Promotion        => onPromotion(this),
 				MoveType.PromotionCapture => onPromotionCapture(this),

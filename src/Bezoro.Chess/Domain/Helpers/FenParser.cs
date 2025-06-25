@@ -132,26 +132,6 @@ namespace Bezoro.Chess.Domain.Helpers
 			return rights;
 		}
 
-		private static uint ParseFullMoveNumber(string fullMovePart)
-		{
-			if (!int.TryParse(fullMovePart, out int value) || value <= 0)
-			{
-				throw new ArgumentException($"Invalid full-move number value: {fullMovePart}");
-			}
-
-			return (uint)value;
-		}
-
-		private static uint ParseHalfMoveClock(string halfMovePart)
-		{
-			if (!int.TryParse(halfMovePart, out int value) || value < 0)
-			{
-				throw new ArgumentException($"Invalid half-move clock value: {halfMovePart}");
-			}
-
-			return (uint)value;
-		}
-
 		private static Piece FenCharToPiece(char fenChar)
 		{
 			PieceColor color = char.IsUpper(fenChar) ? PieceColor.White : PieceColor.Black;
@@ -184,6 +164,26 @@ namespace Bezoro.Chess.Domain.Helpers
 			}
 
 			return new Position(enPassantPart);
+		}
+
+		private static uint ParseFullMoveNumber(string fullMovePart)
+		{
+			if (!int.TryParse(fullMovePart, out int value) || value <= 0)
+			{
+				throw new ArgumentException($"Invalid full-move number value: {fullMovePart}");
+			}
+
+			return (uint)value;
+		}
+
+		private static uint ParseHalfMoveClock(string halfMovePart)
+		{
+			if (!int.TryParse(halfMovePart, out int value) || value < 0)
+			{
+				throw new ArgumentException($"Invalid half-move clock value: {halfMovePart}");
+			}
+
+			return (uint)value;
 		}
 	}
 }
