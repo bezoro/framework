@@ -472,22 +472,6 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
-		///     A helper method that sets the board to a specific position and then immediately finds the best move.
-		///     This simplifies the common workflow of setting a position and then searching.
-		/// </summary>
-		/// <param name="fen">The FEN string for the position. Use "startpos" for the starting position.</param>
-		/// <param name="moves">An optional sequence of moves to apply to the position.</param>
-		/// <param name="thinkingTime">The maximum time the engine should think.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The best move found by the engine for the given position.</returns>
-		public async Task<string> GetBestMoveForPositionAsync(
-			string fen, IEnumerable<string> moves, TimeSpan thinkingTime, CancellationToken cancellationToken = default)
-		{
-			await SetPositionAsync(fen, moves, cancellationToken);
-			return await GetBestMoveAsync(thinkingTime, cancellationToken);
-		}
-
-		/// <summary>
 		///     Asks the engine to find the best move for the current position by searching to a specific depth.
 		/// </summary>
 		/// <param name="depth">The maximum depth for the engine to search.</param>
@@ -586,12 +570,6 @@ namespace Bezoro.UCI.API
 			}
 		}
 
-		/// <summary>
-		///     Gets the current board state as a FEN string by sending the 'd' command.
-		/// </summary>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The FEN string for the current position.</returns>
-		/// <exception cref="UCIException">Thrown if the engine does not return a FEN string.</exception>
 		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken)
 		{
 			if (_isDisposed)
