@@ -402,30 +402,6 @@ namespace Bezoro.UCI.API
 			return moves;
 		}
 
-		/// <summary>
-		///     Retrieves a list of all legal moves in the current position that start from a specific square.
-		///     This is useful for UI implementations where you want to highlight valid destination squares when a user selects a
-		///     piece.
-		/// </summary>
-		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>A list of legal moves originating from the specified square.</returns>
-		public async Task<List<string>> GetLegalMovesForSquareAsync(
-			string square, CancellationToken cancellationToken = default)
-		{
-			if (!UCIHelper.IsValidAlgebraicNotation(square))
-			{
-				// Return an empty list if the square format is invalid.
-				return new List<string>();
-			}
-
-			// Get all legal moves for the current position.
-			List<string> allLegalMoves = await GetLegalMovesAsync(cancellationToken);
-
-			// Filter the list to include only moves that start with the specified square.
-			return allLegalMoves.Where(move => move.StartsWith(square, StringComparison.OrdinalIgnoreCase)).ToList();
-		}
-
 		public async Task<string?> GetBestMoveAsync(
 			SearchParameters parameters, CancellationToken cancellationToken = default)
 		{
@@ -445,18 +421,6 @@ namespace Bezoro.UCI.API
 			{
 				_commandSemaphore.Release();
 			}
-		}
-
-		/// <summary>
-		///     Asks the engine to find the best move for the current position using a fixed amount of time.
-		/// </summary>
-		/// <param name="thinkingTimeMs">The maximum time the engine should think, in milliseconds.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string> GetBestMoveAsync(int thinkingTimeMs, CancellationToken cancellationToken = default)
-		{
-			var searchParameters = new SearchParameters { MoveTimeMs = thinkingTimeMs };
-			return await GetBestMoveAsync(searchParameters, cancellationToken);
 		}
 
 		/// <summary>
