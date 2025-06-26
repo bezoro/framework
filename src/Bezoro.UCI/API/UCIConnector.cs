@@ -300,52 +300,13 @@ namespace Bezoro.UCI.API
 			await _commandSemaphore.WaitAsync(cancellationToken);
 			try
 			{
-				// --- Part 1: Get the FEN string using the 'd' command ---
-				await _processInput.WriteLineAsync(UCIConstants.DisplayBoardCommand);
-				var currentFen = "";
-				// Read lines until we find the FEN string. The 'd' command in Stockfish
-				// doesn't have a clear "readyok" end signal, so we read until we find what we need
-				// or time out. The timeout is critical to prevent a deadlock.
-				using ( var fenCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)) )
-				{
-					using var linkedFenCts =
-						CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, fenCts.Token);
-
-					while (true)
-					{
-						string? line = await ReadLineAsync(linkedFenCts.Token);
-						if (line == null)
-						{
-							break;
-						}
-
-						if (line.StartsWith("Fen: "))
-						{
-							currentFen = line.Substring(5).Trim();
-							break; // Found the FEN, we can stop reading for this command.
-						}
-					}
-				}
-
-				if (string.IsNullOrEmpty(currentFen))
-				{
-					throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
-				}
-
-				// --- Part 2: Get the list of legal moves ---
+				string currentFen = await GetCurrentFenAsync(cancellationToken);
 				List<string>
 					legalMoves =
 						await GetLegalMovesAsync(cancellationToken, false); // `false` to not re-acquire the semaphore
 
-				// --- Part 3: Classify the moves ---
-				BoardState boardState      = BoardStateParser.ParseFen(currentFen);
-				var        classifiedMoves = new List<MoveClassification>();
-				foreach (string move in legalMoves)
-				{
-					classifiedMoves.Add(MoveClassifier.ClassifyMove(move, boardState));
-				}
-
-				return classifiedMoves;
+				BoardState boardState = BoardStateParser.ParseFen(currentFen);
+				return legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
 			}
 			finally
 			{
@@ -364,11 +325,8 @@ namespace Bezoro.UCI.API
 		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
-			// Get all classified legal moves for the current position.
 			List<MoveClassification> allMovesWithDetails = await GetAllLegalMovesWithDetailsAsync(cancellationToken);
 
-			// Filter the list to include only moves that start with the specified square.
-			// The comparison is case-insensitive to be robust.
 			List<MoveClassification> movesForSquare = allMovesWithDetails
 													  .Where(m => m.Move.StartsWith(square,
 														  StringComparison.OrdinalIgnoreCase))
@@ -629,33 +587,51 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
-		///     Sends the "d" command to the engine to get a text representation of the current board state,
-		///     and extracts the FEN (Forsyth-Edwards Notation) string from the output.
+		///     Gets the current board state as a FEN string by sending the 'd' command.
 		/// </summary>
-		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken = default)
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>The FEN string for the current position.</returns>
+		/// <exception cref="UCIException">Thrown if the engine does not return a FEN string.</exception>
+		private async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken)
 		{
-			await SendCommandAndWaitForReadyAsync(UCIConstants.DisplayBoardCommand, cancellationToken);
-			var fen = string.Empty;
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			if (_engineProcess.HasExited)
+			{
+				throw new UCIException("Engine process has exited.");
+			}
+
+			if (_processInput is null)
+			{
+				throw new UCIException("Engine process input stream is null.");
+			}
+
+			await _processInput.WriteLineAsync(UCIConstants.DisplayBoardCommand);
+
+			// The 'd' command doesn't have a clear "readyok" end signal, so we read until we find the FEN
+			// or a timeout occurs to prevent a deadlock.
+			using var fenCts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, fenCts.Token);
+
 			while (true)
 			{
-				string line = await ReadLineAsync(cancellationToken);
-				if (string.IsNullOrWhiteSpace(line))
+				string? line = await ReadLineAsync(linkedCts.Token);
+				if (line == null)
 				{
-					continue;
+					// End of stream reached before finding the FEN.
+					break;
 				}
 
-				if (line.StartsWith("Fen: ", StringComparison.OrdinalIgnoreCase))
+				if (line.StartsWith("Fen: "))
 				{
-					fen = line.Substring(5);
-				}
-				// The "Checkers" line usually follows the FEN, marking the end of the position block.
-				else if (line.StartsWith("Checkers:", StringComparison.OrdinalIgnoreCase))
-				{
-					break;
+					return line.Substring(5).Trim();
 				}
 			}
 
-			return fen;
+			throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
 		}
 
 		private async Task<string> ReadLineAsync(CancellationToken cancellationToken, int timeoutMilliseconds = -1)
