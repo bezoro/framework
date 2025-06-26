@@ -13,24 +13,20 @@ namespace Bezoro.UCI.Types
 		{
 			RawInfo = rawInfo;
 		}
+
 		/// <summary> Search depth in plies. </summary>
-		public int? Depth { get; set; }
-
+		public int? Depth { get; internal set; }
 		/// <summary> The evaluation is a mate in X moves. </summary>
-		public int? Mate { get; set; }
-
+		public int? Mate { get; internal set; }
 		/// <summary> The evaluation score from the engine's point of view in centipawns. </summary>
-		public int? ScoreCp { get; set; }
-
+		public int? ScoreCp { get; internal set; }
 		/// <summary> The principal variation (the best line of moves found). </summary>
-		public IReadOnlyList<string>? PrincipalVariation { get; set; }
-
+		public IReadOnlyList<string>? PrincipalVariation { get; internal set; }
 		/// <summary> The number of nodes searched. </summary>
-		public long? Nodes { get; set; }
-
+		public long? Nodes { get; internal set; }
 		/// <summary> The search speed in nodes per second. </summary>
-		public long? Nps { get; set; }
+		public long? Nps { get; internal set; }
 		/// <summary> The raw 'info' string from the engine. </summary>
-		public string RawInfo { get; set; }
+		public string RawInfo { get; }
 	}
 }
