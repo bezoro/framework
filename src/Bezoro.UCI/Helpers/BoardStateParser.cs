@@ -7,6 +7,12 @@ namespace Bezoro.UCI.Helpers
 	/// </summary>
 	internal static class BoardStateParser
 	{
+		private const char   FirstFileChar        = 'a';
+		private const char   RankSeparator        = '/';
+		private const int    InitialFile          = 0;
+		private const int    InitialRank          = 8;
+		private const string EnPassantPlaceholder = "-";
+
 		/// <summary>
 		///     Parses a FEN string to extract the piece positions and the en passant target square.
 		/// </summary>
@@ -14,33 +20,49 @@ namespace Bezoro.UCI.Helpers
 		{
 			string[]? parts           = fen.Split(' ');
 			string    piecePlacement  = parts[0];
-			string?   enPassantTarget = parts.Length > 3 && parts[3] != "-" ? parts[3] : null;
+			string?   enPassantTarget = parts.Length > 3 && parts[3] != EnPassantPlaceholder ? parts[3] : null;
 
 			var positions = new Dictionary<string, char>();
-			var rank      = 8;
-			var file      = 0; // 'a' is 0
+			int rank      = InitialRank;
+			int file      = InitialFile;
 
-			foreach (char c in piecePlacement)
+			foreach (char symbol in piecePlacement)
 			{
-				if (c == '/')
+				if (symbol == RankSeparator)
 				{
-					rank--;
-					file = 0;
+					AdvanceToNextRank();
 				}
-				else if (char.IsDigit(c))
+				else if (char.IsDigit(symbol))
 				{
-					file += (int)char.GetNumericValue(c);
+					SkipFiles(symbol);
 				}
 				else
 				{
-					var square = $"{(char)('a' + file)}{rank}";
-					positions.Add(square, c);
-					file++;
+					PlacePiece(symbol);
 				}
 			}
 
 			return new BoardState(positions, enPassantTarget);
+
+			void AdvanceToNextRank()
+			{
+				rank--;
+				file = InitialFile;
+			}
+
+			void SkipFiles(char digit)
+			{
+				file += (int)char.GetNumericValue(digit);
+			}
+
+			void PlacePiece(char pieceSymbol)
+			{
+				positions.Add(ToAlgebraic(file, rank), pieceSymbol);
+				file++;
+			}
 		}
+
+		private static string ToAlgebraic(int file, int rank) => $"{(char)(FirstFileChar + file)}{rank}";
 	}
 
 	/// <summary>
