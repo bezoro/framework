@@ -1,8 +1,8 @@
 ﻿namespace Bezoro.Core.Logging
 {
-	public enum LogType
+	public enum LogLevel
 	{
-		Log,
+		Info,
 		Warning,
 		Error,
 		Exception,
