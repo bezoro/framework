@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
 using Bezoro.Core.Common.Primitives;
-using Bezoro.Core.Logging;
 
 namespace Bezoro.Core.Common.Helpers
 {
@@ -134,7 +133,7 @@ namespace Bezoro.Core.Common.Helpers
 			return true;
 		}
 
-		public static bool Remove<T>(ref T[] array, T element, out int index, ILogger logger = null)
+		public static bool Remove<T>(ref T[] array, T element, out int index)
 			where T : class
 		{
 			if (array == null)
@@ -322,7 +321,7 @@ namespace Bezoro.Core.Common.Helpers
 			Logger.LogSuccess($"Adding unique element: {element}");
 		}
 
-		public static void Clear<T>(ref T[] array, ILogger logger = null)
+		public static void Clear<T>(ref T[] array)
 		{
 			if (array == null)
 			{
@@ -383,7 +382,7 @@ namespace Bezoro.Core.Common.Helpers
 			Array.Clear(array, 0, array.Length);
 		}
 
-		public static void Copy<T>(T[] from, ref T[] to, ILogger logger = null)
+		public static void Copy<T>(T[] from, ref T[] to)
 		{
 			if (from == null)
 			{
@@ -417,7 +416,7 @@ namespace Bezoro.Core.Common.Helpers
 			array = Array.Empty<T>();
 		}
 
-		public static void Merge<T>(T[] source, ref T[] target, ILogger logger = null)
+		public static void Merge<T>(T[] source, ref T[] target)
 		{
 			if (source == null)
 			{
@@ -664,7 +663,7 @@ namespace Bezoro.Core.Common.Helpers
 					break;
 
 				default:
-					Logger.Log_Error($"Unhandled Array_Removal_Approach: {removalApproach}");
+					Logger.LogError($"Unhandled Array_Removal_Approach: {removalApproach}");
 					break;
 			}
 		}
@@ -1174,7 +1173,6 @@ namespace Bezoro.Core.Common.Helpers
 				return true;
 			}
 
-			Logger.Log_Exception(new NullReferenceException("Source array must not be null. Aborting operation."));
 			return false;
 		}
 

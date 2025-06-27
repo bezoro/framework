@@ -1,6 +1,5 @@
 ﻿using System;
 using Bezoro.Core.Common.Extensions;
-using Bezoro.Core.Logging;
 
 namespace Bezoro.Core.Common.Primitives
 {
@@ -29,7 +28,7 @@ namespace Bezoro.Core.Common.Primitives
 		/// </summary>
 		private T[] _items;
 
-		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE, ILogger logger = null)
+		public SwapbackArray(int initialCapacity = _MINIMUM_ARRAY_SIZE)
 		{
 			_items = new T[Math.Max(initialCapacity, _MINIMUM_ARRAY_SIZE)];
 			_count = 0;
@@ -70,7 +69,7 @@ namespace Bezoro.Core.Common.Primitives
 			{
 				if (index < 0 || index >= _count)
 				{
-					Logger.Log_Error($"Attempted to access invalid index: {index}");
+					Logger.LogError($"Attempted to access invalid index: {index}");
 					value = default;
 					return false;
 				}
@@ -143,17 +142,12 @@ namespace Bezoro.Core.Common.Primitives
 		{
 			if (ArrayExtensions.IsNullOrEmpty(_items))
 			{
-				Logger.Log_Error("Remove operation failed. Array is empty.");
+				Logger.LogError("Remove operation failed. Array is empty.");
 				return false;
 			}
 
 			if (index < 0 || index >= _count)
 			{
-				Logger.Log_Exception(
-					new ArgumentOutOfRangeException(
-						nameof(index), index, $"Remove operation failed. Invalid index. Aborting {nameof(Remove_At)}.")
-				);
-
 				return false;
 			}
 
