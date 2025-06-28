@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Core;
 using Bezoro.UCI.API.Constants;
 using Bezoro.UCI.API.Exceptions;
 using Bezoro.UCI.API.Types;
@@ -128,7 +129,7 @@ namespace Bezoro.UCI.API
 			else
 			{
 				// We can log a warning or simply do nothing if the option isn't supported.
-				Console.WriteLine("Warning: 'Skill Level' option not supported by this engine.");
+				Logger.LogWarning("'Skill Level' option not supported by this engine.");
 			}
 		}
 
@@ -155,7 +156,7 @@ namespace Bezoro.UCI.API
 			}
 			else
 			{
-				Console.WriteLine("Warning: Elo-based strength limiting not supported by this engine.");
+				Logger.LogWarning("Elo-based strength limiting not supported by this engine.");
 			}
 		}
 
@@ -213,6 +214,7 @@ namespace Bezoro.UCI.API
 			}
 
 			await WaitUntilReadyAsync(cancellationToken);
+			Logger.LogSuccess("Engine Started Successfully.");
 		}
 
 		/// <summary>
@@ -327,10 +329,8 @@ namespace Bezoro.UCI.API
 		{
 			List<MoveClassification> allMovesWithDetails = await GetAllLegalMovesWithDetailsAsync(cancellationToken);
 
-			List<MoveClassification> movesForSquare = allMovesWithDetails
-													  .Where(m => m.Move.StartsWith(square,
-														  StringComparison.OrdinalIgnoreCase))
-													  .ToList();
+			List<MoveClassification> movesForSquare = allMovesWithDetails.Where(m => m.Move.StartsWith(square,
+				StringComparison.OrdinalIgnoreCase)).ToList();
 
 			return movesForSquare;
 		}
