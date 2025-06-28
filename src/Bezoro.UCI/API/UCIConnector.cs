@@ -64,6 +64,8 @@ namespace Bezoro.UCI.API
 				},
 				EnableRaisingEvents = true
 			};
+
+			Logger.LogSuccess($"UCI Connector Created.");
 		}
 
 		/// <summary>
@@ -111,6 +113,7 @@ namespace Bezoro.UCI.API
 			}
 
 			await SendCommandAndWaitForReadyAsync(command, cancellationToken);
+			Logger.LogSuccess($"Position Set Successfully: {fen}");
 		}
 
 		/// <summary>
