@@ -305,12 +305,9 @@ namespace Bezoro.UCI.API
 			await _commandSemaphore.WaitAsync(cancellationToken);
 			try
 			{
-				string currentFen = await GetCurrentFenAsync(cancellationToken);
-				List<string>
-					legalMoves =
-						await GetLegalMovesAsync(cancellationToken, false); // `false` to not re-acquire the semaphore
-
-				BoardState boardState = BoardStateParser.ParseFen(currentFen);
+				string       currentFen = await GetCurrentFenAsync(cancellationToken);
+				List<string> legalMoves = await GetLegalMovesAsync(cancellationToken, false);
+				BoardState   boardState = BoardStateParser.ParseFen(currentFen);
 				return legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
 			}
 			finally
