@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+namespace Bezoro.UCI.Helpers;
+
 internal static class BoardStateParser
 {
 	private const char   FirstFileChar        = 'a';

@@ -12,6 +12,21 @@ namespace Bezoro.UCI.Helpers
 	internal static class SearchHelper
 	{
 		/// <summary>
+		///     Creates a timeout cancellation token source based on search parameters.
+		/// </summary>
+		public static CancellationTokenSource? CreateTimeoutCtsForSearch(SearchParameters parameters)
+		{
+			if (parameters.Infinite)
+			{
+				return null;
+			}
+
+			// Add a 5-second buffer to the longest possible thinking time to allow for communication overhead.
+			int timeoutMilliseconds = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
+			return new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+		}
+
+		/// <summary>
 		///     Builds a UCI 'go' command string from search parameters.
 		/// </summary>
 		public static string BuildGoCommand(SearchParameters parameters)
@@ -20,8 +35,8 @@ namespace Bezoro.UCI.Helpers
 
 			if (parameters.SearchMoves?.Any() == true)
 			{
-				commandBuilder.Append($" {UCIConstants.SearchMovesParameter} ")
-							  .Append(string.Join(" ", parameters.SearchMoves));
+				commandBuilder.Append($" {UCIConstants.SearchMovesParameter} ").
+							   Append(string.Join(" ", parameters.SearchMoves));
 			}
 
 			if (parameters.WhiteTimeMs.HasValue)
@@ -36,14 +51,14 @@ namespace Bezoro.UCI.Helpers
 
 			if (parameters.WhiteIncrementMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.WhiteTimeIncrementParameter} ")
-							  .Append(parameters.WhiteIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.WhiteTimeIncrementParameter} ").
+							   Append(parameters.WhiteIncrementMs.Value);
 			}
 
 			if (parameters.BlackIncrementMs.HasValue)
 			{
-				commandBuilder.Append($" {UCIConstants.BlackTimeIncrementParameter} ")
-							  .Append(parameters.BlackIncrementMs.Value);
+				commandBuilder.Append($" {UCIConstants.BlackTimeIncrementParameter} ").
+							   Append(parameters.BlackIncrementMs.Value);
 			}
 
 			if (parameters.Depth.HasValue)
@@ -72,21 +87,6 @@ namespace Bezoro.UCI.Helpers
 			}
 
 			return commandBuilder.ToString();
-		}
-
-		/// <summary>
-		///     Creates a timeout cancellation token source based on search parameters.
-		/// </summary>
-		public static CancellationTokenSource? CreateTimeoutCtsForSearch(SearchParameters parameters)
-		{
-			if (parameters.Infinite)
-			{
-				return null;
-			}
-
-			// Add a 5-second buffer to the longest possible thinking time to allow for communication overhead.
-			int timeoutMilliseconds = (parameters.MoveTimeMs ?? 0) + (parameters.WhiteTimeMs ?? 0) + 5000;
-			return new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMilliseconds));
 		}
 
 		/// <summary>
