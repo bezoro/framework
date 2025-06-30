@@ -133,11 +133,12 @@ namespace Bezoro.UCI.API.Constants
 		///     Parameter for white's remaining time in milliseconds
 		/// </summary>
 		public const string WhiteTimeParameter = "wtime";
+
 		/// <summary>
 		///     Regular expression for validating chess square notation (e.g., "e4", "a1").
 		/// </summary>
 		public static readonly Regex AlgebraicNotationRegex
-			= new(@"^[a-h][1-8]$", RegexOptions.Compiled);
+			= new("^[a-h][1-8]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 		/// <summary>
 		///     Regular expression for validating Forsyth–Edwards Notation (FEN) strings.
@@ -150,12 +151,12 @@ namespace Bezoro.UCI.API.Constants
 		///     Regular expression for validating move strings with their scores.
 		/// </summary>
 		public static readonly Regex MoveRegex =
-			new(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+", RegexOptions.Compiled);
+			new(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 		/// <summary>
 		///     Regular expression for validating UCI move notation.
 		/// </summary>
 		public static readonly Regex UCIMoveRegex =
-			new(@"^[a-h][1-8][a-h][1-8]([qrbn])?$", RegexOptions.Compiled);
+			new(@"^[a-h][1-8][a-h][1-8]([qrbn])?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 	}
 }
