@@ -111,7 +111,7 @@ namespace Bezoro.UCI.API
 			}
 
 			await SendCommandAndWaitForReadyAsync(command, cancellationToken);
-			Logger.LogSuccess($"Position Set Successfully: {fen}");
+			Logger.LogSuccess($"Position Set Successfully: {command}");
 		}
 
 		/// <summary>
