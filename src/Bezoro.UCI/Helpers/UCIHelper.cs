@@ -8,7 +8,15 @@ namespace Bezoro.UCI.Helpers
 	/// </summary>
 	internal static class UCIHelper
 	{
-	
+		public static bool IsSquareInValidNotation(string square) =>
+			square.Length != 2        ||
+			!char.IsLetter(square[0]) ||
+			!char.IsDigit(square[1])  ||
+			square.ToLower()[0] < 'a' ||
+			square.ToLower()[0] > 'h' ||
+			square[1]           < '1' ||
+			square[1]           > '8';
+
 		/// <summary>
 		///     Validates if a string is in proper algebraic notation for a single square.
 		/// </summary>
@@ -59,14 +67,5 @@ namespace Bezoro.UCI.Helpers
 				_   => null
 			};
 		}
-
-		public static bool IsSquareInValidNotation(string square) =>
-			square.Length != 2        ||
-			!char.IsLetter(square[0]) ||
-			!char.IsDigit(square[1])  ||
-			square[0] < 'a'           ||
-			square[0] > 'h'           ||
-			square[1] < '1'           ||
-			square[1] > '8';
 	}
 }
