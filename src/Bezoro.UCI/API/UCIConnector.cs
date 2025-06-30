@@ -65,7 +65,7 @@ namespace Bezoro.UCI.API
 				EnableRaisingEvents = true
 			};
 
-			Logger.LogSuccess($"UCI Connector Created.");
+			Logger.LogSuccess("UCI Connector Created.");
 		}
 
 		/// <summary>
@@ -281,8 +281,18 @@ namespace Bezoro.UCI.API
 		/// <returns>True if the move is legal, otherwise false.</returns>
 		public async Task<bool> IsMoveLegalAsync(string move, CancellationToken cancellationToken = default)
 		{
+			if (string.IsNullOrWhiteSpace(move))
+			{
+				throw new ArgumentException("Move cannot be null or whitespace.", nameof(move));
+			}
+
+			if (!UCIHelper.IsValidUciMove(move))
+			{
+				throw new ArgumentException($"Move '{move}' is not in valid UCI format.", nameof(move));
+			}
+
 			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken);
-			return legalMoves.Contains(move);
+			return legalMoves.Contains(move, StringComparer.OrdinalIgnoreCase);
 		}
 
 		/// <summary>
@@ -327,10 +337,28 @@ namespace Bezoro.UCI.API
 		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
+			if (string.IsNullOrWhiteSpace(square))
+			{
+				throw new ArgumentException("Square cannot be null or whitespace.", nameof(square));
+			}
+
+			if (square.Length != 2        ||
+				!char.IsLetter(square[0]) ||
+				!char.IsDigit(square[1])  ||
+				square[0] < 'a'           ||
+				square[0] > 'h'           ||
+				square[1] < '1'           ||
+				square[1] > '8')
+			{
+				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g. 'e2').",
+					nameof(square));
+			}
+
 			List<MoveClassification> allMovesWithDetails = await GetAllLegalMovesWithDetailsAsync(cancellationToken);
 
-			List<MoveClassification> movesForSquare = allMovesWithDetails.Where(m => m.Move.StartsWith(square,
-				StringComparison.OrdinalIgnoreCase)).ToList();
+			List<MoveClassification> movesForSquare = allMovesWithDetails.
+													  Where(m => m.Move.StartsWith(square,
+														  StringComparison.OrdinalIgnoreCase)).ToList();
 
 			return movesForSquare;
 		}
@@ -408,6 +436,11 @@ namespace Bezoro.UCI.API
 			if (_isDisposed)
 			{
 				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			if (_processInput == null)
+			{
+				throw new UCIException("Engine process input stream is null. Ensure the engine is started.");
 			}
 
 			await _commandSemaphore.WaitAsync(cancellationToken);
@@ -515,22 +548,36 @@ namespace Bezoro.UCI.API
 			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
 
-			while (true)
+			try
 			{
-				string? line = await ReadLineAsync(linkedCts.Token);
-				if (line == null)
+				while (true)
 				{
-					throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
+					string? line = await ReadLineAsync(linkedCts.Token);
+					if (line == null)
+					{
+						throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
+					}
+
+					if (line.StartsWith("info", StringComparison.OrdinalIgnoreCase))
+					{
+						InfoReceived?.Invoke(this, InfoParser.Parse(line));
+					}
+					else if (line.StartsWith(UCIConstants.BestMoveResponsePrefix, StringComparison.OrdinalIgnoreCase))
+					{
+						return SearchHelper.ParseBestMoveFromResponse(line);
+					}
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				// Check if it was our timeout that triggered, not an external cancellation
+				if (timeoutCts?.Token.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+				{
+					throw new TimeoutException("Timed out waiting for engine to respond with best move.");
 				}
 
-				if (line.StartsWith("info"))
-				{
-					InfoReceived?.Invoke(this, InfoParser.Parse(line));
-				}
-				else if (line.StartsWith(UCIConstants.BestMoveResponsePrefix))
-				{
-					return SearchHelper.ParseBestMoveFromResponse(line);
-				}
+				// Otherwise, rethrow as it's an external cancellation
+				throw;
 			}
 		}
 
@@ -578,15 +625,37 @@ namespace Bezoro.UCI.API
 
 		private async Task<string> ReadLineAsync(CancellationToken cancellationToken, int timeoutMilliseconds = -1)
 		{
-			Task<string>? readTask = _processOutput.ReadLineAsync();
+			if (_processOutput == null)
+			{
+				throw new UCIException("Engine process output stream is null.");
+			}
+
+			Task<string> readTask = _processOutput.ReadLineAsync();
 			if (timeoutMilliseconds < 0)
 			{
 				// This custom implementation makes ReadLineAsync cancellable.
 				var tcs = new TaskCompletionSource<string>();
 				using ( cancellationToken.Register(() => tcs.TrySetCanceled()) )
 				{
+					// When the readTask completes, we transfer its result to our tcs
+					readTask.ContinueWith(t =>
+					{
+						if (t.IsFaulted)
+						{
+							tcs.TrySetException(t.Exception.InnerExceptions);
+						}
+						else if (t.IsCanceled)
+						{
+							tcs.TrySetCanceled();
+						}
+						else
+						{
+							tcs.TrySetResult(t.Result);
+						}
+					});
+
 					// Awaiting Task.WhenAny returns the task that completed. We then await that task to get its result or exception.
-					Task<string>? completedTask = await Task.WhenAny(readTask, tcs.Task);
+					Task<string> completedTask = await Task.WhenAny(readTask, tcs.Task);
 					return await completedTask;
 				}
 			}
