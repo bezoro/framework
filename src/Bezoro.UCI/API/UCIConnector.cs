@@ -340,7 +340,7 @@ namespace Bezoro.UCI.API
 				throw new ArgumentException("Square cannot be null or whitespace.", nameof(square));
 			}
 
-			if (UCIHelper.IsSquareInValidNotation(square))
+			if (!UCIHelper.IsValidAlgebraicNotation(square))
 			{
 				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g. 'e2').",
 					nameof(square));
