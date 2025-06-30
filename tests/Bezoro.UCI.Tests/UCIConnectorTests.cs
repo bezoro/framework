@@ -44,6 +44,43 @@ public class UCIConnectorTests : IAsyncLifetime
 		await Assert.ThrowsAsync<ObjectDisposedException>(() => connector.GetLegalMovesAsync());
 	}
 
+	[Theory]
+	// Test case for a normal pawn move from the starting position.
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "e2e4", false, false, false, false)]
+	// Test case for a capture. White pawn on e4 captures a black pawn on d5.
+	[InlineData("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "e4d5", true, false, false, false)]
+	// Test case for Kingside castling.
+	[InlineData("r3k2r/pppp1ppp/8/8/8/8/PPPP1PPP/R3K2R w KQkq - 0 1", "e1g1", false, true, false, false)]
+	// Test case for Queenside castling.
+	[InlineData("r3k2r/pppp1ppp/8/8/8/8/PPPP1PPP/R3K2R w KQkq - 0 1", "e1c1", false, true, false, false)]
+	// Test case for a pawn promoting to a queen.
+	[InlineData("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7a8q", false, false, true, false)]
+	// Test case for an En Passant capture, which is both a capture and en passant.
+	[InlineData("rnbqkbnr/ppp1p1pp/8/3pPp2/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3", "e5f6", true, false, false, true)]
+	public async Task GetAllLegalMovesWithDetailsAsync_WithVariousBoardStates_CorrectlyClassifiesMoves(
+		string fen, string uciMove, bool isCapture, bool isCastling, bool isPromotion, bool isEnPassant)
+	{
+		// Arrange
+		// Set the custom board position using the provided FEN string.
+		await _connector!.SetPositionAsync(fen);
+
+		// Act
+		// Get all legal moves with their detailed information.
+		// This assumes the returned object has a 'Classification' property of the type you provided.
+		List<MoveClassification> movesWithDetails = await _connector.GetAllLegalMovesWithDetailsAsync();
+
+		// Assert
+		// Find the specific move we're testing for in the list of legal moves.
+		MoveClassification? specificMove = movesWithDetails.FirstOrDefault(m => m.Move == uciMove);
+
+		// Verify that the move was found and its classification properties are correct.
+		Assert.NotNull(specificMove);
+		Assert.Equal(isCapture,   specificMove.Value.IsCapture);
+		Assert.Equal(isCastling,  specificMove.Value.IsCastling);
+		Assert.Equal(isPromotion, specificMove.Value.IsPromotion);
+		Assert.Equal(isEnPassant, specificMove.Value.IsEnPassant);
+	}
+
 	[Fact]
 	public async Task GetBestMoveAsync_WhenEngineIsThinking_RaisesInfoReceivedEventWithValidData()
 	{
@@ -120,6 +157,25 @@ public class UCIConnectorTests : IAsyncLifetime
 		// Assert
 		Assert.True(isE2E4Legal);
 		Assert.False(isE2E5Legal);
+	}
+
+	[Fact]
+	public async Task IsSquareAttackedAsync_WhenSquareIsAttacked_ReturnsTrue()
+	{
+		// Arrange
+		// Set up a standard chess position after 1. e4 e5.
+		// FEN: rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2
+		// In this position, it's white's turn to move. The white pawn on e4 attacks the d5 square.
+		const string fenAfterE4E5  = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2";
+		const char   attackerColor = 'b';
+		await _connector!.SetPositionAsync(fenAfterE4E5);
+
+		// Act
+		// Check if the d5 square is attacked.
+		bool isD5Attacked = await _connector.IsSquareAttackedAsync("d5", attackerColor);
+
+		// Assert
+		Assert.True(isD5Attacked, "The d5 square should be attacked by the white pawn on e4.");
 	}
 
 	[Fact]
@@ -270,42 +326,5 @@ public class UCIConnectorTests : IAsyncLifetime
 		// After resetting, the engine should be at the standard starting position, which has 20 legal moves.
 		List<string> movesAfterReset = await _connector.GetLegalMovesAsync();
 		Assert.Equal(20, movesAfterReset.Count);
-	}
-
-	[Theory]
-	// Test case for a normal pawn move from the starting position.
-	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "e2e4", false, false, false, false)]
-	// Test case for a capture. White pawn on e4 captures a black pawn on d5.
-	[InlineData("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "e4d5", true, false, false, false)]
-	// Test case for Kingside castling.
-	[InlineData("r3k2r/pppp1ppp/8/8/8/8/PPPP1PPP/R3K2R w KQkq - 0 1", "e1g1", false, true, false, false)]
-	// Test case for Queenside castling.
-	[InlineData("r3k2r/pppp1ppp/8/8/8/8/PPPP1PPP/R3K2R w KQkq - 0 1", "e1c1", false, true, false, false)]
-	// Test case for a pawn promoting to a queen.
-	[InlineData("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7a8q", false, false, true, false)]
-	// Test case for an En Passant capture, which is both a capture and en passant.
-	[InlineData("rnbqkbnr/ppp1p1pp/8/3pPp2/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3", "e5f6", true, false, false, true)]
-	public async Task GetAllLegalMovesWithDetailsAsync_WithVariousBoardStates_CorrectlyClassifiesMoves(
-		string fen, string uciMove, bool isCapture, bool isCastling, bool isPromotion, bool isEnPassant)
-	{
-		// Arrange
-		// Set the custom board position using the provided FEN string.
-		await _connector!.SetPositionAsync(fen);
-
-		// Act
-		// Get all legal moves with their detailed information.
-		// This assumes the returned object has a 'Classification' property of the type you provided.
-		List<MoveClassification> movesWithDetails = await _connector.GetAllLegalMovesWithDetailsAsync();
-
-		// Assert
-		// Find the specific move we're testing for in the list of legal moves.
-		MoveClassification? specificMove = movesWithDetails.FirstOrDefault(m => m.Move == uciMove);
-
-		// Verify that the move was found and its classification properties are correct.
-		Assert.NotNull(specificMove);
-		Assert.Equal(isCapture,   specificMove.Value.IsCapture);
-		Assert.Equal(isCastling,  specificMove.Value.IsCastling);
-		Assert.Equal(isPromotion, specificMove.Value.IsPromotion);
-		Assert.Equal(isEnPassant, specificMove.Value.IsEnPassant);
 	}
 }
