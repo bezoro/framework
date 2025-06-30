@@ -294,6 +294,93 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
+		///     Checks if a given square on the board is being attacked by any pieces.
+		///     This is achieved by temporarily setting the engine to a state where it's the specified player's
+		///     turn to move, and then checking their legal moves. The original position is restored afterward.
+		/// </summary>
+		/// <param name="square">The square to check, in algebraic notation (e.g., "e4").</param>
+		/// <param name="playerColor">
+		///     The color to check attacks from ('w' for white, 'b' for black). If null, checks opponent of
+		///     current player.
+		/// </param>
+		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <returns>True if the square is attacked by any piece of the specified color, otherwise false.</returns>
+		/// <exception cref="ArgumentException">Thrown if the square is not in valid algebraic notation.</exception>
+		/// <exception cref="ObjectDisposedException">Thrown if the connector has been disposed.</exception>
+		/// <exception cref="UCIException">Thrown if communication with the engine fails.</exception>
+		public async Task<bool> IsSquareAttackedAsync(
+			string square, char? playerColor = null, CancellationToken cancellationToken = default)
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIConnector));
+			}
+
+			if (string.IsNullOrWhiteSpace(square) || !UCIHelper.IsValidAlgebraicNotation(square))
+			{
+				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g., 'e4').",
+					nameof(square));
+			}
+
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				// 1. Get the original position's FEN to understand the current state.
+				string   originalFen = await GetCurrentFenAsync(cancellationToken);
+				string[] fenParts    = originalFen.Split(' ');
+				if (fenParts.Length < 2)
+				{
+					throw new UCIException("Failed to parse FEN string from engine.");
+				}
+
+				char activeColor = fenParts[1][0];
+
+				// 2. Determine which player's attack to check. Default to the OPPOSITE of the current active player.
+				char colorToCheck = playerColor ?? activeColor;
+
+				List<string> moves;
+
+				// 3. Get legal moves for the specified player.
+				if (colorToCheck == activeColor)
+				{
+					// If we're checking the current player, we don't need to change the engine's state.
+					// We pass `false` to GetLegalMovesAsync to avoid re-acquiring the semaphore.
+					moves = await GetLegalMovesAsync(cancellationToken, false);
+				}
+				else
+				{
+					// If checking the other player, we temporarily flip the turn in the FEN string.
+					// The en-passant square is cleared as it's not valid after a turn flip.
+					var tempFen = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
+
+					// Set the engine to the temporary position.
+					await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {tempFen}");
+					await WaitUntilReadyAsync(cancellationToken);
+
+					// Get all legal moves for that player.
+					moves = await GetLegalMovesAsync(cancellationToken, false);
+
+					// IMPORTANT: Restore the engine to its original state to ensure consistency.
+					await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {originalFen}");
+					await WaitUntilReadyAsync(cancellationToken);
+				}
+
+				// 4. Check if any available move targets the given square.
+				// A UCI move is "from-to" (e.g., "e2e4"), so we check the "to" part of the string.
+				bool isAttacked = moves.Any(move =>
+					move.Length >= 4 &&
+					move.Substring(2, 2).Equals(square, StringComparison.OrdinalIgnoreCase)
+				);
+
+				return isAttacked;
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
+		}
+
+		/// <summary>
 		///     Retrieves a list of all legal moves for the current position and classifies each one
 		///     by its type (e.g., capture, castling). This is ideal for rich UI feedback.
 		///     Note: This feature relies on the "d" command to get the current FEN from the engine,
