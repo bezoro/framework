@@ -8,22 +8,13 @@ namespace Bezoro.UCI.Helpers
 	/// </summary>
 	internal static class UCIHelper
 	{
-		public static bool IsSquareInValidNotation(string square) =>
-			square.Length != 2        ||
-			!char.IsLetter(square[0]) ||
-			!char.IsDigit(square[1])  ||
-			square.ToLower()[0] < 'a' ||
-			square.ToLower()[0] > 'h' ||
-			square[1]           < '1' ||
-			square[1]           > '8';
-
 		/// <summary>
 		///     Validates if a string is in proper algebraic notation for a single square.
 		/// </summary>
 		/// <param name="square">The square notation to validate.</param>
 		/// <returns>True if valid, false otherwise.</returns>
 		public static bool IsValidAlgebraicNotation(string square) =>
-			!string.IsNullOrWhiteSpace(square) && UCIConstants.AlgebraicNotationRegex.IsMatch(square.ToLower());
+			!string.IsNullOrWhiteSpace(square) && UCIConstants.AlgebraicNotationRegex.IsMatch(square);
 
 		/// <summary>
 		///     Validates if a string is a well-formed FEN string.
@@ -39,7 +30,7 @@ namespace Bezoro.UCI.Helpers
 		/// <param name="move">The move string to validate.</param>
 		/// <returns>True if the move is in valid UCI format, false otherwise.</returns>
 		public static bool IsValidUciMove(string? move) =>
-			!string.IsNullOrWhiteSpace(move) && UCIConstants.UCIMoveRegex.IsMatch(move.ToLower());
+			!string.IsNullOrWhiteSpace(move) && UCIConstants.UCIMoveRegex.IsMatch(move);
 
 		/// <summary>
 		///     Extracts the active player color from a FEN string.
