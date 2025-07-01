@@ -44,6 +44,36 @@ public class UCIConnectorTests : IAsyncLifetime
 		await Assert.ThrowsAsync<ObjectDisposedException>(() => connector.GetLegalMovesAsync());
 	}
 
+	[Fact]
+	public async Task GetAllLegalMovesWithDetailsAsync_WhenValidState_ShouldReturnValidMoves()
+	{
+		// Arrange
+		// Set the board to the standard starting position.
+		await _connector!.SetPositionAsync();
+
+		// Act
+		// Retrieve all legal moves along with their detailed classifications.
+		List<MoveClassification> moves = await _connector.GetAllLegalMovesWithDetailsAsync();
+
+		// Assert
+		// There should be 20 legal moves from the starting position.
+		Assert.NotNull(moves);
+		Assert.Equal(20, moves.Count);
+
+		// For the starting position, none of the moves are special (captures, castling, etc.).
+		Assert.All(moves, move =>
+		{
+			Assert.False(move.IsCapture, $"Move '{move.Move}' should not be a capture from the start position.");
+			Assert.False(move.IsCastling, $"Move '{move.Move}' should not be a castling move from the start position.");
+			Assert.False(move.IsPromotion, $"Move '{move.Move}' should not be a promotion from the start position.");
+			Assert.False(move.IsEnPassant,
+				$"Move '{move.Move}' should not be an en passant capture from the start position.");
+		});
+
+		// Verify that a common opening move like 'e2e4' is in the list.
+		Assert.Contains(moves, m => m.Move == "e2e4");
+	}
+
 	[Theory]
 	// Test case for a normal pawn move from the starting position.
 	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "e2e4", false, false, false, false)]
