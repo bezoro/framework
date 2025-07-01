@@ -131,6 +131,24 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
+	public async Task GetCurrentFENAsync_WhenValidState_ReturnsFENString()
+	{
+		// Arrange
+		// A specific, non-starting FEN string to ensure we're not just getting a default value.
+		const string expectedFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+		// Set the engine's internal board state to our specific FEN.
+		await _connector!.SetPositionAsync(expectedFen);
+
+		// Act
+		// Ask the connector to retrieve the current FEN from the engine.
+		string? actualFen = await _connector.GetCurrentFenAsync(default);
+
+		// Assert
+		// Verify that the FEN returned by the engine matches the one we set.
+		Assert.Equal(expectedFen, actualFen);
+	}
+
+	[Fact]
 	public async Task GetLegalMovesAsync_FromStartPosition_ShouldReturn20Moves()
 	{
 		// Arrange
