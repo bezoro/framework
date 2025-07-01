@@ -38,6 +38,10 @@ namespace Bezoro.UCI.API.Constants
 		///     Command to start calculating moves
 		/// </summary>
 		public const string GoCommand = "go";
+		/// <summary>
+		///     Command to go to a specific move number in a movie
+		/// </summary>
+		public const string GoMoveNumberCommand = "go movenumber";
 
 		/// <summary>
 		///     Command to perform perft test to depth 1
@@ -48,6 +52,11 @@ namespace Bezoro.UCI.API.Constants
 		///     Parameter for infinite search
 		/// </summary>
 		public const string InfiniteSearchParameter = "infinite";
+
+		/// <summary>
+		///     Prefix for engine's analysis information
+		/// </summary>
+		public const string InfoCommand = "info";
 
 		/// <summary>
 		///     Command to check if engine is ready
