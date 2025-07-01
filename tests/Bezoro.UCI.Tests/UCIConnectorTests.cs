@@ -1,5 +1,4 @@
 using Bezoro.UCI.API;
-using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Helpers;
 using Bezoro.UCI.Types;
 using JetBrains.Annotations;
@@ -130,7 +129,7 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Act
 		// Start the search, but we don't need to await it yet.
-		Task<string?> bestMoveTask = _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(500));
+		Task<string?> bestMoveTask = _connector.GetBestMoveAsync(500);
 
 		// Assert
 		// Wait for an InfoReceived event with a valid depth to arrive.
@@ -152,7 +151,7 @@ public class UCIConnectorTests : IAsyncLifetime
 		await _connector!.SetPositionAsync();
 
 		// Act: Give the engine 100ms to think.
-		string? bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
+		string? bestMove = await _connector.GetBestMoveAsync(100);
 
 		// Assert
 		// We can't know the exact best move, but we can check if it's a valid move format.
@@ -251,43 +250,12 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Act
 		// Ask the engine for the best move in this position.
-		string? bestMove = await _connector.GetBestMoveAsync(TimeSpan.FromMilliseconds(100));
+		string? bestMove = await _connector.GetBestMoveAsync(100);
 
 		// Assert
 		// If we get a valid move, it means the engine processed the position correctly.
 		Assert.NotNull(bestMove);
 		Assert.True(UCIHelper.IsValidUciMove(bestMove));
-	}
-
-	[Fact]
-	public void StartEngineAsync_ShouldPopulateEngineInfo()
-	{
-		// Assert
-		Assert.NotNull(_connector!.EngineInfo);
-		Assert.Contains(_connector.EngineInfo, line => line.Contains("id name Stockfish"));
-		Assert.Contains(_connector.EngineInfo, line => line.Contains("id author"));
-	}
-
-	[Fact]
-	public void StartEngineAsync_ShouldPopulateSupportedOptions()
-	{
-		// Arrange: The connector is initialized by the IAsyncLifetime fixture,
-		// which calls StartEngineAsync automatically.
-
-		// Assert
-		// The SupportedOptions list should be populated after initialization.
-		Assert.NotNull(_connector!.SupportedOptions);
-		Assert.NotEmpty(_connector.SupportedOptions);
-
-		// Check for a specific, well-known option like "Hash".
-		UCIOption? hashOption = _connector.SupportedOptions.FirstOrDefault(o => o.Name == "Hash");
-		Assert.NotNull(hashOption);
-
-		// Verify that the details of the option were parsed correctly.
-		Assert.Equal("spin", hashOption.Type);
-		Assert.NotNull(hashOption.Default);
-		Assert.NotNull(hashOption.Min);
-		Assert.NotNull(hashOption.Max);
 	}
 
 	[Fact]
@@ -300,8 +268,10 @@ public class UCIConnectorTests : IAsyncLifetime
 		await connector.StartEngineAsync();
 
 		// Assert
-		Assert.NotNull(connector.EngineInfo);
-		Assert.NotEmpty(connector.EngineInfo);
+		// After starting, the engine should be ready to receive commands.
+		// We expect a "readyok" response from the engine.
+		Exception? exception = await Record.ExceptionAsync(() => connector.WaitForEngineToBeReadyAsync());
+		Assert.Null(exception);
 	}
 
 	[Fact]
@@ -333,7 +303,7 @@ public class UCIConnectorTests : IAsyncLifetime
 
 		// Start a long search in the background. We don't await this task yet because we intend to
 		// interrupt it. A 10-second thinking time is plenty for us to stop it manually.
-		Task<string?> searchTask = _connector.GetBestMoveAsync(TimeSpan.FromSeconds(10));
+		Task<string?> searchTask = _connector.GetBestMoveAsync(10000);
 
 		// Give the engine a moment to begin its analysis and find at least one move.
 		await Task.Delay(TimeSpan.FromMilliseconds(500));
