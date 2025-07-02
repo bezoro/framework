@@ -1,4 +1,5 @@
 using Bezoro.UCI.API.Constants;
+using Bezoro.UCI.Types;
 
 namespace Bezoro.UCI.Helpers
 {
@@ -58,5 +59,7 @@ namespace Bezoro.UCI.Helpers
 				_   => null
 			};
 		}
+
+		internal static string BuildGoCommand(SearchParameters parameters) => SearchHelper.BuildGoCommand(parameters);
 	}
 }

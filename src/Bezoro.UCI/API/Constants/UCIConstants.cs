@@ -34,10 +34,13 @@ namespace Bezoro.UCI.API.Constants
 		/// </summary>
 		public const string EloOption = "UCI_Elo";
 
+		public const string FenResponsePrefix = "Fen: ";
+
 		/// <summary>
 		///     Command to start calculating moves
 		/// </summary>
 		public const string GoCommand = "go";
+
 		/// <summary>
 		///     Command to go to a specific move number in a movie
 		/// </summary>

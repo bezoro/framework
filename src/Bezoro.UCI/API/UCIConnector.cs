@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Constants;
@@ -20,9 +20,8 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private const string FenResponsePrefix = "Fen: ";
-
-		private readonly Process _engineProcess;
+		private readonly Process       _engineProcess;
+		private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
 
 		private volatile bool _isDisposed;
 
@@ -33,7 +32,7 @@ namespace Bezoro.UCI.API
 		///     Fires whenever the engine sends real-time analysis information.
 		///     Subscribe to this event to get updates on the engine's search progress.
 		/// </summary>
-		public event EventHandler<EngineAnalysisEventArgs>? InfoReceived;
+		public event EventHandler<SearchResult>? InfoReceived;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -67,15 +66,35 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
+		///     Simplified search for infinite analysis mode.
+		/// </summary>
+		/// <param name="onAnalysisUpdate">Callback invoked for each analysis update.</param>
+		/// <param name="ct">Token to stop the analysis.</param>
+		public async Task AnalyzeAsync(
+			Action<EngineAnalysisEventArgs> onAnalysisUpdate, CancellationToken ct = default)
+		{
+			var parameters = new SearchParameters { Infinite = true };
+			await SendCommandAsync(SearchHelper.BuildGoCommand(parameters), true, ct);
+
+			await foreach (var output in ReadSearchOutputAsync(parameters, ct))
+			{
+				if (output.Type == EngineOutputType.Info && output.InfoData != null)
+				{
+					onAnalysisUpdate(output.InfoData);
+				}
+			}
+		}
+
+		/// <summary>
 		///     Sets a UCI option on the engine.
 		/// </summary>
+		/// <param name="uciConnector"></param>
 		/// <param name="name">The name of the option to set.</param>
 		/// <param name="value">The value to set for the option.</param>
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task SetOptionAsync(string name, string value, CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync($"{UCIConstants.SetOptionCommand} {name} value {value}",
-				cancellationToken);
+			await SendCommandAsync($"{UCIConstants.SetOptionCommand} {name} value {value}", true, cancellationToken);
 		}
 
 		/// <summary>
@@ -99,7 +118,7 @@ namespace Bezoro.UCI.API
 				command += " moves " + string.Join(" ", moves);
 			}
 
-			await SendCommandAndWaitForReadyAsync(command, cancellationToken);
+			await SendCommandAsync(command, false, cancellationToken);
 			Logger.LogSuccess($"Position Set Successfully: {command}");
 		}
 
@@ -115,8 +134,14 @@ namespace Bezoro.UCI.API
 			_processInput  = _engineProcess.StandardInput;
 			_processOutput = _engineProcess.StandardOutput;
 
-			await SendCommandAndWaitForReadyAsync(UCIConstants.UCICommand,        cancellationToken);
-			await SendCommandAndWaitForReadyAsync(UCIConstants.UCINewGameCommand, cancellationToken);
+			await SendCommandAsync(UCIConstants.UCICommand,        true, cancellationToken);
+			await SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
+		}
+
+		public async Task StartSearchAsync(CancellationToken cancellationToken = default)
+		{
+			ThrowIfEngineHasInvalidState();
+			await SendCommandAsync(UCIConstants.GoCommand, true, cancellationToken);
 		}
 
 		/// <summary>
@@ -131,6 +156,7 @@ namespace Bezoro.UCI.API
 
 			try
 			{
+				ThrowIfInputStreamIsNull();
 				await _processInput.WriteLineAsync(UCIConstants.QuitCommand);
 
 				// Asynchronously wait for the process to exit with a timeout.
@@ -153,11 +179,7 @@ namespace Bezoro.UCI.API
 		/// </summary>
 		public async Task StopSearchAsync()
 		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
-			}
-
+			ThrowIfEngineHasInvalidState();
 			await _processInput.WriteLineAsync(UCIConstants.StopCommand);
 		}
 
@@ -169,7 +191,7 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task UCINewGameAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync(UCIConstants.UCINewGameCommand, cancellationToken);
+			await SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
 		}
 
 		/// Waits for the engine to finish processing all previous commands and be ready to accept new ones.
@@ -178,7 +200,16 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task WaitForEngineToBeReadyAsync(CancellationToken cancellationToken = default)
 		{
-			await SendCommandAndWaitForReadyAsync(UCIConstants.IsReadyCommand, cancellationToken);
+			await SendCommandAsync(UCIConstants.IsReadyCommand, true, cancellationToken);
+		}
+
+		public Task<bool> IsEngineReadyAsync(CancellationToken ct = default)
+		{
+			Task<bool> task = Task.FromResult(_engineProcess           != null &&
+											  _engineProcess.StartTime != null &&
+											  _engineProcess.StartTime != DateTime.MinValue);
+
+			return task;
 		}
 
 		/// <summary>
@@ -233,7 +264,7 @@ namespace Bezoro.UCI.API
 			}
 
 			// 1. Get the original position's FEN to understand the current state.
-			string   originalFen = await GetCurrentFenAsync(cancellationToken);
+			string   originalFen = await GetCurrentFENAsync(cancellationToken);
 			string[] fenParts    = originalFen.Split(' ');
 			if (fenParts.Length < 2)
 			{
@@ -295,9 +326,9 @@ namespace Bezoro.UCI.API
 		{
 			ThrowIfDisposed();
 
-			string       currentFen = await GetCurrentFenAsync(cancellationToken);
+			string       currentFen = await GetCurrentFENAsync(cancellationToken);
 			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken, false);
-			BoardState   boardState = BoardStateParser.ParseFen(currentFen);
+			var          boardState = BoardStateParser.ParseFen(currentFen);
 			return legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
 		}
 
@@ -336,7 +367,7 @@ namespace Bezoro.UCI.API
 		///     Retrieves a list of all legal moves available in the current position.
 		///     Uses the engine's 'perft' command at depth 1 to get move information.
 		/// </summary>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <param name="ct">A token to cancel the operation.</param>
 		/// <param name="acquireSemaphore">
 		///     Whether to acquire the command semaphore. Set to false when called from methods that already hold the semaphore.
 		/// </param>
@@ -347,24 +378,24 @@ namespace Bezoro.UCI.API
 		///     The moves are parsed from the engine's output using a regular expression that matches UCI move format.
 		/// </remarks>
 		public async Task<List<string>> GetLegalMovesAsync(
-			CancellationToken cancellationToken = default, bool acquireSemaphore = true)
+			CancellationToken ct = default, bool acquireSemaphore = true)
 		{
 			ThrowIfDisposed();
 			ThrowIfInputStreamIsNull();
 
 			var moves = new List<string>();
 
-			await SendCommandAndWaitForReadyAsync(UCIConstants.GoPerftDepth1Command, cancellationToken);
+			await SendCommandAsync(UCIConstants.GoPerftDepth1Command, false, ct);
 
 			while (true)
 			{
-				string? line = await ReadProcessOutputAsync(cancellationToken);
+				string? line = await ReadProcessOutputAsync(ct);
 				if (line == null || line.Contains("Nodes searched"))
 				{
 					break;
 				}
 
-				Match match = UCIConstants.MoveRegex.Match(line);
+				var match = UCIConstants.MoveRegex.Match(line);
 
 				if (match.Success)
 				{
@@ -375,49 +406,141 @@ namespace Bezoro.UCI.API
 			return moves;
 		}
 
-		public async Task<string?> GetBestMoveAsync(
-			SearchParameters parameters, CancellationToken cancellationToken = default)
-		{
-			ThrowIfDisposed();
-			ThrowIfInputStreamIsNull();
+		// Add these methods to your UCIConnector class:
 
-			string goCommand = SearchHelper.BuildGoCommand(parameters);
-			await SendCommandAndWaitForReadyAsync(goCommand, cancellationToken);
-			return await WaitForBestMoveResponseAsync(parameters, cancellationToken);
+		/// <summary>
+		///     Performs a unified search operation with comprehensive result tracking.
+		///     This is the recommended method for all search operations.
+		/// </summary>
+		/// <param name="parameters">Search parameters defining time, depth, nodes, etc.</param>
+		/// <param name="ct">Token to cancel the search operation.</param>
+		/// <returns>A comprehensive SearchResult containing best move and all analysis data.</returns>
+		public async Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default)
+		{
+			ThrowIfEngineHasInvalidState();
+			var result    = new SearchResult();
+			var stopwatch = Stopwatch.StartNew();
+
+			try
+			{
+				string goCommand = SearchHelper.BuildGoCommand(parameters);
+				await SendCommandAsync(goCommand, false, ct);
+
+				// Process all output until we get bestmove
+				await foreach (var output in ReadSearchOutputAsync(parameters, ct))
+				{
+					switch (output.Type)
+					{
+						case EngineOutputType.Info:
+							if (output.InfoData != null)
+							{
+								result.AnalysisInfo.Add(output.InfoData);
+
+								if (output.InfoData.ScoreCp.HasValue)
+								{
+									result.FinalScore = output.InfoData.ScoreCp.Value;
+								}
+
+								if (output.InfoData.Depth.HasValue)
+								{
+									result.Depth = output.InfoData.Depth.Value;
+								}
+							}
+
+							break;
+						case EngineOutputType.BestMove:
+							result.BestMove   = output.BestMove;
+							result.PonderMove = output.PonderMove;
+							stopwatch.Stop();
+							result.SearchTimeMs = stopwatch.ElapsedMilliseconds;
+							return result;
+					}
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				// Search was cancelled - try to stop gracefully and get best move so far
+				result.WasStoppedEarly = true;
+				await StopSearchAsync();
+
+				// Wait a bit for bestmove response after stop
+				try
+				{
+					await foreach (var output in ReadSearchOutputAsync(parameters, ct).
+									   WithCancellation(new CancellationTokenSource(1000).Token))
+					{
+						if (output.Type == EngineOutputType.BestMove)
+						{
+							result.BestMove   = output.BestMove;
+							result.PonderMove = output.PonderMove;
+							break;
+						}
+					}
+				}
+				catch
+				{
+					/* Ignore timeout after stop */
+				}
+			}
+
+			stopwatch.Stop();
+			result.SearchTimeMs = stopwatch.ElapsedMilliseconds;
+			return result;
 		}
 
 		/// <summary>
-		///     Asks the engine to find the best move for the current position using a fixed amount of time.
+		///     Gets the best move using the unified search API.
+		///     Legacy method maintained for backward compatibility.
 		/// </summary>
-		/// <param name="thinkingTimeInMS">The maximum time the engine should think.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		/// <returns>The best move found by the engine in UCI format (e.g., "e2e4").</returns>
-		public async Task<string?> GetBestMoveAsync(
-			int thinkingTimeInMS = 1000, CancellationToken cancellationToken = default)
+		public async Task<string?> GetBestMoveAsync(SearchParameters parameters, CancellationToken ct = default)
 		{
-			var searchParameters = new SearchParameters { MoveTimeMs = thinkingTimeInMS };
-			return await GetBestMoveAsync(searchParameters, cancellationToken);
+			var result = await SearchAsync(parameters, ct);
+			return result.BestMove;
 		}
 
-		public async Task<string> GetCurrentFenAsync(CancellationToken cancellationToken)
+		/// <summary>
+		///     Gets the best move with a fixed thinking time.
+		///     Legacy method maintained for backward compatibility.
+		/// </summary>
+		public async Task<string?> GetBestMoveAsync(int thinkingTimeInMS = 1000, CancellationToken ct = default)
 		{
-			EnsureEngineIsReady();
+			var parameters = new SearchParameters { MoveTimeMs = thinkingTimeInMS };
+			var result     = await SearchAsync(parameters, ct);
+			return result.BestMove;
+		}
 
+		public async Task<string?> ReadProcessOutputAsync(CancellationToken ct, int timeoutMs = 5000)
+		{
+			ThrowIfEngineHasInvalidState();
+			Task<string?> readTask      = _processOutput.ReadLineAsync();
+			var           completedTask = await Task.WhenAny(readTask, Task.Delay(timeoutMs, ct));
+			if (completedTask != readTask)
+			{
+				throw new TimeoutException("The engine response timed out.");
+			}
+
+			Logger.LogInfo($"<<UCI>>{readTask.Result}");
+			return await readTask;
+		}
+
+		public async Task<string> GetCurrentFENAsync(CancellationToken ct)
+		{
+			ThrowIfEngineHasInvalidState();
 			// The 'd' command doesn't have a clear "readyok" end signal, so we read until we find the FEN
 			await _processInput.WriteLineAsync(UCIConstants.DisplayBoardCommand);
 
 			while (true)
 			{
-				string? line = await ReadProcessOutputAsync(cancellationToken);
+				string? line = await ReadProcessOutputAsync(ct);
 				if (line is null)
 				{
 					// End of stream reached before finding the FEN.
 					break;
 				}
 
-				if (line.StartsWith(FenResponsePrefix, StringComparison.Ordinal))
+				if (line.StartsWith(UCIConstants.FenResponsePrefix, StringComparison.Ordinal))
 				{
-					return line.Substring(FenResponsePrefix.Length).Trim();
+					return line.Substring(UCIConstants.FenResponsePrefix.Length).Trim();
 				}
 			}
 
@@ -438,41 +561,170 @@ namespace Bezoro.UCI.API
 
 			await StopEngineAsync();
 
-			_processInput?.Dispose();
-			_processOutput?.Dispose();
-			_engineProcess?.Dispose();
+			_processInput.Dispose();
+			_processOutput.Dispose();
+			_engineProcess.Dispose();
 			GC.SuppressFinalize(this);
 		}
 
-		internal static string BuildGoCommand(SearchParameters parameters) => SearchHelper.BuildGoCommand(parameters);
-
-		private async Task SendCommandAndWaitForReadyAsync(string command, CancellationToken cancellationToken)
+		/// <summary>
+		///     Processes generic, unsolicited output from the engine, like "info" strings.
+		/// </summary>
+		/// <param name="uciConnector"></param>
+		/// <param name="line">The line of output from the engine.</param>
+		public void ProcessGenericEngineOutput(string line)
 		{
-			ThrowIfDisposed();
-			ThrowIfInputStreamIsNull();
+			ThrowIfEngineHasInvalidState();
+			if (line.StartsWith(UCIConstants.InfoCommand, StringComparison.OrdinalIgnoreCase))
+			{
+				var analysisArgs = InfoParser.Parse(line);
+				if (analysisArgs != null)
+				{
+					InfoReceived?.Invoke(this,
+						new SearchResult { AnalysisInfo = { analysisArgs } });
+				}
+			}
+		}
 
-			await _processInput.WriteLineAsync(command);
-			await WaitUntilReadyResponseAsync(cancellationToken);
-			Logger.LogInfo($"<<UCI>>[{command}] Successful.");
+		/// <summary>
+		///     Parses a single line of engine output into a structured format.
+		/// </summary>
+		private EngineOutput ParseEngineOutput(string line)
+		{
+			var output = new EngineOutput { RawLine = line };
+
+			if (line.StartsWith("info", StringComparison.OrdinalIgnoreCase))
+			{
+				output.Type     = EngineOutputType.Info;
+				output.InfoData = InfoParser.Parse(line);
+
+				// Also fire the event for backward compatibility
+				if (output.InfoData != null)
+				{
+					InfoReceived?.Invoke(this, new SearchResult { AnalysisInfo = { output.InfoData } });
+				}
+			}
+			else if (line.StartsWith(UCIConstants.BestMoveResponsePrefix, StringComparison.OrdinalIgnoreCase))
+			{
+				output.Type = EngineOutputType.BestMove;
+
+				// Parse bestmove and ponder from line like "bestmove e2e4 ponder e7e5"
+				string[]? parts = line.Split(' ');
+				if (parts.Length >= 2)
+				{
+					output.BestMove = parts[1];
+				}
+
+				// Check for ponder move
+				for (var i = 2 ; i < parts.Length - 1 ; i++)
+				{
+					if (parts[i].Equals("ponder", StringComparison.OrdinalIgnoreCase))
+					{
+						output.PonderMove = parts[i + 1];
+						break;
+					}
+				}
+			}
+			else
+			{
+				output.Type = EngineOutputType.Unknown;
+			}
+
+			return output;
+		}
+
+		/// <summary>
+		///     Reads and parses engine output during a search operation.
+		/// </summary>
+		private async IAsyncEnumerable<EngineOutput> ReadSearchOutputAsync(
+			SearchParameters parameters, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		{
+			// Create timeout CTS if needed based on search parameters
+			using var timeoutCts = SearchHelper.CreateTimeoutCtsForSearch(parameters);
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+				cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
+
+			while (!linkedCts.Token.IsCancellationRequested)
+			{
+				string? line;
+				try
+				{
+					line = await ReadProcessOutputAsync(linkedCts.Token);
+				}
+				catch (OperationCanceledException) when (timeoutCts?.Token.IsCancellationRequested == true)
+				{
+					throw new TimeoutException(
+						$"Search timed out after {parameters.MoveTimeMs}ms");
+				}
+
+				if (line == null)
+				{
+					throw new UCIException("Engine process exited unexpectedly during search.");
+				}
+
+				var output = ParseEngineOutput(line);
+				yield return output;
+
+				if (output.Type == EngineOutputType.BestMove)
+				{
+					yield break;
+				}
+			}
+		}
+
+		private async Task SendCommandAsync(
+			string command, bool waitForReady = false, CancellationToken cancellationToken = default)
+		{
+			ThrowIfEngineHasInvalidState();
+			await _commandSemaphore.WaitAsync(cancellationToken);
+			try
+			{
+				Logger.LogInfo($"<<UCI>>[{command}] Started.");
+				await _processInput.WriteLineAsync(command);
+
+				if (waitForReady)
+				{
+					await WaitUntilReadyResponseAsync(cancellationToken);
+				}
+			}
+			finally
+			{
+				_commandSemaphore.Release();
+			}
+
+			Logger.LogInfo($"<<UCI>>[{command}] Sent.");
 		}
 
 		private async Task WaitUntilReadyResponseAsync(CancellationToken cancellationToken)
 		{
-			ThrowIfInputStreamIsNull();
+			ThrowIfEngineHasInvalidState();
 			await _processInput.WriteLineAsync(UCIConstants.IsReadyCommand);
-			string? line = await ReadLineAsync(cancellationToken);
-			ProcessGenericEngineOutput(line);
+			while (true)
+			{
+				string? line = await ReadProcessOutputAsync(cancellationToken);
+				if (line == null)
+				{
+					throw new UCIException("Engine disconnected while waiting for readyok");
+				}
+
+				if (line.Equals("readyok", StringComparison.OrdinalIgnoreCase))
+				{
+					return;
+				}
+
+				ProcessGenericEngineOutput(line);
+			}
 		}
 
-		private async Task<List<string>> ReadAllProcessOutputAsync(CancellationToken cancellationToken)
+		private async Task<List<string>> ReadAllProcessOutputAsync(CancellationToken ct)
 		{
-			ThrowIfProcessOutputStreamIsNull();
+			ThrowIfEngineHasInvalidState();
 			var lines = new List<string>();
 
 			// The `is { } line` pattern matching elegantly handles the case where 
 			// ReadProcessOutputAsync returns null (i.e., the stream has ended),
 			// preventing potential infinite loops or nulls in the list.
-			while (await ReadProcessOutputAsync(cancellationToken) is { } line)
+			while (await ReadProcessOutputAsync(ct) is { } line)
 			{
 				if (string.Equals(line, "readyok", StringComparison.OrdinalIgnoreCase))
 				{
@@ -485,113 +737,28 @@ namespace Bezoro.UCI.API
 			return lines;
 		}
 
-		private async Task<string?> ReadLineAsync(CancellationToken cancellationToken)
-		{
-			string? line = await ReadProcessOutputAsync(cancellationToken, 5000);
-			if (line == null)
-			{
-				throw new UCIException("Engine process exited unexpectedly while waiting for readyok.");
-			}
-
-			return line;
-		}
-
-		private async Task<string?> ReadProcessOutputAsync(
-			CancellationToken cancellationToken, int timeoutMilliseconds = -1)
-		{
-			ThrowIfProcessOutputStreamIsNull();
-			Task<string?> readTask = _processOutput.ReadLineAsync();
-			Task completedTask = await Task.WhenAny(readTask, Task.Delay(timeoutMilliseconds, cancellationToken));
-			if (completedTask != readTask)
-			{
-				throw new TimeoutException("The engine response timed out.");
-			}
-
-			Logger.LogInfo($"<<UCI>>{readTask.Result}");
-			return await readTask;
-		}
-
-		private async Task<string?> WaitForBestMoveResponseAsync(
-			SearchParameters parameters, CancellationToken cancellationToken)
-		{
-			using CancellationTokenSource? timeoutCts = SearchHelper.CreateTimeoutCtsForSearch(parameters);
-			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-				cancellationToken, timeoutCts?.Token ?? CancellationToken.None);
-
-			try
-			{
-				while (true)
-				{
-					string? line = await ReadProcessOutputAsync(linkedCts.Token);
-					if (line == null)
-					{
-						throw new UCIException("Engine process exited unexpectedly while waiting for bestmove.");
-					}
-
-					if (line.StartsWith("info", StringComparison.OrdinalIgnoreCase))
-					{
-						InfoReceived?.Invoke(this, InfoParser.Parse(line));
-					}
-					else if (line.StartsWith(UCIConstants.BestMoveResponsePrefix, StringComparison.OrdinalIgnoreCase))
-					{
-						return SearchHelper.ParseBestMoveFromResponse(line);
-					}
-				}
-			}
-			catch (OperationCanceledException)
-			{
-				// Check if it was our timeout that triggered, not an external cancellation
-				if (timeoutCts?.Token.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
-				{
-					throw new TimeoutException("Timed out waiting for engine to respond with best move.");
-				}
-
-				// Otherwise, rethrow as it's an external cancellation
-				throw;
-			}
-		}
-
-		private void EnsureEngineIsReady()
-		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
-			}
-
-			if (_engineProcess.HasExited)
-			{
-				throw new UCIException("Engine process has exited.");
-			}
-
-			if (_processInput is null)
-			{
-				throw new UCIException("Engine process input stream is null.");
-			}
-		}
-
-		/// <summary>
-		///     Processes generic, unsolicited output from the engine, like "info" strings.
-		/// </summary>
-		/// <param name="line">The line of output from the engine.</param>
-		private void ProcessGenericEngineOutput(string line)
-		{
-			// We are primarily interested in "info" lines here, as other commands have their own dedicated response handlers.
-			if (line.StartsWith(UCIConstants.InfoCommand, StringComparison.OrdinalIgnoreCase))
-			{
-				EngineAnalysisEventArgs? analysisArgs = InfoParser.Parse(line);
-				if (analysisArgs != null)
-				{
-					InfoReceived?.Invoke(this, analysisArgs);
-				}
-			}
-		}
-
 		private void ThrowIfDisposed()
 		{
 			if (_isDisposed)
 			{
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
+		}
+
+		private void ThrowIfEngineHasExited()
+		{
+			if (_engineProcess.HasExited)
+			{
+				throw new UCIException("Engine process has exited.");
+			}
+		}
+
+		private void ThrowIfEngineHasInvalidState()
+		{
+			ThrowIfInputStreamIsNull();
+			ThrowIfProcessOutputStreamIsNull();
+			ThrowIfEngineHasExited();
+			ThrowIfDisposed();
 		}
 
 		private void ThrowIfInputStreamIsNull()
