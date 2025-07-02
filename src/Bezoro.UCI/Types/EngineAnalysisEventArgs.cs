@@ -6,15 +6,10 @@ namespace Bezoro.UCI.Types
 	///     Provides data for the InfoReceived event.
 	///     Contains parsed information from a UCI 'info' string.
 	/// </summary>
-	public class EngineAnalysisEventArgs : EventArgs
+	public class EngineAnalysisEventArgs(string rawInfo) : EventArgs
 	{
-		public EngineAnalysisEventArgs(string rawInfo)
-		{
-			RawInfo = rawInfo;
-		}
-
 		/// <summary> The raw 'info' string from the engine. </summary>
-		public string RawInfo { get; }
+		public string RawInfo { get; } = rawInfo;
 
 		/// <summary> Search depth in plies. </summary>
 		public int? Depth { get; internal set; }
@@ -33,5 +28,8 @@ namespace Bezoro.UCI.Types
 
 		/// <summary> The search speed in nodes per second. </summary>
 		public long? Nps { get; internal set; }
+
+		public override string ToString() =>
+			$"Depth: {Depth}, Mate: {Mate}, ScoreCp: {ScoreCp}, Nodes: {Nodes}, Nps: {Nps}";
 	}
 }

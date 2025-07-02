@@ -1,4 +1,5 @@
 using Bezoro.UCI.API;
+using Bezoro.UCI.Helpers;
 using Bezoro.UCI.Types;
 using JetBrains.Annotations;
 
@@ -26,7 +27,7 @@ public class BuildGoCommandUnitTests
 		};
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		var expected =
@@ -42,7 +43,7 @@ public class BuildGoCommandUnitTests
 		var parameters = new SearchParameters();
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		Assert.Equal("go", result);
@@ -56,7 +57,7 @@ public class BuildGoCommandUnitTests
 		var parameters = new SearchParameters { SearchMoves = new List<string>() };
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		Assert.Equal("go", result);
@@ -69,7 +70,7 @@ public class BuildGoCommandUnitTests
 		var parameters = new SearchParameters { Infinite = true };
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		Assert.Equal("go infinite", result);
@@ -88,7 +89,7 @@ public class BuildGoCommandUnitTests
 		};
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		Assert.Equal("go wtime 180000 btime 170000 winc 2000 binc 2000", result);
@@ -101,7 +102,7 @@ public class BuildGoCommandUnitTests
 		var parameters = new SearchParameters { SearchMoves = new[] { "g1f3" } };
 
 		// Act
-		string result = UCIConnector.BuildGoCommand(parameters);
+		string result = UCIHelper.BuildGoCommand(parameters);
 
 		// Assert
 		Assert.Equal("go searchmoves g1f3", result);
