@@ -40,10 +40,6 @@ namespace Bezoro.UCI.API.Constants
 		///     Command to start calculating moves
 		/// </summary>
 		public const string GoCommand = "go";
-		/// <summary>
-		///     Command to go to a specific move number in a movie
-		/// </summary>
-		public const string GoMoveNumberCommand = "go movenumber";
 
 		/// <summary>
 		///     Command to go to a specific move number in a movie
