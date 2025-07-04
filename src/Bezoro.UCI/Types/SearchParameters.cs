@@ -9,6 +9,8 @@ namespace Bezoro.UCI.Types
 	{
 		/// <summary> Search indefinitely until a 'stop' command is sent. </summary>
 		public bool Infinite { get; init; }
+
+		public bool Ponder { get; init; }
 		/// <summary> Restrict search to a list of moves. </summary>
 		public IEnumerable<string>? SearchMoves { get; init; }
 
@@ -23,6 +25,8 @@ namespace Bezoro.UCI.Types
 
 		/// <summary> Search for a mate in a specific number of moves. </summary>
 		public int? Mate { get; init; }
+
+		public int? MovesToGo { get; init; }
 
 		/// <summary> Search for a fixed amount of time in milliseconds. </summary>
 		public int? MoveTimeMs { get; init; }
