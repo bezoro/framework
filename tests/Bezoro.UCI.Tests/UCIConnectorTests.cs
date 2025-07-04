@@ -45,6 +45,29 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
+	public async Task FindKingSquare_WhenValidBoardState_ShouldReturnCorrectKing()
+	{
+		// Arrange
+		// Set up a custom position where we know exactly where the kings are
+		const string customFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
+		await _connector!.SetPositionAsync(customFen);
+
+		// Act
+		// Find the white king position
+		string? whiteKingSquare = _connector.FindKingSquare(customFen, 'w');
+
+		// Find the black king position  
+		string? blackKingSquare = _connector.FindKingSquare(customFen, 'b');
+
+		// Assert
+		// In the FEN position above, white king is on e1 and black king is on e8
+		Assert.NotNull(whiteKingSquare);
+		Assert.NotNull(blackKingSquare);
+		Assert.Equal("e1", whiteKingSquare);
+		Assert.Equal("e8", blackKingSquare);
+	}
+
+	[Fact]
 	public async Task GetAllLegalMovesWithDetailsAsync_WhenValidState_ShouldReturnValidMoves()
 	{
 		// Arrange
@@ -193,6 +216,24 @@ public class UCIConnectorTests : IAsyncLifetime
 	}
 
 	[Fact]
+	public async Task IsStalemateAsync_WhenValidBoardState_ShouldReturnTrue()
+	{
+		// Arrange
+		// True stalemate: Black king on a8, white king on a6, white pawn on a7
+		// Black king cannot move anywhere and is not in check
+		const string stalemateFen = "k7/P7/K7/8/8/8/8/8 b - - 0 1";
+		await _connector!.SetPositionAsync(stalemateFen);
+
+		// Act
+		// Check if the current position is a stalemate
+		bool isStalemate = await _connector.IsStalemateAsync();
+
+		// Assert
+		// The position should be detected as stalemate
+		Assert.True(isStalemate);
+	}
+
+	[Fact]
 	public async Task SetOptionAsync_WhenGivenValidOption_ShouldSetOption()
 	{
 		// Arrange
@@ -201,7 +242,7 @@ public class UCIConnectorTests : IAsyncLifetime
 		// We will set a common option like "Threads".
 
 		// Act
-		Exception? exception = await Record.ExceptionAsync(() => _connector!.SetOptionAsync("Threads", "2"));
+		var exception = await Record.ExceptionAsync(() => _connector!.SetOptionAsync("Threads", "2"));
 
 		// Assert
 		Assert.Null(exception);
