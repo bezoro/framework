@@ -265,40 +265,14 @@ namespace Bezoro.UCI.API
 				throw new UCIException("Failed to parse FEN string from engine.");
 			}
 
-			char activeColor = fenParts[1][0];
-
-			// 2. Determine which player's attack to check. Default to the OPPOSITE of the current active player.
+			char activeColor  = fenParts[1][0];
 			char colorToCheck = playerColor ?? activeColor;
 
-			List<string> moves;
+			// 2. Get legal moves for the specified player.
+			List<string> moves =
+				await GetMovesForPlayerAsync(colorToCheck, activeColor, fenParts, originalFen, cancellationToken);
 
-			// 3. Get legal moves for the specified player.
-			if (colorToCheck == activeColor)
-			{
-				// If we're checking the current player, we don't need to change the engine's state.
-				// We pass `false` to GetLegalMovesAsync to avoid re-acquiring the semaphore.
-				moves = await GetLegalMovesAsync(cancellationToken, false);
-			}
-			else
-			{
-				// If checking the other player, we temporarily flip the turn in the FEN string.
-				// The en-passant square is cleared as it's not valid after a turn flip.
-				var tempFen = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
-
-				// Set the engine to the temporary position.
-				await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {tempFen}");
-				await WaitUntilReadyResponseAsync(cancellationToken);
-
-				// Get all legal moves for that player.
-				moves = await GetLegalMovesAsync(cancellationToken, false);
-
-				// IMPORTANT: Restore the engine to its original state to ensure consistency.
-				await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {originalFen}");
-				await WaitUntilReadyResponseAsync(cancellationToken);
-			}
-
-			// 4. Check if any available move targets the given square.
-			// A UCI move is "from-to" (e.g., "e2e4"), so we check the "to" part of the string.
+			// 3. Check if any available move targets the given square.
 			bool isAttacked = moves.Any(move =>
 				move.Length >= 4 &&
 				move.Substring(2, 2).Equals(square, StringComparison.OrdinalIgnoreCase)
@@ -776,6 +750,35 @@ namespace Bezoro.UCI.API
 
 				ProcessGenericEngineOutput(line);
 			}
+		}
+
+		private async Task<List<string>> GetMovesForPlayerAsync(
+			char colorToCheck, char activeColor, string[] fenParts, string originalFen,
+			CancellationToken cancellationToken)
+		{
+			if (colorToCheck == activeColor)
+			{
+				// If we're checking the current player, we don't need to change the engine's state.
+				// We pass `false` to GetLegalMovesAsync to avoid re-acquiring the semaphore.
+				return await GetLegalMovesAsync(cancellationToken, false);
+			}
+
+			// If checking the other player, we temporarily flip the turn in the FEN string.
+			// The en-passant square is cleared as it's not valid after a turn flip.
+			var tempFen = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
+
+			// Set the engine to the temporary position.
+			await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {tempFen}");
+			await WaitUntilReadyResponseAsync(cancellationToken);
+
+			// Get all legal moves for that player.
+			List<string> moves = await GetLegalMovesAsync(cancellationToken, false);
+
+			// IMPORTANT: Restore the engine to its original state to ensure consistency.
+			await _processInput.WriteLineAsync($"{UCIConstants.PositionCommand} fen {originalFen}");
+			await WaitUntilReadyResponseAsync(cancellationToken);
+
+			return moves;
 		}
 
 		private async Task<List<string>> ReadAllProcessOutputAsync(CancellationToken ct)
