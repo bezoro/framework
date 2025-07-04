@@ -39,7 +39,6 @@ namespace Bezoro.UCI.Helpers
 
 			if (IsEnPassant(parsedMove, movingPiece, isCaptureOnToSquare, boardState))
 			{
-				Logger.LogInfo(parsedMove.To);
 				return new MoveClassification(move) { IsCapture = true, IsEnPassant = true };
 			}
 
