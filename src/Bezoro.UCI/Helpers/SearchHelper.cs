@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -33,60 +34,48 @@ namespace Bezoro.UCI.Helpers
 		{
 			var commandBuilder = new StringBuilder(UCIConstants.GoCommand);
 
-			if (parameters.SearchMoves?.Any() == true)
-			{
-				commandBuilder.Append($" {UCIConstants.SearchMovesParameter} ").
-							   Append(string.Join(" ", parameters.SearchMoves));
-			}
+			AppendSearchMovesIfPresent(commandBuilder, parameters.SearchMoves);
+			AppendOptionalParameter(commandBuilder, UCIConstants.WhiteTimeParameter, parameters.WhiteTimeMs);
+			AppendOptionalParameter(commandBuilder, UCIConstants.BlackTimeParameter, parameters.BlackTimeMs);
+			AppendOptionalParameter(commandBuilder, UCIConstants.WhiteTimeIncrementParameter,
+				parameters.WhiteIncrementMs);
 
-			if (parameters.WhiteTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.WhiteTimeParameter} ").Append(parameters.WhiteTimeMs.Value);
-			}
+			AppendOptionalParameter(commandBuilder, UCIConstants.BlackTimeIncrementParameter,
+				parameters.BlackIncrementMs);
 
-			if (parameters.BlackTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.BlackTimeParameter} ").Append(parameters.BlackTimeMs.Value);
-			}
-
-			if (parameters.WhiteIncrementMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.WhiteTimeIncrementParameter} ").
-							   Append(parameters.WhiteIncrementMs.Value);
-			}
-
-			if (parameters.BlackIncrementMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.BlackTimeIncrementParameter} ").
-							   Append(parameters.BlackIncrementMs.Value);
-			}
-
-			if (parameters.Depth.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.DepthParameter} ").Append(parameters.Depth.Value);
-			}
-
-			if (parameters.Nodes.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.NodesSearchParameter} ").Append(parameters.Nodes.Value);
-			}
-
-			if (parameters.Mate.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.MateSearchParameter} ").Append(parameters.Mate.Value);
-			}
-
-			if (parameters.MoveTimeMs.HasValue)
-			{
-				commandBuilder.Append($" {UCIConstants.MoveTimeParameter} ").Append(parameters.MoveTimeMs.Value);
-			}
-
-			if (parameters.Infinite)
-			{
-				commandBuilder.Append($" {UCIConstants.InfiniteSearchParameter}");
-			}
-
+			AppendOptionalParameter(commandBuilder, UCIConstants.DepthParameter,       parameters.Depth);
+			AppendOptionalParameter(commandBuilder, UCIConstants.NodesSearchParameter, (int?)parameters.Nodes);
+			AppendOptionalParameter(commandBuilder, UCIConstants.MateSearchParameter,  parameters.Mate);
+			AppendOptionalParameter(commandBuilder, UCIConstants.MoveTimeParameter,    parameters.MoveTimeMs);
+			AppendOptionalParameter(commandBuilder, UCIConstants.MovesToGoParameter,   parameters.MovesToGo);
+			AppendFlagParameter(commandBuilder, UCIConstants.InfiniteSearchParameter, parameters.Infinite);
+			AppendFlagParameter(commandBuilder, UCIConstants.PonderParameter,         parameters.Ponder);
+    
 			return commandBuilder.ToString();
+		}
+
+		private static void AppendOptionalParameter(StringBuilder builder, string parameterName, int? value)
+		{
+			if (value.HasValue)
+			{
+				builder.Append($" {parameterName} ").Append(value.Value);
+			}
+		}
+
+		private static void AppendFlagParameter(StringBuilder builder, string parameterName, bool isSet)
+		{
+			if (isSet)
+			{
+				builder.Append($" {parameterName}");
+			}
+		}
+
+		private static void AppendSearchMovesIfPresent(StringBuilder builder, IEnumerable<string> searchMoves)
+		{
+			if (searchMoves?.Any() == true)
+			{
+				builder.Append($" {UCIConstants.SearchMovesParameter} ").Append(string.Join(" ", searchMoves));
+			}
 		}
 
 		/// <summary>
