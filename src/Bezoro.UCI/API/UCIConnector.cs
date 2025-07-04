@@ -138,12 +138,6 @@ namespace Bezoro.UCI.API
 			await SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
 		}
 
-		public async Task StartSearchAsync(CancellationToken cancellationToken = default)
-		{
-			ThrowIfEngineHasInvalidState();
-			await SendCommandAsync(UCIConstants.GoCommand, true, cancellationToken);
-		}
-
 		/// <summary>
 		///     Stops the engine gracefully.
 		/// </summary>
