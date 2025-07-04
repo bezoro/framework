@@ -77,6 +77,11 @@ namespace Bezoro.UCI.API.Constants
 		public const string MateSearchParameter = "mate";
 
 		/// <summary>
+		///     Parameter for remaining moves until next time control
+		/// </summary>
+		public const string MovesToGoParameter = "movestogo";
+
+		/// <summary>
 		///     Parameter for exact move time in milliseconds
 		/// </summary>
 		public const string MoveTimeParameter = "movetime";
@@ -85,6 +90,11 @@ namespace Bezoro.UCI.API.Constants
 		///     Parameter to search exact number of nodes
 		/// </summary>
 		public const string NodesSearchParameter = "nodes";
+
+		/// <summary>
+		///     Parameter for ponder mode
+		/// </summary>
+		public const string PonderParameter = "ponder";
 
 		/// <summary>
 		///     Command to set the current position
