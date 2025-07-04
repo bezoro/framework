@@ -307,6 +307,43 @@ namespace Bezoro.UCI.API
 			return isAttacked;
 		}
 
+		public async Task<bool> IsStalemateAsync(CancellationToken cancellationToken = default)
+		{
+			const int  FenActiveColorIndex     = 1;
+			const int  MinimumFenPartsRequired = 2;
+			const char WhitePlayer             = 'w';
+			const char BlackPlayer             = 'b';
+
+			// Get current position to determine whose turn it is
+			string   currentFen = await GetCurrentFENAsync(cancellationToken);
+			string[] fenParts   = currentFen.Split(' ');
+
+			if (fenParts.Length < MinimumFenPartsRequired)
+			{
+				throw new UCIException("Invalid FEN string returned from engine");
+			}
+
+			char activeColor = fenParts[FenActiveColorIndex][0];
+
+			// Get all legal moves for the current player
+			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken);
+
+			// If there are legal moves, it's not stalemate
+			if (legalMoves.Count > 0)
+			{
+				return false;
+			}
+
+			// No legal moves - check if king is in check (checkmate vs stalemate)
+			string kingSquare    = FindKingSquare(fenParts[0], activeColor);
+			char   opponentColor = activeColor == WhitePlayer ? BlackPlayer : WhitePlayer;
+
+			bool isKingInCheck = await IsSquareAttackedAsync(kingSquare, opponentColor, cancellationToken);
+
+			// Stalemate = no legal moves AND king is NOT in check
+			return !isKingInCheck;
+		}
+
 		/// <summary>
 		///     Retrieves a list of all legal moves for the current position and classifies each one
 		///     by its type (e.g., capture, castling). This is ideal for rich UI feedback.
@@ -399,8 +436,6 @@ namespace Bezoro.UCI.API
 
 			return moves;
 		}
-
-		// Add these methods to your UCIConnector class:
 
 		/// <summary>
 		///     Performs a unified search operation with comprehensive result tracking.
@@ -578,6 +613,39 @@ namespace Bezoro.UCI.API
 						new SearchResult { AnalysisInfo = { analysisArgs } });
 				}
 			}
+		}
+
+		internal string FindKingSquare(string boardPosition, char activeColor)
+		{
+			char kingPiece = activeColor == 'w' ? 'K' : 'k';
+
+			string[] ranks = boardPosition.Split('/');
+
+			for (var rank = 0 ; rank < 8 ; rank++)
+			{
+				var file = 0;
+				foreach (char c in ranks[rank])
+				{
+					if (char.IsDigit(c))
+					{
+						file += int.Parse(c.ToString());
+					}
+					else
+					{
+						if (c == kingPiece)
+						{
+							// Convert to algebraic notation
+							var fileChar = (char)('a' + file);
+							var rankChar = (char)('8' - rank);
+							return $"{fileChar}{rankChar}";
+						}
+
+						file++;
+					}
+				}
+			}
+
+			throw new UCIException($"Could not find {activeColor} king in position");
 		}
 
 		/// <summary>
