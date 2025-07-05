@@ -2,15 +2,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using Bezoro.UCI.API.Constants;
-using Bezoro.UCI.Types;
+using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain.Constants;
 
-namespace Bezoro.UCI.Helpers
+namespace Bezoro.UCI.Domain.Helpers
 {
 	/// <summary>
-	///     Helper class for UCI search-related functionality.
+	///     Provides helper methods for building and parsing UCI 'go' commands, managing search timeouts,
+	///     and handling search-related functionality. This class contains pure functions for working
+	///     with search parameters and UCI protocol commands.
 	/// </summary>
-	internal static class SearchHelper
+	internal static class GoCommandHelper
 	{
 		/// <summary>
 		///     Creates a timeout cancellation token source based on search parameters.
@@ -35,6 +37,7 @@ namespace Bezoro.UCI.Helpers
 			var commandBuilder = new StringBuilder(UCIConstants.GoCommand);
 
 			AppendSearchMovesIfPresent(commandBuilder, parameters.SearchMoves);
+
 			AppendOptionalParameter(commandBuilder, UCIConstants.WhiteTimeParameter, parameters.WhiteTimeMs);
 			AppendOptionalParameter(commandBuilder, UCIConstants.BlackTimeParameter, parameters.BlackTimeMs);
 			AppendOptionalParameter(commandBuilder, UCIConstants.WhiteTimeIncrementParameter,
@@ -48,18 +51,11 @@ namespace Bezoro.UCI.Helpers
 			AppendOptionalParameter(commandBuilder, UCIConstants.MateSearchParameter,  parameters.Mate);
 			AppendOptionalParameter(commandBuilder, UCIConstants.MoveTimeParameter,    parameters.MoveTimeMs);
 			AppendOptionalParameter(commandBuilder, UCIConstants.MovesToGoParameter,   parameters.MovesToGo);
+
 			AppendFlagParameter(commandBuilder, UCIConstants.InfiniteSearchParameter, parameters.Infinite);
 			AppendFlagParameter(commandBuilder, UCIConstants.PonderParameter,         parameters.Ponder);
-    
-			return commandBuilder.ToString();
-		}
 
-		private static void AppendOptionalParameter(StringBuilder builder, string parameterName, int? value)
-		{
-			if (value.HasValue)
-			{
-				builder.Append($" {parameterName} ").Append(value.Value);
-			}
+			return commandBuilder.ToString();
 		}
 
 		private static void AppendFlagParameter(StringBuilder builder, string parameterName, bool isSet)
@@ -70,22 +66,20 @@ namespace Bezoro.UCI.Helpers
 			}
 		}
 
-		private static void AppendSearchMovesIfPresent(StringBuilder builder, IEnumerable<string> searchMoves)
+		private static void AppendOptionalParameter(StringBuilder builder, string parameterName, int? value)
+		{
+			if (value.HasValue)
+			{
+				builder.Append($" {parameterName} ").Append(value.Value);
+			}
+		}
+
+		private static void AppendSearchMovesIfPresent(StringBuilder builder, IEnumerable<string>? searchMoves)
 		{
 			if (searchMoves?.Any() == true)
 			{
 				builder.Append($" {UCIConstants.SearchMovesParameter} ").Append(string.Join(" ", searchMoves));
 			}
-		}
-
-		/// <summary>
-		///     Extracts the best move from a UCI engine response.
-		/// </summary>
-		public static string? ParseBestMoveFromResponse(string bestMoveLine)
-		{
-			// Expected format is "bestmove <move> [ponder <move>]"
-			string[] parts = bestMoveLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-			return parts.Length > 1 ? parts[1] : null;
 		}
 	}
 }

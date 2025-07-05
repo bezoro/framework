@@ -1,86 +1,36 @@
-// First, let's create the necessary types for the search results
+using Bezoro.UCI.API.Enums;
 
-using System.Collections.Generic;
+namespace Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Types
+/// <summary>
+///     Represents a complete UCI engine output line with all possible data.
+/// </summary>
+public record struct EngineOutput(string RawLine)
 {
-	/// <summary>
-	///     Represents a single line of engine output during search.
-	/// </summary>
-	public class EngineOutput
+	/// <summary> The raw line from the engine. </summary>
+	public string RawLine { get; } = RawLine;
+	/// <summary> Analysis information (for info lines). </summary>
+	public EngineAnalysisInfo? AnalysisInfo { get; set; }
+	/// <summary> Engine identification (for id lines). </summary>
+	public EngineId? Id { get; init; }
+	/// <summary> Engine option (for option lines). </summary>
+	public EngineOption? Option { get; init; }
+	/// <summary> The type of output this represents. </summary>
+	public EngineOutputType Type { get; set; }
+	/// <summary> Best move (for bestmove lines). </summary>
+	public string? BestMove { get; set; }
+	/// <summary> Ponder move (for bestmove lines). </summary>
+	public string? PonderMove { get; set; }
+	/// <summary> Status message (for readyok, uciok, etc.). </summary>
+	public string? Status { get; init; }
+
+	public override string ToString() => Type switch
 	{
-		public EngineAnalysisEventArgs? InfoData   { get; set; }
-		public EngineOutputType         Type       { get; set; }
-		public string                   RawLine    { get; set; } = string.Empty;
-		public string?                  BestMove   { get; set; }
-		public string?                  PonderMove { get; set; }
-	}
-
-	/// <summary>
-	///     Represents different types of engine output during search.
-	/// </summary>
-	public enum EngineOutputType
-	{
-		Info,
-		BestMove,
-		Unknown
-	}
-
-	/// <summary>
-	///     Represents the complete result of an engine search operation.
-	/// </summary>
-	public record struct SearchResult
-	{
-		public SearchResult()
-		{
-			BestMove        = null;
-			PonderMove      = null;
-			FinalScore      = null;
-			Depth           = null;
-			SearchTimeMs    = 0;
-			WasStoppedEarly = false;
-			AnalysisInfo    = new List<EngineAnalysisEventArgs>();
-		}
-
-		/// <summary>
-		///     Collection of all analysis info received during the search.
-		/// </summary>
-		public List<EngineAnalysisEventArgs> AnalysisInfo { get; }
-
-		public bool IsCheckMate            { get; set; }
-		public bool IsFiftyMoves           { get; set; }
-		public bool IsInsufficientMaterial { get; set; }
-		public bool IsStaleMate            { get; set; }
-		public bool IsThreefoldRepetition  { get; set; }
-
-		/// <summary>
-		///     Whether the search was stopped before completion.
-		/// </summary>
-		public bool WasStoppedEarly { get; set; }
-
-		/// <summary>
-		///     The search depth reached.
-		/// </summary>
-		public int? Depth { get; set; }
-
-		/// <summary>
-		///     The final evaluation score from the engine's perspective.
-		/// </summary>
-		public int? FinalScore { get; set; }
-
-		/// <summary>
-		///     Time taken for the search in milliseconds.
-		/// </summary>
-		public long SearchTimeMs { get; set; }
-
-		/// <summary>
-		///     The best move found by the engine in UCI format (e.g., "e2e4").
-		/// </summary>
-		public string? BestMove { get; set; }
-
-		/// <summary>
-		///     The suggested ponder move (opponent's expected response).
-		/// </summary>
-		public string? PonderMove { get; set; }
-	}
+		EngineOutputType.Info     => AnalysisInfo?.ToString() ?? "Info (empty)",
+		EngineOutputType.BestMove => $"Best: {BestMove}" + (PonderMove != null ? $", Ponder: {PonderMove}" : ""),
+		EngineOutputType.Option   => Option?.ToString() ?? "Option (empty)",
+		EngineOutputType.Id       => Id?.ToString()     ?? "Id (empty)",
+		EngineOutputType.Status   => Status             ?? "Status (empty)",
+		_                         => $"Unknown: {RawLine}"
+	};
 }

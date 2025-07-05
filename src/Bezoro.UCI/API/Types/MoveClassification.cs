@@ -1,4 +1,4 @@
-namespace Bezoro.UCI.Types
+namespace Bezoro.UCI.API.Types
 {
 	/// <summary>
 	///     Represents a legal chess move and its specific characteristics,

@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Bezoro.UCI.Extensions;
+using Bezoro.UCI.Domain.Extensions;
 using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests;
