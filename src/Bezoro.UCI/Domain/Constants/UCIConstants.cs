@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Bezoro.UCI.API.Constants
+namespace Bezoro.UCI.Domain.Constants
 {
 	internal static class UCIConstants
 	{

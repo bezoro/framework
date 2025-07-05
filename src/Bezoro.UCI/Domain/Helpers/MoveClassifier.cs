@@ -1,6 +1,6 @@
-using Bezoro.UCI.Types;
+using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Helpers
+namespace Bezoro.UCI.Domain.Helpers
 {
 	/// <summary>
 	///     Helper class for classifying chess moves by their type.

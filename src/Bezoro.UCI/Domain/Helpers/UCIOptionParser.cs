@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Helpers
+namespace Bezoro.UCI.Domain.Helpers
 {
 	/// <summary>
 	///     Helper class for parsing UCI engine option strings.

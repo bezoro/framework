@@ -1,7 +1,6 @@
-using Bezoro.UCI.API.Constants;
-using Bezoro.UCI.Types;
+using Bezoro.UCI.Domain.Constants;
 
-namespace Bezoro.UCI.Helpers
+namespace Bezoro.UCI.Domain.Helpers
 {
 	/// <summary>
 	///     Provides static helper methods for working with UCI and FEN notations.
@@ -60,6 +59,14 @@ namespace Bezoro.UCI.Helpers
 			};
 		}
 
-		internal static string BuildGoCommand(SearchParameters parameters) => SearchHelper.BuildGoCommand(parameters);
+		/// <summary>
+		///     Extracts the best move from a UCI engine response.
+		/// </summary>
+		public static string? ParseBestMoveFromResponse(string bestMoveLine)
+		{
+			// Expected format is "bestmove <move> [ponder <move>]"
+			string[] parts = bestMoveLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			return parts.Length > 1 ? parts[1] : null;
+		}
 	}
 }

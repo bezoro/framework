@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Bezoro.UCI.Extensions
+namespace Bezoro.UCI.Domain.Extensions
 {
 	internal static class ProcessExtensions
 	{
@@ -20,16 +20,11 @@ namespace Bezoro.UCI.Extensions
 			}
 
 			var tcs = new TaskCompletionSource<object>();
-			process.Exited += (sender, args) => tcs.TrySetResult(null);
+			process.Exited += (_, _) => tcs.TrySetResult(null);
 			cancellationToken.Register(() => tcs.TrySetCanceled());
 
 			// A final check in case the process exited after the initial check but before the event handler was attached.
-			if (process.HasExited)
-			{
-				return Task.CompletedTask;
-			}
-
-			return tcs.Task;
+			return process.HasExited ? Task.CompletedTask : tcs.Task;
 		}
 	}
 }

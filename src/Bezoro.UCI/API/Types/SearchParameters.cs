@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 
-namespace Bezoro.UCI.Types
+namespace Bezoro.UCI.API.Types
 {
 	/// <summary>
 	///     Defines a set of parameters for controlling an engine's search with the 'go' command.
 	/// </summary>
-	public readonly struct SearchParameters
+	public record struct SearchParameters
 	{
 		/// <summary> Search indefinitely until a 'stop' command is sent. </summary>
 		public bool Infinite { get; init; }
