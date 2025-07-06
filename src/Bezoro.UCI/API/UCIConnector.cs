@@ -30,6 +30,12 @@ namespace Bezoro.UCI.API
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
 		/// </summary>
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
+		public UCIConnector(string enginePath) : this(enginePath, null) { }
+
+		/// <summary>
+		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
+		/// </summary>
+		/// <param name="enginePath">The file path to the UCI engine executable.</param>
 		/// <param name="engineProcessManager">Optional process manager for the engine. If null, a new one will be created.</param>
 		/// <param name="engineCommandSender">Optional command sender for the engine. If null, a new one will be created.</param>
 		/// <param name="engineOutputParser">Optional output parser for the engine. If null, a new one will be created.</param>
