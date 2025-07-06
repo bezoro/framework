@@ -124,11 +124,5 @@ namespace Bezoro.UCI.API.Interfaces
 		/// </summary>
 		/// <param name="ct">A token to cancel the operation.</param>
 		Task<string> GetCurrentFENAsync(CancellationToken ct = default);
-
-		/// <summary>
-		///     Fires whenever the engine sends real-time analysis information.
-		///     Subscribe to this event to get updates on the engine's search progress.
-		/// </summary>
-		event EventHandler<SearchResult>? InfoReceived;
 	}
 }

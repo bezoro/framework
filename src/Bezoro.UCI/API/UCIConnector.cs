@@ -27,12 +27,6 @@ namespace Bezoro.UCI.API
 		private volatile bool                 _isDisposed;
 
 		/// <summary>
-		///     Fires whenever the engine sends real-time analysis information.
-		///     Subscribe to this event to get updates on the engine's search progress.
-		/// </summary>
-		public event EventHandler<SearchResult>? InfoReceived;
-
-		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
 		/// </summary>
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
