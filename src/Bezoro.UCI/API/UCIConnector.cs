@@ -24,7 +24,10 @@ namespace Bezoro.UCI.API
 		private readonly EngineOutputParser   _outputParser;
 		private readonly EngineProcessManager _processManager;
 		private readonly SearchService        _searchService;
-		private volatile bool                 _isDisposed;
+
+		public Action<string> PositionSetSuccessfully = delegate { };
+
+		private volatile bool _isDisposed;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -105,6 +108,7 @@ namespace Bezoro.UCI.API
 			}
 
 			await _commandSender.SendCommandAsync(command, false, ct);
+			PositionSetSuccessfully.Invoke(await GetCurrentFENAsync(ct));
 			Logger.LogSuccess($"Position Set Successfully: {command}");
 		}
 
