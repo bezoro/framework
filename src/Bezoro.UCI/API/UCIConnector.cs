@@ -56,6 +56,16 @@ namespace Bezoro.UCI.API
 			Logger.LogSuccess("UCI Connector Created.");
 		}
 
+		public string BuildFENFromParts(
+			string piecePlacement, char activeColor, string enPassantTarget = "-", int halfmoveClock = 0,
+			int fullmoveNumber = 1)
+		{
+			ThrowIfDisposed();
+
+			return _boardAnalyzer.BuildFENFromParts(piecePlacement, activeColor, enPassantTarget, halfmoveClock,
+				fullmoveNumber);
+		}
+
 		/// <summary>
 		///     Sets a UCI option on the engine.
 		/// </summary>
