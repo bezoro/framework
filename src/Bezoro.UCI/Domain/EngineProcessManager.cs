@@ -13,8 +13,8 @@ namespace Bezoro.UCI.Domain
 	/// </summary>
 	internal sealed class EngineProcessManager : IAsyncDisposable
 	{
-		private readonly Process?      _engineProcess;
 		private volatile bool          _isDisposed;
+		private          Process?      _engineProcess;
 		private          StreamReader? _processOutput;
 
 		private StreamWriter? _processInput;
@@ -25,37 +25,19 @@ namespace Bezoro.UCI.Domain
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
 		public EngineProcessManager(string enginePath)
 		{
-			if (string.IsNullOrWhiteSpace(enginePath))
-			{
-				throw new ArgumentException("Engine path cannot be null or whitespace.", nameof(enginePath));
-			}
-
-			_engineProcess = new Process
-			{
-				StartInfo = new ProcessStartInfo
-				{
-					FileName               = enginePath,
-					UseShellExecute        = false,
-					RedirectStandardInput  = true,
-					RedirectStandardOutput = true,
-					CreateNoWindow         = true
-				},
-				EnableRaisingEvents = true
-			};
+			ThrowIfInvalidEnginePath(enginePath);
+			CreateEngineProcess(enginePath);
 		}
 
 		/// <summary>
 		///     Gets the process output stream.
 		/// </summary>
-		public StreamReader ProcessOutput =>
-			_processOutput ?? throw new UCIException("Engine process output stream is null.");
+		public StreamReader ProcessOutput => GetProcessOutputOrThrow();
 
 		/// <summary>
 		///     Gets the process input stream.
 		/// </summary>
-		public StreamWriter ProcessInput => _processInput ??
-											throw new UCIException(
-												"Engine process input stream is null. Ensure the engine is started.");
+		public StreamWriter ProcessInput => GetProcessInputOrThrow();
 
 		/// <summary>
 		///     Checks if the engine is ready.
@@ -73,15 +55,12 @@ namespace Bezoro.UCI.Domain
 
 			try
 			{
-				if (_processInput != null)
-				{
-					await _processInput.WriteLineAsync(UCIConstants.QuitCommand);
+				await _processInput.WriteLineAsync(UCIConstants.QuitCommand);
 
-					// Asynchronously wait for the process to exit with a timeout.
-					using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-					using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
-					await _engineProcess.WaitForExitAsync(linkedCts.Token);
-				}
+				// Asynchronously wait for the process to exit with a timeout.
+				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+				using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+				await _engineProcess.WaitForExitAsync(linkedCts.Token);
 			}
 			catch (Exception)
 			{
@@ -114,7 +93,7 @@ namespace Bezoro.UCI.Domain
 		public async Task<string?> ReadLineAsync(CancellationToken ct, int timeoutMs = 5000)
 		{
 			ThrowIfDisposed();
-			ThrowIfEngineOutputIsNull();
+			ThrowIfProcessOutputIsNull();
 
 			Task<string?> readTask      = _processOutput.ReadLineAsync();
 			var           completedTask = await Task.WhenAny(readTask, Task.Delay(timeoutMs, ct));
@@ -179,6 +158,44 @@ namespace Bezoro.UCI.Domain
 			_processOutput = _engineProcess?.StandardOutput;
 		}
 
+		private static void ThrowIfInvalidEnginePath(string enginePath)
+		{
+			if (string.IsNullOrWhiteSpace(enginePath))
+			{
+				throw new ArgumentException("Engine path cannot be null or whitespace.", nameof(enginePath));
+			}
+		}
+
+		private StreamReader GetProcessOutputOrThrow()
+		{
+			ThrowIfDisposed();
+			ThrowIfProcessOutputIsNull();
+			return _processOutput;
+		}
+
+		private StreamWriter GetProcessInputOrThrow()
+		{
+			ThrowIfDisposed();
+			ThrowIfProcessInputIsNull();
+			return _processInput;
+		}
+
+		private void CreateEngineProcess(string enginePath)
+		{
+			_engineProcess = new Process
+			{
+				StartInfo = new ProcessStartInfo
+				{
+					FileName               = enginePath,
+					UseShellExecute        = false,
+					RedirectStandardInput  = true,
+					RedirectStandardOutput = true,
+					CreateNoWindow         = true
+				},
+				EnableRaisingEvents = true
+			};
+		}
+
 		private void ThrowIfDisposed()
 		{
 			if (_isDisposed)
@@ -196,20 +213,12 @@ namespace Bezoro.UCI.Domain
 			}
 		}
 
-		private void ThrowIfEngineOutputIsNull()
-		{
-			if (_processOutput == null)
-			{
-				throw new UCIException("Engine process output stream is null.");
-			}
-		}
-
 		private void ThrowIfInvalidState()
 		{
 			ThrowIfDisposed();
 			ThrowIfEngineIsNull();
 			ThrowIfProcessInputIsNull();
-			ThrowIfEngineOutputIsNull();
+			ThrowIfProcessOutputIsNull();
 		}
 
 		private void ThrowIfProcessInputIsNull()
@@ -217,6 +226,14 @@ namespace Bezoro.UCI.Domain
 			if (_processInput == null)
 			{
 				throw new UCIException("Engine process input stream is null. Ensure the engine is started.");
+			}
+		}
+
+		private void ThrowIfProcessOutputIsNull()
+		{
+			if (_processOutput == null)
+			{
+				throw new UCIException("Engine process output stream is null.");
 			}
 		}
 	}
