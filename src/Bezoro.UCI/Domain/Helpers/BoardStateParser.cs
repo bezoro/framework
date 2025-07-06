@@ -51,16 +51,16 @@ internal static class BoardStateParser
 			return false;
 		}
 
-		return ValidatePiecePlacement(parts[0])      &&
-			   ValidateActiveColor(parts[1])         &&
-			   ValidateCastling(parts[2])            &&
-			   ValidateEnPassant(parts[3], parts[1]) &&
-			   ValidateHalfmoveClock(parts[4])       &&
+		return ValidatePiecePlacement(parts[0])                      &&
+			   ValidateActiveColor(Convert.ToChar(parts[1]))         &&
+			   ValidateCastling(parts[2])                            &&
+			   ValidateEnPassant(parts[3], Convert.ToChar(parts[1])) &&
+			   ValidateHalfmoveClock(parts[4])                       &&
 			   ValidateFullmoveNumber(parts[5]);
 	}
 
-	private static bool ValidateActiveColor(string activeColor) =>
-		activeColor is "w" or "b";
+	public static bool ValidateActiveColor(char activeColor) =>
+		activeColor is 'w' or 'b';
 
 	private static bool ValidateCastling(string castling)
 	{
@@ -76,7 +76,7 @@ internal static class BoardStateParser
 			   castling.Distinct().Count() == castling.Length;
 	}
 
-	private static bool ValidateEnPassant(string enPassant, string activeColor)
+	public static bool ValidateEnPassant(string enPassant, char activeColor)
 	{
 		if (enPassant == "-")
 		{
@@ -97,16 +97,16 @@ internal static class BoardStateParser
 		}
 
 		// En passant rank must be 6 for white to move, or 3 for black to move.
-		return activeColor == "w" && rank == '6' || activeColor == "b" && rank == '3';
+		return activeColor == 'w' && rank == '6' || activeColor == 'b' && rank == '3';
 	}
 
-	private static bool ValidateFullmoveNumber(string fullmoveNumber) =>
+	public static bool ValidateFullmoveNumber(string fullmoveNumber) =>
 		int.TryParse(fullmoveNumber, out int number) && number >= 1;
 
-	private static bool ValidateHalfmoveClock(string halfmoveClock) =>
+	public static bool ValidateHalfmoveClock(string halfmoveClock) =>
 		int.TryParse(halfmoveClock, out int clock) && clock >= 0;
 
-	private static bool ValidatePiecePlacement(string piecePlacement)
+	public static bool ValidatePiecePlacement(string piecePlacement)
 	{
 		string[] ranks = piecePlacement.Split('/');
 		if (ranks.Length != 8 || !ranks.All(ValidateRank))
