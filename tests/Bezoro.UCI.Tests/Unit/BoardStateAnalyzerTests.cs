@@ -15,8 +15,8 @@ public class BoardStateAnalyzerTests : UCITestsBase
 	public override async Task InitializeAsync()
 	{
 		_engineProcessManager = new EngineProcessManager(StockfishPath);
-		_engineCommandSender  = new EngineCommandSender(_engineProcessManager);
 		_engineOutputParser   = new EngineOutputParser(_engineProcessManager);
+		_engineCommandSender  = new EngineCommandSender(_engineProcessManager, _engineOutputParser);
 		_boardStateAnalyzer   = new BoardStateAnalyzer(_engineCommandSender, _engineOutputParser);
 		Connector = new UCIConnector(StockfishPath, _engineProcessManager, _engineCommandSender, _engineOutputParser,
 			_boardStateAnalyzer);
