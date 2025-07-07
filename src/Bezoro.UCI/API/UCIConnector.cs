@@ -438,7 +438,7 @@ namespace Bezoro.UCI.API
 			return await _boardAnalyzer.IsCheckmateAsync();
 		}
 
-		public async Task<bool> IsKingInCheckAsync(char color, CancellationToken ct = default)
+		public async Task<bool> IsKingInCheckAsync(char? color = null, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
 			return await _boardAnalyzer.IsKingInCheckAsync(color, ct);
