@@ -178,7 +178,6 @@ namespace Bezoro.UCI.Domain.Helpers
 			}
 
 			string checkers = line.Split("Checkers:").Last().Trim();
-			Logger.LogInfo($"CHECKERS: {checkers}");
 			return new EngineOutput(line) { Checkers = checkers };
 		}
 

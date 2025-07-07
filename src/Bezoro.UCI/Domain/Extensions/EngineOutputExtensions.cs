@@ -40,6 +40,11 @@ namespace Bezoro.UCI.Domain.Extensions
 				result.FinalScore = info.Mate.Value;
 			}
 
+			if (engineOutput.Checkers != null)
+			{
+				result.Checkers = engineOutput.Checkers;
+			}
+
 			return result;
 		}
 	}
