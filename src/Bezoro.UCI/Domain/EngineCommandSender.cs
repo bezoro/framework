@@ -12,14 +12,16 @@ namespace Bezoro.UCI.Domain
 	{
 		private readonly EngineProcessManager _processManager;
 		private readonly SemaphoreSlim        _commandSemaphore = new(1, 1);
+		private readonly EngineOutputParser   _outputParser;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="EngineCommandSender" /> class.
 		/// </summary>
 		/// <param name="processManager">The engine process manager.</param>
-		public EngineCommandSender(EngineProcessManager processManager)
+		public EngineCommandSender(EngineProcessManager processManager, EngineOutputParser outputParser)
 		{
 			_processManager = processManager;
+			_outputParser   = outputParser;
 		}
 
 		/// <summary>
@@ -53,19 +55,17 @@ namespace Bezoro.UCI.Domain
 		/// <summary>
 		///     Sends the "isready" command and waits for the "readyok" response.
 		/// </summary>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		internal async Task WaitUntilReadyResponseAsync(CancellationToken cancellationToken)
+		/// <param name="ct">A token to cancel the operation.</param>
+		internal async Task WaitUntilReadyResponseAsync(CancellationToken ct)
 		{
 			await _processManager.WriteLineAsync(UCIConstants.IsReadyCommand);
 			while (true)
 			{
-				string? line = await _processManager.ReadLineAsync(cancellationToken);
+				string? line = await _outputParser.ReadLineFromProcessAsync(ct);
 				if (line == null)
 				{
 					throw new UCIException("Engine disconnected while waiting for readyok");
 				}
-
-				Logger.LogInfo($"<<UCI>>{line}");
 
 				if (line.Equals("readyok", StringComparison.OrdinalIgnoreCase))
 				{

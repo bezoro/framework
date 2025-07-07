@@ -52,8 +52,8 @@ namespace Bezoro.UCI.API
 		{
 			ThrowIfInvalidEnginePath(enginePath);
 			_processManager = engineProcessManager ?? new EngineProcessManager(enginePath);
-			_commandSender  = engineCommandSender  ?? new EngineCommandSender(_processManager);
 			_outputParser   = engineOutputParser   ?? new EngineOutputParser(_processManager);
+			_commandSender  = engineCommandSender  ?? new EngineCommandSender(_processManager, _outputParser);
 			_boardAnalyzer  = boardStateAnalyzer   ?? new BoardStateAnalyzer(_commandSender, _outputParser);
 			_searchService  = searchService        ?? new SearchService(_commandSender, _outputParser);
 			Logger.LogSuccess("UCI Connector Created.");
