@@ -14,7 +14,6 @@ public class BoardStateAnalyzerTests : UCITestsBase
 
 	public override async Task InitializeAsync()
 	{
-		await base.InitializeAsync();
 		_engineProcessManager = new EngineProcessManager(StockfishPath);
 		_engineCommandSender  = new EngineCommandSender(_engineProcessManager);
 		_engineOutputParser   = new EngineOutputParser(_engineProcessManager);
@@ -23,6 +22,8 @@ public class BoardStateAnalyzerTests : UCITestsBase
 			_boardStateAnalyzer);
 
 		_engineProcessManager.StartEngine();
+		await Connector.SetPositionAsync();
+
 	}
 
 	[Fact]
@@ -69,9 +70,9 @@ public class BoardStateAnalyzerTests : UCITestsBase
 	public async Task IsCheckmateAsync_WhenValidBoardState_ReturnsTrue()
 	{
 		// Arrange
-		// Fool's Mate checkmate position: Black king is in checkmate
-		// White queen on h5 gives checkmate to black king on e8
-		const string checkmateFen = "k7/8/1K6/8/8/8/8/7Q w - - 0 1";
+		// Checkmate position: Black king on a8 is checkmated by the White queen on a1,
+		// which is supported by the White king on b6. It is Black's turn to move.
+		const string checkmateFen = "4R1k1/5ppp/8/8/8/8/8/4K3 b - - 0 1";
 		await Connector!.SetPositionAsync(checkmateFen);
 
 		// Act
