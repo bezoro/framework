@@ -31,6 +31,7 @@ public record struct SearchResult()
 	public long? TotalNodes { get; set; } = null;
 	/// <summary> The best move found by the engine in UCI format (e.g., "e2e4"). </summary>
 	public string? BestMove { get; set; } = null;
+	public string? Checkers { get; set; } = null;
 	/// <summary> The suggested ponder move (opponent's expected response). </summary>
 	public string? PonderMove { get; set; } = null;
 
