@@ -266,6 +266,39 @@ namespace Bezoro.UCI.Domain
 			}
 
 			throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
+		/// <summary>
+		///     Gets all legal moves for a specific player color.
+		/// </summary>
+		/// <param name="colorToCheck">The color to check.</param>
+		/// <param name="activeColor">The active color.</param>
+		/// <param name="fenParts">The FEN parts.</param>
+		/// <param name="originalFen">The original FEN string.</param>
+		/// <param name="ct">A token to cancel the operation.</param>
+		internal async Task<List<string>> GetMovesForPlayerAsync(char colorToCheck, CancellationToken ct = default)
+		{
+			var fenInfo = await ParseCurrentFenAsync(ct);
+			if (colorToCheck == fenInfo.ActiveColor)
+			{
+				// If we're checking the current player, we don't need to change the engine's state.
+				return await GetLegalMovesAsync(ct);
+			}
+
+			// If checking the other player, we temporarily flip the turn in the FEN string.
+			// The en-passant square is cleared as it's not valid after a turn flip.
+			string[] fenParts = fenInfo.FenParts;
+			var      tempFen  = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
+
+			// Set the engine to the temporary position.
+			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {tempFen}", true, ct);
+
+			// Get all legal moves for that player.
+			List<string> moves = await GetLegalMovesAsync(ct);
+
+			// IMPORTANT: Restore the engine to its original state to ensure consistency.
+			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {fenInfo.CurrentFen}", true, ct);
+
+			return moves;
+		}
 		}
 	}
 }
