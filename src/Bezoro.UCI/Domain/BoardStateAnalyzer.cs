@@ -218,7 +218,7 @@ namespace Bezoro.UCI.Domain
 
 			while (true)
 			{
-				string? line = await _outputParser.ReadProcessOutputAsync(ct);
+				string? line = await _outputParser.ReadLineFromProcessAsync(ct);
 				if (line == null || line.Contains("Nodes searched"))
 				{
 					break;
@@ -285,7 +285,7 @@ namespace Bezoro.UCI.Domain
 
 			while (true)
 			{
-				string? line = await _outputParser.ReadProcessOutputAsync(ct);
+				string? line = await _outputParser.ReadLineFromProcessAsync(ct);
 				if (line is null)
 				{
 					// End of stream reached before finding the FEN.
@@ -294,7 +294,7 @@ namespace Bezoro.UCI.Domain
 
 				if (line.StartsWith(UCIConstants.FenResponsePrefix, StringComparison.Ordinal))
 				{
-					return line.Substring(UCIConstants.FenResponsePrefix.Length).Trim();
+					return line[UCIConstants.FenResponsePrefix.Length..].Trim();
 				}
 			}
 
