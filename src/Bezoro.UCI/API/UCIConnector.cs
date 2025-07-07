@@ -24,6 +24,7 @@ namespace Bezoro.UCI.API
 		private readonly EngineOutputParser   _outputParser;
 		private readonly EngineProcessManager _processManager;
 		private readonly SearchService        _searchService;
+		public           Action<CheckData>    Check = delegate { };
 
 		public Action<string> PositionSetSuccessfully = delegate { };
 
@@ -172,10 +173,22 @@ namespace Bezoro.UCI.API
 			await _commandSender.SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
 		}
 
+		public async Task<bool> IsCheckmateAsync(CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			return await _boardAnalyzer.IsCheckmateAsync(ct);
+		}
+
 		public Task<bool> IsEngineReadyAsync(CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
 			return Task.FromResult(_processManager.IsReady());
+		}
+
+		public async Task<bool> IsKingInCheckAsync(char? color = null, CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			return await _boardAnalyzer.IsKingInCheckAsync(color, ct);
 		}
 
 		/// <summary>
@@ -355,8 +368,19 @@ namespace Bezoro.UCI.API
 		/// <returns>A comprehensive SearchResult containing best move and all analysis data.</returns>
 		public async Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default)
 		{
+			Logger.LogInfo($"<<UCI>>[Search Started] Parameters: {parameters}");
 			ThrowIfDisposed();
-			return await _searchService.SearchAsync(parameters, ct);
+			var result  = await _searchService.SearchAsync(parameters, ct);
+			var fenInfo = await _boardAnalyzer.ParseCurrentFenAsync(ct);
+			if (result.Checkers != null)
+			{
+				var checkData = new CheckData(result.Checkers, fenInfo.ActiveColor);
+				Check.Invoke(checkData);
+				Logger.LogInfo($"<<UCI>>[Checkers] {checkData}");
+			}
+
+			Logger.LogInfo("<<UCI>>[Search Finished]");
+			return result;
 		}
 
 		public async Task<string?> GetBestMoveAsync(SearchParameters? parameters = null, CancellationToken ct = default)
@@ -431,17 +455,7 @@ namespace Bezoro.UCI.API
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 		}
-
-		public async Task<bool> IsCheckmateAsync()
-		{
-			ThrowIfDisposed();
-			return await _boardAnalyzer.IsCheckmateAsync();
-		}
-
-		public async Task<bool> IsKingInCheckAsync(char? color = null, CancellationToken ct = default)
-		{
-			ThrowIfDisposed();
-			return await _boardAnalyzer.IsKingInCheckAsync(color, ct);
-		}
 	}
+
+	public record struct CheckData(string position, char attackerColor);
 }
