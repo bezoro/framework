@@ -208,7 +208,7 @@ namespace Bezoro.UCI.API
 		///     turn to move, and then checking their legal moves. The original position is restored afterward.
 		/// </summary>
 		/// <param name="square">The square to check, in algebraic notation (e.g., "e4").</param>
-		/// <param name="playerColor">
+		/// <param name="attackerColor">
 		///     The color to check attacks from ('w' for white, 'b' for black). If null, checks opponent of
 		///     current player.
 		/// </param>
@@ -218,39 +218,11 @@ namespace Bezoro.UCI.API
 		/// <exception cref="ObjectDisposedException">Thrown if the connector has been disposed.</exception>
 		/// <exception cref="UCIException">Thrown if communication with the engine fails.</exception>
 		public async Task<bool> IsSquareAttackedAsync(
-			string square, char? playerColor = null, CancellationToken ct = default)
+			string square, char attackerColor, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
 
-			if (string.IsNullOrWhiteSpace(square) || !UCIHelper.IsValidAlgebraicNotation(square))
-			{
-				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g., 'e4').",
-					nameof(square));
-			}
-
-			// 1. Get the original position's FEN to understand the current state.
-			string   originalFen = await _boardAnalyzer.GetCurrentFENAsync(ct);
-			string[] fenParts    = originalFen.Split(' ');
-			if (fenParts.Length < 2)
-			{
-				throw new UCIException("Failed to parse FEN string from engine.");
-			}
-
-			char activeColor  = fenParts[1][0];
-			char colorToCheck = playerColor ?? activeColor;
-
-			// 2. Get legal moves for the specified player.
-			List<string> moves =
-				await _boardAnalyzer.GetMovesForPlayerAsync(colorToCheck, activeColor, fenParts, originalFen,
-					ct);
-
-			// 3. Check if any available move targets the given square.
-			bool isAttacked = moves.Any(move =>
-				move.Length >= 4 &&
-				move.Substring(2, 2).Equals(square, StringComparison.OrdinalIgnoreCase)
-			);
-
-			return isAttacked;
+			return await _boardAnalyzer.IsSquareAttackedByAsync(square, attackerColor, ct);
 		}
 
 		public async Task<bool> IsStalemateAsync(CancellationToken cancellationToken = default)
@@ -283,7 +255,7 @@ namespace Bezoro.UCI.API
 			}
 
 			// No legal moves - check if king is in check (checkmate vs stalemate)
-			string kingSquare    = _boardAnalyzer.FindKingSquare(fenParts[0], activeColor);
+			string kingSquare    = await _boardAnalyzer.FindKingSquare(activeColor, cancellationToken);
 			char   opponentColor = activeColor == WhitePlayer ? BlackPlayer : WhitePlayer;
 
 			bool isKingInCheck = await IsSquareAttackedAsync(kingSquare, opponentColor, cancellationToken);
@@ -458,6 +430,18 @@ namespace Bezoro.UCI.API
 			{
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
+		}
+
+		public async Task<bool> IsCheckmateAsync()
+		{
+			ThrowIfDisposed();
+			return await _boardAnalyzer.IsCheckmateAsync();
+		}
+
+		public async Task<bool> IsKingInCheckAsync(char color, CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			return await _boardAnalyzer.IsKingInCheckAsync(color, ct);
 		}
 	}
 }

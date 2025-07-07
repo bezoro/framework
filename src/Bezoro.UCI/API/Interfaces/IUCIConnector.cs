@@ -69,9 +69,9 @@ namespace Bezoro.UCI.API.Interfaces
 		///     Checks if a given square on the board is being attacked by any pieces.
 		/// </summary>
 		/// <param name="square">The square to check, in algebraic notation (e.g., "e4").</param>
-		/// <param name="playerColor">The color to check attacks from ('w' for white, 'b' for black).</param>
+		/// <param name="attackerColor">The color to check attacks from ('w' for white, 'b' for black).</param>
 		/// <param name="ct">A token to cancel the operation.</param>
-		Task<bool> IsSquareAttackedAsync(string square, char? playerColor = null, CancellationToken ct = default);
+		Task<bool> IsSquareAttackedAsync(string square, char attackerColor, CancellationToken ct = default);
 
 		/// <summary>
 		///     Checks if the current position is a stalemate.
