@@ -87,13 +87,13 @@ public class BoardStateAnalyzerTests : UCITestsBase
 	public async Task IsKingInCheckAsync_WhenInCheck_ReturnsTrue()
 	{
 		// Arrange
-		// Position where black king on e8 is in check from white queen on d1
-		const string checkFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R2QK2R w KQkq - 0 1";
+		// Position where black king on e8 is in check from white queen on e2
+		const string checkFen = "r3k2r/pppp1ppp/8/8/8/8/PPPPQPPP/R3K2R w KQkq - 0 1";
 		await Connector!.SetPositionAsync(checkFen);
 
 		// Act
 		// Check if the king is in check for the current position
-		bool isKingInCheck = await Connector!.IsKingInCheckAsync('b');
+		bool isKingInCheck = await _boardStateAnalyzer!.IsKingInCheckAsync();
 
 		// Assert
 		Assert.True(isKingInCheck, "The king should be in check in the given position.");
