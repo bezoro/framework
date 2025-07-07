@@ -75,7 +75,6 @@ namespace Bezoro.UCI.Domain
 			try
 			{
 				string? line = await _processManager.ReadLineAsync(ct);
-				Logger.LogInfo($"<<UCI>>Process Line: -> {line}");
 				return line;
 			}
 			catch (OperationCanceledException) when (timeoutCts?.Token.IsCancellationRequested == true)
