@@ -57,7 +57,7 @@ namespace Bezoro.UCI.API
 			_commandSender  = engineCommandSender  ?? new EngineCommandSender(_processManager, _outputParser);
 			_boardAnalyzer  = boardStateAnalyzer   ?? new BoardStateAnalyzer(_commandSender, _outputParser);
 			_searchService  = searchService        ?? new SearchService(_commandSender, _outputParser);
-			Logger.LogSuccess("UCI Connector Created.");
+			Logger.LogSuccess("<<UCI>>UCI Connector Created.");
 		}
 
 		public string BuildFENFromParts(
@@ -131,12 +131,12 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task StartEngineAsync(CancellationToken cancellationToken = default)
 		{
+			Logger.LogInfo("<<UCI>>Starting Engine");
 			ThrowIfDisposed();
-
 			_processManager.StartEngine();
-
 			await _commandSender.SendCommandAsync(UCIConstants.UCICommand,        true, cancellationToken);
 			await _commandSender.SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
+			Logger.LogSuccess("<<UCI>>Engine Started");
 		}
 
 		/// <summary>
