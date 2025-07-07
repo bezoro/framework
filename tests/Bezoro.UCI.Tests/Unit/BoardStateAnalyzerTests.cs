@@ -1,3 +1,4 @@
+using Bezoro.UCI.API;
 using Bezoro.UCI.Domain;
 using JetBrains.Annotations;
 
@@ -18,19 +19,18 @@ public class BoardStateAnalyzerTests : UCITestsBase
 		_engineCommandSender  = new EngineCommandSender(_engineProcessManager);
 		_engineOutputParser   = new EngineOutputParser(_engineProcessManager);
 		_boardStateAnalyzer   = new BoardStateAnalyzer(_engineCommandSender, _engineOutputParser);
+		Connector = new UCIConnector(StockfishPath, _engineProcessManager, _engineCommandSender, _engineOutputParser,
+			_boardStateAnalyzer);
+
+		_engineProcessManager.StartEngine();
 	}
 
 	[Fact]
-	public void FindKingSquare_WhenValidBoardState_ShouldReturnCorrectKing()
+	public async Task FindKingSquare_WhenValidBoardState_ShouldReturnCorrectKing()
 	{
-		// Arrange
-		const string customFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
-
-		_boardStateAnalyzer = new BoardStateAnalyzer(_engineCommandSender, _engineOutputParser);
-
 		// Act
-		string? whiteKingSquare = _boardStateAnalyzer!.FindKingSquare(customFen, 'w');
-		string? blackKingSquare = _boardStateAnalyzer.FindKingSquare(customFen, 'b');
+		string? whiteKingSquare = await _boardStateAnalyzer!.FindKingSquare('w');
+		string? blackKingSquare = await _boardStateAnalyzer.FindKingSquare('b');
 
 		// Assert
 		// In the FEN position above, white king is on e1 and black king is on e8
@@ -65,9 +65,42 @@ public class BoardStateAnalyzerTests : UCITestsBase
 		Assert.Equal(expectedStartingPositionMoves, moves.Count);
 	}
 
+	[Fact]
+	public async Task IsCheckmateAsync_WhenValidBoardState_ReturnsTrue()
+	{
+		// Arrange
+		// Fool's Mate checkmate position: Black king is in checkmate
+		// White queen on h5 gives checkmate to black king on e8
+		const string checkmateFen = "k7/8/1K6/8/8/8/8/7Q w - - 0 1";
+		await Connector!.SetPositionAsync(checkmateFen);
+
+		// Act
+		// Check if the current position is checkmate
+		bool isCheckmate = await _boardStateAnalyzer!.IsCheckmateAsync();
+
+		// Assert
+		// The position should be detected as checkmate
+		Assert.True(isCheckmate);
+	}
 
 	[Fact]
-	public async Task IsSquareAttackedAsync_SimplePawnAttack_ReturnsTrue()
+	public async Task IsKingInCheckAsync_WhenInCheck_ReturnsTrue()
+	{
+		// Arrange
+		// Position where black king on e8 is in check from white queen on d1
+		const string checkFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R2QK2R w KQkq - 0 1";
+		await Connector!.SetPositionAsync(checkFen);
+
+		// Act
+		// Check if the king is in check for the current position
+		bool isKingInCheck = await Connector!.IsKingInCheckAsync('b');
+
+		// Assert
+		Assert.True(isKingInCheck, "The king should be in check in the given position.");
+	}
+
+	[Fact]
+	public async Task IsSquareAttackedByAsync_SimplePawnAttack_ReturnsTrue()
 	{
 		// Arrange
 		// Simple position: White pawn on e4, Black pawn on d5
