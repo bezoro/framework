@@ -43,6 +43,29 @@ public class BoardStateAnalyzerTests : UCITestsBase
 	[Fact]
 	public void GetCurrentFENAsync_WhenValidState_ShouldReturnCorrectFENString() { }
 
+	[Theory]
+	[InlineData('w', "White player should have 20 moves in starting position")]
+	[InlineData('b', "Black player should have 20 moves in starting position")]
+	public async Task GetMovesForPlayerAsync_WhenValidState_ReturnsMoves(char playerColor, string testDescription)
+	{
+		// Arrange
+		const string testFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+		await Connector!.SetPositionAsync(testFen);
+
+		string[]   fenParts                      = testFen.Split(' ');
+		const char activeColor                   = 'w'; // White to move in starting position
+		const int  expectedStartingPositionMoves = 20;  // 16 pawn moves + 4 knight moves
+
+		// Act
+		List<string> moves = await _boardStateAnalyzer!.GetMovesForPlayerAsync(playerColor);
+
+		// Assert
+		Assert.NotNull(moves);
+		Assert.NotEmpty(moves);
+		Assert.Equal(expectedStartingPositionMoves, moves.Count);
+	}
+
+
 	[Fact]
 	public async Task IsSquareAttackedAsync_SimplePawnAttack_ReturnsTrue()
 	{
