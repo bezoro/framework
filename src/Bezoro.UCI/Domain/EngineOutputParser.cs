@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Enums;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Constants;
 using Bezoro.UCI.Domain.Exceptions;
 using Bezoro.UCI.Domain.Helpers;
 
@@ -53,15 +52,13 @@ namespace Bezoro.UCI.Domain
 
 			while (!linkedCts.Token.IsCancellationRequested)
 			{
-				string? line = await ReadLineWithTimeoutAsync(linkedCts.Token, timeoutCts,
-					parameters.MoveTimeMs ?? 5000);
+				string? line = await ReadLineFromProcessAsync(linkedCts.Token);
 
 				if (line == null)
 				{
 					throw new UCIException("Engine process exited unexpectedly during search.");
 				}
 
-				Logger.LogInfo($"<<UCI>>{line}");
 				var output = ParseEngineOutput(line);
 				yield return output;
 
@@ -72,43 +69,14 @@ namespace Bezoro.UCI.Domain
 			}
 		}
 
-		/// <summary>
-		///     Reads a line from the process output.
-		/// </summary>
-		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task<string?> ReadProcessOutputAsync(CancellationToken ct)
-		{
-			string? line = await _processManager.ReadLineAsync(ct);
-			if (line != null)
-			{
-				Logger.LogInfo($"<<UCI>>{line}");
-			}
-
-			return line;
-		}
-
-		/// <summary>
-		///     Processes a single line of engine output.
-		/// </summary>
-		/// <param name="line">The line to process.</param>
-		public void ProcessGenericEngineOutput(string line)
-		{
-			if (line.StartsWith(UCIConstants.InfoCommand, StringComparison.OrdinalIgnoreCase))
-			{
-				var output = UCIParser.ParseLine(line);
-				if (output.AnalysisInfo.HasValue)
-				{
-					InfoReceived?.Invoke(this, new SearchResult { AnalysisInfo = { output.AnalysisInfo.Value } });
-				}
-			}
-		}
-
-		private async Task<string?> ReadLineWithTimeoutAsync(
-			CancellationToken linkedToken, CancellationTokenSource? timeoutCts, int moveTimeMs)
+		public async Task<string?> ReadLineFromProcessAsync(
+			CancellationToken ct = default, CancellationTokenSource? timeoutCts = null, int moveTimeMs = 0)
 		{
 			try
 			{
-				return await _processManager.ReadLineAsync(linkedToken);
+				string? line = await _processManager.ReadLineAsync(ct);
+				Logger.LogInfo($"<<UCI>>Process Line: -> {line}");
+				return line;
 			}
 			catch (OperationCanceledException) when (timeoutCts?.Token.IsCancellationRequested == true)
 			{
