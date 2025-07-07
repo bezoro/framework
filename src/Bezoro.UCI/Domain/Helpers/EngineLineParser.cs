@@ -34,6 +34,7 @@ namespace Bezoro.UCI.Domain.Helpers
 				UCIOutputType.BestMove => ParseBestMoveLine(line),
 				UCIOutputType.Option   => ParseOptionLine(line),
 				UCIOutputType.Id       => ParseIdLine(line),
+				UCIOutputType.Checkers => ParseCheckersLine(line),
 				UCIOutputType.UciOk or UCIOutputType.ReadyOk => new EngineOutput(line)
 				{
 					Type   = EngineOutputType.Status,
@@ -169,6 +170,18 @@ namespace Bezoro.UCI.Domain.Helpers
 			};
 		}
 
+		private static EngineOutput ParseCheckersLine(string line)
+		{
+			if (!line.Contains("Checkers:"))
+			{
+				return new EngineOutput(line) { Type = EngineOutputType.Unknown };
+			}
+
+			string checkers = line.Split("Checkers:").Last().Trim();
+			Logger.LogInfo($"CHECKERS: {checkers}");
+			return new EngineOutput(line) { Checkers = checkers };
+		}
+
 		private static EngineOutput ParseIdLine(string line)
 		{
 			string[] parts = line.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
@@ -298,6 +311,7 @@ namespace Bezoro.UCI.Domain.Helpers
 		Id,
 		UciOk,
 		ReadyOk,
+		Checkers,
 		CopyProtection,
 		Registration
 	}

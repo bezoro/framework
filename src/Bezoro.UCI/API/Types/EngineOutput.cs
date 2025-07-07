@@ -24,6 +24,8 @@ public record struct EngineOutput(string RawLine)
 	/// <summary> Status message (for readyok, uciok, etc.). </summary>
 	public string? Status { get; init; }
 
+	public string Checkers { get; init; }
+
 	public override string ToString() => Type switch
 	{
 		EngineOutputType.Info     => AnalysisInfo?.ToString() ?? "Info (empty)",
