@@ -154,10 +154,10 @@ namespace Bezoro.UCI.Domain
 		{
 			const char WhitePlayer = 'w';
 			const char BlackPlayer = 'b';
-			var        fenInfo     = await ParseCurrentFenAsync(ct);
 
-			// Use specified color or default to active color
-			char   kingColor     = colorToCheck ?? fenInfo.ActiveColor;
+			var fenInfo = await ParseCurrentFenAsync(ct);
+
+			char   kingColor     = colorToCheck ?? (fenInfo.ActiveColor == WhitePlayer ? BlackPlayer : WhitePlayer);
 			string kingSquare    = await FindKingSquare(kingColor, ct);
 			char   opponentColor = kingColor == WhitePlayer ? BlackPlayer : WhitePlayer;
 
