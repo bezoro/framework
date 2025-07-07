@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.Domain.Constants;
 using Bezoro.UCI.Domain.Exceptions;
 
@@ -33,10 +34,10 @@ namespace Bezoro.UCI.Domain
 		public async Task SendCommandAsync(
 			string command, bool waitForReady = false, CancellationToken cancellationToken = default)
 		{
+			Logger.LogInfo($"<<UCI>>[COMMAND] {command.Bold()} Started.");
 			await _commandSemaphore.WaitAsync(cancellationToken);
 			try
 			{
-				Logger.LogInfo($"<<UCI>>[{command}] Started.");
 				await _processManager.WriteLineAsync(command);
 
 				if (waitForReady)
@@ -49,7 +50,7 @@ namespace Bezoro.UCI.Domain
 				_commandSemaphore.Release();
 			}
 
-			Logger.LogInfo($"<<UCI>>[{command}] Sent.");
+			Logger.LogInfo($"<<UCI>>[COMMAND] {command.Bold()} Finished.");
 		}
 
 		/// <summary>
@@ -58,6 +59,7 @@ namespace Bezoro.UCI.Domain
 		/// <param name="ct">A token to cancel the operation.</param>
 		internal async Task WaitUntilReadyResponseAsync(CancellationToken ct)
 		{
+			Logger.LogInfo("<<UCI>>[COMMAND] Waiting for readyok response.");
 			await _processManager.WriteLineAsync(UCIConstants.IsReadyCommand);
 			while (true)
 			{

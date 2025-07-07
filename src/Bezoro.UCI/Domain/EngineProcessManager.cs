@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.Domain.Constants;
 using Bezoro.UCI.Domain.Exceptions;
 using Bezoro.UCI.Domain.Extensions;
@@ -81,6 +82,7 @@ namespace Bezoro.UCI.Domain
 			ThrowIfDisposed();
 			ThrowIfProcessInputIsNull();
 
+			Logger.LogInfo($"<<UCI>>[WRITE LINE] -> {command.Bold()}");
 			await _processInput.WriteLineAsync(command);
 			await _processInput.FlushAsync();
 		}
@@ -102,7 +104,9 @@ namespace Bezoro.UCI.Domain
 				throw new TimeoutException("The engine response timed out.");
 			}
 
-			return await readTask;
+			string? result = await readTask;
+			Logger.LogInfo($"<<UCI>>Line -> {result}");
+			return result;
 		}
 
 		/// <summary>
