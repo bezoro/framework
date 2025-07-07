@@ -133,21 +133,22 @@ namespace Bezoro.UCI.Domain
 		/// <returns>True if the position is checkmate, otherwise false.</returns>
 		public async Task<bool> IsCheckmateAsync(CancellationToken ct = default)
 		{
-			var    fenInfo    = await ParseCurrentFenAsync(ct);
-			string kingSquare = await FindKingSquare(fenInfo.ActiveColor, ct);
-			return await IsSquareAttackedByAsync(kingSquare, fenInfo.ActiveColor, ct);
+			var    fenInfo       = await ParseCurrentFenAsync(ct);
+			char   oppositeColor = fenInfo.ActiveColor == 'w' ? 'b' : 'w';
+			string kingSquare    = await FindKingSquare(fenInfo.ActiveColor, ct);
+			bool   isAttacked    = await IsSquareAttackedByAsync(kingSquare, oppositeColor, ct);
 
-			// Get all legal moves for the current player
-			List<string> legalMoves = await GetLegalMovesAsync(ct);
-
-			// If there are legal moves, it's not checkmate
-			if (legalMoves.Count > 0)
+			// For it to be checkmate, the king of the active player must be under attack (in check).
+			if (!isAttacked)
 			{
 				return false;
 			}
 
-			// No legal moves - determine if it's checkmate or stalemate
-			return await IsKingInCheckAsync();
+			// Get all legal moves for the current player.
+			List<string> legalMoves = await GetLegalMovesAsync(ct);
+
+			// If the king is in check and there are no legal moves, it's checkmate.
+			return legalMoves.Count == 0;
 		}
 
 		public async Task<bool> IsKingInCheckAsync(char? colorToCheck = null, CancellationToken ct = default)
@@ -325,22 +326,22 @@ namespace Bezoro.UCI.Domain
 			var fenInfo = await ParseCurrentFenAsync(ct);
 			if (colorToCheck == fenInfo.ActiveColor)
 			{
-				// If we're checking the current player, we don't need to change the engine's state.
 				return await GetLegalMovesAsync(ct);
 			}
 
-			// If checking the other player, we temporarily flip the turn in the FEN string.
-			// The en-passant square is cleared as it's not valid after a turn flip.
-			string[] fenParts = fenInfo.FenParts;
-			var      tempFen  = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
+			string[]     fenParts           = fenInfo.FenParts;
+			const string newEnPassantTarget = "-";
+			int          newHalfmoveClock   = fenInfo.HalfmoveClock + 1;
+			int newFullmoveNumber = fenInfo.ActiveColor == 'b'
+				? fenInfo.FullmoveNumber + 1
+				: fenInfo.FullmoveNumber;
 
-			// Set the engine to the temporary position.
+			string castlingRights = fenParts[2];
+			var tempFen =
+				$"{fenParts[0]} {colorToCheck} {castlingRights} {newEnPassantTarget} {newHalfmoveClock} {newFullmoveNumber}";
+
 			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {tempFen}", true, ct);
-
-			// Get all legal moves for that player.
 			List<string> moves = await GetLegalMovesAsync(ct);
-
-			// IMPORTANT: Restore the engine to its original state to ensure consistency.
 			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {fenInfo.CurrentFen}", true, ct);
 
 			return moves;
