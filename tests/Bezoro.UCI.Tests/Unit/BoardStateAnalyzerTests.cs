@@ -101,4 +101,18 @@ public class BoardStateAnalyzerTests : UCITestsBase
 		// The position should be detected as stalemate
 		Assert.True(isStalemate);
 	}
+
+	[Fact]
+	public async Task ParseCurrentFENAsync_WhenValidFEN_ShouldReturnFENInfoObject()
+	{
+		var fenInfo = await _boardStateAnalyzer.ParseCurrentFenAsync();
+
+		Assert.NotNull(fenInfo);
+		Assert.Equal("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", fenInfo.FenParts[0]);
+		Assert.Equal('w',                                           fenInfo.ActiveColor);
+		Assert.Equal("KQkq",                                        fenInfo.CastlingRights);
+		Assert.Equal("-",                                           fenInfo.EnPassantTarget);
+		Assert.Equal(0,                                             fenInfo.HalfmoveClock);
+		Assert.Equal(1,                                             fenInfo.FullmoveNumber);
+	}
 }
