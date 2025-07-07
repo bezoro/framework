@@ -126,41 +126,70 @@ namespace Bezoro.UCI.Domain
 		}
 
 		/// <summary>
-		///     Finds the king's square on the board.
+		///     Determines if the current position is a checkmate.
+		///     A checkmate occurs when the king is in check and there are no legal moves available.
 		/// </summary>
-		/// <param name="boardPosition">The board position as a FEN string.</param>
-		/// <param name="activeColor">The active color.</param>
-		public string FindKingSquare(string boardPosition, char activeColor)
+		/// <param name="ct">A token to cancel the operation.</param>
+		/// <returns>True if the position is checkmate, otherwise false.</returns>
+		public async Task<bool> IsCheckmateAsync(CancellationToken ct = default)
 		{
-			char kingPiece = activeColor == 'w' ? 'K' : 'k';
+			var    fenInfo    = await ParseCurrentFenAsync(ct);
+			string kingSquare = await FindKingSquare(fenInfo.ActiveColor, ct);
+			return await IsSquareAttackedByAsync(kingSquare, fenInfo.ActiveColor, ct);
 
-			string[] ranks = boardPosition.Split('/');
+			// Get all legal moves for the current player
+			List<string> legalMoves = await GetLegalMovesAsync(ct);
 
-			for (var rank = 0 ; rank < 8 ; rank++)
+			// If there are legal moves, it's not checkmate
+			if (legalMoves.Count > 0)
 			{
-				var file = 0;
-				foreach (char c in ranks[rank])
-				{
-					if (char.IsDigit(c))
-					{
-						file += int.Parse(c.ToString());
-					}
-					else
-					{
-						if (c == kingPiece)
-						{
-							// Convert to algebraic notation
-							var fileChar = (char)('a' + file);
-							var rankChar = (char)('8' - rank);
-							return $"{fileChar}{rankChar}";
-						}
-
-						file++;
-					}
-				}
+				return false;
 			}
 
-			throw new UCIException($"Could not find {activeColor} king in position");
+			// No legal moves - determine if it's checkmate or stalemate
+			return await IsKingInCheckAsync();
+		}
+
+		public async Task<bool> IsKingInCheckAsync(char? colorToCheck = null, CancellationToken ct = default)
+		{
+			const char WhitePlayer = 'w';
+			const char BlackPlayer = 'b';
+			var        fenInfo     = await ParseCurrentFenAsync(ct);
+
+			// Use specified color or default to active color
+			char   kingColor     = colorToCheck ?? fenInfo.ActiveColor;
+			string kingSquare    = await FindKingSquare(kingColor, ct);
+			char   opponentColor = kingColor == WhitePlayer ? BlackPlayer : WhitePlayer;
+
+			return await IsSquareAttackedByAsync(kingSquare, opponentColor, ct);
+		}
+
+		public async Task<bool> IsSquareAttackedByAsync(string square, char playerColor, CancellationToken ct = default)
+		{
+			if (string.IsNullOrWhiteSpace(square) || !UCIHelper.IsValidAlgebraicNotation(square))
+			{
+				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g., 'e4').",
+					nameof(square));
+			}
+
+			// 1. Get the original position's FEN to understand the current state.
+			string   originalFen = await GetCurrentFENAsync(ct);
+			string[] fenParts    = originalFen.Split(' ');
+			if (fenParts.Length < 2)
+			{
+				throw new UCIException("Failed to parse FEN string from engine.");
+			}
+
+			// 2. Get legal moves for the specified player.
+			List<string> moves = await GetMovesForPlayerAsync(playerColor, ct);
+
+			// 3. Check if any available move targets the given square.
+			bool isAttacked = moves.Any(move =>
+				move.Length >= 4 &&
+				move.Substring(2, 2).Equals(square, StringComparison.OrdinalIgnoreCase)
+			);
+
+			return isAttacked;
 		}
 
 		/// <summary>
@@ -206,46 +235,49 @@ namespace Bezoro.UCI.Domain
 		}
 
 		/// <summary>
-		///     Gets all legal moves for a specific player color.
+		///     Finds the king's square on the board.
 		/// </summary>
-		/// <param name="colorToCheck">The color to check.</param>
-		/// <param name="activeColor">The active color.</param>
-		/// <param name="fenParts">The FEN parts.</param>
-		/// <param name="originalFen">The original FEN string.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
-		public async Task<List<string>> GetMovesForPlayerAsync(
-			char colorToCheck, char activeColor, string[] fenParts, string originalFen,
-			CancellationToken cancellationToken)
+		/// <param name="fen">The board position as a FEN string.</param>
+		/// <param name="kingColor">The active color.</param>
+		public async Task<string> FindKingSquare(char kingColor, CancellationToken ct = default)
 		{
-			if (colorToCheck == activeColor)
+			char kingPiece = kingColor == 'w' ? 'K' : 'k';
+
+			var      fen   = await ParseCurrentFenAsync(ct);
+			string[] ranks = fen.PiecePlacement.Split('/');
+
+			for (var rank = 0 ; rank < 8 ; rank++)
 			{
-				// If we're checking the current player, we don't need to change the engine's state.
-				return await GetLegalMovesAsync(cancellationToken);
+				var file = 0;
+				foreach (char c in ranks[rank])
+				{
+					if (char.IsDigit(c))
+					{
+						file += int.Parse(c.ToString());
+					}
+					else
+					{
+						if (c == kingPiece)
+						{
+							// Convert to algebraic notation
+							var fileChar = (char)('a' + file);
+							var rankChar = (char)('8' - rank);
+							return $"{fileChar}{rankChar}";
+						}
+
+						file++;
+					}
+				}
 			}
 
-			// If checking the other player, we temporarily flip the turn in the FEN string.
-			// The en-passant square is cleared as it's not valid after a turn flip.
-			var tempFen = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
-
-			// Set the engine to the temporary position.
-			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {tempFen}", true,
-				cancellationToken);
-
-			// Get all legal moves for that player.
-			List<string> moves = await GetLegalMovesAsync(cancellationToken);
-
-			// IMPORTANT: Restore the engine to its original state to ensure consistency.
-			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {originalFen}", true,
-				cancellationToken);
-
-			return moves;
+			throw new UCIException($"Could not find {kingColor} king in position");
 		}
 
 		/// <summary>
 		///     Gets the current position in FEN notation.
 		/// </summary>
 		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task<string> GetCurrentFENAsync(CancellationToken ct)
+		public async Task<string> GetCurrentFENAsync(CancellationToken ct = default)
 		{
 			// The 'd' command doesn't have a clear "readyok" end signal, so we read until we find the FEN
 			await _commandSender.SendCommandAsync(UCIConstants.DisplayBoardCommand, false, ct);
@@ -266,38 +298,6 @@ namespace Bezoro.UCI.Domain
 			}
 
 			throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
-		/// <summary>
-		///     Gets all legal moves for a specific player color.
-		/// </summary>
-		/// <param name="colorToCheck">The color to check.</param>
-		/// <param name="activeColor">The active color.</param>
-		/// <param name="fenParts">The FEN parts.</param>
-		/// <param name="originalFen">The original FEN string.</param>
-		/// <param name="ct">A token to cancel the operation.</param>
-		internal async Task<List<string>> GetMovesForPlayerAsync(char colorToCheck, CancellationToken ct = default)
-		{
-			var fenInfo = await ParseCurrentFenAsync(ct);
-			if (colorToCheck == fenInfo.ActiveColor)
-			{
-				// If we're checking the current player, we don't need to change the engine's state.
-				return await GetLegalMovesAsync(ct);
-			}
-
-			// If checking the other player, we temporarily flip the turn in the FEN string.
-			// The en-passant square is cleared as it's not valid after a turn flip.
-			string[] fenParts = fenInfo.FenParts;
-			var      tempFen  = $"{fenParts[0]} {colorToCheck} {fenParts[2]} - {fenParts[4]} {fenParts[5]}";
-
-			// Set the engine to the temporary position.
-			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {tempFen}", true, ct);
-
-			// Get all legal moves for that player.
-			List<string> moves = await GetLegalMovesAsync(ct);
-
-			// IMPORTANT: Restore the engine to its original state to ensure consistency.
-			await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {fenInfo.CurrentFen}", true, ct);
-
-			return moves;
 		}
 
 		internal async Task<FenInfo> ParseCurrentFenAsync(CancellationToken ct = default)
