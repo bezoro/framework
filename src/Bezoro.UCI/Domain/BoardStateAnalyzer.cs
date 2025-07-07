@@ -299,6 +299,42 @@ namespace Bezoro.UCI.Domain
 
 			return moves;
 		}
+
+		internal async Task<FenInfo> ParseCurrentFenAsync(CancellationToken ct = default)
+		{
+			const int MinimumFenPartsRequired = 2;
+
+			string   currentFen = await GetCurrentFENAsync(ct);
+			string[] fenParts   = currentFen.Split(' ');
+
+			if (fenParts.Length < MinimumFenPartsRequired)
+			{
+				throw new UCIException("Invalid FEN string returned from engine");
+			}
+
+			return new FenInfo(currentFen, fenParts);
+		}
+
+		internal readonly struct FenInfo
+		{
+			public FenInfo(string currentFen, string[] fenParts)
+			{
+				CurrentFen      = currentFen;
+				FenParts        = fenParts;
+				ActiveColor     = fenParts[1][0];
+				CastlingRights  = fenParts[2];
+				EnPassantTarget = fenParts[3];
+				HalfmoveClock   = int.Parse(fenParts[4]);
+				FullmoveNumber  = int.Parse(fenParts[5]);
+			}
+
+			public char     ActiveColor     { get; }
+			public string   CurrentFen      { get; }
+			public string[] FenParts        { get; }
+			public string   CastlingRights  { get; }
+			public string   EnPassantTarget { get; }
+			public int      HalfmoveClock   { get; }
+			public int      FullmoveNumber  { get; }
 		}
 	}
 }
