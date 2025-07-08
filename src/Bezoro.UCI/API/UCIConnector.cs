@@ -99,6 +99,7 @@ namespace Bezoro.UCI.API
 			}
 
 			await _commandSender.SendCommandAsync(command, false, ct);
+			await WaitForEngineToBeReadyAsync(ct);
 			PositionSetSuccessfully.Invoke(await GetCurrentFENAsync(ct));
 			Logger.LogSuccess($"Position Set Successfully: {command}", LogCategory.UCI);
 		}
