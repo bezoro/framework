@@ -82,7 +82,7 @@ namespace Bezoro.UCI.Domain
 			ThrowIfDisposed();
 			ThrowIfProcessInputIsNull();
 
-			Logger.LogInfo($"<<UCI>>[WRITE LINE] -> {command.Bold()}");
+			Logger.LogInfo($"[WRITE LINE] -> {command.Bold()}", this, LogCategory.UCI);
 			await _processInput.WriteLineAsync(command);
 			await _processInput.FlushAsync();
 		}

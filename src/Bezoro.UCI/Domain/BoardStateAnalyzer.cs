@@ -104,10 +104,17 @@ namespace Bezoro.UCI.Domain
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
 			CancellationToken cancellationToken = default)
 		{
+			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
 			string       currentFen = await GetCurrentFENAsync(cancellationToken);
 			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken);
 			var          boardState = BoardStateParser.ParseFen(currentFen);
-			return legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+			List<MoveClassification> classifiedMoves =
+				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+
+			Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
+			Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
+
+			return classifiedMoves;
 		}
 
 		/// <summary>
