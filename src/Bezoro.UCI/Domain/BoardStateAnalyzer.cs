@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
@@ -194,19 +193,31 @@ namespace Bezoro.UCI.Domain
 			// The 'd' command doesn't have a clear "readyok" end signal, so we read until we find the FEN
 			await _commandSender.SendCommandAsync(UCIConstants.DisplayBoardCommand, false, ct);
 
-			while (true)
-			{
-				string? line = await _outputParser.ReadLineFromProcessAsync(ct);
-				if (line is null)
-				{
-					// End of stream reached before finding the FEN.
-					break;
-				}
+			// Set a timeout for reading the response to prevent stalling.
+			using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var linkedCts  = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-				if (line.StartsWith(UCIConstants.FenResponsePrefix, StringComparison.Ordinal))
+			try
+			{
+				while (true)
 				{
-					return line[UCIConstants.FenResponsePrefix.Length..].Trim();
+					string? line = await _outputParser.ReadLineFromProcessAsync(linkedCts.Token);
+					if (line is null)
+					{
+						// End of stream reached before finding the FEN.
+						break;
+					}
+
+					if (line.StartsWith(UCIConstants.FenResponsePrefix, StringComparison.Ordinal))
+					{
+						return line[UCIConstants.FenResponsePrefix.Length..].Trim();
+					}
 				}
+			}
+			catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+			{
+				throw new UCIException(
+					"Timed out waiting for FEN string from engine. The 'd' command may not be supported or the engine is unresponsive.");
 			}
 
 			throw new UCIException("Engine did not return a FEN string. The 'd' command may not be supported.");
