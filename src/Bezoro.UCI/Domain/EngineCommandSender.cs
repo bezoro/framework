@@ -34,8 +34,8 @@ namespace Bezoro.UCI.Domain
 		public async Task SendCommandAsync(
 			string command, bool waitForReady = false, CancellationToken cancellationToken = default)
 		{
-			Logger.LogInfo($"<<UCI>>[COMMAND] {command.Bold()} Started.");
-			await _commandSemaphore.WaitAsync(cancellationToken);
+			Logger.LogInfo($"[COMMAND] {command.Bold()} Started.", this, LogCategory.UCI);
+			await _commandSemaphore.WaitAsync(ct);
 			try
 			{
 				await _processManager.WriteLineAsync(command);
@@ -50,7 +50,7 @@ namespace Bezoro.UCI.Domain
 				_commandSemaphore.Release();
 			}
 
-			Logger.LogInfo($"<<UCI>>[COMMAND] {command.Bold()} Finished.");
+			Logger.LogInfo($"[COMMAND] {command.Bold()} Finished.", this, LogCategory.UCI);
 		}
 
 		/// <summary>
@@ -59,7 +59,7 @@ namespace Bezoro.UCI.Domain
 		/// <param name="ct">A token to cancel the operation.</param>
 		internal async Task WaitUntilReadyResponseAsync(CancellationToken ct)
 		{
-			Logger.LogInfo("<<UCI>>[COMMAND] Waiting for readyok response.");
+			Logger.LogInfo("[COMMAND] Waiting for readyok response.", this, LogCategory.UCI);
 			await _processManager.WriteLineAsync(UCIConstants.IsReadyCommand);
 			while (true)
 			{

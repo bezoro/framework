@@ -12,6 +12,7 @@ namespace Bezoro.UCI.Domain.Helpers
 		/// </summary>
 		public static MoveClassification ClassifyMove(string move, BoardState boardState)
 		{
+			Logger.LogInfo($"Classifying Move: {move}", nameof(MoveClassifier), LogCategory.UCI);
 			if (string.IsNullOrEmpty(move) || move.Length < 4)
 			{
 				throw new InvalidOperationException($"Invalid move '{move}'.");
@@ -52,7 +53,9 @@ namespace Bezoro.UCI.Domain.Helpers
 				return new MoveClassification(move) { IsCapture = true };
 			}
 
-			return new MoveClassification(move);
+			var classification = new MoveClassification(move);
+			Logger.LogInfo($"Classified Move: {move} -> {classification}", nameof(MoveClassifier), LogCategory.UCI);
+			return classification;
 		}
 
 		private static bool IsCastling(ParsedMove move, char movingPiece, BoardState boardState)

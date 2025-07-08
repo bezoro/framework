@@ -125,11 +125,11 @@ namespace Bezoro.Core.Common.Helpers
 					continue;
 				}
 
-				Logger.LogInfo($"Array comparison failed at index {i}.");
+				Logger.LogInfo($"Array comparison failed at index {i}.", nameof(ArrayHelper), LogCategory.Utilities);
 				return false;
 			}
 
-			Logger.LogInfo("Arrays are equal");
+			Logger.LogInfo("Arrays are equal", nameof(ArrayHelper), LogCategory.Utilities);
 			return true;
 		}
 
@@ -184,7 +184,8 @@ namespace Bezoro.Core.Common.Helpers
 
 			array    = new T[1];
 			array[0] = element;
-			Logger.LogInfo($"Created array and adding first element: {element}");
+			Logger.LogInfo($"Created array and adding first element: {element}", nameof(ArrayHelper),
+				LogCategory.Utilities);
 			return true;
 		}
 
@@ -206,7 +207,8 @@ namespace Bezoro.Core.Common.Helpers
 				}
 			}
 
-			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.");
+			Logger.LogInfo($"Counted {nonNullCount} non-null elements in the array.", nameof(ArrayHelper),
+				LogCategory.Utilities);
 			return nonNullCount;
 		}
 
@@ -398,7 +400,8 @@ namespace Bezoro.Core.Common.Helpers
 
 			if (to == null || to.Length < from.Length)
 			{
-				Logger.LogInfo($"Target array is null or too small. Resizing to {from.Length} elements.");
+				Logger.LogInfo($"Target array is null or too small. Resizing to {from.Length} elements.",
+					nameof(ArrayHelper), LogCategory.Utilities);
 				to = new T[from.Length];
 			}
 
@@ -545,7 +548,7 @@ namespace Bezoro.Core.Common.Helpers
 				}
 
 				uniqueElements.Add(element);
-				Logger.LogInfo($"Removing duplicate: {element}");
+				Logger.LogInfo($"Removing duplicate: {element}", nameof(ArrayHelper), LogCategory.Utilities);
 			}
 
 			array = uniqueElements.ToArray();
@@ -575,16 +578,16 @@ namespace Bezoro.Core.Common.Helpers
 			if (array.Length > ParallelThreshold)
 			{
 				Logger.LogInfo(
-					$"Array size is above the parallel threshold ({ParallelThreshold}). Using parallel removal."
-				);
+					$"Array size is above the parallel threshold ({ParallelThreshold}). Using parallel removal.",
+					nameof(ArrayHelper), LogCategory.Utilities);
 
 				Remove_Element_Parallel(ref array, element, removalApproach);
 			}
 			else
 			{
 				Logger.LogInfo(
-					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal."
-				);
+					$"Array size is below the parallel threshold ({ParallelThreshold}). Using sequential removal.",
+					nameof(ArrayHelper), LogCategory.Utilities);
 
 				RemoveElementSequential(ref array, element, removalApproach);
 			}
@@ -804,7 +807,8 @@ namespace Bezoro.Core.Common.Helpers
 			// If there are no valid elements to append, exit early.
 			if (elementsToAppendCount == 0)
 			{
-				Logger.LogInfo("No elements to append from the source array.");
+				Logger.LogInfo("No elements to append from the source array.", nameof(ArrayHelper),
+					LogCategory.Utilities);
 				return;
 			}
 
@@ -1038,7 +1042,8 @@ namespace Bezoro.Core.Common.Helpers
 				{
 					// Fill the null slot in the target array.
 					target[targetIndex] = sourceElement;
-					Logger.LogInfo($"Element {sourceElement} added to target array at index {targetIndex}.");
+					Logger.LogInfo($"Element {sourceElement} added to target array at index {targetIndex}.",
+						nameof(ArrayHelper), LogCategory.Utilities);
 				}
 
 				// Move to the next element in the source array.
@@ -1245,7 +1250,8 @@ namespace Bezoro.Core.Common.Helpers
 				return;
 			}
 
-			Logger.LogInfo("Filling null elements and appending remaining elements from source.");
+			Logger.LogInfo("Filling null elements and appending remaining elements from source.", nameof(ArrayHelper),
+				LogCategory.Utilities);
 
 			int originalLength = targetArray.Length;
 			int newLength      = originalLength + elementsToAppend; // Introduced variable

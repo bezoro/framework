@@ -108,7 +108,7 @@ namespace Bezoro.Core.Common.Primitives
 		{
 			lock ( _lock )
 			{
-				Logger.LogInfo("Clearing all elements from the array.");
+				Logger.LogInfo("Clearing all elements from the array.", this, LogCategory.Utilities);
 				Array.Clear(_items, 0, _count);
 				_count = 0;
 				Logger.LogSuccess("Array cleared.");
@@ -156,7 +156,7 @@ namespace Bezoro.Core.Common.Primitives
 
 		private void Perform_Swap_And_Trim(int index)
 		{
-			Logger.LogInfo($"Removing item at index {index}.");
+			Logger.LogInfo($"Removing item at index {index}.", this, LogCategory.Utilities);
 
 			// Replace the item at the given index with the last item (swap-and-trim)
 			_items[index] = _items[_count - 1];

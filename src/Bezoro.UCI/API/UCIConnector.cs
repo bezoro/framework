@@ -57,17 +57,7 @@ namespace Bezoro.UCI.API
 			_commandSender  = engineCommandSender  ?? new EngineCommandSender(_processManager, _outputParser);
 			_boardAnalyzer  = boardStateAnalyzer   ?? new BoardStateAnalyzer(_commandSender, _outputParser);
 			_searchService  = searchService        ?? new SearchService(_commandSender, _outputParser);
-			Logger.LogSuccess("<<UCI>>UCI Connector Created.");
-		}
-
-		public string BuildFENFromParts(
-			string piecePlacement, char activeColor, string enPassantTarget = "-", int halfmoveClock = 0,
-			int fullmoveNumber = 1)
-		{
-			ThrowIfDisposed();
-
-			return _boardAnalyzer.BuildFENFromParts(piecePlacement, activeColor, enPassantTarget, halfmoveClock,
-				fullmoveNumber);
+			Logger.LogSuccess("UCI Connector Created.", this, LogCategory.UCI);
 		}
 
 		/// <summary>
@@ -110,7 +100,7 @@ namespace Bezoro.UCI.API
 
 			await _commandSender.SendCommandAsync(command, false, ct);
 			PositionSetSuccessfully.Invoke(await GetCurrentFENAsync(ct));
-			Logger.LogSuccess($"Position Set Successfully: {command}");
+			Logger.LogSuccess($"Position Set Successfully: {command}", LogCategory.UCI);
 		}
 
 		/// <summary>
@@ -131,12 +121,12 @@ namespace Bezoro.UCI.API
 		/// <param name="cancellationToken">A token to cancel the operation.</param>
 		public async Task StartEngineAsync(CancellationToken cancellationToken = default)
 		{
-			Logger.LogInfo("<<UCI>>Starting Engine");
+			Logger.LogInfo("Starting Engine...", this, LogCategory.UCI);
 			ThrowIfDisposed();
 			_processManager.StartEngine();
 			await _commandSender.SendCommandAsync(UCIConstants.UCICommand,        true, cancellationToken);
 			await _commandSender.SendCommandAsync(UCIConstants.UCINewGameCommand, true, cancellationToken);
-			Logger.LogSuccess("<<UCI>>Engine Started");
+			Logger.LogSuccess("Engine Started", this, LogCategory.UCI);
 		}
 
 		/// <summary>
@@ -368,7 +358,7 @@ namespace Bezoro.UCI.API
 		/// <returns>A comprehensive SearchResult containing best move and all analysis data.</returns>
 		public async Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default)
 		{
-			Logger.LogInfo($"<<UCI>>[Search Started] Parameters: {parameters}");
+			Logger.LogInfo($"[Search Started] Parameters: {parameters}", this, LogCategory.UCI);
 			ThrowIfDisposed();
 			var result  = await _searchService.SearchAsync(parameters, ct);
 			var fenInfo = await _boardAnalyzer.ParseCurrentFenAsync(ct);
@@ -376,10 +366,10 @@ namespace Bezoro.UCI.API
 			{
 				var checkData = new CheckData(result.Checkers, fenInfo.ActiveColor);
 				Check.Invoke(checkData);
-				Logger.LogInfo($"<<UCI>>[Checkers] {checkData}");
+				Logger.LogInfo($"[Checkers] {checkData}", this, LogCategory.UCI);
 			}
 
-			Logger.LogInfo("<<UCI>>[Search Finished]");
+			Logger.LogInfo("[Search Finished]", this, LogCategory.UCI);
 			return result;
 		}
 
@@ -401,7 +391,7 @@ namespace Bezoro.UCI.API
 				throw new TimeoutException("The engine response timed out.");
 			}
 
-			Logger.LogInfo($"<<UCI>>{readTask.Result}");
+			Logger.LogInfo($"{readTask.Result}", this, LogCategory.UCI);
 			return await readTask;
 		}
 
