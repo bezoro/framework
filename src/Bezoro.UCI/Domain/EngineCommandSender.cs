@@ -30,9 +30,9 @@ namespace Bezoro.UCI.Domain
 		/// </summary>
 		/// <param name="command">The command to send.</param>
 		/// <param name="waitForReady">Whether to wait for the engine to be ready after sending the command.</param>
-		/// <param name="cancellationToken">A token to cancel the operation.</param>
+		/// <param name="ct">A token to cancel the operation.</param>
 		public async Task SendCommandAsync(
-			string command, bool waitForReady = false, CancellationToken cancellationToken = default)
+			string command, bool waitForReady = false, CancellationToken ct = default)
 		{
 			Logger.LogInfo($"[COMMAND] {command.Bold()} Started.", this, LogCategory.UCI);
 			await _commandSemaphore.WaitAsync(ct);
@@ -42,7 +42,7 @@ namespace Bezoro.UCI.Domain
 
 				if (waitForReady)
 				{
-					await WaitUntilReadyResponseAsync(cancellationToken);
+					await WaitUntilReadyResponseAsync(ct);
 				}
 			}
 			finally
