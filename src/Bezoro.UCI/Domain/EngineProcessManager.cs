@@ -14,6 +14,7 @@ namespace Bezoro.UCI.Domain
 	/// </summary>
 	internal sealed class EngineProcessManager : IAsyncDisposable
 	{
+		private readonly SemaphoreSlim _readSemaphore = new(1, 1);
 		private volatile bool          _isDisposed;
 		private          Process?      _engineProcess;
 		private          StreamReader? _processOutput;
@@ -97,16 +98,24 @@ namespace Bezoro.UCI.Domain
 			ThrowIfDisposed();
 			ThrowIfProcessOutputIsNull();
 
-			Task<string?> readTask      = _processOutput.ReadLineAsync();
-			var           completedTask = await Task.WhenAny(readTask, Task.Delay(timeoutMs, ct));
-			if (completedTask != readTask)
+			await _readSemaphore.WaitAsync(ct);
+			try
 			{
-				throw new TimeoutException("The engine response timed out.");
-			}
+				Task<string?> readTask      = _processOutput.ReadLineAsync();
+				var           completedTask = await Task.WhenAny(readTask, Task.Delay(timeoutMs, ct));
+				if (completedTask != readTask)
+				{
+					throw new TimeoutException("The engine response timed out.");
+				}
 
-			string? result = await readTask;
-			Logger.LogInfo($"<<UCI>>Line -> {result}");
-			return result;
+				string? result = await readTask;
+				Logger.LogInfo($"Line -> {result}", this, LogCategory.UCI);
+				return result;
+			}
+			finally
+			{
+				_readSemaphore.Release();
+			}
 		}
 
 		/// <summary>
