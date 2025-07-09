@@ -118,11 +118,11 @@ namespace Bezoro.Core
 			Log(LogLevel.Exception, message, category, context);
 
 		[Conditional("DEBUG")]
-		public static void LogInfo(object message, object? context, LogCategory category = default) =>
+		public static void LogInfo(object message, object? context = null, LogCategory category = default) =>
 			Log(LogLevel.Info, message, category, context);
 
 		[Conditional("DEBUG")]
-		public static void LogInfo(FormattableString message, object? context, LogCategory category = default) =>
+		public static void LogInfo(FormattableString message, object? context = null, LogCategory category = default) =>
 			Log(LogLevel.Info, message, category, context);
 
 		[Conditional("DEBUG")]
