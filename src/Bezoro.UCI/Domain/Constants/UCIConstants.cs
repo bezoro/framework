@@ -121,6 +121,8 @@ namespace Bezoro.UCI.Domain.Constants
 		/// </summary>
 		public const string SetOptionCommand = "setoption name";
 
+		public const string StandardFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 		/// <summary>
 		///     Command to set initial chess position
 		/// </summary>
