@@ -1,35 +1,31 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Commands;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Constants;
-using Bezoro.UCI.Domain.Exceptions;
-using Bezoro.UCI.Domain.Helpers;
 
 namespace Bezoro.UCI.API
 {
 	/// <summary>
 	///     Represents a connection to a UCI-compliant chess engine.
 	///     This class handles process management, command serialization, and asynchronous communication.
-	///     It is designed to be thread-safe and robust.
+	///     It is designed to be thread-safe and robust using the Command pattern.
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private readonly ConcurrentQueue<string> _incomingLines = new();
-		private readonly Process                 _engineProcess;
-		private readonly SemaphoreSlim           _lineSignal = new(0);
-		private readonly SemaphoreSlim           _streamLock = new(1, 1);
-		private readonly string                  _enginePath;
-		private volatile bool                    _isDisposed;
-		private          bool                    _started;
-		private          StreamReader            _output;
-		private          StreamWriter            _input;
-		private          Task?                   _readerTask;
+		private readonly ConcurrentQueue<(IEngineCommand Command, TaskCompletionSource<object> ResultSource)>
+			_commandQueue = new();
+		private readonly SemaphoreSlim _commandSignal = new(0);
+		private readonly string        _enginePath;
+		private readonly UCIEngine     _engine;
+		private readonly Process       _engineProcess;
+		private volatile bool          _isDisposed;
+		private          bool          _started;
+		private          Task?         _commandProcessorTask;
 
 		public event EventHandler<string>? InfoReceived;
 		public event Action<string>        PositionSetSuccessfully;
@@ -60,30 +56,61 @@ namespace Bezoro.UCI.API
 				EnableRaisingEvents = true
 			};
 
+			_engine              =  new UCIEngine(_engineProcess);
+			_engine.InfoReceived += (sender, info) => InfoReceived?.Invoke(this, info);
+
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
+		}
+
+		/// <summary>
+		///     Executes a command by adding it to the command queue and waiting for its result
+		/// </summary>
+		/// <typeparam name="T">The expected result type</typeparam>
+		/// <param name="command">The command to execute</param>
+		/// <returns>The command result</returns>
+		private async Task<T> ExecuteCommandAsync<T>(IEngineCommand command)
+		{
+			ThrowIfDisposed();
+
+			var resultSource = new TaskCompletionSource<object>();
+			_commandQueue.Enqueue((command, resultSource));
+			_commandSignal.Release();
+
+			object? result = await resultSource.Task.ConfigureAwait(false);
+			return (T)result;
+		}
+
+		/// <summary>
+		///     Processes commands from the queue one by one
+		/// </summary>
+		private async Task ProcessCommandsAsync()
+		{
+			while (!_isDisposed)
+			{
+				await _commandSignal.WaitAsync().ConfigureAwait(false);
+
+				if (_commandQueue.TryDequeue(
+						out (IEngineCommand Command, TaskCompletionSource<object> ResultSource) commandItem))
+				{
+					(var command, TaskCompletionSource<object>? resultSource) = commandItem;
+
+					try
+					{
+						object? result = await command.ExecuteAsync(_engine).ConfigureAwait(false);
+						resultSource.SetResult(result ?? new object());
+					}
+					catch (Exception ex)
+					{
+						resultSource.SetException(ex);
+					}
+				}
+			}
 		}
 
 		public async Task SendCommandAsync(string command)
 		{
 			ThrowIfDisposed();
-			Logger.LogInfo($"Sending Command: {command.Bold()}", this, LogCategory.UCI);
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
-			}
-
-			// Ensure only one write operation at a time
-			await _streamLock.WaitAsync().ConfigureAwait(false);
-			try
-			{
-				await _input.WriteLineAsync(command).ConfigureAwait(false);
-				await _input.FlushAsync().ConfigureAwait(false);
-				Logger.LogSuccess($"Command {command.Bold()} Sent", this, LogCategory.UCI);
-			}
-			finally
-			{
-				_streamLock.Release();
-			}
+			await ExecuteCommandAsync<object>(new SendTextCommand(command));
 		}
 
 		public async Task SendNewGameCommandAsync()
@@ -125,23 +152,18 @@ namespace Bezoro.UCI.API
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			if (!_engineProcess.Start())
-			{
-				throw new InvalidOperationException("Failed to start the UCI engine process.");
-			}
+			// Start the engine
+			await _engine.StartAsync();
 
-			_input  = _engineProcess.StandardInput;
-			_output = _engineProcess.StandardOutput;
+			// Start the command processor
+			_commandProcessorTask = Task.Run(ProcessCommandsAsync);
 
-			// 1) Start the manual reader loop
-			_readerTask = Task.Run(PumpOutputAsync);
+			// Perform UCI handshake
+			await ExecuteCommandAsync<object>(new SendTextCommand("uci"));
+			await ExecuteCommandAsync<string>(new WaitForTokenCommand("uciok"));
 
-			// 2) Perform UCI handshake via the queue
-			await SendCommandAsync("uci");
-			await WaitForToken("uciok");
-
-			await SendCommandAsync("isready");
-			await WaitForToken("readyok");
+			await ExecuteCommandAsync<object>(new SendTextCommand("isready"));
+			await ExecuteCommandAsync<string>(new WaitForTokenCommand("readyok"));
 
 			_started = true;
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
@@ -162,110 +184,31 @@ namespace Bezoro.UCI.API
 		public async Task<(string best, string ponder)> GetBestMoveAsync(int depth = 20)
 		{
 			ThrowIfDisposed();
-			await SendCommandAsync($"go depth {depth}");
-			string line = await WaitForToken("bestmove");
-
-			// Split on spaces, ignore any extra whitespace
-			string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-			// tokens[0] == "bestmove"
-			string best = tokens.Length > 1 ? tokens[1] : string.Empty;
-			// tokens[2] == "ponder", tokens[3] == the ponder move (if present)
-			string ponder = tokens.Length > 3 ? tokens[3] : string.Empty;
-
-			return (best, ponder);
+			return await ExecuteCommandAsync<(string, string)>(new GetBestMoveCommand(depth));
 		}
 
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
-			CancellationToken cancellationToken = default)
-		{
-			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
-			string       currentFen = await GetCurrentFENAsync();
-			List<string> legalMoves = await GetLegalMovesAsync(cancellationToken);
-			var          boardState = BoardStateParser.ParseFen(currentFen);
-			List<MoveClassification> classifiedMoves =
-				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
-
-			Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
-			Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
-
-			return classifiedMoves;
-		}
+			CancellationToken cancellationToken = default) =>
+			await ExecuteCommandAsync<List<MoveClassification>>(new GetAllLegalMovesWithDetailsCommand(cancellationToken));
 
 		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
 			ThrowIfDisposed();
-
-			if (string.IsNullOrWhiteSpace(square))
-			{
-				throw new ArgumentException("Square cannot be null or whitespace.", nameof(square));
-			}
-
-			if (!UCIHelper.IsValidAlgebraicNotation(square))
-			{
-				throw new ArgumentException($"Square '{square}' is not in valid algebraic notation (e.g. 'e2').",
-					nameof(square));
-			}
-
-			List<MoveClassification> allMovesWithDetails =
-				await GetAllLegalMovesWithDetailsAsync(cancellationToken);
-
-			List<MoveClassification> movesForSquare = allMovesWithDetails.
-													  Where(m => m.Move.StartsWith(square,
-														  StringComparison.OrdinalIgnoreCase)).ToList();
-
-			return movesForSquare;
+			return await ExecuteCommandAsync<List<MoveClassification>>(
+				new GetLegalMovesForSquareWithDetailsCommand(square, cancellationToken));
 		}
 
 		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
 		{
-			var moves = new List<string>();
-
-			// fire off the perft command
-			await SendCommandAsync(UCIConstants.GoPerftDepth1Command);
-
-			while (true)
-			{
-				// wait for the next line from the engine
-				string line = await ReadNextOutputLineAsync(ct);
-
-				// once we hit the summary line, stop
-				if (line.Contains("Nodes searched", StringComparison.OrdinalIgnoreCase))
-				{
-					break;
-				}
-
-				// otherwise try to parse a move out of it
-				var match = UCIConstants.MoveRegex.Match(line);
-				if (match.Success)
-				{
-					moves.Add(match.Groups[1].Value);
-				}
-			}
-
-			return moves;
+			var result = await ExecuteCommandAsync<List<string>>(new GetLegalMovesCommand(ct));
+			return result;
 		}
 
 		public async Task<string> GetCurrentFENAsync()
 		{
-			Logger.LogInfo("Getting Current FEN...", this, LogCategory.UCI);
 			ThrowIfDisposed();
-
-			// Request the engine to dump the current position (Stockfish and many UCI engines respond to "d" with a "Fen: ..." line)
-			await SendCommandAsync("d").ConfigureAwait(false);
-
-			// Wait for the line that contains the FEN
-			string? fenLine = await WaitForToken("Fen:").ConfigureAwait(false);
-
-			const string prefix = "Fen: ";
-			if (fenLine.StartsWith(prefix))
-			{
-				string fen = fenLine.Substring(prefix.Length).Trim();
-				Logger.LogSuccess($"Current FEN: {fen}");
-				return fen;
-			}
-
-			throw new UCIException($"FEN line not found in response: {fenLine}");
+			return await ExecuteCommandAsync<string>(new GetCurrentFENCommand());
 		}
 
 		/// <summary>
@@ -281,140 +224,13 @@ namespace Bezoro.UCI.API
 
 			_isDisposed = true;
 
-			// shut down your reader loop if needed…
-			_input.Close();
-			_output.Close();
-			_engineProcess.Dispose();
+			// Dispose the engine
+			await _engine.DisposeAsync();
 
-			// now tear down your semaphores
-			_streamLock.Dispose();
-			_lineSignal.Dispose();
+			// Dispose semaphores
+			_commandSignal.Dispose();
+
 			Logger.LogSuccess($"Engine Process Disposed", this, LogCategory.UCI);
-		}
-
-		private async Task PumpOutputAsync()
-		{
-			while (!_isDisposed && !_engineProcess.HasExited)
-			{
-				string? line = await _output.ReadLineAsync().ConfigureAwait(false);
-				if (line == null)
-				{
-					break; // stream closed
-				}
-
-				_incomingLines.Enqueue(line);
-				_lineSignal.Release();
-			}
-		}
-
-		private async Task WaitForStreamReadyAsync()
-		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
-			}
-
-			Logger.LogInfo("Waiting for streams to be ready", this, LogCategory.UCI);
-
-			// Poll until the engine process streams are initialized and usable
-			while (true)
-			{
-				if (_isDisposed)
-				{
-					throw new ObjectDisposedException(nameof(UCIConnector));
-				}
-
-				if (_engineProcess.HasExited)
-				{
-					throw new InvalidOperationException("Engine process exited before streams were ready.");
-				}
-
-				if (_input != null && _output != null && _input.BaseStream.CanWrite && _output.BaseStream.CanRead)
-				{
-					Logger.LogSuccess("Streams are ready", this, LogCategory.UCI);
-					return;
-				}
-
-				await Task.Delay(50).ConfigureAwait(false);
-			}
-		}
-
-		private async Task<bool> WaitForEngineReadyAsync()
-		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
-			}
-
-			// Ask engine to report readiness
-			Logger.LogInfo("Sending isready to engine", this, LogCategory.UCI);
-			await SendCommandAsync("isready").ConfigureAwait(false);
-
-			// Read lines until we get "readyok"
-			while (true)
-			{
-				await _streamLock.WaitAsync().ConfigureAwait(false);
-				string? line;
-				try
-				{
-					line = await _output.ReadLineAsync().ConfigureAwait(false);
-					if (line == null)
-					{
-						// Stream closed or engine exited before readiness
-						return false;
-					}
-
-					Logger.LogInfo($"Engine response: {line}", this, LogCategory.UCI);
-				}
-				finally
-				{
-					_streamLock.Release();
-				}
-
-				if (line.Trim().Equals("readyok", StringComparison.OrdinalIgnoreCase))
-				{
-					Logger.LogSuccess("Engine is ready", this, LogCategory.UCI);
-					return true;
-				}
-			}
-		}
-
-		// you’ll need a helper that pulls one line out of your _incomingLines queue
-		private async Task<string> ReadNextOutputLineAsync(CancellationToken ct)
-		{
-			await _lineSignal.WaitAsync(ct).ConfigureAwait(false);
-			if (_incomingLines.TryDequeue(out string? line))
-			{
-				return line;
-			}
-
-			// in theory we never get here, but just in case:
-			return string.Empty;
-		}
-
-		private async Task<string> WaitForToken(string token)
-		{
-			Logger.LogInfo($"Waiting for token: {token.Bold()}", this, LogCategory.UCI);
-			while (true)
-			{
-				await _lineSignal.WaitAsync().ConfigureAwait(false);
-				if (_incomingLines.TryDequeue(out string? line))
-				{
-					if (line.StartsWith("info "))
-					{
-						Logger.LogInfo($"{line}", this, LogCategory.UCI);
-						string info = line;
-						InfoReceived?.Invoke(this, info);
-						continue;
-					}
-
-					if (line.Contains(token))
-					{
-						Logger.LogSuccess($"Received {token.Bold()} -> {line}", this, LogCategory.UCI);
-						return line;
-					}
-				}
-			}
 		}
 
 		private void ThrowIfDisposed()
