@@ -29,12 +29,6 @@ namespace Bezoro.UCI.API
 		Task ProcessCommandAsync<T>(IEngineCommand<T> command);
 
 		/// <summary>
-		///     Creates a new command builder for constructing command sequences
-		/// </summary>
-		/// <returns>A command builder</returns>
-		CommandBuilder CreateCommand();
-
-		/// <summary>
 		///     Starts the command processor
 		/// </summary>
 		Task StartAsync();

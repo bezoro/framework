@@ -14,7 +14,7 @@ namespace Bezoro.UCI.API
 	///     This class handles process management, command serialization, and asynchronous communication.
 	///     It is designed to be thread-safe and robust using the Command pattern.
 	/// </summary>
-	public sealed class UCIConnector : IAsyncDisposable
+	public record UCIConnector : IAsyncDisposable
 	{
 		private readonly ICommandProcessor _commandProcessor;
 		private readonly Process           _engineProcess;
@@ -57,19 +57,19 @@ namespace Bezoro.UCI.API
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
 		}
 
-		public async Task SendCommandAsync(string command) =>
-			await SendCommandAsync<object?>(command);
-
-		public async Task SendCommandAsync<TResult>(string command)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<TResult?> sendCommand = _commandProcessor.CreateCommand().Send(command).Build<TResult?>();
-			await _commandProcessor.ProcessCommandAsync(sendCommand);
-		}
-
 		public async Task SendNewGameCommandAsync()
 		{
-			await SendCommandAsync("ucinewgame");
+			await SendTextCommandAsync("ucinewgame");
+		}
+
+		public async Task SendTextCommandAsync(string command) =>
+			await SendTextCommandAsync<object?>(command);
+
+		public async Task SendTextCommandAsync<TResult>(string command)
+		{
+			ThrowIfDisposed();
+			IEngineCommand<TResult?> sendCommand = new CommandBuilder().Add(command).Build<TResult?>();
+			await _commandProcessor.ProcessCommandAsync(sendCommand);
 		}
 
 		public async Task SetDefaultPositionAsync()
@@ -89,13 +89,13 @@ namespace Bezoro.UCI.API
 				command += $" moves {movesArg}";
 			}
 
-			await SendCommandAsync(command);
+			await SendTextCommandAsync(command);
 			PositionSetSuccessfully?.Invoke(fen);
 		}
 
 		public async Task StartEngineAsync()
 		{
-			Logger.LogInfo($"Starting Engine Process", this, LogCategory.UCI);
+			Logger.LogInfo($"Starting Engine Process...", this, LogCategory.UCI);
 			if (_isDisposed)
 			{
 				throw new ObjectDisposedException(nameof(UCIConnector));
@@ -103,17 +103,11 @@ namespace Bezoro.UCI.API
 
 			// Start the engine
 			await _engine.StartAsync();
-
 			// Start the command processor
 			await _commandProcessor.StartAsync();
-
-			// Perform UCI handshake using a composite command
-			IEngineCommand<string> startupCommand = _commandProcessor.
-													CreateCommand().Send("uci").WaitFor("uciok").Send("isready").
-													WaitFor("readyok").Build<string>();
-
-			await _commandProcessor.ProcessCommandAsync(startupCommand);
-
+			// Perform UCI handshake
+			await SendCommandAndWaitForTokenAsync("uci",     "uciok");
+			await SendCommandAndWaitForTokenAsync("isready", "readyok");
 			_started = true;
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
 		}
@@ -126,7 +120,7 @@ namespace Bezoro.UCI.API
 				throw new ObjectDisposedException(nameof(UCIConnector));
 			}
 
-			await SendCommandAsync("quit");
+			await SendTextCommandAsync("quit");
 			await _commandProcessor.StopAsync();
 			Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
 		}
@@ -178,34 +172,6 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
-		///     Sends a command and waits for a specific token in the response
-		/// </summary>
-		/// <param name="command">The command to send</param>
-		/// <param name="token">The token to wait for</param>
-		/// <returns>The line containing the token</returns>
-		public async Task<string> SendCommandAndWaitForTokenAsync(string command, string token)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<string> waitCommand =
-				_commandProcessor.CreateCommand().Send(command).WaitFor(token).Build<string>();
-
-			return await _commandProcessor.ProcessCommandWithResultAsync<string>(waitCommand);
-		}
-
-		/// <summary>
-		///     Sends a command to the engine and returns a result
-		/// </summary>
-		/// <typeparam name="TResult">The type of result to return</typeparam>
-		/// <param name="command">The command to send</param>
-		/// <returns>The result from the engine</returns>
-		public async Task<TResult> SendCommandWithResultAsync<TResult>(string command)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<TResult> sendCommand = _commandProcessor.CreateCommand().Send(command).Build<TResult>();
-			return await _commandProcessor.ProcessCommandWithResultAsync(sendCommand);
-		}
-
-		/// <summary>
 		///     Disposes the connector and stops the engine.
 		/// </summary>
 		public async ValueTask DisposeAsync()
@@ -228,6 +194,33 @@ namespace Bezoro.UCI.API
 			await _engine.DisposeAsync();
 
 			Logger.LogSuccess($"Engine Process Disposed", this, LogCategory.UCI);
+		}
+
+		/// <summary>
+		///     Sends a command and waits for a specific token in the response
+		/// </summary>
+		/// <param name="command">The command to send</param>
+		/// <param name="token">The token to wait for</param>
+		/// <returns>The line containing the token</returns>
+		private async Task<string> SendCommandAndWaitForTokenAsync(string command, string token)
+		{
+			ThrowIfDisposed();
+			IEngineCommand<string> waitCommand = new CommandBuilder().Add(command).WaitFor(token).Build<string>();
+
+			return await _commandProcessor.ProcessCommandWithResultAsync<string>(waitCommand);
+		}
+
+		/// <summary>
+		///     Sends a command to the engine and returns a result
+		/// </summary>
+		/// <typeparam name="TResult">The type of result to return</typeparam>
+		/// <param name="command">The command to send</param>
+		/// <returns>The result from the engine</returns>
+		private async Task<TResult> SendCommandWithResultAsync<TResult>(string command)
+		{
+			ThrowIfDisposed();
+			IEngineCommand<TResult> sendCommand = new CommandBuilder().Add(command).Build<TResult>();
+			return await _commandProcessor.ProcessCommandWithResultAsync(sendCommand);
 		}
 
 		private void ThrowIfDisposed()

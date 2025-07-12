@@ -5,7 +5,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Base interface for all commands that can be sent to the UCI engine
 	/// </summary>
-	public interface IEngineCommand { }
+	public interface IEngineCommand;
 
 	/// <summary>
 	///     Interface for commands that return a specific result type
