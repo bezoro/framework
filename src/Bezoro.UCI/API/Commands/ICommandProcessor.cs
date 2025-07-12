@@ -14,7 +14,19 @@ namespace Bezoro.UCI.API
 		/// <typeparam name="T">The expected result type</typeparam>
 		/// <param name="command">The command to process</param>
 		/// <returns>The command result</returns>
-		Task<T> ProcessCommandAsync<T>(IEngineCommand command);
+		Task<T> ProcessCommandWithResultAsync<T>(IEngineCommand command);
+
+		/// <summary>
+		///     Processes a command that does not return a value
+		/// </summary>
+		/// <param name="command">The command to process</param>
+		Task ProcessCommandAsync(IEngineCommand command);
+
+		/// <summary>
+		///     Creates a new command builder for constructing command sequences
+		/// </summary>
+		/// <returns>A command builder</returns>
+		CommandBuilder CreateCommand();
 
 		/// <summary>
 		///     Starts the command processor
