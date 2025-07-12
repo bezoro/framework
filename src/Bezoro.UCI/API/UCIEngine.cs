@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -63,6 +64,8 @@ namespace Bezoro.UCI.API
 
 		public async Task<string?> WaitForTokenAsync(string token, CancellationToken ct = default)
 		{
+			var endTokens = new[] { "bestmove", "readyok", "uciok" }; // Common UCI end tokens
+
 			while (true)
 			{
 				string? line = await ReadNextOutputLineAsync(ct);
@@ -76,6 +79,12 @@ namespace Bezoro.UCI.API
 				if (line.Contains(token, StringComparison.OrdinalIgnoreCase))
 				{
 					return line;
+				}
+
+				// Check if we've hit a natural end point
+				if (endTokens.Any(endToken => line.StartsWith(endToken, StringComparison.OrdinalIgnoreCase)))
+				{
+					return null; // End of this command's output
 				}
 			}
 		}
