@@ -162,7 +162,47 @@ namespace Bezoro.UCI.API
 		public async Task<string?> GetCurrentFENAsync()
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandWithResultAsync<string>(new GetCurrentFENCommand());
+			// Send the "d" command and wait for the "Fen:" token
+			string fenLine = await SendCommandAndWaitForTokenAsync("d", "Fen:");
+
+			// Extract the FEN from the response
+			const string prefix = "Fen: ";
+			if (fenLine.StartsWith(prefix))
+			{
+				string fen = fenLine.Substring(prefix.Length).Trim();
+				Logger.LogSuccess($"Current FEN: {fen}");
+				return fen;
+			}
+
+			return null;
+		}
+
+		/// <summary>
+		///     Sends a command and waits for a specific token in the response
+		/// </summary>
+		/// <param name="command">The command to send</param>
+		/// <param name="token">The token to wait for</param>
+		/// <returns>The line containing the token</returns>
+		public async Task<string> SendCommandAndWaitForTokenAsync(string command, string token)
+		{
+			ThrowIfDisposed();
+			IEngineCommand<string> waitCommand =
+				_commandProcessor.CreateCommand().Send(command).WaitFor(token).Build<string>();
+
+			return await _commandProcessor.ProcessCommandWithResultAsync<string>(waitCommand);
+		}
+
+		/// <summary>
+		///     Sends a command to the engine and returns a result
+		/// </summary>
+		/// <typeparam name="TResult">The type of result to return</typeparam>
+		/// <param name="command">The command to send</param>
+		/// <returns>The result from the engine</returns>
+		public async Task<TResult> SendCommandWithResultAsync<TResult>(string command)
+		{
+			ThrowIfDisposed();
+			IEngineCommand<TResult> sendCommand = _commandProcessor.CreateCommand().Send(command).Build<TResult>();
+			return await _commandProcessor.ProcessCommandWithResultAsync(sendCommand);
 		}
 
 		/// <summary>
