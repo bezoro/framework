@@ -6,9 +6,9 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for getting the current FEN from the engine
 	/// </summary>
-	public readonly record struct GetCurrentFENCommand : IEngineCommand
+	public readonly record struct GetCurrentFENCommand : IEngineCommand<string>
 	{
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<string> ExecuteAsync(UCIEngine engine)
 		{
 			Logger.LogInfo("Getting Current FEN...", this, LogCategory.UCI);
 

@@ -61,7 +61,7 @@ namespace Bezoro.UCI.API
 			}
 		}
 
-		public async Task<string> WaitForTokenAsync(string token)
+		public async Task<string?> WaitForTokenAsync(string token)
 		{
 			while (true)
 			{

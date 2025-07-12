@@ -6,7 +6,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for sending raw text to the engine
 	/// </summary>
-	public readonly record struct SendTextCommand : IEngineCommand
+	public readonly record struct SendTextCommand : IEngineCommand<object?>
 	{
 		private readonly string _command;
 
@@ -15,7 +15,7 @@ namespace Bezoro.UCI.API.Commands
 			_command = command;
 		}
 
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<object?> ExecuteAsync(UCIEngine engine)
 		{
 			Logger.LogInfo($"Sending Command: {_command.Bold()}", this, LogCategory.UCI);
 

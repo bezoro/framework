@@ -8,7 +8,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for getting all legal moves from the engine
 	/// </summary>
-	public readonly record struct GetLegalMovesCommand : IEngineCommand
+	public readonly record struct GetLegalMovesCommand : IEngineCommand<List<string>>
 	{
 		private readonly CancellationToken _cancellationToken;
 
@@ -17,7 +17,7 @@ namespace Bezoro.UCI.API.Commands
 			_cancellationToken = cancellationToken;
 		}
 
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<List<string>> ExecuteAsync(UCIEngine engine)
 		{
 			var moves = new List<string>();
 

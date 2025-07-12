@@ -10,7 +10,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for getting legal moves for a specific square with their classifications
 	/// </summary>
-	public readonly record struct GetLegalMovesForSquareWithDetailsCommand : IEngineCommand
+	public readonly record struct GetLegalMovesForSquareWithDetailsCommand : IEngineCommand<List<MoveClassification>>
 	{
 		private readonly CancellationToken _cancellationToken;
 		private readonly string            _square;
@@ -32,11 +32,11 @@ namespace Bezoro.UCI.API.Commands
 			_cancellationToken = cancellationToken;
 		}
 
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<List<MoveClassification>> ExecuteAsync(UCIEngine engine)
 		{
 			// Get all legal moves with details
-			var allMovesCommand     = new GetAllLegalMovesWithDetailsCommand(_cancellationToken);
-			var allMovesWithDetails = (List<MoveClassification>)await allMovesCommand.ExecuteAsync(engine);
+			var                      allMovesCommand     = new GetAllLegalMovesWithDetailsCommand(_cancellationToken);
+			List<MoveClassification> allMovesWithDetails = await allMovesCommand.ExecuteAsync(engine);
 
 			// Filter moves for the specified square
 			string? s = _square;

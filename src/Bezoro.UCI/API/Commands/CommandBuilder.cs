@@ -36,6 +36,6 @@ namespace Bezoro.UCI.API.Commands
 		///     and returns the result of the last command
 		/// </summary>
 		/// <returns>The composite command</returns>
-		public IEngineCommand Build() => new CompositeCommand(_commands.ToArray());
+		public IEngineCommand<TResult> Build<TResult>() => new CompositeCommand<TResult>(_commands.ToArray());
 	}
 }

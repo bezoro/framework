@@ -16,14 +16,14 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
+		private readonly ICommandProcessor _commandProcessor;
+		private readonly Process           _engineProcess;
 		private readonly string            _enginePath;
 		private readonly UCIEngine         _engine;
-		private readonly Process           _engineProcess;
-		private readonly ICommandProcessor _commandProcessor;
 		private volatile bool              _isDisposed;
 		private          bool              _started;
 
-		public event Action<string>        PositionSetSuccessfully;
+		public event Action<string> PositionSetSuccessfully;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -51,17 +51,19 @@ namespace Bezoro.UCI.API
 				EnableRaisingEvents = true
 			};
 
-			_engine              =  new UCIEngine(_engineProcess);
-			_commandProcessor    =  CommandProcessorFactory.Create(_engine);
+			_engine           = new UCIEngine(_engineProcess);
+			_commandProcessor = CommandProcessorFactory.Create(_engine);
 
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
 		}
 
-		public async Task SendCommandAsync(string command)
+		public async Task SendCommandAsync(string command) =>
+			await SendCommandAsync<object?>(command);
+
+		public async Task SendCommandAsync<TResult>(string command)
 		{
 			ThrowIfDisposed();
-			var sendCommand = _commandProcessor.CreateCommand().Send(command).Build();
-
+			IEngineCommand<TResult?> sendCommand = _commandProcessor.CreateCommand().Send(command).Build<TResult?>();
 			await _commandProcessor.ProcessCommandAsync(sendCommand);
 		}
 
@@ -106,8 +108,9 @@ namespace Bezoro.UCI.API
 			await _commandProcessor.StartAsync();
 
 			// Perform UCI handshake using a composite command
-			var startupCommand = _commandProcessor.CreateCommand().Send("uci").WaitFor("uciok").Send("isready").
-												   WaitFor("readyok").Build();
+			IEngineCommand<string> startupCommand = _commandProcessor.
+													CreateCommand().Send("uci").WaitFor("uciok").Send("isready").
+													WaitFor("readyok").Build<string>();
 
 			await _commandProcessor.ProcessCommandAsync(startupCommand);
 
@@ -128,19 +131,19 @@ namespace Bezoro.UCI.API
 			Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
 		}
 
-		public async Task<(string best, string ponder)> GetBestMoveAsync(int depth = 20)
+		public async Task<(string best, string ponder)?> GetBestMoveAsync(int depth = 20)
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandWithResultAsync<(string, string)>(
-				new GetBestMoveCommand(depth));
+			return await _commandProcessor.ProcessCommandWithResultAsync<(string, string)?>(
+				new BestMoveCompositeCommand(depth));
 		}
 
-		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
+		public async Task<List<MoveClassification>?> GetAllLegalMovesWithDetailsAsync(
 			CancellationToken cancellationToken = default) =>
 			await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
 				new GetAllLegalMovesWithDetailsCommand(cancellationToken));
 
-		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
+		public async Task<List<MoveClassification>?> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
 			ThrowIfDisposed();
@@ -148,14 +151,15 @@ namespace Bezoro.UCI.API
 				new GetLegalMovesForSquareWithDetailsCommand(square, cancellationToken));
 		}
 
-		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
+		public async Task<List<string>?> GetLegalMovesAsync(CancellationToken ct = default)
 		{
 			var result =
 				await _commandProcessor.ProcessCommandWithResultAsync<List<string>>(new GetLegalMovesCommand(ct));
+
 			return result;
 		}
 
-		public async Task<string> GetCurrentFENAsync()
+		public async Task<string?> GetCurrentFENAsync()
 		{
 			ThrowIfDisposed();
 			return await _commandProcessor.ProcessCommandWithResultAsync<string>(new GetCurrentFENCommand());

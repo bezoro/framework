@@ -32,7 +32,14 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 	///     Processes a command that does not return a value.
 	/// </summary>
 	/// <param name="command">The command to process.</param>
-	public Task ProcessCommandAsync(IEngineCommand command) =>
+	public Task ProcessCommandAsync(IEngineCommand command) => 
+		EnqueueCommandAsync(command);
+
+	/// <summary>
+	///     Processes a typed command that does not return a value.
+	/// </summary>
+	/// <param name="command">The command to process.</param>
+	public Task ProcessCommandAsync<T>(IEngineCommand<T> command) =>
 		EnqueueCommandAsync(command);
 
 	/// <summary>
@@ -76,7 +83,7 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 	/// <typeparam name="T">The expected result type</typeparam>
 	/// <param name="command">The command to process</param>
 	/// <returns>The command result</returns>
-	public async Task<T> ProcessCommandWithResultAsync<T>(IEngineCommand command)
+	public async Task<T?> ProcessCommandWithResultAsync<T>(IEngineCommand<T> command)
 	{
 		object? result = await EnqueueCommandAsync(command).ConfigureAwait(false);
 		return (T)result!;
@@ -123,7 +130,20 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 		{
 			try
 			{
-				object? result = await item.Command.ExecuteAsync(_engine).ConfigureAwait(false);
+				object? result = null;
+
+				// Handle generic commands with direct pattern matching
+				if (item.Command is IEngineCommand<object?> objCommand)
+				{
+					result = await objCommand.ExecuteAsync(_engine).ConfigureAwait(false);
+				}
+				else
+				{
+					// Use dynamic for everything else, but outside of pattern matching
+					dynamic dynamicCommand = item.Command;
+					result = await dynamicCommand.ExecuteAsync(_engine).ConfigureAwait(false);
+				}
+
 				item.ResultSource.SetResult(result);
 			}
 			catch (Exception ex)
@@ -162,4 +182,5 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 				"Cannot use a disposed CommandProcessor.");
 		}
 	}
+
 }

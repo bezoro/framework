@@ -6,7 +6,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     A composite command that executes multiple commands in sequence
 	/// </summary>
-	public class CompositeCommand : IEngineCommand
+	public class CompositeCommand<TResult> : IEngineCommand<TResult>
 	{
 		private readonly List<IEngineCommand> _commands;
 
@@ -23,7 +23,7 @@ namespace Bezoro.UCI.API.Commands
 		///     Adds a command to the sequence
 		/// </summary>
 		/// <param name="command">The command to add</param>
-		public CompositeCommand Add(IEngineCommand command)
+		public CompositeCommand<TResult> Add(IEngineCommand command)
 		{
 			_commands.Add(command);
 			return this;
@@ -34,14 +34,15 @@ namespace Bezoro.UCI.API.Commands
 		/// </summary>
 		/// <param name="engine">The UCI engine to execute against</param>
 		/// <returns>The result of the last command in the sequence</returns>
-		public async Task<object?> ExecuteAsync(UCIEngine engine)
+		public async Task<TResult?> ExecuteAsync(UCIEngine engine)
 		{
 			Logger.LogInfo("Executing composite command with " + _commands.Count + " steps", this, LogCategory.UCI);
 
-			object? result = null;
+			var result = default(TResult);
 			foreach (var command in _commands)
 			{
-				result = await command.ExecuteAsync(engine).ConfigureAwait(false);
+				dynamic dynamicCommand = command;
+				result = await dynamicCommand.ExecuteAsync(engine).ConfigureAwait(false);
 			}
 
 			return result;
