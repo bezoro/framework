@@ -50,7 +50,7 @@ public class BoardStateAnalyzerTests : UCITestsBase
 	{
 		// Arrange
 		const string testFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-		await Connector!.Value.SetPositionAsync(testFen);
+		await Connector!.SetPositionAsync(testFen);
 
 		string[]   fenParts                      = testFen.Split(' ');
 		const char activeColor                   = 'w'; // White to move in starting position
@@ -72,7 +72,7 @@ public class BoardStateAnalyzerTests : UCITestsBase
 		// Checkmate position: Black king on a8 is checkmated by the White queen on a1,
 		// which is supported by the White king on b6. It is Black's turn to move.
 		const string checkmateFen = "4R1k1/5ppp/8/8/8/8/8/4K3 b - - 0 1";
-		await Connector!.Value.SetPositionAsync(checkmateFen);
+		await Connector!.SetPositionAsync(checkmateFen);
 
 		// Act
 		// Check if the current position is checkmate
@@ -89,7 +89,7 @@ public class BoardStateAnalyzerTests : UCITestsBase
 		// Arrange
 		// Position where black king on e8 is in check from white queen on e2
 		const string checkFen = "r3k2r/pppp1ppp/8/8/8/8/PPPPQPPP/R3K2R w KQkq - 0 1";
-		await Connector!.Value.SetPositionAsync(checkFen);
+		await Connector!.SetPositionAsync(checkFen);
 
 		// Act
 		// Check if the king is in check for the current position
