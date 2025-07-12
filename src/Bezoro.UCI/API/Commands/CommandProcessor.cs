@@ -8,7 +8,7 @@ namespace Bezoro.UCI.API;
 /// <summary>
 ///     Processes commands sequentially using a queue
 /// </summary>
-public record CommandProcessor : ICommandProcessor, IAsyncDisposable
+public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 {
 	private readonly CancellationTokenSource _shutdownCts = new();
 	private readonly ConcurrentQueue<(IEngineCommand Command, TaskCompletionSource<object?> ResultSource)>
@@ -32,7 +32,7 @@ public record CommandProcessor : ICommandProcessor, IAsyncDisposable
 	///     Processes a command that does not return a value.
 	/// </summary>
 	/// <param name="command">The command to process.</param>
-	public Task ProcessCommandAsync(IEngineCommand command) => 
+	public Task ProcessCommandAsync(IEngineCommand command) =>
 		EnqueueCommandAsync(command);
 
 	/// <summary>
@@ -124,18 +124,19 @@ public record CommandProcessor : ICommandProcessor, IAsyncDisposable
 		{
 			try
 			{
-				object? result = null;
+				dynamic dynamicCommand = item.Command;
 
-				// Handle generic commands with direct pattern matching
-				if (item.Command is IEngineCommand<object?> objCommand)
+				// Dynamically execute the command, which returns a Task or Task<T>.
+				Task task = dynamicCommand.ExecuteAsync(_engine);
+				await task.ConfigureAwait(false);
+
+				object? result = null;
+				// If the task has a result (i.e., it's a Task<T>), retrieve it.
+				var taskType = task.GetType();
+				if (taskType.IsGenericType && taskType.GetGenericTypeDefinition() == typeof(Task<>))
 				{
-					result = await objCommand.ExecuteAsync(_engine).ConfigureAwait(false);
-				}
-				else
-				{
-					// Use dynamic for everything else, but outside of pattern matching
-					dynamic dynamicCommand = item.Command;
-					result = await dynamicCommand.ExecuteAsync(_engine).ConfigureAwait(false);
+					// Use dynamic again as a simple way to access the 'Result' property.
+					result = ((dynamic)task).Result;
 				}
 
 				item.ResultSource.SetResult(result);
@@ -176,5 +177,4 @@ public record CommandProcessor : ICommandProcessor, IAsyncDisposable
 				"Cannot use a disposed CommandProcessor.");
 		}
 	}
-
 }
