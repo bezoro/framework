@@ -75,25 +75,20 @@ namespace Bezoro.UCI.API
 			await SetPositionAsync(UCIConstants.StandardFEN);
 		}
 
-		public async Task SetPositionAsync(string fen)
+		public async Task SetPositionAsync(string fen, IEnumerable<string>? moves = null)
 		{
-			await SendCommandAsync($"position fen {fen}");
-			PositionSetSuccessfully?.Invoke(fen);
-		}
+			var command = $"position fen {fen}";
 
-		public async Task SetPositionWithMovesAsync(string fen, IEnumerable<string> moves)
-		{
-			IList<string> moveList = moves as IList<string> ?? moves.ToList();
-			// Build the UCI command: "position fen {fen} moves m1 m2 m3 ..."
-			string movesArg = string.Join(" ", moveList);
-			var    command  = $"position fen {fen} moves {movesArg}";
+			if (moves != null)
+			{
+				IList<string> moveList = moves as IList<string> ?? moves.ToList();
+				// Build the UCI command: "position fen {fen} moves m1 m2 m3 ..."
+				string movesArg = string.Join(" ", moveList);
+				command += $" moves {movesArg}";
+			}
 
-			// Send the command directly instead of using SetPositionAsync
 			await SendCommandAsync(command);
-
-			// Get the actual current FEN after the moves are applied
-			string currentFen = await GetCurrentFENAsync();
-			PositionSetSuccessfully?.Invoke(currentFen);
+			PositionSetSuccessfully?.Invoke(fen);
 		}
 
 		public async Task StartEngineAsync()
