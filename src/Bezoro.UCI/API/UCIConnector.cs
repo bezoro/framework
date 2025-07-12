@@ -17,11 +17,19 @@ namespace Bezoro.UCI.API
 	public record UCIConnector : IAsyncDisposable
 	{
 		private readonly ICommandProcessor _commandProcessor;
-		private readonly Process           _engineProcess;
-		private readonly string            _enginePath;
-		private readonly UCIEngine         _engine;
-		private volatile bool              _isDisposed;
-		private          bool              _started;
+
+		private readonly Process _engineProcess;
+
+		private readonly string _enginePath;
+
+		private readonly UCIEngine _engine;
+
+		private volatile bool _isDisposed;
+		private          bool _started;
+
+		public event Action<(string best, string ponder)> BestMoveFound;
+		public event Action                               EngineStarted;
+		public event Action                               EngineStopped;
 
 		public event Action<string> PositionSetSuccessfully;
 
@@ -109,6 +117,7 @@ namespace Bezoro.UCI.API
 			await SendCommandAndWaitForTokenAsync("uci",     "uciok");
 			await SendCommandAndWaitForTokenAsync("isready", "readyok");
 			_started = true;
+			EngineStarted?.Invoke();
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
 		}
 
@@ -122,27 +131,36 @@ namespace Bezoro.UCI.API
 
 			await SendTextCommandAsync("quit");
 			await _commandProcessor.StopAsync();
+			_started = false;
+			EngineStopped?.Invoke();
 			Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
 		}
 
 		public async Task<(string best, string ponder)?> GetBestMoveAsync(int depth = 20)
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandWithResultAsync<(string, string)?>(
+			var result = await _commandProcessor.ProcessCommandWithResultAsync<(string, string)?>(
 				new BestMoveCompositeCommand(depth));
+
+			if (result.HasValue)
+			{
+				BestMoveFound?.Invoke(result.Value);
+			}
+
+			return result;
 		}
 
 		public async Task<List<MoveClassification>?> GetAllLegalMovesWithDetailsAsync(
-			CancellationToken cancellationToken = default) =>
-			await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
-				new GetAllLegalMovesWithDetailsCommand(cancellationToken));
+			CancellationToken ct = default) =>
+			await _commandProcessor.ProcessCommandWithResultAsync(
+				new GetAllLegalMovesWithDetailsCommand(ct));
 
 		public async Task<List<MoveClassification>?> GetLegalMovesForSquareWithDetailsAsync(
-			string square, CancellationToken cancellationToken = default)
+			string square, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
 			return await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
-				new GetLegalMovesForSquareWithDetailsCommand(square, cancellationToken));
+				new GetLegalMovesForSquareWithDetailsCommand(square, ct));
 		}
 
 		public async Task<List<string>?> GetLegalMovesAsync(CancellationToken ct = default)

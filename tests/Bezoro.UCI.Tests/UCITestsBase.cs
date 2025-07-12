@@ -11,15 +11,15 @@ public class UCITestsBase : IAsyncLifetime
 	public virtual async Task InitializeAsync()
 	{
 		Connector = new UCIConnector(StockfishPath);
-		await Connector.Value.StartEngineAsync();
-		await Connector.Value.SetDefaultPositionAsync();
+		await Connector.StartEngineAsync();
+		await Connector.SetDefaultPositionAsync();
 	}
 
 	public virtual async Task DisposeAsync()
 	{
 		if (Connector != null)
 		{
-			await Connector.Value.DisposeAsync();
+			await Connector.DisposeAsync();
 		}
 	}
 }
