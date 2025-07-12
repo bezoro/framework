@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -17,15 +16,12 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private readonly ConcurrentQueue<(IEngineCommand Command, TaskCompletionSource<object> ResultSource)>
-			_commandQueue = new();
-		private readonly SemaphoreSlim _commandSignal = new(0);
-		private readonly string        _enginePath;
-		private readonly UCIEngine     _engine;
-		private readonly Process       _engineProcess;
-		private volatile bool          _isDisposed;
-		private          bool          _started;
-		private          Task?         _commandProcessorTask;
+		private readonly string            _enginePath;
+		private readonly UCIEngine         _engine;
+		private readonly Process           _engineProcess;
+		private readonly ICommandProcessor _commandProcessor;
+		private volatile bool              _isDisposed;
+		private          bool              _started;
 
 		public event EventHandler<string>? InfoReceived;
 		public event Action<string>        PositionSetSuccessfully;
@@ -58,59 +54,15 @@ namespace Bezoro.UCI.API
 
 			_engine              =  new UCIEngine(_engineProcess);
 			_engine.InfoReceived += (sender, info) => InfoReceived?.Invoke(this, info);
+			_commandProcessor    =  CommandProcessorFactory.Create(_engine);
 
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
-		}
-
-		/// <summary>
-		///     Executes a command by adding it to the command queue and waiting for its result
-		/// </summary>
-		/// <typeparam name="T">The expected result type</typeparam>
-		/// <param name="command">The command to execute</param>
-		/// <returns>The command result</returns>
-		private async Task<T> ExecuteCommandAsync<T>(IEngineCommand command)
-		{
-			ThrowIfDisposed();
-
-			var resultSource = new TaskCompletionSource<object>();
-			_commandQueue.Enqueue((command, resultSource));
-			_commandSignal.Release();
-
-			object? result = await resultSource.Task.ConfigureAwait(false);
-			return (T)result;
-		}
-
-		/// <summary>
-		///     Processes commands from the queue one by one
-		/// </summary>
-		private async Task ProcessCommandsAsync()
-		{
-			while (!_isDisposed)
-			{
-				await _commandSignal.WaitAsync().ConfigureAwait(false);
-
-				if (_commandQueue.TryDequeue(
-						out (IEngineCommand Command, TaskCompletionSource<object> ResultSource) commandItem))
-				{
-					(var command, TaskCompletionSource<object>? resultSource) = commandItem;
-
-					try
-					{
-						object? result = await command.ExecuteAsync(_engine).ConfigureAwait(false);
-						resultSource.SetResult(result ?? new object());
-					}
-					catch (Exception ex)
-					{
-						resultSource.SetException(ex);
-					}
-				}
-			}
 		}
 
 		public async Task SendCommandAsync(string command)
 		{
 			ThrowIfDisposed();
-			await ExecuteCommandAsync<object>(new SendTextCommand(command));
+			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand(command));
 		}
 
 		public async Task SendNewGameCommandAsync()
@@ -156,14 +108,14 @@ namespace Bezoro.UCI.API
 			await _engine.StartAsync();
 
 			// Start the command processor
-			_commandProcessorTask = Task.Run(ProcessCommandsAsync);
+			await _commandProcessor.StartAsync();
 
 			// Perform UCI handshake
-			await ExecuteCommandAsync<object>(new SendTextCommand("uci"));
-			await ExecuteCommandAsync<string>(new WaitForTokenCommand("uciok"));
+			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand("uci"));
+			await _commandProcessor.ProcessCommandAsync<string>(new WaitForTokenCommand("uciok"));
 
-			await ExecuteCommandAsync<object>(new SendTextCommand("isready"));
-			await ExecuteCommandAsync<string>(new WaitForTokenCommand("readyok"));
+			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand("isready"));
+			await _commandProcessor.ProcessCommandAsync<string>(new WaitForTokenCommand("readyok"));
 
 			_started = true;
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
@@ -178,37 +130,39 @@ namespace Bezoro.UCI.API
 			}
 
 			await SendCommandAsync("quit");
+			await _commandProcessor.StopAsync();
 			Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
 		}
 
 		public async Task<(string best, string ponder)> GetBestMoveAsync(int depth = 20)
 		{
 			ThrowIfDisposed();
-			return await ExecuteCommandAsync<(string, string)>(new GetBestMoveCommand(depth));
+			return await _commandProcessor.ProcessCommandAsync<(string, string)>(new GetBestMoveCommand(depth));
 		}
 
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
 			CancellationToken cancellationToken = default) =>
-			await ExecuteCommandAsync<List<MoveClassification>>(new GetAllLegalMovesWithDetailsCommand(cancellationToken));
+			await _commandProcessor.ProcessCommandAsync<List<MoveClassification>>(
+				new GetAllLegalMovesWithDetailsCommand(cancellationToken));
 
 		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
 			ThrowIfDisposed();
-			return await ExecuteCommandAsync<List<MoveClassification>>(
+			return await _commandProcessor.ProcessCommandAsync<List<MoveClassification>>(
 				new GetLegalMovesForSquareWithDetailsCommand(square, cancellationToken));
 		}
 
 		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
 		{
-			var result = await ExecuteCommandAsync<List<string>>(new GetLegalMovesCommand(ct));
+			var result = await _commandProcessor.ProcessCommandAsync<List<string>>(new GetLegalMovesCommand(ct));
 			return result;
 		}
 
 		public async Task<string> GetCurrentFENAsync()
 		{
 			ThrowIfDisposed();
-			return await ExecuteCommandAsync<string>(new GetCurrentFENCommand());
+			return await _commandProcessor.ProcessCommandAsync<string>(new GetCurrentFENCommand());
 		}
 
 		/// <summary>
@@ -224,11 +178,14 @@ namespace Bezoro.UCI.API
 
 			_isDisposed = true;
 
+			// Dispose the command processor
+			if (_commandProcessor is IAsyncDisposable disposableProcessor)
+			{
+				await disposableProcessor.DisposeAsync();
+			}
+
 			// Dispose the engine
 			await _engine.DisposeAsync();
-
-			// Dispose semaphores
-			_commandSignal.Dispose();
 
 			Logger.LogSuccess($"Engine Process Disposed", this, LogCategory.UCI);
 		}
