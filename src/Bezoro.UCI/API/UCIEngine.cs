@@ -68,7 +68,7 @@ namespace Bezoro.UCI.API
 				await _lineSignal.WaitAsync().ConfigureAwait(false);
 				if (_incomingLines.TryDequeue(out string? line))
 				{
-					if (line.StartsWith("info "))
+					if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
 					{
 						Logger.LogInfo($"{line}", this, LogCategory.UCI);
 						string info = line;
@@ -76,7 +76,7 @@ namespace Bezoro.UCI.API
 						continue;
 					}
 
-					if (line.Contains(token))
+					if (line.Contains(token, StringComparison.OrdinalIgnoreCase))
 					{
 						return line;
 					}
