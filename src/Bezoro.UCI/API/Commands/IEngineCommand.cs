@@ -5,7 +5,10 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Base interface for all commands that can be sent to the UCI engine
 	/// </summary>
-	public interface IEngineCommand;
+	public interface IEngineCommand
+	{
+		Task<object?> ExecuteAsync(UCIEngine engine);
+	}
 
 	/// <summary>
 	///     Interface for commands that return a specific result type
@@ -18,6 +21,9 @@ namespace Bezoro.UCI.API.Commands
 		/// </summary>
 		/// <param name="engine">The UCI engine to execute the command against</param>
 		/// <returns>The command result</returns>
-		Task<TResult?> ExecuteAsync(UCIEngine engine);
+		new Task<TResult?> ExecuteAsync(UCIEngine engine);
+
+		async Task<object?> IEngineCommand.ExecuteAsync(UCIEngine engine) =>
+			await ExecuteAsync(engine);
 	}
 }
