@@ -13,14 +13,14 @@ public class MoveClassificationTests : IAsyncLifetime
 	public async Task InitializeAsync()
 	{
 		_connector = new UCIConnector(StockfishPath);
-		await _connector.StartEngineAsync();
+		await _connector.Value.StartEngineAsync();
 	}
 
 	public async Task DisposeAsync()
 	{
 		if (_connector != null)
 		{
-			await _connector.DisposeAsync();
+			await _connector.Value.DisposeAsync();
 		}
 	}
 

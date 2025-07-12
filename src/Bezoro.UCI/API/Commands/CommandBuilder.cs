@@ -5,7 +5,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     A fluent builder for creating command sequences
 	/// </summary>
-	public class CommandBuilder
+	public readonly record struct CommandBuilder()
 	{
 		private readonly List<IEngineCommand> _commands = new();
 
@@ -14,7 +14,7 @@ namespace Bezoro.UCI.API.Commands
 		/// </summary>
 		/// <param name="text">The text to send</param>
 		/// <returns>The builder for chaining</returns>
-		public CommandBuilder Send(string text)
+		public CommandBuilder Add(string text)
 		{
 			_commands.Add(new SendTextCommand(text));
 			return this;

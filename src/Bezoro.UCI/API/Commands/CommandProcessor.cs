@@ -8,7 +8,7 @@ namespace Bezoro.UCI.API;
 /// <summary>
 ///     Processes commands sequentially using a queue
 /// </summary>
-public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
+public record CommandProcessor : ICommandProcessor, IAsyncDisposable
 {
 	private readonly CancellationTokenSource _shutdownCts = new();
 	private readonly ConcurrentQueue<(IEngineCommand Command, TaskCompletionSource<object?> ResultSource)>
@@ -41,12 +41,6 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 	/// <param name="command">The command to process.</param>
 	public Task ProcessCommandAsync<T>(IEngineCommand<T> command) =>
 		EnqueueCommandAsync(command);
-
-	/// <summary>
-	///     Creates a new command builder for constructing command sequences
-	/// </summary>
-	/// <returns>A command builder</returns>
-	public CommandBuilder CreateCommand() => new();
 
 	/// <summary>
 	///     Starts the command processor

@@ -6,7 +6,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     A composite command that executes multiple commands in sequence
 	/// </summary>
-	public class CompositeCommand<TResult> : IEngineCommand<TResult>
+	public readonly record struct CompositeCommand<TResult> : IEngineCommand<TResult>
 	{
 		private readonly List<IEngineCommand> _commands;
 
