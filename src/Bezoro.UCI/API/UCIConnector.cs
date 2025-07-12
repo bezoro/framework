@@ -30,8 +30,7 @@ namespace Bezoro.UCI.API
 		public event Action<(string best, string ponder)> BestMoveFound;
 		public event Action                               EngineStarted;
 		public event Action                               EngineStopped;
-
-		public event Action<string> PositionSetSuccessfully;
+		public event Action<string>                       PositionSetSuccessfully;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -98,7 +97,8 @@ namespace Bezoro.UCI.API
 			}
 
 			await SendTextCommandAsync(command);
-			PositionSetSuccessfully?.Invoke(fen);
+			string? newFen = await GetCurrentFENAsync();
+			PositionSetSuccessfully?.Invoke(newFen);
 		}
 
 		public async Task StartEngineAsync()
