@@ -17,7 +17,7 @@ namespace Bezoro.UCI.API.Commands
 		public async Task<object> ExecuteAsync(UCIEngine engine)
 		{
 			await engine.WriteLineAsync($"go depth {_depth}");
-			string line = await engine.WaitForTokenAsync("bestmove");
+			string? line = await engine.WaitForTokenAsync("bestmove");
 
 			// Split on spaces, ignore any extra whitespace
 			string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);

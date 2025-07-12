@@ -6,7 +6,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for waiting for a specific token from the engine
 	/// </summary>
-	public readonly record struct WaitForTokenCommand : IEngineCommand
+	public readonly record struct WaitForTokenCommand : IEngineCommand<string>
 	{
 		private readonly string _token;
 
@@ -15,10 +15,10 @@ namespace Bezoro.UCI.API.Commands
 			_token = token;
 		}
 
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<string?> ExecuteAsync(UCIEngine engine)
 		{
 			Logger.LogInfo($"Waiting for token: {_token.Bold()}", this, LogCategory.UCI);
-			string result = await engine.WaitForTokenAsync(_token);
+			string? result = await engine.WaitForTokenAsync(_token);
 			Logger.LogSuccess($"Received {_token.Bold()} -> {result}", this, LogCategory.UCI);
 			return result;
 		}

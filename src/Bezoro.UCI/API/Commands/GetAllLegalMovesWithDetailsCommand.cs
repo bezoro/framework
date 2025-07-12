@@ -10,7 +10,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     Command for getting all legal moves with their classifications
 	/// </summary>
-	public readonly record struct GetAllLegalMovesWithDetailsCommand : IEngineCommand
+	public readonly record struct GetAllLegalMovesWithDetailsCommand : IEngineCommand<List<MoveClassification>>
 	{
 		private readonly CancellationToken _cancellationToken;
 
@@ -19,17 +19,17 @@ namespace Bezoro.UCI.API.Commands
 			_cancellationToken = cancellationToken;
 		}
 
-		public async Task<object> ExecuteAsync(UCIEngine engine)
+		public async Task<List<MoveClassification>> ExecuteAsync(UCIEngine engine)
 		{
 			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
 
 			// Get current FEN
-			var fenCommand = new GetCurrentFENCommand();
-			var currentFen = (string)await fenCommand.ExecuteAsync(engine);
+			var    fenCommand = new GetCurrentFENCommand();
+			string currentFen = await fenCommand.ExecuteAsync(engine);
 
 			// Get legal moves
-			var movesCommand = new GetLegalMovesCommand(_cancellationToken);
-			var legalMoves   = (List<string>)await movesCommand.ExecuteAsync(engine);
+			var          movesCommand = new GetLegalMovesCommand(_cancellationToken);
+			List<string> legalMoves   = await movesCommand.ExecuteAsync(engine);
 
 			// Classify moves
 			var boardState = BoardStateParser.ParseFen(currentFen);

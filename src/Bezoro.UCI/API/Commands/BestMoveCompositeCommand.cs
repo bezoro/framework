@@ -6,7 +6,7 @@ namespace Bezoro.UCI.API.Commands
 	/// <summary>
 	///     A composite command for getting the best move from the engine
 	/// </summary>
-	public class BestMoveCompositeCommand : IEngineCommand
+	public class BestMoveCompositeCommand : IEngineCommand<(string best, string ponder)?>
 	{
 		private readonly int _depth;
 		private static readonly Regex BestMoveRegex =
@@ -26,7 +26,7 @@ namespace Bezoro.UCI.API.Commands
 		/// </summary>
 		/// <param name="engine">The UCI engine</param>
 		/// <returns>A tuple with the best move and ponder move</returns>
-		public async Task<object?> ExecuteAsync(UCIEngine engine)
+		public async Task<(string best, string ponder)?> ExecuteAsync(UCIEngine engine)
 		{
 			// Build the command sequence internally
 			var sendCommand = new SendTextCommand($"go depth {_depth}");
@@ -34,7 +34,7 @@ namespace Bezoro.UCI.API.Commands
 
 			// Execute the commands
 			await sendCommand.ExecuteAsync(engine).ConfigureAwait(false);
-			var result = (string)await waitCommand.ExecuteAsync(engine).ConfigureAwait(false);
+			string result = await waitCommand.ExecuteAsync(engine).ConfigureAwait(false);
 
 			// Parse the result
 			var match = BestMoveRegex.Match(result);
