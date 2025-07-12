@@ -124,21 +124,7 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 		{
 			try
 			{
-				dynamic dynamicCommand = item.Command;
-
-				// Dynamically execute the command, which returns a Task or Task<T>.
-				Task task = dynamicCommand.ExecuteAsync(_engine);
-				await task.ConfigureAwait(false);
-
-				object? result = null;
-				// If the task has a result (i.e., it's a Task<T>), retrieve it.
-				var taskType = task.GetType();
-				if (taskType.IsGenericType && taskType.GetGenericTypeDefinition() == typeof(Task<>))
-				{
-					// Use dynamic again as a simple way to access the 'Result' property.
-					result = ((dynamic)task).Result;
-				}
-
+				object? result = await item.Command.ExecuteAsync(_engine).ConfigureAwait(false);
 				item.ResultSource.SetResult(result);
 			}
 			catch (Exception ex)
