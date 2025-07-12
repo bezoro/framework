@@ -14,7 +14,7 @@ namespace Bezoro.UCI.API
 	///     This class handles process management, command serialization, and asynchronous communication.
 	///     It is designed to be thread-safe and robust using the Command pattern.
 	/// </summary>
-	public record UCIConnector : IAsyncDisposable
+	public sealed class UCIConnector : IAsyncDisposable
 	{
 		private readonly ICommandProcessor _commandProcessor;
 
