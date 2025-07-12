@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 
 namespace Bezoro.UCI.API
 {
-    /// <summary>
-    ///     Handles the low-level communication with the UCI engine process
-    /// </summary>
-    public class UCIEngine : IAsyncDisposable
+	/// <summary>
+	///     Handles the low-level communication with the UCI engine process
+	/// </summary>
+	public class UCIEngine : IAsyncDisposable
 	{
-		private readonly Process                 _engineProcess;
 		private readonly ConcurrentQueue<string> _incomingLines = new();
-		private readonly SemaphoreSlim           _lineSignal    = new(0);
-		private readonly SemaphoreSlim           _streamLock    = new(1, 1);
+		private readonly Process                 _engineProcess;
+		private readonly SemaphoreSlim           _lineSignal = new(0);
+		private readonly SemaphoreSlim           _streamLock = new(1, 1);
 		private volatile bool                    _isDisposed;
 		private          StreamReader            _output;
 		private          StreamWriter            _input;
@@ -61,25 +61,21 @@ namespace Bezoro.UCI.API
 			}
 		}
 
-		public async Task<string?> WaitForTokenAsync(string token)
+		public async Task<string?> WaitForTokenAsync(string token, CancellationToken ct = default)
 		{
 			while (true)
 			{
-				await _lineSignal.WaitAsync().ConfigureAwait(false);
-				if (_incomingLines.TryDequeue(out string? line))
-				{
-					if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
-					{
-						Logger.LogInfo($"{line}", this, LogCategory.UCI);
-						string info = line;
-						InfoReceived?.Invoke(this, info);
-						continue;
-					}
+				string? line = await ReadNextOutputLineAsync(ct);
 
-					if (line.Contains(token, StringComparison.OrdinalIgnoreCase))
-					{
-						return line;
-					}
+				if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
+				{
+					InfoReceived?.Invoke(this, line);
+					continue;
+				}
+
+				if (line.Contains(token, StringComparison.OrdinalIgnoreCase))
+				{
+					return line;
 				}
 			}
 		}
@@ -89,6 +85,7 @@ namespace Bezoro.UCI.API
 			await _lineSignal.WaitAsync(ct).ConfigureAwait(false);
 			if (_incomingLines.TryDequeue(out string? line))
 			{
+				Logger.LogInfo($"[OUTPUT] {line}", this, LogCategory.UCI);
 				return line;
 			}
 
@@ -105,6 +102,7 @@ namespace Bezoro.UCI.API
 
 			_isDisposed = true;
 
+			_readerTask.Dispose();
 			_input?.Close();
 			_output?.Close();
 			_engineProcess?.Dispose();
