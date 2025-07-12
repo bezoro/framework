@@ -23,7 +23,6 @@ namespace Bezoro.UCI.API
 		private volatile bool              _isDisposed;
 		private          bool              _started;
 
-		public event EventHandler<string>? InfoReceived;
 		public event Action<string>        PositionSetSuccessfully;
 
 		/// <summary>
@@ -53,7 +52,6 @@ namespace Bezoro.UCI.API
 			};
 
 			_engine              =  new UCIEngine(_engineProcess);
-			_engine.InfoReceived += (sender, info) => InfoReceived?.Invoke(this, info);
 			_commandProcessor    =  CommandProcessorFactory.Create(_engine);
 
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
@@ -62,7 +60,9 @@ namespace Bezoro.UCI.API
 		public async Task SendCommandAsync(string command)
 		{
 			ThrowIfDisposed();
-			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand(command));
+			var sendCommand = _commandProcessor.CreateCommand().Send(command).Build();
+
+			await _commandProcessor.ProcessCommandAsync(sendCommand);
 		}
 
 		public async Task SendNewGameCommandAsync()
@@ -105,12 +105,11 @@ namespace Bezoro.UCI.API
 			// Start the command processor
 			await _commandProcessor.StartAsync();
 
-			// Perform UCI handshake
-			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand("uci"));
-			await _commandProcessor.ProcessCommandAsync<string>(new WaitForTokenCommand("uciok"));
+			// Perform UCI handshake using a composite command
+			var startupCommand = _commandProcessor.CreateCommand().Send("uci").WaitFor("uciok").Send("isready").
+												   WaitFor("readyok").Build();
 
-			await _commandProcessor.ProcessCommandAsync<object>(new SendTextCommand("isready"));
-			await _commandProcessor.ProcessCommandAsync<string>(new WaitForTokenCommand("readyok"));
+			await _commandProcessor.ProcessCommandAsync(startupCommand);
 
 			_started = true;
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
@@ -132,32 +131,34 @@ namespace Bezoro.UCI.API
 		public async Task<(string best, string ponder)> GetBestMoveAsync(int depth = 20)
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandAsync<(string, string)>(new GetBestMoveCommand(depth));
+			return await _commandProcessor.ProcessCommandWithResultAsync<(string, string)>(
+				new GetBestMoveCommand(depth));
 		}
 
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(
 			CancellationToken cancellationToken = default) =>
-			await _commandProcessor.ProcessCommandAsync<List<MoveClassification>>(
+			await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
 				new GetAllLegalMovesWithDetailsCommand(cancellationToken));
 
 		public async Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken cancellationToken = default)
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandAsync<List<MoveClassification>>(
+			return await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
 				new GetLegalMovesForSquareWithDetailsCommand(square, cancellationToken));
 		}
 
 		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
 		{
-			var result = await _commandProcessor.ProcessCommandAsync<List<string>>(new GetLegalMovesCommand(ct));
+			var result =
+				await _commandProcessor.ProcessCommandWithResultAsync<List<string>>(new GetLegalMovesCommand(ct));
 			return result;
 		}
 
 		public async Task<string> GetCurrentFENAsync()
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandAsync<string>(new GetCurrentFENCommand());
+			return await _commandProcessor.ProcessCommandWithResultAsync<string>(new GetCurrentFENCommand());
 		}
 
 		/// <summary>

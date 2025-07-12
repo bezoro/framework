@@ -29,6 +29,19 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 	}
 
 	/// <summary>
+	///     Processes a command that does not return a value.
+	/// </summary>
+	/// <param name="command">The command to process.</param>
+	public Task ProcessCommandAsync(IEngineCommand command) =>
+		EnqueueCommandAsync(command);
+
+	/// <summary>
+	///     Creates a new command builder for constructing command sequences
+	/// </summary>
+	/// <returns>A command builder</returns>
+	public CommandBuilder CreateCommand() => new();
+
+	/// <summary>
 	///     Starts the command processor
 	/// </summary>
 	public Task StartAsync()
@@ -63,13 +76,9 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 	/// <typeparam name="T">The expected result type</typeparam>
 	/// <param name="command">The command to process</param>
 	/// <returns>The command result</returns>
-	public async Task<T> ProcessCommandAsync<T>(IEngineCommand command)
+	public async Task<T> ProcessCommandWithResultAsync<T>(IEngineCommand command)
 	{
-		ThrowIfDisposed();
-		var resultSource = new TaskCompletionSource<object?>();
-		_commandQueue.Enqueue((command, resultSource));
-		_commandSignal.Release();
-		object? result = await resultSource.Task.ConfigureAwait(false);
+		object? result = await EnqueueCommandAsync(command).ConfigureAwait(false);
 		return (T)result!;
 	}
 
@@ -122,6 +131,15 @@ public sealed class CommandProcessor : ICommandProcessor, IAsyncDisposable
 				item.ResultSource.SetException(ex);
 			}
 		}
+	}
+
+	private Task<object?> EnqueueCommandAsync(IEngineCommand command)
+	{
+		ThrowIfDisposed();
+		var resultSource = new TaskCompletionSource<object?>();
+		_commandQueue.Enqueue((command, resultSource));
+		_commandSignal.Release();
+		return resultSource.Task;
 	}
 
 	private void FailPendingCommands()
