@@ -85,7 +85,11 @@ namespace Bezoro.UCI.API
 
 		public async Task<string> WaitForTokenAsync(string token, CancellationToken ct = default)
 		{
-			ThrowIfDisposed();
+			if (_isDisposed)
+			{
+				return string.Empty;
+			}
+
 			while (_isBusy)
 			{
 				await Task.Delay(100, ct);
