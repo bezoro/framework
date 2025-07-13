@@ -171,9 +171,10 @@ namespace Bezoro.UCI.API
 		{
 			List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
 
-			var bestMove   = string.Empty;
-			var ponderMove = string.Empty;
-			var checkers   = string.Empty;
+			var  bestMove   = string.Empty;
+			var  ponderMove = string.Empty;
+			var  checkers   = string.Empty;
+			int? scoreMate  = 0;
 
 			foreach (string line in lines)
 			{
@@ -191,9 +192,15 @@ namespace Bezoro.UCI.API
 				{
 					checkers = currentCheckers;
 				}
+
+				int? currentScoreMate = ParseScoreMate(line);
+				if (currentScoreMate != null)
+				{
+					scoreMate = currentScoreMate;
+				}
 			}
 
-			return new GOResult(bestMove, ponderMove, checkers);
+			return new GOResult(bestMove, ponderMove, checkers, scoreMate);
 		}
 
 		/// <summary>
@@ -323,15 +330,49 @@ namespace Bezoro.UCI.API
 			return (bestMove, ponderMove);
 		}
 
+		private static int? ParseScoreMate(string line)
+		{
+			if (string.IsNullOrWhiteSpace(line))
+			{
+				return null;
+			}
+
+			string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+			for (var i = 0 ; i < tokens.Length - 1 ; i++)
+			{
+				if (tokens[i] == "score" && i + 2 < tokens.Length && tokens[i + 1] == "mate")
+				{
+					if (int.TryParse(tokens[i + 2], out int mateValue))
+					{
+						return mateValue;
+					}
+				}
+			}
+
+			return null;
+		}
+
+		// TODO: Need to investigate
 		private static string ParseCheckersInfo(string line)
 		{
 			var checkers = string.Empty;
 			if (line.Contains("checkers", StringComparison.OrdinalIgnoreCase))
 			{
-				string[]? parts = line.Split(' ');
-				if (!parts[1].IsNullOrEmpty())
+				string[] parts = line.Split(' ');
+
+				// Find the index of "checkers" in the parts array
+				int checkersIndex = Array.FindIndex(parts, p =>
+					p.Equals("checkers", StringComparison.OrdinalIgnoreCase));
+
+				if (checkersIndex >= 0 && checkersIndex + 1 < parts.Length)
 				{
-					checkers = parts[1];
+					// Get all parts after "checkers" as they represent the checker squares
+					string[] checkerSquares = parts.Skip(checkersIndex + 1).ToArray();
+					if (checkerSquares.Length > 0)
+					{
+						checkers = string.Join(" ", checkerSquares);
+					}
 				}
 			}
 
@@ -352,9 +393,10 @@ namespace Bezoro.UCI.API
 		string PiecePlacement, char ActiveColor, string CastlingRights,
 		string EnPassantTarget, int HalfmoveClock, int FullmoveNumber, string Fen, string[] FenParts);
 
-	public readonly record struct GOResult(string BestMove, string PonderMove, string Checkers)
+	public readonly record struct GOResult(string BestMove, string PonderMove, string Checkers, int? ScoreMate)
 	{
 		public bool IsCheck     => !string.IsNullOrEmpty(Checkers);
-		public bool IsCheckmate => !string.IsNullOrEmpty(Checkers) && BestMove.IsNullOrEmpty();
+		public bool IsCheckmate => ScoreMate == 0 && BestMove.IsNullOrEmpty();
+		public bool IsStalemate => BestMove.IsNullOrEmpty();
 	}
 }
