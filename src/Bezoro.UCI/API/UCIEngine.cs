@@ -67,6 +67,7 @@ namespace Bezoro.UCI.API
 				}
 
 				string? line = await _output.ReadLineAsync();
+				Logger.LogInfo($"[OUTPUT] {line.Bold()}");
 				lines.Add(line);
 
 				foreach (string terminationToken in terminationTokens)
@@ -105,6 +106,7 @@ namespace Bezoro.UCI.API
 				}
 
 				string? result = await _output.ReadLineAsync();
+				Logger.LogInfo($"[OUTPUT] {result.Bold()}");
 				if (!result.Contains(token, StringComparison.OrdinalIgnoreCase))
 				{
 					continue;
