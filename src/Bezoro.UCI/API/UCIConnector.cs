@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -18,7 +17,6 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-
 		private readonly Process _engineProcess;
 
 		private readonly string _enginePath;
@@ -59,7 +57,7 @@ namespace Bezoro.UCI.API
 				EnableRaisingEvents = true
 			};
 
-			_engine           = new UCIEngine(_engineProcess);
+			_engine = new UCIEngine(_engineProcess);
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
 		}
 
@@ -101,7 +99,13 @@ namespace Bezoro.UCI.API
 			await _engine.WriteLineAsync(command, ct);
 		}
 
-		public async Task SetPositionAsync(string fen, IEnumerable? moves = null, CancellationToken ct = default)
+		public async Task SetDefaultPositionAsync()
+		{
+			await SetPositionAsync(UCIConstants.StandardFEN);
+		}
+
+		public async Task SetPositionAsync(
+			string fen, IEnumerable<string>? moves = null, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
 
@@ -109,11 +113,12 @@ namespace Bezoro.UCI.API
 
 			if (moves != null)
 			{
-				command += $"moves {string.Join(" ", moves)}";
+				command += $" moves {string.Join(" ", moves)}";
 			}
 
 			await _engine.WriteLineAsync(command, ct);
 			PositionSetSuccessfully?.Invoke();
+			Logger.LogSuccess($"Position Set Successfully {command.Bold()}", this, LogCategory.UCI);
 		}
 
 		public async Task StartEngineAsync()
@@ -130,35 +135,65 @@ namespace Bezoro.UCI.API
 			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
 		}
 
+		public async Task<FenInfo> GetCurrentFenAsync(CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			await _engine.WriteLineAsync("d", ct);
+			string result = await _engine.WaitForTokenAsync("Fen:", ct);
+
+			// Remove the "Fen: " prefix if it exists
+			if (result.StartsWith("Fen: "))
+			{
+				result = result[5..];
+			}
+
+			string[]? parts = result.Split(' ');
+
+			// Ensure we have enough parts for a valid FEN
+			if (parts.Length < 6)
+			{
+				throw new InvalidOperationException($"Invalid FEN format received: {result}");
+			}
+
+			return new FenInfo(
+				parts[0],            // PiecePlacement
+				parts[1][0],         // ActiveColor
+				parts[2],            // CastlingRights
+				parts[3],            // EnPassantTarget
+				int.Parse(parts[4]), // HalfmoveClock
+				int.Parse(parts[5]), // FullmoveNumber
+				result,              // Full FEN string
+				parts                // FEN parts array
+			);
+		}
+
 		public async Task<GOResult> GO(int depth = 20, CancellationToken ct = default)
 		{
 			List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
+
+			var bestMove   = string.Empty;
+			var ponderMove = string.Empty;
+			var checkers   = string.Empty;
+
 			foreach (string line in lines)
 			{
-				if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase))
+				// Parse best move information
+				var bestMoveResult = ParseBestMove(line);
+				if (!string.IsNullOrEmpty(bestMoveResult.best))
 				{
-					continue;
+					bestMove   = bestMoveResult.best;
+					ponderMove = bestMoveResult.ponder;
 				}
 
-				string[]? parts = line.Split(' ');
-				if (parts.Length < 2)
+				// Parse checkers information
+				string currentCheckers = ParseCheckersInfo(line);
+				if (!string.IsNullOrEmpty(currentCheckers))
 				{
-					continue; // Invalid bestmove format
+					checkers = currentCheckers;
 				}
-
-				string bestMove   = parts[1];
-				var    ponderMove = string.Empty;
-
-				// Check if there's a ponder move
-				if (parts.Length >= 4 && parts[2] == "ponder")
-				{
-					ponderMove = parts[3];
-				}
-
-				return new GOResult(bestMove, ponderMove);
 			}
 
-			return new GOResult();
+			return new GOResult(bestMove, ponderMove, checkers);
 		}
 
 		/// <summary>
@@ -188,9 +223,9 @@ namespace Bezoro.UCI.API
 		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(CancellationToken ct = default)
 		{
 			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
-			string       currentFen = await GetCurrentFenAsync(ct);
+			var          currentFen = await GetCurrentFenAsync(ct);
 			List<string> legalMoves = await GetLegalMovesAsync(ct);
-			var          boardState = BoardStateParser.ParseFen(currentFen);
+			var          boardState = BoardStateParser.ParseFen(currentFen.Fen);
 			List<MoveClassification> classifiedMoves =
 				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
 
@@ -222,14 +257,6 @@ namespace Bezoro.UCI.API
 			}
 
 			return moves;
-		}
-
-		public async Task<string> GetCurrentFenAsync(CancellationToken ct = default)
-		{
-			ThrowIfDisposed();
-			await _engine.WriteLineAsync("d", ct);
-			string result = await _engine.WaitForTokenAsync("Fen:", ct);
-			return result;
 		}
 
 		/// <summary>
@@ -266,17 +293,49 @@ namespace Bezoro.UCI.API
 			Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 		}
 
-		public void SetPosition(string fen, IEnumerable<string>? moves = null)
+		private static (string best, string ponder) ParseBestMove(string line)
 		{
-			var command = $"position fen {fen}";
-			if (!moves.IsNullOrEmpty())
+			if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase))
 			{
-				command += $" moves {string.Join(" ", moves)}";
+				return (string.Empty, string.Empty);
 			}
 
-			_engine.WriteLineAsync(command);
-			PositionSetSuccessfully?.Invoke();
-			Logger.LogSuccess($"Position Set: {command.Bold()}", this, LogCategory.UCI);
+			string[]? parts = line.Split(' ');
+			if (parts.Length < 2)
+			{
+				return (string.Empty, string.Empty);
+			}
+
+			string bestMove   = parts[1];
+			var    ponderMove = string.Empty;
+
+			// Check if there's a ponder move
+			if (parts.Length >= 4 && parts[2] == "ponder")
+			{
+				ponderMove = parts[3];
+			}
+
+			if (bestMove == "(none)")
+			{
+				bestMove = string.Empty;
+			}
+
+			return (bestMove, ponderMove);
+		}
+
+		private static string ParseCheckersInfo(string line)
+		{
+			var checkers = string.Empty;
+			if (line.Contains("checkers", StringComparison.OrdinalIgnoreCase))
+			{
+				string[]? parts = line.Split(' ');
+				if (!parts[1].IsNullOrEmpty())
+				{
+					checkers = parts[1];
+				}
+			}
+
+			return checkers;
 		}
 
 		private void ThrowIfDisposed()
@@ -287,12 +346,15 @@ namespace Bezoro.UCI.API
 					"Cannot use a disposed UCIConnector. Make sure you haven't called DisposeAsync()");
 			}
 		}
-
-		public async Task SetDefaultPositionAsync()
-		{
-			await SetPositionAsync(UCIConstants.StandardFEN);
-		}
 	}
 
-	public readonly record struct GOResult(string BestMove, string PonderMove);
+	public readonly record struct FenInfo(
+		string PiecePlacement, char ActiveColor, string CastlingRights,
+		string EnPassantTarget, int HalfmoveClock, int FullmoveNumber, string Fen, string[] FenParts);
+
+	public readonly record struct GOResult(string BestMove, string PonderMove, string Checkers)
+	{
+		public bool IsCheck     => !string.IsNullOrEmpty(Checkers);
+		public bool IsCheckmate => !string.IsNullOrEmpty(Checkers) && BestMove.IsNullOrEmpty();
+	}
 }
