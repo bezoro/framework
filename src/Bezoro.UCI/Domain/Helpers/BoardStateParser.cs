@@ -14,8 +14,17 @@ internal static class BoardStateParser
 	/// <summary>
 	///     Parses a full FEN string to create a comprehensive board state.
 	/// </summary>
+	/// <summary>
+	///     Parses a full FEN string to create a comprehensive board state.
+	/// </summary>
 	public static BoardState ParseFen(string fen)
 	{
+		// Trim "Fen:" prefix if present (case-insensitive)
+		if (fen.StartsWith("Fen:", StringComparison.OrdinalIgnoreCase))
+		{
+			fen = fen[4..].Trim();
+		}
+
 		string[] parts = fen.Split(' ');
 		// Part 1: Piece Placement
 		var                      fenParser = new FenParser();
@@ -62,20 +71,6 @@ internal static class BoardStateParser
 	public static bool ValidateActiveColor(char activeColor) =>
 		activeColor is 'w' or 'b';
 
-	private static bool ValidateCastling(string castling)
-	{
-		if (castling == "-")
-		{
-			return true;
-		}
-
-		const string validCastlingChars = "KQkq";
-		// No invalid characters, no duplicates, and not too long
-		return castling.Length <= 4                      &&
-			   castling.All(validCastlingChars.Contains) &&
-			   castling.Distinct().Count() == castling.Length;
-	}
-
 	public static bool ValidateEnPassant(string enPassant, char activeColor)
 	{
 		if (enPassant == "-")
@@ -117,6 +112,20 @@ internal static class BoardStateParser
 		// A valid board must have exactly one white and one black king.
 		return piecePlacement.Count(c => c == 'K') == 1 &&
 			   piecePlacement.Count(c => c == 'k') == 1;
+	}
+
+	private static bool ValidateCastling(string castling)
+	{
+		if (castling == "-")
+		{
+			return true;
+		}
+
+		const string validCastlingChars = "KQkq";
+		// No invalid characters, no duplicates, and not too long
+		return castling.Length <= 4                      &&
+			   castling.All(validCastlingChars.Contains) &&
+			   castling.Distinct().Count() == castling.Length;
 	}
 
 	private static bool ValidateRank(string rank)
