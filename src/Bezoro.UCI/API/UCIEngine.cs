@@ -1,9 +1,9 @@
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Core.Common.Extensions;
 
 namespace Bezoro.UCI.API
 {
@@ -12,14 +12,11 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public class UCIEngine : IAsyncDisposable
 	{
-		private readonly ConcurrentQueue<string> _incomingLines = new();
-		private readonly Process                 _engineProcess;
-		private readonly SemaphoreSlim           _lineSignal = new(0);
-		private readonly SemaphoreSlim           _streamLock = new(1, 1);
-		private volatile bool                    _isDisposed;
-		private          StreamReader            _output;
-		private          StreamWriter            _input;
-		private          Task?                   _readerTask;
+		private readonly Process       _engineProcess;
+		private          bool          _isBusy;
+		private volatile bool          _isDisposed;
+		private          StreamReader? _output;
+		private          StreamWriter? _input;
 
 		public event EventHandler<string>? InfoReceived;
 
@@ -28,78 +25,91 @@ namespace Bezoro.UCI.API
 			_engineProcess = engineProcess ?? throw new ArgumentNullException(nameof(engineProcess));
 		}
 
-		public async Task StartAsync()
+		public async Task WriteLineAsync(string command, CancellationToken ct = default)
 		{
-			if (!_engineProcess.Start())
+			ThrowIfDisposed();
+			while (_isBusy)
 			{
-				throw new InvalidOperationException("Failed to start the UCI engine process.");
+				await Task.Delay(100, ct);
 			}
 
-			_input  = _engineProcess.StandardInput;
-			_output = _engineProcess.StandardOutput;
-
-			// Start the output reader loop
-			_readerTask = Task.Run(PumpOutputAsync);
+			_isBusy = true;
+			await _input.WriteLineAsync(command);
+			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
+			await _input.FlushAsync();
+			_isBusy = false;
 		}
 
-		public async Task WriteLineAsync(string command)
+		/// <summary>
+		///     Sends a command to the UCI engine and reads all output lines until a termination token is found
+		/// </summary>
+		/// <param name="command">The command to send to the engine</param>
+		/// <param name="terminationTokens">Tokens that indicate end of output (defaults to UCI protocol tokens)</param>
+		/// <param name="ct">Cancellation token</param>
+		/// <returns>A list of output lines related to the command</returns>
+		public async Task<List<string>> SendCommandAndReadOutputAsync(
+			string command, CancellationToken ct = default)
 		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIEngine));
-			}
+			string[] terminationTokens = [ "bestmove", "uciok", "readyok", "nodes searched" ];
+			var      lines             = new List<string>();
 
-			// Ensure only one write operation at a time
-			await _streamLock.WaitAsync().ConfigureAwait(false);
-			try
-			{
-				await _input.WriteLineAsync(command).ConfigureAwait(false);
-				await _input.FlushAsync().ConfigureAwait(false);
-			}
-			finally
-			{
-				_streamLock.Release();
-			}
-		}
+			await WriteLineAsync(command, ct);
 
-		public async Task<string?> WaitForTokenAsync(string token, CancellationToken ct = default)
-		{
-			var endTokens = new[] { "bestmove", "readyok", "uciok" }; // Common UCI end tokens
+			_isBusy = true;
+
+			Logger.LogInfo($"Waiting for: {command.Bold()}", this, LogCategory.UCI);
 
 			while (true)
 			{
-				string? line = await ReadNextOutputLineAsync(ct);
-
-				if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
+				if (_isDisposed)
 				{
-					InfoReceived?.Invoke(this, line);
-					continue;
+					return lines;
 				}
 
-				if (line.Contains(token, StringComparison.OrdinalIgnoreCase))
-				{
-					return line;
-				}
+				string? line = await _output.ReadLineAsync();
+				lines.Add(line);
 
-				// Check if we've hit a natural end point
-				if (endTokens.Any(endToken => line.StartsWith(endToken, StringComparison.OrdinalIgnoreCase)))
+				foreach (string terminationToken in terminationTokens)
 				{
-					return null; // End of this command's output
+					if (!line.Contains(terminationToken, StringComparison.OrdinalIgnoreCase))
+					{
+						continue;
+					}
+
+					_isBusy = false;
+					Logger.LogInfo($"Received: {line.Bold()}", this, LogCategory.UCI);
+					return lines;
 				}
 			}
 		}
 
-		public async Task<string> ReadNextOutputLineAsync(CancellationToken ct)
+		public async Task<string> WaitForTokenAsync(string token, CancellationToken ct = default)
 		{
-			await _lineSignal.WaitAsync(ct).ConfigureAwait(false);
-			if (_incomingLines.TryDequeue(out string? line))
+			ThrowIfDisposed();
+			while (_isBusy)
 			{
-				Logger.LogInfo($"[OUTPUT] {line}", this, LogCategory.UCI);
-				return line;
+				await Task.Delay(100, ct);
 			}
 
-			// In theory we never get here, but just in case:
-			return string.Empty;
+			_isBusy = true;
+			Logger.LogInfo($"Waiting for: {token.Bold()}", this, LogCategory.UCI);
+			while (true)
+			{
+				if (_isDisposed)
+				{
+					return "";
+				}
+
+				string? result = await _output.ReadLineAsync();
+				if (!result.Contains(token, StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				Logger.LogInfo($"Received: {result.Bold()}", this, LogCategory.UCI);
+				_isBusy = false;
+				return result;
+			}
 		}
 
 		public async ValueTask DisposeAsync()
@@ -110,28 +120,33 @@ namespace Bezoro.UCI.API
 			}
 
 			_isDisposed = true;
-
-			_readerTask.Dispose();
-			_input?.Close();
-			_output?.Close();
-			_engineProcess?.Dispose();
-
-			_streamLock.Dispose();
-			_lineSignal.Dispose();
+			_engineProcess.Dispose();
+			_input?.Dispose();
+			_output?.Dispose();
+			GC.SuppressFinalize(this);
 		}
 
-		private async Task PumpOutputAsync()
+		public void Start()
 		{
-			while (!_isDisposed && !_engineProcess.HasExited)
+			if (_isDisposed)
 			{
-				string? line = await _output.ReadLineAsync().ConfigureAwait(false);
-				if (line == null)
-				{
-					break; // stream closed
-				}
+				throw new ObjectDisposedException(nameof(UCIEngine));
+			}
 
-				_incomingLines.Enqueue(line);
-				_lineSignal.Release();
+			if (!_engineProcess.Start())
+			{
+				throw new InvalidOperationException("Failed to start the UCI engine process.");
+			}
+
+			_input  = _engineProcess.StandardInput;
+			_output = _engineProcess.StandardOutput;
+		}
+
+		private void ThrowIfDisposed()
+		{
+			if (_isDisposed)
+			{
+				throw new ObjectDisposedException(nameof(UCIEngine));
 			}
 		}
 	}

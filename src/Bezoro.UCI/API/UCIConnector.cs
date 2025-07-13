@@ -1,11 +1,13 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.UCI.API.Commands;
+using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Constants;
+using Bezoro.UCI.Domain.Helpers;
 
 namespace Bezoro.UCI.API
 {
@@ -16,7 +18,6 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private readonly ICommandProcessor _commandProcessor;
 
 		private readonly Process _engineProcess;
 
@@ -25,12 +26,13 @@ namespace Bezoro.UCI.API
 		private readonly UCIEngine _engine;
 
 		private volatile bool _isDisposed;
+		private volatile bool _isDisposing;
 		private          bool _started;
 
-		public event Action<(string best, string ponder)> BestMoveFound;
-		public event Action                               EngineStarted;
-		public event Action                               EngineStopped;
-		public event Action<string>                       PositionSetSuccessfully;
+		public event Action<(string best, string ponder)>? BestMoveFound;
+		public event Action?                               EngineStarted;
+		public event Action?                               EngineStopped;
+		public event Action?                               PositionSetSuccessfully;
 
 		/// <summary>
 		///     Initializes a new instance of the <see cref="UCIConnector" /> class.
@@ -38,7 +40,6 @@ namespace Bezoro.UCI.API
 		/// <param name="enginePath">The file path to the UCI engine executable.</param>
 		public UCIConnector(string enginePath)
 		{
-			Logger.LogInfo($"Creating Engine Process", this, LogCategory.UCI);
 			if (string.IsNullOrWhiteSpace(enginePath))
 			{
 				throw new ArgumentException("Engine path must be provided.", nameof(enginePath));
@@ -59,134 +60,176 @@ namespace Bezoro.UCI.API
 			};
 
 			_engine           = new UCIEngine(_engineProcess);
-			_commandProcessor = CommandProcessorFactory.Create(_engine);
-
 			Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
 		}
 
-		public async Task SendNewGameCommandAsync()
+		public async Task QuitEngineAsync()
 		{
-			await SendTextCommandAsync("ucinewgame");
-		}
-
-		public async Task SendTextCommandAsync(string command) =>
-			await SendTextCommandAsync<object?>(command);
-
-		public async Task SendTextCommandAsync<TResult>(string command)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<TResult?> sendCommand = new CommandBuilder().Add(command).Build<TResult?>();
-			await _commandProcessor.ProcessCommandAsync(sendCommand);
-		}
-
-		public async Task SetDefaultPositionAsync()
-		{
-			await SetPositionAsync(UCIConstants.StandardFEN);
-		}
-
-		public async Task SetPositionAsync(string fen, IEnumerable<string>? moves = null)
-		{
-			var command = $"position fen {fen}";
-
-			if (moves != null)
-			{
-				IList<string> moveList = moves as IList<string> ?? moves.ToList();
-				// Build the UCI command: "position fen {fen} moves m1 m2 m3 ..."
-				string movesArg = string.Join(" ", moveList);
-				command += $" moves {movesArg}";
-			}
-
-			await SendTextCommandAsync(command);
-			string? newFen = await GetCurrentFENAsync();
-			PositionSetSuccessfully?.Invoke(newFen);
-		}
-
-		public async Task StartEngineAsync()
-		{
-			Logger.LogInfo($"Starting Engine Process...", this, LogCategory.UCI);
 			if (_isDisposed)
 			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
+				return;
 			}
 
-			// Start the engine
-			await _engine.StartAsync();
-			// Start the command processor
-			await _commandProcessor.StartAsync();
-			// Perform UCI handshake
-			await SendCommandAndWaitForTokenAsync("uci",     "uciok");
-			await SendCommandAndWaitForTokenAsync("isready", "readyok");
-			_started = true;
-			EngineStarted?.Invoke();
-			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
-		}
-
-		public async Task StopEngineAsync()
-		{
-			Logger.LogInfo($"Stopping Engine Process", this, LogCategory.UCI);
-			if (_isDisposed)
+			try
 			{
-				throw new ObjectDisposedException(nameof(UCIConnector));
+				if (!_isDisposing)
+				{
+					await _engine.WriteLineAsync("quit");
+				}
+			}
+			catch (ObjectDisposedException)
+			{
+				// Expected during disposal
 			}
 
-			await SendTextCommandAsync("quit");
-			await _commandProcessor.StopAsync();
 			_started = false;
 			EngineStopped?.Invoke();
 			Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
 		}
 
-		public async Task<(string best, string ponder)?> GetBestMoveAsync(int depth = 20)
+		public async Task SendTextCommandAndWaitForTokenAsync(
+			string command, string token, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
-			var result = await _commandProcessor.ProcessCommandWithResultAsync<(string, string)?>(
-				new BestMoveCompositeCommand(depth));
-
-			if (result.HasValue)
-			{
-				BestMoveFound?.Invoke(result.Value);
-			}
-
-			return result;
+			await _engine.WriteLineAsync(command, ct);
+			await _engine.WaitForTokenAsync(token, ct);
 		}
 
-		public async Task<List<MoveClassification>?> GetAllLegalMovesWithDetailsAsync(
-			CancellationToken ct = default) =>
-			await _commandProcessor.ProcessCommandWithResultAsync(
-				new GetAllLegalMovesWithDetailsCommand(ct));
+		public async Task SendTextCommandAsync(string command, CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			await _engine.WriteLineAsync(command, ct);
+		}
 
-		public async Task<List<MoveClassification>?> GetLegalMovesForSquareWithDetailsAsync(
+		public async Task SetPositionAsync(string fen, IEnumerable? moves = null, CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+
+			var command = $"position fen {fen}";
+
+			if (moves != null)
+			{
+				command += $"moves {string.Join(" ", moves)}";
+			}
+
+			await _engine.WriteLineAsync(command, ct);
+			PositionSetSuccessfully?.Invoke();
+		}
+
+		public async Task StartEngineAsync()
+		{
+			ThrowIfDisposed();
+
+			_engine.Start();
+			await _engine.WriteLineAsync("uci");
+			await _engine.WaitForTokenAsync("uciok");
+			await _engine.WriteLineAsync("isready");
+			await _engine.WaitForTokenAsync("readyok");
+			_started = true;
+			EngineStarted?.Invoke();
+			Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
+		}
+
+		public async Task<GOResult> GO(int depth = 20, CancellationToken ct = default)
+		{
+			List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
+			foreach (string line in lines)
+			{
+				if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				string[]? parts = line.Split(' ');
+				if (parts.Length < 2)
+				{
+					continue; // Invalid bestmove format
+				}
+
+				string bestMove   = parts[1];
+				var    ponderMove = string.Empty;
+
+				// Check if there's a ponder move
+				if (parts.Length >= 4 && parts[2] == "ponder")
+				{
+					ponderMove = parts[3];
+				}
+
+				return new GOResult(bestMove, ponderMove);
+			}
+
+			return new GOResult();
+		}
+
+		/// <summary>
+		///     Retrieves and classifies all legal moves that start from a specific square.
+		/// </summary>
+		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
+		/// <param name="ct">A token to cancel the operation.</param>
+		public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
-			return await _commandProcessor.ProcessCommandWithResultAsync<List<MoveClassification>>(
-				new GetLegalMovesForSquareWithDetailsCommand(square, ct));
-		}
 
-		public async Task<List<string>?> GetLegalMovesAsync(CancellationToken ct = default)
-		{
-			var result =
-				await _commandProcessor.ProcessCommandWithResultAsync<List<string>>(new GetLegalMovesCommand(ct));
-
-			return result;
-		}
-
-		public async Task<string?> GetCurrentFENAsync()
-		{
-			ThrowIfDisposed();
-			// Send the "d" command and wait for the "Fen:" token
-			string fenLine = await SendCommandAndWaitForTokenAsync("d", "Fen:");
-
-			// Extract the FEN from the response
-			const string prefix = "Fen: ";
-			if (fenLine.StartsWith(prefix))
+			if (string.IsNullOrWhiteSpace(square))
 			{
-				string fen = fenLine.Substring(prefix.Length).Trim();
-				Logger.LogSuccess($"Current FEN: {fen}");
-				return fen;
+				throw new ArgumentException("Square cannot be null or empty", nameof(square));
 			}
 
-			return null;
+			List<MoveClassification> allMoves = await GetAllLegalMovesWithDetailsAsync(ct);
+
+			return allMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase));
+		}
+
+		/// <summary>
+		///     Gets all legal moves with detailed classification.
+		/// </summary>
+		/// <param name="ct">A token to cancel the operation.</param>
+		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(CancellationToken ct = default)
+		{
+			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
+			string       currentFen = await GetCurrentFenAsync(ct);
+			List<string> legalMoves = await GetLegalMovesAsync(ct);
+			var          boardState = BoardStateParser.ParseFen(currentFen);
+			List<MoveClassification> classifiedMoves =
+				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+
+			Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
+			Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
+
+			return classifiedMoves;
+		}
+
+		/// <summary>
+		///     Gets all legal moves from the current position.
+		/// </summary>
+		/// <param name="ct">A token to cancel the operation.</param>
+		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
+		{
+			var moves = new List<string>();
+
+			List<string> lines =
+				await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
+
+			foreach (string line in lines)
+			{
+				var match = UCIConstants.MoveRegex.Match(line);
+
+				if (match.Success)
+				{
+					moves.Add(match.Groups[1].Value);
+				}
+			}
+
+			return moves;
+		}
+
+		public async Task<string> GetCurrentFenAsync(CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			await _engine.WriteLineAsync("d", ct);
+			string result = await _engine.WaitForTokenAsync("Fen:", ct);
+			return result;
 		}
 
 		/// <summary>
@@ -194,60 +237,62 @@ namespace Bezoro.UCI.API
 		/// </summary>
 		public async ValueTask DisposeAsync()
 		{
-			Logger.LogInfo($"Disposing Engine Process", this, LogCategory.UCI);
 			if (_isDisposed)
 			{
 				return;
 			}
 
-			_isDisposed = true;
+			_isDisposing = true;
 
-			// Dispose the command processor
-			if (_commandProcessor is IAsyncDisposable disposableProcessor)
+			try
 			{
-				await disposableProcessor.DisposeAsync();
+				if (_started)
+				{
+					await QuitEngineAsync();
+				}
+
+				await _engine.DisposeAsync();
+			}
+			finally
+			{
+				_isDisposed = true;
+				Logger.LogSuccess($"Engine Process Disposed", this, LogCategory.UCI);
+			}
+		}
+
+		public void NewGame()
+		{
+			_engine.WriteLineAsync("ucinewgame");
+			Logger.LogSuccess($"New Game", this, LogCategory.UCI);
+		}
+
+		public void SetPosition(string fen, IEnumerable<string>? moves = null)
+		{
+			var command = $"position fen {fen}";
+			if (!moves.IsNullOrEmpty())
+			{
+				command += $" moves {string.Join(" ", moves)}";
 			}
 
-			// Dispose the engine
-			await _engine.DisposeAsync();
-
-			Logger.LogSuccess($"Engine Process Disposed", this, LogCategory.UCI);
-		}
-
-		/// <summary>
-		///     Sends a command and waits for a specific token in the response
-		/// </summary>
-		/// <param name="command">The command to send</param>
-		/// <param name="token">The token to wait for</param>
-		/// <returns>The line containing the token</returns>
-		private async Task<string> SendCommandAndWaitForTokenAsync(string command, string token)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<string> waitCommand = new CommandBuilder().Add(command).WaitFor(token).Build<string>();
-
-			return await _commandProcessor.ProcessCommandWithResultAsync<string>(waitCommand);
-		}
-
-		/// <summary>
-		///     Sends a command to the engine and returns a result
-		/// </summary>
-		/// <typeparam name="TResult">The type of result to return</typeparam>
-		/// <param name="command">The command to send</param>
-		/// <returns>The result from the engine</returns>
-		private async Task<TResult> SendCommandWithResultAsync<TResult>(string command)
-		{
-			ThrowIfDisposed();
-			IEngineCommand<TResult> sendCommand = new CommandBuilder().Add(command).Build<TResult>();
-			return await _commandProcessor.ProcessCommandWithResultAsync(sendCommand);
+			_engine.WriteLineAsync(command);
+			PositionSetSuccessfully?.Invoke();
+			Logger.LogSuccess($"Position Set: {command.Bold()}", this, LogCategory.UCI);
 		}
 
 		private void ThrowIfDisposed()
 		{
-			if (_isDisposed)
+			if (_isDisposed || _isDisposing)
 			{
 				throw new ObjectDisposedException(nameof(UCIConnector),
-					"Cannot use a disposed UCIConnector. Make sure you haven’t called DisposeAsync()");
+					"Cannot use a disposed UCIConnector. Make sure you haven't called DisposeAsync()");
 			}
 		}
+
+		public async Task SetDefaultPositionAsync()
+		{
+			await SetPositionAsync(UCIConstants.StandardFEN);
+		}
 	}
+
+	public readonly record struct GOResult(string BestMove, string PonderMove);
 }
