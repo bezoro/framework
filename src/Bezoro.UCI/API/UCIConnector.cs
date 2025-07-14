@@ -17,15 +17,16 @@ namespace Bezoro.UCI.API
 	/// </summary>
 	public sealed class UCIConnector : IAsyncDisposable
 	{
-		private readonly Process _engineProcess;
-
-		private readonly string _enginePath;
-
+		private readonly Process   _engineProcess;
+		private readonly string    _enginePath;
 		private readonly UCIEngine _engine;
 
 		private volatile bool _isDisposed;
 		private volatile bool _isDisposing;
-		private          bool _started;
+
+		private bool                      _started;
+		private FenInfo?                  _currentFenCache;
+		private List<MoveClassification>? _currentPositionMovesCache;
 
 		public event Action<(string best, string ponder)>? BestMoveFound;
 		public event Action?                               EngineStarted;
@@ -110,7 +111,6 @@ namespace Bezoro.UCI.API
 			ThrowIfDisposed();
 
 			var command = $"position fen {fen}";
-
 			if (moves != null)
 			{
 				command += $" moves {string.Join(" ", moves)}";
@@ -118,6 +118,7 @@ namespace Bezoro.UCI.API
 
 			await _engine.WriteLineAsync(command, ct);
 			PositionSetSuccessfully?.Invoke();
+			ClearPositionCaches();
 			Logger.LogSuccess($"Position Set Successfully {command.Bold()}", this, LogCategory.UCI);
 		}
 
@@ -138,33 +139,13 @@ namespace Bezoro.UCI.API
 		public async Task<FenInfo> GetCurrentFenAsync(CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
-			await _engine.WriteLineAsync("d", ct);
-			string result = await _engine.WaitForTokenAsync("Fen:", ct);
 
-			// Remove the "Fen: " prefix if it exists
-			if (result.StartsWith("Fen: "))
+			if (_currentFenCache.HasValue)
 			{
-				result = result[5..];
+				return _currentFenCache.Value;
 			}
 
-			string[]? parts = result.Split(' ');
-
-			// Ensure we have enough parts for a valid FEN
-			if (parts.Length < 6)
-			{
-				throw new InvalidOperationException($"Invalid FEN format received: {result}");
-			}
-
-			return new FenInfo(
-				parts[0],            // PiecePlacement
-				parts[1][0],         // ActiveColor
-				parts[2],            // CastlingRights
-				parts[3],            // EnPassantTarget
-				int.Parse(parts[4]), // HalfmoveClock
-				int.Parse(parts[5]), // FullmoveNumber
-				result,              // Full FEN string
-				parts                // FEN parts array
-			);
+			return await RenewFenCache(ct);
 		}
 
 		public async Task<GOResult> GO(int depth = 20, CancellationToken ct = default)
@@ -203,11 +184,6 @@ namespace Bezoro.UCI.API
 			return new GOResult(bestMove, ponderMove, checkers, scoreMate);
 		}
 
-		/// <summary>
-		///     Retrieves and classifies all legal moves that start from a specific square.
-		/// </summary>
-		/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
-		/// <param name="ct">A token to cancel the operation.</param>
 		public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 			string square, CancellationToken ct = default)
 		{
@@ -218,7 +194,8 @@ namespace Bezoro.UCI.API
 				throw new ArgumentException("Square cannot be null or empty", nameof(square));
 			}
 
-			List<MoveClassification> allMoves = await GetAllLegalMovesWithDetailsAsync(ct);
+			// Get all moves for current position (cached if same position)
+			List<MoveClassification> allMoves = await GetCurrentPositionMovesAsync(ct);
 
 			return allMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase));
 		}
@@ -377,6 +354,66 @@ namespace Bezoro.UCI.API
 			}
 
 			return checkers;
+		}
+
+		private async Task<FenInfo> RenewFenCache(CancellationToken ct = default)
+		{
+			await _engine.WriteLineAsync("d", ct);
+			string result = await _engine.WaitForTokenAsync("Fen:", ct);
+
+			// Remove the "Fen: " prefix if it exists
+			if (result.StartsWith("Fen: "))
+			{
+				result = result[5..];
+			}
+
+			string[]? parts = result.Split(' ');
+
+			_currentFenCache = new FenInfo(
+				parts[0],            // PiecePlacement
+				parts[1][0],         // ActiveColor
+				parts[2],            // CastlingRights
+				parts[3],            // EnPassantTarget
+				int.Parse(parts[4]), // HalfmoveClock
+				int.Parse(parts[5]), // FullmoveNumber
+				result,              // Full FEN string
+				parts                // FEN parts array
+			);
+
+			return _currentFenCache.Value;
+		}
+
+		private async Task<List<MoveClassification>> GetCurrentPositionMovesAsync(CancellationToken ct = default)
+		{
+			var currentFen = await GetCurrentFenAsync(ct);
+
+			// If we have moves cached for this exact position, return them
+			if (_currentPositionMovesCache != null && _currentFenCache == currentFen)
+			{
+				return _currentPositionMovesCache;
+			}
+
+			// Calculate moves for new position
+			Logger.LogInfo("Calculating legal moves for new position...", this, LogCategory.UCI);
+
+			List<string> legalMoves = await GetLegalMovesAsync(ct);
+			var          boardState = BoardStateParser.ParseFen(currentFen.Fen);
+			List<MoveClassification> classifiedMoves =
+				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+
+			// Cache the results
+			_currentPositionMovesCache = classifiedMoves;
+			_currentFenCache           = currentFen;
+
+			Logger.LogInfo($"Cached {classifiedMoves.Count} legal moves for position", this, LogCategory.UCI);
+
+			return classifiedMoves;
+		}
+
+		private void ClearPositionCaches()
+		{
+			_currentPositionMovesCache = null;
+			_currentFenCache           = null;
 		}
 
 		private void ThrowIfDisposed()
