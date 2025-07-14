@@ -105,6 +105,13 @@ namespace Bezoro.UCI.API
 			await SetPositionAsync(UCIConstants.StandardFEN);
 		}
 
+		public async Task SetOptionAsync(string name, string value, CancellationToken ct = default)
+		{
+			ThrowIfDisposed();
+			await _engine.WriteLineAsync($"setoption name {name} value {value}", ct);
+			Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.Bold()}", this, LogCategory.UCI);
+		}
+
 		public async Task SetPositionAsync(
 			string fen, IEnumerable<string>? moves = null, CancellationToken ct = default)
 		{
