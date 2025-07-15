@@ -97,7 +97,7 @@ namespace Bezoro.UCI.API
 		public async Task SendTextCommandAsync(string command, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
-			await _engine.WriteLineAsync(command, ct);
+			await _engine.SendCommandAndReadOutputAsync(command, ct);
 		}
 
 		public async Task SetDefaultPositionAsync()
@@ -155,13 +155,12 @@ namespace Bezoro.UCI.API
 			return await RenewFenCache(ct);
 		}
 
-		public async Task<GOResult> GO(int depth = 20, CancellationToken ct = default)
+		public async Task<GOResult> GO(int depth = 5, CancellationToken ct = default)
 		{
 			List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
 
 			var  bestMove   = string.Empty;
 			var  ponderMove = string.Empty;
-			var  checkers   = string.Empty;
 			int? scoreMate  = 0;
 
 			foreach (string line in lines)
@@ -174,13 +173,6 @@ namespace Bezoro.UCI.API
 					ponderMove = bestMoveResult.ponder;
 				}
 
-				// Parse checkers information
-				string currentCheckers = ParseCheckersInfo(line);
-				if (!string.IsNullOrEmpty(currentCheckers))
-				{
-					checkers = currentCheckers;
-				}
-
 				int? currentScoreMate = ParseScoreMate(line);
 				if (currentScoreMate != null)
 				{
@@ -188,7 +180,7 @@ namespace Bezoro.UCI.API
 				}
 			}
 
-			return new GOResult(bestMove, ponderMove, checkers, scoreMate);
+			return new GOResult(bestMove, ponderMove, scoreMate);
 		}
 
 		public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
@@ -208,31 +200,12 @@ namespace Bezoro.UCI.API
 		}
 
 		/// <summary>
-		///     Gets all legal moves with detailed classification.
-		/// </summary>
-		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(CancellationToken ct = default)
-		{
-			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
-			var          currentFen = await GetCurrentFenAsync(ct);
-			List<string> legalMoves = await GetLegalMovesAsync(ct);
-			var          boardState = BoardStateParser.ParseFen(currentFen.Fen);
-			List<MoveClassification> classifiedMoves =
-				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
-
-			Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
-			Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
-
-			return classifiedMoves;
-		}
-
-		/// <summary>
 		///     Gets all legal moves from the current position.
 		/// </summary>
 		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task<List<string>> GetLegalMovesAsync(CancellationToken ct = default)
+		public async Task<LegalMovesResult> GetLegalMovesAsync(CancellationToken ct = default)
 		{
-			var moves = new List<string>();
+			var legalMoves = new List<string>();
 
 			List<string> lines =
 				await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
@@ -243,11 +216,30 @@ namespace Bezoro.UCI.API
 
 				if (match.Success)
 				{
-					moves.Add(match.Groups[1].Value);
+					legalMoves.Add(match.Groups[1].Value);
 				}
 			}
 
-			return moves;
+			return new LegalMovesResult(legalMoves);
+		}
+
+		/// <summary>
+		///     Gets all legal moves with detailed classification.
+		/// </summary>
+		/// <param name="ct">A token to cancel the operation.</param>
+		public async Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(CancellationToken ct = default)
+		{
+			Logger.LogInfo("GettingAllLegalMoves...", this, LogCategory.UCI);
+			var currentFen       = await GetCurrentFenAsync(ct);
+			var legalMovesResult = await GetLegalMovesAsync(ct);
+			var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
+			List<MoveClassification> classifiedMoves =
+				legalMovesResult.LegalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+
+			Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
+			Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
+
+			return classifiedMoves;
 		}
 
 		/// <summary>
@@ -344,20 +336,7 @@ namespace Bezoro.UCI.API
 			if (line.Contains("checkers", StringComparison.OrdinalIgnoreCase))
 			{
 				string[] parts = line.Split(' ');
-
-				// Find the index of "checkers" in the parts array
-				int checkersIndex = Array.FindIndex(parts, p =>
-					p.Equals("checkers", StringComparison.OrdinalIgnoreCase));
-
-				if (checkersIndex >= 0 && checkersIndex + 1 < parts.Length)
-				{
-					// Get all parts after "checkers" as they represent the checker squares
-					string[] checkerSquares = parts.Skip(checkersIndex + 1).ToArray();
-					if (checkerSquares.Length > 0)
-					{
-						checkers = string.Join(" ", checkerSquares);
-					}
-				}
+				checkers = parts[1];
 			}
 
 			return checkers;
@@ -365,16 +344,39 @@ namespace Bezoro.UCI.API
 
 		private async Task<FenInfo> RenewFenCache(CancellationToken ct = default)
 		{
-			await _engine.WriteLineAsync("d", ct);
-			string result = await _engine.WaitForTokenAsync("Fen:", ct);
+			List<string> lines    = await _engine.SendCommandAndReadOutputAsync("d", ct);
+			var          fen      = "";
+			var          checkers = "";
 
-			// Remove the "Fen: " prefix if it exists
-			if (result.StartsWith("Fen: "))
+			foreach (string line in lines)
 			{
-				result = result[5..];
+				checkers = ParseCheckersInfo(line);
+				if (line.Contains("Fen:", StringComparison.OrdinalIgnoreCase))
+				{
+					// Find the actual position of "Fen:" (case-insensitive)
+					int fenIndex = line.IndexOf("Fen:", StringComparison.OrdinalIgnoreCase);
+					if (fenIndex >= 0)
+					{
+						// Extract everything after "Fen: " (including the space)
+						fen = line[(fenIndex + 5)..].Trim();
+					}
+				}
 			}
 
-			string[]? parts = result.Split(' ');
+			// Add validation to ensure we got a valid FEN
+			if (string.IsNullOrWhiteSpace(fen))
+			{
+				throw new InvalidOperationException("No valid FEN string found in engine output");
+			}
+
+			string[]? parts = fen.Split(' ');
+
+			// Validate FEN format
+			if (parts.Length != 6)
+			{
+				throw new InvalidOperationException(
+					$"Invalid FEN format: expected 6 parts, got {parts.Length}. FEN: '{fen}'");
+			}
 
 			_currentFenCache = new FenInfo(
 				parts[0],            // PiecePlacement
@@ -383,8 +385,9 @@ namespace Bezoro.UCI.API
 				parts[3],            // EnPassantTarget
 				int.Parse(parts[4]), // HalfmoveClock
 				int.Parse(parts[5]), // FullmoveNumber
-				result,              // Full FEN string
-				parts                // FEN parts array
+				fen,                 // Full FEN string
+				parts,               // FEN parts array
+				checkers
 			);
 
 			return _currentFenCache.Value;
@@ -403,10 +406,12 @@ namespace Bezoro.UCI.API
 			// Calculate moves for new position
 			Logger.LogInfo("Calculating legal moves for new position...", this, LogCategory.UCI);
 
-			List<string> legalMoves = await GetLegalMovesAsync(ct);
-			var          boardState = BoardStateParser.ParseFen(currentFen.Fen);
-			List<MoveClassification> classifiedMoves =
-				legalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
+			var legalMovesResult = await GetLegalMovesAsync(ct);
+			var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
+			List<MoveClassification> classifiedMoves = legalMovesResult.LegalMoves
+																	   .Select(move =>
+																		   MoveClassifier.ClassifyMove(move,
+																			   boardState)).ToList();
 
 			// Cache the results
 			_currentPositionMovesCache = classifiedMoves;
@@ -435,12 +440,9 @@ namespace Bezoro.UCI.API
 
 	public readonly record struct FenInfo(
 		string PiecePlacement, char ActiveColor, string CastlingRights,
-		string EnPassantTarget, int HalfmoveClock, int FullmoveNumber, string Fen, string[] FenParts);
+		string EnPassantTarget, int HalfmoveClock, int FullmoveNumber, string Fen, string[] FenParts, string Checkers);
 
-	public readonly record struct GOResult(string BestMove, string PonderMove, string Checkers, int? ScoreMate)
-	{
-		public bool IsCheck     => !string.IsNullOrEmpty(Checkers);
-		public bool IsCheckmate => ScoreMate == 0 && BestMove.IsNullOrEmpty();
-		public bool IsStalemate => BestMove.IsNullOrEmpty();
-	}
+	public readonly record struct GOResult(string BestMove, string PonderMove, int? ScoreMate);
+
+	public readonly record struct LegalMovesResult(IEnumerable<string> LegalMoves);
 }
