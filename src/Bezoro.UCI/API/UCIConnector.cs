@@ -329,7 +329,6 @@ namespace Bezoro.UCI.API
 			return null;
 		}
 
-		// TODO: Need to investigate
 		private static string ParseCheckersInfo(string line)
 		{
 			var checkers = string.Empty;
@@ -353,7 +352,6 @@ namespace Bezoro.UCI.API
 				checkers = ParseCheckersInfo(line);
 				if (line.Contains("Fen:", StringComparison.OrdinalIgnoreCase))
 				{
-					// Find the actual position of "Fen:" (case-insensitive)
 					int fenIndex = line.IndexOf("Fen:", StringComparison.OrdinalIgnoreCase);
 					if (fenIndex >= 0)
 					{
@@ -363,7 +361,6 @@ namespace Bezoro.UCI.API
 				}
 			}
 
-			// Add validation to ensure we got a valid FEN
 			if (string.IsNullOrWhiteSpace(fen))
 			{
 				throw new InvalidOperationException("No valid FEN string found in engine output");
@@ -371,7 +368,6 @@ namespace Bezoro.UCI.API
 
 			string[]? parts = fen.Split(' ');
 
-			// Validate FEN format
 			if (parts.Length != 6)
 			{
 				throw new InvalidOperationException(
