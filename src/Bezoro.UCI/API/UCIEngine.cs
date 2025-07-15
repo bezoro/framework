@@ -50,7 +50,7 @@ namespace Bezoro.UCI.API
 		public async Task<List<string>> SendCommandAndReadOutputAsync(
 			string command, CancellationToken ct = default)
 		{
-			string[] terminationTokens = [ "bestmove", "uciok", "readyok", "nodes searched" ];
+			string[] terminationTokens = [ "bestmove", "uciok", "readyok", "nodes searched", "checkers" ];
 			var      lines             = new List<string>();
 
 			await WriteLineAsync(command, ct);
