@@ -8,15 +8,24 @@ namespace Bezoro.Core.Common.Extensions
 		public static string Bold(this string text) =>
 			string.IsNullOrEmpty(text) ? "" : $"<b>{text}</b>";
 
-		public static string Bracketed(this string text, int padding = 0)
+		public static string Bracketed(this string text, int padding = 0, Color color = default, char bracket = '[')
 		{
 			if (string.IsNullOrWhiteSpace(text))
 			{
 				return string.Empty;
 			}
 
-			string paddedText = text.PadLeft(text.Length + padding).PadRight(text.Length + 2 * padding);
-			return $"[{paddedText}]";
+			char   closingBracket = GetClosingBracket(bracket);
+			string paddedText     = text.PadLeft(text.Length + padding).PadRight(text.Length + 2 * padding);
+
+			if (color == default)
+			{
+				return $"{bracket}{paddedText}{closingBracket}";
+			}
+
+			var colorTag      = $"<color=#{color.R:X2}{color.G:X2}{color.B:X2}>";
+			var closeColorTag = "</color>";
+			return $"{colorTag}{bracket}{closeColorTag}{paddedText}{colorTag}{closingBracket}{closeColorTag}";
 		}
 
 		public static string Capitalize(this string text) =>
@@ -76,5 +85,17 @@ namespace Bezoro.Core.Common.Extensions
 
 		public static string Uppercase(this string text) =>
 			text == null ? "" : text.ToUpper();
+
+		private static char GetClosingBracket(char openingBracket)
+		{
+			return openingBracket switch
+			{
+				'[' => ']',
+				'(' => ')',
+				'{' => '}',
+				'<' => '>',
+				_   => openingBracket // For symmetric brackets or custom characters
+			};
+		}
 	}
 }
