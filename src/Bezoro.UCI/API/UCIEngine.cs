@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
@@ -13,12 +14,12 @@ namespace Bezoro.UCI.API
 	public class UCIEngine : IAsyncDisposable
 	{
 		private readonly Process       _engineProcess;
-		private          bool          _isBusy;
-		private volatile bool          _isDisposed;
-		private          StreamReader? _output;
-		private          StreamWriter? _input;
+		private readonly SemaphoreSlim _ioLock = new(1, 1);
 
-		public event EventHandler<string>? InfoReceived;
+		private volatile bool _isDisposed;
+
+		private StreamReader? _output;
+		private StreamWriter? _input;
 
 		public UCIEngine(Process engineProcess)
 		{
@@ -28,93 +29,62 @@ namespace Bezoro.UCI.API
 		public async Task WriteLineAsync(string command, CancellationToken ct = default)
 		{
 			ThrowIfDisposed();
-			while (_isBusy)
+			await _ioLock.WaitAsync(ct);
+			try
 			{
-				await Task.Delay(100, ct);
+				await _input.WriteLineAsync(command);
+				Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
+				await _input.FlushAsync();
 			}
-
-			_isBusy = true;
-			await _input.WriteLineAsync(command);
-			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
-			await _input.FlushAsync();
-			_isBusy = false;
+			finally
+			{
+				_ioLock.Release();
+			}
 		}
 
-		/// <summary>
-		///     Sends a command to the UCI engine and reads all output lines until a termination token is found
-		/// </summary>
-		/// <param name="command">The command to send to the engine</param>
-		/// <param name="terminationTokens">Tokens that indicate end of output (defaults to UCI protocol tokens)</param>
-		/// <param name="ct">Cancellation token</param>
-		/// <returns>A list of output lines related to the command</returns>
 		public async Task<List<string>> SendCommandAndReadOutputAsync(
-			string command, CancellationToken ct = default)
+			string command,
+			CancellationToken ct = default)
 		{
-			string[] terminationTokens = [ "bestmove", "uciok", "readyok", "nodes searched", "checkers" ];
-			var      lines             = new List<string>();
+			string[] terminators = [ "bestmove", "uciok", "readyok", "nodes searched", "checkers" ];
 
-			await WriteLineAsync(command, ct);
-
-			_isBusy = true;
-
-			Logger.LogInfo($"Waiting for: {command.Bold()}", this, LogCategory.UCI);
-
-			while (true)
+			await _ioLock.WaitAsync(ct);
+			try
 			{
-				if (_isDisposed)
-				{
-					return lines;
-				}
+				await _input.WriteLineAsync(command);
+				Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
+				await _input.FlushAsync();
 
-				string? line = await _output.ReadLineAsync();
-				Logger.LogInfo($"[OUTPUT] {line.Bold()}");
-				lines.Add(line);
+				IReadOnlyList<string> lines = await ReadUntilAsync(
+					l => terminators.Any(t => l.Contains(t, StringComparison.OrdinalIgnoreCase)), ct);
 
-				foreach (string terminationToken in terminationTokens)
-				{
-					if (!line.Contains(terminationToken, StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
-
-					_isBusy = false;
-					Logger.LogInfo($"Received: {line.Bold()}", this, LogCategory.UCI);
-					return lines;
-				}
+				return [ ..lines ];
+			}
+			finally
+			{
+				_ioLock.Release();
 			}
 		}
 
-		public async Task<string> WaitForTokenAsync(string token, CancellationToken ct = default)
+		public async Task<string> WaitForTokenAsync(
+			string token,
+			CancellationToken ct = default)
 		{
-			if (_isDisposed)
+			if (_isDisposed) return string.Empty;
+
+			await _ioLock.WaitAsync(ct);
+			try
 			{
-				return string.Empty;
+				Logger.LogInfo($"Waiting for: {token.Bold()}", this, LogCategory.UCI);
+
+				IReadOnlyList<string> lines =
+					await ReadUntilAsync(l => l.Contains(token, StringComparison.OrdinalIgnoreCase), ct);
+
+				return lines.LastOrDefault(l => l.Contains(token, StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
 			}
-
-			while (_isBusy)
+			finally
 			{
-				await Task.Delay(100, ct);
-			}
-
-			_isBusy = true;
-			Logger.LogInfo($"Waiting for: {token.Bold()}", this, LogCategory.UCI);
-			while (true)
-			{
-				if (_isDisposed)
-				{
-					return "";
-				}
-
-				string? result = await _output.ReadLineAsync();
-				Logger.LogInfo($"[OUTPUT] {result.Bold()}");
-				if (!result.Contains(token, StringComparison.OrdinalIgnoreCase))
-				{
-					continue;
-				}
-
-				Logger.LogInfo($"Received: {result.Bold()}", this, LogCategory.UCI);
-				_isBusy = false;
-				return result;
+				_ioLock.Release();
 			}
 		}
 
@@ -125,6 +95,7 @@ namespace Bezoro.UCI.API
 				return;
 			}
 
+			_ioLock.Dispose();
 			_isDisposed = true;
 			_engineProcess.Dispose();
 			_input?.Dispose();
@@ -146,6 +117,33 @@ namespace Bezoro.UCI.API
 
 			_input  = _engineProcess.StandardInput;
 			_output = _engineProcess.StandardOutput;
+		}
+
+		/// <summary>
+		///     Core routine: reads lines until <paramref name="stopCondition" /> returns true,
+		///     the engine is disposed, EOF is reached or the operation is cancelled.
+		/// </summary>
+		private async Task<IReadOnlyList<string>> ReadUntilAsync(Func<string, bool> stopCondition, CancellationToken ct)
+		{
+			var lines = new List<string>();
+
+			while (!ct.IsCancellationRequested && !_isDisposed)
+			{
+				string? line = await _output.ReadLineAsync();
+				if (line is null) break;
+
+				Logger.LogInfo($"[OUTPUT] {line.Bold()}");
+				lines.Add(line);
+
+				if (stopCondition(line))
+				{
+					Logger.LogInfo($"Stop-condition satisfied by -> {line.Bold()}", this, LogCategory.UCI);
+
+					break;
+				}
+			}
+
+			return lines;
 		}
 
 		private void ThrowIfDisposed()
