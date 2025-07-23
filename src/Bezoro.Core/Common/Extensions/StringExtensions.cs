@@ -5,6 +5,12 @@ namespace Bezoro.Core.Common.Extensions
 {
 	public static class StringExtensions
 	{
+		public static bool IsEmpty(this string text) =>
+			text.AsSpan().Trim() == string.Empty;
+
+		public static bool IsNullOrEmpty(this string? text) =>
+			text == null || text.IsEmpty();
+
 		public static string Bold(this string text) =>
 			string.IsNullOrEmpty(text) ? "" : $"<b>{text}</b>";
 
