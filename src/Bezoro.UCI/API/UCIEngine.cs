@@ -1,157 +1,218 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
 
-namespace Bezoro.UCI.API
+namespace Bezoro.UCI.API;
+
+/// <summary>
+///     High-performance, thread–safe wrapper around a UCI engine process.
+/// </summary>
+public sealed class UCIEngine(Process process) : IAsyncDisposable
 {
+	private static readonly string[] DefaultTerminators =
+	[
+		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
+	];
+	private readonly Channel<string> _out
+		= Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+		{
+			SingleWriter                  = true,
+			AllowSynchronousContinuations = false
+		});
+
+	private readonly ConcurrentBag<PendingRequest> _pending = new();
+	private readonly Process                       _proc = process ?? throw new ArgumentNullException(nameof(process));
+	private readonly SemaphoreSlim                 _commandLock = new(1, 1);
+
+	private bool          _disposed;
+	private StreamWriter? _stdin;
+
 	/// <summary>
-	///     Handles the low-level communication with the UCI engine process
+	///     Waits until a line received from the engine contains the specified token
+	///     (case-insensitive).  No command is sent – the caller is expected to have
+	///     already issued the request that will eventually produce the token
+	///     (“uciok”, “readyok”, custom search id, …).
 	/// </summary>
-	public class UCIEngine : IAsyncDisposable
+	/// <param name="token">Substring that must appear in a single output line.</param>
+	/// <param name="ct">Cancellation token to abort the wait.</param>
+	public Task WaitForTokenAsync(string token, CancellationToken ct = default)
+		=> WaitForTokensAsync([ token ], ct);
+
+	/// <summary>
+	///     Same as <see cref="WaitForTokenAsync(string,System.Threading.CancellationToken)" />
+	///     but waits for any of the supplied tokens.
+	/// </summary>
+	public Task WaitForTokensAsync(string[] tokens, CancellationToken ct = default)
 	{
-		private readonly Process       _engineProcess;
-		private readonly SemaphoreSlim _ioLock = new(1, 1);
+		ThrowIfDisposed();
 
-		private volatile bool _isDisposed;
-
-		private StreamReader? _output;
-		private StreamWriter? _input;
-
-		public UCIEngine(Process engineProcess)
-		{
-			_engineProcess = engineProcess ?? throw new ArgumentNullException(nameof(engineProcess));
-		}
-
-		public async Task WriteLineAsync(string command, CancellationToken ct = default)
-		{
-			ThrowIfDisposed();
-			await _ioLock.WaitAsync(ct);
-			try
+		var req = new PendingRequest(
+			static (l, toks) =>
 			{
-				await _input.WriteLineAsync(command);
-				Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
-				await _input.FlushAsync();
-			}
-			finally
-			{
-				_ioLock.Release();
-			}
-		}
-
-		public async Task<List<string>> SendCommandAndReadOutputAsync(
-			string command,
-			CancellationToken ct = default)
-		{
-			string[] terminators = [ "bestmove", "uciok", "readyok", "nodes searched", "checkers" ];
-
-			await _ioLock.WaitAsync(ct);
-			try
-			{
-				await _input.WriteLineAsync(command);
-				Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
-				await _input.FlushAsync();
-
-				IReadOnlyList<string> lines = await ReadUntilAsync(
-					l => terminators.Any(t => l.Contains(t, StringComparison.OrdinalIgnoreCase)), ct);
-
-				return [ ..lines ];
-			}
-			finally
-			{
-				_ioLock.Release();
-			}
-		}
-
-		public async Task<string> WaitForTokenAsync(
-			string token,
-			CancellationToken ct = default)
-		{
-			if (_isDisposed) return string.Empty;
-
-			await _ioLock.WaitAsync(ct);
-			try
-			{
-				Logger.LogInfo($"Waiting for: {token.Bold()}", this, LogCategory.UCI);
-
-				IReadOnlyList<string> lines =
-					await ReadUntilAsync(l => l.Contains(token, StringComparison.OrdinalIgnoreCase), ct);
-
-				return lines.LastOrDefault(l => l.Contains(token, StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
-			}
-			finally
-			{
-				_ioLock.Release();
-			}
-		}
-
-		public async ValueTask DisposeAsync()
-		{
-			if (_isDisposed)
-			{
-				return;
-			}
-
-			_ioLock.Dispose();
-			_isDisposed = true;
-			_engineProcess.Dispose();
-			_input?.Dispose();
-			_output?.Dispose();
-			GC.SuppressFinalize(this);
-		}
-
-		public void Start()
-		{
-			if (_isDisposed)
-			{
-				throw new ObjectDisposedException(nameof(UCIEngine));
-			}
-
-			if (!_engineProcess.Start())
-			{
-				throw new InvalidOperationException("Failed to start the UCI engine process.");
-			}
-
-			_input  = _engineProcess.StandardInput;
-			_output = _engineProcess.StandardOutput;
-		}
-
-		/// <summary>
-		///     Core routine: reads lines until <paramref name="stopCondition" /> returns true,
-		///     the engine is disposed, EOF is reached or the operation is cancelled.
-		/// </summary>
-		private async Task<IReadOnlyList<string>> ReadUntilAsync(Func<string, bool> stopCondition, CancellationToken ct)
-		{
-			var lines = new List<string>();
-
-			while (!ct.IsCancellationRequested && !_isDisposed)
-			{
-				string? line = await _output.ReadLineAsync();
-				if (line is null) break;
-
-				Logger.LogInfo($"[OUTPUT] {line.Bold()}");
-				lines.Add(line);
-
-				if (stopCondition(line))
+				foreach (string t in toks)
 				{
-					Logger.LogInfo($"Stop-condition satisfied by -> {line.Bold()}", this, LogCategory.UCI);
-
-					break;
+					if (l.AsSpan().Contains(t.AsSpan(),
+							StringComparison.OrdinalIgnoreCase))
+						return true;
 				}
-			}
 
-			return lines;
+				return false;
+			},
+			tokens,
+			ct);
+
+		_pending.Add(req);
+		return req.Task;
+	}
+
+	public async Task<List<string>> SendCommandAndReadOutputAsync(
+		string command,
+		CancellationToken ct = default,
+		string[]? until = null)
+	{
+		ThrowIfDisposed();
+
+		await _commandLock.WaitAsync(ct).ConfigureAwait(false);
+
+		try
+		{
+			until ??= DefaultTerminators;
+			var req = new PendingRequest(
+				static (l, tokens) =>
+				{
+					foreach (string tok in tokens)
+					{
+						if (l.AsSpan().Contains(tok.AsSpan(),
+								StringComparison.OrdinalIgnoreCase))
+							return true;
+					}
+
+					return false;
+				},
+				until,
+				ct);
+
+			_pending.Add(req);
+
+			await WriteLineAsync(command, ct).ConfigureAwait(false);
+
+			return await req.Task.ConfigureAwait(false);
+		}
+		finally
+		{
+			_commandLock.Release();
+		}
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		try
+		{
+			_stdin?.Dispose();
+			_commandLock.Dispose();
+		}
+		catch
+		{
+			/* ignore */
 		}
 
-		private void ThrowIfDisposed()
+		try { _proc.Kill(); }
+		catch
 		{
-			if (_isDisposed)
+			/* already gone */
+		}
+
+		_out.Writer.TryComplete();
+
+		await Task.Run(() => _proc.WaitForExit()).ConfigureAwait(false); // no async API
+	}
+
+	public ValueTask WriteLineAsync(
+		string command,
+		CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
+		return new ValueTask(
+			_stdin!.WriteLineAsync(command).WaitAsync(ct)
+		);
+	}
+
+	public void Start()
+	{
+		ThrowIfDisposed();
+
+		_proc.Start();
+		_stdin = _proc.StandardInput;
+
+		_ = Task.Run(ReadLoop);
+	}
+
+	/* ----------------------------------------------------------------- Private */
+
+	private async Task ReadLoop()
+	{
+		using var stdout = _proc.StandardOutput;
+
+		while (!_disposed && await stdout.ReadLineAsync() is { } line)
+		{
+			Logger.LogInfo($"[OUTPUT] {line.Bold()}", this, LogCategory.UCI);
+
+			_out.Writer.TryWrite(line);
+
+			foreach (var req in _pending)
 			{
-				throw new ObjectDisposedException(nameof(UCIEngine));
+				if (req.TryAccept(line))
+					_pending.TryTake(out _);
 			}
+		}
+	}
+
+	private void ThrowIfDisposed()
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(UCIEngine));
+	}
+
+	private sealed class PendingRequest
+	{
+		private readonly CancellationTokenRegistration _ctr;
+		private readonly Func<string, string[], bool>  _stop;
+		private readonly List<string>                  _lines = [ ];
+		private readonly string[]                      _tokens;
+		private readonly TaskCompletionSource<List<string>> _tcs =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public PendingRequest(
+			Func<string, string[], bool> stop,
+			string[] tokens,
+			CancellationToken ct)
+		{
+			_stop   = stop;
+			_tokens = tokens;
+
+			_ctr = ct.Register(
+				static s => ((TaskCompletionSource<List<string>>)s!).TrySetCanceled(),
+				_tcs);
+		}
+
+		public Task<List<string>> Task => _tcs.Task;
+
+		public bool TryAccept(string line)
+		{
+			_lines.Add(line);
+			if (!_stop(line, _tokens)) return false;
+
+			_ctr.Dispose();
+			_tcs.TrySetResult(_lines);
+			return true;
 		}
 	}
 }
