@@ -368,7 +368,7 @@ public sealed class UCIConnector : IAsyncDisposable
 			}
 		}
 
-		if (fen.IsNullOrEmpty())
+		if (fen.IsNullOrEmpty() && !ct.IsCancellationRequested)
 		{
 			throw new InvalidOperationException("No valid FEN string found in engine output");
 		}
