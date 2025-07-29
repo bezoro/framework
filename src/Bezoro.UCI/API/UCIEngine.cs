@@ -19,15 +19,18 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
 	];
 	private readonly Channel<string> _out
-		= Channel.CreateUnbounded<string>(new UnboundedChannelOptions
-		{
-			SingleWriter                  = true,
-			AllowSynchronousContinuations = false
-		});
+		= Channel.CreateUnbounded<string>(
+			new UnboundedChannelOptions
+			{
+				SingleWriter                  = true,
+				AllowSynchronousContinuations = false
+			});
 
-	private readonly ConcurrentBag<PendingRequest> _pending = new();
-	private readonly Process                       _proc = process ?? throw new ArgumentNullException(nameof(process));
-	private readonly SemaphoreSlim                 _commandLock = new(1, 1);
+	private readonly ConcurrentDictionary<PendingRequest, byte> _pending = new();
+
+	private readonly ConcurrentQueue<string> _history     = new();
+	private readonly Process                 _proc        = process ?? throw new ArgumentNullException(nameof(process));
+	private readonly SemaphoreSlim           _commandLock = new(1, 1);
 
 	private bool          _disposed;
 	private StreamWriter? _stdin;
@@ -56,8 +59,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			{
 				foreach (string t in toks)
 				{
-					if (l.AsSpan().Contains(t.AsSpan(),
-							StringComparison.OrdinalIgnoreCase))
+					if (l.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
 						return true;
 				}
 
@@ -66,14 +68,18 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			tokens,
 			ct);
 
-		_pending.Add(req);
+		foreach (string line in _history)
+		{
+			if (req.TryAccept(line))
+				return req.Task;
+		}
+
+		_pending.TryAdd(req, 0);
 		return req.Task;
 	}
 
 	public async Task<List<string>> SendCommandAndReadOutputAsync(
-		string command,
-		CancellationToken ct = default,
-		string[]? until = null)
+		string command, CancellationToken ct = default, string[]? until = null)
 	{
 		ThrowIfDisposed();
 
@@ -87,7 +93,8 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				{
 					foreach (string tok in tokens)
 					{
-						if (l.AsSpan().Contains(tok.AsSpan(),
+						if (l.AsSpan().Contains(
+								tok.AsSpan(),
 								StringComparison.OrdinalIgnoreCase))
 							return true;
 					}
@@ -97,7 +104,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				until,
 				ct);
 
-			_pending.Add(req);
+			_pending.TryAdd(req, 0);
 
 			await WriteLineAsync(command, ct).ConfigureAwait(false);
 
@@ -132,11 +139,11 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 		_out.Writer.TryComplete();
 
-		await Task.Run(() => _proc.WaitForExit()).ConfigureAwait(false); // no async API
+		await Task.Run(() => _proc.WaitForExit()).ConfigureAwait(false);
 	}
 
 	public ValueTask WriteLineAsync(
-		string command,
+		string            command,
 		CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -156,8 +163,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		_ = Task.Run(ReadLoop);
 	}
 
-	/* ----------------------------------------------------------------- Private */
-
 	private async Task ReadLoop()
 	{
 		using var stdout = _proc.StandardOutput;
@@ -166,12 +171,17 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			Logger.LogInfo($"[OUTPUT] {line.Bold()}", this, LogCategory.UCI);
 
+			_history.Enqueue(line);
+			if (_history.Count > 1_000)
+				_history.TryDequeue(out _);
+
 			_out.Writer.TryWrite(line);
 
-			foreach (var req in _pending)
+			foreach (KeyValuePair<PendingRequest, byte> kvp in _pending)
 			{
+				var req = kvp.Key;
 				if (req.TryAccept(line))
-					_pending.TryTake(out _);
+					_pending.TryRemove(req, out _);
 			}
 		}
 	}
@@ -192,8 +202,8 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 		public PendingRequest(
 			Func<string, string[], bool> stop,
-			string[] tokens,
-			CancellationToken ct)
+			string[]                     tokens,
+			CancellationToken            ct)
 		{
 			_stop   = stop;
 			_tokens = tokens;
