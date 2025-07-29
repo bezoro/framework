@@ -26,6 +26,7 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private bool                      _started;
 	private FenInfo?                  _currentFenCache;
+	private GOResult?                 _goResultCache;
 	private List<MoveClassification>? _currentPositionMovesCache;
 
 	public event Action<(string best, string ponder)>? BestMoveFound;
@@ -149,14 +150,23 @@ public sealed class UCIConnector : IAsyncDisposable
 
 		if (_currentFenCache.HasValue)
 		{
+			Logger.LogInfo($"Returning cached FEN: {_currentFenCache}", this, LogCategory.UCI);
+			;
 			return _currentFenCache.Value;
 		}
 
 		return await RenewFenCache(ct);
 	}
 
-	public async Task<GOResult> GO(int depth = 5, CancellationToken ct = default)
+	public async Task<GOResult?> GO(int depth = 5, CancellationToken ct = default)
 	{
+		if (_goResultCache.HasValue)
+		{
+			Logger.LogInfo($"Returning cached GO result: {_goResultCache}", this, LogCategory.UCI);
+			;
+			return _goResultCache.Value;
+		}
+
 		List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
 
 		var  bestMove   = string.Empty;
@@ -180,7 +190,7 @@ public sealed class UCIConnector : IAsyncDisposable
 			}
 		}
 
-		return new GOResult(bestMove, ponderMove, scoreMate);
+		return _goResultCache = new GOResult(bestMove, ponderMove, scoreMate);
 	}
 
 	public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
@@ -247,19 +257,14 @@ public sealed class UCIConnector : IAsyncDisposable
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		if (_isDisposed)
-		{
-			return;
-		}
+		if (_isDisposed) return;
 
 		_isDisposing = true;
 
 		try
 		{
 			if (_started)
-			{
 				await QuitEngineAsync();
-			}
 
 			await _engine.DisposeAsync();
 		}
@@ -394,29 +399,30 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private async Task<List<MoveClassification>> GetCurrentPositionMovesAsync(CancellationToken ct = default)
 	{
-		var currentFen = await GetCurrentFenAsync(ct);
-
 		// If we have moves cached for this exact position, return them
-		if (_currentPositionMovesCache != null && _currentFenCache == currentFen)
+		if (_currentPositionMovesCache != null)
 		{
+			Logger.LogInfo(
+				$"Returning cached moves for position: {_currentPositionMovesCache.PrettyJoin()}",
+				this,
+				LogCategory.UCI);
+
 			return _currentPositionMovesCache;
 		}
 
 		// Calculate moves for new position
 		Logger.LogInfo("Calculating legal moves for new position...", this, LogCategory.UCI);
 
+		var currentFen       = await GetCurrentFenAsync(ct);
 		var legalMovesResult = await GetLegalMovesAsync(ct);
 		var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
 		List<MoveClassification> classifiedMoves = legalMovesResult.LegalMoves
 																   .Select(
-																	   move =>
-																		   MoveClassifier.ClassifyMove(
-																			   move,
-																			   boardState)).ToList();
+																	   move => MoveClassifier.ClassifyMove(
+																		   move,
+																		   boardState)).ToList();
 
-		// Cache the results
 		_currentPositionMovesCache = classifiedMoves;
-		_currentFenCache           = currentFen;
 
 		Logger.LogInfo($"Cached {classifiedMoves.Count} legal moves for position", this, LogCategory.UCI);
 
@@ -427,6 +433,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		_currentPositionMovesCache = null;
 		_currentFenCache           = null;
+		_goResultCache             = null;
 	}
 
 	private void ThrowIfDisposed()
@@ -445,4 +452,5 @@ public readonly record struct FenInfo(
 	string EnPassantTarget, int  HalfmoveClock, int    FullmoveNumber, string Fen, string[] FenParts, string Checkers);
 
 public readonly record struct GOResult(string BestMove, string PonderMove, int? ScoreMate);
+
 public readonly record struct LegalMovesResult(IEnumerable<string> LegalMoves);
