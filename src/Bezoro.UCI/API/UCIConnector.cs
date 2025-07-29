@@ -343,7 +343,7 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private async Task<FenInfo> RenewFenCache(CancellationToken ct = default)
 	{
-		List<string> lines    = await _engine.SendCommandAndReadOutputAsync("d", ct);
+		List<string> lines    = await _engine.SendCommandAndReadOutputAsync("d", ct, [ "checkers" ]);
 		var          fen      = "";
 		var          checkers = "";
 
@@ -361,17 +361,12 @@ public sealed class UCIConnector : IAsyncDisposable
 			if (start < line.Length && line[start] == ':')
 				start++;
 
-			string candidate = line[start..].Trim();
-			if (!string.IsNullOrWhiteSpace(candidate))
-			{
-				fen = candidate;
-			}
+			string candidate                               = line[start..].Trim();
+			if (!string.IsNullOrWhiteSpace(candidate)) fen = candidate;
 		}
 
-		if (fen.IsNullOrEmpty() && !ct.IsCancellationRequested)
-		{
+		if (fen.IsNullOrEmpty())
 			throw new InvalidOperationException("No valid FEN string found in engine output");
-		}
 
 		string[]? parts = fen.Split(' ');
 
@@ -413,9 +408,11 @@ public sealed class UCIConnector : IAsyncDisposable
 		var legalMovesResult = await GetLegalMovesAsync(ct);
 		var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
 		List<MoveClassification> classifiedMoves = legalMovesResult.LegalMoves
-																   .Select(move =>
-																	   MoveClassifier.ClassifyMove(move,
-																		   boardState)).ToList();
+																   .Select(
+																	   move =>
+																		   MoveClassifier.ClassifyMove(
+																			   move,
+																			   boardState)).ToList();
 
 		// Cache the results
 		_currentPositionMovesCache = classifiedMoves;
@@ -436,15 +433,16 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		if (_isDisposed || _isDisposing)
 		{
-			throw new ObjectDisposedException(nameof(UCIConnector),
+			throw new ObjectDisposedException(
+				nameof(UCIConnector),
 				"Cannot use a disposed UCIConnector. Make sure you haven't called DisposeAsync()");
 		}
 	}
 }
 
 public readonly record struct FenInfo(
-	string PiecePlacement, char ActiveColor, string CastlingRights,
-	string EnPassantTarget, int HalfmoveClock, int FullmoveNumber, string Fen, string[] FenParts, string Checkers);
+	string PiecePlacement,  char ActiveColor,   string CastlingRights,
+	string EnPassantTarget, int  HalfmoveClock, int    FullmoveNumber, string Fen, string[] FenParts, string Checkers);
 
 public readonly record struct GOResult(string BestMove, string PonderMove, int? ScoreMate);
 public readonly record struct LegalMovesResult(IEnumerable<string> LegalMoves);
