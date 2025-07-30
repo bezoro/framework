@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -24,10 +25,10 @@ public sealed class UCIConnector : IAsyncDisposable
 	private volatile bool _isDisposed;
 	private volatile bool _isDisposing;
 
-	private bool                      _started;
-	private FenInfo?                  _currentFenCache;
-	private GOResult?                 _goResultCache;
-	private List<MoveClassification>? _currentPositionMovesCache;
+	private bool                                 _started;
+	private ConcurrentDictionary<int, GOResult?> _goResultCache = new();
+	private FenInfo?                             _currentFenCache;
+	private List<MoveClassification>?            _currentPositionMovesCache = new();
 
 	public event Action<(string best, string ponder)>? BestMoveFound;
 	public event Action?                               EngineStarted;
@@ -160,11 +161,10 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	public async Task<GOResult?> GO(int depth = 5, CancellationToken ct = default)
 	{
-		if (_goResultCache.HasValue)
+		if (_goResultCache.TryGetValue(depth, out GOResult? cached) && cached.HasValue)
 		{
-			Logger.LogInfo($"Returning cached GO result: {_goResultCache}", this, LogCategory.UCI);
-			;
-			return _goResultCache.Value;
+			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
+			return cached;
 		}
 
 		List<string> lines = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
@@ -190,7 +190,8 @@ public sealed class UCIConnector : IAsyncDisposable
 			}
 		}
 
-		return _goResultCache = new GOResult(bestMove, ponderMove, scoreMate);
+		var result = new GOResult(bestMove, ponderMove, scoreMate);
+		return _goResultCache[depth] = result;
 	}
 
 	public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
@@ -400,7 +401,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	private async Task<List<MoveClassification>> GetCurrentPositionMovesAsync(CancellationToken ct = default)
 	{
 		// If we have moves cached for this exact position, return them
-		if (_currentPositionMovesCache != null)
+		if (!_currentPositionMovesCache.IsNullOrEmpty())
 		{
 			Logger.LogInfo(
 				$"Returning cached moves for position: {_currentPositionMovesCache.PrettyJoin()}",
@@ -431,9 +432,9 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private void ClearPositionCaches()
 	{
-		_currentPositionMovesCache = null;
+		_currentPositionMovesCache?.Clear();
 		_currentFenCache           = null;
-		_goResultCache             = null;
+		_goResultCache.Clear();
 	}
 
 	private void ThrowIfDisposed()
