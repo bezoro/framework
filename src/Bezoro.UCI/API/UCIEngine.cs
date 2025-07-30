@@ -142,9 +142,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		await Task.Run(() => _proc.WaitForExit()).ConfigureAwait(false);
 	}
 
-	public ValueTask WriteLineAsync(
-		string            command,
-		CancellationToken ct = default)
+	public ValueTask WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 		Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
