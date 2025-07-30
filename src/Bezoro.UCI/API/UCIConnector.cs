@@ -96,6 +96,12 @@ public sealed class UCIConnector : IAsyncDisposable
 		await _engine.WaitForTokenAsync(token, ct);
 	}
 
+	public async Task PonderHit(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		await _engine.WriteLineAsync("ponderhit", ct);
+	}
+	
 	public async Task WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
