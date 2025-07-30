@@ -31,8 +31,8 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	private readonly ConcurrentQueue<string> _history     = new();
 	private readonly Process                 _proc        = process ?? throw new ArgumentNullException(nameof(process));
 	private readonly SemaphoreSlim           _commandLock = new(1, 1);
+	private          int                     _disposed;
 
-	private bool          _disposed;
 	private StreamWriter? _stdin;
 
 	/// <summary>
@@ -118,28 +118,47 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	public async ValueTask DisposeAsync()
 	{
-		if (_disposed) return;
-		_disposed = true;
+		// Bail out if another thread already disposed
+		if (Interlocked.Exchange(ref _disposed, 1) == 1)
+			return;
 
+		Exception? firstError = null;
+
+		// 1) Dispose managed resources
 		try
 		{
-			_stdin?.Dispose();
+			if (_stdin is not null)
+				await _stdin.DisposeAsync().ConfigureAwait(false);
+
 			_commandLock.Dispose();
+			_pending.Clear();
+			_history.Clear();
+			_out.Writer.TryComplete();
+			await _out.Reader.Completion.ConfigureAwait(false);
 		}
-		catch
-		{
-			/* ignore */
-		}
+		catch (Exception ex) { firstError ??= ex; }
 
-		try { _proc.Kill(); }
-		catch
+		// 2) Terminate the external process
+		try
 		{
-			/* already gone */
-		}
+			if (!_proc.HasExited)
+			{
+				try { _proc.Kill(); }
+				catch
+				{
+					/* ignore */
+				}
 
+				await Task.Run(_proc.WaitForExit).ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex) { firstError ??= ex; }
+
+		// 3) Finalise the channel (harmless if already done)
 		_out.Writer.TryComplete();
 
-		await Task.Run(() => _proc.WaitForExit()).ConfigureAwait(false);
+		if (firstError is not null)
+			throw firstError;
 	}
 
 	public ValueTask WriteLineAsync(string command, CancellationToken ct = default)
@@ -165,7 +184,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	{
 		using var stdout = _proc.StandardOutput;
 
-		while (!_disposed && await stdout.ReadLineAsync() is { } line)
+		while (!_disposed.IsPositive() && await stdout.ReadLineAsync() is { } line)
 		{
 			Logger.LogInfo($"[OUTPUT] {line.Bold()}", this, LogCategory.UCI);
 
@@ -186,7 +205,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	private void ThrowIfDisposed()
 	{
-		if (_disposed) throw new ObjectDisposedException(nameof(UCIEngine));
+		if (_disposed.IsPositive()) throw new ObjectDisposedException(nameof(UCIEngine));
 	}
 
 	private sealed class PendingRequest
