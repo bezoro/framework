@@ -192,6 +192,13 @@ public sealed class UCIConnector : IAsyncDisposable
 		return _goResultCache[1] = result;
 	}
 
+	public async Task<GOResult?> StartSearchForSecondsAsync(int seconds, CancellationToken ct = default)
+	{
+		int          milliSeconds = seconds * 1000;
+		List<string> lines        = await _engine.SendCommandAndReadOutputAsync($"go movetime {milliSeconds}", ct);
+		return ParseLinesAndBuildGOResult(lines);
+	}
+
 	public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 		string square, CancellationToken ct = default)
 	{
