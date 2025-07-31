@@ -54,11 +54,12 @@
 
 		#region Path and Directory Names
 
-		public const string ASSET_PATH          = "Assets";
+		public const string ASSETS              = "Assets";
 		public const string BEZORO              = "Bezoro";
 		public const string PROJECT_FOLDER_NAME = "_Project";
 		public const string RESOURCES           = "Resources";
 		public const string RUNTIME             = "Runtime";
+		public const string PROJECT_SETTINGS    = "ProjectSettings";
 
 		#endregion
 
