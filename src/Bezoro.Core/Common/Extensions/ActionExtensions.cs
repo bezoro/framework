@@ -4,7 +4,7 @@ namespace Bezoro.Core.Common.Extensions;
 
 public static class ActionExtensions
 {
-	public static void SafeInvoke(Action? handler)
+	public static void SafeInvoke(this Action? handler)
 	{
 		if (handler == null) return;
 
