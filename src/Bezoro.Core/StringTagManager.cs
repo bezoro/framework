@@ -20,18 +20,17 @@ public static class StringTags
 	/// </summary>
 	public static string Process(string input)
 	{
-		if (string.IsNullOrEmpty(input))
-		{
-			return input;
-		}
+		if (string.IsNullOrEmpty(input)) return input;
 
-		return _tagPattern.Replace(input, match =>
-		{
-			string tagName = match.Groups[1].Value;
-			return _tags.TryGetValue(tagName, out Func<object>? provider)
-				? provider()?.ToString() ?? string.Empty
-				: match.Value;
-		});
+		return _tagPattern.Replace(
+			input,
+			match =>
+			{
+				string tagName = match.Groups[1].Value;
+				return _tags.TryGetValue(tagName, out var provider)
+						   ? provider()?.ToString() ?? string.Empty
+						   : match.Value;
+			});
 	}
 
 	/// <summary>

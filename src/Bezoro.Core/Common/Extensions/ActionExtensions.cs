@@ -9,6 +9,7 @@ public static class ActionExtensions
 		if (handler == null) return;
 
 		foreach (var d in handler.GetInvocationList())
+		{
 			try
 			{
 				((Action)d)();
@@ -17,5 +18,6 @@ public static class ActionExtensions
 			{
 				Logger.LogException(ex);
 			}
+		}
 	}
 }

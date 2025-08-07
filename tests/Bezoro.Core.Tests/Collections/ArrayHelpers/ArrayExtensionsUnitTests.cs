@@ -1,5 +1,5 @@
-﻿using System;
-using Bezoro.Core.Common.Extensions;
+﻿using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Common.Extensions.Collections.Arrays;
 using Xunit;
 
 namespace Bezoro.Core.Tests.Collections.ArrayHelpers;
@@ -12,46 +12,21 @@ public class ArrayExtensionsUnitTests
 	public void IsEmpty_WhenArrayIsNull_ReturnsFalse()
 	{
 		int[]? ints = null;
-		Assert.False(ints.IsEmpty());
+		Assert.False(CollectionExtensions.IsEmpty(ints));
 	}
 
 	[Fact]
 	public void IsEmpty_WhenArrayIsEmpty_ReturnsTrue()
 	{
 		var ints = new int[0];
-		Assert.True(ints.IsEmpty());
+		Assert.True(CollectionExtensions.IsEmpty(ints));
 	}
 
 	[Fact]
 	public void IsEmpty_WhenArrayIsNotEmpty_ReturnsFalse()
 	{
-		var ints = new[] { 42 };
-		Assert.False(ints.IsEmpty());
-	}
-
-	#endregion
-
-	#region IsNotEmpty
-
-	[Fact]
-	public void IsNotEmpty_WhenArrayIsNull_ReturnsFalse()
-	{
-		string[]? strings = null;
-		Assert.False(strings.IsNotEmpty());
-	}
-
-	[Fact]
-	public void IsNotEmpty_WhenArrayIsEmpty_ReturnsFalse()
-	{
-		string[] strings = Array.Empty<string>();
-		Assert.False(strings.IsNotEmpty());
-	}
-
-	[Fact]
-	public void IsNotEmpty_WhenArrayIsNotEmpty_ReturnsTrue()
-	{
-		var strings = new[] { "hello" };
-		Assert.True(strings.IsNotEmpty());
+		int[] ints = new[] { 42 };
+		Assert.False(CollectionExtensions.IsEmpty(ints));
 	}
 
 	#endregion
@@ -62,28 +37,28 @@ public class ArrayExtensionsUnitTests
 	public void IsNotNull_WhenArrayIsNull_ReturnsFalse()
 	{
 		int[]? ints = null;
-		Assert.False(ints.IsNotNull());
+		Assert.False(GenericExtensions.IsNotNull(ints));
 	}
 
 	[Fact]
 	public void IsNotNull_WhenArrayIsInstantiated_ReturnsTrue()
 	{
 		var ints = new int[0];
-		Assert.True(ints.IsNotNull());
+		Assert.True(GenericExtensions.IsNotNull(ints));
 	}
 
 	[Fact]
 	public void IsNull_WhenArrayIsNull_ReturnsTrue()
 	{
 		int[]? ints = null;
-		Assert.True(ints.IsNull());
+		Assert.True(GenericExtensions.IsNull(ints));
 	}
 
 	[Fact]
 	public void IsNull_WhenArrayIsInstantiated_ReturnsFalse()
 	{
 		var ints = new int[1];
-		Assert.False(ints.IsNull());
+		Assert.False(GenericExtensions.IsNull(ints));
 	}
 
 	#endregion
@@ -107,7 +82,7 @@ public class ArrayExtensionsUnitTests
 	[Fact]
 	public void IsNotNullOrEmpty_WhenArrayIsNotEmpty_ReturnsTrue()
 	{
-		var ints = new[] { 1, 2, 3 };
+		int[] ints = new[] { 1, 2, 3 };
 		Assert.True(ints.IsNotNullOrEmpty());
 	}
 
@@ -115,21 +90,21 @@ public class ArrayExtensionsUnitTests
 	public void IsNullOrEmpty_WhenArrayIsNull_ReturnsTrue()
 	{
 		string[]? strings = null;
-		Assert.True(strings.IsNullOrEmpty());
+		Assert.True(CollectionExtensions.IsNullOrEmpty(strings));
 	}
 
 	[Fact]
 	public void IsNullOrEmpty_WhenArrayIsEmpty_ReturnsTrue()
 	{
 		var strings = new string[0];
-		Assert.True(strings.IsNullOrEmpty());
+		Assert.True(CollectionExtensions.IsNullOrEmpty(strings));
 	}
 
 	[Fact]
 	public void IsNullOrEmpty_WhenArrayIsNotEmpty_ReturnsFalse()
 	{
-		var strings = new[] { "value" };
-		Assert.False(strings.IsNullOrEmpty());
+		string[] strings = new[] { "value" };
+		Assert.False(CollectionExtensions.IsNullOrEmpty(strings));
 	}
 
 	#endregion

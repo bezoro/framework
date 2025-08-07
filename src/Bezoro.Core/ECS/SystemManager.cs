@@ -1,20 +1,16 @@
 using System.Collections.Generic;
 
-namespace Bezoro.Core.ECS
+namespace Bezoro.Core.ECS;
+
+public class SystemManager
 {
-	public class SystemManager
+	private readonly List<ISystem> systems = new();
+
+	public void RegisterSystem(ISystem system) =>
+		systems.Add(system);
+
+	public void UpdateAll()
 	{
-		private readonly List<ISystem> systems = new();
-
-		public void RegisterSystem(ISystem system) =>
-			systems.Add(system);
-
-		public void UpdateAll()
-		{
-			foreach (ISystem? system in systems)
-			{
-				system.Update();
-			}
-		}
+		foreach (var system in systems) system.Update();
 	}
 }

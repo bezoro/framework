@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Bezoro.Core.Common.Enums;
 using Bezoro.Core.Common.Helpers;
 using Xunit;
 using Array = System.Array;
@@ -12,7 +13,7 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenArrayContainsDuplicateElements_ThenFirstOccurrenceIsRemoved()
 	{
 		// Arrange
-		var       array           = new[] { 1, 2, 3, 3, 4, 5 };
+		int[]     array           = new[] { 1, 2, 3, 3, 4, 5 };
 		const int elementToRemove = 3;
 
 		// Act
@@ -70,7 +71,7 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenArraySizeIsBelowThreshold_ThenTargetElementIsRemoved()
 	{
 		// Arrange
-		var       array           = new[] { 1, 2, 3, 4, 5 };
+		int[]     array           = new[] { 1, 2, 3, 4, 5 };
 		const int elementToRemove = 3;
 
 		// Act
@@ -84,7 +85,7 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenElementNotFoundInArray_ThenArrayRemainsUnchanged()
 	{
 		// Arrange
-		var       array             = new[] { 1, 2, 3, 4, 5 };
+		int[]     array             = new[] { 1, 2, 3, 4, 5 };
 		const int elementNotInArray = 6;
 		int       initialLength     = array.Length;
 
@@ -115,18 +116,20 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenRemovalApproachIsInvalid_ThenThrowsArgumentOutOfRangeException()
 	{
 		// Arrange
-		var array           = new[] { 10, 20, 30 }; // Small array to ensure sequential path
-		var elementToRemove = 20;
+		int[] array           = new[] { 10, 20, 30 }; // Small array to ensure sequential path
+		var   elementToRemove = 20;
 
 		// Use an integer value that is not a defined member of the Enums for removalApproach
 		// This simulates an invalid enum value being passed.
-		var invalidApproach = (Enums)int.MaxValue;
+		var invalidApproach = (RemovalApproach)int.MaxValue;
 
 		// Act & Assert
 		// We expect an ArgumentOutOfRangeException when the default case in the switch statement is hit.
-		Assert.Throws<ArgumentOutOfRangeException>(
-			() =>
-				ArrayHelper.RemoveElement(ref array, elementToRemove, invalidApproach)
+		Assert.Throws<ArgumentOutOfRangeException>(() =>
+													   ArrayHelper.RemoveElement(
+														   ref array,
+														   elementToRemove,
+														   invalidApproach)
 		);
 	}
 
@@ -134,7 +137,7 @@ public class ArrayRemoveElementUnitTests
 	public void RemoveElement_WhenRemovalApproachIsResize_ThenElementIsRemovedAndArrayIsResized()
 	{
 		// Arrange
-		var       array           = new[] { 1, 2, 3, 4, 5 };
+		int[]     array           = new[] { 1, 2, 3, 4, 5 };
 		const int elementToRemove = 3;
 
 		// Act
@@ -154,7 +157,7 @@ public class ArrayRemoveElementUnitTests
 		const int elementToRemove = 3;
 
 		// Act
-		ArrayHelper.RemoveElement(ref array, elementToRemove, Enums.SetToNull);
+		ArrayHelper.RemoveElement(ref array, elementToRemove, RemovalApproach.SetToNull);
 
 		// Assert
 		Assert.Equal(new int?[] { 1, 2, null, 4, 5 }, array);

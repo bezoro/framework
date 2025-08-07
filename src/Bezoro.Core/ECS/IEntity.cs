@@ -1,7 +1,6 @@
-namespace Bezoro.Core.ECS
+namespace Bezoro.Core.ECS;
+
+public interface IEntity
 {
-	public interface IEntity
-	{
-		int Id { get; }
-	}
+	int Id { get; }
 }
