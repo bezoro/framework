@@ -20,13 +20,13 @@ public class ArrayInitializeNullUnitTests
 	{
 		// Arrange
 		int[]? nullArray    = null;
-		var    nonNullArray = new[] { 1, 2, 3 };
+		int[]? nonNullArray = new[] { 1, 2, 3 };
 
 		int[] originalNonNullReference = nonNullArray;
 
 		// Act
-		ArrayHelper.InitializeNullArray(ref nullArray);
-		ArrayHelper.InitializeNullArray(ref nonNullArray);
+		ArrayHelper.InitializeNullArray(ref nullArray,    1);
+		ArrayHelper.InitializeNullArray(ref nonNullArray, 1);
 
 		// Assert
 		Assert.NotNull(nullArray);
@@ -38,7 +38,7 @@ public class ArrayInitializeNullUnitTests
 	public void InitializeNullArray_WhenInputArrayProvided_ThenReturnsExpectedResult(int[]? input, int[] expected)
 	{
 		// Act
-		ArrayHelper.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input, 1);
 
 		// Assert
 		Assert.Equal(expected, input);
@@ -51,7 +51,7 @@ public class ArrayInitializeNullUnitTests
 		int[] input = Array.Empty<int>();
 
 		// Act
-		ArrayHelper.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input, 1);
 
 		// Assert
 		Assert.NotNull(input);
@@ -62,11 +62,11 @@ public class ArrayInitializeNullUnitTests
 	public void InitializeNullArray_WhenInputIsNotNull_ThenContentsRemainUnchanged()
 	{
 		// Arrange
-		var input    = new[] { 1, 2, 3 };
-		var expected = new[] { 1, 2, 3 };
+		int[]? input    = new[] { 1, 2, 3 };
+		int[]  expected = new[] { 1, 2, 3 };
 
 		// Act
-		ArrayHelper.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input, 1);
 
 		// Assert
 		Assert.Equal(expected, input);
@@ -79,7 +79,7 @@ public class ArrayInitializeNullUnitTests
 		int[]? input = null;
 
 		// Act
-		ArrayHelper.InitializeNullArray(ref input);
+		ArrayHelper.InitializeNullArray(ref input, 1);
 
 		// Assert
 		Assert.NotNull(input);

@@ -44,22 +44,13 @@ public static class FloatComparer
 	public static bool AreEqual(float a, float b, float epsilon = DefaultFloatEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (float.IsNaN(a) || float.IsNaN(b))
-		{
-			return false;
-		}
+		if (float.IsNaN(a) || float.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (float.IsInfinity(a) || float.IsInfinity(b))
-		{
-			return false;
-		}
+		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
 
 		return Math.Abs(a - b) < epsilon;
 	}
@@ -75,22 +66,13 @@ public static class FloatComparer
 	public static bool AreEqualRelative(float a, float b, float relativeEpsilon = DefaultRelativeEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (float.IsNaN(a) || float.IsNaN(b))
-		{
-			return false;
-		}
+		if (float.IsNaN(a) || float.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (float.IsInfinity(a) || float.IsInfinity(b))
-		{
-			return false;
-		}
+		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
 
 		float diff    = Math.Abs(a - b);
 		float largest = Math.Max(Math.Abs(a), Math.Abs(b));
@@ -108,35 +90,24 @@ public static class FloatComparer
 	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-5f)</param>
 	/// <returns>True if the values are considered equal</returns>
 	public static bool AreEqualRobust(
-		float a, float b,
+		float a,
+		float b,
 		float absoluteEpsilon = DefaultFloatEpsilon,
 		float relativeEpsilon = DefaultRelativeEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (float.IsNaN(a) || float.IsNaN(b))
-		{
-			return false;
-		}
+		if (float.IsNaN(a) || float.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (float.IsInfinity(a) || float.IsInfinity(b))
-		{
-			return false;
-		}
+		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
 
 		float diff = Math.Abs(a - b);
 
 		// Use absolute epsilon for numbers close to zero
-		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon)
-		{
-			return diff < absoluteEpsilon;
-		}
+		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon) return diff < absoluteEpsilon;
 
 		// Use relative epsilon for larger numbers
 		float largest = Math.Max(Math.Abs(a), Math.Abs(b));
@@ -187,22 +158,13 @@ public static class FloatComparer
 	public static bool AreEqual(double a, double b, double epsilon = DefaultDoubleEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (double.IsNaN(a) || double.IsNaN(b))
-		{
-			return false;
-		}
+		if (double.IsNaN(a) || double.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (double.IsInfinity(a) || double.IsInfinity(b))
-		{
-			return false;
-		}
+		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
 		return Math.Abs(a - b) < epsilon;
 	}
@@ -218,22 +180,13 @@ public static class FloatComparer
 	public static bool AreEqualRelative(double a, double b, double relativeEpsilon = DefaultDoubleRelativeEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (double.IsNaN(a) || double.IsNaN(b))
-		{
-			return false;
-		}
+		if (double.IsNaN(a) || double.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (double.IsInfinity(a) || double.IsInfinity(b))
-		{
-			return false;
-		}
+		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
 		double diff    = Math.Abs(a - b);
 		double largest = Math.Max(Math.Abs(a), Math.Abs(b));
@@ -251,35 +204,24 @@ public static class FloatComparer
 	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-14)</param>
 	/// <returns>True if the values are considered equal</returns>
 	public static bool AreEqualRobust(
-		double a, double b,
+		double a,
+		double b,
 		double absoluteEpsilon = DefaultDoubleEpsilon,
 		double relativeEpsilon = DefaultDoubleRelativeEpsilon)
 	{
 		// Handle exact matches, infinities, and NaN
-		if (a == b)
-		{
-			return true;
-		}
+		if (a == b) return true;
 
 		// Handle NaN cases
-		if (double.IsNaN(a) || double.IsNaN(b))
-		{
-			return false;
-		}
+		if (double.IsNaN(a) || double.IsNaN(b)) return false;
 
 		// Handle infinity cases
-		if (double.IsInfinity(a) || double.IsInfinity(b))
-		{
-			return false;
-		}
+		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
 		double diff = Math.Abs(a - b);
 
 		// Use absolute epsilon for numbers close to zero
-		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon)
-		{
-			return diff < absoluteEpsilon;
-		}
+		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon) return diff < absoluteEpsilon;
 
 		// Use relative epsilon for larger numbers
 		double largest = Math.Max(Math.Abs(a), Math.Abs(b));
@@ -325,15 +267,9 @@ public static class FloatComparer
 	/// </summary>
 	public static float Clamp(float value, float min, float max)
 	{
-		if (value < min)
-		{
-			return min;
-		}
+		if (value < min) return min;
 
-		if (value > max)
-		{
-			return max;
-		}
+		if (value > max) return max;
 
 		return value;
 	}
@@ -343,15 +279,9 @@ public static class FloatComparer
 	/// </summary>
 	public static double Clamp(double value, double min, double max)
 	{
-		if (value < min)
-		{
-			return min;
-		}
+		if (value < min) return min;
 
-		if (value > max)
-		{
-			return max;
-		}
+		if (value > max) return max;
 
 		return value;
 	}
@@ -361,10 +291,7 @@ public static class FloatComparer
 	/// </summary>
 	public static int Sign(float value, float epsilon = DefaultFloatEpsilon)
 	{
-		if (IsZero(value, epsilon))
-		{
-			return 0;
-		}
+		if (IsZero(value, epsilon)) return 0;
 
 		return Math.Sign(value);
 	}
@@ -374,10 +301,7 @@ public static class FloatComparer
 	/// </summary>
 	public static int Sign(double value, double epsilon = DefaultDoubleEpsilon)
 	{
-		if (IsZero(value, epsilon))
-		{
-			return 0;
-		}
+		if (IsZero(value, epsilon)) return 0;
 
 		return Math.Sign(value);
 	}

@@ -1,7 +1,6 @@
-namespace Bezoro.Core.ECS
+namespace Bezoro.Core.ECS;
+
+public interface ISystem
 {
-	public interface ISystem
-	{
-		void Update();
-	}
+	void Update();
 }

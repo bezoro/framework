@@ -1,3 +1,5 @@
+using System;
+
 namespace Bezoro.Core.Common.Extensions;
 
 public static class IntExtensions
@@ -13,4 +15,23 @@ public static class IntExtensions
 	public static int  ClampMin(this int value, int min) => value < min ? min : value;
 	public static int  RoundToNearest(this int value, int nearest) => (value + nearest / 2) / nearest * nearest;
 	public static int  Sign(this int value) => value < 0 ? -1 : 1;
+
+	public static void ThrowIfLessThan(this int value, int min)
+	{
+		if (value < min) throw new ValueTooSmallException(value, min);
+	}
+
+	public static void ThrowIfMoreThan(this int value, int max)
+	{
+		if (value > max) throw new ValueTooLargeException(value, max);
+	}
 }
+
+/// <summary>
+///     Thrown when a value exceeds the configured maximum.
+/// </summary>
+public class ValueTooLargeException(int value, int max)
+	: Exception($"Value '{value}' is greater than the maximum allowed value '{max}'.");
+
+public class ValueTooSmallException(int value, int min)
+	: Exception($"Value '{value}' is smaller than the minimum allowed value '{min}'.");

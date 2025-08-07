@@ -1,11 +1,10 @@
-﻿namespace Bezoro.Core.Logging
+﻿namespace Bezoro.Core.Logging;
+
+public enum LogLevel
 {
-	public enum LogLevel
-	{
-		Info,
-		Warning,
-		Error,
-		Exception,
-		Success
-	}
+	Info,
+	Warning,
+	Error,
+	Exception,
+	Success
 }

@@ -1,4 +1,3 @@
-namespace Bezoro.Core.ECS
-{
-	public interface IComponent { }
-}
+namespace Bezoro.Core.ECS;
+
+public interface IComponent { }
