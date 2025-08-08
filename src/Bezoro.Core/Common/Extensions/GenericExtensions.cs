@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Common.Extensions;
 
@@ -78,6 +80,41 @@ public static class GenericExtensions
 		if (item == null) throw new ArgumentNullException(nameof(item));
 
 		yield return item;
+	}
+
+	public static T ThrowIf<T>(
+		this T                    value,
+		Expression<Func<T, bool>> predicate,
+		string?                   paramName = null)
+	{
+		predicate.ThrowIfNull();
+
+		var compiled = predicate.Compile();
+
+		if (!compiled(value)) return value;
+
+		string name          = paramName ?? nameof(value);
+		var    conditionText = predicate.Body.ToString();
+		var    msg           = $"Condition '{conditionText}' failed for parameter '{name}' with value '{value}'.";
+		throw new ArgumentException(msg, name);
+	}
+
+	public static T ThrowIf<T>(
+		this T                                          value,
+		bool                                            condition,
+		string?                                         paramName     = null,
+		string?                                         message       = null,
+		[CallerArgumentExpression("condition")] string? conditionExpr = null,
+		[CallerArgumentExpression("value")]     string? valueExpr     = null)
+	{
+		if (condition)
+		{
+			string name = paramName ?? valueExpr ?? nameof(value);
+			string msg  = message ?? $"Condition '{conditionExpr}' failed for parameter '{name}' with value '{value}'.";
+			throw new ArgumentException(msg, name);
+		}
+
+		return value;
 	}
 
 	/// <summary>
