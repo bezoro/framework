@@ -93,7 +93,7 @@ public static class GenericExtensions
 
 		if (!compiled(value)) return value;
 
-		string name          = paramName ?? nameof(value);
+		string name          = paramName ?? typeof(T).Name;
 		var    conditionText = predicate.Body.ToString();
 		var    msg           = $"Condition '{conditionText}' failed for parameter '{name}' with value '{value}'.";
 		throw new ArgumentException(msg, name);
@@ -109,7 +109,7 @@ public static class GenericExtensions
 	{
 		if (condition)
 		{
-			string name = paramName ?? valueExpr ?? nameof(value);
+			string name = paramName ?? valueExpr ?? typeof(T).Name;
 			string msg  = message ?? $"Condition '{conditionExpr}' failed for parameter '{name}' with value '{value}'.";
 			throw new ArgumentException(msg, name);
 		}
@@ -126,7 +126,7 @@ public static class GenericExtensions
 	/// </summary>
 	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null)
 	{
-		if (value is null) throw new ArgumentNullException(paramName ?? nameof(value));
+		if (value is null) throw new ArgumentNullException(paramName ?? typeof(T).Name);
 
 		return value;
 	}
