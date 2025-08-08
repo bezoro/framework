@@ -4,10 +4,26 @@ namespace Bezoro.Core.Common.Extensions;
 
 public static class FloatExtensions
 {
+	public static float ThrowIfLessOrEqualThan(this float f, float min)
+	{
+		if (f <= min)
+			throw new ValueTooSmallException(f, min);
+
+		return f;
+	}
+
 	public static float ThrowIfLessThan(this float f, float min)
 	{
 		if (f < min)
 			throw new ValueTooSmallException(f, min);
+
+		return f;
+	}
+
+	public static float ThrowIfOverOrEqualThan(this float f, float max)
+	{
+		if (f >= max)
+			throw new ValueTooLargeException(f, max);
 
 		return f;
 	}
