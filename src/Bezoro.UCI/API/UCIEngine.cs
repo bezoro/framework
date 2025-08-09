@@ -19,11 +19,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
 	];
 	private readonly Channel<string> _out
-		= Channel.CreateUnbounded<string>(
-			new()
+		= Channel.CreateBounded<string>(
+			new BoundedChannelOptions(1)
 			{
 				SingleWriter                  = true,
-				AllowSynchronousContinuations = false
+				AllowSynchronousContinuations = false,
+				FullMode                      = BoundedChannelFullMode.DropOldest
 			});
 
 	private readonly ConcurrentDictionary<PendingRequest, byte> _pending = new();
