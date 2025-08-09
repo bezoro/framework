@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -6,8 +7,9 @@ namespace Bezoro.Core;
 
 public static class StringTags
 {
-	private static readonly Dictionary<string, Func<object>> _tags       = new();
-	private static readonly Regex                            _tagPattern = new(@"\{(\w+)\}", RegexOptions.Compiled);
+	private static readonly ConcurrentDictionary<string, Func<object>> _tags =
+		new(StringComparer.Ordinal);
+	private static readonly Regex _tagPattern = new(@"\{(\w+)\}", RegexOptions.Compiled);
 
 	/// <summary>
 	///     Get all registered tag names
@@ -50,13 +52,16 @@ public static class StringTags
 	/// <exception cref="InvalidOperationException">Thrown when tag already exists and allowOverwrite is false</exception>
 	public static void Register(string tagName, Func<object> valueProvider, bool allowOverwrite = false)
 	{
-		if (!allowOverwrite && _tags.ContainsKey(tagName))
+		if (!allowOverwrite)
 		{
-			throw new InvalidOperationException(
-				$"Tag '{tagName}' is already registered. Use allowOverwrite parameter to replace it.");
+			if (!_tags.TryAdd(tagName, valueProvider))
+			{
+				throw new InvalidOperationException(
+					$"Tag '{tagName}' is already registered. Use allowOverwrite parameter to replace it.");
+			}
 		}
-
-		_tags[tagName] = valueProvider;
+		else
+			_tags[tagName] = valueProvider;
 	}
 
 	/// <summary>
@@ -64,6 +69,6 @@ public static class StringTags
 	/// </summary>
 	public static void Unregister(string tagName)
 	{
-		_tags.Remove(tagName);
+		_tags.TryRemove(tagName, out _);
 	}
 }
