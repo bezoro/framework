@@ -77,6 +77,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		}
 
 		_pending.TryAdd(req, 0);
+		_ = req.Task.ContinueWith(
+			_ => _pending.TryRemove(req, out byte _),
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
+
 		return req.Task;
 	}
 
@@ -109,6 +115,11 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				ct);
 
 			_pending.TryAdd(req, 0);
+			_ = req.Task.ContinueWith(
+				_ => _pending.TryRemove(req, out byte _),
+				CancellationToken.None,
+				TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default);
 
 			await WriteLineAsync(command, ct).ConfigureAwait(false);
 
@@ -239,7 +250,8 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 
 		_proc.Start();
-		_stdin = _proc.StandardInput;
+		_stdin           = _proc.StandardInput;
+		_stdin.AutoFlush = true;
 
 		_ = Task.Run(ReadLoop);
 	}
@@ -263,6 +275,36 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				var req = kvp.Key;
 				if (req.TryAccept(line))
 					_pending.TryRemove(req, out _);
+			}
+		}
+
+		// If the engine closed stdout and we aren't in normal disposal, fail outstanding waits
+		if (!_disposed.IsPositive())
+		{
+			var ex = new EndOfStreamException("Engine process closed its stdout.");
+
+			try
+			{
+				_out.Writer.TryComplete(ex);
+			}
+			catch
+			{
+				// ignore
+			}
+
+			foreach (var req in _pending.Keys)
+			{
+				if (_pending.TryRemove(req, out _))
+				{
+					try
+					{
+						req.Fail(ex);
+					}
+					catch
+					{
+						// ignore
+					}
+				}
 			}
 		}
 	}
@@ -289,9 +331,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			_stop   = stop;
 			_tokens = tokens;
 
-			_ctr = ct.Register(
-				static s => ((TaskCompletionSource<List<string>>)s!).TrySetCanceled(),
-				_tcs);
+			_ctr = ct.Register(() => _tcs.TrySetCanceled(ct));
+
+			_ = _tcs.Task.ContinueWith(
+				static (t, state) => ((CancellationTokenRegistration)state!).Dispose(),
+				_ctr,
+				TaskScheduler.Default);
 		}
 
 		public Task<List<string>> Task => _tcs.Task;
