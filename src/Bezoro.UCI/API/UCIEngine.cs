@@ -20,7 +20,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	];
 	private readonly Channel<string> _out
 		= Channel.CreateUnbounded<string>(
-			new UnboundedChannelOptions
+			new()
 			{
 				SingleWriter                  = true,
 				AllowSynchronousContinuations = false
@@ -44,7 +44,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	/// <param name="token">Substring that must appear in a single output line.</param>
 	/// <param name="ct">Cancellation token to abort the wait.</param>
 	public Task WaitForTokenAsync(string token, CancellationToken ct = default)
-		=> WaitForTokensAsync([ token ], ct);
+		=> WaitForTokensAsync([token], ct);
 
 	/// <summary>
 	///     Same as <see cref="WaitForTokenAsync(string,System.Threading.CancellationToken)" />
@@ -52,6 +52,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	/// </summary>
 	public Task WaitForTokensAsync(string[] tokens, CancellationToken ct = default)
 	{
+		// Fail fast instead of silently completing when disposed.
 		ThrowIfDisposed();
 
 		var req = new PendingRequest(
@@ -79,7 +80,9 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	}
 
 	public async Task<List<string>> SendCommandAndReadOutputAsync(
-		string command, CancellationToken ct = default, string[]? until = null)
+		string            command,
+		CancellationToken ct    = default,
+		string[]?         until = null)
 	{
 		ThrowIfDisposed();
 
@@ -118,56 +121,116 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	public async ValueTask DisposeAsync()
 	{
-		// Bail out if another thread already disposed
+		// Fast-path: only run once
 		if (Interlocked.Exchange(ref _disposed, 1) == 1)
 			return;
 
 		Exception? firstError = null;
+		var        disposedEx = new ObjectDisposedException(nameof(UCIEngine));
 
-		// 1) Dispose managed resources
+		// Complete the output channel to unblock any readers
 		try
 		{
-			if (_stdin is not null)
-				await _stdin.DisposeAsync().ConfigureAwait(false);
-
-			_commandLock.Dispose();
-			_pending.Clear();
-			_history.Clear();
-			_out.Writer.TryComplete();
-			await _out.Reader.Completion.ConfigureAwait(false);
+			_out.Writer.TryComplete(disposedEx);
 		}
-		catch (Exception ex) { firstError ??= ex; }
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
 
-		// 2) Terminate the external process
+		// Best-effort: fail all pending requests so callers don't hang
 		try
 		{
-			if (!_proc.HasExited)
+			foreach (var kvp in _pending.Keys)
 			{
-				try { _proc.Kill(); }
-				catch
+				if (_pending.TryRemove(kvp, out _))
 				{
-					/* ignore */
+					try
+					{
+						kvp.Fail(disposedEx);
+					}
+					catch (Exception ex)
+					{
+						firstError ??= ex;
+					}
 				}
-
-				await Task.Run(_proc.WaitForExit).ConfigureAwait(false);
 			}
 		}
-		catch (Exception ex) { firstError ??= ex; }
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
 
-		// 3) Finalise the channel (harmless if already done)
-		_out.Writer.TryComplete();
+		// Close stdin (flush first), then dispose
+		try
+		{
+			var sw = Interlocked.Exchange(ref _stdin, null);
 
-		if (firstError is not null)
-			throw firstError;
+			if (sw is not null)
+			{
+				try
+				{
+					await sw.FlushAsync().ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					firstError ??= ex;
+				}
+
+				try
+				{
+					sw.Dispose();
+				}
+				catch (Exception ex)
+				{
+					firstError ??= ex;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		// Best-effort cleanup of internal state
+		try
+		{
+			_history.Clear();
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		// Dispose the command lock to prevent further use
+		try
+		{
+			_commandLock.Dispose();
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		// Log (do not throw from Dispose)
+		if (firstError is not null) Logger.LogError(firstError, this, LogCategory.UCI);
 	}
 
 	public ValueTask WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 		Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
-		return new ValueTask(
-			_stdin!.WriteLineAsync(command).WaitAsync(ct)
-		);
+
+		// Harden against a race with DisposeAsync nulling _stdin after the disposed check.
+		var sw = Volatile.Read(ref _stdin);
+
+		if (sw is null)
+		{
+			// Ensure a consistent exception type
+			throw new ObjectDisposedException(nameof(UCIEngine));
+		}
+
+		return new(sw.WriteLineAsync(command).WaitAsync(ct));
 	}
 
 	public void Start()
@@ -194,7 +257,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 			_out.Writer.TryWrite(line);
 
-			foreach (KeyValuePair<PendingRequest, byte> kvp in _pending)
+			foreach (var kvp in _pending)
 			{
 				var req = kvp.Key;
 				if (req.TryAccept(line))
@@ -212,7 +275,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	{
 		private readonly CancellationTokenRegistration _ctr;
 		private readonly Func<string, string[], bool>  _stop;
-		private readonly List<string>                  _lines = [ ];
+		private readonly List<string>                  _lines = [];
 		private readonly string[]                      _tokens;
 		private readonly TaskCompletionSource<List<string>> _tcs =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -240,6 +303,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			_ctr.Dispose();
 			_tcs.TrySetResult(_lines);
 			return true;
+		}
+
+		public void Fail(Exception ex)
+		{
+			_ctr.Dispose();
+			_tcs.TrySetException(ex);
 		}
 	}
 }
