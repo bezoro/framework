@@ -136,10 +136,13 @@ public sealed class UCIConnector : IAsyncDisposable
 		ThrowIfDisposed();
 
 		_engine.Start();
-		await _engine.WriteLineAsync("uci");
-		await _engine.WaitForTokenAsync("uciok");
-		await _engine.WriteLineAsync("isready");
-		await _engine.WaitForTokenAsync("readyok");
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+		await _engine.WriteLineAsync("uci", cts.Token);
+		await _engine.WaitForTokenAsync("uciok", cts.Token);
+		await _engine.WriteLineAsync("isready", cts.Token);
+		await _engine.WaitForTokenAsync("readyok", cts.Token);
 		_started = true;
 		EngineStarted?.Invoke();
 		Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
@@ -402,13 +405,30 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private async Task<FenInfo> RenewFenCache(CancellationToken ct = default)
 	{
-		var lines    = await _engine.SendCommandAndReadOutputAsync("d", ct, ["checkers"]);
+		List<string> lines;
+
+		// First attempt: prefer reading until "checkers" (some engines provide it as the tail of `d` output)
+		try
+		{
+			using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+			using var linked     = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+			lines = await _engine.SendCommandAndReadOutputAsync("d", linked.Token, ["checkers"]);
+		}
+		catch (OperationCanceledException)
+		{
+			// Fallback: some engines never print "checkers"; try again, stopping as soon as we see "fen"
+			using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+			using var linked     = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+			lines = await _engine.SendCommandAndReadOutputAsync("d", linked.Token, ["fen"]);
+		}
+
 		var fen      = "";
 		var checkers = "";
-
 		foreach (string line in lines)
 		{
+			// Capture 'checkers' info when present
 			checkers = ParseCheckersInfo(line);
+
 			// locate the word "fen" in any casing
 			int idx = line.IndexOf("fen", StringComparison.OrdinalIgnoreCase);
 			if (idx < 0) continue;
