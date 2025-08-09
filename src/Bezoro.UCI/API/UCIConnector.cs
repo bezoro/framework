@@ -18,13 +18,13 @@ namespace Bezoro.UCI.API;
 /// </summary>
 public sealed class UCIConnector : IAsyncDisposable
 {
-	private readonly Process?  _engineProcess;
-	private readonly string    _enginePath;
-	private readonly UCIEngine _engine;
+	private readonly ConcurrentDictionary<int, GOResult?> _goResultCache = new();
+	private readonly Process?                             _engineProcess;
+	private readonly string                               _enginePath;
+	private readonly UCIEngine                            _engine;
 
-	private bool                                 _started;
-	private ConcurrentDictionary<int, GOResult?> _goResultCache = new();
-	private FenInfo?                             _currentFenCache;
+	private bool     _started;
+	private FenInfo? _currentFenCache;
 
 	private volatile int                       _isDisposed;
 	private volatile int                       _isDisposing;
@@ -42,14 +42,12 @@ public sealed class UCIConnector : IAsyncDisposable
 	public UCIConnector(string enginePath)
 	{
 		if (string.IsNullOrWhiteSpace(enginePath))
-		{
 			throw new ArgumentException("Engine path must be provided.", nameof(enginePath));
-		}
 
 		_enginePath = enginePath;
-		_engineProcess = new Process
+		_engineProcess = new()
 		{
-			StartInfo = new ProcessStartInfo
+			StartInfo = new()
 			{
 				FileName               = _enginePath,
 				RedirectStandardInput  = true,
@@ -60,7 +58,7 @@ public sealed class UCIConnector : IAsyncDisposable
 			EnableRaisingEvents = true
 		};
 
-		_engine = new UCIEngine(_engineProcess);
+		_engine = new(_engineProcess);
 		Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
 	}
 
@@ -90,7 +88,9 @@ public sealed class UCIConnector : IAsyncDisposable
 	}
 
 	public async Task SendTextCommandAndWaitForTokenAsync(
-		string command, string token, CancellationToken ct = default)
+		string            command,
+		string            token,
+		CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 		await _engine.WriteLineAsync(command, ct);
@@ -116,15 +116,14 @@ public sealed class UCIConnector : IAsyncDisposable
 	}
 
 	public async Task SetPositionAsync(
-		string fen, IEnumerable<string>? moves = null, CancellationToken ct = default)
+		string               fen,
+		IEnumerable<string>? moves = null,
+		CancellationToken    ct    = default)
 	{
 		ThrowIfDisposed();
 
-		var command = $"position fen {fen}";
-		if (moves != null)
-		{
-			command += $" moves {string.Join(" ", moves)}";
-		}
+		var command                = $"position fen {fen}";
+		if (moves != null) command += $" moves {string.Join(" ", moves)}";
 
 		await _engine.WriteLineAsync(command, ct);
 		PositionSetSuccessfully?.Invoke();
@@ -168,51 +167,49 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	public async Task<GOResult?> GO(int depth = 5, CancellationToken ct = default)
 	{
-		if (_goResultCache.TryGetValue(depth, out GOResult? cached) && cached.HasValue)
+		if (_goResultCache.TryGetValue(depth, out var cached) && cached.HasValue)
 		{
 			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
 			return cached;
 		}
 
-		List<string> lines  = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
-		var          result = ParseLinesAndBuildGOResult(lines);
+		var lines  = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
+		var result = ParseLinesAndBuildGOResult(lines);
 		return _goResultCache[depth] = result;
 	}
 
 	public async Task<GOResult?> GoPerftOne(CancellationToken ct = default)
 	{
-		if (_goResultCache.TryGetValue(1, out GOResult? cached) && cached.HasValue)
+		if (_goResultCache.TryGetValue(1, out var cached) && cached.HasValue)
 		{
 			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
 			return cached;
 		}
 
-		List<string> lines  = await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
-		var          result = ParseLinesAndBuildGOResult(lines);
+		var lines  = await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
+		var result = ParseLinesAndBuildGOResult(lines);
 		return _goResultCache[1] = result;
 	}
 
 	public async Task<GOResult?> StartSearchForSecondsAsync(int seconds, CancellationToken ct = default)
 	{
-		int          milliSeconds = seconds * 1000;
-		List<string> lines        = await _engine.SendCommandAndReadOutputAsync($"go movetime {milliSeconds}", ct);
+		int milliSeconds = seconds * 1000;
+		var lines        = await _engine.SendCommandAndReadOutputAsync($"go movetime {milliSeconds}", ct);
 		return ParseLinesAndBuildGOResult(lines);
 	}
 
-	public async Task<IEnumerable<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
-		string square, CancellationToken ct = default)
+	public async Task<ICollection<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
+		string            square,
+		CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 
 		if (string.IsNullOrWhiteSpace(square))
-		{
 			throw new ArgumentException("Square cannot be null or empty", nameof(square));
-		}
 
 		// Get all moves for current position (cached if same position)
-		List<MoveClassification> allMoves = await GetCurrentPositionMovesAsync(ct);
-
-		return allMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase));
+		var allMoves = await GetCurrentPositionMovesAsync(ct);
+		return allMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase)).ToList();
 	}
 
 	/// <summary>
@@ -223,20 +220,17 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		var legalMoves = new List<string>();
 
-		List<string> lines =
+		var lines =
 			await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
 
 		foreach (string line in lines)
 		{
 			var match = UCIConstants.MoveRegex.Match(line);
 
-			if (match.Success)
-			{
-				legalMoves.Add(match.Groups[1].Value);
-			}
+			if (match.Success) legalMoves.Add(match.Groups[1].Value);
 		}
 
-		return new LegalMovesResult(legalMoves);
+		return new(legalMoves);
 	}
 
 	/// <summary>
@@ -249,7 +243,7 @@ public sealed class UCIConnector : IAsyncDisposable
 		var currentFen       = await GetCurrentFenAsync(ct);
 		var legalMovesResult = await GetLegalMovesAsync(ct);
 		var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
-		List<MoveClassification> classifiedMoves =
+		var classifiedMoves =
 			legalMovesResult.LegalMoves.Select(move => MoveClassifier.ClassifyMove(move, boardState)).ToList();
 
 		Logger.LogInfo($"Legal Moves -> {classifiedMoves}", this, LogCategory.UCI);
@@ -258,58 +252,71 @@ public sealed class UCIConnector : IAsyncDisposable
 		return classifiedMoves;
 	}
 
-	/// <summary>
-	///     Disposes the connector and stops the engine.
-	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		// Fast-path: somebody else already disposed
-		if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
-			return;
+		// Ensure idempotent disposal
+		if (Interlocked.Exchange(ref _isDisposed, 1) == 1) return;
 
 		Interlocked.Exchange(ref _isDisposing, 1);
-		Exception? firstError = null;
 
 		try
 		{
-			// 1. Ask the engine to shut down
+			// Try to gracefully stop the engine if it was started
 			if (_started)
-				await QuitEngineAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex) { firstError ??= ex; }
-
-		try
-		{
-			// 2. Kill the process if it is still around
-			if (_engineProcess is { HasExited: false })
 			{
-				try { _engineProcess.Kill(); }
+				try
+				{
+					await QuitEngineAsync();
+				}
 				catch
 				{
-					/* ignore; fallback dispose will follow */
+					// Swallow exceptions during disposal
 				}
-
-				await Task.Run(() => _engineProcess.WaitForExit()).ConfigureAwait(false);
 			}
 
-			_engineProcess?.Dispose();
-		}
-		catch (Exception ex) { firstError ??= ex; }
+			// Ensure the underlying process is not left running
+			if (_engineProcess is { HasExited: false })
+			{
+				try
+				{
+					_engineProcess.Kill();
+				}
+				catch
+				{
+					// Ignore failures while disposing
+				}
+			}
 
-		try
+			// Dispose engine wrapper and process resources
+			try
+			{
+				await _engine.DisposeAsync();
+			}
+			catch
+			{
+				// Ignore failures while disposing
+			}
+
+			try
+			{
+				_engineProcess?.Dispose();
+			}
+			catch
+			{
+				// Ignore failures while disposing
+			}
+
+			// Clear caches and internal state
+			_goResultCache.Clear();
+			_currentFenCache           = null;
+			_currentPositionMovesCache = null;
+			_started                   = false;
+		}
+		finally
 		{
-			// 3. Dispose the high-level wrapper
-			await _engine.DisposeAsync().ConfigureAwait(false);
+			Volatile.Write(ref _isDisposing, 0);
+			GC.SuppressFinalize(this);
 		}
-		catch (Exception ex) { firstError ??= ex; }
-
-		Interlocked.Exchange(ref _isDisposing, 0);
-		Logger.LogSuccess("Engine Process Disposed", this, LogCategory.UCI);
-		EngineStopped?.Invoke();
-
-		// Re-throw the first error (if any) *after* everything is cleaned up
-		if (firstError is not null)
-			throw firstError;
 	}
 
 	public void NewGame()
@@ -320,55 +327,41 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private static (string best, string ponder) ParseBestMove(string line)
 	{
-		if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase))
-		{
-			return (string.Empty, string.Empty);
-		}
+		if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase)) return (string.Empty, string.Empty);
 
 		string[]? parts = line.Split(' ');
-		if (parts.Length < 2)
-		{
-			return (string.Empty, string.Empty);
-		}
+		if (parts.Length < 2) return (string.Empty, string.Empty);
 
 		string bestMove   = parts[1];
-		var    ponderMove = string.Empty;
+		string ponderMove = string.Empty;
 
 		// Check if there's a ponder move
-		if (parts.Length >= 4 && parts[2] == "ponder")
-		{
-			ponderMove = parts[3];
-		}
+		if (parts.Length >= 4 && parts[2] == "ponder") ponderMove = parts[3];
 
-		if (bestMove == "(none)")
-		{
-			bestMove = string.Empty;
-		}
+		if (bestMove == "(none)") bestMove = string.Empty;
 
 		return (bestMove, ponderMove);
 	}
 
 	private static GOResult ParseLinesAndBuildGOResult(List<string> lines)
 	{
-		var  bestMove   = string.Empty;
-		var  ponderMove = string.Empty;
-		int? scoreMate  = 0;
+		string? bestMove   = string.Empty;
+		string? ponderMove = string.Empty;
+		int?    scoreMate  = 0;
 
 		foreach (string line in lines)
 		{
 			// Parse best move information
 			var bestMoveResult = ParseBestMove(line);
+
 			if (!string.IsNullOrEmpty(bestMoveResult.best))
 			{
 				bestMove   = bestMoveResult.best;
 				ponderMove = bestMoveResult.ponder;
 			}
 
-			int? currentScoreMate = ParseScoreMate(line);
-			if (currentScoreMate != null)
-			{
-				scoreMate = currentScoreMate;
-			}
+			int? currentScoreMate                   = ParseScoreMate(line);
+			if (currentScoreMate != null) scoreMate = currentScoreMate;
 		}
 
 		var result = new GOResult(bestMove, ponderMove, scoreMate);
@@ -377,21 +370,16 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private static int? ParseScoreMate(string line)
 	{
-		if (string.IsNullOrWhiteSpace(line))
-		{
-			return null;
-		}
+		if (string.IsNullOrWhiteSpace(line)) return null;
 
 		string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-		for (var i = 0 ; i < tokens.Length - 1 ; i++)
+		for (var i = 0; i < tokens.Length - 1; i++)
 		{
 			if (tokens[i] == "score" && i + 2 < tokens.Length && tokens[i + 1] == "mate")
 			{
 				if (int.TryParse(tokens[i + 2], out int mateValue))
-				{
 					return mateValue;
-				}
 			}
 		}
 
@@ -400,7 +388,8 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private static string ParseCheckersInfo(string line)
 	{
-		var checkers = string.Empty;
+		string checkers = string.Empty;
+
 		if (line.Contains("checkers", StringComparison.OrdinalIgnoreCase))
 		{
 			string[] parts = line.Split(' ');
@@ -412,9 +401,9 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	private async Task<FenInfo> RenewFenCache(CancellationToken ct = default)
 	{
-		List<string> lines    = await _engine.SendCommandAndReadOutputAsync("d", ct, [ "checkers" ]);
-		var          fen      = "";
-		var          checkers = "";
+		var lines    = await _engine.SendCommandAndReadOutputAsync("d", ct, ["checkers"]);
+		var fen      = "";
+		var checkers = "";
 
 		foreach (string line in lines)
 		{
@@ -480,11 +469,10 @@ public sealed class UCIConnector : IAsyncDisposable
 		var currentFen       = await GetCurrentFenAsync(ct);
 		var legalMovesResult = await GetLegalMovesAsync(ct);
 		var boardState       = BoardStateParser.ParseFen(currentFen.Fen);
-		List<MoveClassification> classifiedMoves = legalMovesResult.LegalMoves
-																   .Select(
-																	   move => MoveClassifier.ClassifyMove(
-																		   move,
-																		   boardState)).ToList();
+		var classifiedMoves = legalMovesResult.LegalMoves
+											  .Select(move => MoveClassifier.ClassifyMove(
+														  move,
+														  boardState)).ToList();
 
 		_currentPositionMovesCache = classifiedMoves;
 
@@ -512,8 +500,15 @@ public sealed class UCIConnector : IAsyncDisposable
 }
 
 public readonly record struct FenInfo(
-	string PiecePlacement,  char ActiveColor,   string CastlingRights,
-	string EnPassantTarget, int  HalfmoveClock, int    FullmoveNumber, string Fen, string[] FenParts, string Checkers);
+	string   PiecePlacement,
+	char     ActiveColor,
+	string   CastlingRights,
+	string   EnPassantTarget,
+	int      HalfmoveClock,
+	int      FullmoveNumber,
+	string   Fen,
+	string[] FenParts,
+	string   Checkers);
 
 public readonly record struct GOResult(string BestMove, string PonderMove, int? ScoreMate);
 
