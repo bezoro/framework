@@ -392,8 +392,9 @@ public sealed class UCIConnector : IAsyncDisposable
 
 		if (line.Contains("checkers", StringComparison.OrdinalIgnoreCase))
 		{
-			string[] parts = line.Split(' ');
-			checkers = parts[1];
+			string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			if (parts.Length >= 2)
+				checkers = parts[1];
 		}
 
 		return checkers;
