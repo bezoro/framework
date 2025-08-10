@@ -38,17 +38,6 @@ public static class GenericExtensions
 	public static bool IsDefault<T>(this T value) where T : struct =>
 		EqualityComparer<T>.Default.Equals(value, default);
 
-	/// <summary>
-	///     Logical negation of <see cref="IsDefault{T}(T)" />.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNotDefault<T>(this T value) where T : struct => !value.IsDefault();
-
-	/// <summary>
-	///     Logical negation of <see cref="IsNull{T}(T?)" />.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNotNull<T>([NotNullWhen(true)] this T? value) => value is not null;
 
 	/// <summary>
 	///     Determines whether a <see langword="nullable" /> value is <see langword="null" />.
