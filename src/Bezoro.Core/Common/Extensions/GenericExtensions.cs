@@ -21,6 +21,7 @@ public static class GenericExtensions
 	/// <exception cref="ArgumentException">
 	///     Thrown when <paramref name="min" /> is greater than <paramref name="max" />.
 	/// </exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsBetween<T>(this T value, T min, T max) where T : IComparable<T>
 	{
 		if (value == null) throw new ArgumentNullException(nameof(value));
@@ -33,17 +34,20 @@ public static class GenericExtensions
 	/// <summary>
 	///     Determines whether <paramref name="value" /> equals the default value for its type.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsDefault<T>(this T value) where T : struct =>
 		EqualityComparer<T>.Default.Equals(value, default);
 
 	/// <summary>
 	///     Logical negation of <see cref="IsDefault{T}(T)" />.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsNotDefault<T>(this T value) where T : struct => !value.IsDefault();
 
 	/// <summary>
 	///     Logical negation of <see cref="IsNull{T}(T?)" />.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsNotNull<T>([NotNullWhen(true)] this T? value) => value is not null;
 
 	/// <summary>
@@ -53,6 +57,7 @@ public static class GenericExtensions
 	///     An unconstrained generic <typeparamref name="T" /> is used so that both reference and value-types wrapped in
 	///     <c>Nullable&lt;T&gt;</c> are supported.
 	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsNull<T>([NotNullWhen(false)] this T? value) => value is null;
 
 	/// <summary>
@@ -63,6 +68,7 @@ public static class GenericExtensions
 	/// if (statusCode.IsOneOf(200, 201, 202)) …
 	/// </code>
 	/// </example>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsOneOf<T>(this T value, params T[] candidates)
 	{
 		if (value      == null) throw new ArgumentNullException(nameof(value));
@@ -75,6 +81,7 @@ public static class GenericExtensions
 	///     Converts a single item into an <see cref="IEnumerable{T}" /> containing that item.
 	///     Handy for feeding single elements into APIs that expect an enumerable.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static IEnumerable<T> Yield<T>(this T item)
 	{
 		if (item == null) throw new ArgumentNullException(nameof(item));
@@ -82,6 +89,7 @@ public static class GenericExtensions
 		yield return item;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                    value,
 		Expression<Func<T, bool>> predicate,
@@ -99,6 +107,7 @@ public static class GenericExtensions
 		throw new ArgumentException(msg, name);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                                          value,
 		bool                                            condition,
@@ -124,6 +133,7 @@ public static class GenericExtensions
 	/// var nameLength = user.Name.ThrowIfNull().Length;
 	/// </code>
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null)
 	{
 		if (value is null) throw new ArgumentNullException(paramName ?? typeof(T).Name);
