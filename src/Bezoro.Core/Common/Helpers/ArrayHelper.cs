@@ -222,53 +222,39 @@ public static class ArrayHelper
 		where T : class =>
 		Add(ref array, element, out _, resizeFactor);
 
-	public static void Add_Unique<T>(ref T?[] array, T? element)
+	public static void AddUnique<T>(ref T?[] array, T? element)
 		where T : class =>
 		AddUnique(ref array, element, out _);
 
-	public static void AddUnique<T>(
-		ref T?[] array,
-		T?       element,
-		out int  index,
-		int      resizeFactor = 2
-	)
+	public static void AddUnique<T>(ref T?[] array, T? element, out int index, int resizeFactor = 2)
 		where T : class
 	{
-		if (element == null)
+		if (element.IsNull())
 		{
 			index = -1;
 			return;
 		}
 
-		if (array == null || array.Length == 0)
+		if (array.IsNull() || array.Length == 0)
 		{
 			SetupArrayWithFirstElement(ref array, element);
 			index = 0;
 			return;
 		}
 
-		bool elementExists;
+		int foundIndex = FindElementIndex(array, element);
 
-		if (array.Length > ParallelThreshold)
-		{
-			ArrayElementInfo<T> tempQualifier = FindElementInParallel(array, element);
-			elementExists = tempQualifier.Index >= 0;
-		}
-		else
-		{
-			ArrayElementInfo<T> tempQualifier = FindElementSequentially(array, element);
-			elementExists = tempQualifier.Index >= 0;
-		}
-
-		if (elementExists)
+		if (foundIndex >= 0)
 		{
 			index = -1;
-
 			return;
 		}
 
-		Add(ref array, element, out int i, resizeFactor);
-		index = i;
+		if (resizeFactor < 2)
+			resizeFactor = 2;
+
+		Add(ref array, element, out int insertedIndex, resizeFactor);
+		index = insertedIndex;
 	}
 
 	public static void Clear<T>(ref T[] array)
@@ -492,6 +478,16 @@ public static class ArrayHelper
 
 	public static void SetParallelThreshold(int threshold) =>
 		ParallelThreshold = threshold;
+
+	private static int FindElementIndex<T>(T?[] array, T element)
+		where T : class
+	{
+		var info = array.Length > ParallelThreshold
+					   ? FindElementInParallel(array, element)
+					   : FindElementSequentially(array, element);
+
+		return info.Index;
+	}
 
 	private static void RemoveElementParallel<T>(
 		ref T[]         array,
