@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -19,16 +18,16 @@ public static class ArrayChecks
 	/// <returns>true if the arrays are equal, false otherwise.</returns>
 	public static bool ArraysAreEqual<T>(this T[] array, T[] b)
 	{
-		if (array.IsNull()) throw new ArgumentNullException(nameof(array));
-		if (b.IsNull()) throw new ArgumentNullException(nameof(b));
+		array.ThrowIfNull();
+		b.ThrowIfNull();
 
 		return array.Length == b.Length && array.SequenceEqual(b);
 	}
 
 	public static bool ArraysAreEqual<T>(this T[,] array2d, T[,] b)
 	{
-		if (array2d == null) throw new ArgumentNullException(nameof(array2d));
-		if (b       == null) throw new ArgumentNullException(nameof(b));
+		array2d.ThrowIfNull();
+		b.ThrowIfNull();
 
 		if (ReferenceEquals(array2d, b)) return true;
 
@@ -57,27 +56,17 @@ public static class ArrayChecks
 	///     Returns <c>true</c> when the array is non-null and has <c>Length == 0</c>.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsEmpty<T>([NotNullWhen(true)] this T[]? array) => array?.Length == 0;
+	public static bool IsEmpty<T>(this T[] array)
+	{
+		array.ThrowIfNull();
+		return array.Length == 0;
+	}
 
-	public static bool IsEmpty<T>(this T[,] array2d) => array2d.Length == 0;
-
-	/// <summary>
-	///     Returns <c>true</c> when the array is non-null and has at least one element.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNotEmpty<T>([NotNullWhen(true)] this T[]? array) => array?.Length > 0;
-
-	/// <summary>
-	///     Returns <c>true</c> when the array reference is non-null.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNotNull<T>([NotNullWhen(true)] this T[]? array) => array is not null;
-
-	/// <summary>
-	///     Negation of <see cref="IsNullOrEmpty{T}" />.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNotNullOrEmpty<T>([NotNullWhen(true)] this T[]? array) => array is { Length: > 0 };
+	public static bool IsEmpty<T>(this T[,] array2d)
+	{
+		array2d.ThrowIfNull();
+		return array2d.Length == 0;
+	}
 
 	/// <summary>
 	///     Returns <c>true</c> when the array reference is <c>null</c>.
