@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Common.Extensions.Collections;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Constants;
 using Bezoro.UCI.Domain.Helpers;
@@ -424,6 +425,7 @@ public sealed class UCIConnector : IAsyncDisposable
 
 		var fen      = "";
 		var checkers = "";
+
 		foreach (string line in lines)
 		{
 			// Capture 'checkers' info when present
