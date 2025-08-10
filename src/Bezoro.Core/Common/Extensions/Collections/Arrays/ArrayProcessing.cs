@@ -20,9 +20,8 @@ public static class ArrayProcessing
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static string ToStringFormat<T>(this T[] array)
 	{
-		if (array == null) return "null";
-
-		if (array.Length == 0) return "[]";
+		array.ThrowIfNull();
+		array.ThrowIfEmpty();
 
 		return "[" + string.Join(", ", array.Select(ArrayHelper.GetElementName).ToString().Italic()) + "]";
 	}
