@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Helpers;
+using Bezoro.Core.Common.Interfaces;
 
 namespace Bezoro.Core.Common.Extensions.Collections.Arrays;
 
@@ -15,6 +17,7 @@ public static class ArrayProcessing
 	///     Returns a string representation of the array, with each element name
 	///     formatted according to the type of the element.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static string ToStringFormat<T>(this T[] array)
 	{
 		if (array == null) return "null";
@@ -34,6 +37,7 @@ public static class ArrayProcessing
 	/// </param>
 	/// <param name="cancellationToken">A CancellationToken that can be used to cancel the processing.</param>
 	/// <returns>A UniTask that represents the asynchronous operation.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static async Task Process<T>(
 		this T[,]                                  array,
 		Func<T, int, int, CancellationToken, Task> processFunc,
@@ -54,6 +58,47 @@ public static class ArrayProcessing
 				await processFunc(array[y, x], x, y, cancellationToken);
 				await Task.Yield();
 			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static async Task ProcessArrayAsync<T>(this T?[] array, Func<T, Task> action)
+	{
+		array.ThrowIfNull();
+
+		for (var i = 0; i < array.Length; i++)
+		{
+			var t = array[i];
+			if (t.IsNull()) continue;
+
+			await action(t);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static void ProcessArray<T>(this T?[] array, Action<T> action)
+	{
+		array.ThrowIfNull();
+
+		for (var i = 0; i < array.Length; i++)
+		{
+			var t = array[i];
+			if (t.IsNull()) continue;
+
+			action(t);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static void ProcessArray<T>(this T?[] array) where T : IProcessable
+	{
+		if (array == null) throw new ArgumentNullException(nameof(array));
+
+		foreach (var t in array)
+		{
+			if (t == null) continue;
+
+			t.Process();
 		}
 	}
 }
