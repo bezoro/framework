@@ -10,6 +10,12 @@ namespace Bezoro.Core.Common.Extensions.Collections;
 /// </summary>
 public static class CollectionExtensions
 {
+	public static bool IsEmpty<T>(this ICollection<T> collection)
+	{
+		collection.ThrowIfNull();
+		return collection.Count == 0;
+	}
+
 	/// <summary>
 	///     Determines whether a collection is null.
 	/// </summary>

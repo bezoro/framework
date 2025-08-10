@@ -1,7 +1,5 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Common.Extensions.Collections.Arrays;
 
@@ -16,7 +14,7 @@ public static class ArrayChecks
 	/// <param name="array">The first array to compare.</param>
 	/// <param name="b">The second array to compare.</param>
 	/// <returns>true if the arrays are equal, false otherwise.</returns>
-	public static bool ArraysAreEqual<T>(this T[] array, T[] b)
+	public static bool AreEqual<T>(this T[] array, T[] b)
 	{
 		array.ThrowIfNull();
 		b.ThrowIfNull();
@@ -24,7 +22,7 @@ public static class ArrayChecks
 		return array.Length == b.Length && array.SequenceEqual(b);
 	}
 
-	public static bool ArraysAreEqual<T>(this T[,] array2d, T[,] b)
+	public static bool AreEqual<T>(this T[,] array2d, T[,] b)
 	{
 		array2d.ThrowIfNull();
 		b.ThrowIfNull();
@@ -51,37 +49,6 @@ public static class ArrayChecks
 
 		return true;
 	}
-
-	/// <summary>
-	///     Returns <c>true</c> when the array is non-null and has <c>Length == 0</c>.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsEmpty<T>(this T[] array)
-	{
-		array.ThrowIfNull();
-		return array.Length == 0;
-	}
-
-	public static bool IsEmpty<T>(this T[,] array2d)
-	{
-		array2d.ThrowIfNull();
-		return array2d.Length == 0;
-	}
-
-	/// <summary>
-	///     Returns <c>true</c> when the array reference is <c>null</c>.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNull<T>([NotNullWhen(false)] this T[]? array) => array is null;
-
-	public static bool IsNull<T>([NotNullWhen(false)] this T[,]? array2d) => array2d is null;
-
-	/// <summary>
-	///     Combined convenience check—mirrors <see cref="string.IsNullOrEmpty(string)" />.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsNullOrEmpty<T>([NotNullWhen(false)] this T[]? array) => array is null || array.Length == 0;
-
 
 	/// <summary>
 	///     Checks if a 2D array is null or empty.
