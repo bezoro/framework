@@ -31,6 +31,9 @@ public sealed class UCIConnector : IAsyncDisposable
 	private volatile int                       _isDisposing;
 	private          List<MoveClassification>? _currentPositionMovesCache = new();
 
+	private string? _lastBestMove;
+	private string? _lastPonderMove;
+
 	public event Action<(string best, string ponder)>? BestMoveFound;
 	public event Action?                               EngineStarted;
 	public event Action?                               EngineStopped;
@@ -176,9 +179,67 @@ public sealed class UCIConnector : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(square))
 			throw new ArgumentException("Square cannot be null or empty", nameof(square));
 
-		// Get all moves for current position (cached if same position)
 		var allMoves = await GetCurrentPositionMovesAsync(ct);
 		return allMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase)).ToList();
+	}
+
+	/// <summary>
+	///     Evaluates the current position and returns the last reported centipawn score
+	///     from the side-to-move perspective. Returns null if no cp score was produced.
+	/// </summary>
+	public async Task<int?> GetCurrentPositionCpAsync(int depth = 14, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		int? lastCp = null;
+
+		await foreach (string? line in _engine.SendCommandAndReadOutputStreamingAsync("go depth " + depth, ct))
+		{
+			int? cp                 = ParseScoreCp(line ?? string.Empty);
+			if (cp.HasValue) lastCp = cp;
+		}
+
+		return lastCp;
+	}
+
+	/// <summary>
+	///     Computes the centipawn gain/loss of a move for the mover.
+	///     Positive means the move improves the mover's evaluation; negative means it worsens.
+	///     Returns null when a reliable cp score was not available (e.g., only mate scores).
+	/// </summary>
+	/// <param name="move">Move in UCI notation (e.g., e2e4, e7e8q).</param>
+	/// <param name="depth">Search depth to use for the evaluation.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task<int?> GetMoveCpDeltaAsync(string move, int depth = 14, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		if (string.IsNullOrWhiteSpace(move))
+			throw new ArgumentException("Move must be provided in UCI notation.", nameof(move));
+
+		var legalMoves = await GetLegalMovesAsync(ct);
+		if (!legalMoves.LegalMoves.Any(m => string.Equals(m, move, StringComparison.OrdinalIgnoreCase)))
+			throw new ArgumentException($"Illegal move for current position: '{move}'", nameof(move));
+
+		var    fenInfo        = await GetCurrentFenAsync(ct);
+		string normalizedMove = move.Trim().ToLowerInvariant();
+
+		int? beforeCp = await GetCurrentPositionCpAsync(depth, ct);
+		if (!beforeCp.HasValue) return null;
+
+		try
+		{
+			await SetPositionAsync(fenInfo.Fen, new[] { normalizedMove }, ct);
+
+			int? afterCp = await GetCurrentPositionCpAsync(depth, ct);
+			if (!afterCp.HasValue) return null;
+
+			return -afterCp.Value - beforeCp.Value;
+		}
+		finally
+		{
+			await SetPositionAsync(fenInfo.Fen, ct: ct);
+		}
 	}
 
 	/// <summary>
@@ -219,6 +280,76 @@ public sealed class UCIConnector : IAsyncDisposable
 		Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
 
 		return classifiedMoves;
+	}
+
+	/// <summary>
+	///     Makes the specified move on the current position and returns rich information about it.
+	/// </summary>
+	/// <param name="move">Move in UCI notation (e.g., e2e4, e7e8q).</param>
+	/// <param name="depth">Depth to use when evaluating before/after.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task<MoveInfo> MakeMoveAsync(string move, int depth = 20, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		if (string.IsNullOrWhiteSpace(move))
+			throw new ArgumentException("Move must be provided in UCI notation.", nameof(move));
+
+		if (move.Length < 4)
+			throw new ArgumentException("Move must be in UCI notation (at least 4 characters).", nameof(move));
+
+		string normalizedMove = move.Trim().ToLowerInvariant();
+		string from           = normalizedMove[..2];
+		string to             = normalizedMove.Substring(2, 2);
+		char?  promotion      = normalizedMove.Length > 4 ? normalizedMove[4] : null;
+
+		var fenBefore = await GetCurrentFenAsync(ct);
+
+		var  legalMoves = await GetLegalMovesAsync(ct);
+		bool isLegal    = legalMoves.LegalMoves.Contains(normalizedMove, StringComparer.OrdinalIgnoreCase);
+		if (!isLegal)
+			throw new ArgumentException($"Illegal move for current position: '{normalizedMove}'", nameof(move));
+
+		var boardState     = BoardStateParser.ParseFen(fenBefore.Fen);
+		var classification = MoveClassifier.ClassifyMove(normalizedMove, boardState);
+
+		bool isPonderHit = !string.IsNullOrWhiteSpace(_lastPonderMove) &&
+						   string.Equals(normalizedMove, _lastPonderMove, StringComparison.OrdinalIgnoreCase);
+
+		var beforeSearch = await SearchOnceAsync(depth, ct);
+		bool isBestMove = !string.IsNullOrWhiteSpace(beforeSearch.BestMove) &&
+						  string.Equals(normalizedMove, beforeSearch.BestMove, StringComparison.OrdinalIgnoreCase);
+
+		await SetPositionAsync(fenBefore.Fen, new[] { normalizedMove }, ct);
+
+		var afterSearch = await SearchOnceAsync(depth, ct);
+		var fenAfter    = await GetCurrentFenAsync(ct);
+
+		int? cpDelta = null;
+
+		if (beforeSearch.Cp.HasValue && afterSearch.Cp.HasValue)
+			cpDelta = -afterSearch.Cp.Value - beforeSearch.Cp.Value;
+
+		return new(
+			normalizedMove,
+			from,
+			to,
+			promotion,
+			true,
+			isBestMove,
+			isPonderHit,
+			beforeSearch.Cp,
+			afterSearch.Cp,
+			cpDelta,
+			beforeSearch.Mate,
+			afterSearch.Mate,
+			beforeSearch.BestMove   ?? string.Empty,
+			beforeSearch.PonderMove ?? string.Empty,
+			fenBefore.Fen,
+			fenAfter.Fen,
+			classification,
+			depth
+		);
 	}
 
 	public async Task<UciSearchInfo?> GO(int depth = 5, CancellationToken ct = default)
@@ -369,7 +500,7 @@ public sealed class UCIConnector : IAsyncDisposable
 		return (bestMove, ponderMove);
 	}
 
-	private static int? ParseScoreMate(string line)
+	private static int? ParseScoreCp(string line)
 	{
 		if (string.IsNullOrWhiteSpace(line)) return null;
 
@@ -377,11 +508,28 @@ public sealed class UCIConnector : IAsyncDisposable
 
 		for (var i = 0; i < tokens.Length - 1; i++)
 		{
-			if (tokens[i] == "score" && i + 2 < tokens.Length && tokens[i + 1] == "mate")
+			if (tokens[i] == "score" && i + 2 < tokens.Length && tokens[i + 1] == "cp")
 			{
-				if (int.TryParse(tokens[i + 2], out int mateValue))
-					return mateValue;
+				if (int.TryParse(tokens[i + 2], out int cpValue))
+					return cpValue;
 			}
+		}
+
+		return null;
+	}
+
+	private static int? ParseScoreMate(string line)
+	{
+		if (string.IsNullOrWhiteSpace(line)) return null;
+
+		string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+		for (var i = 0; i < tokens.Length - 1; i++)
+		{
+			if (tokens[i] != "score" || i + 2 >= tokens.Length || tokens[i + 1] != "mate") continue;
+
+			if (int.TryParse(tokens[i + 2], out int mateValue))
+				return mateValue;
 		}
 
 		return null;
@@ -501,6 +649,39 @@ public sealed class UCIConnector : IAsyncDisposable
 		return classifiedMoves;
 	}
 
+	private async Task<SearchResult> SearchOnceAsync(int depth, CancellationToken ct)
+	{
+		int?    lastCp   = null;
+		int?    lastMate = null;
+		string? best     = null;
+		string? ponder   = null;
+
+		await foreach (string? line in _engine.SendCommandAndReadOutputStreamingAsync("go depth " + depth, ct))
+		{
+			if (line is null) continue;
+
+			int? cp                 = ParseScoreCp(line);
+			if (cp.HasValue) lastCp = cp;
+
+			int? mate                   = ParseScoreMate(line);
+			if (mate.HasValue) lastMate = mate;
+
+			var parsedBest = ParseBestMove(line);
+
+			if (string.IsNullOrEmpty(parsedBest.best)) continue;
+
+			best   = parsedBest.best;
+			ponder = parsedBest.ponder;
+
+			_lastBestMove   = best;
+			_lastPonderMove = ponder;
+
+			BestMoveFound?.Invoke((best, ponder));
+		}
+
+		return new(lastCp, lastMate, best, ponder);
+	}
+
 	private void ClearPositionCaches()
 	{
 		_currentPositionMovesCache?.Clear();
@@ -531,3 +712,29 @@ public readonly record struct FenInfo(
 	string   Checkers);
 
 public readonly record struct LegalMovesResult(IEnumerable<string> LegalMoves);
+
+public readonly record struct MoveInfo(
+	string              Move,
+	string              From,
+	string              To,
+	char?               Promotion,
+	bool                IsLegal,
+	bool                IsBestMove,
+	bool                IsPonderHit,
+	int?                CpBefore,
+	int?                CpAfter,
+	int?                CpDelta,
+	int?                MateBefore,
+	int?                MateAfter,
+	string              BestMove,
+	string              PonderMove,
+	string              FenBefore,
+	string              FenAfter,
+	MoveClassification? Classification,
+	int                 DepthUsed);
+
+internal readonly record struct SearchResult(
+	int?    Cp,
+	int?    Mate,
+	string? BestMove,
+	string? PonderMove);
