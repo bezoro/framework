@@ -475,10 +475,10 @@ public sealed class UCIConnector : IAsyncDisposable
 		}
 	}
 
-	public void NewGame()
+	public async Task NewGameAsync()
 	{
 		ThrowIfDisposed();
-		_engine.WriteLineAsync("ucinewgame").GetAwaiter().GetResult();
+		await _engine.NewGameAsync();
 		Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 	}
 
