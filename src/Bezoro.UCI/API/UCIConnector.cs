@@ -71,12 +71,11 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	public async Task QuitEngineAsync()
 	{
-		if (_isDisposed.IsPositive()) return;
+		if (_isDisposed.IsPositive() && !_isDisposing.IsPositive()) return;
 
 		try
 		{
-			if (!_isDisposing.IsPositive())
-				await _engine.WriteLineAsync("quit");
+			await _engine.WriteLineAsync("quit");
 		}
 		catch (ObjectDisposedException)
 		{
@@ -162,7 +161,6 @@ public sealed class UCIConnector : IAsyncDisposable
 		if (_currentFenCache.HasValue)
 		{
 			Logger.LogInfo($"Returning cached FEN: {_currentFenCache}", this, LogCategory.UCI);
-			;
 			return _currentFenCache.Value;
 		}
 
@@ -325,7 +323,8 @@ public sealed class UCIConnector : IAsyncDisposable
 
 	public void NewGame()
 	{
-		_engine.WriteLineAsync("ucinewgame");
+		ThrowIfDisposed();
+		_engine.WriteLineAsync("ucinewgame").GetAwaiter().GetResult();
 		Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 	}
 
@@ -333,7 +332,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		if (!line.Contains("bestmove", StringComparison.OrdinalIgnoreCase)) return (string.Empty, string.Empty);
 
-		string[]? parts = line.Split(' ');
+		string[] parts = line.Split(' ');
 		if (parts.Length < 2) return (string.Empty, string.Empty);
 
 		string bestMove   = parts[1];
@@ -351,7 +350,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		string? bestMove   = string.Empty;
 		string? ponderMove = string.Empty;
-		int?    scoreMate  = 0;
+		int?    scoreMate  = null;
 
 		foreach (string line in lines)
 		{
@@ -376,7 +375,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		if (string.IsNullOrWhiteSpace(line)) return null;
 
-		string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+		string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
 		for (var i = 0; i < tokens.Length - 1; i++)
 		{
@@ -449,7 +448,7 @@ public sealed class UCIConnector : IAsyncDisposable
 		if (fen.IsNullOrEmpty())
 			throw new InvalidOperationException("No valid FEN string found in engine output");
 
-		string[]? parts = fen.Split(' ');
+		string[] parts = fen.Split(' ');
 
 		if (parts.Length != 6)
 		{
