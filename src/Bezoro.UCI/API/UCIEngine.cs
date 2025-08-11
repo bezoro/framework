@@ -68,6 +68,20 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		return req.Task;
 	}
 
+	public async Task WaitReadyAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		await WriteLineAsync("isready", ct).ConfigureAwait(false);
+		await WaitForTokenAsync("readyok", ct).ConfigureAwait(false);
+	}
+
+	// Sends a GO command (e.g., "depth 10", "movetime 5000", "wtime 100 btime 100") and waits for bestmove.
+	public Task<List<string>> GoAsync(string args, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		return SendCommandAndReadOutputAsync($"go {args}", ct, new[] { "bestmove" });
+	}
+
 	public async Task<List<string>> SendCommandAndReadOutputAsync(
 		string            command,
 		CancellationToken ct    = default,
@@ -90,6 +104,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			_commandLock.Release();
 		}
+	}
+
+	public Task<List<string>> StopSearchAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		return SendCommandAndReadOutputAsync("stop", ct, new[] { "bestmove" });
 	}
 
 	public async ValueTask DisposeAsync()
@@ -211,12 +231,39 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		_stdin.AutoFlush = true;
 
 		_ = Task.Run(ReadLoop);
+
+		if (_proc.StartInfo.RedirectStandardError) _ = Task.Run(ReadErrorLoop);
 	}
 
-	private static bool ContainsAnyToken(string line, string[] tokens)
+	private static bool MatchesUciTerminator(string line, string[] tokens)
 	{
 		foreach (string t in tokens)
 		{
+			if (t.Equals("bestmove", StringComparison.OrdinalIgnoreCase))
+			{
+				if (line.StartsWith("bestmove", StringComparison.OrdinalIgnoreCase))
+					return true;
+
+				continue;
+			}
+
+			if (t.Equals("uciok",   StringComparison.OrdinalIgnoreCase) ||
+				t.Equals("readyok", StringComparison.OrdinalIgnoreCase))
+			{
+				if (line.Equals(t, StringComparison.OrdinalIgnoreCase))
+					return true;
+
+				continue;
+			}
+
+			if (t.Equals("checkers", StringComparison.OrdinalIgnoreCase))
+			{
+				if (line.StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+					return true;
+
+				continue;
+			}
+
 			if (line.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
 				return true;
 		}
@@ -225,12 +272,27 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	}
 
 	private PendingRequest CreatePending(string[] tokens, CancellationToken ct)
-		=> RegisterAndReturn(new(ContainsAnyToken, tokens, ct));
+		=> RegisterAndReturn(new(MatchesUciTerminator, tokens, ct));
 
 	private PendingRequest RegisterAndReturn(PendingRequest req)
 	{
 		RegisterPending(req);
 		return req;
+	}
+
+	private async Task ReadErrorLoop()
+	{
+		try
+		{
+			using var stderr = _proc.StandardError;
+
+			while (!_disposed.IsPositive() && await stderr.ReadLineAsync().ConfigureAwait(false) is { } line)
+				Logger.LogError($"[STDERR] {line}", this, LogCategory.UCI);
+		}
+		catch
+		{
+			// Ignore errors while draining stderr
+		}
 	}
 
 	private async Task ReadLoop()
