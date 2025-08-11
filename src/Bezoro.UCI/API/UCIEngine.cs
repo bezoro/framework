@@ -32,6 +32,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	private readonly ConcurrentQueue<string> _history     = new();
 	private readonly Process                 _proc        = process ?? throw new ArgumentNullException(nameof(process));
 	private readonly SemaphoreSlim           _commandLock = new(1, 1);
+	private readonly SemaphoreSlim           _stdinWriteLock = new(1, 1);
 	private          int                     _disposed;
 
 	private StreamWriter? _stdin;
@@ -180,6 +181,16 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 			if (sw is not null)
 			{
+				// Ensure no write is in progress before flushing/disposing.
+				try
+				{
+					await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					firstError ??= ex;
+				}
+
 				try
 				{
 					await sw.FlushAsync().ConfigureAwait(false);
@@ -187,6 +198,17 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				catch (Exception ex)
 				{
 					firstError ??= ex;
+				}
+				finally
+				{
+					try
+					{
+						_stdinWriteLock.Release();
+					}
+					catch
+					{
+						// ignore
+					}
 				}
 
 				try
@@ -224,25 +246,48 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
+		// Dispose the stdin write lock to prevent further writes
+		try
+		{
+			_stdinWriteLock.Dispose();
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
 		// Log (do not throw from Dispose)
 		if (firstError is not null) Logger.LogError(firstError, this, LogCategory.UCI);
 	}
 
-	public ValueTask WriteLineAsync(string command, CancellationToken ct = default)
+	public async ValueTask WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 		Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 
-		// Harden against a race with DisposeAsync nulling _stdin after the disposed check.
-		var sw = Volatile.Read(ref _stdin);
+		// Serialize writes and only honor cancellation while waiting for the write slot.
+		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
 
-		if (sw is null)
+		try
 		{
-			// Ensure a consistent exception type
-			throw new ObjectDisposedException(nameof(UCIEngine));
-		}
+			// Re-read after acquiring the lock to avoid racing with DisposeAsync.
+			var sw = Volatile.Read(ref _stdin);
 
-		return new(sw.WriteLineAsync(command).WaitAsync(ct));
+			if (sw is null)
+			{
+				// Ensure a consistent exception type
+				throw new ObjectDisposedException(nameof(UCIEngine));
+			}
+
+			// Do not pass the CancellationToken to the StreamWriter operation:
+			// Task.WaitAsync would cancel the wait but not the underlying write,
+			// leading to overlapping writes and InvalidOperationException.
+			await sw.WriteLineAsync(command).ConfigureAwait(false);
+		}
+		finally
+		{
+			_stdinWriteLock.Release();
+		}
 	}
 
 	public void Start()
