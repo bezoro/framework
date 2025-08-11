@@ -100,7 +100,24 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		await WaitForTokenAsync("readyok", ct).ConfigureAwait(false);
 	}
 
-	// Sends a GO command (e.g., "depth 10", "movetime 5000", "wtime 100 btime 100") and waits for bestmove.
+	/// <summary>
+	///     Signals a brand new game to the engine and clears local history so stale tokens won't match.
+	///     Always call this when starting a fresh game if the same engine process is reused.
+	/// </summary>
+	public async Task NewGameAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		// Instruct engine to reset internal state (hash/TT, heuristics, etc.)
+		await WriteLineAsync("ucinewgame", ct).ConfigureAwait(false);
+
+		// Ensure engine is ready after clearing
+		await WaitReadyAsync(ct).ConfigureAwait(false);
+
+		// Clear our stored output history so future WaitForToken() calls don't match old lines.
+		_history.Clear();
+	}
+
 	public Task<List<string>> GoAsync(string args, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
