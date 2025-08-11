@@ -94,121 +94,90 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	public async ValueTask DisposeAsync()
 	{
-		if (Interlocked.Exchange(ref _disposed, 1) == 1)
-			return;
+		if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
 
-		Exception? firstError = null;
-		var        disposedEx = new ObjectDisposedException(nameof(UCIEngine));
+		Exception? firstError        = null;
+		var        disposedException = new ObjectDisposedException(nameof(UCIEngine));
 
-		try
-		{
-			_out.Writer.TryComplete(disposedEx);
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
-
-		try
-		{
-			foreach (var kvp in _pending.Keys)
-			{
-				if (!_pending.TryRemove(kvp, out _)) continue;
-
-				try
-				{
-					kvp.Fail(disposedEx);
-				}
-				catch (Exception ex)
-				{
-					firstError ??= ex;
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
-
-		try
-		{
-			var sw = Interlocked.Exchange(ref _stdin, null);
-
-			if (sw is not null)
-			{
-				try
-				{
-					await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					firstError ??= ex;
-				}
-
-				try
-				{
-					await sw.FlushAsync().ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					firstError ??= ex;
-				}
-				finally
-				{
-					try
-					{
-						_stdinWriteLock.Release();
-					}
-					catch
-					{
-						// ignore
-					}
-				}
-
-				try
-				{
-					await sw.DisposeAsync();
-				}
-				catch (Exception ex)
-				{
-					firstError ??= ex;
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
-
-		try
-		{
-			_history.Clear();
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
-
-		try
-		{
-			_commandLock.Dispose();
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
-
-		try
-		{
-			_stdinWriteLock.Dispose();
-		}
-		catch (Exception ex)
-		{
-			firstError ??= ex;
-		}
+		CaptureSafely(CompleteOutboundChannel);
+		CaptureSafely(() => FailAndRemovePendingRequests(disposedException));
+		await CaptureSafelyAsync(FlushAndDisposeStdinAsync);
+		CaptureSafely(_history.Clear);
+		CaptureSafely(_commandLock.Dispose);
+		CaptureSafely(_stdinWriteLock.Dispose);
 
 		if (firstError is not null)
 			Logger.LogError(firstError, this, LogCategory.UCI);
+
+		return;
+
+		void CompleteOutboundChannel()
+		{
+			_out.Writer.TryComplete(disposedException);
+		}
+
+		void FailAndRemovePendingRequests(ObjectDisposedException ex)
+		{
+			foreach (var request in _pending.Keys)
+			{
+				if (!_pending.TryRemove(request, out _)) continue;
+
+				request.Fail(ex);
+			}
+		}
+
+		async ValueTask FlushAndDisposeStdinAsync()
+		{
+			var stdin = Interlocked.Exchange(ref _stdin, null);
+			if (stdin is null) return;
+
+			try
+			{
+				await CaptureSafelyAsync(async ValueTask () =>
+				{
+					await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
+				});
+
+				await CaptureSafelyAsync(async ValueTask () => { await stdin.FlushAsync().ConfigureAwait(false); });
+			}
+			finally
+			{
+				try
+				{
+					_stdinWriteLock.Release();
+				}
+				catch
+				{
+					// ignore
+				}
+			}
+
+			await CaptureSafelyAsync(() => stdin.DisposeAsync());
+		}
+
+		void CaptureSafely(Action action)
+		{
+			try
+			{
+				action();
+			}
+			catch (Exception ex)
+			{
+				firstError ??= ex;
+			}
+		}
+
+		async ValueTask CaptureSafelyAsync(Func<ValueTask> action)
+		{
+			try
+			{
+				await action().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				firstError ??= ex;
+			}
+		}
 	}
 
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct = default)
@@ -359,7 +328,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			_ctr = ct.Register(() => _tcs.TrySetCanceled(ct));
 
 			_ = _tcs.Task.ContinueWith(
-				static (t, state) => ((CancellationTokenRegistration)state!).Dispose(),
+				static (_, state) => ((CancellationTokenRegistration)state!).Dispose(),
 				_ctr,
 				TaskScheduler.Default);
 		}
