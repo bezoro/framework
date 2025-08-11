@@ -14,6 +14,7 @@ namespace Bezoro.UCI.API;
 /// </summary>
 public sealed class UCIEngine(Process process) : IAsyncDisposable
 {
+	private const int HISTORY_CAPACITY = 1_000;
 	private static readonly string[] DefaultTerminators =
 	[
 		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
@@ -54,21 +55,15 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	/// </summary>
 	public Task WaitForTokensAsync(string[] tokens, CancellationToken ct = default)
 	{
-		// Fail fast instead of silently completing when disposed.
 		ThrowIfDisposed();
 
-		var req = new PendingRequest(
-			ContainsAnyToken,
-			tokens,
-			ct);
+		var req = CreatePending(tokens, ct);
 
 		foreach (string line in _history)
 		{
 			if (req.TryAccept(line))
 				return req.Task;
 		}
-
-		RegisterPending(req);
 
 		return req.Task;
 	}
@@ -85,12 +80,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		try
 		{
 			until ??= DefaultTerminators;
-			var req = new PendingRequest(
-				ContainsAnyToken,
-				until,
-				ct);
-
-			RegisterPending(req);
+			var req = CreatePending(until, ct);
 
 			await WriteLineAsync(command, ct).ConfigureAwait(false);
 
@@ -104,14 +94,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	public async ValueTask DisposeAsync()
 	{
-		// Fast-path: only run once
 		if (Interlocked.Exchange(ref _disposed, 1) == 1)
 			return;
 
 		Exception? firstError = null;
 		var        disposedEx = new ObjectDisposedException(nameof(UCIEngine));
 
-		// Complete the output channel to unblock any readers
 		try
 		{
 			_out.Writer.TryComplete(disposedEx);
@@ -121,21 +109,19 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Best-effort: fail all pending requests so callers don't hang
 		try
 		{
 			foreach (var kvp in _pending.Keys)
 			{
-				if (_pending.TryRemove(kvp, out _))
+				if (!_pending.TryRemove(kvp, out _)) continue;
+
+				try
 				{
-					try
-					{
-						kvp.Fail(disposedEx);
-					}
-					catch (Exception ex)
-					{
-						firstError ??= ex;
-					}
+					kvp.Fail(disposedEx);
+				}
+				catch (Exception ex)
+				{
+					firstError ??= ex;
 				}
 			}
 		}
@@ -144,14 +130,12 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Close stdin (flush first), then dispose
 		try
 		{
 			var sw = Interlocked.Exchange(ref _stdin, null);
 
 			if (sw is not null)
 			{
-				// Ensure no write is in progress before flushing/disposing.
 				try
 				{
 					await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
@@ -183,7 +167,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 				try
 				{
-					sw.Dispose();
+					await sw.DisposeAsync();
 				}
 				catch (Exception ex)
 				{
@@ -196,7 +180,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Best-effort cleanup of internal state
 		try
 		{
 			_history.Clear();
@@ -206,7 +189,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Dispose the command lock to prevent further use
 		try
 		{
 			_commandLock.Dispose();
@@ -216,7 +198,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Dispose the stdin write lock to prevent further writes
 		try
 		{
 			_stdinWriteLock.Dispose();
@@ -226,32 +207,24 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			firstError ??= ex;
 		}
 
-		// Log (do not throw from Dispose)
-		if (firstError is not null) Logger.LogError(firstError, this, LogCategory.UCI);
+		if (firstError is not null)
+			Logger.LogError(firstError, this, LogCategory.UCI);
 	}
 
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 
-		// Serialize writes and only honor cancellation while waiting for the write slot.
+
 		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
 
 		try
 		{
-			// Re-read after acquiring the lock to avoid racing with DisposeAsync.
 			var sw = Volatile.Read(ref _stdin);
 
-			if (sw is null)
-			{
-				// Ensure a consistent exception type
-				throw new ObjectDisposedException(nameof(UCIEngine));
-			}
+			if (sw is null) throw new ObjectDisposedException(nameof(UCIEngine));
 
-			// Do not pass the CancellationToken to the StreamWriter operation:
-			// Task.WaitAsync would cancel the wait but not the underlying write,
-			// leading to overlapping writes and InvalidOperationException.
+			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 			await sw.WriteLineAsync(command).ConfigureAwait(false);
 		}
 		finally
@@ -271,7 +244,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		_ = Task.Run(ReadLoop);
 	}
 
-	// Helper: check if a line contains any of the given tokens (case-insensitive).
 	private static bool ContainsAnyToken(string line, string[] tokens)
 	{
 		foreach (string t in tokens)
@@ -283,6 +255,15 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		return false;
 	}
 
+	private PendingRequest CreatePending(string[] tokens, CancellationToken ct)
+		=> RegisterAndReturn(new(ContainsAnyToken, tokens, ct));
+
+	private PendingRequest RegisterAndReturn(PendingRequest req)
+	{
+		RegisterPending(req);
+		return req;
+	}
+
 	private async Task ReadLoop()
 	{
 		using var stdout = _proc.StandardOutput;
@@ -291,9 +272,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			Logger.LogInfo($"[OUTPUT] {line.Bold()}", this, LogCategory.UCI);
 
-			_history.Enqueue(line);
-			if (_history.Count > 1_000)
-				_history.TryDequeue(out _);
+			AppendHistory(line);
 
 			_out.Writer.TryWrite(line);
 
@@ -305,38 +284,46 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			}
 		}
 
-		// If the engine closed stdout and we aren't in normal disposal, fail outstanding waits
 		if (!_disposed.IsPositive())
 		{
 			var ex = new EndOfStreamException("Engine process closed its stdout.");
+			CompleteOutputAndFailPending(ex);
+		}
+	}
+
+	private void AppendHistory(string line)
+	{
+		_history.Enqueue(line);
+		if (_history.Count > HISTORY_CAPACITY)
+			_history.TryDequeue(out _);
+	}
+
+	private void CompleteOutputAndFailPending(Exception ex)
+	{
+		try
+		{
+			_out.Writer.TryComplete(ex);
+		}
+		catch
+		{
+			// ignore
+		}
+
+		foreach (var req in _pending.Keys)
+		{
+			if (!_pending.TryRemove(req, out _)) continue;
 
 			try
 			{
-				_out.Writer.TryComplete(ex);
+				req.Fail(ex);
 			}
 			catch
 			{
 				// ignore
 			}
-
-			foreach (var req in _pending.Keys)
-			{
-				if (_pending.TryRemove(req, out _))
-				{
-					try
-					{
-						req.Fail(ex);
-					}
-					catch
-					{
-						// ignore
-					}
-				}
-			}
 		}
 	}
 
-	// Helper: register a pending request and ensure it is removed upon completion.
 	private void RegisterPending(PendingRequest req)
 	{
 		_pending.TryAdd(req, 0);
