@@ -29,8 +29,8 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 	private readonly ConcurrentDictionary<PendingRequest, byte> _pending = new();
 
-	private readonly ConcurrentQueue<string> _history     = new();
-	private readonly Process                 _proc        = process ?? throw new ArgumentNullException(nameof(process));
+	private readonly ConcurrentQueue<string> _history = new();
+	private readonly Process                 _proc = process ?? throw new ArgumentNullException(nameof(process));
 	private readonly SemaphoreSlim           _commandLock = new(1, 1);
 	private readonly SemaphoreSlim           _stdinWriteLock = new(1, 1);
 	private          int                     _disposed;
@@ -58,16 +58,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 
 		var req = new PendingRequest(
-			static (l, toks) =>
-			{
-				foreach (string t in toks)
-				{
-					if (l.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
-						return true;
-				}
-
-				return false;
-			},
+			ContainsAnyToken,
 			tokens,
 			ct);
 
@@ -77,12 +68,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				return req.Task;
 		}
 
-		_pending.TryAdd(req, 0);
-		_ = req.Task.ContinueWith(
-			_ => _pending.TryRemove(req, out byte _),
-			CancellationToken.None,
-			TaskContinuationOptions.ExecuteSynchronously,
-			TaskScheduler.Default);
+		RegisterPending(req);
 
 		return req.Task;
 	}
@@ -100,27 +86,11 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			until ??= DefaultTerminators;
 			var req = new PendingRequest(
-				static (l, tokens) =>
-				{
-					foreach (string tok in tokens)
-					{
-						if (l.AsSpan().Contains(
-								tok.AsSpan(),
-								StringComparison.OrdinalIgnoreCase))
-							return true;
-					}
-
-					return false;
-				},
+				ContainsAnyToken,
 				until,
 				ct);
 
-			_pending.TryAdd(req, 0);
-			_ = req.Task.ContinueWith(
-				_ => _pending.TryRemove(req, out byte _),
-				CancellationToken.None,
-				TaskContinuationOptions.ExecuteSynchronously,
-				TaskScheduler.Default);
+			RegisterPending(req);
 
 			await WriteLineAsync(command, ct).ConfigureAwait(false);
 
@@ -301,6 +271,18 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		_ = Task.Run(ReadLoop);
 	}
 
+	// Helper: check if a line contains any of the given tokens (case-insensitive).
+	private static bool ContainsAnyToken(string line, string[] tokens)
+	{
+		foreach (string t in tokens)
+		{
+			if (line.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
+				return true;
+		}
+
+		return false;
+	}
+
 	private async Task ReadLoop()
 	{
 		using var stdout = _proc.StandardOutput;
@@ -352,6 +334,17 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				}
 			}
 		}
+	}
+
+	// Helper: register a pending request and ensure it is removed upon completion.
+	private void RegisterPending(PendingRequest req)
+	{
+		_pending.TryAdd(req, 0);
+		_ = req.Task.ContinueWith(
+			_ => _pending.TryRemove(req, out byte _),
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
 	}
 
 	private void ThrowIfDisposed()
