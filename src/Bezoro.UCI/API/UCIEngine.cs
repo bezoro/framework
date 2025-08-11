@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -37,6 +38,30 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	private          int                     _disposed;
 
 	private StreamWriter? _stdin;
+
+	public async IAsyncEnumerable<string> SendCommandAndReadOutputStreamingAsync(
+		string                                     command,
+		[EnumeratorCancellation] CancellationToken ct    = default,
+		string[]?                                  until = null)
+	{
+		ThrowIfDisposed();
+
+		await _commandLock.WaitAsync(ct).ConfigureAwait(false);
+
+		try
+		{
+			until ??= DefaultTerminators;
+			var req = CreatePending(until, ct);
+
+			await WriteLineAsync(command, ct).ConfigureAwait(false);
+
+			await foreach (string? line in req.Stream(ct)) yield return line;
+		}
+		finally
+		{
+			_commandLock.Release();
+		}
+	}
 
 	/// <summary>
 	///     Waits until a line received from the engine contains the specified token
@@ -203,7 +228,6 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-
 
 		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
 
@@ -373,9 +397,16 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	private sealed class PendingRequest
 	{
 		private readonly CancellationTokenRegistration _ctr;
-		private readonly Func<string, string[], bool>  _stop;
-		private readonly List<string>                  _lines = [];
-		private readonly string[]                      _tokens;
+		private readonly Channel<string> _stream = Channel.CreateUnbounded<string>(
+			new()
+			{
+				SingleWriter                  = true,
+				SingleReader                  = false,
+				AllowSynchronousContinuations = false
+			});
+		private readonly Func<string, string[], bool> _stop;
+		private readonly List<string>                 _lines = [];
+		private readonly string[]                     _tokens;
 		private readonly TaskCompletionSource<List<string>> _tcs =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -387,7 +418,19 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			_stop   = stop;
 			_tokens = tokens;
 
-			_ctr = ct.Register(() => _tcs.TrySetCanceled(ct));
+			_ctr = ct.Register(() =>
+			{
+				_tcs.TrySetCanceled(ct);
+
+				try
+				{
+					_stream.Writer.TryComplete(new OperationCanceledException(ct));
+				}
+				catch
+				{
+					// ignore
+				}
+			});
 
 			_ = _tcs.Task.ContinueWith(
 				static (_, state) => ((CancellationTokenRegistration)state!).Dispose(),
@@ -400,17 +443,32 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		public bool TryAccept(string line)
 		{
 			_lines.Add(line);
+			_stream.Writer.TryWrite(line);
+
 			if (!_stop(line, _tokens)) return false;
 
 			_ctr.Dispose();
 			_tcs.TrySetResult(_lines);
+			_stream.Writer.TryComplete();
 			return true;
 		}
+
+		public IAsyncEnumerable<string> Stream(CancellationToken ct = default)
+			=> _stream.Reader.ReadAllAsync(ct);
 
 		public void Fail(Exception ex)
 		{
 			_ctr.Dispose();
 			_tcs.TrySetException(ex);
+
+			try
+			{
+				_stream.Writer.TryComplete(ex);
+			}
+			catch
+			{
+				// ignore
+			}
 		}
 	}
 }

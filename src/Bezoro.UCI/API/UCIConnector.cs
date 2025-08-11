@@ -19,10 +19,10 @@ namespace Bezoro.UCI.API;
 /// </summary>
 public sealed class UCIConnector : IAsyncDisposable
 {
-	private readonly ConcurrentDictionary<int, GOResult?> _goResultCache = new();
-	private readonly Process?                             _engineProcess;
-	private readonly string                               _enginePath;
-	private readonly UCIEngine                            _engine;
+	private readonly ConcurrentDictionary<int, UciSearchInfo?> _searchInfoCache = new();
+	private readonly Process?                                  _engineProcess;
+	private readonly string                                    _enginePath;
+	private readonly UCIEngine                                 _engine;
 
 	private bool     _started;
 	private FenInfo? _currentFenCache;
@@ -167,39 +167,6 @@ public sealed class UCIConnector : IAsyncDisposable
 		return await RenewFenCache(ct);
 	}
 
-	public async Task<GOResult?> GO(int depth = 5, CancellationToken ct = default)
-	{
-		if (_goResultCache.TryGetValue(depth, out var cached) && cached.HasValue)
-		{
-			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
-			return cached;
-		}
-
-		var lines  = await _engine.SendCommandAndReadOutputAsync("go depth " + depth, ct);
-		var result = ParseLinesAndBuildGOResult(lines);
-		return _goResultCache[depth] = result;
-	}
-
-	public async Task<GOResult?> GoPerftOne(CancellationToken ct = default)
-	{
-		if (_goResultCache.TryGetValue(1, out var cached) && cached.HasValue)
-		{
-			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
-			return cached;
-		}
-
-		var lines  = await _engine.SendCommandAndReadOutputAsync(UCIConstants.GoPerftDepth1Command, ct);
-		var result = ParseLinesAndBuildGOResult(lines);
-		return _goResultCache[1] = result;
-	}
-
-	public async Task<GOResult?> StartSearchForSecondsAsync(int seconds, CancellationToken ct = default)
-	{
-		int milliSeconds = seconds * 1000;
-		var lines        = await _engine.SendCommandAndReadOutputAsync($"go movetime {milliSeconds}", ct);
-		return ParseLinesAndBuildGOResult(lines);
-	}
-
 	public async Task<ICollection<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
 		string            square,
 		CancellationToken ct = default)
@@ -252,6 +219,62 @@ public sealed class UCIConnector : IAsyncDisposable
 		Logger.LogInfo("GettingAllLegalMoves...Done",       this, LogCategory.UCI);
 
 		return classifiedMoves;
+	}
+
+	public async Task<UciSearchInfo?> GO(int depth = 5, CancellationToken ct = default)
+	{
+		if (_searchInfoCache.TryGetValue(depth, out var cached) && cached.HasValue)
+		{
+			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
+			return cached;
+		}
+
+		UciSearchInfo? last = null;
+
+		await foreach (string? line in _engine.SendCommandAndReadOutputStreamingAsync("go depth " + depth, ct))
+		{
+			if (UciSearchInfo.TryParse(line, out var info))
+				last = info;
+		}
+
+		return _searchInfoCache[depth] = last;
+	}
+
+	public async Task<UciSearchInfo?> GoPerftOne(CancellationToken ct = default)
+	{
+		if (_searchInfoCache.TryGetValue(1, out var cached) && cached.HasValue)
+		{
+			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
+			return cached;
+		}
+
+		UciSearchInfo? last = null;
+
+		await foreach (string? line in _engine.SendCommandAndReadOutputStreamingAsync(
+						   UCIConstants.GoPerftDepth1Command,
+						   ct))
+		{
+			if (UciSearchInfo.TryParse(line, out var info))
+				last = info;
+		}
+
+		return _searchInfoCache[1] = last;
+	}
+
+	public async Task<UciSearchInfo?> StartSearchForSecondsAsync(int seconds, CancellationToken ct = default)
+	{
+		int milliSeconds = seconds * 1000;
+
+		UciSearchInfo? last = null;
+
+		await foreach (string? line in
+					   _engine.SendCommandAndReadOutputStreamingAsync($"go movetime {milliSeconds}", ct))
+		{
+			if (UciSearchInfo.TryParse(line, out var info))
+				last = info;
+		}
+
+		return last;
 	}
 
 	public async ValueTask DisposeAsync()
@@ -309,7 +332,7 @@ public sealed class UCIConnector : IAsyncDisposable
 			}
 
 			// Clear caches and internal state
-			_goResultCache.Clear();
+			_searchInfoCache.Clear();
 			_currentFenCache           = null;
 			_currentPositionMovesCache = null;
 			_started                   = false;
@@ -344,31 +367,6 @@ public sealed class UCIConnector : IAsyncDisposable
 		if (bestMove == "(none)") bestMove = string.Empty;
 
 		return (bestMove, ponderMove);
-	}
-
-	private static GOResult ParseLinesAndBuildGOResult(List<string> lines)
-	{
-		string? bestMove   = string.Empty;
-		string? ponderMove = string.Empty;
-		int?    scoreMate  = null;
-
-		foreach (string line in lines)
-		{
-			// Parse best move information
-			var bestMoveResult = ParseBestMove(line);
-
-			if (!string.IsNullOrEmpty(bestMoveResult.best))
-			{
-				bestMove   = bestMoveResult.best;
-				ponderMove = bestMoveResult.ponder;
-			}
-
-			int? currentScoreMate                   = ParseScoreMate(line);
-			if (currentScoreMate != null) scoreMate = currentScoreMate;
-		}
-
-		var result = new GOResult(bestMove, ponderMove, scoreMate);
-		return result;
 	}
 
 	private static int? ParseScoreMate(string line)
@@ -507,7 +505,7 @@ public sealed class UCIConnector : IAsyncDisposable
 	{
 		_currentPositionMovesCache?.Clear();
 		_currentFenCache = null;
-		_goResultCache.Clear();
+		_searchInfoCache.Clear();
 	}
 
 	private void ThrowIfDisposed()
@@ -531,7 +529,5 @@ public readonly record struct FenInfo(
 	string   Fen,
 	string[] FenParts,
 	string   Checkers);
-
-public readonly record struct GOResult(string BestMove, string PonderMove, int? ScoreMate);
 
 public readonly record struct LegalMovesResult(IEnumerable<string> LegalMoves);
