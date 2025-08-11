@@ -7,86 +7,79 @@ using Bezoro.UCI.Domain.Constants;
 using Bezoro.UCI.Domain.Extensions;
 using Bezoro.UCI.Domain.Helpers;
 
-namespace Bezoro.UCI.Domain
+namespace Bezoro.UCI.Domain;
+
+/// <summary>
+///     Handles chess engine search operations.
+/// </summary>
+internal sealed class SearchService
 {
+	private readonly EngineCommandSender _commandSender;
+	private readonly EngineOutputParser  _outputParser;
+
 	/// <summary>
-	///     Handles chess engine search operations.
+	///     Initializes a new instance of the <see cref="SearchService" /> class.
 	/// </summary>
-	internal sealed class SearchService
+	/// <param name="commandSender">The engine command sender.</param>
+	/// <param name="outputParser">The engine output parser.</param>
+	public SearchService(EngineCommandSender commandSender, EngineOutputParser outputParser)
 	{
-		private readonly EngineCommandSender _commandSender;
-		private readonly EngineOutputParser  _outputParser;
+		_commandSender = commandSender;
+		_outputParser  = outputParser;
+	}
 
-		/// <summary>
-		///     Initializes a new instance of the <see cref="SearchService" /> class.
-		/// </summary>
-		/// <param name="commandSender">The engine command sender.</param>
-		/// <param name="outputParser">The engine output parser.</param>
-		public SearchService(EngineCommandSender commandSender, EngineOutputParser outputParser)
+	/// <summary>
+	///     Performs an infinite analysis operation.
+	/// </summary>
+	/// <param name="onAnalysisUpdate">Callback for analysis updates.</param>
+	/// <param name="ct">A token to cancel the operation.</param>
+	public async Task StartAnalysisAsync(Action<EngineOutput> onAnalysisUpdate, CancellationToken ct = default)
+	{
+		var parameters = new SearchParameters { Infinite = true };
+		await _commandSender.SendCommandAsync(GoCommandHelper.BuildGoCommand(parameters), true, ct);
+
+		await foreach (var output in _outputParser.ReadEngineOutputAsync(parameters, ct))
 		{
-			_commandSender = commandSender;
-			_outputParser  = outputParser;
+			if (output is { Type: EngineOutputType.Info, AnalysisInfo: not null })
+				onAnalysisUpdate(output);
 		}
+	}
 
-		/// <summary>
-		///     Performs an infinite analysis operation.
-		/// </summary>
-		/// <param name="onAnalysisUpdate">Callback for analysis updates.</param>
-		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task StartAnalysisAsync(Action<EngineOutput> onAnalysisUpdate, CancellationToken ct = default)
+	/// <summary>
+	///     Stops the current search operation.
+	/// </summary>
+	public async Task StopAnalysisAsync()
+	{
+		await _commandSender.SendCommandAsync(UCIConstants.StopCommand);
+	}
+
+	/// <summary>
+	///     Performs a search operation with the specified parameters.
+	/// </summary>
+	/// <param name="parameters">The search parameters.</param>
+	/// <param name="ct">A token to cancel the operation.</param>
+	public async Task<SearchResultOld> SearchAsync(SearchParameters parameters, CancellationToken ct = default)
+	{
+		var result    = new SearchResultOld();
+		var stopwatch = Stopwatch.StartNew();
+
+		try
 		{
-			var parameters = new SearchParameters { Infinite = true };
-			await _commandSender.SendCommandAsync(GoCommandHelper.BuildGoCommand(parameters), true, ct);
-
+			string goCommand = GoCommandHelper.BuildGoCommand(parameters);
+			await _commandSender.SendCommandAsync(goCommand, false, ct);
 			await foreach (var output in _outputParser.ReadEngineOutputAsync(parameters, ct))
-			{
-				if (output is { Type: EngineOutputType.Info, AnalysisInfo: not null })
-				{
-					onAnalysisUpdate(output);
-				}
-			}
+				result = output.ToSearchResult();
 		}
-
-		/// <summary>
-		///     Stops the current search operation.
-		/// </summary>
-		public async Task StopAnalysisAsync()
+		catch (OperationCanceledException)
 		{
-			await _commandSender.SendCommandAsync(UCIConstants.StopCommand);
+			await foreach (var output in _outputParser.ReadEngineOutputAsync(parameters, ct))
+				result = output.ToSearchResult();
+
+			result.WasStoppedEarly = true;
 		}
 
-		/// <summary>
-		///     Performs a search operation with the specified parameters.
-		/// </summary>
-		/// <param name="parameters">The search parameters.</param>
-		/// <param name="ct">A token to cancel the operation.</param>
-		public async Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default)
-		{
-			var result    = new SearchResult();
-			var stopwatch = Stopwatch.StartNew();
-
-			try
-			{
-				string goCommand = GoCommandHelper.BuildGoCommand(parameters);
-				await _commandSender.SendCommandAsync(goCommand, false, ct);
-				await foreach (var output in _outputParser.ReadEngineOutputAsync(parameters, ct))
-				{
-					result = output.ToSearchResult();
-				}
-			}
-			catch (OperationCanceledException)
-			{
-				await foreach (var output in _outputParser.ReadEngineOutputAsync(parameters, ct))
-				{
-					result = output.ToSearchResult();
-				}
-
-				result.WasStoppedEarly = true;
-			}
-
-			stopwatch.Stop();
-			result.SearchTimeMs = stopwatch.ElapsedMilliseconds;
-			return result;
-		}
+		stopwatch.Stop();
+		result.SearchTimeMs = stopwatch.ElapsedMilliseconds;
+		return result;
 	}
 }
