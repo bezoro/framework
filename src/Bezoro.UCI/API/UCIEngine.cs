@@ -2,102 +2,75 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain.Constants;
 
 namespace Bezoro.UCI.API;
 
 /// <summary>
 ///     High-performance, thread–safe wrapper around a UCI engine process.
 /// </summary>
-public sealed class UCIEngine(Process process) : IAsyncDisposable
+public sealed class UciEngine(Process process) : IAsyncDisposable
 {
-	private const int HISTORY_CAPACITY = 1_000;
+	private const int HISTORY_CAPACITY = 10_000;
 	private static readonly string[] DefaultTerminators =
 	[
 		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
 	];
-	private readonly Channel<string> _out
-		= Channel.CreateBounded<string>(
-			new BoundedChannelOptions(1)
-			{
-				SingleWriter                  = true,
-				AllowSynchronousContinuations = false,
-				FullMode                      = BoundedChannelFullMode.DropOldest
-			});
 
-	private readonly ConcurrentDictionary<PendingRequest, byte> _pending = new();
+	private readonly ConcurrentDictionary<PendingRequest, byte> _pending         = new();
+	private readonly ConcurrentDictionary<uint, SearchResult>   _searchInfoCache = new();
+	private readonly ConcurrentQueue<string>                    _outputHistory   = new();
 
-	private readonly ConcurrentQueue<string> _history = new();
-	private readonly Process                 _proc = process ?? throw new ArgumentNullException(nameof(process));
-	private readonly SemaphoreSlim           _commandLock = new(1, 1);
-	private readonly SemaphoreSlim           _stdinWriteLock = new(1, 1);
-	private          int                     _disposed;
+	private readonly List<Move> _currentLegalMovesCache = [];
+
+	private readonly Process _proc = process ?? throw new ArgumentNullException(nameof(process));
+
+	private readonly SemaphoreSlim _commandLock    = new(1, 1);
+	private readonly SemaphoreSlim _stdinWriteLock = new(1, 1);
+
+	private Fen? _currentFenCache;
+
+	private int _currentMultiPv;
+
+	private volatile int        _isDisposed;
+	private          List<Move> _currentSquareMovesCache = [];
 
 	private StreamWriter? _stdin;
 
-	public async IAsyncEnumerable<string> SendCommandAndReadOutputStreamingAsync(
+	public bool IsStarted { get; private set; }
+
+	public async IAsyncEnumerable<string> SendCommandAndReadStreamAsync(
 		string                                     command,
 		[EnumeratorCancellation] CancellationToken ct    = default,
 		string[]?                                  until = null)
 	{
-		ThrowIfDisposed();
+		var resp = await SendCommandAsync(command, ct, until).ConfigureAwait(false);
 
-		await _commandLock.WaitAsync(ct).ConfigureAwait(false);
-
-		try
-		{
-			until ??= DefaultTerminators;
-			var req = CreatePending(until, ct);
-
-			await WriteLineAsync(command, ct).ConfigureAwait(false);
-
-			await foreach (string? line in req.Stream(ct)) yield return line;
-		}
-		finally
-		{
-			_commandLock.Release();
-		}
+		await foreach (string? line in resp.Lines.WithCancellation(ct).ConfigureAwait(false)) yield return line;
 	}
 
-	/// <summary>
-	///     Waits until a line received from the engine contains the specified token
-	///     (case-insensitive).  No command is sent – the caller is expected to have
-	///     already issued the request that will eventually produce the token
-	///     (“uciok”, “readyok”, custom search id, …).
-	/// </summary>
-	/// <param name="token">Substring that must appear in a single output line.</param>
-	/// <param name="ct">Cancellation token to abort the wait.</param>
-	public Task WaitForTokenAsync(string token, CancellationToken ct = default)
-		=> WaitForTokensAsync([token], ct);
-
-	/// <summary>
-	///     Same as <see cref="WaitForTokenAsync(string,System.Threading.CancellationToken)" />
-	///     but waits for any of the supplied tokens.
-	/// </summary>
-	public Task WaitForTokensAsync(string[] tokens, CancellationToken ct = default)
+	public MoveScore? TryGetMoveScoreFromHistory(string notation)
 	{
 		ThrowIfDisposed();
+		notation.ThrowIfNull().ThrowIfEmpty().Length.ThrowIfLessThan(4);
 
-		var req = CreatePending(tokens, ct);
+		string[] lines = _outputHistory.ToArray();
 
-		foreach (string line in _history)
+		MoveScore? score = null;
+		for (int i = lines.Length - 1; i >= 0; i--)
 		{
-			if (req.TryAccept(line))
-				return req.Task;
+			MoveScore.TryParse(lines[i], out var moveScore);
+			score = moveScore;
 		}
 
-		return req.Task;
-	}
-
-	public async Task WaitReadyAsync(CancellationToken ct = default)
-	{
-		ThrowIfDisposed();
-		await WriteLineAsync("isready", ct).ConfigureAwait(false);
-		await WaitForTokenAsync("readyok", ct).ConfigureAwait(false);
+		return score;
 	}
 
 	/// <summary>
@@ -109,22 +82,359 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 
 		// Instruct engine to reset internal state (hash/TT, heuristics, etc.)
-		await WriteLineAsync("ucinewgame", ct).ConfigureAwait(false);
+		await WriteLineAsync(UCIConstants.UCINewGameCommand, ct).ConfigureAwait(false);
 
 		// Ensure engine is ready after clearing
 		await WaitReadyAsync(ct).ConfigureAwait(false);
 
 		// Clear our stored output history so future WaitForToken() calls don't match old lines.
-		_history.Clear();
+		_outputHistory.Clear();
+		Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 	}
 
-	public Task<List<string>> GoAsync(string args, CancellationToken ct = default)
+	public async Task PonderhitAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		return SendCommandAndReadOutputAsync($"go {args}", ct, new[] { "bestmove" });
+		await WriteLineAsync("ponderhit", ct).ConfigureAwait(false);
+		Logger.LogInfo($"Ponder Hit", this, LogCategory.UCI);
 	}
 
-	public async Task<List<string>> SendCommandAndReadOutputAsync(
+	public async Task QuitEngineAsync()
+	{
+		if (_isDisposed.IsPositive()) return;
+
+		try
+		{
+			await WriteLineAsync(UCIConstants.QuitCommand).ConfigureAwait(false);
+		}
+		catch (ObjectDisposedException)
+		{
+			// Expected during disposal
+		}
+
+		IsStarted = false;
+		Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
+	}
+
+	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		await WriteLineAsync($"{UCIConstants.SetOptionCommand} {name} value {value}", ct).ConfigureAwait(false);
+		if (name == "MultiPV") _currentMultiPv = value;
+		Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.ToString().Bold()}", this, LogCategory.UCI);
+	}
+
+	public async Task SetPositionAsync(
+		string               fen,
+		IEnumerable<string>? moves = null,
+		CancellationToken    ct    = default)
+	{
+		ThrowIfDisposed();
+
+		var command                = $"{UCIConstants.PositionCommand} fen {fen}";
+		if (moves != null) command += $" moves {string.Join(" ", moves)}";
+
+		await WriteLineAsync(command, ct);
+		ClearPositionCaches();
+		Logger.LogSuccess($"Position Set Successfully {command.Bold()}", this, LogCategory.UCI);
+		return;
+
+
+		void ClearPositionCaches()
+		{
+			_currentSquareMovesCache.Clear();
+			_currentLegalMovesCache.Clear();
+			_searchInfoCache.Clear();
+		}
+	}
+
+	public async Task StartEngineAsync()
+	{
+		ThrowIfDisposed();
+		Start();
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+		await WriteLineAsync(UCIConstants.UCICommand, cts.Token).ConfigureAwait(false);
+		await WaitForToken(UCIConstants.UCIOkResponse, cts.Token).ConfigureAwait(false);
+		await WriteLineAsync(UCIConstants.IsReadyCommand, cts.Token).ConfigureAwait(false);
+		await WaitForToken(UCIConstants.ReadyOkResponse, cts.Token).ConfigureAwait(false);
+
+		IsStarted = true;
+		Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
+	}
+
+
+	/// <summary>
+	///     Waits until a line received from the engine contains the specified token
+	///     (case-insensitive).  No command is sent – the caller is expected to have
+	///     already issued the request that will eventually produce the token
+	///     (“uciok”, “readyok”, custom search id, …).
+	/// </summary>
+	/// <param name="token">Substring that must appear in a single output line.</param>
+	/// <param name="ct">Cancellation token to abort the wait.</param>
+	public Task WaitForToken(string token, CancellationToken ct = default)
+		=> WaitForTokens([token], ct);
+
+	/// <summary>
+	///     Same as <see cref="WaitForToken" />
+	///     but waits for any of the supplied tokens.
+	/// </summary>
+	public Task WaitForTokens(string[] tokens, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		var req = CreatePending(tokens, ct);
+
+		foreach (string line in _outputHistory)
+		{
+			if (req.TryAccept(line))
+				return req.Task;
+		}
+
+		Logger.LogInfo($"Waiting for tokens: {string.Join(", ", tokens)}", this, LogCategory.UCI);
+
+		return req.Task;
+	}
+
+	public async Task WaitReadyAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		await WriteLineAsync(UCIConstants.IsReadyCommand, ct).ConfigureAwait(false);
+		await WaitForToken(UCIConstants.ReadyOkResponse, ct).ConfigureAwait(false);
+		Logger.LogSuccess($"Engine Ready", this, LogCategory.UCI);
+	}
+
+	/// <summary>
+	///     Checks whether applying the given move to the current engine position results in stalemate.
+	///     Returns true if the position after the move has no legal replies and is not check.
+	/// </summary>
+	public async Task<bool> WouldMoveLeadToStalemateAsync(string notation, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		notation.ThrowIfNull().ThrowIfEmpty();
+
+		var parsedMove = new ParsedMove(notation);
+
+		await WriteLineAsync($"{UCIConstants.PositionCommand} fen {_currentFenCache} moves {parsedMove.Notation}", ct)
+			.ConfigureAwait(false);
+
+		try
+		{
+			var perftLines = await SendCommandAndReadAsync(UCIConstants.GoPerftDepth1Command, ct)
+								 .ConfigureAwait(false);
+
+			var replyCount = 0;
+			foreach (string? line in perftLines)
+			{
+				var match = UCIConstants.MoveRegex.Match(line);
+				if (match.Success) replyCount++;
+			}
+
+			if (replyCount > 0) return false;
+
+			var diagLines = await SendCommandAndReadAsync(UCIConstants.DisplayBoardCommand, ct).ConfigureAwait(false);
+
+			var inCheck = false;
+			foreach (string? line in diagLines)
+			{
+				if (!line.StartsWith("Checkers", StringComparison.OrdinalIgnoreCase)) continue;
+
+				int    colonIdx = line.IndexOf(':');
+				string tail     = colonIdx >= 0 ? line[(colonIdx + 1)..].Trim() : line["Checkers".Length..].Trim();
+
+				if (tail.Length > 0                                          &&
+					!tail.Equals("-",    StringComparison.OrdinalIgnoreCase) &&
+					!tail.Equals("none", StringComparison.OrdinalIgnoreCase))
+					inCheck = true;
+
+				break; // Found the "Checkers" line
+			}
+
+			// Stalemate iff: no legal replies AND not in check
+			return !inCheck;
+		}
+		finally
+		{
+			// Restore original position to avoid side effects
+			await WriteLineAsync($"{UCIConstants.PositionCommand} fen {_currentFenCache}", ct).ConfigureAwait(false);
+		}
+	}
+
+	public async Task<Fen> GetCurrentFenAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		if (!_currentFenCache.HasValue)
+			return await RenewFenCache(ct).ConfigureAwait(false);
+
+		Logger.LogInfo($"Returning cached FEN: {_currentFenCache}", this, LogCategory.UCI);
+		return _currentFenCache.Value;
+	}
+
+	/// <summary>
+	///     Gets all legal moves from the current engine state.
+	/// </summary>
+	/// <param name="ct">A token to cancel the operation.</param>
+	public async Task<IReadOnlyCollection<Move>> GetLegalMovesAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		if (_currentLegalMovesCache.Count > 0)
+		{
+			Logger.LogInfo($"Returning cached legal moves: {_currentLegalMovesCache.Count}", this, LogCategory.UCI);
+			return _currentLegalMovesCache;
+		}
+
+		var fen   = await GetCurrentFenAsync(ct).ConfigureAwait(false);
+		var board = new BoardState(fen);
+
+		var lines = await SendCommandAndReadAsync(UCIConstants.GoPerftDepth1Command, ct).ConfigureAwait(false);
+
+		var moves = new List<Move>();
+		var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (string? line in lines)
+		{
+			var match = UCIConstants.MoveRegex.Match(line);
+			if (!match.Success) continue;
+
+			string moveUci = match.Groups[1].Value.ToLowerInvariant();
+			if (!seen.Add(moveUci)) continue;
+
+			char   pieceChar    = MoveToPieceMap.Map(fen, moveUci).Piece;
+			string enrichedMove = pieceChar != '\0' ? pieceChar + moveUci : moveUci;
+			var    analysis     = await MoveAnalysis.AnalyzeAsync(enrichedMove, board, this);
+			var    move         = new Move(enrichedMove, analysis);
+			moves.Add(move);
+		}
+
+		_currentLegalMovesCache.Clear();
+		_currentLegalMovesCache.AddRange(moves);
+		Logger.LogSuccess($"Collected legal moves: {_currentLegalMovesCache.Count}", this, LogCategory.UCI);
+		return _currentLegalMovesCache;
+	}
+
+	public async Task<IReadOnlyCollection<Move>> GetLegalMovesForSquareAsync(
+		string            square,
+		CancellationToken ct = default)
+	{
+		square.ThrowIfNull();
+		ThrowIfDisposed();
+
+		var allLegalMoves = await GetLegalMovesAsync(ct);
+		var legalMoves = allLegalMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase))
+									  .ToList();
+
+		_currentSquareMovesCache = legalMoves;
+		return legalMoves;
+	}
+
+	public async Task<IReadOnlyCollection<string>> SendCommandAndReadAsync(
+		string            command,
+		CancellationToken ct    = default,
+		string[]?         until = null)
+	{
+		var resp = await SendCommandAsync(command, ct, until).ConfigureAwait(false);
+		return await resp.Completed.ConfigureAwait(false);
+	}
+
+	public async Task<IReadOnlyCollection<string>> StopSearchAsync(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		var output = await SendCommandAndReadAsync(
+						 UCIConstants.StopCommand,
+						 ct,
+						 new[] { UCIConstants.BestMoveResponsePrefix });
+
+		Logger.LogSuccess($"Search Stopped", this, LogCategory.UCI);
+		return output;
+	}
+
+	public async Task<MoveScore> CalculateScoreForMoveAsync(
+		string                   notation,
+		uint                     multiPv     = 8,
+		uint                     msBudget    = 220,
+		Fen?                     customFen   = null,
+		ICollection<ParsedMove>? customMoves = null,
+		CancellationToken        ct          = default)
+	{
+		ThrowIfDisposed();
+
+		var parsedMove = new ParsedMove(notation);
+
+		if (customFen is not null)
+		{
+			await WriteLineAsync($"{UCIConstants.PositionCommand} fen {customFen}", ct)
+				.ConfigureAwait(false);
+		}
+
+		await SetOptionAsync("MultiPV", (int)multiPv, ct).ConfigureAwait(false);
+		var response = await SendCommandAsync(
+							   $"{UCIConstants.GoCommand} {UCIConstants.MoveTimeParameter} {msBudget} {UCIConstants.SearchMovesParameter} {parsedMove.Notation}",
+							   ct)
+						   .ConfigureAwait(false);
+
+		MoveScore score = default;
+		await foreach (string? line in response.Lines.WithCancellation(ct).ConfigureAwait(false))
+		{
+			MoveScore.TryParse(line, out var moveScore);
+			if (moveScore?.ScoreMate > score.ScoreMate)
+			{
+				score = moveScore.Value;
+				break;
+			}
+
+			if (moveScore?.ScoreCp > score.ScoreCp)
+				score = moveScore.Value;
+		}
+
+		return score;
+	}
+
+
+	public async Task<SearchResult> GO(uint depth = 5, CancellationToken ct = default)
+	{
+		if (_searchInfoCache.TryGetValue(depth, out var cached))
+		{
+			Logger.LogInfo($"Returning cached GO result: {cached}", this, LogCategory.UCI);
+			return cached;
+		}
+
+		var result = await ExecuteSearch($"{UCIConstants.GoCommand} {UCIConstants.DepthParameter} " + depth, ct);
+		return _searchInfoCache[depth] = result;
+	}
+
+	public async Task<SearchResult> GoPerftOne(CancellationToken ct = default)
+	{
+		if (_searchInfoCache.TryGetValue(1, out var cached))
+		{
+			Logger.LogInfo($"Returning cached GoPerftOne result: {cached}", this, LogCategory.UCI);
+			return cached;
+		}
+
+		var result = await ExecuteSearch(UCIConstants.GoPerftDepth1Command, ct);
+
+		return _searchInfoCache[1] = result;
+	}
+
+	public async Task<SearchResult> StartSearchForSecondsAsync(
+		uint              seconds,
+		CancellationToken ct = default)
+	{
+		uint milliSeconds = seconds * 1000;
+
+		var result = await ExecuteSearch(
+						 $"{UCIConstants.GoCommand} {UCIConstants.MoveTimeParameter} {milliSeconds}",
+						 ct);
+
+		return result;
+	}
+
+	/// <summary>
+	///     Sends a command and returns a response that can be consumed both as a live line stream
+	///     and as a bulk collection when the terminator condition is met.
+	/// </summary>
+	public async Task<UciCommandResponse> SendCommandAsync(
 		string            command,
 		CancellationToken ct    = default,
 		string[]?         until = null)
@@ -140,43 +450,50 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 
 			await WriteLineAsync(command, ct).ConfigureAwait(false);
 
-			return await req.Task.ConfigureAwait(false);
+			Logger.LogInfo(
+				$"Sending command: {command} (waiting for: {string.Join(", ", until)})",
+				this,
+				LogCategory.UCI);
+
+			_ = req.Task.ContinueWith(
+				static (_, state) => ((SemaphoreSlim)state!).Release(),
+				_commandLock,
+				CancellationToken.None,
+				TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default);
+
+			var completed = req.Task.ContinueWith<IReadOnlyCollection<string>>(
+				static t => t.Result,
+				TaskScheduler.Default);
+
+			return new(req.Stream(ct), completed);
 		}
-		finally
+		catch
 		{
 			_commandLock.Release();
+			throw;
 		}
-	}
-
-	public Task<List<string>> StopSearchAsync(CancellationToken ct = default)
-	{
-		ThrowIfDisposed();
-		return SendCommandAndReadOutputAsync("stop", ct, new[] { "bestmove" });
 	}
 
 	public async ValueTask DisposeAsync()
 	{
-		if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+		if (Interlocked.Exchange(ref _isDisposed, 1) == 1) return;
 
 		Exception? firstError        = null;
-		var        disposedException = new ObjectDisposedException(nameof(UCIEngine));
+		var        disposedException = new ObjectDisposedException(nameof(UciEngine));
 
-		CaptureSafely(CompleteOutboundChannel);
 		CaptureSafely(() => FailAndRemovePendingRequests(disposedException));
 		await CaptureSafelyAsync(FlushAndDisposeStdinAsync);
-		CaptureSafely(_history.Clear);
+		CaptureSafely(_outputHistory.Clear);
 		CaptureSafely(_commandLock.Dispose);
 		CaptureSafely(_stdinWriteLock.Dispose);
 
 		if (firstError is not null)
 			Logger.LogError(firstError, this, LogCategory.UCI);
 
+		Logger.LogInfo($"Disposed", this, LogCategory.UCI);
 		return;
 
-		void CompleteOutboundChannel()
-		{
-			_out.Writer.TryComplete(disposedException);
-		}
 
 		void FailAndRemovePendingRequests(ObjectDisposedException ex)
 		{
@@ -252,10 +569,10 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			var sw = Volatile.Read(ref _stdin);
 
-			if (sw is null) throw new ObjectDisposedException(nameof(UCIEngine));
+			if (sw is null) throw new ObjectDisposedException(nameof(UciEngine));
 
-			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 			await sw.WriteLineAsync(command).ConfigureAwait(false);
+			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 		}
 		finally
 		{
@@ -274,6 +591,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		_ = Task.Run(ReadLoop);
 
 		if (_proc.StartInfo.RedirectStandardError) _ = Task.Run(ReadErrorLoop);
+		Logger.LogInfo($"Engine Process Starting...", this, LogCategory.UCI);
 	}
 
 	private static bool MatchesUciTerminator(string line, string[] tokens)
@@ -283,7 +601,14 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			if (t.Equals("bestmove", StringComparison.OrdinalIgnoreCase))
 			{
 				if (line.StartsWith("bestmove", StringComparison.OrdinalIgnoreCase))
+				{
+					Logger.LogInfo(
+						$"UCI Terminator Match: {line} (matched bestmove)",
+						typeof(UciEngine),
+						LogCategory.UCI);
+
 					return true;
+				}
 
 				continue;
 			}
@@ -292,7 +617,10 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 				t.Equals("readyok", StringComparison.OrdinalIgnoreCase))
 			{
 				if (line.Equals(t, StringComparison.OrdinalIgnoreCase))
+				{
+					Logger.LogInfo($"UCI Terminator Match: {line} (matched {t})", typeof(UciEngine), LogCategory.UCI);
 					return true;
+				}
 
 				continue;
 			}
@@ -300,23 +628,31 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			if (t.Equals("checkers", StringComparison.OrdinalIgnoreCase))
 			{
 				if (line.StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+				{
+					Logger.LogInfo(
+						$"UCI Terminator Match: {line} (matched checkers)",
+						typeof(UciEngine),
+						LogCategory.UCI);
+
 					return true;
+				}
 
 				continue;
 			}
 
 			if (line.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
+			{
+				Logger.LogInfo($"UCI Terminator Match: {line} (matched {t})", typeof(UciEngine), LogCategory.UCI);
 				return true;
+			}
 		}
 
 		return false;
 	}
 
 	private PendingRequest CreatePending(string[] tokens, CancellationToken ct)
-		=> RegisterAndReturn(new(MatchesUciTerminator, tokens, ct));
-
-	private PendingRequest RegisterAndReturn(PendingRequest req)
 	{
+		var req = new PendingRequest(MatchesUciTerminator, tokens, ct);
 		RegisterPending(req);
 		return req;
 	}
@@ -327,7 +663,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 		{
 			using var stderr = _proc.StandardError;
 
-			while (!_disposed.IsPositive() && await stderr.ReadLineAsync().ConfigureAwait(false) is { } line)
+			while (!_isDisposed.IsPositive() && await stderr.ReadLineAsync().ConfigureAwait(false) is { } line)
 				Logger.LogError($"[STDERR] {line}", this, LogCategory.UCI);
 		}
 		catch
@@ -340,13 +676,11 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 	{
 		using var stdout = _proc.StandardOutput;
 
-		while (!_disposed.IsPositive() && await stdout.ReadLineAsync() is { } line)
+		while (!_isDisposed.IsPositive() && await stdout.ReadLineAsync().ConfigureAwait(false) is { } line)
 		{
 			Logger.LogInfo($"[OUTPUT] {line.Bold()}", this, LogCategory.UCI);
 
 			AppendHistory(line);
-
-			_out.Writer.TryWrite(line);
 
 			foreach (var kvp in _pending)
 			{
@@ -356,30 +690,56 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			}
 		}
 
-		if (!_disposed.IsPositive())
+		if (!_isDisposed.IsPositive())
 		{
 			var ex = new EndOfStreamException("Engine process closed its stdout.");
 			CompleteOutputAndFailPending(ex);
 		}
 	}
 
+	private async Task<Fen> RenewFenCache(CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+
+		var lines = await SendCommandAndReadAsync("d", ct).ConfigureAwait(false);
+		lines.ThrowIfNull();
+
+		Fen fen = default;
+		foreach (string? line in lines)
+		{
+			if (!Fen.TryParse(line, out var parsed)) continue;
+
+			fen = parsed;
+		}
+
+		_currentFenCache = fen;
+		return fen;
+	}
+
+	private async Task<SearchResult> ExecuteSearch(string goCommand, CancellationToken ct)
+	{
+		ThrowIfDisposed();
+		goCommand.ThrowIfNull();
+
+
+		var lines = await SendCommandAndReadAsync(goCommand, ct);
+		lines.ThrowIfNull();
+
+		SearchResult.TryParse(lines, out var result);
+		Logger.LogInfo(result, this, LogCategory.UCI);
+		return result;
+	}
+
 	private void AppendHistory(string line)
 	{
-		_history.Enqueue(line);
-		if (_history.Count > HISTORY_CAPACITY)
-			_history.TryDequeue(out _);
+		_outputHistory.Enqueue(line);
+		if (_outputHistory.Count > HISTORY_CAPACITY)
+			_outputHistory.TryDequeue(out _);
 	}
 
 	private void CompleteOutputAndFailPending(Exception ex)
 	{
-		try
-		{
-			_out.Writer.TryComplete(ex);
-		}
-		catch
-		{
-			// ignore
-		}
+		Logger.LogError($"Engine output closed with error: {ex.Message}", this, LogCategory.UCI);
 
 		foreach (var req in _pending.Keys)
 		{
@@ -388,6 +748,7 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			try
 			{
 				req.Fail(ex);
+				Logger.LogError($"Failing pending request with error: {ex.Message}", this, LogCategory.UCI);
 			}
 			catch
 			{
@@ -404,11 +765,34 @@ public sealed class UCIEngine(Process process) : IAsyncDisposable
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously,
 			TaskScheduler.Default);
+
+		Logger.LogInfo($"Registered pending request: {req}", this, LogCategory.UCI);
 	}
 
 	private void ThrowIfDisposed()
 	{
-		if (_disposed.IsPositive()) throw new ObjectDisposedException(nameof(UCIEngine));
+		if (_isDisposed.IsPositive()) throw new ObjectDisposedException(nameof(UciEngine));
+	}
+
+	/// <summary>
+	///     Represents the result of a command that can be consumed as a live stream of lines
+	///     or awaited for the complete output.
+	/// </summary>
+	public readonly record struct UciCommandResponse
+	{
+		internal UciCommandResponse(
+			IAsyncEnumerable<string>          lines,
+			Task<IReadOnlyCollection<string>> completed)
+		{
+			Lines     = lines;
+			Completed = completed;
+		}
+
+		/// <summary>Async stream of lines as they arrive.</summary>
+		public IAsyncEnumerable<string> Lines { get; }
+
+		/// <summary>Completes with the full output when the terminator condition is met.</summary>
+		public Task<IReadOnlyCollection<string>> Completed { get; }
 	}
 
 	private sealed class PendingRequest

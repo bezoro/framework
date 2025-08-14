@@ -1,10 +1,9 @@
 using Bezoro.UCI.API;
-using Bezoro.UCI.Domain.Helpers;
 using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests.Unit;
 
-[TestSubject(typeof(UCIConnector))]
+[TestSubject(typeof(UciConnector))]
 public class UCIConnectorTests : UCITestsBase
 {
 	[Fact]

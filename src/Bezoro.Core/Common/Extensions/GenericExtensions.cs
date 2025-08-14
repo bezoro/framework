@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -24,9 +25,9 @@ public static class GenericExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsBetween<T>(this T value, T min, T max) where T : IComparable<T>
 	{
-		if (value == null) throw new ArgumentNullException(nameof(value));
-		if (min   == null) throw new ArgumentNullException(nameof(min));
-		if (max   == null) throw new ArgumentNullException(nameof(max));
+		value.ThrowIfNull();
+		min.ThrowIfNull();
+		max.ThrowIfNull();
 
 		return value.CompareTo(min) >= 0 && value.CompareTo(max) <= 0;
 	}
@@ -60,10 +61,11 @@ public static class GenericExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsOneOf<T>(this T value, params T[] candidates)
 	{
-		if (value      == null) throw new ArgumentNullException(nameof(value));
-		if (candidates == null) throw new ArgumentNullException(nameof(candidates));
+		value.ThrowIfNull();
+		candidates.ThrowIfNull();
+		candidates.ThrowIfEmpty();
 
-		return candidates.Length != 0 && candidates.Contains(value);
+		return candidates.Contains(value);
 	}
 
 	/// <summary>
@@ -73,7 +75,7 @@ public static class GenericExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static IEnumerable<T> Yield<T>(this T item)
 	{
-		if (item == null) throw new ArgumentNullException(nameof(item));
+		item.ThrowIfNull();
 
 		yield return item;
 	}
@@ -82,13 +84,17 @@ public static class GenericExtensions
 	public static T ThrowIf<T>(
 		this T                    value,
 		Expression<Func<T, bool>> predicate,
-		string?                   paramName = null)
+		string?                   paramName       = null,
+		Exception?                customException = null)
 	{
 		predicate.ThrowIfNull();
 
 		var compiled = predicate.Compile();
 
 		if (!compiled(value)) return value;
+
+		if (customException is not null)
+			throw customException;
 
 		string name          = paramName ?? typeof(T).Name;
 		var    conditionText = predicate.Body.ToString();
@@ -113,6 +119,20 @@ public static class GenericExtensions
 		}
 
 		return value;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static T ThrowIfEmpty<T>(
+		this                                   T       sequence,
+		[CallerArgumentExpression("sequence")] string? paramName = null)
+		where T : IEnumerable
+	{
+		sequence.ThrowIfNull(paramName);
+
+		if (sequence is ICollection { Count: 0 } || !sequence.HasAny())
+			throw new ArgumentException("Sequence cannot be empty.", paramName);
+
+		return sequence;
 	}
 
 	/// <summary>

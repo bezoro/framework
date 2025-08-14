@@ -5,7 +5,7 @@ using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests.Unit;
 
-[TestSubject(typeof(UCIConnector))]
+[TestSubject(typeof(UciConnector))]
 public class BuildGoCommandUnitTests
 {
 	[Fact]
