@@ -6,20 +6,17 @@ public class UCITestsBase : IAsyncLifetime
 {
 	protected const string StockfishPath = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 
-	protected UCIConnector? Connector;
+	protected UciConnector? Connector;
 
 	public virtual async Task InitializeAsync()
 	{
-		Connector = new UCIConnector(StockfishPath);
+		Connector = new(StockfishPath);
 		await Connector.StartEngineAsync();
 		await Connector.SetDefaultPositionAsync();
 	}
 
 	public virtual async Task DisposeAsync()
 	{
-		if (Connector != null)
-		{
-			await Connector.DisposeAsync();
-		}
+		if (Connector != null) await Connector.DisposeAsync();
 	}
 }

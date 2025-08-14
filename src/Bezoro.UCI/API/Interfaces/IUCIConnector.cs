@@ -90,14 +90,14 @@ public interface IUCIConnector : IAsyncDisposable
 	///     Retrieves a list of all legal moves with detailed classification.
 	/// </summary>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	Task<List<MoveClassification>> GetAllLegalMovesWithDetailsAsync(CancellationToken cancellationToken = default);
+	Task<List<MoveAnalysis>> GetAllLegalMovesWithDetailsAsync(CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Retrieves and classifies all legal moves that start from a specific square.
 	/// </summary>
 	/// <param name="square">The starting square in algebraic notation (e.g., "e2").</param>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	Task<List<MoveClassification>> GetLegalMovesForSquareWithDetailsAsync(
+	Task<List<MoveAnalysis>> GetLegalMovesForSquareWithDetailsAsync(
 		string            square,
 		CancellationToken cancellationToken);
 
