@@ -591,6 +591,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
+		_stdin.ThrowIfNull();
 
 		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
 
