@@ -27,7 +27,6 @@ public class UciEngineUnitTest : UciTestsBase
 		Assert.Contains("uciok", response.Lines);
 	}
 
-
 	[Fact]
 	public async Task SetPositionAsync_WhenValidFenString_SetsTheEngineRootPosition()
 	{
@@ -43,6 +42,6 @@ public class UciEngineUnitTest : UciTestsBase
 	[Fact]
 	public async Task WriteLineAsync_WhenValidCommand_SendsCommandToEngine()
 	{
-		await Engine.WriteLineAsync("uci", CancellationToken.None);
+		await Engine.WriteLineSafeAsync("uci", CancellationToken.None);
 	}
 }
