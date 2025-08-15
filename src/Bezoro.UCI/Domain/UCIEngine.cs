@@ -37,7 +37,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 	private Fen? _currentFenCache;
 
-	private int _currentMultiPv;
+	private uint _currentMultiPv;
 
 	private volatile int        _isDisposed;
 	private          int        _outputHistorySize;
@@ -132,7 +132,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 		await WriteLineAsync($"{UciConstants.SET_OPTION_COMMAND} {name} value {value}", ct).ConfigureAwait(false);
-		if (name == "MultiPV") _currentMultiPv = value;
+		if (name == "MultiPV") _currentMultiPv = (uint)value;
 		Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.ToString().Bold()}", this, LogCategory.UCI);
 	}
 
@@ -401,6 +401,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			if (moveScore?.ScoreCp > score.ScoreCp)
 				score = moveScore.Value;
 		}
+
+		await SetOptionAsync("MultiPV", (int)_currentMultiPv, ct).ConfigureAwait(false);
 
 		return score;
 	}
