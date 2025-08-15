@@ -94,15 +94,16 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 
-		// Instruct engine to reset internal state (hash/TT, heuristics, etc.)
 		await WriteLineAsync(UciConstants.UCI_NEW_GAME_COMMAND, ct).ConfigureAwait(false);
-
-		// Ensure engine is ready after clearing
 		await WaitReadyAsync(ct).ConfigureAwait(false);
 
-		// Clear our stored output history so future WaitForToken() calls don't match old lines.
+		// Clear our stored caches and history
 		_outputHistory.Clear();
 		_outputHistorySize = 0;
+		_currentFenCache   = null;
+		_currentLegalMovesCache.Clear();
+		_currentSquareMovesCache.Clear();
+		_searchInfoCache.Clear();
 		Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 	}
 
