@@ -16,7 +16,7 @@ namespace Bezoro.UCI.API;
 /// <summary>
 ///     High-performance, thread–safe wrapper around a UCI engine process.
 /// </summary>
-public sealed class UciEngine(Process process) : IAsyncDisposable
+internal sealed class UciEngine(Process process) : IAsyncDisposable
 {
 	private const int HISTORY_CAPACITY = 10_000;
 	private static readonly string[] DefaultTerminators =
