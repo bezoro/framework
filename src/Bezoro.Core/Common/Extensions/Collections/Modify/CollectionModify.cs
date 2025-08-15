@@ -4,7 +4,7 @@ using Bezoro.Core.Common.Extensions.Collections.Check;
 
 namespace Bezoro.Core.Common.Extensions.Collections.Modify;
 
-public static class CollectionModifications
+public static class CollectionModify
 {
 	/// <summary>
 	///     Adds a range of items to a collection.
@@ -18,8 +18,8 @@ public static class CollectionModifications
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void AddRange<T>(this ICollection<T> collection, ICollection<T> items)
 	{
-		CollectionChecks.ThrowIfEmpty(collection.ThrowIfNull());
-		CollectionChecks.ThrowIfEmpty(items.ThrowIfNull());
+		collection.ThrowIfNull().ThrowIfEmpty();
+		items.ThrowIfNull().ThrowIfEmpty();
 
 		foreach (var item in items)
 			collection.Add(item);

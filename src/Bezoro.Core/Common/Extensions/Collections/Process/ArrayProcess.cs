@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 using Bezoro.Core.Common.Helpers;
 using Bezoro.Core.Common.Interfaces;
 
-namespace Bezoro.Core.Common.Extensions.Collections.Arrays;
+namespace Bezoro.Core.Common.Extensions.Collections.Process;
 
 /// <summary>
 ///     Contains methods for processing and formatting arrays.
 /// </summary>
-public static class ArrayProcessing
+public static class ArrayProcess
 {
 	/// <summary>
 	///     Returns a string representation of the array, with each element name
