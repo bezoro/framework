@@ -40,6 +40,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	private int _currentMultiPv;
 
 	private volatile int        _isDisposed;
+	private          int        _outputHistorySize;
 	private          List<Move> _currentSquareMovesCache = [];
 
 	private StreamWriter? _stdin;
@@ -61,16 +62,26 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 		notation.ThrowIfNull().ThrowIfEmpty().Length.ThrowIfLessThan(4);
 
+		var    parsed = new ParsedMove(notation);
+		string target = parsed.Notation;
+
 		string[] lines = _outputHistory.ToArray();
 
-		MoveScore? score = null;
 		for (int i = lines.Length - 1; i >= 0; i--)
 		{
-			MoveScore.TryParse(lines[i], out var moveScore);
-			score = moveScore;
+			string line = lines[i];
+
+			PrincipalVariation.TryParse(line, out var variation);
+
+			if (!(variation.RawPv.StartsWith(target, StringComparison.OrdinalIgnoreCase) ||
+				  variation.RawPv.Contains($" {target}", StringComparison.OrdinalIgnoreCase)))
+				continue;
+
+			if (MoveScore.TryParse(line, out var moveScore) && moveScore.HasValue)
+				return moveScore.Value;
 		}
 
-		return score;
+		return null;
 	}
 
 	/// <summary>
@@ -82,13 +93,14 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 
 		// Instruct engine to reset internal state (hash/TT, heuristics, etc.)
-		await WriteLineAsync(UCIConstants.UCINewGameCommand, ct).ConfigureAwait(false);
+		await WriteLineAsync(UciConstants.UCI_NEW_GAME_COMMAND, ct).ConfigureAwait(false);
 
 		// Ensure engine is ready after clearing
 		await WaitReadyAsync(ct).ConfigureAwait(false);
 
 		// Clear our stored output history so future WaitForToken() calls don't match old lines.
 		_outputHistory.Clear();
+		_outputHistorySize = 0;
 		Logger.LogSuccess($"New Game", this, LogCategory.UCI);
 	}
 
@@ -105,7 +117,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 
 		try
 		{
-			await WriteLineAsync(UCIConstants.QuitCommand).ConfigureAwait(false);
+			await WriteLineAsync(UciConstants.QUIT_COMMAND).ConfigureAwait(false);
 		}
 		catch (ObjectDisposedException)
 		{
@@ -119,7 +131,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		await WriteLineAsync($"{UCIConstants.SetOptionCommand} {name} value {value}", ct).ConfigureAwait(false);
+		await WriteLineAsync($"{UciConstants.SET_OPTION_COMMAND} {name} value {value}", ct).ConfigureAwait(false);
 		if (name == "MultiPV") _currentMultiPv = value;
 		Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.ToString().Bold()}", this, LogCategory.UCI);
 	}
@@ -131,10 +143,10 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 
-		var command                = $"{UCIConstants.PositionCommand} fen {fen}";
+		var command                = $"{UciConstants.POSITION_COMMAND} fen {fen}";
 		if (moves != null) command += $" moves {string.Join(" ", moves)}";
 
-		await WriteLineAsync(command, ct);
+		await WriteLineAsync(command, ct).ConfigureAwait(false);
 		ClearPositionCaches();
 		Logger.LogSuccess($"Position Set Successfully {command.Bold()}", this, LogCategory.UCI);
 		return;
@@ -154,10 +166,10 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		Start();
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-		await WriteLineAsync(UCIConstants.UCICommand, cts.Token).ConfigureAwait(false);
-		await WaitForToken(UCIConstants.UCIOkResponse, cts.Token).ConfigureAwait(false);
-		await WriteLineAsync(UCIConstants.IsReadyCommand, cts.Token).ConfigureAwait(false);
-		await WaitForToken(UCIConstants.ReadyOkResponse, cts.Token).ConfigureAwait(false);
+		await WriteLineAsync(UciConstants.UCI_COMMAND, cts.Token).ConfigureAwait(false);
+		await WaitForToken(UciConstants.UCI_OK_RESPONSE, cts.Token).ConfigureAwait(false);
+		await WriteLineAsync(UciConstants.IS_READY_COMMAND, cts.Token).ConfigureAwait(false);
+		await WaitForToken(UciConstants.READY_OK_RESPONSE, cts.Token).ConfigureAwait(false);
 
 		IsStarted = true;
 		Logger.LogSuccess($"Engine Process Started", this, LogCategory.UCI);
@@ -199,8 +211,8 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	public async Task WaitReadyAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		await WriteLineAsync(UCIConstants.IsReadyCommand, ct).ConfigureAwait(false);
-		await WaitForToken(UCIConstants.ReadyOkResponse, ct).ConfigureAwait(false);
+		await WriteLineAsync(UciConstants.IS_READY_COMMAND, ct).ConfigureAwait(false);
+		await WaitForToken(UciConstants.READY_OK_RESPONSE, ct).ConfigureAwait(false);
 		Logger.LogSuccess($"Engine Ready", this, LogCategory.UCI);
 	}
 
@@ -215,32 +227,34 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 
 		var parsedMove = new ParsedMove(notation);
 
-		await WriteLineAsync($"{UCIConstants.PositionCommand} fen {_currentFenCache} moves {parsedMove.Notation}", ct)
+		await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {_currentFenCache} moves {parsedMove.Notation}", ct)
 			.ConfigureAwait(false);
 
 		try
 		{
-			var perftLines = await SendCommandAndReadAsync(UCIConstants.GoPerftDepth1Command, ct)
+			var perftLines = await SendCommandAndReadAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct)
 								 .ConfigureAwait(false);
 
 			var replyCount = 0;
 			foreach (string? line in perftLines)
 			{
-				var match = UCIConstants.MoveRegex.Match(line);
+				var match = UciConstants.MoveRegex.Match(line);
 				if (match.Success) replyCount++;
 			}
 
 			if (replyCount > 0) return false;
 
-			var diagLines = await SendCommandAndReadAsync(UCIConstants.DisplayBoardCommand, ct).ConfigureAwait(false);
+			var diagLines = await SendCommandAndReadAsync(UciConstants.DISPLAY_BOARD_COMMAND, ct).ConfigureAwait(false);
 
 			var inCheck = false;
 			foreach (string? line in diagLines)
 			{
-				if (!line.StartsWith("Checkers", StringComparison.OrdinalIgnoreCase)) continue;
+				if (!line.StartsWith(UciConstants.CHECKERS_RESPONSE, StringComparison.OrdinalIgnoreCase)) continue;
 
-				int    colonIdx = line.IndexOf(':');
-				string tail     = colonIdx >= 0 ? line[(colonIdx + 1)..].Trim() : line["Checkers".Length..].Trim();
+				int colonIdx = line.IndexOf(':');
+				string tail = colonIdx >= 0
+								  ? line[(colonIdx + 1)..].Trim()
+								  : line[UciConstants.CHECKERS_RESPONSE.Length..].Trim();
 
 				if (tail.Length > 0                                          &&
 					!tail.Equals("-",    StringComparison.OrdinalIgnoreCase) &&
@@ -256,7 +270,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		finally
 		{
 			// Restore original position to avoid side effects
-			await WriteLineAsync($"{UCIConstants.PositionCommand} fen {_currentFenCache}", ct).ConfigureAwait(false);
+			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {_currentFenCache}", ct).ConfigureAwait(false);
 		}
 	}
 
@@ -288,14 +302,14 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		var fen   = await GetCurrentFenAsync(ct).ConfigureAwait(false);
 		var board = new BoardState(fen);
 
-		var lines = await SendCommandAndReadAsync(UCIConstants.GoPerftDepth1Command, ct).ConfigureAwait(false);
+		var lines = await SendCommandAndReadAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct).ConfigureAwait(false);
 
 		var moves = new List<Move>();
 		var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (string? line in lines)
 		{
-			var match = UCIConstants.MoveRegex.Match(line);
+			var match = UciConstants.MoveRegex.Match(line);
 			if (!match.Success) continue;
 
 			string moveUci = match.Groups[1].Value.ToLowerInvariant();
@@ -321,7 +335,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		square.ThrowIfNull();
 		ThrowIfDisposed();
 
-		var allLegalMoves = await GetLegalMovesAsync(ct);
+		var allLegalMoves = await GetLegalMovesAsync(ct).ConfigureAwait(false);
 		var legalMoves = allLegalMoves.Where(move => move.From.Equals(square, StringComparison.OrdinalIgnoreCase))
 									  .ToList();
 
@@ -342,9 +356,9 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 		var output = await SendCommandAndReadAsync(
-						 UCIConstants.StopCommand,
+						 UciConstants.STOP_COMMAND,
 						 ct,
-						 new[] { UCIConstants.BestMoveResponsePrefix });
+						 [UciConstants.BEST_MOVE_RESPONSE_PREFIX]).ConfigureAwait(false);
 
 		Logger.LogSuccess($"Search Stopped", this, LogCategory.UCI);
 		return output;
@@ -364,13 +378,13 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 
 		if (customFen is not null)
 		{
-			await WriteLineAsync($"{UCIConstants.PositionCommand} fen {customFen}", ct)
+			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {customFen}", ct)
 				.ConfigureAwait(false);
 		}
 
 		await SetOptionAsync("MultiPV", (int)multiPv, ct).ConfigureAwait(false);
 		var response = await SendCommandAsync(
-							   $"{UCIConstants.GoCommand} {UCIConstants.MoveTimeParameter} {msBudget} {UCIConstants.SearchMovesParameter} {parsedMove.Notation}",
+							   $"{UciConstants.GO_COMMAND} {UciConstants.MOVE_TIME_PARAMETER} {msBudget} {UciConstants.SEARCH_MOVES_PARAMETER} {parsedMove.Notation}",
 							   ct)
 						   .ConfigureAwait(false);
 
@@ -400,7 +414,9 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 			return cached;
 		}
 
-		var result = await ExecuteSearch($"{UCIConstants.GoCommand} {UCIConstants.DepthParameter} " + depth, ct);
+		var result = await ExecuteSearch($"{UciConstants.GO_COMMAND} {UciConstants.DEPTH_PARAMETER} " + depth, ct)
+						 .ConfigureAwait(false);
+
 		return _searchInfoCache[depth] = result;
 	}
 
@@ -412,7 +428,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 			return cached;
 		}
 
-		var result = await ExecuteSearch(UCIConstants.GoPerftDepth1Command, ct);
+		var result = await ExecuteSearch(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct).ConfigureAwait(false);
 
 		return _searchInfoCache[1] = result;
 	}
@@ -424,8 +440,8 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		uint milliSeconds = seconds * 1000;
 
 		var result = await ExecuteSearch(
-						 $"{UCIConstants.GoCommand} {UCIConstants.MoveTimeParameter} {milliSeconds}",
-						 ct);
+						 $"{UciConstants.GO_COMMAND} {UciConstants.MOVE_TIME_PARAMETER} {milliSeconds}",
+						 ct).ConfigureAwait(false);
 
 		return result;
 	}
@@ -485,6 +501,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		CaptureSafely(() => FailAndRemovePendingRequests(disposedException));
 		await CaptureSafelyAsync(FlushAndDisposeStdinAsync);
 		CaptureSafely(_outputHistory.Clear);
+		CaptureSafely(() => _outputHistorySize = 0);
 		CaptureSafely(_commandLock.Dispose);
 		CaptureSafely(_stdinWriteLock.Dispose);
 
@@ -596,11 +613,16 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 
 	private static bool MatchesUciTerminator(string line, string[] tokens)
 	{
+		string bestMovePrefix   = UciConstants.BEST_MOVE_RESPONSE_PREFIX;
+		string uciOkResponse    = UciConstants.UCI_OK_RESPONSE;
+		string readyOkResponse  = UciConstants.READY_OK_RESPONSE;
+		string checkersResponse = UciConstants.CHECKERS_RESPONSE;
+
 		foreach (string t in tokens)
 		{
-			if (t.Equals("bestmove", StringComparison.OrdinalIgnoreCase))
+			if (t == bestMovePrefix || t.Equals(bestMovePrefix, StringComparison.OrdinalIgnoreCase))
 			{
-				if (line.StartsWith("bestmove", StringComparison.OrdinalIgnoreCase))
+				if (line.StartsWith(bestMovePrefix, StringComparison.OrdinalIgnoreCase))
 				{
 					Logger.LogInfo(
 						$"UCI Terminator Match: {line} (matched bestmove)",
@@ -613,8 +635,10 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 				continue;
 			}
 
-			if (t.Equals("uciok",   StringComparison.OrdinalIgnoreCase) ||
-				t.Equals("readyok", StringComparison.OrdinalIgnoreCase))
+			if (t == uciOkResponse                                            ||
+				t == readyOkResponse                                          ||
+				t.Equals(uciOkResponse,   StringComparison.OrdinalIgnoreCase) ||
+				t.Equals(readyOkResponse, StringComparison.OrdinalIgnoreCase))
 			{
 				if (line.Equals(t, StringComparison.OrdinalIgnoreCase))
 				{
@@ -625,9 +649,9 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 				continue;
 			}
 
-			if (t.Equals("checkers", StringComparison.OrdinalIgnoreCase))
+			if (t == checkersResponse || t.Equals(checkersResponse, StringComparison.OrdinalIgnoreCase))
 			{
-				if (line.StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+				if (line.StartsWith(checkersResponse, StringComparison.OrdinalIgnoreCase))
 				{
 					Logger.LogInfo(
 						$"UCI Terminator Match: {line} (matched checkers)",
@@ -640,11 +664,10 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 				continue;
 			}
 
-			if (line.AsSpan().Contains(t.AsSpan(), StringComparison.OrdinalIgnoreCase))
-			{
-				Logger.LogInfo($"UCI Terminator Match: {line} (matched {t})", typeof(UciEngine), LogCategory.UCI);
-				return true;
-			}
+			if (line.IndexOf(t, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+			Logger.LogInfo($"UCI Terminator Match: {line} (matched {t})", typeof(UciEngine), LogCategory.UCI);
+			return true;
 		}
 
 		return false;
@@ -652,7 +675,11 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 
 	private PendingRequest CreatePending(string[] tokens, CancellationToken ct)
 	{
-		var req = new PendingRequest(MatchesUciTerminator, tokens, ct);
+		var normalized = new string[tokens.Length];
+		for (var i = 0; i < tokens.Length; i++)
+			normalized[i] = tokens[i].ToLowerInvariant();
+
+		var req = new PendingRequest(MatchesUciTerminator, normalized, ct);
 		RegisterPending(req);
 		return req;
 	}
@@ -722,7 +749,7 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 		goCommand.ThrowIfNull();
 
 
-		var lines = await SendCommandAndReadAsync(goCommand, ct);
+		var lines = await SendCommandAndReadAsync(goCommand, ct).ConfigureAwait(false);
 		lines.ThrowIfNull();
 
 		SearchResult.TryParse(lines, out var result);
@@ -733,7 +760,9 @@ public sealed class UciEngine(Process process) : IAsyncDisposable
 	private void AppendHistory(string line)
 	{
 		_outputHistory.Enqueue(line);
-		if (_outputHistory.Count > HISTORY_CAPACITY)
+		if (_outputHistorySize < HISTORY_CAPACITY)
+			_outputHistorySize++;
+		else
 			_outputHistory.TryDequeue(out _);
 	}
 
