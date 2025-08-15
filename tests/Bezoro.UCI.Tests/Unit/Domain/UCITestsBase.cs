@@ -8,7 +8,7 @@ public class UciTestsBase : IAsyncLifetime
 	public const string    STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 	internal     UciEngine Engine         = null!;
 
-	public virtual Task InitializeAsync()
+	public virtual async Task InitializeAsync()
 	{
 		if (string.IsNullOrWhiteSpace(STOCKFISH_PATH))
 			throw new ArgumentException("Engine path must be provided.", nameof(STOCKFISH_PATH));
@@ -27,8 +27,7 @@ public class UciTestsBase : IAsyncLifetime
 		};
 
 		Engine = new(engineProcess);
-		Engine.Start();
-		return Task.CompletedTask;
+		await Engine.StartEngineAsync();
 	}
 
 	public virtual async Task DisposeAsync()
