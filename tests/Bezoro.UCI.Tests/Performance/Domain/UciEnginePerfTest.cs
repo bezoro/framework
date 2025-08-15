@@ -1,7 +1,8 @@
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests.Unit.Domain;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Unit.Domain;
+namespace Bezoro.UCI.Tests.Performance.Domain;
 
 [TestSubject(typeof(UciEngine))]
 public class UciEnginePerfTest : UciTestsBase
