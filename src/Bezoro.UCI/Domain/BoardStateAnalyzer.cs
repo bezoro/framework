@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.UCI.Domain.Constants;
-using Bezoro.UCI.Domain.Exceptions;
-using Bezoro.UCI.Domain.Helpers;
+using Bezoro.UCI.Domain.Common.Constants;
+using Bezoro.UCI.Domain.Common.Exceptions;
+using Bezoro.UCI.Domain.Common.Helpers;
 
 namespace Bezoro.UCI.Domain;
 

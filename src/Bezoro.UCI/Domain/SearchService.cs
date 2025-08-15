@@ -3,9 +3,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Enums;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Constants;
-using Bezoro.UCI.Domain.Extensions;
-using Bezoro.UCI.Domain.Helpers;
+using Bezoro.UCI.Domain.Common.Constants;
+using Bezoro.UCI.Domain.Common.Extensions;
+using Bezoro.UCI.Domain.Common.Helpers;
 
 namespace Bezoro.UCI.Domain;
 

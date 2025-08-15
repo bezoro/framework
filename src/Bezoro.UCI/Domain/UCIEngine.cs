@@ -8,10 +8,11 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Constants;
+using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.API;
+namespace Bezoro.UCI.Domain;
 
 /// <summary>
 ///     High-performance, thread–safe wrapper around a UCI engine process.
@@ -37,13 +38,13 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 	private Fen? _currentFenCache;
 
-	private uint _currentMultiPv;
-
 	private volatile int        _isDisposed;
 	private          int        _outputHistorySize;
 	private          List<Move> _currentSquareMovesCache = [];
 
 	private StreamWriter? _stdin;
+
+	private uint _currentMultiPv;
 
 	public bool IsStarted { get; private set; }
 
@@ -72,6 +73,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			string line = lines[i];
 
 			PrincipalVariation.TryParse(line, out var variation);
+			if (variation.RawPv.IsNullOrEmpty()) continue;
 
 			if (!(variation.RawPv.StartsWith(target, StringComparison.OrdinalIgnoreCase) ||
 				  variation.RawPv.Contains($" {target}", StringComparison.OrdinalIgnoreCase)))
@@ -117,7 +119,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		try
 		{
-			await WriteLineAsync(UciConstants.QUIT_COMMAND).ConfigureAwait(false);
+			await WriteLineAsync(UciConstants.STOP_COMMAND).ConfigureAwait(false);
 		}
 		catch (ObjectDisposedException)
 		{
@@ -125,7 +127,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 
 		IsStarted = false;
-		Logger.LogSuccess($"Engine Process Stopped", this, LogCategory.UCI);
+		Logger.LogSuccess($"Engine Marked As Stopped (process kept alive)", this, LogCategory.UCI);
 	}
 
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
@@ -384,7 +386,9 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		await SetOptionAsync("MultiPV", (int)multiPv, ct).ConfigureAwait(false);
 		var response = await SendCommandAsync(
-							   $"{UciConstants.GO_COMMAND} {UciConstants.MOVE_TIME_PARAMETER} {msBudget} {UciConstants.SEARCH_MOVES_PARAMETER} {parsedMove.Notation}",
+							   $"{UciConstants.GO_COMMAND} "                     +
+							   $"{UciConstants.MOVE_TIME_PARAMETER} {msBudget} " +
+							   $"{UciConstants.SEARCH_MOVES_PARAMETER} {parsedMove.Notation}",
 							   ct)
 						   .ConfigureAwait(false);
 

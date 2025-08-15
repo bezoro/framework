@@ -1,6 +1,6 @@
 using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Helpers;
+using Bezoro.UCI.Domain.Common.Helpers;
 using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests.Unit;

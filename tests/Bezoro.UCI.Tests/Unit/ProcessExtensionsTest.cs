@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using Bezoro.UCI.Domain.Extensions;
+using Bezoro.UCI.Domain.Common.Extensions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests;
+namespace Bezoro.UCI.Tests.Unit;
 
 [TestSubject(typeof(ProcessExtensions))]
 public class ProcessExtensionsTest
@@ -12,10 +12,11 @@ public class ProcessExtensionsTest
 	{
 		// Arrange
 		// Start a process that will run for a few seconds.
-		Process? process = Process.Start(new ProcessStartInfo("cmd.exe", "/c timeout /t 5")
-		{
-			CreateNoWindow = true
-		});
+		var process = Process.Start(
+			new ProcessStartInfo("cmd.exe", "/c timeout /t 5")
+			{
+				CreateNoWindow = true
+			});
 
 		Assert.NotNull(process);
 
@@ -28,10 +29,7 @@ public class ProcessExtensionsTest
 		await Assert.ThrowsAsync<OperationCanceledException>(() => process.WaitForExitAsync(cts.Token));
 
 		// Cleanup: Ensure the process is killed to not leave it running.
-		if (!process.HasExited)
-		{
-			process.Kill();
-		}
+		if (!process.HasExited) process.Kill();
 	}
 
 	[Fact]
@@ -39,17 +37,18 @@ public class ProcessExtensionsTest
 	{
 		// Arrange
 		// Start a process and immediately wait for it to exit synchronously.
-		Process? process = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit")
-		{
-			CreateNoWindow = true
-		});
+		var process = Process.Start(
+			new ProcessStartInfo("cmd.exe", "/c exit")
+			{
+				CreateNoWindow = true
+			});
 
 		Assert.NotNull(process);
 		process.WaitForExit(); // The process has now exited.
 
 		// Act
 		// Calling WaitForExitAsync on an already-exited process.
-		Task task = process.WaitForExitAsync();
+		var task = process.WaitForExitAsync();
 
 		// Assert
 		// The returned task should be already completed.
@@ -65,10 +64,11 @@ public class ProcessExtensionsTest
 		// Arrange
 		// Start a process that exits on its own after a short delay.
 		// 'timeout /t 1' waits for 1 second, then exits.
-		Process? process = Process.Start(new ProcessStartInfo("cmd.exe", "/c timeout /t 1")
-		{
-			CreateNoWindow = true
-		});
+		var process = Process.Start(
+			new ProcessStartInfo("cmd.exe", "/c timeout /t 1")
+			{
+				CreateNoWindow = true
+			});
 
 		Assert.NotNull(process);
 
