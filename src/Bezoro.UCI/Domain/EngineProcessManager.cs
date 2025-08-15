@@ -57,7 +57,7 @@ namespace Bezoro.UCI.Domain
 
 			try
 			{
-				await _processInput.WriteLineAsync(UCIConstants.QuitCommand);
+				await _processInput.WriteLineAsync(UciConstants.QUIT_COMMAND);
 
 				// Asynchronously wait for the process to exit with a timeout.
 				using var cts       = new CancellationTokenSource(TimeSpan.FromSeconds(5));

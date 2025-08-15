@@ -60,7 +60,7 @@ namespace Bezoro.UCI.Domain
 		internal async Task WaitUntilReadyResponseAsync(CancellationToken ct)
 		{
 			Logger.LogInfo("[COMMAND] Waiting for readyok response.", this, LogCategory.UCI);
-			await _processManager.WriteLineAsync(UCIConstants.IsReadyCommand);
+			await _processManager.WriteLineAsync(UciConstants.IS_READY_COMMAND);
 			while (true)
 			{
 				string? line = await _outputParser.ReadLineFromProcessAsync(ct);

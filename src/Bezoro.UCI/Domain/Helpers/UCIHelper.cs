@@ -14,7 +14,7 @@ namespace Bezoro.UCI.Domain.Helpers
 		/// <param name="square">The square notation to validate.</param>
 		/// <returns>True if valid, false otherwise.</returns>
 		public static bool IsValidAlgebraicNotation(string square) =>
-			!string.IsNullOrWhiteSpace(square) && UCIConstants.AlgebraicNotationRegex.IsMatch(square);
+			!string.IsNullOrWhiteSpace(square) && UciConstants.AlgebraicNotationRegex.IsMatch(square);
 
 		/// <summary>
 		///     Validates if a string is a well-formed FEN string.
@@ -22,7 +22,7 @@ namespace Bezoro.UCI.Domain.Helpers
 		/// <param name="fen">The FEN string to validate.</param>
 		/// <returns>True if the FEN string is valid, otherwise false.</returns>
 		public static bool IsValidFen(string fen) =>
-			!string.IsNullOrWhiteSpace(fen) && UCIConstants.FenRegex.IsMatch(fen);
+			!string.IsNullOrWhiteSpace(fen) && UciConstants.FenRegex.IsMatch(fen);
 
 		/// <summary>
 		///     Validates if a string is a well-formed UCI move.
@@ -30,7 +30,7 @@ namespace Bezoro.UCI.Domain.Helpers
 		/// <param name="move">The move string to validate.</param>
 		/// <returns>True if the move is in valid UCI format, false otherwise.</returns>
 		public static bool IsValidUciMove(string? move) =>
-			!string.IsNullOrWhiteSpace(move) && UCIConstants.UCIMoveRegex.IsMatch(move);
+			!string.IsNullOrWhiteSpace(move) && UciConstants.UciMoveRegex.IsMatch(move);
 
 		/// <summary>
 		///     Extracts the active player color from a FEN string.
