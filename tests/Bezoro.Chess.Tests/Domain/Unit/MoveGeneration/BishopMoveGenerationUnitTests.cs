@@ -8,7 +8,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit.MoveGeneration;
 
 [TestSubject(typeof(BishopMoveGenerator))]
 public class BishopMoveGenerationUnitTests
@@ -19,19 +19,19 @@ public class BishopMoveGenerationUnitTests
 	internal void MoveGenerator_ForBishopOnD4WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var        fromPosition  = new Position("d4");
-		PieceColor opponentColor = color.Opposite();
+		var fromPosition  = new Position("d4");
+		var opponentColor = color.Opposite();
 
 		Board board = new(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(fromPosition, new Piece(PieceType.Bishop, color));
+		board = board.SetPiece(fromPosition, new(PieceType.Bishop, color));
 
 		// Friendly piece (blocking)
 		board = board.SetPieces(
-			(new Position("b6"), new Piece(PieceType.Pawn, color)),
-			(new Position("f2"), new Piece(PieceType.Pawn, color)),
-			(new Position("f2"), new Piece(PieceType.Pawn, color)), // Friendly, blocking
-			(new Position("f6"), new Piece(PieceType.Pawn, opponentColor)),
-			(new Position("b2"), new Piece(PieceType.Pawn, opponentColor))
+			(new("b6"), new(PieceType.Pawn, color)),
+			(new("f2"), new(PieceType.Pawn, color)),
+			(new("f2"), new(PieceType.Pawn, color)), // Friendly, blocking
+			(new("f6"), new(PieceType.Pawn, opponentColor)),
+			(new("b2"), new(PieceType.Pawn, opponentColor))
 		);
 
 		var gameState = new GameState
@@ -41,7 +41,7 @@ public class BishopMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves:
@@ -68,8 +68,8 @@ public class BishopMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 
-		Board board = new Board(BoardFactory.CreateEmptyBitboards())
-			.SetPiece(fromPosition, new Piece(PieceType.Bishop, color));
+		var board = new Board(BoardFactory.CreateEmptyBitboards())
+			.SetPiece(fromPosition, new(PieceType.Bishop, color));
 
 		var gameState = new GameState
 		{
@@ -78,7 +78,7 @@ public class BishopMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(13);
@@ -96,11 +96,11 @@ public class BishopMoveGenerationUnitTests
 		// Arrange
 		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the bishops on c1/c8 are blocked by pawns.
-		var       fromPosition = new Position(isWhite ? "c1" : "c8");
-		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var fromPosition = new Position(isWhite ? "c1" : "c8");
+		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

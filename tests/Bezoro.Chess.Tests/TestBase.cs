@@ -1,6 +1,6 @@
 using Xunit.Abstractions;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests;
 
 public abstract class TestBase
 {
