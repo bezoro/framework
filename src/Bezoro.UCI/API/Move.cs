@@ -44,15 +44,16 @@ public readonly record struct MoveScore()
 
 		int? scoreCp   = null;
 		int? scoreMate = null;
+		score = null;
 
-		int scoreIdx = line.IndexOf(" score ", StringComparison.Ordinal);
+		int scoreIdx = line.IndexOf(" score ", StringComparison.OrdinalIgnoreCase);
 		if (scoreIdx < 0)
 		{
 			score = null;
 			return false;
 		}
 
-		int mateIdx = line.IndexOf(" mate ", scoreIdx, StringComparison.Ordinal);
+		int mateIdx = line.IndexOf(" mate ", scoreIdx, StringComparison.OrdinalIgnoreCase);
 		if (mateIdx >= 0)
 		{
 			int start        = mateIdx + 6;
