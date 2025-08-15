@@ -582,6 +582,12 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 	}
 
+	/// <summary>
+	///     Writes a line directly to the engine process's standard input stream.
+	/// </summary>
+	/// <param name="command">The UCI command to send to the engine.</param>
+	/// <param name="ct">A cancellation token to cancel the write operation.</param>
+	/// <exception cref="ObjectDisposedException">Thrown if the engine has been disposed.</exception>
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
