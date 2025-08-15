@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
@@ -12,12 +13,11 @@ namespace Bezoro.UCI.API;
 /// <summary>
 ///     Represents a connection to a UCI-compliant chess engine.
 ///     This class handles process management, command serialization, and asynchronous communication.
-///     It is designed to be thread-safe and robust using the Command pattern.
+///     It exposes a safe, ergonomic, and consumer-friendly public API on top of the internal engine wrapper.
 /// </summary>
 public sealed class UciConnector : IAsyncDisposable
 {
 	private readonly Process?  _engineProcess;
-	private readonly string    _enginePath;
 	private readonly UciEngine _engine;
 
 	private volatile int _isDisposed;
@@ -26,18 +26,20 @@ public sealed class UciConnector : IAsyncDisposable
 	/// <summary>
 	///     Initializes a new instance of the <see cref="UciConnector" /> class.
 	/// </summary>
-	/// <param name="enginePath">The file path to the UCI engine executable.</param>
+	/// <param name="enginePath">The full file path to the UCI engine executable.</param>
+	/// <exception cref="ArgumentException">Thrown when the path is null or whitespace.</exception>
+	/// <exception cref="FileNotFoundException">Thrown when the executable cannot be found.</exception>
 	public UciConnector(string enginePath)
 	{
 		if (string.IsNullOrWhiteSpace(enginePath))
 			throw new ArgumentException("Engine path must be provided.", nameof(enginePath));
 
-		_enginePath = enginePath;
+		EnginePath = enginePath;
 		_engineProcess = new()
 		{
 			StartInfo = new()
 			{
-				FileName               = _enginePath,
+				FileName               = EnginePath,
 				RedirectStandardInput  = true,
 				RedirectStandardOutput = true,
 				UseShellExecute        = false,
@@ -47,66 +49,101 @@ public sealed class UciConnector : IAsyncDisposable
 		};
 
 		_engine = new(_engineProcess);
-		Logger.LogSuccess($"Engine Process Created", this, LogCategory.UCI);
+		Logger.LogSuccess("Engine Process Created", this, LogCategory.UCI);
 	}
 
-	public async Task IsReadyAsync(CancellationToken ct = default)
+	/// <summary>Indicates whether this connector is disposed (or in the middle of disposing).</summary>
+	public bool IsDisposed => _isDisposed.IsPositive() || _isDisposing.IsPositive();
+
+	/// <summary>Indicates whether the underlying engine handshake completed and I/O is available.</summary>
+	public bool IsStarted => _engine.IsStarted;
+
+	/// <summary>Full path to the engine executable.</summary>
+	public string EnginePath { get; }
+
+	/// <summary>
+	///     Sends an "isready" probe and waits until the engine reports ready.
+	///     Requires the engine to be started.
+	/// </summary>
+	public async Task IsReadyAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		await _engine.WaitReadyAsync(ct).ConfigureAwait(false);
 	}
 
-	public async Task NewGameAsync()
+	/// <summary>Signals a new game and clears engine-side and local caches.</summary>
+	public async Task NewGameAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
-		await _engine.NewGameAsync().ConfigureAwait(false);
+
+		await _engine.NewGameAsync(ct).ConfigureAwait(false);
 	}
 
-	public async Task PonderHit(CancellationToken ct = default)
+	/// <summary>Notifies the engine that the side to move has played the pondered move.</summary>
+	public async Task PonderHitAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		await _engine.PonderhitAsync(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	///     Asks the engine to stop searching. If the engine was not started, this is a no-op.
+	/// </summary>
 	public async Task QuitEngineAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+		if (!IsStarted) return; // idempotent / no-op if not started
+
 		await _engine.QuitEngineAsync(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Sets the standard starting position (initial chess position).</summary>
 	public async Task SetDefaultPositionAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		await _engine.SetPositionAsync(new(UciConstants.STANDARD_FEN), ct).ConfigureAwait(false);
 	}
 
-	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
+	/// <summary>Sets an engine option by name to an integer value.</summary>
+	public async Task SetOptionAsync(string name, int value, CancellationToken ct)
 	{
 		ThrowIfDisposed();
+		if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Option name must be provided.", nameof(name));
+
 		await _engine.SetOptionAsync(name, value, ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Sets the engine position using a FEN and an optional move list.</summary>
 	public async Task SetPositionAsync(PositionCommand command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		await _engine.SetPositionAsync(new(command), ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Starts the engine process and performs the UCI handshake.</summary>
 	public async Task StartEngineAsync()
 	{
 		ThrowIfDisposed();
 		await _engine.StartEngineAsync().ConfigureAwait(false);
 	}
 
-	public async Task StopSearchAsync(CancellationToken ct = default)
+	/// <summary>Stops any ongoing search and waits for a bestmove.</summary>
+	public async Task StopSearchAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		await _engine.StopSearchAsync(ct).ConfigureAwait(false);
 	}
 
-	public async Task<Fen> GetCurrentFenAsync(CancellationToken ct = default)
+	/// <summary>Gets the current FEN string from the engine.</summary>
+	public async Task<Fen> GetCurrentFenAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		return await _engine.GetCurrentFenAsync(ct).ConfigureAwait(false);
 	}
 
@@ -114,37 +151,48 @@ public sealed class UciConnector : IAsyncDisposable
 	///     Gets all legal moves from the current engine state.
 	/// </summary>
 	/// <param name="ct">A token to cancel the operation.</param>
-	public async Task<IReadOnlyCollection<Move>> GetLegalMovesAsync(CancellationToken ct = default)
+	public async Task<IReadOnlyCollection<Move>> GetLegalMovesAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		return await _engine.GetLegalMovesAsync(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Gets legal moves originating from a specific square (e.g., "e2").</summary>
 	public async Task<IReadOnlyCollection<Move>> GetLegalMovesForSquareAsync(
 		string            square,
-		CancellationToken ct = default)
+		CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
+		if (string.IsNullOrWhiteSpace(square)) throw new ArgumentException("Square must be provided.", nameof(square));
+
 		return await _engine.GetLegalMovesForSquareAsync(square, ct).ConfigureAwait(false);
 	}
 
-	public async Task<SearchResult> GO(uint depth = 5, CancellationToken ct = default)
+	/// <summary>Starts a depth-limited search and returns the parsed result.</summary>
+	public async Task<SearchResult> GoAsync(uint depth, CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		return await _engine.GO(depth, ct).ConfigureAwait(false);
 	}
 
-	public async Task<SearchResult> GoPerftOne(CancellationToken ct = default)
+	/// <summary>Runs a perft-depth=1 enumeration and returns the parsed result.</summary>
+	public async Task<SearchResult> GoPerftOneAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		return await _engine.GoPerftOne(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Starts a time-limited search and returns when the best move is reported.</summary>
 	public async Task<SearchResult> StartSearchForSecondsAsync(
 		uint              seconds,
-		CancellationToken ct = default)
+		CancellationToken ct)
 	{
 		ThrowIfDisposed();
+
 		return await _engine.StartSearchForSecondsAsync(seconds, ct).ConfigureAwait(false);
 	}
 
@@ -208,7 +256,6 @@ public sealed class UciConnector : IAsyncDisposable
 			GC.SuppressFinalize(this);
 		}
 	}
-
 
 	private void ThrowIfDisposed()
 	{
