@@ -91,6 +91,8 @@ public readonly record struct Fen(
 			Raw             = rawFen
 		};
 	}
+
+	public override string ToString() => Raw;
 }
 
 public readonly record struct Position(string Notation, Piece? Piece);
