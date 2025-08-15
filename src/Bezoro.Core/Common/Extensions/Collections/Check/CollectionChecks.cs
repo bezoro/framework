@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Core.Common.Extensions.Collections;
+namespace Bezoro.Core.Common.Extensions.Collections.Check;
 
 /// <summary>
 ///     Provides extension methods for <see cref="ICollection{T}" />.
 /// </summary>
-public static class CollectionExtensions
+public static class CollectionChecks
 {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsEmpty<T>(this ICollection<T> collection)
@@ -35,25 +35,6 @@ public static class CollectionExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsNullOrEmpty<T>([NotNullWhen(false)] this ICollection<T?>? collection) =>
 		collection is null || collection.Count is 0;
-
-	/// <summary>
-	///     Adds a range of items to a collection.
-	/// </summary>
-	/// <typeparam name="T">The type of elements in the collection.</typeparam>
-	/// <param name="collection">The collection to add the items to.</param>
-	/// <param name="items">The items to add.</param>
-	/// <remarks>
-	///     If <paramref name="items" /> is <c>null</c>, the method returns without adding any items.
-	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static void AddRange<T>(this ICollection<T> collection, ICollection<T> items)
-	{
-		collection.ThrowIfNull().ThrowIfEmpty();
-		items.ThrowIfNull().ThrowIfEmpty();
-
-		foreach (var item in items)
-			collection.Add(item);
-	}
 
 	/// <summary>
 	///     Throws an <see cref="EmptyCollectionException" /> if the collection is empty.
