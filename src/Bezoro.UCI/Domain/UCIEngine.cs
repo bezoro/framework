@@ -139,19 +139,13 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.ToString().Bold()}", this, LogCategory.UCI);
 	}
 
-	public async Task SetPositionAsync(
-		string               fen,
-		CancellationToken    ct,
-		IEnumerable<string>? moves = null)
+	public async Task SetPositionAsync(PositionCommand command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
 
-		var command                = $"{UciConstants.POSITION_COMMAND} fen {fen}";
-		if (moves != null) command += $" moves {string.Join(" ", moves)}";
-
 		await WriteLineAsync(command, ct).ConfigureAwait(false);
 		ClearPositionCaches();
-		Logger.LogSuccess($"Position Set Successfully {command.Bold()}", this, LogCategory.UCI);
+		Logger.LogSuccess($"Position Set Successfully {command.ToString().Bold()}", this, LogCategory.UCI);
 		return;
 
 
@@ -611,20 +605,6 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 	}
 
-	public void Start()
-	{
-		ThrowIfDisposed();
-
-		_proc.Start();
-		_stdin           = _proc.StandardInput;
-		_stdin.AutoFlush = true;
-
-		_ = Task.Run(ReadLoop);
-
-		if (_proc.StartInfo.RedirectStandardError) _ = Task.Run(ReadErrorLoop);
-		Logger.LogInfo($"Engine Process Starting...", this, LogCategory.UCI);
-	}
-
 	private static bool MatchesUciTerminator(string line, string[] tokens)
 	{
 		string bestMovePrefix   = UciConstants.BEST_MOVE_RESPONSE_PREFIX;
@@ -745,16 +725,18 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		var lines = await SendCommandAndReadAsync("d", ct).ConfigureAwait(false);
 		lines.ThrowIfNull();
 
-		Fen fen = default;
+		Fen? fen = null;
 		foreach (string? line in lines)
 		{
-			if (!Fen.TryParse(line, out var parsed)) continue;
+			if (!Fen.TryParseUciOutputLine(line, out var parsed)) continue;
 
 			fen = parsed;
 		}
 
+		fen.ThrowIfNull();
+
 		_currentFenCache = fen;
-		return fen;
+		return fen.Value;
 	}
 
 	private async Task<SearchResult> ExecuteSearch(string goCommand, CancellationToken ct)
@@ -810,6 +792,20 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			TaskScheduler.Default);
 
 		Logger.LogInfo($"Registered pending request: {req}", this, LogCategory.UCI);
+	}
+
+	private void Start()
+	{
+		ThrowIfDisposed();
+
+		_proc.Start();
+		_stdin           = _proc.StandardInput;
+		_stdin.AutoFlush = true;
+
+		_ = Task.Run(ReadLoop);
+
+		if (_proc.StartInfo.RedirectStandardError) _ = Task.Run(ReadErrorLoop);
+		Logger.LogInfo($"Engine Process Starting...", this, LogCategory.UCI);
 	}
 
 	private void ThrowIfDisposed()
@@ -914,5 +910,35 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 				// ignore
 			}
 		}
+	}
+}
+
+public record struct PositionCommand
+{
+	public PositionCommand(string fen, IEnumerable<string>? moves = null)
+	{
+		var parsedFen = Fen.Parse(fen);
+		Fen   = parsedFen;
+		Moves = moves;
+	}
+
+	public Fen                  Fen   { get; set; }
+	public IEnumerable<string>? Moves { get; set; }
+
+	public static implicit operator string(PositionCommand positionCommand)
+	{
+		var command = $"{UciConstants.POSITION_COMMAND} fen {positionCommand.Fen}";
+		if (positionCommand.Moves != null)
+			command += string.Join(' ', positionCommand.Moves);
+
+		return command;
+	}
+
+	public override string ToString() => this;
+
+	public readonly void Deconstruct(out Fen fen, out IEnumerable<string>? moves)
+	{
+		fen   = Fen;
+		moves = Moves;
 	}
 }
