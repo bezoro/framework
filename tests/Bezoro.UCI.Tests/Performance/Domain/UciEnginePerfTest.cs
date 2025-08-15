@@ -52,7 +52,7 @@ public class UciEnginePerfTest : UciTestsBase
 	public async Task WriteLineAsync_When100ParallelCommands_HandlesCorrectly()
 	{
 		var tasks = Enumerable.Range(0, 100)
-							  .Select(_ => Engine.WriteLineAsync("uci", CancellationToken.None).AsTask());
+							  .Select(_ => Engine.WriteLineSafeAsync("uci", CancellationToken.None).AsTask());
 
 		await Task.WhenAll(tasks);
 	}
@@ -60,6 +60,6 @@ public class UciEnginePerfTest : UciTestsBase
 	[Fact]
 	public async Task WriteLineAsync_When100SequentialCommands_HandlesCorrectly()
 	{
-		for (var i = 0; i < 100; i++) await Engine.WriteLineAsync("uci", CancellationToken.None);
+		for (var i = 0; i < 100; i++) await Engine.WriteLineSafeAsync("uci", CancellationToken.None);
 	}
 }
