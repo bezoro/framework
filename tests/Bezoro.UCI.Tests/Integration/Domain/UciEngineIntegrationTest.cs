@@ -8,6 +8,18 @@ namespace Bezoro.UCI.Tests.Integration.Domain;
 public class UciEngineIntegrationTest : UciTestsBase
 {
 	[Fact]
+	public async Task CalculateScoreForMoveAsync_WhenLegalMove_ReturnsScoredMove()
+	{
+		var move = await Engine.CalculateScoreForMoveAsync("e2e4", CancellationToken.None);
+		Assert.Multiple(() =>
+		{
+			Assert.NotNull(move.ScoreCp);
+			Assert.NotEqual(0, move.ScoreCp);
+			Assert.Null(move.ScoreMate);
+		});
+	}
+
+	[Fact]
 	public async Task SetPositionAsync_WhenValidFenString_SetsTheEngineRootPosition()
 	{
 		var nonStandardFen  = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
@@ -25,7 +37,12 @@ public class UciEngineIntegrationTest : UciTestsBase
 		await Engine.StartSearchForSecondsAsync(1, CancellationToken.None);
 		var move = Engine.TryGetMoveScoreFromHistory("e2e4");
 
-		Assert.NotNull(move);
-		Assert.NotEqual(0, move.Value.ScoreCp);
+		Assert.Multiple(() =>
+		{
+			Assert.NotNull(move);
+			Assert.NotNull(move.Value.ScoreCp);
+			Assert.NotEqual(0, move.Value.ScoreCp);
+			Assert.Null(move.Value.ScoreMate);
+		});
 	}
 }

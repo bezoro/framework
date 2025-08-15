@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.Domain;
@@ -63,7 +64,8 @@ public readonly record struct MoveAnalysis
 		isNormal = !isCapture && !isCastling && !isEnpassant && !isPromotion;
 
 		var score = engine.TryGetMoveScoreFromHistory(parsedMove.Notation) ??
-					await engine.CalculateScoreForMoveAsync(parsedMove.Notation).ConfigureAwait(false);
+					await engine.CalculateScoreForMoveAsync(parsedMove.Notation, CancellationToken.None)
+								.ConfigureAwait(false);
 
 		if (score.ScoreMate.HasValue)
 			isCheck = score.ScoreMate.Value == 0;
