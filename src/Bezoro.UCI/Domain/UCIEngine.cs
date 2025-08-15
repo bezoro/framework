@@ -499,64 +499,45 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		Exception? firstError        = null;
 		var        disposedException = new ObjectDisposedException(nameof(UciEngine));
 
-		CaptureSafely(() => FailAndRemovePendingRequests(disposedException));
-		await CaptureSafelyAsync(FlushAndDisposeStdinAsync);
-		CaptureSafely(_outputHistory.Clear);
-		CaptureSafely(() => _outputHistorySize = 0);
-		CaptureSafely(_commandLock.Dispose);
-		CaptureSafely(_stdinWriteLock.Dispose);
-
-		if (firstError is not null)
-			Logger.LogError(firstError, this, LogCategory.UCI);
-
-		Logger.LogInfo($"Disposed", this, LogCategory.UCI);
-		return;
-
-
-		void FailAndRemovePendingRequests(ObjectDisposedException ex)
+		// Fail any pending requests
+		try
 		{
 			foreach (var request in _pending.Keys)
 			{
 				if (!_pending.TryRemove(request, out _)) continue;
 
-				request.Fail(ex);
+				request.Fail(disposedException);
 			}
 		}
-
-		async ValueTask FlushAndDisposeStdinAsync()
+		catch (Exception ex)
 		{
-			var stdin = Interlocked.Exchange(ref _stdin, null);
-			if (stdin is null) return;
+			firstError ??= ex;
+		}
 
+		// Flush and dispose stdin safely
+		var stdin = Interlocked.Exchange(ref _stdin, null);
+		if (stdin is not null)
+		{
 			try
 			{
-				await CaptureSafelyAsync(async ValueTask () =>
-				{
-					await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
-				});
-
-				await CaptureSafelyAsync(async ValueTask () => { await stdin.FlushAsync().ConfigureAwait(false); });
-			}
-			finally
-			{
+				await _stdinWriteLock.WaitAsync().ConfigureAwait(false);
 				try
 				{
-					_stdinWriteLock.Release();
+					await stdin.FlushAsync().ConfigureAwait(false);
 				}
-				catch
+				finally
 				{
-					// ignore
+					try
+					{
+						_stdinWriteLock.Release();
+					}
+					catch
+					{
+						// ignore
+					}
 				}
-			}
 
-			await CaptureSafelyAsync(() => stdin.DisposeAsync());
-		}
-
-		void CaptureSafely(Action action)
-		{
-			try
-			{
-				action();
+				await stdin.DisposeAsync().ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -564,18 +545,43 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			}
 		}
 
-		async ValueTask CaptureSafelyAsync(Func<ValueTask> action)
+		// Clear buffers and reset sizes
+		try
 		{
-			try
-			{
-				await action().ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				firstError ??= ex;
-			}
+			_outputHistory.Clear();
+			_outputHistorySize = 0;
 		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		// Dispose synchronization primitives
+		try
+		{
+			_commandLock.Dispose();
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		try
+		{
+			_stdinWriteLock.Dispose();
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
+
+		// Log any first error captured during disposal
+		if (firstError is not null)
+			Logger.LogError(firstError, this, LogCategory.UCI);
+
+		Logger.LogInfo("Disposed", this, LogCategory.UCI);
 	}
+
 
 	/// <summary>
 	///     Writes a line directly to the engine process's standard input stream.
@@ -592,10 +598,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		try
 		{
-			var sw = Volatile.Read(ref _stdin);
-
-			if (sw is null) throw new ObjectDisposedException(nameof(UciEngine));
-
+			var sw = Volatile.Read(ref _stdin).ThrowIfNull();
 			await sw.WriteLineAsync(command).ConfigureAwait(false);
 			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
 		}
