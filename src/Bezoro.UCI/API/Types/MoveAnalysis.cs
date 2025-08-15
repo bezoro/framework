@@ -25,7 +25,7 @@ public readonly record struct MoveAnalysis
 	///     Async factory: computes move characteristics and, if needed, awaits engine evaluation.
 	///     This is the single entry point to create a populated MoveAnalysis.
 	/// </summary>
-	public static async Task<MoveAnalysis> AnalyzeAsync(string moveNotation, BoardState boardState, UciEngine engine)
+	internal static async Task<MoveAnalysis> AnalyzeAsync(string moveNotation, BoardState boardState, UciEngine engine)
 	{
 		moveNotation.ThrowIfNull();
 		boardState.ThrowIfNull();
