@@ -98,14 +98,14 @@ internal sealed class BoardStateAnalyzer
 	{
 		var moves = new List<string>();
 
-		await _commandSender.SendCommandAsync(UCIConstants.GoPerftDepth1Command, false, ct);
+		await _commandSender.SendCommandAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, false, ct);
 
 		while (true)
 		{
 			string? line = await _outputParser.ReadLineFromProcessAsync(ct);
 			if (line == null || line.Contains("Nodes searched")) break;
 
-			var match = UCIConstants.MoveRegex.Match(line);
+			var match = UciConstants.MoveRegex.Match(line);
 
 			if (match.Success) moves.Add(match.Groups[1].Value);
 		}
@@ -157,7 +157,7 @@ internal sealed class BoardStateAnalyzer
 	public async Task<string> GetCurrentFENAsync(CancellationToken ct = default)
 	{
 		// The 'd' command doesn't have a clear "readyok" end signal, so we read until we find the FEN
-		await _commandSender.SendCommandAsync(UCIConstants.DisplayBoardCommand, false, ct);
+		await _commandSender.SendCommandAsync(UciConstants.DISPLAY_BOARD_COMMAND, false, ct);
 
 		// Set a timeout for reading the response to prevent stalling.
 		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -174,8 +174,8 @@ internal sealed class BoardStateAnalyzer
 					break;
 				}
 
-				if (line.StartsWith(UCIConstants.FenResponsePrefix, StringComparison.Ordinal))
-					return line[UCIConstants.FenResponsePrefix.Length..].Trim();
+				if (line.StartsWith(UciConstants.FEN_RESPONSE_PREFIX, StringComparison.Ordinal))
+					return line[UciConstants.FEN_RESPONSE_PREFIX.Length..].Trim();
 			}
 		}
 		catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
@@ -221,9 +221,9 @@ internal sealed class BoardStateAnalyzer
 		var tempFen =
 			$"{fenParts[0]} {colorToCheck} {castlingRights} {newEnPassantTarget} {newHalfmoveClock} {newFullmoveNumber}";
 
-		await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {tempFen}", true, ct);
+		await _commandSender.SendCommandAsync($"{UciConstants.POSITION_COMMAND} fen {tempFen}", true, ct);
 		var moves = await GetLegalMovesAsync(ct);
-		await _commandSender.SendCommandAsync($"{UCIConstants.PositionCommand} fen {fenInfo.CurrentFen}", true, ct);
+		await _commandSender.SendCommandAsync($"{UciConstants.POSITION_COMMAND} fen {fenInfo.CurrentFen}", true, ct);
 
 		return moves;
 	}

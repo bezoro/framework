@@ -76,7 +76,7 @@ public sealed class UciConnector : IAsyncDisposable
 	public async Task SetDefaultPositionAsync()
 	{
 		ThrowIfDisposed();
-		await _engine.SetPositionAsync(UCIConstants.StandardFEN).ConfigureAwait(false);
+		await _engine.SetPositionAsync(UciConstants.STANDARD_FEN).ConfigureAwait(false);
 	}
 
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)

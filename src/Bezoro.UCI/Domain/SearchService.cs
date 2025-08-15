@@ -50,7 +50,7 @@ internal sealed class SearchService
 	/// </summary>
 	public async Task StopAnalysisAsync()
 	{
-		await _commandSender.SendCommandAsync(UCIConstants.StopCommand);
+		await _commandSender.SendCommandAsync(UciConstants.STOP_COMMAND);
 	}
 
 	/// <summary>
