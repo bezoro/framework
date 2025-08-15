@@ -144,6 +144,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 
 		await WriteLineAsync(command, ct).ConfigureAwait(false);
+
 		ClearPositionCaches();
 		Logger.LogSuccess($"Position Set Successfully {command.ToString().Bold()}", this, LogCategory.UCI);
 		return;
@@ -154,6 +155,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			_currentSquareMovesCache.Clear();
 			_currentLegalMovesCache.Clear();
 			_searchInfoCache.Clear();
+			_currentFenCache = null;
 		}
 	}
 
