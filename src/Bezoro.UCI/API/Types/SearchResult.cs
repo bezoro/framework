@@ -26,7 +26,8 @@ public readonly record struct PrincipalVariation(
 	uint                  Nps,
 	uint                  TbHits,
 	uint                  Time,
-	IReadOnlyList<string> Moves
+	IReadOnlyList<string> Moves,
+	string                RawPv
 )
 {
 	public static bool TryParse(string line, out PrincipalVariation pv)
@@ -45,6 +46,7 @@ public readonly record struct PrincipalVariation(
 		uint         depth   = 0,    selDepth  = 0, multiPv = 0, nodes = 0, nps = 0, tbHits = 0, time = 0;
 		int?         scoreCp = null, scoreMate = null;
 		List<string> pvMoves = [];
+		string       rawPv   = string.Empty;
 
 		string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -96,6 +98,7 @@ public readonly record struct PrincipalVariation(
 					break;
 
 				case "pv":
+					rawPv = string.Join(" ", tokens.Skip(i + 1));
 					for (int j = i + 1; j < tokens.Length; j++)
 						pvMoves.Add(tokens[j]);
 
@@ -106,7 +109,7 @@ public readonly record struct PrincipalVariation(
 
 		if (pvMoves.Count == 0) return default;
 
-		return new(depth, selDepth, multiPv, scoreCp, scoreMate, nodes, nps, tbHits, time, pvMoves);
+		return new(depth, selDepth, multiPv, scoreCp, scoreMate, nodes, nps, tbHits, time, pvMoves, rawPv);
 	}
 }
 
