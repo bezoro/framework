@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Bezoro.Core.Common.Extensions.Collections.Arrays;
+namespace Bezoro.Core.Common.Extensions.Collections.Search;
 
 /// <summary>
 ///     Contains methods for searching and counting elements in arrays.
@@ -60,6 +60,26 @@ public static class ArraySearch
 		return false;
 	}
 
+	public static bool TryFindFirstEmptyIndex<T>(this T[] array, out int index)
+		where T : class
+	{
+		array.ThrowIfNull();
+		index = -1;
+
+		if (array.Length == 0) return false;
+
+		for (var i = 0; i < array.Length; i++)
+		{
+			var element = array[i];
+			if (!element.IsNull()) continue;
+
+			index = i;
+			return true;
+		}
+
+		return false;
+	}
+
 	/// <summary>
 	///     Counts the number of empty (null) indices in the array.
 	/// </summary>
@@ -109,22 +129,5 @@ public static class ArraySearch
 		}
 
 		return filledIndicesCount;
-	}
-
-	public static int FindFirstEmptyIndex<T>(this T[] array)
-		where T : class
-	{
-		array.ThrowIfNull();
-
-		if (array.Length == 0) return -1;
-
-		for (var i = 0; i < array.Length; i++)
-		{
-			var element = array[i];
-			if (element.IsNull())
-				return i;
-		}
-
-		return -1;
 	}
 }

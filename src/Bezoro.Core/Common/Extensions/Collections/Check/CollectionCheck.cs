@@ -8,7 +8,7 @@ namespace Bezoro.Core.Common.Extensions.Collections.Check;
 /// <summary>
 ///     Provides extension methods for <see cref="ICollection{T}" />.
 /// </summary>
-public static class CollectionChecks
+public static class CollectionCheck
 {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsEmpty<T>(this ICollection<T> collection)

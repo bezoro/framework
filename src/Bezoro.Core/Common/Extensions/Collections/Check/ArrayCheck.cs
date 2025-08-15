@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 
-namespace Bezoro.Core.Common.Extensions.Collections.Arrays;
+namespace Bezoro.Core.Common.Extensions.Collections.Check;
 
 /// <summary>
 ///     Contains methods for checking array state and properties.
 /// </summary>
-public static class ArrayChecks
+public static class ArrayCheck
 {
 	/// <summary>
 	///     Checks if two arrays are equal.

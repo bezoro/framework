@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Bezoro.Core.Common.Extensions.Collections.Search;
 
-public static class CollectionSearches
+public static class CollectionSearch
 {
 	public static T Find<T>(this ICollection<T> collection, T value)
 	{
