@@ -224,7 +224,9 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		var parsedMove = new ParsedMove(notation);
 
-		await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {_currentFenCache} moves {parsedMove.Notation}", ct)
+		var originalFen = _currentFenCache ?? await GetCurrentFenAsync(ct).ConfigureAwait(false);
+
+		await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen} moves {parsedMove.Notation}", ct)
 			.ConfigureAwait(false);
 
 		try
@@ -267,7 +269,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		finally
 		{
 			// Restore original position to avoid side effects
-			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {_currentFenCache}", ct).ConfigureAwait(false);
+			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen}", ct).ConfigureAwait(false);
 		}
 	}
 
@@ -498,6 +500,17 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		Exception? firstError        = null;
 		var        disposedException = new ObjectDisposedException(nameof(UciEngine));
+
+		// Unsubscribe process events
+		try
+		{
+			_proc.Exited              -= OnProcessExited;
+			_proc.EnableRaisingEvents =  false;
+		}
+		catch (Exception ex)
+		{
+			firstError ??= ex;
+		}
 
 		// Fail any pending requests
 		try
@@ -785,6 +798,21 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 	}
 
+	private void OnProcessExited(object? sender, EventArgs e)
+	{
+		try
+		{
+			IsStarted = false;
+			var ex = new InvalidOperationException("UCI engine process exited.");
+			CompleteOutputAndFailPending(ex);
+			Logger.LogError("Engine process exited", this, LogCategory.UCI);
+		}
+		catch
+		{
+			// ignore any exceptions thrown during exit handling
+		}
+	}
+
 	private void RegisterPending(PendingRequest req)
 	{
 		_pending.TryAdd(req, 0);
@@ -800,6 +828,9 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	private void Start()
 	{
 		ThrowIfDisposed();
+
+		_proc.EnableRaisingEvents =  true;
+		_proc.Exited              += OnProcessExited;
 
 		_proc.Start();
 		_stdin           = _proc.StandardInput;
@@ -932,7 +963,11 @@ public record struct PositionCommand
 	{
 		var command = $"{UciConstants.POSITION_COMMAND} fen {positionCommand.Fen}";
 		if (positionCommand.Moves != null)
-			command += string.Join(' ', positionCommand.Moves);
+		{
+			var movesPart = string.Join(' ', positionCommand.Moves);
+			if (!string.IsNullOrWhiteSpace(movesPart))
+				command += $" moves {movesPart}";
+		}
 
 		return command;
 	}
