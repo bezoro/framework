@@ -366,24 +366,22 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	}
 
 	public async Task<MoveScore> CalculateScoreForMoveAsync(
-		string                   notation,
-		uint                     multiPv     = 8,
-		uint                     msBudget    = 220,
-		Fen?                     customFen   = null,
-		ICollection<ParsedMove>? customMoves = null,
-		CancellationToken        ct          = default)
+		string            notation,
+		CancellationToken ct,
+		uint              multiPv        = 8,
+		uint              msBudget       = 220,
+		PositionCommand?  customPosition = null)
 	{
 		ThrowIfDisposed();
 
 		var parsedMove = new ParsedMove(notation);
 
-		if (customFen is not null)
-		{
-			await WriteLineSafeAsync($"{UciConstants.POSITION_COMMAND} fen {customFen}", ct)
-				.ConfigureAwait(false);
-		}
+		if (customPosition is not null)
+			await WriteLineSafeAsync(customPosition, ct).ConfigureAwait(false);
 
-		await SetOptionAsync("MultiPV", (int)multiPv, ct).ConfigureAwait(false);
+		await WriteLineSafeAsync($"{UciConstants.SET_OPTION_COMMAND} MultiPV value {(int)multiPv}", ct)
+			.ConfigureAwait(false);
+
 		var response = await SendCommandAsync(
 							   $"{UciConstants.GO_COMMAND} "                     +
 							   $"{UciConstants.MOVE_TIME_PARAMETER} {msBudget} " +
@@ -394,15 +392,21 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		MoveScore score = default;
 		await foreach (string? line in response.Lines.WithCancellation(ct).ConfigureAwait(false))
 		{
-			MoveScore.TryParse(line, out var moveScore);
-			if (moveScore?.ScoreMate > score.ScoreMate)
+			if (string.IsNullOrEmpty(line)) continue;
+
+			if (!MoveScore.TryParse(line, out var moveScore) || !moveScore.HasValue) continue;
+
+			if (moveScore.Value.ScoreMate.HasValue)
 			{
 				score = moveScore.Value;
 				break;
 			}
 
-			if (moveScore?.ScoreCp > score.ScoreCp)
+			if (moveScore.Value.ScoreCp.HasValue &&
+				(!score.ScoreCp.HasValue || moveScore.Value.ScoreCp > score.ScoreCp))
+			{
 				score = moveScore.Value;
+			}
 		}
 
 		await SetOptionAsync("MultiPV", (int)_currentMultiPv, ct).ConfigureAwait(false);
@@ -610,23 +614,6 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		await WriteCommandToStreamAsyncInternal(command, ct);
 	}
 
-	private async ValueTask WriteCommandToStreamAsyncInternal(string command, CancellationToken ct)
-	{
-		_stdin.ThrowIfNull();
-
-		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
-		try
-		{
-			var sw = Volatile.Read(ref _stdin).ThrowIfNull();
-			await sw.WriteLineAsync(command).ConfigureAwait(false);
-			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
-		}
-		finally
-		{
-			_stdinWriteLock.Release();
-		}
-	}
-
 	private static bool MatchesUciTerminator(string line, string[] tokens)
 	{
 		string bestMovePrefix   = UciConstants.BEST_MOVE_RESPONSE_PREFIX;
@@ -773,6 +760,23 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		SearchResult.TryParse(lines, out var result);
 		Logger.LogInfo(result, this, LogCategory.UCI);
 		return result;
+	}
+
+	private async ValueTask WriteCommandToStreamAsyncInternal(string command, CancellationToken ct)
+	{
+		_stdin.ThrowIfNull();
+
+		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			var sw = Volatile.Read(ref _stdin).ThrowIfNull();
+			await sw.WriteLineAsync(command).ConfigureAwait(false);
+			Logger.LogInfo($"[INPUT] {command.Bold()}", this, LogCategory.UCI);
+		}
+		finally
+		{
+			_stdinWriteLock.Release();
+		}
 	}
 
 	private void AppendHistory(string line)
