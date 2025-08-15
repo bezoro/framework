@@ -113,13 +113,13 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		Logger.LogInfo($"Ponder Hit", this, LogCategory.UCI);
 	}
 
-	public async Task QuitEngineAsync()
+	public async Task QuitEngineAsync(CancellationToken ct)
 	{
 		if (_isDisposed.IsPositive()) return;
 
 		try
 		{
-			await WriteLineAsync(UciConstants.STOP_COMMAND).ConfigureAwait(false);
+			await WriteLineAsync(UciConstants.STOP_COMMAND, ct).ConfigureAwait(false);
 		}
 		catch (ObjectDisposedException)
 		{
@@ -582,7 +582,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 	}
 
-	public async ValueTask WriteLineAsync(string command, CancellationToken ct = default)
+	public async ValueTask WriteLineAsync(string command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
 
