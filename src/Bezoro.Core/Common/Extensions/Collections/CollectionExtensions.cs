@@ -10,6 +10,7 @@ namespace Bezoro.Core.Common.Extensions.Collections;
 /// </summary>
 public static class CollectionExtensions
 {
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsEmpty<T>(this ICollection<T> collection)
 	{
 		collection.ThrowIfNull();
@@ -47,10 +48,8 @@ public static class CollectionExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void AddRange<T>(this ICollection<T> collection, ICollection<T> items)
 	{
-		collection.ThrowIfNull();
-		collection.ThrowIfEmpty();
-		items.ThrowIfNull();
-		items.ThrowIfEmpty();
+		collection.ThrowIfNull().ThrowIfEmpty();
+		items.ThrowIfNull().ThrowIfEmpty();
 
 		foreach (var item in items)
 			collection.Add(item);
