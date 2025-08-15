@@ -8,7 +8,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit.MoveGeneration;
 
 [TestSubject(typeof(RookMoveGenerator))]
 public class RookMoveGenerationUnitTests
@@ -21,7 +21,7 @@ public class RookMoveGenerationUnitTests
 		// Arrange
 		var   fromPosition = new Position("d4");
 		Board board        = new(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.Rook, color));
+		board = board.SetPiece(new(fromPosition.Row, fromPosition.Col), new(PieceType.Rook, color));
 		var gameState = new GameState
 		{
 			Board       = board,
@@ -29,7 +29,7 @@ public class RookMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(14);
@@ -45,17 +45,17 @@ public class RookMoveGenerationUnitTests
 	internal void MoveGenerator_ForRookOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var        fromPosition  = new Position("d4");
-		PieceColor opponentColor = color.Opposite();
+		var fromPosition  = new Position("d4");
+		var opponentColor = color.Opposite();
 
 		Board board = new(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(fromPosition, new Piece(PieceType.Rook, color));
+		board = board.SetPiece(fromPosition, new(PieceType.Rook, color));
 
 		// Friendly piece (blocking)
-		board = board.SetPiece(new Position("d6"), new Piece(PieceType.Pawn, color))
-					 .SetPiece(new Position("b4"), new Piece(PieceType.Pawn, color))
-					 .SetPiece(new Position("d2"), new Piece(PieceType.Pawn, opponentColor))
-					 .SetPiece(new Position("g4"), new Piece(PieceType.Pawn, opponentColor));
+		board = board.SetPiece(new("d6"), new(PieceType.Pawn, color))
+					 .SetPiece(new("b4"), new(PieceType.Pawn, color))
+					 .SetPiece(new("d2"), new(PieceType.Pawn, opponentColor))
+					 .SetPiece(new("g4"), new(PieceType.Pawn, opponentColor));
 
 		var gameState = new GameState
 		{
@@ -64,7 +64,7 @@ public class RookMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves:
@@ -88,11 +88,11 @@ public class RookMoveGenerationUnitTests
 		// Arrange
 		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the rooks on a1/a8 are blocked by pawns.
-		var       fromPosition = new Position(isWhite ? "a1" : "a8");
-		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var fromPosition = new Position(isWhite ? "a1" : "a8");
+		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

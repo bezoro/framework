@@ -4,7 +4,7 @@ using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit;
 
 [TestSubject(typeof(Board))]
 public sealed class BoardUnitTests
@@ -19,10 +19,10 @@ public sealed class BoardUnitTests
 	public void GetPiece_WhenSquareIsEmpty_ReturnsDefaultPiece()
 	{
 		// Arrange
-		Board board = EmptyBoard();
+		var board = EmptyBoard();
 
 		// Act
-		Piece result = board.GetPiece(D4Square);
+		var result = board.GetPiece(D4Square);
 
 		// Assert
 		Assert.Equal(default, result);
@@ -36,12 +36,12 @@ public sealed class BoardUnitTests
 	public void SetPiece_CornerSquaresBehaveLikeAnyOther(int row, int col)
 	{
 		// Arrange
-		var    pos   = new Position(row, col);
-		Piece  king  = P(PieceType.King, PieceColor.White);
-		Board? board = EmptyBoard();
+		var pos   = new Position(row, col);
+		var king  = P(PieceType.King, PieceColor.White);
+		var board = EmptyBoard();
 
 		// Act
-		Board updated = board.SetPiece(pos, king);
+		var updated = board.SetPiece(pos, king);
 
 		// Assert
 		Assert.Equal(king, updated.GetPiece(pos));
@@ -53,11 +53,11 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenAddingPiece_DoesNotModifyOriginalBoard()
 	{
 		// Arrange
-		Board? original = EmptyBoard();
-		Piece  pawn     = P(PieceType.Pawn, PieceColor.White);
+		var original = EmptyBoard();
+		var pawn     = P(PieceType.Pawn, PieceColor.White);
 
 		// Act
-		Board mutated = original.SetPiece(Center, pawn);
+		var mutated = original.SetPiece(Center, pawn);
 
 		// Assert
 		Assert.Equal(default, original.GetPiece(Center)); // still empty
@@ -70,11 +70,11 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenAddingPieceToEmptySquare_ReturnsBoardWithThatPiece()
 	{
 		// Arrange
-		Board? original = EmptyBoard();
-		Piece  queen    = P(PieceType.Queen, PieceColor.White);
+		var original = EmptyBoard();
+		var queen    = P(PieceType.Queen, PieceColor.White);
 
 		// Act
-		Board result = original.SetPiece(Center, queen);
+		var result = original.SetPiece(Center, queen);
 
 		// Assert
 		Assert.Equal(queen,   result.GetPiece(Center));   // piece placed
@@ -87,11 +87,11 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenPassedDefaultPiece_ClearsTheSquare()
 	{
 		// Arrange
-		Board boardWithPiece = EmptyBoard()
+		var boardWithPiece = EmptyBoard()
 			.SetPiece(Center, P(PieceType.Bishop, PieceColor.Black));
 
 		// Act
-		Board result = boardWithPiece.SetPiece(Center, default);
+		var result = boardWithPiece.SetPiece(Center, default);
 
 		// Assert
 		Assert.Equal(default, result.GetPiece(Center));
@@ -103,11 +103,11 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenPlacingIdenticalPiece_ReturnsSameInstance()
 	{
 		// Arrange
-		Piece knight = P(PieceType.Knight, PieceColor.Black);
-		Board board  = EmptyBoard().SetPiece(Center, knight);
+		var knight = P(PieceType.Knight, PieceColor.Black);
+		var board  = EmptyBoard().SetPiece(Center, knight);
 
 		// Act
-		Board result = board.SetPiece(Center, knight); // identical
+		var result = board.SetPiece(Center, knight); // identical
 
 		// Assert
 		Assert.Same(board, result);
@@ -117,10 +117,10 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenRemovingFromEmptySquare_ReturnsSameInstance()
 	{
 		// Arrange
-		Board? board = EmptyBoard();
+		var board = EmptyBoard();
 
 		// Act
-		Board result = board.SetPiece(Center, default); // removing nothing
+		var result = board.SetPiece(Center, default); // removing nothing
 
 		// Assert
 		Assert.Same(board, result);
@@ -132,13 +132,13 @@ public sealed class BoardUnitTests
 	public void SetPiece_WhenSquareAlreadyContainsDifferentPiece_ReplacesPiece()
 	{
 		// Arrange
-		Board boardWithPawn = EmptyBoard()
+		var boardWithPawn = EmptyBoard()
 			.SetPiece(Center, P(PieceType.Pawn, PieceColor.White));
 
-		Piece rook = P(PieceType.Rook, PieceColor.White);
+		var rook = P(PieceType.Rook, PieceColor.White);
 
 		// Act
-		Board result = boardWithPawn.SetPiece(Center, rook);
+		var result = boardWithPawn.SetPiece(Center, rook);
 
 		// Assert
 		Assert.Equal(rook, result.GetPiece(Center));
@@ -174,19 +174,21 @@ public sealed class BoardUnitTests
 	[InlineData(PieceType.Queen,  PieceColor.Black, "d8")]
 	[InlineData(PieceType.King,   PieceColor.Black, "e8")]
 	internal void GetPiece_WhenSquareContainsPiece_ReturnsThatPiece(
-		PieceType type, PieceColor color, string expectedPosition)
+		PieceType  type,
+		PieceColor color,
+		string     expectedPosition)
 	{
 		// Arrange
-		Piece expected = P(type, color);
-		var   board    = new Board(BoardFactory.CreateInitialBitboards());
+		var expected = P(type, color);
+		var board    = new Board(BoardFactory.CreateInitialBitboards());
 
 		// Act
-		Piece result = board.GetPiece(new Position(expectedPosition));
+		var result = board.GetPiece(new(expectedPosition));
 
 		// Assert
 		Assert.Equal(expected, result);
 	}
 
-	private static Board EmptyBoard() => new(new BoardBitboards());
+	private static Board EmptyBoard() => new(new());
 	private static Piece P(PieceType t, PieceColor c) => new(t, c);
 }

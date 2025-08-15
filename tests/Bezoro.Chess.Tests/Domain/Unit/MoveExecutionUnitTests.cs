@@ -6,7 +6,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit;
 
 [TestSubject(typeof(MoveExecution))]
 public class MoveExecutionUnitTests
@@ -18,12 +18,12 @@ public class MoveExecutionUnitTests
 	{
 		// Arrange
 		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
-		var   from = new Position(0, 4);
-		Piece king = _standardGame.GetPieceAt(from);
-		Move  move = Move.Normal(from, new Position(1, 4), king); // Black King e8 to e7
+		var from = new Position(0, 4);
+		var king = _standardGame.GetPieceAt(from);
+		var move = Move.Normal(from, new(1, 4), king); // Black King e8 to e7
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
 		var expectedRights = CastlingRights.White;
@@ -38,8 +38,8 @@ public class MoveExecutionUnitTests
 		var fromPos = new Position("e5");
 		var toPos   = new Position("d4");
 
-		board = board.SetPiece(toPos, new Piece(PieceType.Pawn,   PieceColor.White))
-					 .SetPiece(fromPos, new Piece(PieceType.Pawn, PieceColor.Black));
+		board = board.SetPiece(toPos, new(PieceType.Pawn, PieceColor.White))
+					 .SetPiece(fromPos, new(PieceType.Pawn, PieceColor.Black));
 
 		var gameState = new GameState
 		{
@@ -48,12 +48,12 @@ public class MoveExecutionUnitTests
 			HalfMoveClock = 10 // Arbitrary non-zero value
 		};
 
-		Piece movingPiece   = gameState.GetPieceAt(fromPos);
-		Piece capturedPiece = gameState.GetPieceAt(toPos);
-		Move  move          = Move.Capture(fromPos, toPos, movingPiece, capturedPiece);
+		var movingPiece   = gameState.GetPieceAt(fromPos);
+		var capturedPiece = gameState.GetPieceAt(toPos);
+		var move          = Move.Capture(fromPos, toPos, movingPiece, capturedPiece);
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(gameState, move);
+		var newState = MoveExecution.ExecuteMove(gameState, move);
 
 		// Assert
 		newState.Board.GetPiece(toPos).Should()
@@ -72,21 +72,21 @@ public class MoveExecutionUnitTests
 		var board = new Board(BoardFactory.CreateEmptyBitboards());
 		var from  = new Position("a2");
 		var to    = new Position("a1");
-		board = board.SetPiece(from, new Piece(PieceType.Pawn, PieceColor.Black));
+		board = board.SetPiece(from, new(PieceType.Pawn, PieceColor.Black));
 
-		var   gameState = new GameState { Board = board, ActiveColor = PieceColor.Black };
-		Piece pawn      = gameState.GetPieceAt(from);
-		Move  move      = Move.Promotion(from, to, pawn, PromotionType.Queen);
+		var gameState = new GameState { Board = board, ActiveColor = PieceColor.Black };
+		var pawn      = gameState.GetPieceAt(from);
+		var move      = Move.Promotion(from, to, pawn, PromotionType.Queen);
 
 		// Act
 		gameState = MoveExecution.ExecuteMove(gameState, move);
 
 		// Assert
 		// Assuming promotion to Queen by default
-		gameState.Board.GetPiece(new Position("a1")).Should()
+		gameState.Board.GetPiece(new("a1")).Should()
 				 .Be(new Piece(PieceType.Queen, PieceColor.Black));
 
-		gameState.Board.GetPiece(new Position("a2")).Type.Should().Be(PieceType.None);
+		gameState.Board.GetPiece(new("a2")).Type.Should().Be(PieceType.None);
 		gameState.ActiveColor.Should().Be(PieceColor.White);
 	}
 
@@ -94,16 +94,18 @@ public class MoveExecutionUnitTests
 	[InlineData(0, 7, CastlingRights.BlackQueenside | CastlingRights.White)] // Black Kingside
 	[InlineData(0, 0, CastlingRights.BlackKingside  | CastlingRights.White)] // Black Queenside
 	internal void ExecuteMove_BlackRookMovesFromHome_RevokesCorrectRights(
-		int startRow, int startCol, CastlingRights expectedRights)
+		int            startRow,
+		int            startCol,
+		CastlingRights expectedRights)
 	{
 		// Arrange
 		_standardGame = BoardSetup.CreateStandardGameBlackStarts();
-		var   from = new Position(startRow, startCol);
-		Piece rook = _standardGame.GetPieceAt(from);
-		Move  move = Move.Normal(from, new Position(2, startCol), rook);
+		var from = new Position(startRow, startCol);
+		var rook = _standardGame.GetPieceAt(from);
+		var move = Move.Normal(from, new(2, startCol), rook);
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
 		Assert.Equal(expectedRights, newState.Castling);
@@ -113,12 +115,12 @@ public class MoveExecutionUnitTests
 	internal void ExecuteMove_NonKingOrRookMove_DoesNotChangeCastlingRights()
 	{
 		// Arrange
-		var   from = new Position(6, 4);
-		Piece pawn = _standardGame.GetPieceAt(from);
-		Move  move = Move.Normal(from, new Position(4, 4), pawn); // White Pawn e2 to e4
+		var from = new Position(6, 4);
+		var pawn = _standardGame.GetPieceAt(from);
+		var move = Move.Normal(from, new(4, 4), pawn); // White Pawn e2 to e4
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
 		Assert.Equal(CastlingRights.All, newState.Castling);
@@ -130,25 +132,26 @@ public class MoveExecutionUnitTests
 		// Arrange
 		// Create an initial state where the White Kingside rook has already been moved.
 		// This means the corresponding castling right is already revoked.
-		Board board   = _standardGame.Board;
-		var   fromPos = new Position(5, 3);
-		board.SetPiece(new Position(fromPos.Row, fromPos.Col),
-			new Piece(PieceType.Rook, PieceColor.White)); // Place rook at d3
+		var board   = _standardGame.Board;
+		var fromPos = new Position(5, 3);
+		board.SetPiece(
+			new(fromPos.Row, fromPos.Col),
+			new(PieceType.Rook, PieceColor.White)); // Place rook at d3
 
-		board.SetPiece(new Position(7, 7), new Piece(PieceType.None, PieceColor.None)); // Empty h1
+		board.SetPiece(new(7, 7), new(PieceType.None, PieceColor.None)); // Empty h1
 
-		GameState stateBeforeMove = _standardGame with
+		var stateBeforeMove = _standardGame with
 		{
 			Board = board,
 			// Manually set the castling rights to be consistent with the board.
 			Castling = CastlingRights.All & ~CastlingRights.WhiteKingside
 		};
 
-		Piece rook = stateBeforeMove.GetPieceAt(fromPos);
-		Move  move = Move.Normal(fromPos, new Position(4, 3), rook); // White Rook d3 to d4
+		var rook = stateBeforeMove.GetPieceAt(fromPos);
+		var move = Move.Normal(fromPos, new(4, 3), rook); // White Rook d3 to d4
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(stateBeforeMove, move);
+		var newState = MoveExecution.ExecuteMove(stateBeforeMove, move);
 
 		// Assert
 		// The move should not have changed the castling rights further.
@@ -165,10 +168,10 @@ public class MoveExecutionUnitTests
 		var enPassantPos = new Position("d6");
 
 		// White pawn ready to capture
-		board = board.SetPiece(startPos, new Piece(PieceType.Pawn, PieceColor.White));
+		board = board.SetPiece(startPos, new(PieceType.Pawn, PieceColor.White));
 		// Black pawn that just moved two squares 
 		var capturedPawnPos = new Position("d5");
-		board = board.SetPiece(capturedPawnPos, new Piece(PieceType.Pawn, PieceColor.Black));
+		board = board.SetPiece(capturedPawnPos, new(PieceType.Pawn, PieceColor.Black));
 
 		var gameState = new GameState
 		{
@@ -177,12 +180,12 @@ public class MoveExecutionUnitTests
 			EnPassantTargetSquare = enPassantPos
 		};
 
-		Piece movingPawn   = gameState.GetPieceAt(startPos);
-		Piece capturedPawn = gameState.GetPieceAt(capturedPawnPos);
-		Move  move         = Move.EnPassant(startPos, enPassantPos, movingPawn, capturedPawn);
+		var movingPawn   = gameState.GetPieceAt(startPos);
+		var capturedPawn = gameState.GetPieceAt(capturedPawnPos);
+		var move         = Move.EnPassant(startPos, enPassantPos, movingPawn, capturedPawn);
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(gameState, move);
+		var newState = MoveExecution.ExecuteMove(gameState, move);
 
 		// Assert
 		newState.Board.GetPiece(enPassantPos).Should()
@@ -198,12 +201,12 @@ public class MoveExecutionUnitTests
 	internal void ExecuteMove_WhiteKingMoves_RevokesWhiteCastlingRights()
 	{
 		// Arrange
-		var   from = new Position(7, 4);
-		Piece king = _standardGame.GetPieceAt(from);
-		Move  move = Move.Normal(from, new Position(6, 4), king); // White King e1 to e2
+		var from = new Position(7, 4);
+		var king = _standardGame.GetPieceAt(from);
+		var move = Move.Normal(from, new(6, 4), king); // White King e1 to e2
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
 		var expectedRights = CastlingRights.Black;
@@ -214,21 +217,21 @@ public class MoveExecutionUnitTests
 	internal void ExecuteMove_WhitePawnE2ToE4_ShouldUpdateStateCorrectly()
 	{
 		// Arrange
-		GameState initialState = BoardSetup.CreateStandardGame();
-		var       fromPos      = new Position("e2");
-		var       toPos        = new Position("e4");
-		Piece     pawn         = initialState.GetPieceAt(fromPos);
-		Move      move         = Move.Normal(fromPos, toPos, pawn);
+		var initialState = BoardSetup.CreateStandardGame();
+		var fromPos      = new Position("e2");
+		var toPos        = new Position("e4");
+		var pawn         = initialState.GetPieceAt(fromPos);
+		var move         = Move.Normal(fromPos, toPos, pawn);
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(initialState, move);
+		var newState = MoveExecution.ExecuteMove(initialState, move);
 
 		// Assert
 		// 1. Verify the piece moved
-		newState.Board.GetPiece(new Position("e4")).Should().Be(new Piece(PieceType.Pawn, PieceColor.White));
+		newState.Board.GetPiece(new("e4")).Should().Be(new Piece(PieceType.Pawn, PieceColor.White));
 
 		// 2. Verify the original square is empty
-		newState.Board.GetPiece(new Position("e2")).Type.Should().Be(PieceType.None);
+		newState.Board.GetPiece(new("e2")).Type.Should().Be(PieceType.None);
 
 		// 3. Verify the active color switched to Black
 		newState.ActiveColor.Should().Be(PieceColor.Black);
@@ -247,15 +250,17 @@ public class MoveExecutionUnitTests
 	[InlineData(7, 7, CastlingRights.WhiteQueenside | CastlingRights.Black)] // White Kingside
 	[InlineData(7, 0, CastlingRights.WhiteKingside  | CastlingRights.Black)] // White Queenside
 	internal void ExecuteMove_WhiteRookMovesFromHome_RevokesCorrectRights(
-		int startRow, int startCol, CastlingRights expectedRights)
+		int            startRow,
+		int            startCol,
+		CastlingRights expectedRights)
 	{
 		// Arrange
-		var   from = new Position(startRow, startCol);
-		Piece rook = _standardGame.GetPieceAt(from);
-		Move  move = Move.Normal(from, new Position(5, startCol), rook);
+		var from = new Position(startRow, startCol);
+		var rook = _standardGame.GetPieceAt(from);
+		var move = Move.Normal(from, new(5, startCol), rook);
 
 		// Act
-		GameState newState = MoveExecution.ExecuteMove(_standardGame, move);
+		var newState = MoveExecution.ExecuteMove(_standardGame, move);
 
 		// Assert
 		Assert.Equal(expectedRights, newState.Castling);
