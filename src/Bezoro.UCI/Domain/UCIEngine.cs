@@ -94,7 +94,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 
-		await WriteLineAsync(UciConstants.UCI_NEW_GAME_COMMAND, ct).ConfigureAwait(false);
+		await WriteLineSafeAsync(UciConstants.UCI_NEW_GAME_COMMAND, ct).ConfigureAwait(false);
 		await WaitReadyAsync(ct).ConfigureAwait(false);
 
 		// Clear our stored caches and history
@@ -110,7 +110,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	public async Task PonderhitAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		await WriteLineAsync("ponderhit", ct).ConfigureAwait(false);
+		await WriteLineSafeAsync("ponderhit", ct).ConfigureAwait(false);
 		Logger.LogInfo($"Ponder Hit", this, LogCategory.UCI);
 	}
 
@@ -120,7 +120,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		try
 		{
-			await WriteLineAsync(UciConstants.STOP_COMMAND, ct).ConfigureAwait(false);
+			await WriteLineSafeAsync(UciConstants.STOP_COMMAND, ct).ConfigureAwait(false);
 		}
 		catch (ObjectDisposedException)
 		{
@@ -134,7 +134,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		await WriteLineAsync($"{UciConstants.SET_OPTION_COMMAND} {name} value {value}", ct).ConfigureAwait(false);
+		await WriteLineSafeAsync($"{UciConstants.SET_OPTION_COMMAND} {name} value {value}", ct).ConfigureAwait(false);
 		if (name == "MultiPV") _currentMultiPv = (uint)value;
 		Logger.LogSuccess($"Option Set Successfully {name.Bold()} {value.ToString().Bold()}", this, LogCategory.UCI);
 	}
@@ -143,7 +143,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 
-		await WriteLineAsync(command, ct).ConfigureAwait(false);
+		await WriteLineSafeAsync(command, ct).ConfigureAwait(false);
 
 		ClearPositionCaches();
 		Logger.LogSuccess($"Position Set Successfully {command.ToString().Bold()}", this, LogCategory.UCI);
@@ -165,9 +165,9 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		Start();
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-		await WriteLineAsync(UciConstants.UCI_COMMAND, cts.Token).ConfigureAwait(false);
+		await WriteCommandToStreamAsyncInternal(UciConstants.UCI_COMMAND, cts.Token).ConfigureAwait(false);
 		await WaitForToken(UciConstants.UCI_OK_RESPONSE, cts.Token).ConfigureAwait(false);
-		await WriteLineAsync(UciConstants.IS_READY_COMMAND, cts.Token).ConfigureAwait(false);
+		await WriteCommandToStreamAsyncInternal(UciConstants.IS_READY_COMMAND, cts.Token).ConfigureAwait(false);
 		await WaitForToken(UciConstants.READY_OK_RESPONSE, cts.Token).ConfigureAwait(false);
 
 		IsStarted = true;
@@ -210,7 +210,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	public async Task WaitReadyAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		await WriteLineAsync(UciConstants.IS_READY_COMMAND, ct).ConfigureAwait(false);
+		await WriteLineSafeAsync(UciConstants.IS_READY_COMMAND, ct).ConfigureAwait(false);
 		await WaitForToken(UciConstants.READY_OK_RESPONSE, ct).ConfigureAwait(false);
 		Logger.LogSuccess($"Engine Ready", this, LogCategory.UCI);
 	}
@@ -228,7 +228,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		var originalFen = _currentFenCache ?? await GetCurrentFenAsync(ct).ConfigureAwait(false);
 
-		await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen} moves {parsedMove.Notation}", ct)
+		await WriteLineSafeAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen} moves {parsedMove.Notation}", ct)
 			.ConfigureAwait(false);
 
 		try
@@ -271,7 +271,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		finally
 		{
 			// Restore original position to avoid side effects
-			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen}", ct).ConfigureAwait(false);
+			await WriteLineSafeAsync($"{UciConstants.POSITION_COMMAND} fen {originalFen}", ct).ConfigureAwait(false);
 		}
 	}
 
@@ -379,7 +379,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		if (customFen is not null)
 		{
-			await WriteLineAsync($"{UciConstants.POSITION_COMMAND} fen {customFen}", ct)
+			await WriteLineSafeAsync($"{UciConstants.POSITION_COMMAND} fen {customFen}", ct)
 				.ConfigureAwait(false);
 		}
 
@@ -469,7 +469,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			until ??= DefaultTerminators;
 			var req = CreatePending(until, ct);
 
-			await WriteLineAsync(command, ct).ConfigureAwait(false);
+			await WriteLineSafeAsync(command, ct).ConfigureAwait(false);
 
 			Logger.LogInfo(
 				$"Sending command: {command} (waiting for: {string.Join(", ", until)})",
@@ -603,14 +603,18 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	/// <param name="command">The UCI command to send to the engine.</param>
 	/// <param name="ct">A cancellation token to cancel the write operation.</param>
 	/// <exception cref="ObjectDisposedException">Thrown if the engine has been disposed.</exception>
-	public async ValueTask WriteLineAsync(string command, CancellationToken ct)
+	public async ValueTask WriteLineSafeAsync(string command, CancellationToken ct)
 	{
 		EnsureStarted();
 		ThrowIfDisposed();
+		await WriteCommandToStreamAsyncInternal(command, ct);
+	}
+
+	private async ValueTask WriteCommandToStreamAsyncInternal(string command, CancellationToken ct)
+	{
 		_stdin.ThrowIfNull();
 
 		await _stdinWriteLock.WaitAsync(ct).ConfigureAwait(false);
-
 		try
 		{
 			var sw = Volatile.Read(ref _stdin).ThrowIfNull();
