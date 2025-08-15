@@ -597,7 +597,6 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		Logger.LogInfo("Disposed", this, LogCategory.UCI);
 	}
 
-
 	/// <summary>
 	///     Writes a line directly to the engine process's standard input stream.
 	/// </summary>
@@ -606,6 +605,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	/// <exception cref="ObjectDisposedException">Thrown if the engine has been disposed.</exception>
 	public async ValueTask WriteLineAsync(string command, CancellationToken ct)
 	{
+		EnsureStarted();
 		ThrowIfDisposed();
 		_stdin.ThrowIfNull();
 
@@ -797,6 +797,15 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			{
 				// ignore
 			}
+		}
+	}
+
+	private void EnsureStarted()
+	{
+		if (!IsStarted)
+		{
+			throw new InvalidOperationException(
+				"The UCI engine has not been started. Call StartEngineAsync() before invoking this operation.");
 		}
 	}
 
