@@ -141,8 +141,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 	public async Task SetPositionAsync(
 		string               fen,
-		IEnumerable<string>? moves = null,
-		CancellationToken    ct    = default)
+		CancellationToken    ct,
+		IEnumerable<string>? moves = null)
 	{
 		ThrowIfDisposed();
 
@@ -277,7 +277,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 	}
 
-	public async Task<Fen> GetCurrentFenAsync(CancellationToken ct = default)
+	public async Task<Fen> GetCurrentFenAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
 
