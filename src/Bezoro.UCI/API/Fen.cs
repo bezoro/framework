@@ -24,7 +24,10 @@ public readonly record struct Fen(
 		if (raw.Length == 0) return false;
 		if (!raw.StartsWith("fen", StringComparison.OrdinalIgnoreCase)) return false;
 
-		raw = raw[3..].TrimStart();
+		if (raw.Length >= 4 && raw[3] == ':')
+			raw = raw[4..].TrimStart();
+		else
+			raw = raw[3..].TrimStart();
 
 		string[] parts = raw.Split([' '], StringSplitOptions.RemoveEmptyEntries);
 

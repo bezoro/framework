@@ -3,9 +3,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Constants;
+using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.Domain.Helpers;
+namespace Bezoro.UCI.Domain.Common.Helpers;
 
 /// <summary>
 ///     Provides helper methods for building and parsing UCI 'go' commands, managing search timeouts,

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.Domain;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -34,7 +35,6 @@ public readonly record struct MoveAnalysis
 		var parsedMove = new ParsedMove(moveNotation);
 
 		boardState.TryGetPieceAt(parsedMove.From, out var movingPiece);
-		movingPiece.ThrowIfNull();
 
 		bool isCaptureOnToSquare = boardState.TryGetPieceAt(parsedMove.To, out var targetPiece) && targetPiece.HasValue;
 
@@ -46,22 +46,16 @@ public readonly record struct MoveAnalysis
 			 isNormal    = false,
 			 isPromotion = false;
 
-		if (CheckIsCheck(parsedMove, boardState))
-		{
-			isCheck = true;
-			if (CheckIsMate(parsedMove, boardState)) isMate = true;
-		}
-
 		if (CheckIsCastling(parsedMove, boardState))
 			isCastling = true;
 
-		if (CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
+		if (movingPiece.HasValue && CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
 		{
 			isCapture   = true;
 			isEnpassant = true;
 		}
 
-		if (CheckIsPromotion(parsedMove, movingPiece.Value)) isPromotion = true;
+		if (movingPiece.HasValue && CheckIsPromotion(parsedMove, movingPiece.Value)) isPromotion = true;
 
 		if (isCaptureOnToSquare)
 			isCapture = true;
@@ -70,6 +64,9 @@ public readonly record struct MoveAnalysis
 
 		var score = engine.TryGetMoveScoreFromHistory(parsedMove.Notation) ??
 					await engine.CalculateScoreForMoveAsync(parsedMove.Notation).ConfigureAwait(false);
+
+		if (score.ScoreMate.HasValue)
+			isCheck = score.ScoreMate.Value == 0;
 
 		bool isStalemante = await engine.WouldMoveLeadToStalemateAsync(parsedMove.Notation);
 
@@ -94,8 +91,8 @@ public readonly record struct MoveAnalysis
 		move.ThrowIfNull();
 		boardState.ThrowIfNull();
 
-		move.Piece.ThrowIfNull();
-		if (char.ToLower(move.Piece.Value.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
+		move.MovingPiece.ThrowIfNull();
+		if (char.ToLower(move.MovingPiece.Value.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
 
 		bool isKingside = move.To[0] == 'g';
 		return boardState.ActiveColor switch
@@ -110,8 +107,6 @@ public readonly record struct MoveAnalysis
 		};
 	}
 
-	private static bool CheckIsCheck(ParsedMove move, BoardState boardState) => throw new NotImplementedException();
-
 	private static bool CheckIsEnPassant(ParsedMove move, Piece movingPiece, bool isCapture, BoardState boardState)
 	{
 		move.ThrowIfNull();
@@ -123,8 +118,6 @@ public readonly record struct MoveAnalysis
 			   !isCapture                                   &&
 			   move.To.Equals(boardState.Fen.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
 	}
-
-	private static bool CheckIsMate(ParsedMove move, BoardState boardState) => throw new NotImplementedException();
 
 	private static bool CheckIsPromotion(ParsedMove move, Piece movingPiece)
 	{

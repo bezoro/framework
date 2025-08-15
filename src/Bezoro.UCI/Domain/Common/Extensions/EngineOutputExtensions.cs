@@ -1,6 +1,6 @@
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Domain.Extensions;
+namespace Bezoro.UCI.Domain.Common.Extensions;
 
 internal static class EngineOutputExtensions
 {

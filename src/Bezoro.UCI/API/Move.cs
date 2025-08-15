@@ -14,7 +14,7 @@ public readonly record struct Move()
 		To       = parsedMove.To;
 		Notation = parsedMove.Notation;
 		Analysis = analysis;
-		Piece    = parsedMove.Piece ?? default;
+		Piece    = parsedMove.MovingPiece ?? default;
 	}
 
 	public MoveAnalysis Analysis { get; }
@@ -120,17 +120,22 @@ public readonly record struct ParsedMove()
 		moveNotation.ThrowIfNull();
 		moveNotation.Length.ThrowIfLessThan(4);
 
-		Piece = new Piece(moveNotation[0]);
-		if (!Piece.Value.Char.IsNull())
+		Piece? maybePiece = null;
+		char   first      = moveNotation[0];
+		if (Piece.TryParse(first, out var parsedPiece))
+		{
+			maybePiece   = parsedPiece;
 			moveNotation = moveNotation[1..];
+		}
 
-		Notation = moveNotation.ToLowerInvariant();
-		From     = Notation[..2];
-		To       = Notation[2..4];
+		MovingPiece = maybePiece;
+		Notation    = moveNotation.ToLowerInvariant();
+		From        = Notation[..2];
+		To          = Notation[2..4];
 	}
 
-	public Piece? Piece { get; }
-	public string From  { get; }
+	public Piece? MovingPiece { get; }
+	public string From        { get; }
 
 	public string Notation { get; }
 	public string To       { get; }

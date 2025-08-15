@@ -4,8 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Enums;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain.Exceptions;
-using Bezoro.UCI.Domain.Helpers;
+using Bezoro.UCI.Domain.Common.Exceptions;
+using Bezoro.UCI.Domain.Common.Helpers;
 
 namespace Bezoro.UCI.Domain;
 
