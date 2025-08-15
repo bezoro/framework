@@ -68,10 +68,10 @@ public sealed class UciConnector : IAsyncDisposable
 		await _engine.PonderhitAsync(ct).ConfigureAwait(false);
 	}
 
-	public async Task QuitEngineAsync()
+	public async Task QuitEngineAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
-		await _engine.QuitEngineAsync().ConfigureAwait(false);
+		await _engine.QuitEngineAsync(ct).ConfigureAwait(false);
 	}
 
 	public async Task SetDefaultPositionAsync()
@@ -165,7 +165,7 @@ public sealed class UciConnector : IAsyncDisposable
 			{
 				try
 				{
-					await QuitEngineAsync();
+					await QuitEngineAsync(CancellationToken.None);
 				}
 				catch
 				{
