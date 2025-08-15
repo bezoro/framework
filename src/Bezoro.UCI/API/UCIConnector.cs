@@ -77,7 +77,7 @@ public sealed class UciConnector : IAsyncDisposable
 	public async Task SetDefaultPositionAsync(CancellationToken ct)
 	{
 		ThrowIfDisposed();
-		await _engine.SetPositionAsync(UciConstants.STANDARD_FEN, ct).ConfigureAwait(false);
+		await _engine.SetPositionAsync(new(UciConstants.STANDARD_FEN), ct).ConfigureAwait(false);
 	}
 
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct = default)
@@ -86,13 +86,10 @@ public sealed class UciConnector : IAsyncDisposable
 		await _engine.SetOptionAsync(name, value, ct).ConfigureAwait(false);
 	}
 
-	public async Task SetPositionAsync(
-		string               fen,
-		IEnumerable<string>? moves = null,
-		CancellationToken    ct    = default)
+	public async Task SetPositionAsync(PositionCommand command, CancellationToken ct)
 	{
 		ThrowIfDisposed();
-		await _engine.SetPositionAsync(fen, ct, moves).ConfigureAwait(false);
+		await _engine.SetPositionAsync(new(command), ct).ConfigureAwait(false);
 	}
 
 	public async Task StartEngineAsync()
