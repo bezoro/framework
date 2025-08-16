@@ -8,8 +8,8 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
-using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain.Commands;
 using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.Domain;
@@ -19,7 +19,7 @@ namespace Bezoro.UCI.Domain;
 /// </summary>
 internal sealed class UciEngine(Process process) : IAsyncDisposable
 {
-	private const int HISTORY_CAPACITY = 10_000;
+	private const int HISTORY_CAPACITY = 8192;
 	private static readonly string[] DefaultTerminators =
 	[
 		"bestmove", "uciok", "readyok", "nodes searched", "checkers"
@@ -63,7 +63,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 		notation.ThrowIfNull().ThrowIfEmpty().Length.ThrowIfLessThan(4);
 
-		var    parsed = new ParsedMove(notation);
+		var    parsed = ParsedMove.FromNotation(notation);
 		string target = parsed.Notation;
 
 		string[] lines = _outputHistory.ToArray();
@@ -224,7 +224,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		ThrowIfDisposed();
 		notation.ThrowIfNull().ThrowIfEmpty();
 
-		var parsedMove = new ParsedMove(notation);
+		var parsedMove = ParsedMove.FromNotation(notation);
 
 		var originalFen = _currentFenCache ?? await GetCurrentFenAsync(ct).ConfigureAwait(false);
 
@@ -374,7 +374,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	{
 		ThrowIfDisposed();
 
-		var parsedMove = new ParsedMove(notation);
+		var parsedMove = ParsedMove.FromNotation(notation);
 
 		if (customPosition is not null)
 			await WriteLineSafeAsync(customPosition, ct).ConfigureAwait(false);
@@ -404,9 +404,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 			if (moveScore.Value.ScoreCp.HasValue &&
 				(!score.ScoreCp.HasValue || moveScore.Value.ScoreCp > score.ScoreCp))
-			{
 				score = moveScore.Value;
-			}
 		}
 
 		await SetOptionAsync("MultiPV", (int)_currentMultiPv, ct).ConfigureAwait(false);
@@ -963,39 +961,5 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 				// ignore
 			}
 		}
-	}
-}
-
-public record struct PositionCommand
-{
-	public PositionCommand(string fen, IEnumerable<string>? moves = null)
-	{
-		var parsedFen = Fen.Parse(fen);
-		Fen   = parsedFen;
-		Moves = moves;
-	}
-
-	public Fen                  Fen   { get; set; }
-	public IEnumerable<string>? Moves { get; set; }
-
-	public static implicit operator string(PositionCommand positionCommand)
-	{
-		var command = $"{UciConstants.POSITION_COMMAND} fen {positionCommand.Fen}";
-		if (positionCommand.Moves != null)
-		{
-			var movesPart = string.Join(' ', positionCommand.Moves);
-			if (!string.IsNullOrWhiteSpace(movesPart))
-				command += $" moves {movesPart}";
-		}
-
-		return command;
-	}
-
-	public override string ToString() => this;
-
-	public readonly void Deconstruct(out Fen fen, out IEnumerable<string>? moves)
-	{
-		fen   = Fen;
-		moves = Moves;
 	}
 }
