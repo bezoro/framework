@@ -18,6 +18,10 @@ internal static class UciConstants
 	///     Parameter for black's remaining time in milliseconds
 	/// </summary>
 	public const string BLACK_TIME_PARAMETER = "btime";
+
+	/// <summary>
+	///     Response prefix for checkers from 'd' command
+	/// </summary>
 	public const string CHECKERS_RESPONSE = "checkers";
 
 	/// <summary>
@@ -35,6 +39,9 @@ internal static class UciConstants
 	/// </summary>
 	public const string ELO_OPTION = "UCI_Elo";
 
+	/// <summary>
+	///     Response prefix for FEN string output
+	/// </summary>
 	public const string FEN_RESPONSE_PREFIX = "Fen: ";
 
 	/// <summary>
@@ -43,7 +50,7 @@ internal static class UciConstants
 	public const string GO_COMMAND = "go";
 
 	/// <summary>
-	///     Command to go to a specific move number in a movie
+	///     Command to go to a specific move number in a game
 	/// </summary>
 	public const string GO_MOVE_NUMBER_COMMAND = "go movenumber";
 
@@ -122,6 +129,9 @@ internal static class UciConstants
 	/// </summary>
 	public const string SET_OPTION_COMMAND = "setoption name";
 
+	/// <summary>
+	///     Standard starting position in FEN notation
+	/// </summary>
 	public const string STANDARD_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 	/// <summary>
@@ -158,30 +168,44 @@ internal static class UciConstants
 	///     Parameter for white's remaining time in milliseconds
 	/// </summary>
 	public const string WHITE_TIME_PARAMETER = "wtime";
-
+	/// <summary>
+	///     Timeout duration for regex pattern matching operations
+	/// </summary>
+	private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
 	/// <summary>
 	///     Regular expression for validating chess square notation (e.g., "e4", "a1").
 	/// </summary>
 	public static readonly Regex AlgebraicNotationRegex
-		= new("^[a-h][1-8]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+		= new(
+			"^[a-h][1-8]$",
+			RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+			RegexTimeout);
 
 	/// <summary>
 	///     Regular expression for validating Forsyth–Edwards Notation (FEN) strings.
+	///     Note: This checks only basic syntax, not semantic validity (e.g., rank sums, king counts).
 	/// </summary>
 	public static readonly Regex FenRegex =
 		new(
-			@"^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+\s[bw]\s(-|K?Q?k?q?)\s(-|[a-h][36])\s\d+\s\d+$",
-			RegexOptions.Compiled);
+			@"^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+\s[bw]\s(-|(?=[KQkq]+)K?Q?k?q?)\s(-|[a-h][36])\s\d+\s\d+$",
+			RegexOptions.Compiled | RegexOptions.CultureInvariant,
+			RegexTimeout);
 
-	/// <summary>
-	///     Regular expression for validating move strings with their scores.
+	// <summary>
+	/// Regular expression for validating move strings with their scores.
 	/// </summary>
 	public static readonly Regex MoveRegex =
-		new(@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+		new(
+			@"^([a-h][1-8][a-h][1-8][qrbn]?)\s*:\s*\d+$",
+			RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+			RegexTimeout);
 
 	/// <summary>
 	///     Regular expression for validating UCI move notation.
 	/// </summary>
 	public static readonly Regex UciMoveRegex =
-		new(@"^[a-h][1-8][a-h][1-8]([qrbn])?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+		new(
+			@"^[a-h][1-8][a-h][1-8]([qrbn])?$",
+			RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+			RegexTimeout);
 }
