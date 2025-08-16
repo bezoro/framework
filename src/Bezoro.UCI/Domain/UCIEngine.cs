@@ -302,6 +302,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		var fen   = await GetCurrentFenAsync(ct).ConfigureAwait(false);
 		var board = BoardState.FromFen(fen);
+		board.ThrowIfNull();
 
 		var lines = await SendCommandAndReadAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct).ConfigureAwait(false);
 
@@ -318,7 +319,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 			char   pieceChar    = MoveToPieceMap.Map(fen, moveUci).Piece;
 			string enrichedMove = pieceChar != '\0' ? pieceChar + moveUci : moveUci;
-			var    analysis     = await MoveAnalysis.AnalyzeAsync(enrichedMove, board, this);
+			var    analysis     = await MoveAnalysis.AnalyzeAsync(enrichedMove, board.Value, this);
 			var    move         = new Move(enrichedMove, analysis);
 			moves.Add(move);
 		}

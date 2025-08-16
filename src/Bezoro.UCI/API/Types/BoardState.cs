@@ -12,29 +12,34 @@ public readonly record struct BoardState()
 		Positions = positions;
 	}
 
-	public static BoardState FromFen(Fen fen) => new(fen, BuildPositionsFromFen(fen));
-
 	public Fen                           Fen       { get; }
 	public IReadOnlyCollection<Position> Positions { get; }
 
-	public PieceColor ActiveColor => Fen.ActiveColor == 'w' ? PieceColor.White : PieceColor.Black;
-
-	public bool TryGetPieceAt(string positionNotation, out Piece? piece)
+	public PieceColor ActiveColor => Fen.ActiveColor switch
 	{
-		positionNotation.ThrowIfNull();
+		'w' => PieceColor.White,
+		'b' => PieceColor.Black
+	};
 
-		string sq = positionNotation.Trim().ToLowerInvariant();
-		sq.Length.ThrowIfLessThan(2);
+	public static BoardState? FromFen(Fen fen)
+	{
+		if (!Fen.Validate(fen.Raw)) return null;
 
+		return new(fen, BuildPositionsFromFen(fen));
+	}
+
+	public bool TryGetPieceAt(string squareNotation, out Piece? piece)
+	{
 		piece = null;
-		char file = sq[0];
-		char rank = sq[1];
+		if (squareNotation.IsNullOrEmpty()) return false;
 
-		if (file < 'a' || file > 'h' || rank < '1' || rank > '8') return false;
+		string normalizedSquare = squareNotation.Trim().ToLowerInvariant();
+		if (normalizedSquare.Length < 2) return false;
+		if (!IsValidSquare(normalizedSquare)) return false;
 
 		foreach (var pos in Positions)
 		{
-			if (pos.Notation != sq) continue;
+			if (pos.Notation != normalizedSquare) continue;
 
 			piece = pos.Piece;
 			return true;
@@ -43,55 +48,66 @@ public readonly record struct BoardState()
 		return false;
 	}
 
+	private static bool IsValidSquare(string sq)
+	{
+		if (sq.Length < 2) return false;
+
+		char file = sq[0];
+		char rank = sq[1];
+		return file is >= 'a' and <= 'h' && rank is >= '1' and <= '8';
+	}
+
 	private static List<Position> BuildPositionsFromFen(Fen fen)
 	{
 		var    positions = new List<Position>(64);
 		string placement = fen.PiecePlacement;
+
+		static string BuildSquare(int fileIndex, int rankIndex)
+		{
+			return $"{(char)('a' + fileIndex)}{rankIndex}";
+		}
 
 		var rank = 8;
 		var file = 0;
 
 		foreach (char token in placement)
 		{
-			if (token == '/')
+			switch (token)
 			{
-				// Fill remaining squares in the rank if needed
-				while (file < 8)
+				case '/':
 				{
-					var sq = $"{(char)('a' + file)}{rank}";
-					positions.Add(Position.Create(sq, null));
-					file++;
+					// Fill remaining squares in the rank if needed
+					while (file < 8)
+					{
+						positions.Add(Position.Create(BuildSquare(file, rank), null));
+						file++;
+					}
+
+					rank--;
+					file = 0;
+					continue;
 				}
-
-				rank--;
-				file = 0;
-				continue;
-			}
-
-			if (token is >= '1' and <= '8')
-			{
-				int empties = token - '0';
-				for (var i = 0; i < empties && file < 8; i++)
+				case >= '1' and <= '8':
 				{
-					var sq = $"{(char)('a' + file)}{rank}";
-					positions.Add(Position.Create(sq, null));
-					file++;
-				}
+					int empties = token - '0';
+					for (var i = 0; i < empties && file < 8; i++)
+					{
+						positions.Add(Position.Create(BuildSquare(file, rank), null));
+						file++;
+					}
 
-				continue;
+					continue;
+				}
 			}
 
 			if (!char.IsLetter(token)) continue;
 
-			{
-				var piece = Piece.FromChar(token);
+			var piece = Piece.FromChar(token);
 
-				if (file >= 8) continue;
+			if (file >= 8) continue;
 
-				var sq = $"{(char)('a' + file)}{rank}";
-				positions.Add(Position.Create(sq, piece));
-				file++;
-			}
+			positions.Add(Position.Create(BuildSquare(file, rank), piece));
+			file++;
 		}
 
 		// Fill any remaining squares if placement didn't cover all 64
@@ -99,8 +115,7 @@ public readonly record struct BoardState()
 		{
 			while (file < 8)
 			{
-				var sq = $"{(char)('a' + file)}{rank}";
-				positions.Add(Position.Create(sq, null));
+				positions.Add(Position.Create(BuildSquare(file, rank), null));
 				file++;
 			}
 
