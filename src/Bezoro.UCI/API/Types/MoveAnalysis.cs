@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Common.Enums;
 using Bezoro.UCI.Domain;
 
 namespace Bezoro.UCI.API.Types;
@@ -33,7 +34,7 @@ public readonly record struct MoveAnalysis
 		boardState.ThrowIfNull();
 		engine.ThrowIfNull();
 
-		var parsedMove = new ParsedMove(moveNotation);
+		var parsedMove = ParsedMove.FromNotation(moveNotation);
 
 		boardState.TryGetPieceAt(parsedMove.From, out var movingPiece);
 
@@ -94,17 +95,17 @@ public readonly record struct MoveAnalysis
 		boardState.ThrowIfNull();
 
 		move.MovingPiece.ThrowIfNull();
-		if (char.ToLower(move.MovingPiece.Value.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
+		if (char.ToLower(move.MovingPiece.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
 
 		bool isKingside = move.To[0] == 'g';
 		return boardState.ActiveColor switch
 		{
-			PlayerColor.White => isKingside
-									 ? boardState.Fen.CastlingRights.Contains('K')
-									 : boardState.Fen.CastlingRights.Contains('Q'),
-			PlayerColor.Black => isKingside
-									 ? boardState.Fen.CastlingRights.Contains('k')
-									 : boardState.Fen.CastlingRights.Contains('q'),
+			PieceColor.White => isKingside
+									? boardState.Fen.CastlingRights.Contains('K')
+									: boardState.Fen.CastlingRights.Contains('Q'),
+			PieceColor.Black => isKingside
+									? boardState.Fen.CastlingRights.Contains('k')
+									: boardState.Fen.CastlingRights.Contains('q'),
 			_ => false
 		};
 	}

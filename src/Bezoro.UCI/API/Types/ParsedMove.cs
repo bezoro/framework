@@ -1,0 +1,75 @@
+using System.Linq;
+using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Common.Enums;
+using Bezoro.UCI.API.Common.Extensions;
+
+namespace Bezoro.UCI.API.Types;
+
+public readonly record struct ParsedMove
+{
+	private ParsedMove(Piece movingPiece, Piece? promotionPiece, string from, string to, string notation, string raw)
+	{
+		MovingPiece    = movingPiece;
+		PromotionPiece = promotionPiece;
+		From           = from;
+		To             = to;
+		Notation       = notation;
+		Raw            = raw;
+	}
+
+	public bool   IsPromotion    => PromotionPiece != null;
+	public Piece  MovingPiece    { get; }
+	public Piece? PromotionPiece { get; }
+	public string From           { get; }
+	public string Notation       { get; }
+	public string Raw            { get; }
+	public string To             { get; }
+
+	public static ParsedMove FromNotation(string moveNotation)
+	{
+		moveNotation.ThrowIfNull().Length.ThrowIfLessThan(4).ThrowIfMoreThan(5);
+
+		string raw            = moveNotation;
+		string notation       = string.Empty, from = string.Empty, to = string.Empty;
+		Piece  movingPiece    = default;
+		Piece? promotionPiece = null;
+
+		char promotionChar = moveNotation.Last();
+		if (promotionChar.IsValidPromotionChar())
+		{
+			promotionPiece = Piece.FromChar(promotionChar);
+			int removeIndex = raw.IndexOf(promotionChar);
+			moveNotation = moveNotation.Remove(removeIndex);
+		}
+
+		char pieceChar = moveNotation.First();
+		if (pieceChar.IsValidPieceChar())
+		{
+			movingPiece  = Piece.FromChar(pieceChar);
+			moveNotation = moveNotation[1..];
+		}
+
+		return new(movingPiece, promotionPiece, from, to, notation, moveNotation);
+	}
+}
+
+public readonly record struct Promotion
+{
+	private Promotion(PieceType pieceType, Position position)
+	{
+		PieceType = pieceType;
+		Position  = position;
+	}
+
+	public PieceType PieceType { get; }
+	public Position  Position  { get; }
+
+	public static Promotion FromNotation(string moveNotation)
+	{
+		moveNotation.ThrowIfNull().Length.ThrowIfLessThan(4).ThrowIfMoreThan(5);
+		var parsedMove  = ParsedMove.FromNotation(moveNotation);
+		var position    = Position.Create(parsedMove.To, parsedMove.MovingPiece);
+		var chosenPiece = moveNotation.Last().ToPieceType();
+		return new(chosenPiece, position);
+	}
+}
