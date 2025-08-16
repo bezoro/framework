@@ -1,6 +1,6 @@
 using Bezoro.Core.Common.Extensions;
 
-namespace Bezoro.UCI.API;
+namespace Bezoro.UCI.API.Types;
 
 public readonly record struct Fen(
 	string   PiecePlacement,
@@ -14,6 +14,8 @@ public readonly record struct Fen(
 	string   Raw
 )
 {
+	public static implicit operator string(Fen fen) => fen.Raw;
+
 	public static bool TryParseUciOutputLine(string line, out Fen? fen)
 	{
 		line.ThrowIfNull();
@@ -94,5 +96,3 @@ public readonly record struct Fen(
 
 	public override string ToString() => Raw;
 }
-
-public readonly record struct Position(string Notation, Piece? Piece);
