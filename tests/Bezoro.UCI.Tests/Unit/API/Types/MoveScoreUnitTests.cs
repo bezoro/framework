@@ -20,7 +20,7 @@ public class MoveScoreUnitTests
 	}
 
 	[Fact]
-	public void TryParse_WhenValidLine_ReturnsTrueAndValidObject()
+	public void TryParse_WhenValidInput_ReturnsTrueAndValidObject()
 	{
 		// Arrange
 		var line =

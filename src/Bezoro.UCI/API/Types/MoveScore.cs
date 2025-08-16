@@ -1,10 +1,10 @@
-using Bezoro.Core.Common.Extensions;
+using System.Globalization;
 
 namespace Bezoro.UCI.API.Types;
 
 public readonly record struct MoveScore()
 {
-	public MoveScore(int? scoreCp, int? scoreMate) : this()
+	private MoveScore(int? scoreCp, int? scoreMate) : this()
 	{
 		ScoreCp   = scoreCp;
 		ScoreMate = scoreMate;
@@ -15,18 +15,15 @@ public readonly record struct MoveScore()
 
 	public static bool TryParse(string line, out MoveScore? score)
 	{
-		line.ThrowIfNull();
+		score = null;
+
+		if (string.IsNullOrEmpty(line)) return false;
 
 		int? scoreCp   = null;
 		int? scoreMate = null;
-		score = null;
 
 		int scoreIdx = line.IndexOf(" score ", StringComparison.OrdinalIgnoreCase);
-		if (scoreIdx < 0)
-		{
-			score = null;
-			return false;
-		}
+		if (scoreIdx < 0) return false;
 
 		int mateIdx = line.IndexOf(" mate ", scoreIdx, StringComparison.OrdinalIgnoreCase);
 		if (mateIdx >= 0)
@@ -35,38 +32,37 @@ public readonly record struct MoveScore()
 			int end          = line.IndexOf(' ', start);
 			if (end < 0) end = line.Length;
 
-			if (!int.TryParse(line.AsSpan(start, end - start), out int mateScore))
-			{
-				score = null;
-				return false;
-			}
+			if (!int.TryParse(
+					line.AsSpan(start, end - start),
+					NumberStyles.Integer,
+					CultureInfo.InvariantCulture,
+					out int mateScore)) return false;
 
 			scoreMate = mateScore;
 		}
 
-		int cpIdx = line.IndexOf(" cp ", scoreIdx, StringComparison.Ordinal);
+		int cpIdx = line.IndexOf(" cp ", scoreIdx, StringComparison.OrdinalIgnoreCase);
 		if (cpIdx >= 0)
 		{
 			int start        = cpIdx + 4;
 			int end          = line.IndexOf(' ', start);
 			if (end < 0) end = line.Length;
 
-			if (!int.TryParse(line.AsSpan(start, end - start), out int cpScore))
-			{
-				score = null;
-				return false;
-			}
+			if (!int.TryParse(
+					line.AsSpan(start, end - start),
+					NumberStyles.Integer,
+					CultureInfo.InvariantCulture,
+					out int cpScore)) return false;
 
 			scoreCp = cpScore;
 		}
 
-		if (scoreCp == null && scoreMate == null)
-		{
-			score = null;
-			return false;
-		}
+		if (scoreCp == null && scoreMate == null) return false;
 
 		score = new(scoreCp, scoreMate);
 		return true;
 	}
+
+	public static MoveScore FromCp(int   cp)   => new(cp, null);
+	public static MoveScore FromMate(int mate) => new(null, mate);
 }
