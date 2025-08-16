@@ -143,10 +143,6 @@ public static class GenericExtensions
 	/// </code>
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null)
-	{
-		if (value is null) throw new ArgumentNullException(paramName ?? typeof(T).Name);
-
-		return value;
-	}
+	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null) =>
+		value ?? throw new ArgumentNullException(paramName ?? typeof(T).Name);
 }
