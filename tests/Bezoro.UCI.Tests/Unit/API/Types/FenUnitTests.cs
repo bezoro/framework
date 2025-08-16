@@ -8,7 +8,7 @@ namespace Bezoro.UCI.Tests.Unit.API.Types;
 public class FenUnitTests
 {
 	[Fact]
-	public void TryParseUciOutputLine_WhenInvalidLine_ReturnsFalseAndNull()
+	public void TryParseUciOutputLine_WhenInvalidFenStructure_ReturnsFalseAndNull()
 	{
 		const string line    = "invalid fen string";
 		bool         success = Fen.TryParseUciOutputLine(line, out var fen);
@@ -18,12 +18,12 @@ public class FenUnitTests
 	}
 
 	[Fact]
-	public void TryParseUciOutputLine_WhenValidLine_ReturnsTrueAndValidObject()
+	public void TryParseUciOutputLine_WhenValidFenStructure_ReturnsTrueAndValidObject()
 	{
-		const string line    = "fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+		const string line    = "fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 		bool         success = Fen.TryParseUciOutputLine(line, out var fen);
 
 		success.Should().BeTrue();
-		fen.Should().Be("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		fen?.Raw.Should().Be("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 	}
 }
