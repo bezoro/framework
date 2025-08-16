@@ -2,7 +2,7 @@ using Bezoro.UCI.API.Common.Enums;
 using Bezoro.UCI.API.Types;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.API.Types;
+namespace Bezoro.UCI.Tests.Unit.API.Types;
 
 [TestSubject(typeof(Piece))]
 public class PieceUnitTest
