@@ -2,37 +2,66 @@ using Bezoro.Core.Common.Extensions;
 
 namespace Bezoro.UCI.API.Types;
 
-public readonly record struct Fen(
-	string   PiecePlacement,
-	char     ActiveColor,
-	string   CastlingRights,
-	string   EnPassantTarget,
-	int      HalfmoveClock,
-	int      FullmoveNumber,
-	string[] FenParts,
-	string?  Checkers,
-	string   Raw
-)
+public readonly record struct Fen
 {
+	private const char   FenSeparator = ':';
+	private const string FenKeyword   = "fen";
+
+	private Fen(
+		string   piecePlacement,
+		char     activeColor,
+		string   castlingRights,
+		string   enPassantTarget,
+		int      halfmoveClock,
+		int      fullmoveNumber,
+		string[] fenParts,
+		string?  checkers,
+		string   raw)
+	{
+		PiecePlacement  = piecePlacement;
+		ActiveColor     = activeColor;
+		CastlingRights  = castlingRights;
+		EnPassantTarget = enPassantTarget;
+		HalfmoveClock   = halfmoveClock;
+		FullmoveNumber  = fullmoveNumber;
+		FenParts        = fenParts;
+		Checkers        = checkers;
+		Raw             = raw;
+	}
+
+	public char     ActiveColor     { get; }
+	public int      FullmoveNumber  { get; }
+	public int      HalfmoveClock   { get; }
+	public string   CastlingRights  { get; }
+	public string   EnPassantTarget { get; }
+	public string   PiecePlacement  { get; }
+	public string   Raw             { get; }
+	public string?  Checkers        { get; }
+	public string[] FenParts        { get; }
+
 	public static implicit operator string(Fen fen) => fen.Raw;
 
 	public static bool TryParseUciOutputLine(string line, out Fen? fen)
 	{
-		line.ThrowIfNull();
-
 		fen = null;
-		string rawFen = line.Trim();
+		if (line.IsNullOrEmpty()) return false;
 
-		if (rawFen.Length == 0) return false;
-		if (!rawFen.StartsWith("fen", StringComparison.OrdinalIgnoreCase)) return false;
+		string trimmed = line.Trim();
+		if (trimmed.IsEmpty()) return false;
 
-		if (rawFen.Length >= 4 && rawFen[3] == ':')
-			rawFen = rawFen[4..].TrimStart();
-		else
-			rawFen = rawFen[3..].TrimStart();
+		if (!trimmed.StartsWith(FenKeyword, StringComparison.OrdinalIgnoreCase)) return false;
 
-		fen = Parse(rawFen);
-		return true;
+		try
+		{
+			string fenPayload = ExtractFenPayloadFromUciLine(trimmed);
+			fen = Parse(fenPayload);
+			return true;
+		}
+		catch
+		{
+			fen = null;
+			return false;
+		}
 	}
 
 	public static Fen Parse(string rawFen)
@@ -40,25 +69,36 @@ public readonly record struct Fen(
 		rawFen.ThrowIfNull().ThrowIfEmpty();
 
 		string[] parts = rawFen.Split([' '], StringSplitOptions.RemoveEmptyEntries);
-		parts.ThrowIfNull();
 		parts.Length.ThrowIfLessThan(4);
 
-		string piecePlacement = parts.Length > 0 ? parts[0] : string.Empty;
-		piecePlacement.ThrowIfEmpty();
+		string piecePlacement = parts[0].ThrowIfEmpty();
 
-		var activeColor = '\0';
-		parts[1].ThrowIfEmpty();
-		if (parts.Length > 1 && parts[1].Length > 0)
-		{
-			var c = char.ToLowerInvariant(parts[1][0]);
-			activeColor = c is 'w' or 'b' ? c : '\0';
-		}
-
-		activeColor.ThrowIf(ac => ac == '\0');
+		char activeColor = ParseActiveColor(parts);
 
 		string castlingRights  = parts.Length > 2 ? parts[2].ThrowIfNull() : string.Empty;
 		string enPassantTarget = parts.Length > 3 ? parts[3].ThrowIfNull() : string.Empty;
 
+		var moveCounters = ParseMoveCounters(parts);
+
+		string checkers = ParseCheckers(parts);
+
+		return new(
+			piecePlacement,
+			activeColor,
+			castlingRights,
+			enPassantTarget,
+			moveCounters.halfmoveClock,
+			moveCounters.fullmoveNumber,
+			parts,
+			checkers,
+			rawFen
+		);
+	}
+
+	public override string ToString() => Raw;
+
+	private static (int halfmoveClock, int fullmoveNumber) ParseMoveCounters(string[] parts)
+	{
 		var halfmoveClock = 0;
 		if (parts.Length > 4)
 		{
@@ -73,26 +113,28 @@ public readonly record struct Fen(
 			int.TryParse(parts[5], out fullmoveNumber);
 		}
 
-		string checkers = string.Empty;
-		if (parts.Length > 6)
-		{
-			for (var i = 6; i < parts.Length; i++) parts[i].ThrowIfNull();
-			checkers = string.Join(" ", parts, 6, parts.Length - 6);
-		}
-
-		return new()
-		{
-			ActiveColor     = activeColor,
-			CastlingRights  = castlingRights,
-			Checkers        = checkers,
-			EnPassantTarget = enPassantTarget,
-			FenParts        = parts,
-			FullmoveNumber  = fullmoveNumber,
-			HalfmoveClock   = halfmoveClock,
-			PiecePlacement  = piecePlacement,
-			Raw             = rawFen
-		};
+		return (halfmoveClock, fullmoveNumber);
 	}
 
-	public override string ToString() => Raw;
+	private static char ParseActiveColor(string[] parts)
+	{
+		parts[1].ThrowIfEmpty();
+		var c = char.ToLowerInvariant(parts[1][0]);
+		return c is 'w' or 'b'
+				   ? c
+				   : throw new ArgumentException("Invalid active color in FEN. Expected 'w' or 'b'.", nameof(parts));
+	}
+
+	private static string ExtractFenPayloadFromUciLine(string line) =>
+		line is [_, _, _, FenSeparator, ..]
+			? line[4..].TrimStart()
+			: line[3..].TrimStart();
+
+	private static string ParseCheckers(string[] parts)
+	{
+		if (parts.Length <= 6) return string.Empty;
+
+		for (var i = 6; i < parts.Length; i++) parts[i].ThrowIfNull();
+		return string.Join(" ", parts, 6, parts.Length - 6);
+	}
 }
