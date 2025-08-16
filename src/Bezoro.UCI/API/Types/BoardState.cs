@@ -6,11 +6,13 @@ namespace Bezoro.UCI.API.Types;
 
 public readonly record struct BoardState()
 {
-	public BoardState(Fen fen) : this()
+	private BoardState(Fen fen, IReadOnlyCollection<Position> positions) : this()
 	{
 		Fen       = fen;
-		Positions = BuildPositionsFromFen(fen);
+		Positions = positions;
 	}
+
+	public static BoardState FromFen(Fen fen) => new(fen, BuildPositionsFromFen(fen));
 
 	public Fen                           Fen       { get; }
 	public IReadOnlyCollection<Position> Positions { get; }
