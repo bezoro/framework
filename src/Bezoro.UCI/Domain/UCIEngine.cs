@@ -301,7 +301,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 
 		var fen   = await GetCurrentFenAsync(ct).ConfigureAwait(false);
-		var board = new BoardState(fen);
+		var board = BoardState.FromFen(fen);
 
 		var lines = await SendCommandAndReadAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct).ConfigureAwait(false);
 
