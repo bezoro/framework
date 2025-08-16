@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Common.Enums;
 
-namespace Bezoro.UCI.API;
+namespace Bezoro.UCI.API.Types;
 
 public readonly record struct BoardState()
 {
@@ -14,7 +15,7 @@ public readonly record struct BoardState()
 	public Fen                           Fen       { get; }
 	public IReadOnlyCollection<Position> Positions { get; }
 
-	public PlayerColor ActiveColor => Fen.ActiveColor == 'w' ? PlayerColor.White : PlayerColor.Black;
+	public PieceColor ActiveColor => Fen.ActiveColor == 'w' ? PieceColor.White : PieceColor.Black;
 
 	public bool TryGetPieceAt(string positionNotation, out Piece? piece)
 	{
@@ -56,7 +57,7 @@ public readonly record struct BoardState()
 				while (file < 8)
 				{
 					var sq = $"{(char)('a' + file)}{rank}";
-					positions.Add(new(sq, null));
+					positions.Add(Position.Create(sq, null));
 					file++;
 				}
 
@@ -71,7 +72,7 @@ public readonly record struct BoardState()
 				for (var i = 0; i < empties && file < 8; i++)
 				{
 					var sq = $"{(char)('a' + file)}{rank}";
-					positions.Add(new(sq, null));
+					positions.Add(Position.Create(sq, null));
 					file++;
 				}
 
@@ -81,12 +82,12 @@ public readonly record struct BoardState()
 			if (!char.IsLetter(token)) continue;
 
 			{
-				var piece = new Piece(token);
+				var piece = Piece.FromChar(token);
 
 				if (file >= 8) continue;
 
 				var sq = $"{(char)('a' + file)}{rank}";
-				positions.Add(new(sq, piece));
+				positions.Add(Position.Create(sq, piece));
 				file++;
 			}
 		}
@@ -97,7 +98,7 @@ public readonly record struct BoardState()
 			while (file < 8)
 			{
 				var sq = $"{(char)('a' + file)}{rank}";
-				positions.Add(new(sq, null));
+				positions.Add(Position.Create(sq, null));
 				file++;
 			}
 

@@ -1,4 +1,4 @@
-namespace Bezoro.UCI.API.Enums;
+namespace Bezoro.UCI.API.Common.Enums;
 
 /// <summary>
 ///     Represents different types of engine output during search.

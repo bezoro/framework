@@ -4,11 +4,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
-using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Domain.Commands;
 using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.API;
+namespace Bezoro.UCI.API.Types;
 
 /// <summary>
 ///     Represents a connection to a UCI-compliant chess engine.
@@ -72,6 +72,16 @@ public sealed class UciConnector : IAsyncDisposable
 		await _engine.WaitReadyAsync(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>Sets the engine position using a FEN and an optional move list.</summary>
+	public async Task MakeMoveAsync(string moveNotation, CancellationToken ct)
+	{
+		moveNotation.ThrowIfNull().ThrowIfEmpty();
+		ThrowIfDisposed();
+
+		var command = new PositionCommand(await _engine.GetCurrentFenAsync(ct), [moveNotation]);
+		await _engine.SetPositionAsync(command, ct).ConfigureAwait(false);
+	}
+
 	/// <summary>Signals a new game and clears engine-side and local caches.</summary>
 	public async Task NewGameAsync(CancellationToken ct)
 	{
@@ -114,14 +124,6 @@ public sealed class UciConnector : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Option name must be provided.", nameof(name));
 
 		await _engine.SetOptionAsync(name, value, ct).ConfigureAwait(false);
-	}
-
-	/// <summary>Sets the engine position using a FEN and an optional move list.</summary>
-	public async Task SetPositionAsync(PositionCommand command, CancellationToken ct)
-	{
-		ThrowIfDisposed();
-
-		await _engine.SetPositionAsync(new(command), ct).ConfigureAwait(false);
 	}
 
 	/// <summary>Starts the engine process and performs the UCI handshake.</summary>
