@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Common.Constants;
 
@@ -9,7 +10,9 @@ internal record struct PositionCommand
 	public PositionCommand(string fen, IEnumerable<string>? moves = null)
 	{
 		var parsedFen = Fen.Parse(fen);
-		Fen   = parsedFen;
+		parsedFen.ThrowIfNull();
+
+		Fen   = parsedFen.Value;
 		Moves = moves;
 	}
 

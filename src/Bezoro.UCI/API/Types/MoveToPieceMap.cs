@@ -10,7 +10,7 @@ public readonly record struct MoveToPieceMap(string Move, char Piece)
 		string from = move[..2];
 
 		var board = BoardState.FromFen(fen);
-		if (board.TryGetPieceAt(from, out var piece) && piece.HasValue)
+		if (board.HasValue && board.Value.TryGetPieceAt(from, out var piece) && piece.HasValue)
 			return new(move, piece.Value.Char);
 
 		return new(move, '\0');

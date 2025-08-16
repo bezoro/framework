@@ -1,4 +1,5 @@
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -64,12 +65,32 @@ public readonly record struct Fen
 		}
 	}
 
-	public static Fen Parse(string rawFen)
+	public static bool Validate(string rawFen)
 	{
-		rawFen.ThrowIfNull().ThrowIfEmpty();
+		if (rawFen.IsNullOrEmpty()) return false;
+
+		string[] parts = rawFen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+		if (parts.Length < 6) return false;
+
+		foreach (string part in parts)
+		{
+			if (part.IsNullOrEmpty())
+				return false;
+		}
+
+		return true;
+	}
+
+	public static Fen Default() => Parse(UciConstants.STANDARD_FEN)!.Value;
+
+	public static Fen Empty() => new();
+
+	public static Fen? Parse(string rawFen)
+	{
+		if (rawFen.IsNullOrEmpty()) return null;
 
 		string[] parts = rawFen.Split([' '], StringSplitOptions.RemoveEmptyEntries);
-		parts.Length.ThrowIfLessThan(4);
+		if (parts.Length < 6) return null;
 
 		string piecePlacement = parts[0].ThrowIfEmpty();
 
