@@ -1,4 +1,5 @@
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Domain.Commands;
 using Bezoro.UCI.Tests.Unit.Domain;
 using JetBrains.Annotations;
 
