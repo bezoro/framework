@@ -117,6 +117,7 @@ public sealed class UciConnector : IAsyncDisposable
 		await _engine.SetPositionAsync(new(UciConstants.STANDARD_FEN), ct).ConfigureAwait(false);
 	}
 
+
 	/// <summary>Sets an engine option by name to an integer value.</summary>
 	public async Task SetOptionAsync(string name, int value, CancellationToken ct)
 	{
@@ -124,6 +125,18 @@ public sealed class UciConnector : IAsyncDisposable
 		if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Option name must be provided.", nameof(name));
 
 		await _engine.SetOptionAsync(name, value, ct).ConfigureAwait(false);
+	}
+
+	/// <summary>Sets the engine position using a FEN string and optionally applies moves.</summary>
+	/// <param name="fen">The FEN string representing the position.</param>
+	/// <param name="moves">Optional collection of moves to apply after setting the position.</param>
+	/// <param name="ct">A token to cancel the operation.</param>
+	public async Task SetPositionAsync(string fen, CancellationToken ct, IEnumerable<string>? moves = null)
+	{
+		ThrowIfDisposed();
+		fen.ThrowIfNull().ThrowIfEmpty();
+
+		await _engine.SetPositionAsync(new(fen, moves), ct).ConfigureAwait(false);
 	}
 
 	/// <summary>Starts the engine process and performs the UCI handshake.</summary>
