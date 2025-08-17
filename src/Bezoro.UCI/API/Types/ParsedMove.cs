@@ -49,7 +49,10 @@ public readonly record struct ParsedMove
 			moveNotation = moveNotation[1..];
 		}
 
-		return new(movingPiece, promotionPiece, from, to, notation, moveNotation);
+		from = moveNotation[..2];
+		to   = moveNotation[2..];
+
+		return new(movingPiece, promotionPiece, from, to, moveNotation, raw);
 	}
 }
 
