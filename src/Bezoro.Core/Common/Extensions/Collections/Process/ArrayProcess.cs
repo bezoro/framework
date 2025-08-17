@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Core.Common.Helpers;
 using Bezoro.Core.Common.Interfaces;
 
 namespace Bezoro.Core.Common.Extensions.Collections.Process;
@@ -13,19 +11,6 @@ namespace Bezoro.Core.Common.Extensions.Collections.Process;
 /// </summary>
 public static class ArrayProcess
 {
-	/// <summary>
-	///     Returns a string representation of the array, with each element name
-	///     formatted according to the type of the element.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static string ToStringFormat<T>(this T[] array)
-	{
-		array.ThrowIfNull();
-		array.ThrowIfEmpty();
-
-		return "[" + string.Join(", ", array.Select(ArrayHelper.GetElementName).ToString().Italic()) + "]";
-	}
-
 	/// <summary>
 	///     Processes all elements of a 2D array in their order of appearance.
 	/// </summary>
