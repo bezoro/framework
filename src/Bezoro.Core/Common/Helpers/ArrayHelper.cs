@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Bezoro.Core.Common.Enums;
 using Bezoro.Core.Common.Extensions;
-using Bezoro.Core.Common.Extensions.Collections.Arrays;
+using Bezoro.Core.Common.Extensions.Collections.Check;
 using Bezoro.Core.Common.Primitives;
 
 namespace Bezoro.Core.Common.Helpers;
@@ -190,37 +190,107 @@ public static class ArrayHelper
 		{
 			null     => "null",
 			string s => $"\"{s}\"",
-			_        => item.GetType().Name
+			_        => item.ToString() ?? "null"
 		};
 
 	public static void Add<T>(
 		ref T[] array,
 		T       element,
 		out int index,
+		bool    force        = false,
 		int     resizeFactor = 2
 	)
+	{
+		if (resizeFactor < 2)
+			resizeFactor = 2;
+
+		var comparer = EqualityComparer<T>.Default;
+
+		// Fast path: empty array
+		if (array.Length == 0)
+		{
+			if (!force)
+			{
+				Logger.LogWarning(
+					"Trying to add element to an empty array. use 'force' to resize the array and add the element.");
+
+				index = -1;
+				return;
+			}
+
+			array    = new T[1];
+			array[0] = element;
+			index    = 0;
+			return;
+		}
+
+		// Try to place into first default(T) slot (mostly meaningful for reference/nullable types)
+		for (var i = 0; i < array.Length; i++)
+		{
+			if (!comparer.Equals(array[i], default!)) continue;
+
+			array[i] = element;
+			index    = i;
+			return;
+		}
+
+		// No free slots
+		if (!force)
+		{
+			Logger.LogWarning("Array is full. use 'force' to resize the array and add the element.");
+			index = -1;
+			return;
+		}
+
+		// Resize by factor and append at old length
+		int oldLen = array.Length;
+		Array.Resize(ref array, checked(oldLen * resizeFactor));
+		array[oldLen] = element;
+		index         = oldLen;
+	}
+
+	public static void Add<T>(ref T?[] array, T element, bool force = false, int resizeFactor = 2)
 		where T : class
 	{
 		array.ThrowIfNull();
 		element.ThrowIfNull();
 
-		index = -1;
+		if (resizeFactor < 2)
+			resizeFactor = 2;
 
-		int nullIndex = FindNullIndex(array);
-
-		if (nullIndex != -1)
+		if (array.IsEmpty())
 		{
-			index        = nullIndex;
-			array[index] = element;
+			if (!force)
+			{
+				Logger.LogWarning(
+					"Trying to add element to an empty array. use 'force' to resize the array and add the element.");
+
+				return;
+			}
+
+			array = [element];
 			return;
 		}
 
-		ResizeByFactorAndAddElement(ref array, element, out index, resizeFactor);
-	}
+		for (var i = 0; i < array.Length; i++)
+		{
+			if (array[i] is not null) continue;
 
-	public static void Add<T>(ref T?[] array, T? element, int resizeFactor = 2)
-		where T : class =>
-		Add(ref array, element, out _, resizeFactor);
+			array[i] = element;
+			return;
+		}
+
+		// no free slot
+		if (!force)
+		{
+			Logger.LogWarning("Array is full. use 'force' to resize the array and add the element.");
+			return;
+		}
+
+		int oldLen = array.Length;
+		Array.Resize(ref array, checked(oldLen * resizeFactor));
+		array[oldLen] = element;
+	}
 
 	public static void AddUnique<T>(ref T?[] array, T? element)
 		where T : class =>
@@ -253,7 +323,7 @@ public static class ArrayHelper
 		if (resizeFactor < 2)
 			resizeFactor = 2;
 
-		Add(ref array, element, out int insertedIndex, resizeFactor);
+		Add(ref array, element, out int insertedIndex, false, resizeFactor);
 		index = insertedIndex;
 	}
 
@@ -593,33 +663,6 @@ public static class ArrayHelper
 			array = tempArray;
 		}
 	}
-
-	private static void ResizeByFactorAndAddElement<T>(
-		ref T[] array,
-		T       element,
-		out int index,
-		out int validSize,
-		int     resizeFactor
-	)
-		where T : class
-	{
-		ResizeByFactorAndAddElement(ref array, element, out index, resizeFactor);
-		validSize = array.Length;
-	}
-
-	private static void ResizeByFactorAndAddElement<T>(
-		ref T[] array,
-		T       element,
-		out int index,
-		int     resizeFactor
-	) where T : class
-	{
-		int oldLength = array.Length;
-		ResizeByFactor(ref array, resizeFactor);
-		ArrayManipulation.AddAt(ref array, element, oldLength);
-		array[oldLength] = element;
-		index            = oldLength;
-	}
 }
 
 /// <summary>
@@ -888,6 +931,9 @@ public static class Merging
 		// Validate source and target arrays. Log warnings and exit early if validation fails.
 		if (!ValidateSource(source)) return;
 
+		if (target == null)
+			target = [];
+
 		// Calculate the size of the new array.
 		int nonNullCount = preserveElements == ElementInclusionStrategy.Include
 							   ? source.Length
@@ -1025,14 +1071,18 @@ public static class Merging
 		sourceStartIndex.ThrowIfMoreThan(sourceArray.Length);
 
 		int originalLength = targetArray.Length;
-		int newLength      = originalLength + elementsToAppend; // Introduced variable
+		int newLength      = originalLength + elementsToAppend;
 		Array.Resize(ref targetArray, newLength);
 
-		for (int srcIdx = sourceStartIndex, tgtIdx = originalLength; srcIdx < sourceArray.Length; srcIdx++)
+		var appended = 0;
+		int tgtIdx   = originalLength;
+		for (int srcIdx = sourceStartIndex; srcIdx < sourceArray.Length && appended < elementsToAppend; srcIdx++)
 		{
-			bool shouldCopy = !excludeNulls;
+			var src = sourceArray[srcIdx];
+			if (excludeNulls && src == null) continue;
 
-			if (shouldCopy) targetArray[tgtIdx++] = sourceArray[srcIdx];
+			targetArray[tgtIdx++] = src;
+			appended++;
 		}
 	}
 }
