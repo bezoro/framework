@@ -8,7 +8,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit.MoveGeneration;
 
 [TestSubject(typeof(QueenMoveGenerator))]
 public class QueenMoveGenerationUnitTests
@@ -21,7 +21,7 @@ public class QueenMoveGenerationUnitTests
 		// Arrange
 		var   fromPosition = new Position("d4");
 		Board board        = new(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(fromPosition, new Piece(PieceType.Queen, color));
+		board = board.SetPiece(fromPosition, new(PieceType.Queen, color));
 		var gameState = new GameState
 		{
 			Board       = board,
@@ -29,7 +29,7 @@ public class QueenMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// 14 rook moves + 13 bishop moves = 27
@@ -52,23 +52,23 @@ public class QueenMoveGenerationUnitTests
 	internal void MoveGenerator_ForQueenOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var        fromPosition  = new Position("d4");
-		PieceColor opponentColor = color.Opposite();
+		var fromPosition  = new Position("d4");
+		var opponentColor = color.Opposite();
 
 		Board board = new(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(fromPosition, new Piece(PieceType.Queen, color));
+		board = board.SetPiece(fromPosition, new(PieceType.Queen, color));
 
 		// Add pieces to block and be captured
 		// Friendly (blocking)
-		board = board.SetPiece(new Position("d6"), new Piece(PieceType.Pawn, color)); // Up
-		board = board.SetPiece(new Position("b4"), new Piece(PieceType.Pawn, color)); // Left
-		board = board.SetPiece(new Position("b6"), new Piece(PieceType.Pawn, color)); // Up-Left 
-		board = board.SetPiece(new Position("f2"), new Piece(PieceType.Pawn, color)); // Down-Right
+		board = board.SetPiece(new("d6"), new(PieceType.Pawn, color)); // Up
+		board = board.SetPiece(new("b4"), new(PieceType.Pawn, color)); // Left
+		board = board.SetPiece(new("b6"), new(PieceType.Pawn, color)); // Up-Left 
+		board = board.SetPiece(new("f2"), new(PieceType.Pawn, color)); // Down-Right
 		// Enemy (capturable)
-		board = board.SetPiece(new Position("d2"), new Piece(PieceType.Pawn, opponentColor)); // Down
-		board = board.SetPiece(new Position("g4"), new Piece(PieceType.Pawn, opponentColor)); // Right
-		board = board.SetPiece(new Position("f6"), new Piece(PieceType.Pawn, opponentColor)); // Up-Right
-		board = board.SetPiece(new Position("b2"), new Piece(PieceType.Pawn, opponentColor)); // Down-Left
+		board = board.SetPiece(new("d2"), new(PieceType.Pawn, opponentColor)); // Down
+		board = board.SetPiece(new("g4"), new(PieceType.Pawn, opponentColor)); // Right
+		board = board.SetPiece(new("f6"), new(PieceType.Pawn, opponentColor)); // Up-Right
+		board = board.SetPiece(new("b2"), new(PieceType.Pawn, opponentColor)); // Down-Left
 
 		var gameState = new GameState
 		{
@@ -77,7 +77,7 @@ public class QueenMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves:
@@ -107,11 +107,11 @@ public class QueenMoveGenerationUnitTests
 		// Arrange
 		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the queen is blocked by pawns.
-		var       fromPosition = new Position(isWhite ? "d1" : "d8");
-		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var fromPosition = new Position(isWhite ? "d1" : "d8");
+		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);

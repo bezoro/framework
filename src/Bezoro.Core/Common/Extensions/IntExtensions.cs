@@ -14,13 +14,17 @@ public static class IntExtensions
 	public static int  RoundToNearest(this int value, int nearest) => (value + nearest / 2) / nearest * nearest;
 	public static int  Sign(this int value) => value < 0 ? -1 : 1;
 
-	public static void ThrowIfLessThan(this int value, int min)
+	public static int ThrowIfLessThan(this int value, int min)
 	{
 		if (value < min) throw new ValueTooSmallException(value, min);
+
+		return value;
 	}
 
-	public static void ThrowIfMoreThan(this int value, int max)
+	public static int ThrowIfMoreThan(this int value, int max)
 	{
 		if (value > max) throw new ValueTooLargeException(value, max);
+
+		return value;
 	}
 }

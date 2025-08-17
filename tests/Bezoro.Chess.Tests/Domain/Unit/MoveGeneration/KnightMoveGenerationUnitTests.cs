@@ -8,7 +8,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit.MoveGeneration;
 
 [TestSubject(typeof(KnightMoveGenerator))]
 public class KnightMoveGenerationUnitTests
@@ -21,7 +21,7 @@ public class KnightMoveGenerationUnitTests
 		// Arrange
 		var fromPosition = new Position("d4");
 		var board        = new Board(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPiece(fromPosition, new Piece(PieceType.Knight, color));
+		board = board.SetPiece(fromPosition, new(PieceType.Knight, color));
 
 		var gameState = new GameState
 		{
@@ -30,7 +30,7 @@ public class KnightMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(8);
@@ -42,15 +42,16 @@ public class KnightMoveGenerationUnitTests
 	internal void MoveGenerator_ForKnightOnD4_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var        fromPosition  = new Position("d4");
-		PieceColor opponentColor = color.Opposite();
+		var fromPosition  = new Position("d4");
+		var opponentColor = color.Opposite();
 
 		var board = new Board(BoardFactory.CreateEmptyBitboards());
-		board = board.SetPieces((new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.Knight, color)),
-			(new Position("c6"), new Piece(PieceType.Pawn, color)),
-			(new Position("f3"), new Piece(PieceType.Pawn, color)),
-			(new Position("e2"), new Piece(PieceType.Pawn, opponentColor)),
-			(new Position("b5"), new Piece(PieceType.Pawn, opponentColor)));
+		board = board.SetPieces(
+			(new(fromPosition.Row, fromPosition.Col), new(PieceType.Knight, color)),
+			(new("c6"), new(PieceType.Pawn, color)),
+			(new("f3"), new(PieceType.Pawn, color)),
+			(new("e2"), new(PieceType.Pawn, opponentColor)),
+			(new("b5"), new(PieceType.Pawn, opponentColor)));
 
 		var gameState = new GameState
 		{
@@ -59,7 +60,7 @@ public class KnightMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// Expected moves: e6, f5, c2, b3 (open) + e2, b5 (captures) = 6 moves
@@ -76,7 +77,9 @@ public class KnightMoveGenerationUnitTests
 	[InlineData(PieceColor.Black, "b8", new[] { "a6", "c6" })]
 	[InlineData(PieceColor.Black, "g8", new[] { "f6", "h6" })]
 	internal void MoveGenerator_ForStandardStartingKnight_ShouldGenerateTwoMoves(
-		PieceColor color, string from, string[] expectedMoves)
+		PieceColor color,
+		string     from,
+		string[]   expectedMoves)
 	{
 		// Arrange
 		var fromPosition = new Position(from);
@@ -87,12 +90,12 @@ public class KnightMoveGenerationUnitTests
 			ActiveColor = color
 		};
 
-		Piece piece = board.GetPiece(fromPosition); //  <-- add this
+		var piece = board.GetPiece(fromPosition); //  <-- add this
 		piece.Type.Should().Be(PieceType.Knight);
 		piece.Color.Should().Be(color);
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(2);

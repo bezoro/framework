@@ -1,4 +1,4 @@
-using Bezoro.UCI.Domain.Helpers;
+using Bezoro.UCI.Domain.Common.Helpers;
 using JetBrains.Annotations;
 
 namespace Bezoro.UCI.Tests.Unit;
@@ -60,7 +60,7 @@ public class UCIHelperUnitTests
 		// Act
 		bool result = UCIHelper.IsValidFen(invalidFEN);
 
-		// Assert 
+		// Assert
 		Assert.False(result);
 	}
 

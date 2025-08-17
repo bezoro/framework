@@ -8,7 +8,7 @@ using Bezoro.Chess.Domain.Types.Structs;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.Chess.Tests.Unit;
+namespace Bezoro.Chess.Tests.Domain.Unit.MoveGeneration;
 
 [TestSubject(typeof(KingMoveGenerator))]
 public class KingMoveGenerationUnitTests
@@ -19,18 +19,18 @@ public class KingMoveGenerationUnitTests
 	internal void MoveGenerator_ForKingOnE1_WithBlockingAndCaptures_ShouldGenerateCorrectMoves(PieceColor color)
 	{
 		// Arrange
-		var        fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
-		PieceColor opponentColor   = color.Opposite();
-		int        opponentPawnRow = color == PieceColor.White ? fromPosition.Row + 1 : fromPosition.Row - 1;
+		var fromPosition    = new Position(color == PieceColor.White ? "e1" : "e8");
+		var opponentColor   = color.Opposite();
+		int opponentPawnRow = color == PieceColor.White ? fromPosition.Row + 1 : fromPosition.Row - 1;
 
 		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
 		initialBoard = initialBoard.SetPieces(
-			(new Position(fromPosition.Row, fromPosition.Col), new Piece(PieceType.King,     color)),
-			(new Position(fromPosition.Row, fromPosition.Col - 1), new Piece(PieceType.Pawn, color)),
-			(new Position(fromPosition.Row, fromPosition.Col + 1), new Piece(PieceType.Pawn, color)),
-			(new Position(opponentPawnRow,  fromPosition.Col - 1), new Piece(PieceType.Pawn, opponentColor)),
-			(new Position(opponentPawnRow,  fromPosition.Col), new Piece(PieceType.Pawn,     opponentColor)),
-			(new Position(opponentPawnRow,  fromPosition.Col + 1), new Piece(PieceType.Pawn, opponentColor)));
+			(new(fromPosition.Row, fromPosition.Col), new(PieceType.King, color)),
+			(new(fromPosition.Row, fromPosition.Col - 1), new(PieceType.Pawn, color)),
+			(new(fromPosition.Row, fromPosition.Col + 1), new(PieceType.Pawn, color)),
+			(new(opponentPawnRow, fromPosition.Col  - 1), new(PieceType.Pawn, opponentColor)),
+			(new(opponentPawnRow, fromPosition.Col), new(PieceType.Pawn, opponentColor)),
+			(new(opponentPawnRow, fromPosition.Col + 1), new(PieceType.Pawn, opponentColor)));
 
 		var gameState = new GameState
 		{
@@ -39,7 +39,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		// King can move to d2, e2, f2 (or d7, e7, f7 for black)
@@ -63,13 +63,13 @@ public class KingMoveGenerationUnitTests
 		var  fromPosition = new Position(kingRow, 4);
 
 		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
-		initialBoard.SetPiece(new Position(kingRow, 4), new Piece(PieceType.King, color));
-		initialBoard.SetPiece(new Position(kingRow, 4), new Piece(PieceType.King, color));
-		initialBoard.SetPiece(new Position(kingRow, 0), new Piece(PieceType.Rook, color));
-		initialBoard.SetPiece(new Position(kingRow, 7), new Piece(PieceType.Rook, color));
+		initialBoard.SetPiece(new(kingRow, 4), new(PieceType.King, color));
+		initialBoard.SetPiece(new(kingRow, 4), new(PieceType.King, color));
+		initialBoard.SetPiece(new(kingRow, 0), new(PieceType.Rook, color));
+		initialBoard.SetPiece(new(kingRow, 7), new(PieceType.Rook, color));
 		// Add blocking pieces  
-		initialBoard.SetPiece(new Position(kingRow, 1), new Piece(PieceType.Knight, color)); // Queenside
-		initialBoard.SetPiece(new Position(kingRow, 6), new Piece(PieceType.Bishop, color)); // Kingside
+		initialBoard.SetPiece(new(kingRow, 1), new(PieceType.Knight, color)); // Queenside
+		initialBoard.SetPiece(new(kingRow, 6), new(PieceType.Bishop, color)); // Kingside
 
 		var gameState = new GameState
 		{
@@ -79,7 +79,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().NotContain(m => m.Type == MoveType.Castling);
@@ -97,9 +97,9 @@ public class KingMoveGenerationUnitTests
 
 		var initialBoard = new Board(BoardFactory.CreateEmptyBitboards());
 		initialBoard = initialBoard.SetPieces(
-			(new Position(kingRow, 4), new Piece(PieceType.King, color)),
-			(new Position(kingRow, 0), new Piece(PieceType.Rook, color)),
-			(new Position(kingRow, 7), new Piece(PieceType.Rook, color))
+			(new(kingRow, 4), new(PieceType.King, color)),
+			(new(kingRow, 0), new(PieceType.Rook, color)),
+			(new(kingRow, 7), new(PieceType.Rook, color))
 		);
 
 		var gameState = new GameState
@@ -110,7 +110,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().Contain(m => m.Type == MoveType.Castling);
@@ -124,8 +124,10 @@ public class KingMoveGenerationUnitTests
 		// Arrange
 		var   fromPosition = new Position("d4");
 		Board initialBoard = new(BoardFactory.CreateEmptyBitboards());
-		initialBoard = initialBoard.SetPiece(new Position(fromPosition.Row, fromPosition.Col),
-			new Piece(PieceType.King, color));
+		initialBoard = initialBoard.SetPiece(
+			new(fromPosition.Row, fromPosition.Col),
+			new(PieceType.King, color));
+
 		var gameState = new GameState
 		{
 			Board       = initialBoard,
@@ -133,7 +135,7 @@ public class KingMoveGenerationUnitTests
 		};
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(8);
@@ -155,11 +157,11 @@ public class KingMoveGenerationUnitTests
 		// Arrange
 		bool isWhite = color == PieceColor.White;
 		// In a standard game setup, the king is blocked by its own pieces.
-		var       fromPosition = new Position(isWhite ? "e1" : "e8");
-		GameState gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
+		var fromPosition = new Position(isWhite ? "e1" : "e8");
+		var gameState    = BoardSetup.CreateStandardGame() with { ActiveColor = color };
 
 		// Act
-		List<Move> moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
+		var moves = MoveGenerator.GeneratePieceMoves(fromPosition, gameState).ToList();
 
 		// Assert
 		moves.Should().HaveCount(0);
