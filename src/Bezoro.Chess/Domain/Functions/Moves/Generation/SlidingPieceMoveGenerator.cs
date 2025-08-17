@@ -1,0 +1,50 @@
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using Bezoro.Chess.Domain.Helpers;
+using Bezoro.Chess.Domain.Shared.Enums;
+using Bezoro.Chess.Domain.Types.Records;
+using Bezoro.Chess.Domain.Types.Structs;
+
+namespace Bezoro.Chess.Domain.Functions.Moves.Generation
+{
+	internal static class SlidingPieceMoveGenerator
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static IEnumerable<Move> GenerateMoves(
+			Position from, GameState gameState, (int dRow, int dCol)[] directions)
+		{
+			Piece movingPiece = gameState.Board.GetPiece(from);
+
+			foreach ((int dRow, int dCol) in directions)
+			{
+				int newRow = from.Row + dRow;
+				int newCol = from.Col + dCol;
+
+				while (BoardHelper.IsInsideBoard(new Position(newRow, newCol)))
+				{
+					var   to                 = new Position(newRow, newCol);
+					Piece pieceAtDestination = gameState.Board.GetPiece(to);
+
+					if (pieceAtDestination.Type == PieceType.None)
+					{
+						yield return Move.Normal(from, to, movingPiece);
+					}
+					else if (pieceAtDestination.Color != gameState.ActiveColor)
+					{
+						yield return Move.Capture(from, to, movingPiece, pieceAtDestination);
+
+						break;
+					}
+					else
+					{
+						// Blocked by our own piece.
+						break;
+					}
+
+					newRow += dRow;
+					newCol += dCol;
+				}
+			}
+		}
+	}
+}

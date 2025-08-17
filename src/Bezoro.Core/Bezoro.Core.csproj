@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+      <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Bezoro.Core.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Common\Enums\" />
+    </ItemGroup>
+</Project>
