@@ -24,6 +24,7 @@
 
     <ItemGroup>
         <Folder Include="Collections\"/>
+        <Folder Include="Collections\ArrayHelpers\" />
     </ItemGroup>
 
 </Project>

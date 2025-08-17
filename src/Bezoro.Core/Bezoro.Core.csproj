@@ -5,4 +5,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Bezoro.Core.Tests"/>
     </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Common\Enums\" />
+    </ItemGroup>
 </Project>
