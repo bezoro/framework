@@ -36,6 +36,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 	private readonly SemaphoreSlim _commandLock    = new(1, 1);
 	private readonly SemaphoreSlim _stdinWriteLock = new(1, 1);
 
+	private BoardState? _currentBoardCache;
+
 	private Fen? _currentFenCache;
 
 	private volatile int        _isDisposed;
@@ -155,7 +157,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			_currentSquareMovesCache.Clear();
 			_currentLegalMovesCache.Clear();
 			_searchInfoCache.Clear();
-			_currentFenCache = null;
+			_currentFenCache   = null;
+			_currentBoardCache = null;
 		}
 	}
 
@@ -257,7 +260,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 								  ? line[(colonIdx + 1)..].Trim()
 								  : line[UciConstants.CHECKERS_RESPONSE.Length..].Trim();
 
-				if (tail.Length > 0                                          &&
+				if (tail.Length > 0 &&
 					!tail.Equals("-",    StringComparison.OrdinalIgnoreCase) &&
 					!tail.Equals("none", StringComparison.OrdinalIgnoreCase))
 					inCheck = true;
@@ -300,26 +303,30 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 			return _currentLegalMovesCache;
 		}
 
-		var fen   = await GetCurrentFenAsync(ct).ConfigureAwait(false);
-		var board = BoardState.FromFen(fen);
-		board.ThrowIfNull();
+		var fen = await GetCurrentFenAsync(ct).ConfigureAwait(false);
+		if (!_currentBoardCache.HasValue)
+		{
+			var boardMaybe = BoardState.FromFen(fen);
+			boardMaybe.ThrowIfNull();
+			_currentBoardCache = boardMaybe.Value;
+		}
 
 		var lines = await SendCommandAndReadAsync(UciConstants.GO_PERFT_DEPTH1_COMMAND, ct).ConfigureAwait(false);
 
-		var moves = new List<Move>();
+		var moves = new List<Move>(lines.Count);
 		var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (string? line in lines)
 		{
-			var match = UciConstants.MoveRegex.Match(line);
-			if (!match.Success) continue;
+			if (line.IsNullOrEmpty()) continue;
 
-			string moveUci = match.Groups[1].Value.ToLowerInvariant();
-			if (!seen.Add(moveUci)) continue;
+			if (!TryExtractUciMove(line.AsSpan(), out string moveUciLower)) continue;
+			if (!seen.Add(moveUciLower)) continue;
 
-			char   pieceChar    = MoveToPieceMap.Map(fen, moveUci).Piece;
-			string enrichedMove = pieceChar != '\0' ? pieceChar + moveUci : moveUci;
-			var    analysis     = await MoveAnalysis.AnalyzeAsync(enrichedMove, board.Value, this);
+
+			char   pieceChar    = MoveToPieceMap.Map(fen, moveUciLower).Piece;
+			string enrichedMove = pieceChar != '\0' ? pieceChar + moveUciLower : moveUciLower;
+			var    analysis     = await MoveAnalysis.AnalyzeAsync(enrichedMove, _currentBoardCache.Value, this);
 			var    move         = new Move(enrichedMove, analysis);
 			moves.Add(move);
 		}
@@ -377,14 +384,14 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		var parsedMove = ParsedMove.FromNotation(notation);
 
-		if (customPosition is not null)
+		if (customPosition is { })
 			await WriteLineSafeAsync(customPosition, ct).ConfigureAwait(false);
 
 		await WriteLineSafeAsync($"{UciConstants.SET_OPTION_COMMAND} MultiPV value {(int)multiPv}", ct)
 			.ConfigureAwait(false);
 
 		var response = await SendCommandAsync(
-							   $"{UciConstants.GO_COMMAND} "                     +
+							   $"{UciConstants.GO_COMMAND} " +
 							   $"{UciConstants.MOVE_TIME_PARAMETER} {msBudget} " +
 							   $"{UciConstants.SEARCH_MOVES_PARAMETER} {parsedMove.Notation}",
 							   ct)
@@ -534,7 +541,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		// Flush and dispose stdin safely
 		var stdin = Interlocked.Exchange(ref _stdin, null);
-		if (stdin is not null)
+		if (stdin is { })
 		{
 			try
 			{
@@ -594,7 +601,7 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 
 		// Log any first error captured during disposal
-		if (firstError is not null)
+		if (firstError is { })
 			Logger.LogError(firstError, this, LogCategory.UCI);
 
 		Logger.LogInfo("Disposed", this, LogCategory.UCI);
@@ -637,8 +644,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 				continue;
 			}
 
-			if (t == uciOkResponse                                            ||
-				t == readyOkResponse                                          ||
+			if (t == uciOkResponse ||
+				t == readyOkResponse ||
 				t.Equals(uciOkResponse,   StringComparison.OrdinalIgnoreCase) ||
 				t.Equals(readyOkResponse, StringComparison.OrdinalIgnoreCase))
 			{
@@ -673,6 +680,59 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 		}
 
 		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool TryExtractUciMove(ReadOnlySpan<char> line, out string moveLower)
+	{
+		moveLower = string.Empty;
+		// Trim leading spaces
+		var i = 0;
+		while (i < line.Length && char.IsWhiteSpace(line[i])) i++;
+		if (i + 4 > line.Length) return false;
+
+		// We expect: file( a-h ) rank(1-8) file( a-h ) rank(1-8) [promotion n/b/r/q]
+		static bool IsFile(char c)
+		{
+			return (uint)(c - 'a') <= 'h' - 'a' || (uint)(c - 'A') <= 'H' - 'A';
+		}
+
+		static bool IsRank(char c)
+		{
+			return c >= '1' && c <= '8';
+		}
+
+		static char ToLowerInvariantFast(char c)
+		{
+			return c is >= 'A' and <= 'Z' ? (char)(c + 32) : c;
+		}
+
+		int start = i;
+		if (!IsFile(line[i++])) return false;
+		if (!IsRank(line[i++])) return false;
+		if (!IsFile(line[i++])) return false;
+		if (!IsRank(line[i++])) return false;
+
+		// Optional promotion
+		var len = 4;
+		if (i < line.Length)
+		{
+			char p  = line[i];
+			char pl = ToLowerInvariantFast(p);
+			if (pl is 'q' or 'r' or 'b' or 'n')
+			{
+				len = 5;
+				i++;
+			}
+		}
+
+		// Build lower-case string without intermediate substrings
+		var buf = len <= 5 ? stackalloc char[5] : stackalloc char[len];
+		for (var k = 0; k < len; k++)
+			buf[k] = ToLowerInvariantFast(line[start + k]);
+
+		moveLower = new(buf[..len]);
+		return true;
 	}
 
 	private PendingRequest CreatePending(string[] tokens, CancellationToken ct)
@@ -743,7 +803,8 @@ internal sealed class UciEngine(Process process) : IAsyncDisposable
 
 		fen.ThrowIfNull();
 
-		_currentFenCache = fen;
+		_currentFenCache   = fen;
+		_currentBoardCache = null;
 		return fen.Value;
 	}
 
