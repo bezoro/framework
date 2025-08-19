@@ -22,6 +22,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private CancellationTokenSource? _readLoopCts;
 
 	private Channel<string>? _lines;
+	private int              _isStarted; // 0 = false, 1 = true (cross-thread visibility)
 	private int              _readerActive;
 	private int              _startGate; // prevents concurrent StartAsync calls
 
@@ -29,9 +30,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private StreamReader? _stderr;
 	private StreamReader? _stdout;
 	private StreamWriter? _stdin;
+	private Task?         _exitNotifyTask;
 	private Task?         _readLoopTask;
 	private Task?         _stderrLoopTask;
-	private Task?         _exitNotifyTask;
 
 	public event Action<Exception>? Error;
 
@@ -56,7 +57,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_options          = options ?? new ProcessUciTransportOptions();
 	}
 
-	public bool IsStarted { get; private set; }
+	public bool IsStarted => Volatile.Read(ref _isStarted) == 1;
 
 	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
 	{
@@ -182,6 +183,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 				},
 				CancellationToken.None);
 
+			Observe(_readLoopTask);
+
 			if (_stderr != null)
 			{
 				var localStderr = _stderr;
@@ -223,6 +226,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 						}
 					},
 					CancellationToken.None);
+
+				Observe(_stderrLoopTask);
 			}
 
 			_exitNotifyTask = Task.Run(
@@ -242,7 +247,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 				},
 				CancellationToken.None);
 
-			IsStarted = true;
+			Observe(_exitNotifyTask);
+
+			Volatile.Write(ref _isStarted, 1);
 		}
 		catch
 		{
@@ -251,9 +258,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				await CleanupAfterFailedStartAsync().ConfigureAwait(false);
 			}
-			catch
+			catch (Exception ex)
 			{
-				/* ignore */
+				Error?.Invoke(ex);
 			}
 
 			throw;
@@ -309,9 +316,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			cts?.Cancel();
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
 		}
 
 		// Dispose stdout early to unblock any pending ReadLineAsync
@@ -390,9 +397,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				cts?.Dispose();
 			}
-			catch
+			catch (Exception ex)
 			{
-				/* ignore */
+				Error?.Invoke(ex);
 			}
 		}
 
@@ -445,9 +452,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		if (p is null)
 		{
-			IsStarted = false;
+			Volatile.Write(ref _isStarted, 0);
 			return;
 		}
+
+		var skipAwaitExit = false;
 
 		try
 		{
@@ -460,14 +469,17 @@ internal sealed class ProcessUciTransport : IUciTransport
 				catch (Exception ex)
 				{
 					Error?.Invoke(ex);
+					// If Kill fails (permissions/lifecycle constraints), do not await exit notification.
+					skipAwaitExit = true;
 				}
 		}
 		finally
 		{
-			// Ensure exit notification completes (reads ExitCode) before disposing the process.
+			// Ensure exit notification completes (reads ExitCode) before disposing the process,
+			// unless we explicitly skip after a failed Kill().
 			var exitNotify = _exitNotifyTask;
 			_exitNotifyTask = null;
-			if (exitNotify != null)
+			if (!skipAwaitExit && exitNotify != null)
 				try
 				{
 					await exitNotify.ConfigureAwait(false);
@@ -487,8 +499,62 @@ internal sealed class ProcessUciTransport : IUciTransport
 				Error?.Invoke(ex);
 			}
 
-			IsStarted = false;
+			Volatile.Write(ref _isStarted, 0);
 		}
+	}
+
+	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
+	{
+		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		void Handler(object? _, EventArgs __)
+		{
+			tcs.TrySetResult(null);
+		}
+
+		if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
+		process.Exited += Handler;
+
+		// If the process already exited after subscribing, complete immediately.
+		if (process.HasExited)
+		{
+			process.Exited -= Handler;
+			return Task.CompletedTask;
+		}
+
+		CancellationTokenRegistration reg = default;
+		if (ct.CanBeCanceled) reg         = ct.Register(() => tcs.TrySetCanceled(ct));
+
+		return tcs.Task.ContinueWith(
+			t =>
+			{
+				process.Exited -= Handler;
+				reg.Dispose();
+				return t;
+			},
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default).Unwrap();
+	}
+
+	private void Observe(Task task)
+	{
+		task.ContinueWith(
+			t =>
+			{
+				try
+				{
+					// Surface any unobserved exceptions from background tasks
+					Error?.Invoke(t.Exception!);
+				}
+				catch
+				{
+					/* best-effort */
+				}
+			},
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
+			TaskScheduler.Default);
 	}
 
 	private async Task CleanupAfterFailedStartAsync()
@@ -500,9 +566,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			cts?.Cancel();
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
 		}
 
 		try
@@ -621,41 +687,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Error?.Invoke(ex);
 		}
 
-		IsStarted = false;
-	}
-
-	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
-	{
-		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		void Handler(object? _, EventArgs __)
-		{
-			tcs.TrySetResult(null);
-		}
-
-		if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
-		process.Exited += Handler;
-
-		// If the process already exited after subscribing, complete immediately.
-		if (process.HasExited)
-		{
-			process.Exited -= Handler;
-			return Task.CompletedTask;
-		}
-
-		CancellationTokenRegistration reg = default;
-		if (ct.CanBeCanceled) reg         = ct.Register(() => tcs.TrySetCanceled(ct));
-
-		return tcs.Task.ContinueWith(
-			t =>
-			{
-				process.Exited -= Handler;
-				reg.Dispose();
-				return t;
-			},
-			CancellationToken.None,
-			TaskContinuationOptions.ExecuteSynchronously,
-			TaskScheduler.Default).Unwrap();
+		Volatile.Write(ref _isStarted, 0);
 	}
 
 	private void ThrowIfDisposed()
@@ -668,13 +700,13 @@ internal sealed class ProcessUciTransportOptions
 {
 	public bool RedirectStandardError { get; init; } = true;
 
+	public bool SendQuitOnDispose { get; init; } = true;
+
 	public bool SingleReader { get; init; } = true;
 
 	public int ChannelCapacity { get; init; } = 1024;
 
 	public int QuitGracePeriodMs { get; init; } = 500;
-
-	public bool SendQuitOnDispose { get; init; } = true;
 
 	public string NewLine { get; init; } = "\n";
 }
