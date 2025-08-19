@@ -132,10 +132,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 					FullMode     = BoundedChannelFullMode.Wait
 				});
 
-			_readLoopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			_readLoopCts = new();
 
 			var localStdout = _stdout!;
 			var writer      = _lines.Writer;
+			var readToken   = _readLoopCts!.Token;
 
 			_readLoopTask = Task.Run(
 				async () =>
@@ -159,7 +160,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 							if (line.Length == 0) continue; // skip empty lines
 
-							await writer.WriteAsync(line, _readLoopCts.Token).ConfigureAwait(false);
+							await writer.WriteAsync(line, readToken).ConfigureAwait(false);
 						}
 
 						writer.TryComplete();
@@ -240,10 +241,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch
 		{
-			// If startup fails or is cancelled, tear down any partially started resources.
+			// If startup fails or is cancelled, tear down any partially started resources without disposing the transport.
 			try
 			{
-				await DisposeAsync().ConfigureAwait(false);
+				await CleanupAfterFailedStartAsync().ConfigureAwait(false);
 			}
 			catch
 			{
@@ -322,8 +323,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				try
 				{
-					await _stdin.WriteLineAsync("quit").ConfigureAwait(false);
-					await _stdin.FlushAsync().ConfigureAwait(false);
+					if (_options.SendQuitOnDispose)
+					{
+						await _stdin.WriteLineAsync("quit").ConfigureAwait(false);
+						await _stdin.FlushAsync().ConfigureAwait(false);
+					}
 				}
 				catch (Exception ex)
 				{
@@ -484,6 +488,137 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	private async Task CleanupAfterFailedStartAsync()
+	{
+		// Do not set _disposed here; keep the transport reusable.
+		var cts = _readLoopCts;
+		_readLoopCts = null;
+		try
+		{
+			cts?.Cancel();
+		}
+		catch
+		{
+			/* ignore */
+		}
+
+		try
+		{
+			_stdout?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_stdout = null;
+
+		if (_stdin != null)
+		{
+			try
+			{
+				await _stdin.DisposeAsync().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+			}
+
+			_stdin = null;
+		}
+
+		var readLoop = _readLoopTask;
+		_readLoopTask = null;
+		try
+		{
+			if (readLoop != null) await readLoop.ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		if (_stderrLoopTask != null)
+		{
+			try
+			{
+				await _stderrLoopTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+			}
+
+			_stderrLoopTask = null;
+		}
+
+		try
+		{
+			_stderr?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_stderr = null;
+
+		try
+		{
+			_lines?.Writer.TryComplete();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_lines = null;
+
+		var p = _process;
+		_process = null;
+		try
+		{
+			if (p != null)
+			{
+				try
+				{
+					if (!p.HasExited) p.Kill();
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+
+				var exitNotify = _exitNotifyTask;
+				_exitNotifyTask = null;
+				if (exitNotify != null)
+					try
+					{
+						await exitNotify.ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						Error?.Invoke(ex);
+					}
+
+				try
+				{
+					await Task.Run(() => p.Dispose()).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		IsStarted = false;
+	}
+
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -493,8 +628,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			tcs.TrySetResult(null);
 		}
 
-		process.EnableRaisingEvents =  true;
-		process.Exited              += Handler;
+		if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
+		process.Exited += Handler;
 
 		// If the process already exited after subscribing, complete immediately.
 		if (process.HasExited)
@@ -533,6 +668,8 @@ internal sealed class ProcessUciTransportOptions
 	public int ChannelCapacity { get; init; } = 1024;
 
 	public int QuitGracePeriodMs { get; init; } = 500;
+
+	public bool SendQuitOnDispose { get; init; } = true;
 
 	public string NewLine { get; init; } = "\n";
 }
