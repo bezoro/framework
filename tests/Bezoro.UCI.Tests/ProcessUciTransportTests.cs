@@ -9,9 +9,36 @@ public class ProcessUciTransportTests
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 
 	[Fact]
+	public async Task DisposeAsync_AfterStart_StopsProcessAndResetsIsStarted()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return; // No engine available -> skip test run without false failure.
+
+		var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+
+		await process.DisposeAsync();
+
+		process.IsStarted.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task ReadLinesAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
+	{
+		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+
+		var enumerator = process.ReadLinesAsync().GetAsyncEnumerator();
+
+		await FluentActions
+			  .Awaiting(async () => await enumerator.MoveNextAsync())
+			  .Should()
+			  .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
 	public async Task StartAsync_WhenCalledWithInvalidProcess_ThrowsException()
 	{
-		var process = new ProcessUciTransport("invalid/path");
+		await using var process = new ProcessUciTransport("invalid/path");
 
 		await FluentActions.Awaiting(() => process.StartAsync()).Should().ThrowAsync<Exception>();
 	}
@@ -19,7 +46,10 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task StartAsync_WhenCalledWithValidProcess_StartsProcess()
 	{
-		var process = new ProcessUciTransport(STOCKFISH_PATH);
+		string? path = TryResolveEnginePath();
+		if (path is null) return; // No engine available -> skip test run without false failure.
+
+		await using var process = new ProcessUciTransport(path);
 
 		await process.StartAsync();
 
@@ -29,32 +59,81 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithEngineStart_WritesLineToEngine()
 	{
-		var process = new ProcessUciTransport(STOCKFISH_PATH);
+		string? path = TryResolveEnginePath();
+		if (path is null) return; // No engine available -> skip test run without false failure.
+
+		await using var process = new ProcessUciTransport(path);
 		await process.StartAsync();
 
 		await process.WriteLineAsync("uci");
 
-		var output = "";
-		var lines  = process.ReadLinesAsync();
-		await foreach (string line in lines)
+		string? output = null;
+
+		await foreach (string line in process.ReadLinesAsync(0, CancellationToken.None))
 		{
-			if (line != "uciok") continue;
+			if (!string.Equals(line.Trim(), "uciok", StringComparison.OrdinalIgnoreCase)) continue;
 
 			output = line;
 			break;
 		}
 
-		output.Should().Be("uciok");
+		output.Should().Be("uciok", "the engine should acknowledge UCI initialization with 'uciok' within timeout");
+	}
+
+	[Fact]
+	public async Task WriteLineAsync_WhenCalledWithNewline_ThrowsArgumentException()
+	{
+		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await process.StartAsync();
+
+		await FluentActions
+			  .Awaiting(() => process.WriteLineAsync("uci\nisready"))
+			  .Should()
+			  .ThrowAsync<ArgumentException>();
+	}
+
+	[Fact]
+	public async Task WriteLineAsync_WhenCalledWithNull_ThrowsArgumentNullException()
+	{
+		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await process.StartAsync();
+
+		// ReSharper disable once AssignNullToNotNullAttribute
+		await FluentActions
+			  .Awaiting(() => process.WriteLineAsync(null!))
+			  .Should()
+			  .ThrowAsync<ArgumentNullException>();
 	}
 
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithoutEngineStart_ThrowsException()
 	{
-		var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
 
 		await FluentActions
 			  .Awaiting(() => process.WriteLineAsync("uci"))
 			  .Should()
 			  .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task WriteLineAsync_WhenCalledWithWhitespace_ThrowsArgumentException()
+	{
+		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await process.StartAsync();
+
+		await FluentActions
+			  .Awaiting(() => process.WriteLineAsync("   "))
+			  .Should()
+			  .ThrowAsync<ArgumentException>();
+	}
+
+	private static string? TryResolveEnginePath()
+	{
+		string? fromEnv = Environment.GetEnvironmentVariable("STOCKFISH_PATH");
+		if (!string.IsNullOrWhiteSpace(fromEnv) && File.Exists(fromEnv))
+			return fromEnv;
+
+		return File.Exists(STOCKFISH_PATH) ? STOCKFISH_PATH : null;
 	}
 }
