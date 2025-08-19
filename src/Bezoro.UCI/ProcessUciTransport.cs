@@ -38,7 +38,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_args             = args is null ? null : new List<string>(args);
 	}
 
-
 	public bool IsStarted { get; private set; }
 
 	public async IAsyncEnumerable<string> ReadLinesAsync(
@@ -49,15 +48,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		var reader = _lines?.Reader ?? throw new InvalidOperationException("Transport not started.");
 
-		var token = ct;
-		if (timeoutSec > 0)
-		{
-			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-			linkedCts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
-			token = linkedCts.Token;
-		}
-
-		await foreach (string? line in reader.ReadAllAsync(token).ConfigureAwait(false))
+		await foreach (string? line in reader.ReadAllAsync(ct).ConfigureAwait(false))
 		{
 			yield return line;
 		}
@@ -222,7 +213,47 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var p = _process;
 		_process = null;
 
-		// Cancel and await background read loop before tearing down streams
+		// Politely request engine shutdown and signal EOF
+		try
+		{
+			if (_stdin != null)
+			{
+				try
+				{
+					await _stdin.WriteLineAsync("quit").ConfigureAwait(false);
+					await _stdin.FlushAsync().ConfigureAwait(false);
+				}
+				catch
+				{
+					/* ignore */
+				}
+
+				try
+				{
+					_stdin.Close(); // signal EOF for well-behaved engines
+				}
+				catch
+				{
+					/* ignore */
+				}
+			}
+		}
+		catch
+		{
+			/* ignore */
+		}
+
+		// Give the process a brief chance to exit cleanly
+		try
+		{
+			if (p is { HasExited: false }) p.WaitForExit(500);
+		}
+		catch
+		{
+			/* ignore */
+		}
+
+		// Now cancel and await the read loop so we observe completion/errors deterministically
 		var cts = _readLoopCts;
 		_readLoopCts = null;
 		try
@@ -234,29 +265,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 			/* ignore */
 		}
 
-		// Break any pending ReadLineAsync by disposing stdout BEFORE awaiting the read loop
-		try
-		{
-			_stdout?.Dispose();
-		}
-		catch
-		{
-			/* ignore */
-		}
-
-		_stdout = null;
-
 		var readLoop = _readLoopTask;
 		_readLoopTask = null;
 		try
 		{
 			if (readLoop != null)
 			{
-				var completed = await Task.WhenAny(readLoop, Task.Delay(500)).ConfigureAwait(false);
-				if (completed == readLoop)
-					// Observe any exceptions if it already finished.
-					await readLoop.ConfigureAwait(false);
-				// If timed out, proceed with teardown; read loop will unwind after stdout disposal/cancellation.
+				await readLoop.ConfigureAwait(false);
 			}
 		}
 		catch
@@ -275,15 +290,26 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 		}
 
+		// Dispose stdout and stdin after read loop finishes
 		try
 		{
-			if (_stdin != null) await _stdin.DisposeAsync();
+			_stdout?.Dispose();
 		}
 		catch
 		{
 			/* ignore */
 		}
 
+		_stdout = null;
+
+		try
+		{
+			if (_stdin != null) await _stdin.DisposeAsync().ConfigureAwait(false);
+		}
+		catch
+		{
+			/* ignore */
+		}
 		_stdin = null;
 
 		// Complete channel so any consumers finish
@@ -295,7 +321,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			/* ignore */
 		}
-
 		_lines = null;
 
 		try
@@ -317,17 +342,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (!p.HasExited)
 			{
-				// Be conservative: give it a brief chance to exit if already terminating.
-				if (!p.WaitForExit(50))
+				// Final fallback if engine ignored quit/EOF
+				try
 				{
-					try
-					{
-						p.Kill();
-					}
-					catch
-					{
-						/* ignore */
-					}
+					p.Kill();
+				}
+				catch
+				{
+					/* ignore */
 				}
 			}
 		}
