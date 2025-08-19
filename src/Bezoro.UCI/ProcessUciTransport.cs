@@ -23,6 +23,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	private Channel<string>? _lines;
 	private int              _readerActive;
+	private int              _startGate; // prevents concurrent StartAsync calls
 
 	private Process?      _process;
 	private StreamReader? _stderr;
@@ -80,6 +81,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
+
+		// Prevent concurrent starts
+		if (Interlocked.CompareExchange(ref _startGate, 1, 0) != 0)
+			throw new InvalidOperationException("Transport is already starting.");
 
 		if (_process != null) throw new InvalidOperationException("Transport already started.");
 
@@ -253,6 +258,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			throw;
 		}
+		finally
+		{
+			// Always release the start gate
+			Interlocked.Exchange(ref _startGate, 0);
+		}
 	}
 
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
@@ -411,15 +421,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_lines = null;
-
-		try
-		{
-			_writeLock.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
 
 		// Give the process a brief chance to exit cleanly
 		try
