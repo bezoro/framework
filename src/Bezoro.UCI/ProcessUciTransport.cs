@@ -40,9 +40,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	public bool IsStarted { get; private set; }
 
-	public async IAsyncEnumerable<string> ReadLinesAsync(
-		uint timeoutSec = 0,
-		[EnumeratorCancellation] CancellationToken ct = default)
+	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 
@@ -310,6 +308,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			/* ignore */
 		}
+
 		_stdin = null;
 
 		// Complete channel so any consumers finish
@@ -321,6 +320,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			/* ignore */
 		}
+
 		_lines = null;
 
 		try

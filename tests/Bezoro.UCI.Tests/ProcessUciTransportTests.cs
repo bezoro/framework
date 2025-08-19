@@ -69,7 +69,7 @@ public class ProcessUciTransportTests
 
 		string? output = null;
 
-		await foreach (string line in process.ReadLinesAsync(0, CancellationToken.None))
+		await foreach (string line in process.ReadLinesAsync(CancellationToken.None))
 		{
 			if (!string.Equals(line.Trim(), "uciok", StringComparison.OrdinalIgnoreCase)) continue;
 
