@@ -10,7 +10,8 @@ namespace Bezoro.UCI;
 
 internal sealed class ProcessUciTransport : IUciTransport
 {
-	private readonly IReadOnlyList<string>? _args;
+	private readonly IReadOnlyList<string>?     _args;
+	private readonly ProcessUciTransportOptions _options;
 
 	private readonly SemaphoreSlim _writeLock = new(1, 1);
 
@@ -21,21 +22,37 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private CancellationTokenSource? _readLoopCts;
 
 	private Channel<string>? _lines;
+	private int              _readerActive;
 
 	private Process?      _process;
+	private StreamReader? _stderr;
 	private StreamReader? _stdout;
 	private StreamWriter? _stdin;
 	private Task?         _readLoopTask;
+	private Task?         _stderrLoopTask;
+	private Task?         _exitNotifyTask;
+
+	public event Action<Exception>? Error;
 
 	public event Action<int?, string?>? Exited;
 
+	public event Action<string>? StderrReceived;
+
 	public ProcessUciTransport(string path, IEnumerable<string>? args = null, string? workingDirectory = null)
+		: this(path, args, workingDirectory, null) { }
+
+	public ProcessUciTransport(
+		string path,
+		IEnumerable<string>? args,
+		string? workingDirectory,
+		ProcessUciTransportOptions? options)
 	{
 		if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Engine path must be provided.", nameof(path));
 
 		_path             = path;
 		_workingDirectory = workingDirectory;
 		_args             = args is null ? null : new List<string>(args);
+		_options          = options ?? new ProcessUciTransportOptions();
 	}
 
 	public bool IsStarted { get; private set; }
@@ -46,9 +63,17 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		var reader = _lines?.Reader ?? throw new InvalidOperationException("Transport not started.");
 
-		await foreach (string? line in reader.ReadAllAsync(ct).ConfigureAwait(false))
+		if (_options.SingleReader)
+			if (Interlocked.CompareExchange(ref _readerActive, 1, 0) != 0)
+				throw new InvalidOperationException("Only a single reader is supported for this transport.");
+
+		try
 		{
-			yield return line;
+			await foreach (string? line in reader.ReadAllAsync(ct).ConfigureAwait(false)) yield return line;
+		}
+		finally
+		{
+			if (_options.SingleReader) Volatile.Write(ref _readerActive, 0);
 		}
 	}
 
@@ -64,7 +89,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			UseShellExecute        = false,
 			RedirectStandardInput  = true,
 			RedirectStandardOutput = true,
-			RedirectStandardError  = false, // keep minimal; stderr often noisy. Flip if you need it.
+			RedirectStandardError  = _options.RedirectStandardError,
 			CreateNoWindow         = true,
 			WorkingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
 								   ? Environment.CurrentDirectory
@@ -72,106 +97,161 @@ internal sealed class ProcessUciTransport : IUciTransport
 		};
 
 		if (_args is { Count: > 0 })
-		{
 			// Avoid quoting issues by using ArgumentList
-			foreach (var a in _args)
+			foreach (string? a in _args)
 			{
 				if (a is null) continue; // defensively skip nulls
 
 				startInfo.ArgumentList.Add(a);
 			}
-		}
 
 		var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
-		if (!process.Start())
-			throw new InvalidOperationException("Failed to start UCI engine process.");
+		try
+		{
+			ct.ThrowIfCancellationRequested();
 
-		_process = process;
+			if (!process.Start())
+				throw new InvalidOperationException("Failed to start UCI engine process.");
 
-		_stdin           = process.StandardInput;
-		_stdin.NewLine   = "\n";
-		_stdin.AutoFlush = true;
+			_process = process;
 
-		_stdout = process.StandardOutput;
+			_stdin           = process.StandardInput;
+			_stdin.NewLine   = _options.NewLine;
+			_stdin.AutoFlush = true;
 
-		// Prepare channel and background read loop
-		_lines = Channel.CreateBounded<string>(
-			new BoundedChannelOptions(1024)
-			{
-				SingleWriter = true,
-				SingleReader = true,
-				FullMode     = BoundedChannelFullMode.Wait
-			});
+			_stdout = process.StandardOutput;
+			_stderr = _options.RedirectStandardError ? process.StandardError : null;
 
-		_readLoopCts = new();
-
-		var localStdout = _stdout;
-		var writer      = _lines.Writer;
-
-		_readLoopTask = Task.Run(
-			async () =>
-			{
-				try
+			// Prepare channel and background read loop
+			_lines = Channel.CreateBounded<string>(
+				new BoundedChannelOptions(_options.ChannelCapacity)
 				{
-					while (true)
+					SingleWriter = true,
+					SingleReader = _options.SingleReader,
+					FullMode     = BoundedChannelFullMode.Wait
+				});
+
+			_readLoopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+			var localStdout = _stdout!;
+			var writer      = _lines.Writer;
+
+			_readLoopTask = Task.Run(
+				async () =>
+				{
+					try
 					{
-						string? line;
+						while (true)
+						{
+							string? line;
+							try
+							{
+								// StreamReader.ReadLineAsync in netstandard2.1 has no CancellationToken; disposal will unblock.
+								line = await localStdout.ReadLineAsync().ConfigureAwait(false);
+							}
+							catch (ObjectDisposedException)
+							{
+								break; // stdout disposed -> end gracefully
+							}
+
+							if (line is null) break; // EOF
+
+							if (line.Length == 0) continue; // skip empty lines
+
+							await writer.WriteAsync(line, _readLoopCts.Token).ConfigureAwait(false);
+						}
+
+						writer.TryComplete();
+					}
+					catch (OperationCanceledException)
+					{
+						writer.TryComplete();
+					}
+					catch (Exception ex)
+					{
+						Error?.Invoke(ex);
+						writer.TryComplete(ex);
+					}
+				},
+				CancellationToken.None);
+
+			if (_stderr != null)
+			{
+				var localStderr = _stderr;
+
+				_stderrLoopTask = Task.Run(
+					async () =>
+					{
 						try
 						{
-							line = await localStdout.ReadLineAsync().ConfigureAwait(false);
+							while (true)
+							{
+								string? line;
+								try
+								{
+									line = await localStderr.ReadLineAsync().ConfigureAwait(false);
+								}
+								catch (ObjectDisposedException)
+								{
+									break;
+								}
+
+								if (line is null) break;
+
+								if (line.Length == 0) continue;
+
+								try
+								{
+									StderrReceived?.Invoke(line);
+								}
+								catch
+								{
+									/* best-effort */
+								}
+							}
 						}
-						catch (ObjectDisposedException)
+						catch (Exception ex)
 						{
-							break; // stdout disposed -> end gracefully
+							Error?.Invoke(ex);
 						}
+					},
+					CancellationToken.None);
+			}
 
-						if (line is null) break; // EOF
-
-						if (line.Length == 0) continue; // skip empty lines
-
-						// Fail fast on protocol error
-						if (line.IndexOf("unknown command", StringComparison.OrdinalIgnoreCase) >= 0)
-							throw new InvalidOperationException($"Engine reported unknown command: '{line}'");
-
-						await writer.WriteAsync(line, _readLoopCts.Token).ConfigureAwait(false);
+			_exitNotifyTask = Task.Run(
+				async () =>
+				{
+					try
+					{
+						await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
+						int exitCode = process.ExitCode;
+						Exited?.Invoke(exitCode, null);
 					}
+					catch (Exception ex)
+					{
+						Error?.Invoke(ex);
+						Exited?.Invoke(null, ex.Message);
+					}
+				},
+				CancellationToken.None);
 
-					writer.TryComplete();
-				}
-				catch (OperationCanceledException)
-				{
-					// Cancellation during write/backpressure -> complete without error
-					writer.TryComplete();
-				}
-				catch (Exception ex)
-				{
-					// Propagate errors to consumers
-					writer.TryComplete(ex);
-				}
-			},
-			CancellationToken.None);
-
-		_ = Task.Run(
-			async () =>
+			IsStarted = true;
+		}
+		catch
+		{
+			// If startup fails or is cancelled, tear down any partially started resources.
+			try
 			{
-				try
-				{
-					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
-					Exited?.Invoke(process.ExitCode, null);
-				}
-				catch (Exception ex)
-				{
-					Exited?.Invoke(null, ex.Message);
-				}
-			},
-			CancellationToken.None);
+				await DisposeAsync().ConfigureAwait(false);
+			}
+			catch
+			{
+				/* ignore */
+			}
 
-
-		// Small readiness wait to ensure streams are available; optional but harmless.
-		await Task.Yield();
-		ct.ThrowIfCancellationRequested();
-		IsStarted = true;
+			throw;
+		}
 	}
 
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
@@ -185,7 +265,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (line.AsSpan().IndexOfAny('\r', '\n') >= 0)
 			throw new ArgumentException("Line must not contain CR or LF characters.", nameof(line));
 
-		// Also forbid empty/whitespace-only commands; engines often reply with "unknown command"
+		// Also forbid empty/whitespace-only commands
 		if (string.IsNullOrWhiteSpace(line))
 			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
 
@@ -211,47 +291,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var p = _process;
 		_process = null;
 
-		// Politely request engine shutdown and signal EOF
-		try
-		{
-			if (_stdin != null)
-			{
-				try
-				{
-					await _stdin.WriteLineAsync("quit").ConfigureAwait(false);
-					await _stdin.FlushAsync().ConfigureAwait(false);
-				}
-				catch
-				{
-					/* ignore */
-				}
-
-				try
-				{
-					_stdin.Close(); // signal EOF for well-behaved engines
-				}
-				catch
-				{
-					/* ignore */
-				}
-			}
-		}
-		catch
-		{
-			/* ignore */
-		}
-
-		// Give the process a brief chance to exit cleanly
-		try
-		{
-			if (p is { HasExited: false }) p.WaitForExit(500);
-		}
-		catch
-		{
-			/* ignore */
-		}
-
-		// Now cancel and await the read loop so we observe completion/errors deterministically
+		// Cancel read/stderr loops up-front
 		var cts = _readLoopCts;
 		_readLoopCts = null;
 		try
@@ -263,18 +303,60 @@ internal sealed class ProcessUciTransport : IUciTransport
 			/* ignore */
 		}
 
+		// Dispose stdout early to unblock any pending ReadLineAsync
+		try
+		{
+			_stdout?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_stdout = null;
+
+		// Politely request engine shutdown and signal EOF
+		try
+		{
+			if (_stdin != null)
+			{
+				try
+				{
+					await _stdin.WriteLineAsync("quit").ConfigureAwait(false);
+					await _stdin.FlushAsync().ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+
+				try
+				{
+					await _stdin.DisposeAsync().ConfigureAwait(false); // signals EOF
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+
+				_stdin = null;
+			}
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		// Await background loops
 		var readLoop = _readLoopTask;
 		_readLoopTask = null;
 		try
 		{
-			if (readLoop != null)
-			{
-				await readLoop.ConfigureAwait(false);
-			}
+			if (readLoop != null) await readLoop.ConfigureAwait(false);
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
 		}
 		finally
 		{
@@ -288,37 +370,39 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 		}
 
-		// Dispose stdout and stdin after read loop finishes
+		if (_stderrLoopTask != null)
+		{
+			try
+			{
+				await _stderrLoopTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+			}
+
+			_stderrLoopTask = null;
+		}
+
 		try
 		{
-			_stdout?.Dispose();
+			_stderr?.Dispose();
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
 		}
 
-		_stdout = null;
-
-		try
-		{
-			if (_stdin != null) await _stdin.DisposeAsync().ConfigureAwait(false);
-		}
-		catch
-		{
-			/* ignore */
-		}
-
-		_stdin = null;
+		_stderr = null;
 
 		// Complete channel so any consumers finish
 		try
 		{
 			_lines?.Writer.TryComplete();
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
 		}
 
 		_lines = null;
@@ -327,9 +411,30 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			_writeLock.Dispose();
 		}
-		catch
+		catch (Exception ex)
 		{
-			/* ignore */
+			Error?.Invoke(ex);
+		}
+
+		// Give the process a brief chance to exit cleanly
+		try
+		{
+			if (p is { HasExited: false })
+			{
+				using var timeoutCts = new CancellationTokenSource(_options.QuitGracePeriodMs);
+				try
+				{
+					await WaitForProcessExitAsync(p, timeoutCts.Token).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException)
+				{
+					// timed out
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
 		}
 
 		if (p is null)
@@ -341,27 +446,38 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			if (!p.HasExited)
-			{
 				// Final fallback if engine ignored quit/EOF
 				try
 				{
 					p.Kill();
 				}
-				catch
+				catch (Exception ex)
 				{
-					/* ignore */
+					Error?.Invoke(ex);
 				}
-			}
 		}
 		finally
 		{
+			// Ensure exit notification completes (reads ExitCode) before disposing the process.
+			var exitNotify = _exitNotifyTask;
+			_exitNotifyTask = null;
+			if (exitNotify != null)
+				try
+				{
+					await exitNotify.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+
 			try
 			{
 				await Task.Run(() => p.Dispose()).ConfigureAwait(false);
 			}
-			catch
+			catch (Exception ex)
 			{
-				/* ignore */
+				Error?.Invoke(ex);
 			}
 
 			IsStarted = false;
@@ -370,18 +486,25 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
-		if (process.HasExited) return Task.CompletedTask;
-
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		void Handler(object? _, EventArgs __)
+		{
+			tcs.TrySetResult(null);
+		}
 
 		process.EnableRaisingEvents =  true;
 		process.Exited              += Handler;
 
-		CancellationTokenRegistration reg = default;
-		if (ct.CanBeCanceled)
+		// If the process already exited after subscribing, complete immediately.
+		if (process.HasExited)
 		{
-			reg = ct.Register(() => tcs.TrySetCanceled(ct));
+			process.Exited -= Handler;
+			return Task.CompletedTask;
 		}
+
+		CancellationTokenRegistration reg = default;
+		if (ct.CanBeCanceled) reg         = ct.Register(() => tcs.TrySetCanceled(ct));
 
 		return tcs.Task.ContinueWith(
 			t =>
@@ -393,15 +516,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously,
 			TaskScheduler.Default).Unwrap();
-
-		void Handler(object? _, EventArgs __)
-		{
-			tcs.TrySetResult(null);
-		}
 	}
 
 	private void ThrowIfDisposed()
 	{
 		if (_disposed) throw new ObjectDisposedException(nameof(ProcessUciTransport));
 	}
+}
+
+internal sealed class ProcessUciTransportOptions
+{
+	public bool RedirectStandardError { get; init; } = true;
+
+	public bool SingleReader { get; init; } = true;
+
+	public int ChannelCapacity { get; init; } = 1024;
+
+	public int QuitGracePeriodMs { get; init; } = 500;
+
+	public string NewLine { get; init; } = "\n";
 }
