@@ -6,7 +6,7 @@ namespace Bezoro.UCI;
 
 internal interface IUciTransport : IAsyncDisposable
 {
-	IAsyncEnumerable<string> ReadLinesAsync(CancellationToken ct);
+	IAsyncEnumerable<string> ReadLinesAsync(uint timeoutSec, CancellationToken ct);
 	Task                     StartAsync(CancellationToken ct);
 	Task                     WriteLineAsync(string line, CancellationToken ct);
 

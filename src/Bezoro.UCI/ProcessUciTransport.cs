@@ -41,13 +41,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	public bool IsStarted { get; private set; }
 
-	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
+	public async IAsyncEnumerable<string> ReadLinesAsync(
+		uint timeoutSec = 0,
+		[EnumeratorCancellation] CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 
 		var reader = _lines?.Reader ?? throw new InvalidOperationException("Transport not started.");
 
-		await foreach (var line in reader.ReadAllAsync(ct).ConfigureAwait(false))
+		var token = ct;
+		if (timeoutSec > 0)
+		{
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			linkedCts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
+			token = linkedCts.Token;
+		}
+
+		await foreach (string? line in reader.ReadAllAsync(token).ConfigureAwait(false))
 		{
 			yield return line;
 		}
@@ -208,7 +218,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (_disposed) return;
 
 		_disposed = true;
-		GC.SuppressFinalize(this);
 
 		var p = _process;
 		_process = null;
@@ -241,7 +250,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_readLoopTask = null;
 		try
 		{
-			if (readLoop != null) await readLoop.ConfigureAwait(false);
+			if (readLoop != null)
+			{
+				var completed = await Task.WhenAny(readLoop, Task.Delay(500)).ConfigureAwait(false);
+				if (completed == readLoop)
+					// Observe any exceptions if it already finished.
+					await readLoop.ConfigureAwait(false);
+				// If timed out, proceed with teardown; read loop will unwind after stdout disposal/cancellation.
+			}
 		}
 		catch
 		{
