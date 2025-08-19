@@ -316,6 +316,18 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_stdout = null;
 
+		// Dispose stderr early as well to unblock any pending ReadLineAsync in the stderr loop
+		try
+		{
+			_stderr?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_stderr = null;
+
 		// Politely request engine shutdown and signal EOF
 		try
 		{
@@ -387,17 +399,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			_stderrLoopTask = null;
 		}
-
-		try
-		{
-			_stderr?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
-		_stderr = null;
 
 		// Complete channel so any consumers finish
 		try
@@ -477,7 +478,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			try
 			{
-				await Task.Run(() => p.Dispose()).ConfigureAwait(false);
+				// Disposing Process synchronously; no need to offload to thread pool.
+				p.Dispose();
 			}
 			catch (Exception ex)
 			{
@@ -512,6 +514,18 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_stdout = null;
+
+		// Dispose stderr early as well to unblock any pending ReadLineAsync in the stderr loop (failed-start cleanup)
+		try
+		{
+			_stderr?.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		_stderr = null;
 
 		if (_stdin != null)
 		{
@@ -554,17 +568,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		try
 		{
-			_stderr?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
-		_stderr = null;
-
-		try
-		{
 			_lines?.Writer.TryComplete();
 		}
 		catch (Exception ex)
@@ -603,7 +606,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 				try
 				{
-					await Task.Run(() => p.Dispose()).ConfigureAwait(false);
+					// Disposing Process synchronously; no need to offload to thread pool.
+					p.Dispose();
 				}
 				catch (Exception ex)
 				{
