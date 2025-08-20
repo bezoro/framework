@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -13,18 +14,31 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private readonly IReadOnlyList<string>?     _args;
 	private readonly ProcessUciTransportOptions _options;
 
-	private readonly SemaphoreSlim _writeLock = new(1, 1);
-
 	private readonly string  _path;
 	private readonly string? _workingDirectory;
 
-	private bool                     _disposed;
+	// 0 = false, 1 = true (cross-thread visibility)
+	private int                      _disposed;
 	private CancellationTokenSource? _readLoopCts;
+	private CancellationTokenSource? _writeLoopCts;
 
 	private Channel<string>? _lines;
+	private Channel<string>? _outgoing;
 	private int              _isStarted; // 0 = false, 1 = true (cross-thread visibility)
 	private int              _readerActive;
 	private int              _startGate; // prevents concurrent StartAsync calls
+
+	internal enum TransportStatus
+	{
+		Created  = 0,
+		Starting = 1,
+		Started  = 2,
+		Stopping = 3,
+		Stopped  = 4,
+		Disposed = 5
+	}
+
+	private int _status; // TransportStatus stored as int for interlocked/volatile
 
 	private Process?      _process;
 	private StreamReader? _stderr;
@@ -33,11 +47,24 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private Task?         _exitNotifyTask;
 	private Task?         _readLoopTask;
 	private Task?         _stderrLoopTask;
+	private Task?         _writeLoopTask;
 
+	/// <summary>
+	///     Raised when an internal error occurs.
+	///     Threading: invoked on a ThreadPool thread; exceptions thrown by handlers are swallowed.
+	/// </summary>
 	public event Action<Exception>? Error;
 
+	/// <summary>
+	///     Raised when the engine process exits.
+	///     Threading: invoked on a ThreadPool thread; exceptions thrown by handlers are swallowed.
+	/// </summary>
 	public event Action<int?, string?>? Exited;
 
+	/// <summary>
+	///     Raised when a line is received on stderr (if redirected).
+	///     Threading: invoked on a ThreadPool thread; exceptions thrown by handlers are swallowed.
+	/// </summary>
 	public event Action<string>? StderrReceived;
 
 	public ProcessUciTransport(string path, IEnumerable<string>? args = null, string? workingDirectory = null)
@@ -58,6 +85,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	public bool IsStarted => Volatile.Read(ref _isStarted) == 1;
+
+	/// <summary>
+	///     Current transport status. This reflects internal lifecycle transitions.
+	/// </summary>
+	public TransportStatus Status => (TransportStatus)Volatile.Read(ref _status);
+
+	/// <summary>
+	///     Best-effort health indicator.
+	///     True when started, the underlying process hasn't exited, and background loops are still running.
+	/// </summary>
+	public bool IsHealthy =>
+		IsStarted &&
+		_process is { HasExited: false } &&
+		(_readLoopTask is null || !_readLoopTask.IsCompleted) &&
+		(_writeLoopTask is null || !_writeLoopTask.IsCompleted);
 
 	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
 	{
@@ -83,11 +125,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		ThrowIfDisposed();
 
+		// Ensure valid state to start
+		int currentStatus = Volatile.Read(ref _status);
+		if (currentStatus is not (int)TransportStatus.Created and not (int)TransportStatus.Stopped)
+			throw new InvalidOperationException("Transport cannot be started in its current state.");
+
 		// Prevent concurrent starts
 		if (Interlocked.CompareExchange(ref _startGate, 1, 0) != 0)
 			throw new InvalidOperationException("Transport is already starting.");
 
 		if (_process != null) throw new InvalidOperationException("Transport already started.");
+
+		// Transition to Starting
+		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
+		_options.Logger?.LogInfo("Starting UCI engine process.");
 
 		var startInfo = new ProcessStartInfo
 		{
@@ -96,6 +147,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			RedirectStandardInput  = true,
 			RedirectStandardOutput = true,
 			RedirectStandardError  = _options.RedirectStandardError,
+			StandardOutputEncoding = _options.StdoutEncoding,
+			StandardErrorEncoding  = _options.StderrEncoding,
 			CreateNoWindow         = true,
 			WorkingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
 								   ? Environment.CurrentDirectory
@@ -122,14 +175,19 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			_process = process;
 
-			_stdin           = process.StandardInput;
+			// Initialize stdin with optional custom encoding
+			if (_options.StdinEncoding is null)
+				_stdin = process.StandardInput;
+			else
+				_stdin = new(process.StandardInput.BaseStream, _options.StdinEncoding);
+
 			_stdin.NewLine   = _options.NewLine;
 			_stdin.AutoFlush = true;
 
 			_stdout = process.StandardOutput;
 			_stderr = _options.RedirectStandardError ? process.StandardError : null;
 
-			// Prepare channel and background read loop
+			// Prepare incoming channel and background read loop
 			_lines = Channel.CreateBounded<string>(
 				new BoundedChannelOptions(_options.ChannelCapacity)
 				{
@@ -138,7 +196,17 @@ internal sealed class ProcessUciTransport : IUciTransport
 					FullMode     = BoundedChannelFullMode.Wait
 				});
 
-			_readLoopCts = new();
+			// Prepare outgoing channel and background write loop
+			_outgoing = Channel.CreateBounded<string>(
+				new BoundedChannelOptions(_options.ChannelCapacity)
+				{
+					SingleWriter = false, // multiple producers allowed
+					SingleReader = true,
+					FullMode     = BoundedChannelFullMode.Wait
+				});
+
+			_readLoopCts  = new();
+			_writeLoopCts = new();
 
 			var localStdout = _stdout!;
 			var writer      = _lines.Writer;
@@ -184,6 +252,41 @@ internal sealed class ProcessUciTransport : IUciTransport
 				CancellationToken.None);
 
 			Observe(_readLoopTask);
+
+			// Start background writer loop
+			var outgoingReader = _outgoing!.Reader;
+			var localStdin     = _stdin!;
+			var writeToken     = _writeLoopCts!.Token;
+
+			_writeLoopTask = Task.Run(
+				async () =>
+				{
+					try
+					{
+						await foreach (string cmd in outgoingReader.ReadAllAsync(writeToken).ConfigureAwait(false))
+						{
+							try
+							{
+								await localStdin.WriteLineAsync(cmd).ConfigureAwait(false);
+							}
+							catch (ObjectDisposedException)
+							{
+								break; // stdin disposed -> end gracefully
+							}
+						}
+					}
+					catch (OperationCanceledException)
+					{
+						// graceful cancellation
+					}
+					catch (Exception ex)
+					{
+						Error?.Invoke(ex);
+					}
+				},
+				CancellationToken.None);
+
+			Observe(_writeLoopTask);
 
 			if (_stderr != null)
 			{
@@ -237,12 +340,52 @@ internal sealed class ProcessUciTransport : IUciTransport
 					{
 						await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
 						int exitCode = process.ExitCode;
-						Exited?.Invoke(exitCode, null);
+						_options.Logger?.LogInfo($"UCI engine process exited with code {exitCode}.");
+						try
+						{
+							Exited?.Invoke(exitCode, null);
+						}
+						catch (Exception handlerEx)
+						{
+							_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
+							try
+							{
+								Error?.Invoke(handlerEx);
+							}
+							catch
+							{
+								/* swallow */
+							}
+						}
 					}
 					catch (Exception ex)
 					{
-						Error?.Invoke(ex);
-						Exited?.Invoke(null, ex.Message);
+						_options.Logger?.LogError(ex, "Error while waiting for process exit.");
+						try
+						{
+							Error?.Invoke(ex);
+						}
+						catch
+						{
+							/* swallow */
+						}
+
+						try
+						{
+							Exited?.Invoke(null, ex.Message);
+						}
+						catch (Exception handlerEx)
+						{
+							_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
+							try
+							{
+								Error?.Invoke(handlerEx);
+							}
+							catch
+							{
+								/* swallow */
+							}
+						}
 					}
 				},
 				CancellationToken.None);
@@ -250,6 +393,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Observe(_exitNotifyTask);
 
 			Volatile.Write(ref _isStarted, 1);
+			Volatile.Write(ref _status,    (int)TransportStatus.Started);
+			_options.Logger?.LogInfo($"UCI engine started. PID={process?.Id.ToString() ?? "n/a"}");
 		}
 		catch
 		{
@@ -263,6 +408,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 				Error?.Invoke(ex);
 			}
 
+			if (Volatile.Read(ref _disposed) == 0)
+				Volatile.Write(ref _status, (int)TransportStatus.Stopped);
+
+			_options.Logger?.LogError(
+				new InvalidOperationException("Engine start failed."),
+				"UCI engine failed to start.");
 			throw;
 		}
 		finally
@@ -275,7 +426,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
-		if (_stdin is null) throw new InvalidOperationException("Transport not started.");
 		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 		if (line is null) throw new ArgumentNullException(nameof(line));
 
@@ -287,24 +437,58 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (string.IsNullOrWhiteSpace(line))
 			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
 
-		await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+		var writer = _outgoing?.Writer ?? throw new InvalidOperationException("Transport not started.");
+		await writer.WriteAsync(line, ct).ConfigureAwait(false);
+	}
+
+	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
+	{
+		ThrowIfDisposed();
+		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
+		if (line is null) throw new ArgumentNullException(nameof(line));
+		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+			throw new ArgumentOutOfRangeException(nameof(timeout));
+
+		// UCI is line-oriented; ensure no CR/LF in payload
+		if (line.AsSpan().IndexOfAny('\r', '\n') >= 0)
+			throw new ArgumentException("Line must not contain CR or LF characters.", nameof(line));
+
+		// Also forbid empty/whitespace-only commands
+		if (string.IsNullOrWhiteSpace(line))
+			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
+
+		var writer = _outgoing?.Writer ?? throw new InvalidOperationException("Transport not started.");
+
+		// Fast path: try non-blocking
+		if (writer.TryWrite(line)) return true;
+
+		// Bounded wait path with timeout and cancellation
+		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
+		using var linked = timeoutCts is null
+							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
+							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 		try
 		{
-			ct.ThrowIfCancellationRequested();
-			await _stdin.WriteLineAsync(line).ConfigureAwait(false);
-			ct.ThrowIfCancellationRequested();
+			await writer.WriteAsync(line, linked.Token).ConfigureAwait(false);
+			return true;
 		}
-		finally
+		catch (OperationCanceledException)
 		{
-			_writeLock.Release();
+			// If caller requested cancellation, propagate
+			if (ct.IsCancellationRequested) throw;
+
+			// Otherwise, it was the timeout
+			return false;
 		}
 	}
 
 	public async ValueTask DisposeAsync()
 	{
-		if (_disposed) return;
+		if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-		_disposed = true;
+		// Transition to Stopping
+		Interlocked.Exchange(ref _status, (int)TransportStatus.Stopping);
+		_options.Logger?.LogInfo("Disposing UCI transport.");
 
 		var p = _process;
 		_process = null;
@@ -344,6 +528,51 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_stderr = null;
+
+		// Stop writer loop and complete outgoing channel
+		var wcts = _writeLoopCts;
+		_writeLoopCts = null;
+		try
+		{
+			wcts?.Cancel();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		try
+		{
+			_outgoing?.Writer.TryComplete();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		var writeLoop = _writeLoopTask;
+		_writeLoopTask = null;
+		try
+		{
+			if (writeLoop != null) await writeLoop.ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+		finally
+		{
+			try
+			{
+				wcts?.Dispose();
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+			}
+		}
+
+		_outgoing = null;
 
 		// Politely request engine shutdown and signal EOF
 		try
@@ -434,7 +663,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (p is { HasExited: false })
 			{
-				using var timeoutCts = new CancellationTokenSource(_options.QuitGracePeriodMs);
+				var grace = _options.QuitGracePeriod != default
+								? _options.QuitGracePeriod
+								: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
+
+				using var timeoutCts = new CancellationTokenSource(grace);
 				try
 				{
 					await WaitForProcessExitAsync(p, timeoutCts.Token).ConfigureAwait(false);
@@ -453,6 +686,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (p is null)
 		{
 			Volatile.Write(ref _isStarted, 0);
+			Volatile.Write(ref _status,    (int)TransportStatus.Disposed);
 			return;
 		}
 
@@ -464,11 +698,16 @@ internal sealed class ProcessUciTransport : IUciTransport
 				// Final fallback if engine ignored quit/EOF
 				try
 				{
+					_options.Logger?.LogInfo($"Killing UCI engine process (tree={_options.KillEntireProcessTree}).");
+#if NET5_0_OR_GREATER
+					p.Kill(_options.KillEntireProcessTree);
+#else
 					p.Kill();
+#endif
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
+					_options.Logger?.LogError(ex, "Failed to kill UCI engine process.");
 					// If Kill fails (permissions/lifecycle constraints), do not await exit notification.
 					skipAwaitExit = true;
 				}
@@ -500,6 +739,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 
 			Volatile.Write(ref _isStarted, 0);
+			Volatile.Write(ref _status,    (int)TransportStatus.Disposed);
+			_options.Logger?.LogInfo("Disposed UCI transport.");
 		}
 	}
 
@@ -545,7 +786,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 				try
 				{
 					// Surface any unobserved exceptions from background tasks
-					Error?.Invoke(t.Exception!);
+					var agg        = t.Exception!.Flatten();
+					var exToReport = agg.InnerExceptions.Count == 1 ? agg.InnerExceptions[0] : agg;
+					ReportError(exToReport, "Background task faulted.");
 				}
 				catch
 				{
@@ -593,6 +836,51 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_stderr = null;
+
+		// Stop writer loop and complete outgoing channel (failed-start cleanup)
+		var wcts = _writeLoopCts;
+		_writeLoopCts = null;
+		try
+		{
+			wcts?.Cancel();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		try
+		{
+			_outgoing?.Writer.TryComplete();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		var writeLoop = _writeLoopTask;
+		_writeLoopTask = null;
+		try
+		{
+			if (writeLoop != null) await writeLoop.ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+		finally
+		{
+			try
+			{
+				wcts?.Dispose();
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+			}
+		}
+
+		_outgoing = null;
 
 		if (_stdin != null)
 		{
@@ -652,11 +940,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				try
 				{
-					if (!p.HasExited) p.Kill();
+					if (!p.HasExited)
+					{
+						_options.Logger?.LogInfo(
+							$"Killing UCI engine process during failed start cleanup (tree={_options.KillEntireProcessTree}).");
+#if NET5_0_OR_GREATER
+						p.Kill(_options.KillEntireProcessTree);
+#else
+						p.Kill();
+#endif
+					}
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
+					_options.Logger?.LogError(ex, "Failed to kill process during failed start cleanup.");
 				}
 
 				var exitNotify = _exitNotifyTask;
@@ -688,11 +985,34 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		Volatile.Write(ref _isStarted, 0);
+		if (Volatile.Read(ref _disposed) == 0)
+			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
 
 	private void ThrowIfDisposed()
 	{
-		if (_disposed) throw new ObjectDisposedException(nameof(ProcessUciTransport));
+		if (Volatile.Read(ref _disposed) == 1) throw new ObjectDisposedException(nameof(ProcessUciTransport));
+	}
+
+	private void ReportError(Exception ex, string message)
+	{
+		try
+		{
+			_options.Logger?.LogError(ex, message);
+		}
+		catch
+		{
+			/* swallow */
+		}
+
+		try
+		{
+			Error?.Invoke(ex);
+		}
+		catch
+		{
+			/* swallow */
+		}
 	}
 }
 
@@ -708,5 +1028,21 @@ internal sealed class ProcessUciTransportOptions
 
 	public int QuitGracePeriodMs { get; init; } = 500;
 
+	// Preferred time-based grace period; when default (zero), QuitGracePeriodMs is used.
+	public TimeSpan QuitGracePeriod { get; init; } = default;
+
+	// When true (and supported by the runtime), attempts to kill the entire process tree on forced termination.
+	public bool KillEntireProcessTree { get; init; } = false;
+
 	public string NewLine { get; init; } = "\n";
+
+	// Optional encodings; when null, platform defaults are used.
+	public Encoding? StdoutEncoding { get; init; }
+
+	public Encoding? StderrEncoding { get; init; }
+
+	public Encoding? StdinEncoding { get; init; }
+
+	// Optional logger for lifecycle and error events.
+	public IUciTransportLogger? Logger { get; init; }
 }
