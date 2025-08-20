@@ -106,22 +106,6 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenCalledTwice_ThrowsInvalidOperationException()
-	{
-		string? path = TryResolveEnginePath();
-		if (path is null) return;
-
-		await using var process = new ProcessUciTransport(path);
-		await process.StartAsync();
-
-		await FluentActions.Awaiting(() => process.StartAsync())
-						   .Should()
-						   .ThrowAsync<InvalidOperationException>();
-
-		await process.DisposeAsync();
-	}
-
-	[Fact]
 	public async Task StartAsync_WhenCalledWithInvalidProcess_ThrowsException()
 	{
 		await using var process = new ProcessUciTransport("invalid/path");
