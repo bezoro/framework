@@ -89,7 +89,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_process is { HasExited: false } &&
 		(_readLoopTask is null || !_readLoopTask.IsCompleted) &&
 		(_writeLoopTask is null || !_writeLoopTask.IsCompleted) &&
-		(_stderr is null || _stderrLoopTask is null || !_stderrLoopTask.IsCompleted);
+		(_stderr is null || _stderrLoopTask is null || !_stderrLoopTask.IsCompleted) &&
+		(_exitNotifyTask is null || !_exitNotifyTask.IsCompleted);
 
 	public bool IsStarted => Volatile.Read(ref _isStarted) == 1;
 
@@ -194,12 +195,15 @@ internal sealed class ProcessUciTransport : IUciTransport
 			// Signal successful start
 			localStartTcs.TrySetResult(null);
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
-			// Signal failure to any awaiters
+			// Signal failure to any awaiters with the original exception or cancellation
 			try
 			{
-				localStartTcs.TrySetException(new InvalidOperationException("Engine start failed."));
+				if (ex is OperationCanceledException)
+					localStartTcs.TrySetCanceled(ct);
+				else
+					localStartTcs.TrySetException(ex);
 			}
 			catch
 			{
@@ -211,17 +215,15 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				await CleanupAfterFailedStartAsync().ConfigureAwait(false);
 			}
-			catch (Exception ex)
+			catch (Exception exception)
 			{
-				Error?.Invoke(ex);
+				Error?.Invoke(exception);
 			}
 
 			if (Volatile.Read(ref _disposed) == 0)
 				Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 
-			_options.Logger?.LogError(
-				new InvalidOperationException("Engine start failed."),
-				"UCI engine failed to start.");
+			_options.Logger?.LogError(ex, "UCI engine failed to start.");
 
 			throw;
 		}
@@ -328,7 +330,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ThrowIfDisposed();
 		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 		if (line is null) throw new ArgumentNullException(nameof(line));
-		if (timeout < TimeSpan.Zero || timeout == Timeout.InfiniteTimeSpan)
+		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
 
 		ValidateCommandLine(line);
