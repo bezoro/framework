@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -37,6 +38,16 @@ public class ProcessUciTransportTests
 		await using var process = new ProcessUciTransport("any/nonempty/path");
 		await process.Awaiting(p => p.DisposeAsync().AsTask()).Should().NotThrowAsync();
 		process.IsStarted.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task DisposeAsync_SetsStatusDisposed()
+	{
+		await using var process = new ProcessUciTransport("any/nonempty/path");
+
+		await process.DisposeAsync();
+
+		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
 	}
 
 	[Fact]
@@ -174,7 +185,7 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task ReadLinesAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
 	{
-		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await using var process = new ProcessUciTransport("any/nonempty/path");
 
 		var enumerator = process.ReadLinesAsync().GetAsyncEnumerator();
 
@@ -216,13 +227,21 @@ public class ProcessUciTransportTests
 		using var cts1 = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
 		var       e1   = process.ReadLinesAsync(cts1.Token).GetAsyncEnumerator();
 		// Start enumeration to acquire the single-reader gate
-		_ = e1.MoveNextAsync().AsTask();
+		var firstMoveTask = e1.MoveNextAsync().AsTask();
 
-		// Wait for cancellation to end the first enumerator and release the gate (trigger finally)
-		await Task.Delay(50);
+		// Await the first move task: it will complete (likely due to cancellation), triggering finally to release the gate
+		try
+		{
+			await firstMoveTask;
+		}
+		catch
+		{
+			// Cancellation or completion is fine
+		}
+
 		await e1.DisposeAsync();
 
-		using var cts2 = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
+		using var cts2 = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 		var       e2   = process.ReadLinesAsync(cts2.Token).GetAsyncEnumerator();
 
 		await FluentActions.Awaiting(async () => await e2.MoveNextAsync())
@@ -307,6 +326,25 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task StartAsync_WhenAlreadyStartedAndProcessAlive_ReturnsImmediately_NoStateChange()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+
+		var before = process.Status;
+		await process.StartAsync(); // should be a fast no-op
+		var after = process.Status;
+
+		before.Should().Be(ProcessUciTransport.TransportStatus.Started);
+		after.Should().Be(ProcessUciTransport.TransportStatus.Started);
+
+		await process.DisposeAsync();
+	}
+
+	[Fact]
 	public async Task StartAsync_WhenCalledWithInvalidProcess_ThrowsException()
 	{
 		await using var process = new ProcessUciTransport("invalid/path");
@@ -339,6 +377,49 @@ public class ProcessUciTransportTests
 						   .ThrowAsync<OperationCanceledException>();
 
 		process.IsStarted.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task StartAsync_WhileStopping_ThrowsInvalidOperationException()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+
+		var stoppingTask = process.StopAsync(); // begin stopping but don't await
+
+		// Wait until the status transitions to Stopping to avoid a race
+		var sw = Stopwatch.StartNew();
+		while (process.Status != ProcessUciTransport.TransportStatus.Stopping && sw.Elapsed < TimeSpan.FromSeconds(2))
+			await Task.Delay(10);
+
+		await FluentActions.Awaiting(() => process.StartAsync())
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+
+		await stoppingTask; // clean up
+	}
+
+	[Fact]
+	public async Task Status_Transitions_CreatedToStartedToStoppedToDisposed_AreObserved()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+
+		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+
+		await process.StartAsync();
+		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Started);
+
+		await process.StopAsync();
+		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+
+		await process.DisposeAsync();
+		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
 	}
 
 	[Fact]
@@ -383,11 +464,36 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task TryWriteLineAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
+	{
+		await using var process = new ProcessUciTransport("any/nonempty/path");
+
+		await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_WhenChannelReady_ReturnsTrue()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+
+		bool ok = await process.TryWriteLineAsync("uci", TimeSpan.FromSeconds(1));
+		ok.Should().BeTrue();
+
+		await process.DisposeAsync();
+	}
+
+	[Fact]
 	public async Task TryWriteLineAsync_WithNegativeNonInfiniteTimeout_ThrowsArgumentOutOfRangeException()
 	{
 		await using var process = new ProcessUciTransport("any/nonempty/path");
 
-		await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(-1)))
+		await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(-2)))
 						   .Should()
 						   .ThrowAsync<ArgumentOutOfRangeException>();
 	}
@@ -401,6 +507,21 @@ public class ProcessUciTransportTests
 		await using var process = new ProcessUciTransport(path);
 		await process.StartAsync();
 		await process.DisposeAsync();
+
+		await FluentActions.Awaiting(() => process.WriteLineAsync("uci"))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task WriteLineAsync_AfterStop_ThrowsInvalidOperationException()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+		await process.StopAsync();
 
 		await FluentActions.Awaiting(() => process.WriteLineAsync("uci"))
 						   .Should()
@@ -428,9 +549,10 @@ public class ProcessUciTransportTests
 
 		await process.WriteLineAsync("uci");
 
-		string? output = null;
+		string?   output = null;
+		using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-		await foreach (string line in process.ReadLinesAsync(CancellationToken.None))
+		await foreach (string line in process.ReadLinesAsync(cts.Token))
 		{
 			if (!string.Equals(line.Trim(), "uciok", StringComparison.OrdinalIgnoreCase)) continue;
 
@@ -444,7 +566,10 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithNewline_ThrowsArgumentException()
 	{
-		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
 		await process.StartAsync();
 
 		await FluentActions
@@ -456,7 +581,10 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithNull_ThrowsArgumentNullException()
 	{
-		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
 		await process.StartAsync();
 
 		// ReSharper disable once AssignNullToNotNullAttribute
@@ -469,7 +597,7 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithoutEngineStart_ThrowsException()
 	{
-		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		await using var process = new ProcessUciTransport("any/nonempty/path");
 
 		await FluentActions
 			  .Awaiting(() => process.WriteLineAsync("uci"))
@@ -480,7 +608,10 @@ public class ProcessUciTransportTests
 	[Fact]
 	public async Task WriteLineAsync_WhenCalledWithWhitespace_ThrowsArgumentException()
 	{
-		await using var process = new ProcessUciTransport(STOCKFISH_PATH);
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
 		await process.StartAsync();
 
 		await FluentActions
@@ -542,6 +673,21 @@ public class ProcessUciTransportTests
 	{
 		var process = new ProcessUciTransport("any/nonempty/path");
 		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+	}
+
+	[Fact]
+	public void Constructor_WithNullPath_ThrowsArgumentException()
+	{
+		// ReSharper disable once AssignNullToNotNullAttribute
+		Action act = () => _ = new ProcessUciTransport(null!);
+		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
+	public void Constructor_WithWhitespacePath_ThrowsArgumentException()
+	{
+		Action act = () => _ = new ProcessUciTransport("   ");
+		act.Should().Throw<ArgumentException>();
 	}
 
 	[Fact]
