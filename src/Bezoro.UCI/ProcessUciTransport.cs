@@ -169,29 +169,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
 		_options.Logger?.LogInfo("Starting UCI engine process.");
 
-		var startInfo = new ProcessStartInfo
-		{
-			FileName               = _path,
-			UseShellExecute        = false,
-			RedirectStandardInput  = true,
-			RedirectStandardOutput = true,
-			RedirectStandardError  = _options.RedirectStandardError,
-			StandardOutputEncoding = _options.StdoutEncoding,
-			StandardErrorEncoding  = _options.StderrEncoding,
-			CreateNoWindow         = true,
-			WorkingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
-								   ? Environment.CurrentDirectory
-								   : _workingDirectory
-		};
-
-		if (_args is { Count: > 0 })
-			// Avoid quoting issues by using ArgumentList
-			foreach (string? a in _args)
-			{
-				if (a is null) continue; // defensively skip nulls
-
-				startInfo.ArgumentList.Add(a);
-			}
+		var startInfo = CreateProcessStartInfo();
 
 		var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
@@ -204,222 +182,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			_process = process;
 
-			// Initialize stdin with optional custom encoding
-			if (_options.StdinEncoding is null)
-				_stdin = process.StandardInput;
-			else
-				_stdin = new(process.StandardInput.BaseStream, _options.StdinEncoding);
-
-			_stdin.NewLine   = _options.NewLine;
-			_stdin.AutoFlush = true;
-
-			_stdout = process.StandardOutput;
-			_stderr = _options.RedirectStandardError ? process.StandardError : null;
-
-			// Prepare incoming channel and background read loop
-			_lines = Channel.CreateBounded<string>(
-				new BoundedChannelOptions(_options.ChannelCapacity)
-				{
-					SingleWriter = true,
-					SingleReader = _options.SingleReader,
-					FullMode     = BoundedChannelFullMode.Wait
-				});
-
-			// Prepare outgoing channel and background write loop
-			_outgoing = Channel.CreateBounded<string>(
-				new BoundedChannelOptions(_options.ChannelCapacity)
-				{
-					SingleWriter = false, // multiple producers allowed
-					SingleReader = true,
-					FullMode     = BoundedChannelFullMode.Wait
-				});
-
-			_readLoopCts  = new();
-			_writeLoopCts = new();
-
-			var localStdout = _stdout!;
-			var writer      = _lines.Writer;
-			var readToken   = _readLoopCts!.Token;
-
-			_readLoopTask = Task.Run(
-				async () =>
-				{
-					try
-					{
-						while (true)
-						{
-							string? line;
-							try
-							{
-								// StreamReader.ReadLineAsync in netstandard2.1 has no CancellationToken; disposal will unblock.
-								line = await localStdout.ReadLineAsync().ConfigureAwait(false);
-							}
-							catch (ObjectDisposedException)
-							{
-								break; // stdout disposed -> end gracefully
-							}
-
-							if (line is null) break; // EOF
-
-							if (line.Length == 0) continue; // skip empty lines
-
-							await writer.WriteAsync(line, readToken).ConfigureAwait(false);
-						}
-
-						writer.TryComplete();
-					}
-					catch (OperationCanceledException)
-					{
-						writer.TryComplete();
-					}
-					catch (Exception ex)
-					{
-						Error?.Invoke(ex);
-						writer.TryComplete(ex);
-					}
-				},
-				CancellationToken.None);
-
-			Observe(_readLoopTask);
-
-			// Start background writer loop
-			var outgoingReader = _outgoing!.Reader;
-			var localStdin     = _stdin!;
-			var writeToken     = _writeLoopCts!.Token;
-
-			_writeLoopTask = Task.Run(
-				async () =>
-				{
-					try
-					{
-						await foreach (string cmd in outgoingReader.ReadAllAsync(writeToken).ConfigureAwait(false))
-						{
-							try
-							{
-								await localStdin.WriteLineAsync(cmd).ConfigureAwait(false);
-							}
-							catch (ObjectDisposedException)
-							{
-								break; // stdin disposed -> end gracefully
-							}
-						}
-					}
-					catch (OperationCanceledException)
-					{
-						// graceful cancellation
-					}
-					catch (Exception ex)
-					{
-						Error?.Invoke(ex);
-					}
-				},
-				CancellationToken.None);
-
-			Observe(_writeLoopTask);
-
-			if (_stderr != null)
-			{
-				var localStderr = _stderr;
-
-				_stderrLoopTask = Task.Run(
-					async () =>
-					{
-						try
-						{
-							while (true)
-							{
-								string? line;
-								try
-								{
-									line = await localStderr.ReadLineAsync().ConfigureAwait(false);
-								}
-								catch (ObjectDisposedException)
-								{
-									break;
-								}
-
-								if (line is null) break;
-
-								if (line.Length == 0) continue;
-
-								try
-								{
-									StderrReceived?.Invoke(line);
-								}
-								catch
-								{
-									/* best-effort */
-								}
-							}
-						}
-						catch (Exception ex)
-						{
-							Error?.Invoke(ex);
-						}
-					},
-					CancellationToken.None);
-
-				Observe(_stderrLoopTask);
-			}
-
-			_exitNotifyTask = Task.Run(
-				async () =>
-				{
-					try
-					{
-						await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
-						int exitCode = process.ExitCode;
-						_options.Logger?.LogInfo($"UCI engine process exited with code {exitCode}.");
-						try
-						{
-							Exited?.Invoke(exitCode, null);
-						}
-						catch (Exception handlerEx)
-						{
-							_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
-							try
-							{
-								Error?.Invoke(handlerEx);
-							}
-							catch
-							{
-								/* swallow */
-							}
-						}
-					}
-					catch (Exception ex)
-					{
-						_options.Logger?.LogError(ex, "Error while waiting for process exit.");
-						try
-						{
-							Error?.Invoke(ex);
-						}
-						catch
-						{
-							/* swallow */
-						}
-
-						try
-						{
-							Exited?.Invoke(null, ex.Message);
-						}
-						catch (Exception handlerEx)
-						{
-							_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
-							try
-							{
-								Error?.Invoke(handlerEx);
-							}
-							catch
-							{
-								/* swallow */
-							}
-						}
-					}
-				},
-				CancellationToken.None);
-
-			Observe(_exitNotifyTask);
+			InitializeStreams(process);
+			CreateChannels();
+			InitializeCancellationSources();
+			StartBackgroundLoops(process);
 
 			Volatile.Write(ref _isStarted, 1);
 			Volatile.Write(ref _status,    (int)TransportStatus.Started);
@@ -544,18 +310,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 		if (line is null) throw new ArgumentNullException(nameof(line));
 
-		// UCI is line-oriented; ensure no CR/LF in payload
-		if (line.AsSpan().IndexOfAny('\r', '\n') >= 0)
-			throw new ArgumentException("Line must not contain CR or LF characters.", nameof(line));
+		ValidateCommandLine(line);
 
-		// Also forbid empty/whitespace-only commands
-		if (string.IsNullOrWhiteSpace(line))
-			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
-
-		if (_outgoing is null)
-			throw new InvalidOperationException("Transport not started or already stopping/stopped.");
-
-		var writer = _outgoing.Writer;
+		var writer = GetOutgoingWriterOrThrow();
 		try
 		{
 			await writer.WriteAsync(line, ct).ConfigureAwait(false);
@@ -574,18 +331,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
 
-		// UCI is line-oriented; ensure no CR/LF in payload
-		if (line.AsSpan().IndexOfAny('\r', '\n') >= 0)
-			throw new ArgumentException("Line must not contain CR or LF characters.", nameof(line));
+		ValidateCommandLine(line);
 
-		// Also forbid empty/whitespace-only commands
-		if (string.IsNullOrWhiteSpace(line))
-			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
-
-		if (_outgoing is null)
-			throw new InvalidOperationException("Transport not started or already stopping/stopped.");
-
-		var writer = _outgoing.Writer;
+		var writer = GetOutgoingWriterOrThrow();
 
 		// Fast path: try non-blocking
 		if (writer.TryWrite(line)) return true;
@@ -709,6 +457,17 @@ internal sealed class ProcessUciTransport : IUciTransport
 			TaskScheduler.Default).Unwrap();
 	}
 
+	private static void ValidateCommandLine(string line)
+	{
+		// UCI is line-oriented; ensure no CR/LF in payload
+		if (line.AsSpan().IndexOfAny('\r', '\n') >= 0)
+			throw new ArgumentException("Line must not contain CR or LF characters.", nameof(line));
+
+		// Also forbid empty/whitespace-only commands
+		if (string.IsNullOrWhiteSpace(line))
+			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
+	}
+
 	private static void ValidateOptions(ProcessUciTransportOptions options)
 	{
 		// Channel capacity must be positive
@@ -732,6 +491,42 @@ internal sealed class ProcessUciTransport : IUciTransport
 			throw new ArgumentOutOfRangeException(
 				nameof(options.QuitGracePeriodMs),
 				"QuitGracePeriodMs cannot be negative.");
+	}
+
+	private ChannelWriter<string> GetOutgoingWriterOrThrow()
+	{
+		if (_outgoing is null)
+			throw new InvalidOperationException("Transport not started or already stopping/stopped.");
+
+		return _outgoing.Writer;
+	}
+
+	private ProcessStartInfo CreateProcessStartInfo()
+	{
+		var startInfo = new ProcessStartInfo
+		{
+			FileName               = _path,
+			UseShellExecute        = false,
+			RedirectStandardInput  = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError  = _options.RedirectStandardError,
+			StandardOutputEncoding = _options.StdoutEncoding,
+			StandardErrorEncoding  = _options.StderrEncoding,
+			CreateNoWindow         = true,
+			WorkingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
+								   ? Environment.CurrentDirectory
+								   : _workingDirectory
+		};
+
+		if (_args is { Count: > 0 })
+			foreach (string? a in _args)
+			{
+				if (a is null) continue;
+
+				startInfo.ArgumentList.Add(a);
+			}
+
+		return startInfo;
 	}
 
 	private async Task CleanupAfterFailedStartAsync()
@@ -1099,9 +894,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (p is { HasExited: false })
 			{
-				var grace = _options.QuitGracePeriod != default
-								? _options.QuitGracePeriod
-								: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
+				var grace = GetQuitGracePeriod();
 
 				using var timeoutCts = new CancellationTokenSource(grace);
 				try
@@ -1170,6 +963,50 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	private TimeSpan GetQuitGracePeriod() =>
+		_options.QuitGracePeriod != default
+			? _options.QuitGracePeriod
+			: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
+
+	private void CreateChannels()
+	{
+		_lines = Channel.CreateBounded<string>(
+			new BoundedChannelOptions(_options.ChannelCapacity)
+			{
+				SingleWriter = true,
+				SingleReader = _options.SingleReader,
+				FullMode     = BoundedChannelFullMode.Wait
+			});
+
+		_outgoing = Channel.CreateBounded<string>(
+			new BoundedChannelOptions(_options.ChannelCapacity)
+			{
+				SingleWriter = false,
+				SingleReader = true,
+				FullMode     = BoundedChannelFullMode.Wait
+			});
+	}
+
+	private void InitializeCancellationSources()
+	{
+		_readLoopCts  = new();
+		_writeLoopCts = new();
+	}
+
+	private void InitializeStreams(Process process)
+	{
+		if (_options.StdinEncoding is null)
+			_stdin = process.StandardInput;
+		else
+			_stdin = new(process.StandardInput.BaseStream, _options.StdinEncoding);
+
+		_stdin.NewLine   = _options.NewLine;
+		_stdin.AutoFlush = true;
+
+		_stdout = process.StandardOutput;
+		_stderr = _options.RedirectStandardError ? process.StandardError : null;
+	}
+
 	private void Observe(Task task)
 	{
 		task.ContinueWith(
@@ -1211,6 +1048,208 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			/* swallow */
 		}
+	}
+
+	private void StartBackgroundLoops(Process process)
+	{
+		StartReadLoop();
+		StartWriteLoop();
+		StartStderrLoopIfNeeded();
+		StartExitNotification(process);
+	}
+
+	private void StartExitNotification(Process process)
+	{
+		_exitNotifyTask = Task.Run(
+			async () =>
+			{
+				try
+				{
+					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
+					int exitCode = process.ExitCode;
+					_options.Logger?.LogInfo($"UCI engine process exited with code {exitCode}.");
+					try
+					{
+						Exited?.Invoke(exitCode, null);
+					}
+					catch (Exception handlerEx)
+					{
+						_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
+						try
+						{
+							Error?.Invoke(handlerEx);
+						}
+						catch
+						{
+							/* swallow */
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					_options.Logger?.LogError(ex, "Error while waiting for process exit.");
+					try
+					{
+						Error?.Invoke(ex);
+					}
+					catch
+					{
+						/* swallow */
+					}
+
+					try
+					{
+						Exited?.Invoke(null, ex.Message);
+					}
+					catch (Exception handlerEx)
+					{
+						_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
+						try
+						{
+							Error?.Invoke(handlerEx);
+						}
+						catch
+						{
+							/* swallow */
+						}
+					}
+				}
+			},
+			CancellationToken.None);
+
+		Observe(_exitNotifyTask);
+	}
+
+	private void StartReadLoop()
+	{
+		var localStdout = _stdout!;
+		var writer      = _lines!.Writer;
+		var readToken   = _readLoopCts!.Token;
+
+		_readLoopTask = Task.Run(
+			async () =>
+			{
+				try
+				{
+					while (true)
+					{
+						string? line;
+						try
+						{
+							// StreamReader.ReadLineAsync in netstandard2.1 has no CancellationToken; disposal will unblock.
+							line = await localStdout.ReadLineAsync().ConfigureAwait(false);
+						}
+						catch (ObjectDisposedException)
+						{
+							break; // stdout disposed -> end gracefully
+						}
+
+						if (line is null) break; // EOF
+
+						if (line.Length == 0) continue; // skip empty lines
+
+						await writer.WriteAsync(line, readToken).ConfigureAwait(false);
+					}
+
+					writer.TryComplete();
+				}
+				catch (OperationCanceledException)
+				{
+					writer.TryComplete();
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+					writer.TryComplete(ex);
+				}
+			},
+			CancellationToken.None);
+
+		Observe(_readLoopTask);
+	}
+
+	private void StartStderrLoopIfNeeded()
+	{
+		if (_stderr == null) return;
+
+		var localStderr = _stderr;
+
+		_stderrLoopTask = Task.Run(
+			async () =>
+			{
+				try
+				{
+					while (true)
+					{
+						string? line;
+						try
+						{
+							line = await localStderr.ReadLineAsync().ConfigureAwait(false);
+						}
+						catch (ObjectDisposedException)
+						{
+							break;
+						}
+
+						if (line is null) break;
+
+						if (line.Length == 0) continue;
+
+						try
+						{
+							StderrReceived?.Invoke(line);
+						}
+						catch
+						{
+							/* best-effort */
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+			},
+			CancellationToken.None);
+
+		Observe(_stderrLoopTask);
+	}
+
+	private void StartWriteLoop()
+	{
+		var outgoingReader = _outgoing!.Reader;
+		var localStdin     = _stdin!;
+		var writeToken     = _writeLoopCts!.Token;
+
+		_writeLoopTask = Task.Run(
+			async () =>
+			{
+				try
+				{
+					await foreach (string cmd in outgoingReader.ReadAllAsync(writeToken).ConfigureAwait(false))
+					{
+						try
+						{
+							await localStdin.WriteLineAsync(cmd).ConfigureAwait(false);
+						}
+						catch (ObjectDisposedException)
+						{
+							break; // stdin disposed -> end gracefully
+						}
+					}
+				}
+				catch (OperationCanceledException)
+				{
+					// graceful cancellation
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
+			},
+			CancellationToken.None);
+
+		Observe(_writeLoopTask);
 	}
 
 	private void ThrowIfDisposed()
