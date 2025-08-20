@@ -328,7 +328,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ThrowIfDisposed();
 		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 		if (line is null) throw new ArgumentNullException(nameof(line));
-		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+		if (timeout < TimeSpan.Zero || timeout == Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
 
 		ValidateCommandLine(line);
