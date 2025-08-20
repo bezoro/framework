@@ -85,7 +85,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		IsStarted &&
 		_process is { HasExited: false } &&
 		(_readLoopTask is null || !_readLoopTask.IsCompleted) &&
-		(_writeLoopTask is null || !_writeLoopTask.IsCompleted);
+		(_writeLoopTask is null || !_writeLoopTask.IsCompleted) &&
+		(_stderr is null || _stderrLoopTask is null || !_stderrLoopTask.IsCompleted);
 
 	public bool IsStarted => Volatile.Read(ref _isStarted) == 1;
 
@@ -703,7 +704,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
 
 		var writer = _outgoing?.Writer ?? throw new InvalidOperationException("Transport not started.");
-		await writer.WriteAsync(line, ct).ConfigureAwait(false);
+		try
+		{
+			await writer.WriteAsync(line, ct).ConfigureAwait(false);
+		}
+		catch (ChannelClosedException)
+		{
+			throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
+		}
 	}
 
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
@@ -745,6 +753,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			// Otherwise, it was the timeout
 			return false;
+		}
+		catch (ChannelClosedException)
+		{
+			throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
 		}
 	}
 
@@ -1010,6 +1022,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	public void Dispose()
+	{
+		DisposeAsync().AsTask().GetAwaiter().GetResult();
+	}
+
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1019,13 +1036,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 			tcs.TrySetResult(null);
 		}
 
-		if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
-		process.Exited += Handler;
-
-		// If the process already exited after subscribing, complete immediately.
-		if (process.HasExited)
+		try
 		{
-			process.Exited -= Handler;
+			if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
+			process.Exited += Handler;
+
+			// If the process already exited after subscribing, complete immediately.
+			if (process.HasExited)
+			{
+				process.Exited -= Handler;
+				return Task.CompletedTask;
+			}
+		}
+		catch (ObjectDisposedException)
+		{
+			// If the Process is already disposed, consider it "exited" for our purposes.
 			return Task.CompletedTask;
 		}
 
@@ -1035,7 +1060,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		return tcs.Task.ContinueWith(
 			t =>
 			{
-				process.Exited -= Handler;
+				try
+				{
+					process.Exited -= Handler;
+				}
+				catch
+				{
+					/* best-effort */
+				}
 				reg.Dispose();
 				return t;
 			},

@@ -8,7 +8,7 @@ namespace Bezoro.UCI;
 ///     Abstraction for UCI engine transport.
 ///     Threading: unless otherwise noted, callbacks and events are invoked on ThreadPool threads.
 /// </summary>
-internal interface IUciTransport : IAsyncDisposable
+internal interface IUciTransport : IAsyncDisposable, IDisposable
 {
 	/// <summary>
 	///     Best-effort health indicator.
