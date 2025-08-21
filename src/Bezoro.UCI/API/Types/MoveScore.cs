@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -65,4 +66,17 @@ public readonly record struct MoveScore()
 
 	public static MoveScore FromCp(int   cp)   => new(cp, null);
 	public static MoveScore FromMate(int mate) => new(null, mate);
+
+	/// <summary>
+	///     Builds a MoveScore from a SearchResult returned by the engine.
+	///     Prefers mate scores when present, otherwise falls back to centipawns.
+	/// </summary>
+	public static MoveScore FromSearchResult(SearchResult result)
+	{
+		if (result.HasMate && result.MateScore.HasValue)
+			return FromMate(result.MateScore.Value);
+
+		int? cp = result.BestCpScore ?? result.PrincipalVariations.FirstOrDefault().ScoreCp;
+		return cp.HasValue ? FromCp(cp.Value) : default;
+	}
 }
