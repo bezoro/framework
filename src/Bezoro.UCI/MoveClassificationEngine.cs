@@ -25,6 +25,7 @@ internal sealed class MoveClassificationEngine(
 		[EnumeratorCancellation] CancellationToken ct            = default)
 	{
 		// Fetch legal moves using the quick engine
+		await _quick.SetPositionAsync(fen, null, ct);
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
 		// Build a small pool of UCI clients for parallel scoring
@@ -67,8 +68,6 @@ internal sealed class MoveClassificationEngine(
 
 							try
 							{
-								var analysis = await MoveAnalysis.AnalyzeAsync(move, board).ConfigureAwait(false);
-
 								await client.SetPositionAsync(fen, new[] { move }, throttledCts.Token)
 											.ConfigureAwait(false);
 
@@ -76,6 +75,25 @@ internal sealed class MoveClassificationEngine(
 														 .ConfigureAwait(false);
 
 								var score = ScoreFromResult(result);
+
+								// Ask the engine for legal replies in the resulting position
+								var legalNext = await client.GetLegalMovesViaGoPerft1Async(throttledCts.Token)
+															.ConfigureAwait(false);
+
+								// First pass: compute check information (without claiming stalemate yet)
+								var provisional = MoveAnalysis.Analyze(move, board, score, false);
+
+								bool noMoves     = legalNext.Count == 0;
+								bool isCheckNow  = provisional.IsCheck;
+								bool isMate      = noMoves && isCheckNow;
+								bool isStalemate = noMoves && !isCheckNow;
+
+								// Normalize score for terminal checkmate so downstream logic can infer IsMate reliably.
+								if (isMate && (!score.ScoreMate.HasValue || score.ScoreMate.Value != 0))
+									score = MoveScore.FromMate(0);
+
+								// Final analysis with correct stalemate flag
+								var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
 
 								return (move, analysis, score);
 							}
