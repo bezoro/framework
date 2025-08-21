@@ -8,32 +8,21 @@ using Bezoro.UCI.API.Types;
 
 namespace Bezoro.UCI;
 
-internal sealed class MoveClassificationEngine : IAsyncDisposable
+internal sealed class MoveClassificationEngine(
+	string               enginePath,
+	IEnumerable<string>? args             = null,
+	string?              workingDirectory = null
+) : IAsyncDisposable
 {
-	private readonly IEnumerable<string>? _args;
-
-	private readonly QuickInfoEngine _quick;
-	private readonly string          _enginePath;
-	private readonly string?         _workingDirectory;
-
-	public MoveClassificationEngine(
-		string enginePath,
-		IEnumerable<string>? args = null,
-		string? workingDirectory = null)
-	{
-		_enginePath       = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
-		_args             = args;
-		_workingDirectory = workingDirectory;
-
-		_quick = new(enginePath, args, workingDirectory);
-	}
+	private readonly QuickInfoEngine _quick      = new(enginePath, args, workingDirectory);
+	private readonly string          _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
 
 	public async IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyAsync(
-		Fen fen,
-		BoardState board,
-		int perMoveDepth = 6,
-		int maxConcurrent = 2,
-		[EnumeratorCancellation] CancellationToken ct = default)
+		Fen                                        fen,
+		BoardState                                 board,
+		int                                        perMoveDepth  = 6,
+		int                                        maxConcurrent = 2,
+		[EnumeratorCancellation] CancellationToken ct            = default)
 	{
 		// Fetch legal moves using the quick engine
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
@@ -50,14 +39,14 @@ internal sealed class MoveClassificationEngine : IAsyncDisposable
 		{
 			for (var i = 0; i < maxConcurrent; i++)
 			{
-				var transport = new ProcessUciTransport(_enginePath, _args, _workingDirectory);
+				var transport = new ProcessUciTransport(_enginePath, args, workingDirectory);
 				var client    = new UciEngineClient(transport);
 				await client.StartAsync(ct).ConfigureAwait(false);
 				clients.Add(client);
 				await pool.Writer.WriteAsync(client, ct).ConfigureAwait(false);
 			}
 
-			using var throttledCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			var throttledCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
 			var tasks = new List<Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?>>(legalMoves.Count);
 			foreach (string? move in legalMoves)
