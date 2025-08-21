@@ -50,70 +50,70 @@ internal sealed class MoveClassificationEngine(
 			var throttledCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
 			var tasks = new List<Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?>>(legalMoves.Count);
+
+			// Local worker that classifies a single move without an extra per-move perft call.
+			async Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?> ProcessOneAsync(string move)
+			{
+				UciEngineClient client;
+				try
+				{
+					client = await pool.Reader.ReadAsync(throttledCts.Token).ConfigureAwait(false);
+				}
+				catch
+				{
+					return null;
+				}
+
+				try
+				{
+					await client.SetPositionAsync(fen, new[] { move }, throttledCts.Token)
+								.ConfigureAwait(false);
+
+					var result = await client.GoAsync(new() { Depth = perMoveDepth }, throttledCts.Token)
+											 .ConfigureAwait(false);
+
+					var score = ScoreFromResult(result);
+
+					// Detect terminal positions via bestmove (none) after our move.
+					bool noMoves = string.Equals(result.BestMove, "(none)", StringComparison.OrdinalIgnoreCase);
+
+					// If terminal and engine indicates mate (commonly <= 0 from the side to move),
+					// normalize to mate -1 so MoveAnalysis flags mate/check reliably.
+					bool engineThinksMate = score.ScoreMate.HasValue
+												? score.ScoreMate.Value <= 0
+												: result.HasMate;
+
+					bool isMate      = noMoves && engineThinksMate;
+					bool isStalemate = noMoves && !engineThinksMate;
+
+					if (isMate && (!score.ScoreMate.HasValue || score.ScoreMate.Value != -1))
+						score = MoveScore.FromMate(-1);
+
+					var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
+
+					return (move, analysis, score);
+				}
+				catch
+				{
+					return null;
+				}
+				finally
+				{
+					try
+					{
+						await pool.Writer.WriteAsync(client, throttledCts.Token).ConfigureAwait(false);
+					}
+					catch
+					{
+						/* best-effort */
+					}
+				}
+			}
+
 			foreach (string? move in legalMoves)
 			{
-				tasks.Add(
-					Task.Run<(string Move, MoveAnalysis Analysis, MoveScore Score)?>(
-						async () =>
-						{
-							UciEngineClient client;
-							try
-							{
-								client = await pool.Reader.ReadAsync(throttledCts.Token).ConfigureAwait(false);
-							}
-							catch
-							{
-								return null;
-							}
-
-							try
-							{
-								await client.SetPositionAsync(fen, new[] { move }, throttledCts.Token)
-											.ConfigureAwait(false);
-
-								var result = await client.GoAsync(new() { Depth = perMoveDepth }, throttledCts.Token)
-														 .ConfigureAwait(false);
-
-								var score = ScoreFromResult(result);
-
-								// Ask the engine for legal replies in the resulting position
-								var legalNext = await client.GetLegalMovesViaGoPerft1Async(throttledCts.Token)
-															.ConfigureAwait(false);
-
-								// First pass: compute check information (without claiming stalemate yet)
-								var provisional = MoveAnalysis.Analyze(move, board, score, false);
-
-								bool noMoves     = legalNext.Count == 0;
-								bool isCheckNow  = provisional.IsCheck;
-								bool isMate      = noMoves && isCheckNow;
-								bool isStalemate = noMoves && !isCheckNow;
-
-								// Normalize score for terminal checkmate so downstream logic can infer IsMate reliably.
-								if (isMate && (!score.ScoreMate.HasValue || score.ScoreMate.Value != 0))
-									score = MoveScore.FromMate(0);
-
-								// Final analysis with correct stalemate flag
-								var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
-
-								return (move, analysis, score);
-							}
-							catch
-							{
-								return null;
-							}
-							finally
-							{
-								try
-								{
-									await pool.Writer.WriteAsync(client, throttledCts.Token).ConfigureAwait(false);
-								}
-								catch
-								{
-									/* best-effort */
-								}
-							}
-						},
-						throttledCts.Token));
+				// Avoid Task.Run to reduce scheduling overhead; the async method creates the Task directly.
+				tasks.Add(ProcessOneAsync(move));
 			}
 
 			while (tasks.Count > 0)
