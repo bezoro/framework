@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
@@ -14,160 +13,122 @@ internal sealed class MoveClassificationEngine(
 	string?              workingDirectory = null
 ) : IAsyncDisposable
 {
-	private readonly QuickInfoEngine _quick      = new(enginePath, args, workingDirectory);
-	private readonly string          _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
+	private readonly IEnumerable<string>? _args = args;
+
+	private readonly QuickInfoEngine _quick = new(enginePath, args, workingDirectory);
+
+	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
+
+	private ProcessUciTransport? _transport;
+	private UciEngineClient?     _client;
 
 	public async IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyAsync(
 		Fen                                        fen,
 		BoardState                                 board,
-		int                                        perMoveDepth  = 6,
-		int                                        maxConcurrent = 2,
-		[EnumeratorCancellation] CancellationToken ct            = default)
+		int                                        perMoveDepth = 6,
+		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
 		// Fetch legal moves using the quick engine
 		await _quick.SetPositionAsync(fen, null, ct);
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
-		// Build a small pool of UCI clients for parallel scoring
-		maxConcurrent = Math.Max(1, maxConcurrent);
-		var pool = Channel.CreateBounded<UciEngineClient>(
-			new BoundedChannelOptions(maxConcurrent)
-				{ SingleReader = false, SingleWriter = false, FullMode = BoundedChannelFullMode.Wait });
-
-		var clients = new List<UciEngineClient>(maxConcurrent);
-
-		try
+		foreach (string? move in legalMoves)
 		{
-			for (var i = 0; i < maxConcurrent; i++)
+			if (move is null) continue;
+
+			(string Move, MoveAnalysis Analysis, MoveScore Score)? resultTuple = null;
+
+			try
 			{
-				var transport = new ProcessUciTransport(_enginePath, args, workingDirectory);
-				var client    = new UciEngineClient(transport);
-				await client.StartAsync(ct).ConfigureAwait(false);
-				clients.Add(client);
-				await pool.Writer.WriteAsync(client, ct).ConfigureAwait(false);
+				await _client!.SetPositionAsync(fen, [move], ct)
+							  .ConfigureAwait(false);
+
+				var result = await _client.GoAsync(new() { Depth = perMoveDepth }, ct)
+										  .ConfigureAwait(false);
+
+				var score = ScoreFromResult(result);
+
+				// Detect terminal positions via bestmove (none) after our move.
+				bool noMoves = string.Equals(result.BestMove, "(none)", StringComparison.OrdinalIgnoreCase);
+
+				// If terminal and engine indicates mate (commonly <= 0 from the side to move),
+				// normalize to mate -1 so MoveAnalysis flags mate/check reliably.
+				bool engineThinksMate = score.ScoreMate.HasValue
+											? score.ScoreMate.Value <= 0
+											: result.HasMate;
+
+				bool isMate      = noMoves && engineThinksMate;
+				bool isStalemate = noMoves && !engineThinksMate;
+
+				if (isMate && score.ScoreMate is not -1)
+					score = MoveScore.FromMate(-1);
+
+				var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
+
+				resultTuple = (move, analysis, score);
+			}
+			catch
+			{
+				/* best-effort: skip move on error */
 			}
 
-			var throttledCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-
-			var tasks = new List<Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?>>(legalMoves.Count);
-
-			// Local worker that classifies a single move without an extra per-move perft call.
-			async Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?> ProcessOneAsync(string move)
-			{
-				UciEngineClient client;
-				try
-				{
-					client = await pool.Reader.ReadAsync(throttledCts.Token).ConfigureAwait(false);
-				}
-				catch
-				{
-					return null;
-				}
-
-				try
-				{
-					await client.SetPositionAsync(fen, new[] { move }, throttledCts.Token)
-								.ConfigureAwait(false);
-
-					var result = await client.GoAsync(new() { Depth = perMoveDepth }, throttledCts.Token)
-											 .ConfigureAwait(false);
-
-					var score = ScoreFromResult(result);
-
-					// Detect terminal positions via bestmove (none) after our move.
-					bool noMoves = string.Equals(result.BestMove, "(none)", StringComparison.OrdinalIgnoreCase);
-
-					// If terminal and engine indicates mate (commonly <= 0 from the side to move),
-					// normalize to mate -1 so MoveAnalysis flags mate/check reliably.
-					bool engineThinksMate = score.ScoreMate.HasValue
-												? score.ScoreMate.Value <= 0
-												: result.HasMate;
-
-					bool isMate      = noMoves && engineThinksMate;
-					bool isStalemate = noMoves && !engineThinksMate;
-
-					if (isMate && (!score.ScoreMate.HasValue || score.ScoreMate.Value != -1))
-						score = MoveScore.FromMate(-1);
-
-					var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
-
-					return (move, analysis, score);
-				}
-				catch
-				{
-					return null;
-				}
-				finally
-				{
-					try
-					{
-						await pool.Writer.WriteAsync(client, throttledCts.Token).ConfigureAwait(false);
-					}
-					catch
-					{
-						/* best-effort */
-					}
-				}
-			}
-
-			foreach (string? move in legalMoves)
-			{
-				// Avoid Task.Run to reduce scheduling overhead; the async method creates the Task directly.
-				tasks.Add(ProcessOneAsync(move));
-			}
-
-			while (tasks.Count > 0)
-			{
-				var finished = await Task.WhenAny(tasks).ConfigureAwait(false);
-				tasks.Remove(finished);
-				var tuple = await finished.ConfigureAwait(false);
-				if (tuple.HasValue) yield return tuple.Value;
-			}
-		}
-		finally
-		{
-			// Tear down client pool
-			foreach (var c in clients)
-			{
-				try
-				{
-					await c.StopAsync(CancellationToken.None).ConfigureAwait(false);
-				}
-				catch
-				{
-					/* best-effort */
-				}
-
-				try
-				{
-					await c.DisposeAsync();
-				}
-				catch
-				{
-					/* best-effort */
-				}
-			}
+			if (resultTuple.HasValue)
+				yield return resultTuple.Value;
 		}
 	}
 
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		await _quick.StartAsync(ct).ConfigureAwait(false);
+
+		_transport = new(_enginePath, _args, workingDirectory);
+		_client    = new(_transport);
+		await _client.StartAsync(ct).ConfigureAwait(false);
+		await _client.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
+		await _client.SetOptionAsync("MultiPv", "3", ct).ConfigureAwait(false);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		await _quick.StopAsync(ct).ConfigureAwait(false);
+
+		if (_client is { })
+		{
+			try
+			{
+				await _client.StopAsync(ct).ConfigureAwait(false);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+		}
 	}
 
 	public async ValueTask DisposeAsync()
 	{
 		await _quick.DisposeAsync();
+
+		if (_client is { })
+		{
+			try
+			{
+				await _client.DisposeAsync();
+			}
+			catch
+			{
+				/* best-effort */
+			}
+
+			_client = null;
+		}
+
+		_transport = null;
 	}
 
 	private static MoveScore ScoreFromResult(SearchResult result)
 	{
-		if (result.HasMate && result.MateScore.HasValue)
+		if (result is { HasMate: true, MateScore: { } })
 			return MoveScore.FromMate(result.MateScore.Value);
 
 		int? cp = result.BestCpScore ?? result.PrincipalVariations.FirstOrDefault().ScoreCp;
