@@ -5,7 +5,7 @@ using Bezoro.UCI.API.Types;
 
 namespace Bezoro.UCI;
 
-internal sealed class PonderEngine : IAsyncDisposable
+internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 {
 	private readonly UciEngineClient _client;
 
@@ -21,6 +21,13 @@ internal sealed class PonderEngine : IAsyncDisposable
 		_client.BestMoveReceived += (b, p) => BestMove?.Invoke(b, p);
 	}
 
+	public bool IsHealthy => _client.IsHealthy;
+	public bool IsStarted => _client.IsStarted;
+
+	public EngineActivity Activity => _client.Activity;
+
+	public ProcessUciTransport.TransportStatus Status => _client.Status;
+
 	public Task StartAsync(CancellationToken ct = default) => _client.StartAsync(ct);
 
 	public async Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default)
@@ -33,4 +40,9 @@ internal sealed class PonderEngine : IAsyncDisposable
 
 	public Task      StopPonderAsync(CancellationToken ct = default) => _client.StopSearchAsync(ct);
 	public ValueTask DisposeAsync()                                  => _client.DisposeAsync();
+
+	public void Dispose()
+	{
+		DisposeAsync().AsTask().GetAwaiter().GetResult();
+	}
 }
