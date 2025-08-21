@@ -20,9 +20,7 @@ public class BoardStateIntegrationTests
 	[Fact]
 	public void FromFen_WhenValidFen_ShouldReturnValidObject()
 	{
-		var defaultFen = Fen.Default();
-
-		var board = BoardState.FromFen(defaultFen);
+		var board = BoardState.FromFen(Fen.Default);
 
 		board.Should().NotBeNull();
 	}

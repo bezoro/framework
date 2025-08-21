@@ -30,6 +30,8 @@ public readonly record struct Fen
 		Raw             = raw;
 	}
 
+	public static Fen Default => Parse(UciConstants.STANDARD_FEN)!.Value;
+
 	public char     ActiveColor     { get; }
 	public int      FullmoveNumber  { get; }
 	public int      HalfmoveClock   { get; }
@@ -80,8 +82,6 @@ public readonly record struct Fen
 
 		return true;
 	}
-
-	public static Fen Default() => Parse(UciConstants.STANDARD_FEN)!.Value;
 
 	public static Fen Empty() => new();
 
