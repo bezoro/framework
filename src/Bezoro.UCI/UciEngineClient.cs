@@ -20,13 +20,16 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	private readonly IUciTransport _transport;
 
 	private CancellationTokenSource? _cts;
-	private Task?                    _readerTask;
 
-	public event Action<string, string>? BestMoveReceived;
+	// Engine activity state: 0 = Idle, 1 = Searching, 2 = Pondering
+	private int _activity;
 
-	public event Action<PrincipalVariation>? InfoPvReceived;
+	private Task? _readerTask;
 
-	public event Action<string>? LineReceived;
+	public event Action<EngineActivity, EngineActivity>? ActivityChanged;
+	public event Action<string, string>?                 BestMoveReceived;
+	public event Action<PrincipalVariation>?             InfoPvReceived;
+	public event Action<string>?                         LineReceived;
 
 	public UciEngineClient(IUciTransport transport)
 	{
@@ -34,8 +37,9 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	}
 
 	public bool IsHealthy => _transport.IsHealthy;
-
 	public bool IsStarted => _transport.IsStarted;
+
+	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
 
 	public ProcessUciTransport.TransportStatus Status => _transport.Status;
 
@@ -43,6 +47,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	{
 		string cmd = BuildGoCommand(parameters);
 		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+		SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
 	}
 
 	public async Task IsReadyAsync(CancellationToken ct)
@@ -79,6 +84,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		_readerTask = Task.Run(ReadLoopAsync);
 
 		await UciInitAsync(ct).ConfigureAwait(false);
+		SetActivity(EngineActivity.Idle);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
@@ -104,14 +110,14 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		}
 
 		await _transport.StopAsync(ct).ConfigureAwait(false);
+		SetActivity(EngineActivity.Idle);
 	}
 
 	public async Task StopSearchAsync(CancellationToken ct)
 	{
 		await _transport.WriteLineAsync("stop", ct).ConfigureAwait(false);
+		SetActivity(EngineActivity.Idle);
 	}
-
-	// High-level UCI operations
 
 	public async Task UciInitAsync(CancellationToken ct)
 	{
@@ -207,6 +213,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		try
 		{
 			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+			SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
 			string? bestLine = await WaitForLineAsync(
 								   l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
 								   TimeSpan.FromMinutes(5),
@@ -261,8 +268,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		return string.Join(' ', parts);
 	}
 
-	// Internals
-
 	private async Task ReadLoopAsync()
 	{
 		var token = _cts?.Token ?? CancellationToken.None;
@@ -284,6 +289,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 						string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 						string    best   = tokens.Length > 1 ? tokens[1] : string.Empty;
 						string    ponder = tokens.Length > 3 && tokens[2] == "ponder" ? tokens[3] : string.Empty;
+						SetActivity(EngineActivity.Idle);
 						BestMoveReceived?.Invoke(best, ponder);
 					}
 
@@ -325,6 +331,9 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			if (_waiters.TryRemove(kv.Key, out var w))
 				w.tcs.TrySetCanceled();
 		}
+
+		// Ensure we are not stuck in a non-idle state if the read loop ends
+		SetActivity(EngineActivity.Idle);
 	}
 
 	private async Task<string> WaitForLineAsync(Func<string, bool> predicate, TimeSpan timeout, CancellationToken ct)
@@ -349,4 +358,26 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			_waiters.TryRemove(id, out _);
 		}
 	}
+
+	private void SetActivity(EngineActivity next)
+	{
+		var previous = (EngineActivity)Interlocked.Exchange(ref _activity, (int)next);
+		if (previous == next) return;
+
+		try
+		{
+			ActivityChanged?.Invoke(previous, next);
+		}
+		catch
+		{
+			/* swallow */
+		}
+	}
+}
+
+public enum EngineActivity
+{
+	Idle      = 0,
+	Searching = 1,
+	Pondering = 2
 }
