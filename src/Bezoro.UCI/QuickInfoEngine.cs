@@ -16,13 +16,14 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	}
 
 	public bool IsHealthy => _client.IsHealthy;
-
 	public bool IsStarted => _client.IsStarted;
+
+	public EngineActivity Activity => _client.Activity;
 
 	public ProcessUciTransport.TransportStatus Status => _client.Status;
 
 	public Task StartAsync(CancellationToken ct = default) => _client.StartAsync(ct);
-	public Task StopAsync(CancellationToken ct = default)  => _client.StopAsync(ct);
+	public Task StopAsync(CancellationToken  ct = default) => _client.StopAsync(ct);
 
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
 		_client.GetFenViaDAsync(ct);
