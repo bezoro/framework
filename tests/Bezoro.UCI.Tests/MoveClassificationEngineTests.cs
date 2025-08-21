@@ -37,12 +37,14 @@ public class MoveClassificationEngineTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var stream = engine.ClassifyAsync(fen.Value, board, 6, 2);
+		var stream = engine.ClassifyAsync(fen.Value, board);
 
 		var found = false;
 		await foreach (var item in stream)
+		{
 			if (item.Analysis.IsCheck && item.Analysis.IsMate)
 				found = true;
+		}
 
 		found.Should().BeTrue();
 	}
@@ -62,8 +64,10 @@ public class MoveClassificationEngineTests
 
 		var found = false;
 		await foreach (var item in stream)
+		{
 			if (item.Analysis.IsStalemate)
 				found = true;
+		}
 
 		found.Should().BeTrue("expected move b7b6 to be legal and classified for the given FEN");
 	}
