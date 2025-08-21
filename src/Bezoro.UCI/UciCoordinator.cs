@@ -26,12 +26,12 @@ internal sealed class UciCoordinator : IAsyncDisposable
 	}
 
 	public IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyMovesAsync(
-		Fen fen,
-		BoardState board,
-		int perMoveDepth = 6,
-		int maxConcurrent = 2,
-		CancellationToken ct = default)
-		=> _classifier.ClassifyAsync(fen, board, perMoveDepth, maxConcurrent, ct);
+		Fen               fen,
+		BoardState        board,
+		int               perMoveDepth  = 6,
+		int               maxConcurrent = 2,
+		CancellationToken ct            = default)
+		=> _classifier.ClassifyAsync(fen, board, perMoveDepth, ct);
 
 	public async Task StartAsync(CancellationToken ct = default)
 	{
@@ -59,10 +59,10 @@ internal sealed class UciCoordinator : IAsyncDisposable
 
 	// Position update: stop ponder, then restart ponder on the new position.
 	public async Task UpdatePositionAsync(
-		Fen fen,
+		Fen                  fen,
 		IEnumerable<string>? playedMoves,
-		BoardState board,
-		CancellationToken ct = default)
+		BoardState           board,
+		CancellationToken    ct = default)
 	{
 		await _ponder.StopPonderAsync(ct).ConfigureAwait(false);
 		_ = _ponder.StartPonderAsync(fen, playedMoves, ct);
