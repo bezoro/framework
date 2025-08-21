@@ -28,6 +28,10 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
 		_client.GetFenViaDAsync(ct);
 
+
+	public Task SetPositionAsync(Fen fen, IEnumerable<string>? moves = null, CancellationToken ct = default) =>
+		_client.SetPositionAsync(fen, moves, ct);
+
 	public Task<IReadOnlyList<string>> GetLegalMovesAsync(CancellationToken ct = default) =>
 		_client.GetLegalMovesViaGoPerft1Async(ct);
 
