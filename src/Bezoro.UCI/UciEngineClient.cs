@@ -347,7 +347,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
 							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-		using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
+		await using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
 
 		try
 		{
