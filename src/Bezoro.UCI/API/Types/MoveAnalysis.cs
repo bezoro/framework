@@ -1,8 +1,5 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.API.Common.Enums;
-using Bezoro.UCI.Domain;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -12,32 +9,29 @@ namespace Bezoro.UCI.API.Types;
 /// </summary>
 public readonly record struct MoveAnalysis
 {
-	public bool IsCapture   { get; private init; }
-	public bool IsCastling  { get; private init; }
-	public bool IsCheck     { get; private init; }
-	public bool IsEnPassant { get; private init; }
-	public bool IsMate      { get; private init; }
-	public bool IsNormal    { get; private init; }
-	public bool IsPromotion { get; private init; }
-	public bool IsStalemate { get; private init; }
-	public int? CpScore     { get; private init; }
-	public int? MateScore   { get; private init; }
+	public bool      IsCapture   { get; private init; }
+	public bool      IsCastling  { get; private init; }
+	public bool      IsCheck     { get; private init; }
+	public bool      IsEnPassant { get; private init; }
+	public bool      IsMate      { get; private init; }
+	public bool      IsNormal    { get; private init; }
+	public bool      IsPromotion { get; private init; }
+	public bool      IsStalemate { get; private init; }
+	public MoveScore Score       { get; private init; }
 
 
 	/// <summary>
-	///     Async factory: computes move characteristics and, if needed, awaits engine evaluation.
-	///     This is the single entry point to create a populated MoveAnalysis.
+	///     Synchronous analyzer used when an engine-derived score is available.
+	///     Computes structural move characteristics and sets mate/check from the score.
 	/// </summary>
-	internal static async Task<MoveAnalysis> AnalyzeAsync(string moveNotation, BoardState boardState, UciEngine engine)
+	internal static MoveAnalysis Analyze(string moveNotation, BoardState boardState, MoveScore score, bool isStalemate)
 	{
 		moveNotation.ThrowIfNull();
 		boardState.ThrowIfNull();
-		engine.ThrowIfNull();
 
 		var parsedMove = ParsedMove.FromNotation(moveNotation);
 
 		boardState.TryGetPieceAt(parsedMove.From, out var movingPiece);
-
 		bool isCaptureOnToSquare = boardState.TryGetPieceAt(parsedMove.To, out var targetPiece) && targetPiece.HasValue;
 
 		bool isCapture   = false,
@@ -64,14 +58,14 @@ public readonly record struct MoveAnalysis
 
 		isNormal = !isCapture && !isCastling && !isEnpassant && !isPromotion;
 
-		var score = engine.TryGetMoveScoreFromHistory(parsedMove.Notation) ??
-					await engine.CalculateScoreForMoveAsync(parsedMove.Notation, CancellationToken.None)
-								.ConfigureAwait(false);
-
+		// Derive mate/check from the engine score:
+		// In UCI, a negative mate score from the side to move indicates that side is getting mated.
+		// After our move, opponent is to move; mate in 1 for us is therefore -1.
 		if (score.ScoreMate.HasValue)
-			isCheck = score.ScoreMate.Value == 0;
-
-		bool isStalemante = await engine.WouldMoveLeadToStalemateAsync(parsedMove.Notation);
+		{
+			isMate  = score.ScoreMate.Value == -1;
+			isCheck = isMate || false; // If we mated, it's necessarily also a check.
+		}
 
 		return new()
 		{
@@ -82,12 +76,10 @@ public readonly record struct MoveAnalysis
 			IsMate      = isMate,
 			IsNormal    = isNormal,
 			IsPromotion = isPromotion,
-			IsStalemate = isStalemante,
-			CpScore     = score.ScoreCp,
-			MateScore   = score.ScoreMate
+			IsStalemate = isStalemate,
+			Score       = score
 		};
 	}
-
 
 	private static bool CheckIsCastling(ParsedMove move, BoardState boardState)
 	{
@@ -116,9 +108,9 @@ public readonly record struct MoveAnalysis
 		movingPiece.ThrowIfNull();
 		boardState.ThrowIfNull();
 
-		return char.ToLower(movingPiece.Char) == 'p'        &&
-			   move.From[0]                   != move.To[0] &&
-			   !isCapture                                   &&
+		return char.ToLower(movingPiece.Char) == 'p' &&
+			   move.From[0] != move.To[0] &&
+			   !isCapture &&
 			   move.To.Equals(boardState.Fen.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
 	}
 
