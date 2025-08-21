@@ -94,6 +94,7 @@ public class QuickInfoEngineTests
 	public async Task StopAsync_WhenCalled_StopsEngine()
 	{
 		await using var engine = new QuickInfoEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
 
 		await engine.StopAsync();
 
