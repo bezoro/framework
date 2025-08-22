@@ -28,7 +28,7 @@ internal sealed class UciCoordinator : IAsyncDisposable
 	public IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyMovesAsync(
 		Fen               fen,
 		BoardState        board,
-		int               perMoveDepth  = 6,
+		uint              perMoveDepth  = 6,
 		int               maxConcurrent = 2,
 		CancellationToken ct            = default)
 		=> _classifier.ClassifyAsync(fen, board, perMoveDepth, ct);

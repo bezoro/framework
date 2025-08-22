@@ -35,7 +35,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public Task<IReadOnlyList<string>> GetLegalMovesAsync(CancellationToken ct = default) =>
 		_client.GetLegalMovesViaGoPerft1Async(ct);
 
-	public async Task<SearchResult> QuickEvalAsync(Fen fen, int depth = 6, CancellationToken ct = default)
+	public async Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default)
 	{
 		await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 		return await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);

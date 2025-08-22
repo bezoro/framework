@@ -233,7 +233,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			{
 				// conservative upper bound for depth-limited searches
 				// (engines typically return much sooner)
-				int sec = Math.Clamp(d * 2, 10, 90);
+				int sec = Math.Clamp((int)d * 2, 10, 90);
 				return TimeSpan.FromSeconds(sec);
 			}
 

@@ -47,7 +47,7 @@ internal static class GoCommandHelper
 			UciConstants.BLACK_TIME_INCREMENT_PARAMETER,
 			parameters.BlackIncrementMs);
 
-		AppendOptionalParameter(commandBuilder, UciConstants.DEPTH_PARAMETER,        parameters.Depth);
+		AppendOptionalParameter(commandBuilder, UciConstants.DEPTH_PARAMETER,        (int)parameters.Depth!);
 		AppendOptionalParameter(commandBuilder, UciConstants.NODES_SEARCH_PARAMETER, (int?)parameters.Nodes);
 		AppendOptionalParameter(commandBuilder, UciConstants.MATE_SEARCH_PARAMETER,  parameters.Mate);
 		AppendOptionalParameter(commandBuilder, UciConstants.MOVE_TIME_PARAMETER,    parameters.MoveTimeMs);

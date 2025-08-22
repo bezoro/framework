@@ -12,14 +12,15 @@ public class UciEngineClientTests
 	[Fact]
 	public async Task GoAsync_WithDepth_SearchesWithExpectedDepth()
 	{
-		var transport = new ProcessUciTransport(STOCKFISH_PATH);
-		var engine    = new UciEngineClient(transport);
+		uint expectedDepth = 6;
+		var  transport     = new ProcessUciTransport(STOCKFISH_PATH);
+		var  engine        = new UciEngineClient(transport);
 		await engine.StartAsync();
 
-		var searchResult = await engine.GoAsync(new() { Depth = 6 }, CancellationToken.None);
+		var searchResult = await engine.GoAsync(new() { Depth = expectedDepth }, CancellationToken.None);
 
 		searchResult.Should().NotBeNull();
-		searchResult.ReachedDepth.Should().Be(6);
+		searchResult.ReachedDepth.Should().Be(expectedDepth);
 	}
 
 	[Fact]

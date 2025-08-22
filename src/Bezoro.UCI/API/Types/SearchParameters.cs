@@ -21,7 +21,7 @@ namespace Bezoro.UCI.API.Types
 		public int? BlackTimeMs { get; init; }
 
 		/// <summary> Search only to a specific depth. </summary>
-		public int? Depth { get; init; }
+		public uint? Depth { get; init; }
 
 		/// <summary> Search for a mate in a specific number of moves. </summary>
 		public int? Mate { get; init; }

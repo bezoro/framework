@@ -25,7 +25,7 @@ internal sealed class MoveClassificationEngine(
 	public async IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyAsync(
 		Fen                                        fen,
 		BoardState                                 board,
-		int                                        perMoveDepth = 6,
+		uint                                       perMoveDepth = 6,
 		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
 		// Fetch legal moves using the quick engine
