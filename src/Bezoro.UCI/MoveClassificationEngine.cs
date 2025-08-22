@@ -40,21 +40,29 @@ internal sealed class MoveClassificationEngine(
 
 			try
 			{
-				await _client!.SetPositionAsync(fen, [move], ct)
-							  .ConfigureAwait(false);
-
-				var result = await _client.GoAsync(new() { Depth = perMoveDepth }, ct)
+				await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+				// Restrict search to the specific move using UCI searchmoves
+				var result = await _client.GoAsync(new() { Depth = perMoveDepth, SearchMoves = [move] }, ct)
 										  .ConfigureAwait(false);
 
 				var score = ScoreFromResult(result);
+				// Determine terminal positions (mate/stalemate) by checking opponent replies after our move.
+				var noMoves = false;
+				try
+				{
+					await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+					var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+					noMoves = replies is null || replies.Count == 0;
+				}
+				catch
+				{
+					// best-effort: if quick check fails, fall back to score-based inference only
+				}
 
-				// Detect terminal positions via bestmove (none) after our move.
-				bool noMoves = string.Equals(result.BestMove, "(none)", StringComparison.OrdinalIgnoreCase);
-
-				// If terminal and engine indicates mate (commonly <= 0 from the side to move),
+				// If terminal and engine indicates mate,
 				// normalize to mate -1 so MoveAnalysis flags mate/check reliably.
 				bool engineThinksMate = score.ScoreMate.HasValue
-											? score.ScoreMate.Value <= 0
+											? score.ScoreMate.Value != 0
 											: result.HasMate;
 
 				bool isMate      = noMoves && engineThinksMate;
