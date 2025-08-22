@@ -17,15 +17,18 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	private readonly ConcurrentDictionary<Guid, (Func<string, bool> predicate, TaskCompletionSource<string> tcs)>
 		_waiters = new();
 
-	// Fast-path waiter count to avoid per-line scans when there are no waiters.
-	private int _waiterCount;
-
 	private readonly IUciTransport _transport;
 
 	private CancellationTokenSource? _cts;
 
 	// Engine activity state: 0 = Idle, 1 = Searching, 2 = Pondering
 	private int _activity;
+
+	// Fast-path waiter count to avoid per-line scans when there are no waiters.
+	private int _waiterCount;
+
+	// Single active session is sufficient because UCI engines handle one search at a time.
+	private volatile SearchSession? _activeSearch;
 
 	private Task? _readerTask;
 
@@ -45,23 +48,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
 
 	public ProcessUciTransport.TransportStatus Status => _transport.Status;
-
-	// Session optimized path for search: avoids per-line predicate scans and event subscriptions.
-	private sealed class SearchSession
-	{
-		public readonly ConcurrentQueue<string> Lines = new();
-		public readonly TaskCompletionSource<string> BestMoveTcs =
-			new(TaskCreationOptions.RunContinuationsAsynchronously);
-		public readonly bool Ponder;
-
-		public SearchSession(bool ponder)
-		{
-			Ponder = ponder;
-		}
-	}
-
-	// Single active session is sufficient because UCI engines handle one search at a time.
-	private volatile SearchSession? _activeSearch;
 
 	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
 	{
@@ -176,10 +162,8 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		LineReceived += CaptureMoves;
 		try
 		{
-
-				await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
-				await IsReadyAsync(ct).ConfigureAwait(false);
-
+			await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
+			await IsReadyAsync(ct).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -336,6 +320,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 					bestLine = session.Lines.FirstOrDefault(l => l.StartsWith(
 																"bestmove ",
 																StringComparison.OrdinalIgnoreCase));
+
 					if (bestLine is null) throw;
 				}
 			}
@@ -359,6 +344,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
 	}
+
 	public async ValueTask DisposeAsync()
 	{
 		try
@@ -373,7 +359,29 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		if (_transport is IAsyncDisposable ad) await ad.DisposeAsync();
 	}
 
-	private static string BuildGoCommand(SearchParameters parameters)
+	internal static bool IsUciMoveString(string s)
+	{
+		// Fast ASCII validation: [a-h][1-8][a-h][1-8][qrbn]?
+		if (s is null) return false;
+
+		var span = s.AsSpan();
+		if ((uint)span.Length - 4 > 1) return false;
+
+		static bool IsFile(char c) => (uint)((c | 0x20) - 'a') <= 7;
+		static bool IsRank(char c) => (uint)(c - '1') <= 7;
+
+		static bool IsPromo(char c)
+		{
+			int lc = c | 0x20;
+			return lc is 'q' or 'r' or 'b' or 'n';
+		}
+
+		if (!IsFile(span[0]) || !IsRank(span[1]) || !IsFile(span[2]) || !IsRank(span[3])) return false;
+
+		return span.Length == 4 || IsPromo(span[4]);
+	}
+
+	internal static string BuildGoCommand(SearchParameters parameters)
 	{
 		var parts = new List<string> { "go" };
 
@@ -402,10 +410,19 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 		if (parameters.SearchMoves is { } sm)
 		{
-			var legal = sm.Where(s => UciMoveRegex.IsMatch(s))
-						  .Select(s => s.ToLowerInvariant());
+			List<string>? legal = null;
+			foreach (string? s in sm)
+			{
+				if (string.IsNullOrEmpty(s)) continue;
 
-			if (legal.Any()) parts.Add("searchmoves " + string.Join(' ', legal));
+				if (IsUciMoveString(s))
+				{
+					legal ??= new();
+					legal.Add(s.ToLowerInvariant());
+				}
+			}
+
+			if (legal is { Count: > 0 }) parts.Add("searchmoves " + string.Join(' ', legal));
 		}
 
 		return string.Join(' ', parts);
@@ -437,9 +454,41 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 					if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
 					{
-						string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-						string    best   = tokens.Length > 1 ? tokens[1] : string.Empty;
-						string    ponder = tokens.Length > 3 && tokens[2] == "ponder" ? tokens[3] : string.Empty;
+						// Zero-allocation parse of "bestmove <move> [ponder <move>]"
+						string best   = string.Empty;
+						string ponder = string.Empty;
+
+						var s = line.AsSpan(9); // after "bestmove "
+						var i = 0;
+
+						// skip spaces, then read best move
+						while (i < s.Length && s[i] == ' ') i++;
+						int start = i;
+						while (i < s.Length && s[i] != ' ') i++;
+						if (i > start)
+							best = new(s.Slice(start, i - start));
+
+						// parse optional "ponder <move>"
+						while (i < s.Length && s[i] == ' ') i++;
+						if (i + 6 <= s.Length)
+						{
+							var rem = s.Slice(i);
+							if (rem.Length >= 6 &&
+								(rem[0] | 0x20) == 'p' &&
+								(rem[1] | 0x20) == 'o' &&
+								(rem[2] | 0x20) == 'n' &&
+								(rem[3] | 0x20) == 'd' &&
+								(rem[4] | 0x20) == 'e' &&
+								(rem[5] | 0x20) == 'r')
+							{
+								i += 6;
+								while (i < s.Length && s[i] == ' ') i++;
+								int pstart = i;
+								while (i < s.Length && s[i] != ' ') i++;
+								if (i > pstart)
+									ponder = new(s.Slice(pstart, i - pstart));
+							}
+						}
 
 						// Capture in active session before notifying
 						if (sess is { })
@@ -456,7 +505,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 					// Existing generic waiters (control messages like 'uciok', 'readyok')
 					if (Volatile.Read(ref _waiterCount) != 0)
-					{
 						foreach (var kv in _waiters)
 						{
 							var w = kv.Value;
@@ -478,7 +526,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 									removed.tcs.TrySetResult(line);
 								}
 						}
-					}
 				}
 				catch
 				{
@@ -515,6 +562,17 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 		if (_waiters.TryAdd(id, (predicate, tcs))) Interlocked.Increment(ref _waiterCount);
 
+		// Fast path: no timeout and caller token cannot cancel -> avoid extra CTS/registration allocations.
+		if (timeout == Timeout.InfiniteTimeSpan && !ct.CanBeCanceled)
+			try
+			{
+				return await tcs.Task.ConfigureAwait(false);
+			}
+			finally
+			{
+				if (_waiters.TryRemove(id, out _)) Interlocked.Decrement(ref _waiterCount);
+			}
+
 		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
 		using var linked = timeoutCts is null
 							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
@@ -544,6 +602,20 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		catch
 		{
 			/* swallow */
+		}
+	}
+
+	// Session optimized path for search: avoids per-line predicate scans and event subscriptions.
+	private sealed class SearchSession
+	{
+		public readonly bool                    Ponder;
+		public readonly ConcurrentQueue<string> Lines = new();
+		public readonly TaskCompletionSource<string> BestMoveTcs =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public SearchSession(bool ponder)
+		{
+			Ponder = ponder;
 		}
 	}
 }
