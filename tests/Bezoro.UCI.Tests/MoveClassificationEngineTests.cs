@@ -12,18 +12,26 @@ public class MoveClassificationEngineTests
 	[Fact]
 	public async Task ClassifyAsync_WhenCalled_ReturnsClassifiedMovesStream()
 	{
+		var fen   = Fen.Default;
+		var board = BoardState.FromFen(fen)!.Value;
+
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var moveStream = engine.ClassifyAsync(Fen.Default, BoardState.FromFen(Fen.Default)!.Value);
+		var moveStream = engine.ClassifyAsync(fen, board);
 
 		moveStream.Should().NotBeNull();
+		var moveCount = 0;
 		await foreach (var move in moveStream)
 		{
-			move.Analysis.Should().NotBeNull();
+			move.Should().NotBeNull();
 			move.Move.Should().NotBeNull();
+			move.Analysis.Should().NotBeNull();
 			move.Score.Should().NotBeNull();
+			moveCount++;
 		}
+
+		moveCount.Should().Be(20);
 	}
 
 	[Fact]
@@ -69,6 +77,6 @@ public class MoveClassificationEngineTests
 				found = true;
 		}
 
-		found.Should().BeTrue("expected move b7b6 to be legal and classified for the given FEN");
+		found.Should().BeTrue();
 	}
 }
