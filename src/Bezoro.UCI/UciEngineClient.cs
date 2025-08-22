@@ -170,132 +170,42 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task<IReadOnlyList<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
 	{
-		var results      = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		var movesDoneTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		// Debounce completion after last move burst.
-		CancellationTokenSource? debounce     = null;
-		var                      moveCount    = 0;
-		var                      fallbackSent = 0;
-		object                   gate         = new();
-
-		void ArmDebounce()
-		{
-			var old = Interlocked.Exchange(ref debounce, new());
-			try
-			{
-				old?.Cancel();
-			}
-			catch
-			{
-				/* best-effort */
-			}
-			finally
-			{
-				old?.Dispose();
-			}
-
-			var local = debounce!;
-			_ = Task.Run(async () =>
-			{
-				try
-				{
-					// Complete shortly after last move line; keeps latency low without fixed waits.
-					await Task.Delay(100, local.Token).ConfigureAwait(false);
-					movesDoneTcs.TrySetResult(true);
-				}
-				catch (OperationCanceledException)
-				{
-					// Debounce reset, ignore.
-				}
-				catch
-				{
-					// Keep silent; completion will be guarded elsewhere.
-				}
-			});
-		}
+		// Collect moves while the engine processes the command; completion is gated by readyok.
+		var results = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
 
 		void CaptureMoves(string l)
 		{
-			var anyNew = false;
-
 			foreach (string token in l.Split(
 						 new[] { ' ', '\t', ',', ';', '|', ':' },
 						 StringSplitOptions.RemoveEmptyEntries))
 			{
 				if (UciMoveRegex.IsMatch(token))
 				{
-					lock (gate)
-					{
-						if (results.Add(token.ToLowerInvariant()))
-						{
-							moveCount++;
-							anyNew = true;
-						}
-					}
+					results.TryAdd(token.ToLowerInvariant(), 0);
 				}
-			}
-
-			if (anyNew)
-			{
-				ArmDebounce();
 			}
 		}
 
 		LineReceived += CaptureMoves;
 		try
 		{
+			// Fast path: some engines support "goperft 1"
 			await _transport.WriteLineAsync("goperft 1", ct).ConfigureAwait(false);
+			await IsReadyAsync(ct).ConfigureAwait(false);
 
-			// If nothing appears quickly, fall back to the more standard "go perft 1".
-			_ = Task.Run(async () =>
+			// Fallback to "go perft 1" if nothing was produced
+			if (results.Count == 0 && !ct.IsCancellationRequested)
 			{
-				try
-				{
-					await Task.Delay(120, ct).ConfigureAwait(false);
-					if (Interlocked.CompareExchange(ref fallbackSent, 1, 0) == 0 &&
-						Volatile.Read(ref moveCount) == 0 &&
-						!ct.IsCancellationRequested)
-						await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
-				}
-				catch
-				{
-					// Best-effort fallback.
-				}
-			});
-
-			// Wait until we see moves and the output goes quiet briefly,
-			// or until a small overall cap elapses to avoid hanging.
-			var overallCap = Task.Delay(500, ct);
-			var completed  = await Task.WhenAny(movesDoneTcs.Task, overallCap).ConfigureAwait(false);
-			if (completed != movesDoneTcs.Task)
-			{
-				// Timed out waiting for quiet period; proceed with whatever we have.
+				await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
+				await IsReadyAsync(ct).ConfigureAwait(false);
 			}
 		}
 		finally
 		{
 			LineReceived -= CaptureMoves;
-
-			var d = Interlocked.Exchange(ref debounce, null);
-			try
-			{
-				d?.Cancel();
-			}
-			catch
-			{
-				/* ignore */
-			}
-			finally
-			{
-				d?.Dispose();
-			}
 		}
 
-		lock (gate)
-		{
-			return results.ToList();
-		}
+		return results.Keys.ToList();
 	}
 
 	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
