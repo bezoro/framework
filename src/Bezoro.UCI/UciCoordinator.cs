@@ -11,8 +11,7 @@ internal sealed class UciCoordinator : IAsyncDisposable
 	private readonly PonderEngine             _ponder;
 	private readonly QuickInfoEngine          _quick;
 
-	public event Action<string, string>? PonderBestMove;
-
+	public event Action<string, string>?     PonderBestMove;
 	public event Action<PrincipalVariation>? PonderInfo;
 
 	public UciCoordinator(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
@@ -28,9 +27,8 @@ internal sealed class UciCoordinator : IAsyncDisposable
 	public IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyMovesAsync(
 		Fen               fen,
 		BoardState        board,
-		uint              perMoveDepth  = 6,
-		int               maxConcurrent = 2,
-		CancellationToken ct            = default)
+		uint              perMoveDepth = 6,
+		CancellationToken ct           = default)
 		=> _classifier.ClassifyAsync(fen, board, perMoveDepth, ct);
 
 	public async Task StartAsync(CancellationToken ct = default)
