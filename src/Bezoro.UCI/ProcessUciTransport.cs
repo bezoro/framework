@@ -97,8 +97,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <summary>
 	///     Current transport status. This reflects internal lifecycle transitions.
 	/// </summary>
+
 	public TransportStatus Status => (TransportStatus)Volatile.Read(ref _status);
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -119,6 +121,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -235,6 +238,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -306,15 +310,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
 		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 		if (line is null) throw new ArgumentNullException(nameof(line));
 
-		ValidateCommandLine(line);
+		if (_options.ValidateCommands)
+			ValidateCommandLine(line);
+
+		ct.ThrowIfCancellationRequested();
 
 		var writer = GetOutgoingWriterOrThrow();
+
+		// Fast path: try non-blocking write to avoid async state machines on the hot path.
+		if (writer.TryWrite(line)) return;
+
 		try
 		{
 			await writer.WriteAsync(line, ct).ConfigureAwait(false);
@@ -325,6 +337,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -333,7 +346,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
 
-		ValidateCommandLine(line);
+		if (_options.ValidateCommands)
+			ValidateCommandLine(line);
 
 		var writer = GetOutgoingWriterOrThrow();
 
@@ -365,6 +379,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async ValueTask DisposeAsync()
 	{
 		if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -379,11 +394,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 			"Disposed UCI transport.").ConfigureAwait(false);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Dispose()
 	{
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static async Task AwaitWithCancellation(Task task, CancellationToken ct)
 	{
 		if (!ct.CanBeCanceled)
@@ -409,6 +426,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await task.ConfigureAwait(false);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -459,6 +477,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			TaskScheduler.Default).Unwrap();
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ValidateCommandLine(string line)
 	{
 		// UCI is line-oriented; ensure no CR/LF in payload
@@ -470,6 +489,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			throw new ArgumentException("Command line must not be empty or whitespace.", nameof(line));
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ValidateOptions(ProcessUciTransportOptions options)
 	{
 		// Channel capacity must be positive
@@ -495,6 +515,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				"QuitGracePeriodMs cannot be negative.");
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ChannelWriter<string> GetOutgoingWriterOrThrow()
 	{
 		if (_outgoing is null)
@@ -503,6 +524,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		return _outgoing.Writer;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ProcessStartInfo CreateProcessStartInfo()
 	{
 		var startInfo = new ProcessStartInfo
@@ -531,6 +553,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		return startInfo;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private async Task CleanupAfterFailedStartAsync()
 	{
 		// Do not set _disposed here; keep the transport reusable.
@@ -720,6 +743,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private async Task TearDownCoreAsync(bool sendQuit, TransportStatus finalStatus, string finalLog)
 	{
 		var p = _process;
@@ -975,11 +999,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private TimeSpan GetQuitGracePeriod() =>
 		_options.QuitGracePeriod != default
 			? _options.QuitGracePeriod
 			: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void CreateChannels()
 	{
 		_lines = Channel.CreateBounded<string>(
@@ -999,12 +1025,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 			});
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void InitializeCancellationSources()
 	{
 		_readLoopCts  = new();
 		_writeLoopCts = new();
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void InitializeStreams(Process process)
 	{
 		var stdinEncoding  = _options.StdinEncoding ?? process.StandardInput.Encoding;
@@ -1038,6 +1066,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					  : null;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void Observe(Task task)
 	{
 		task.ContinueWith(
@@ -1060,6 +1089,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			TaskScheduler.Default);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ReportError(Exception ex, string message)
 	{
 		try
@@ -1081,6 +1111,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartBackgroundLoops(Process process)
 	{
 		StartReadLoop();
@@ -1089,6 +1120,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		StartExitNotification(process);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartExitNotification(Process process)
 	{
 		_exitNotifyTask = Task.Run(
@@ -1151,6 +1183,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_exitNotifyTask);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartReadLoop()
 	{
 		var localStdout = _stdout!;
@@ -1219,6 +1252,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_readLoopTask);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartStderrLoopIfNeeded()
 	{
 		if (_stderr == null) return;
@@ -1268,6 +1302,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_stderrLoopTask);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartWriteLoop()
 	{
 		var outgoingReader = _outgoing!.Reader;
@@ -1316,6 +1351,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_writeLoopTask);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ThrowIfDisposed()
 	{
 		if (Volatile.Read(ref _disposed) == 1) throw new ObjectDisposedException(nameof(ProcessUciTransport));
@@ -1344,6 +1380,9 @@ internal sealed class ProcessUciTransportOptions
 	public bool SendQuitOnStop { get; init; } = true;
 
 	public bool SingleReader { get; init; } = true;
+
+	// When false, skip command validation for maximum throughput on hot paths (WriteLine/TryWriteLine).
+	public bool ValidateCommands { get; init; } = true;
 
 	public Encoding? StderrEncoding { get; init; }
 
