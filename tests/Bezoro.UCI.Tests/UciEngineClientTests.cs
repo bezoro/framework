@@ -10,6 +10,61 @@ public class UciEngineClientTests
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 
 	[Fact]
+	public async Task BestMoveReceived_Fires_And_Provides_BestMove()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+
+		string?   best   = null;
+		string?   ponder = null;
+		using var _      = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+		var evt = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.BestMoveReceived += (b, p) =>
+		{
+			best   = b;
+			ponder = p;
+			evt.TrySetResult(true);
+		};
+
+		var _result = await engine.GoAsync(new() { Depth = 6 }, CancellationToken.None);
+		await evt.Task; // ensure event fired
+
+		best.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(best!).Should().BeTrue();
+		if (!string.IsNullOrWhiteSpace(ponder))
+			UciEngineClient.IsUciMoveString(ponder!).Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task GetLegalMovesViaGoPerft1Async_ContainsCommonOpeners()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+
+		legalMoves.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
+	}
+
+	[Fact]
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ReturnsLegalMoves()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+
+		legalMoves.Should().NotBeNull();
+	}
+
+	[Fact]
 	public async Task GoAsync_WithDepth_SearchesWithExpectedDepth()
 	{
 		uint expectedDepth = 6;
@@ -38,15 +93,32 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ReturnsLegalMoves()
+	public void BuildGoCommand_SearchMoves_FiltersAndLowercases()
 	{
-		var transport = new ProcessUciTransport(STOCKFISH_PATH);
-		var engine    = new UciEngineClient(transport);
-		await engine.StartAsync();
-		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+		string cmd = UciEngineClient.BuildGoCommand(
+			new()
+			{
+				SearchMoves = new[] { "A2A4", "h7h8Q", "z9z9", "", "   ", "B1C3" }
+			});
 
-		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		cmd.Should().Contain("searchmoves a2a4 h7h8q b1c3");
+		cmd.Should().NotContain("z9z9");
+	}
 
-		legalMoves.Should().NotBeNull();
+	[Fact]
+	public void IsUciMoveString_ValidAndInvalid()
+	{
+		// Valid basic moves
+		UciEngineClient.IsUciMoveString("e2e4").Should().BeTrue();
+		UciEngineClient.IsUciMoveString("a7a8q").Should().BeTrue();
+		UciEngineClient.IsUciMoveString("H7H8Q").Should().BeTrue();
+		UciEngineClient.IsUciMoveString("b1c3").Should().BeTrue();
+
+		// Invalid shapes
+		UciEngineClient.IsUciMoveString("e9e1").Should().BeFalse();
+		UciEngineClient.IsUciMoveString("i2e4").Should().BeFalse();
+		UciEngineClient.IsUciMoveString("e2e").Should().BeFalse();
+		UciEngineClient.IsUciMoveString("e2e4qq").Should().BeFalse();
+		UciEngineClient.IsUciMoveString("e2e4x").Should().BeFalse();
 	}
 }
