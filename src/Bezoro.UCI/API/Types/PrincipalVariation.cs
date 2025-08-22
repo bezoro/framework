@@ -35,10 +35,13 @@ public readonly record struct PrincipalVariation(
 		pv = default;
 
 		if (!line.StartsWith("info ", StringComparison.OrdinalIgnoreCase)) return false;
-		if (!line.Contains("pv ")) return false;
+
+		// Ensure a standalone 'pv' token exists (avoid matching 'multipv')
+		string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+		if (!tokens.Contains("pv")) return false;
 
 		pv = ParseSearchLineTokens(line);
-		return pv.Moves.Count != 0;
+		return pv.Moves is { Count: > 0 };
 	}
 
 	private static PrincipalVariation ParseSearchLineTokens(string line)
