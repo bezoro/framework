@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 namespace Bezoro.UCI.Tests;
 
 [TestSubject(typeof(QuickInfoEngine))]
+[Trait("Category", "Integration")]
 public class QuickInfoEngineTests
 {
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";

@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 namespace Bezoro.UCI.Tests;
 
 [TestSubject(typeof(PonderEngine))]
+[Trait("Category", "Integration")]
 public class PonderEngineTests
 {
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";

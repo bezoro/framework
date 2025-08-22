@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 namespace Bezoro.UCI.Tests;
 
 [TestSubject(typeof(UciEngineClient))]
+[Trait("Category", "Integration")]
 public class UciEngineClientTests
 {
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
@@ -93,6 +94,7 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
+	[Trait("Category", "Unit")]
 	public void BuildGoCommand_SearchMoves_FiltersAndLowercases()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(
@@ -106,6 +108,7 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
+	[Trait("Category", "Unit")]
 	public void IsUciMoveString_ValidAndInvalid()
 	{
 		// Valid basic moves
