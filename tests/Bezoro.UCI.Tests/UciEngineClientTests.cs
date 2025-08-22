@@ -36,4 +36,17 @@ public class UciEngineClientTests
 		searchResult.Should().NotBeNull();
 		searchResult.PrincipalVariations.Count.Should().BeGreaterThan(0);
 	}
+
+	[Fact]
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ReturnsLegalMoves()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+
+		legalMoves.Should().NotBeNull();
+	}
 }
