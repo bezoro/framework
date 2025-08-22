@@ -199,36 +199,116 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
 	{
-		string cmd   = BuildGoCommand(parameters);
-		var    lines = new List<string>(64);
+		string cmd = BuildGoCommand(parameters);
+
+		// Thread-safe collection for lines arriving from the background reader
+		var lines = new ConcurrentQueue<string>();
 
 		void Capture(string l)
 		{
 			if (l.StartsWith("info ",     StringComparison.OrdinalIgnoreCase) ||
 				l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
-				lines.Add(l);
+			{
+				lines.Enqueue(l);
+			}
 		}
+
+		// Derive a more sensible timeout:
+		// - movetime: movetime + small buffer
+		// - depth/nodes: longer ceiling
+		// - infinite: generous cap (but still cancellable via ct)
+		// - default: moderate timeout
+		static TimeSpan ComputeTimeout(SearchParameters p)
+		{
+			if (p.MoveTimeMs is { } mt)
+			{
+				// add a small buffer to allow the engine to flush "bestmove"
+				int buffered = Math.Clamp(mt + 750, 500, 60_000);
+				return TimeSpan.FromMilliseconds(buffered);
+			}
+
+			if (p.Infinite) return TimeSpan.FromSeconds(120);
+
+			if (p.Depth is { } d)
+			{
+				// conservative upper bound for depth-limited searches
+				// (engines typically return much sooner)
+				int sec = Math.Clamp(d * 2, 10, 90);
+				return TimeSpan.FromSeconds(sec);
+			}
+
+			if (p.Nodes is { })
+				// node-limited: allow a reasonably long cap
+				return TimeSpan.FromSeconds(60);
+
+			// time-controls (wtime/btime) or unspecified: moderate default
+			return TimeSpan.FromSeconds(30);
+		}
+
+		var bestLineTask = WaitForLineAsync(
+			l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
+			ComputeTimeout(parameters),
+			ct);
 
 		LineReceived += Capture;
 		try
 		{
 			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
 			SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-			string? bestLine = await WaitForLineAsync(
-								   l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
-								   TimeSpan.FromMinutes(5),
-								   ct).ConfigureAwait(false);
 
-			if (!lines.Contains(bestLine)) lines.Add(bestLine);
+			string? bestLine = null;
+			try
+			{
+				bestLine = await bestLineTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+			{
+				// Timeout path only (NOT caller cancellation).
+				// Try to stop the search and wait briefly for bestmove to arrive.
+				try
+				{
+					await _transport.WriteLineAsync("stop", CancellationToken.None).ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort */
+				}
 
-			return SearchResult.TryParse(lines, out var result) ? result : default;
+				try
+				{
+					bestLine = await WaitForLineAsync(
+									   l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
+									   TimeSpan.FromSeconds(2),
+									   CancellationToken.None)
+								   .ConfigureAwait(false);
+				}
+				catch
+				{
+					// Still no bestmove; if we captured one already, use it.
+					bestLine = lines.FirstOrDefault(l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase));
+					if (bestLine is null) throw;
+				}
+			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested)
+			{
+				// Respect caller cancellation.
+				throw;
+			}
+
+			// Ensure bestmove line is in the captured buffer
+			if (bestLine is { }) lines.Enqueue(bestLine);
+
+			// Flip to Idle regardless (read loop will also do so on bestmove)
+			SetActivity(EngineActivity.Idle);
+
+			var snapshot = lines.ToList();
+			return SearchResult.TryParse(snapshot, out var result) ? result : default;
 		}
 		finally
 		{
 			LineReceived -= Capture;
 		}
 	}
-
 	public async ValueTask DisposeAsync()
 	{
 		try
@@ -249,21 +329,34 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 		if (parameters.Ponder) parts.Add("ponder");
 		if (parameters.Infinite) parts.Add("infinite");
-
-		if (parameters.SearchMoves is { } sm)
-		{
-			var legal = sm.Where(s => UciMoveRegex.IsMatch(s));
-			if (legal.Any()) parts.Add("searchmoves " + string.Join(' ', legal));
-		}
-
-		if (parameters.Depth.HasValue) parts.Add($"depth {parameters.Depth.Value}");
-		if (parameters.Mate.HasValue) parts.Add($"mate {parameters.Mate.Value}");
-		if (parameters.MoveTimeMs.HasValue) parts.Add($"movetime {parameters.MoveTimeMs.Value}");
-		if (parameters.Nodes.HasValue) parts.Add($"nodes {parameters.Nodes.Value}");
 		if (parameters.WhiteTimeMs.HasValue) parts.Add($"wtime {parameters.WhiteTimeMs.Value}");
 		if (parameters.BlackTimeMs.HasValue) parts.Add($"btime {parameters.BlackTimeMs.Value}");
 		if (parameters.WhiteIncrementMs.HasValue) parts.Add($"winc {parameters.WhiteIncrementMs.Value}");
 		if (parameters.BlackIncrementMs.HasValue) parts.Add($"binc {parameters.BlackIncrementMs.Value}");
+		if (parameters.MoveTimeMs.HasValue) parts.Add($"movetime {parameters.MoveTimeMs.Value}");
+		if (parameters.Nodes.HasValue) parts.Add($"nodes {parameters.Nodes.Value}");
+		if (parameters.Depth.HasValue) parts.Add($"depth {parameters.Depth.Value}");
+		if (parameters.Mate.HasValue) parts.Add($"mate {parameters.Mate.Value}");
+
+		bool hasAnyLimit =
+			parameters.Infinite ||
+			parameters.Depth.HasValue ||
+			parameters.Mate.HasValue ||
+			parameters.MoveTimeMs.HasValue ||
+			parameters.Nodes.HasValue ||
+			parameters.WhiteTimeMs.HasValue ||
+			parameters.BlackTimeMs.HasValue;
+
+		if (!hasAnyLimit)
+			parts.Add("depth 6");
+
+		if (parameters.SearchMoves is { } sm)
+		{
+			var legal = sm.Where(s => UciMoveRegex.IsMatch(s))
+						  .Select(s => s.ToLowerInvariant());
+
+			if (legal.Any()) parts.Add("searchmoves " + string.Join(' ', legal));
+		}
 
 		return string.Join(' ', parts);
 	}
@@ -347,7 +440,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
 							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-		await using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
+		using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
 
 		try
 		{
