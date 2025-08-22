@@ -65,9 +65,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		: this(path, args, workingDirectory, null) { }
 
 	public ProcessUciTransport(
-		string path,
-		IEnumerable<string>? args,
-		string? workingDirectory,
+		string                      path,
+		IEnumerable<string>?        args,
+		string?                     workingDirectory,
 		ProcessUciTransportOptions? options)
 	{
 		if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Engine path must be provided.", nameof(path));
@@ -737,6 +737,16 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Error?.Invoke(ex);
 		}
 
+		// Complete channel early so any pending readers unblock immediately
+		try
+		{
+			_lines?.Writer.TryComplete();
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
 		// Dispose stdout early to unblock any pending ReadLineAsync
 		try
 		{
@@ -997,16 +1007,35 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	private void InitializeStreams(Process process)
 	{
-		if (_options.StdinEncoding is null)
-			_stdin = process.StandardInput;
-		else
-			_stdin = new(process.StandardInput.BaseStream, _options.StdinEncoding);
+		var stdinEncoding  = _options.StdinEncoding ?? process.StandardInput.Encoding;
+		var stdoutEncoding = _options.StdoutEncoding ?? process.StandardOutput.CurrentEncoding;
+		var stderrEncoding = _options.StderrEncoding ??
+							 (_options.RedirectStandardError
+								  ? process.StandardError.CurrentEncoding
+								  : Encoding.UTF8);
 
-		_stdin.NewLine   = _options.NewLine;
-		_stdin.AutoFlush = true;
+		// Wrap base streams with larger buffers and keep the underlying streams open for process lifecycle management.
+		_stdin = new(process.StandardInput.BaseStream, stdinEncoding, 64 * 1024, true)
+		{
+			NewLine   = _options.NewLine,
+			AutoFlush = true
+		};
 
-		_stdout = process.StandardOutput;
-		_stderr = _options.RedirectStandardError ? process.StandardError : null;
+		_stdout = new(
+			process.StandardOutput.BaseStream,
+			stdoutEncoding,
+			false,
+			64 * 1024,
+			true);
+
+		_stderr = _options.RedirectStandardError
+					  ? new StreamReader(
+						  process.StandardError.BaseStream,
+						  stderrEncoding,
+						  false,
+						  32 * 1024,
+						  true)
+					  : null;
 	}
 
 	private void Observe(Task task)
@@ -1128,8 +1157,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var writer      = _lines!.Writer;
 		var readToken   = _readLoopCts!.Token;
 
-		_readLoopTask = Task.Run(
-			async () =>
+		_readLoopTask = Task.Factory.StartNew(
+			() =>
 			{
 				try
 				{
@@ -1138,8 +1167,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 						string? line;
 						try
 						{
-							// StreamReader.ReadLineAsync in netstandard2.1 has no CancellationToken; disposal will unblock.
-							line = await localStdout.ReadLineAsync().ConfigureAwait(false);
+							// Blocking read on dedicated thread; disposal will unblock.
+							line = localStdout.ReadLine();
 						}
 						catch (ObjectDisposedException)
 						{
@@ -1150,7 +1179,25 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 						if (line.Length == 0) continue; // skip empty lines
 
-						await writer.WriteAsync(line, readToken).ConfigureAwait(false);
+						// If disposal/cancellation has been requested, stop without enqueuing further lines.
+						if (readToken.IsCancellationRequested) break;
+
+						// Fast path: try non-blocking write to channel
+						if (!writer.TryWrite(line))
+							// Backpressure path: wait synchronously until we can write or channel completes/cancels
+							while (true)
+							{
+								if (readToken.IsCancellationRequested) throw new OperationCanceledException(readToken);
+
+								var vt = writer.WaitToWriteAsync(readToken);
+								bool canWrite = vt.IsCompletedSuccessfully
+													? vt.Result
+													: vt.AsTask().GetAwaiter().GetResult();
+
+								if (!canWrite) break; // channel completed
+
+								if (writer.TryWrite(line)) break;
+							}
 					}
 
 					writer.TryComplete();
@@ -1165,7 +1212,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 					writer.TryComplete(ex);
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
 
 		Observe(_readLoopTask);
 	}
@@ -1176,8 +1225,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		var localStderr = _stderr;
 
-		_stderrLoopTask = Task.Run(
-			async () =>
+		_stderrLoopTask = Task.Factory.StartNew(
+			() =>
 			{
 				try
 				{
@@ -1186,7 +1235,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 						string? line;
 						try
 						{
-							line = await localStderr.ReadLineAsync().ConfigureAwait(false);
+							line = localStderr.ReadLine();
 						}
 						catch (ObjectDisposedException)
 						{
@@ -1212,7 +1261,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 					Error?.Invoke(ex);
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
 
 		Observe(_stderrLoopTask);
 	}
@@ -1223,21 +1274,30 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var localStdin     = _stdin!;
 		var writeToken     = _writeLoopCts!.Token;
 
-		_writeLoopTask = Task.Run(
-			async () =>
+		_writeLoopTask = Task.Factory.StartNew(
+			() =>
 			{
 				try
 				{
-					await foreach (string cmd in outgoingReader.ReadAllAsync(writeToken).ConfigureAwait(false))
+					while (true)
 					{
-						try
+						// Drain everything available
+						while (outgoingReader.TryRead(out string? cmd))
 						{
-							await localStdin.WriteLineAsync(cmd).ConfigureAwait(false);
+							try
+							{
+								localStdin.WriteLine(cmd); // AutoFlush is enabled
+							}
+							catch (ObjectDisposedException)
+							{
+								return; // stdin disposed -> end gracefully
+							}
 						}
-						catch (ObjectDisposedException)
-						{
-							break; // stdin disposed -> end gracefully
-						}
+
+						// Await more work or completion synchronously
+						var  vt      = outgoingReader.WaitToReadAsync(writeToken);
+						bool hasMore = vt.IsCompletedSuccessfully ? vt.Result : vt.AsTask().GetAwaiter().GetResult();
+						if (!hasMore) break; // channel completed
 					}
 				}
 				catch (OperationCanceledException)
@@ -1249,7 +1309,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 					Error?.Invoke(ex);
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
 
 		Observe(_writeLoopTask);
 	}
