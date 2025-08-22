@@ -171,41 +171,65 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	public async Task<IReadOnlyList<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
 	{
 		// Collect moves while the engine processes the command; completion is gated by readyok.
-		var results = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
-
-		void CaptureMoves(string l)
-		{
-			foreach (string token in l.Split(
-						 new[] { ' ', '\t', ',', ';', '|', ':' },
-						 StringSplitOptions.RemoveEmptyEntries))
-			{
-				if (UciMoveRegex.IsMatch(token))
-				{
-					results.TryAdd(token.ToLowerInvariant(), 0);
-				}
-			}
-		}
+		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		LineReceived += CaptureMoves;
 		try
 		{
-			// Fast path: some engines support "goperft 1"
-			await _transport.WriteLineAsync("goperft 1", ct).ConfigureAwait(false);
-			await IsReadyAsync(ct).ConfigureAwait(false);
 
-			// Fallback to "go perft 1" if nothing was produced
-			if (results.Count == 0 && !ct.IsCancellationRequested)
-			{
 				await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
 				await IsReadyAsync(ct).ConfigureAwait(false);
-			}
+
 		}
 		finally
 		{
 			LineReceived -= CaptureMoves;
 		}
 
-		return results.Keys.ToList();
+		return results.ToList();
+
+		static bool IsRank(char c) => (uint)(c - '1') <= 7; // 1-8
+
+		static bool IsPromo(char c)
+		{
+			int lc = c | 0x20; // to lower ASCII
+			return lc is 'q' or 'r' or 'b' or 'n';
+		}
+
+		static bool IsUciMove(ReadOnlySpan<char> s)
+		{
+			// length must be 4 or 5
+			if ((uint)s.Length - 4 > 1) return false;
+
+			if (!IsFile(s[0]) || !IsRank(s[1]) || !IsFile(s[2]) || !IsRank(s[3])) return false;
+
+			return s.Length == 4 || IsPromo(s[4]);
+		}
+
+		static bool IsSep(char ch) =>
+			ch == ' ' || ch == '\t' || ch == ',' || ch == ';' || ch == '|' || ch == ':';
+
+		void CaptureMoves(string l)
+		{
+			var span = l.AsSpan();
+			var i    = 0;
+			while (i < span.Length)
+			{
+				// skip separators
+				while (i < span.Length && IsSep(span[i])) i++;
+
+				int start = i;
+				while (i < span.Length && !IsSep(span[i])) i++;
+
+				int len = i - start;
+				if ((uint)(len - 4) > 1) continue; // 4 or 5
+
+				var tok = span.Slice(start, len);
+				if (IsUciMove(tok)) results.Add(new(tok));
+			}
+		}
+
+		static bool IsFile(char c) => (uint)((c | 0x20) - 'a') <= 7; // a-h
 	}
 
 	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
