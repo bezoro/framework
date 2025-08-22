@@ -17,6 +17,9 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	private readonly ConcurrentDictionary<Guid, (Func<string, bool> predicate, TaskCompletionSource<string> tcs)>
 		_waiters = new();
 
+	// Fast-path waiter count to avoid per-line scans when there are no waiters.
+	private int _waiterCount;
+
 	private readonly IUciTransport _transport;
 
 	private CancellationTokenSource? _cts;
@@ -42,6 +45,23 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
 
 	public ProcessUciTransport.TransportStatus Status => _transport.Status;
+
+	// Session optimized path for search: avoids per-line predicate scans and event subscriptions.
+	private sealed class SearchSession
+	{
+		public readonly ConcurrentQueue<string> Lines = new();
+		public readonly TaskCompletionSource<string> BestMoveTcs =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public readonly bool Ponder;
+
+		public SearchSession(bool ponder)
+		{
+			Ponder = ponder;
+		}
+	}
+
+	// Single active session is sufficient because UCI engines handle one search at a time.
+	private volatile SearchSession? _activeSearch;
 
 	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
 	{
@@ -150,16 +170,75 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task<IReadOnlyList<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
 	{
-		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var results      = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var movesDoneTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		// Debounce completion after last move burst.
+		CancellationTokenSource? debounce     = null;
+		var                      moveCount    = 0;
+		var                      fallbackSent = 0;
+		object                   gate         = new();
+
+		void ArmDebounce()
+		{
+			var old = Interlocked.Exchange(ref debounce, new());
+			try
+			{
+				old?.Cancel();
+			}
+			catch
+			{
+				/* best-effort */
+			}
+			finally
+			{
+				old?.Dispose();
+			}
+
+			var local = debounce!;
+			_ = Task.Run(async () =>
+			{
+				try
+				{
+					// Complete shortly after last move line; keeps latency low without fixed waits.
+					await Task.Delay(100, local.Token).ConfigureAwait(false);
+					movesDoneTcs.TrySetResult(true);
+				}
+				catch (OperationCanceledException)
+				{
+					// Debounce reset, ignore.
+				}
+				catch
+				{
+					// Keep silent; completion will be guarded elsewhere.
+				}
+			});
+		}
 
 		void CaptureMoves(string l)
 		{
+			var anyNew = false;
+
 			foreach (string token in l.Split(
 						 new[] { ' ', '\t', ',', ';', '|', ':' },
 						 StringSplitOptions.RemoveEmptyEntries))
 			{
 				if (UciMoveRegex.IsMatch(token))
-					results.Add(token.ToLowerInvariant());
+				{
+					lock (gate)
+					{
+						if (results.Add(token.ToLowerInvariant()))
+						{
+							moveCount++;
+							anyNew = true;
+						}
+					}
+				}
+			}
+
+			if (anyNew)
+			{
+				ArmDebounce();
 			}
 		}
 
@@ -167,51 +246,65 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		try
 		{
 			await _transport.WriteLineAsync("goperft 1", ct).ConfigureAwait(false);
-			try
-			{
-				await Task.Delay(300, ct).ConfigureAwait(false);
-			}
-			catch
-			{
-				/* ignore */
-			}
 
-			if (results.Count == 0 && !ct.IsCancellationRequested)
+			// If nothing appears quickly, fall back to the more standard "go perft 1".
+			_ = Task.Run(async () =>
 			{
-				await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
 				try
 				{
-					await Task.Delay(300, ct).ConfigureAwait(false);
+					await Task.Delay(120, ct).ConfigureAwait(false);
+					if (Interlocked.CompareExchange(ref fallbackSent, 1, 0) == 0 &&
+						Volatile.Read(ref moveCount) == 0 &&
+						!ct.IsCancellationRequested)
+						await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
 				}
 				catch
 				{
-					/* ignore */
+					// Best-effort fallback.
 				}
+			});
+
+			// Wait until we see moves and the output goes quiet briefly,
+			// or until a small overall cap elapses to avoid hanging.
+			var overallCap = Task.Delay(500, ct);
+			var completed  = await Task.WhenAny(movesDoneTcs.Task, overallCap).ConfigureAwait(false);
+			if (completed != movesDoneTcs.Task)
+			{
+				// Timed out waiting for quiet period; proceed with whatever we have.
 			}
 		}
 		finally
 		{
 			LineReceived -= CaptureMoves;
+
+			var d = Interlocked.Exchange(ref debounce, null);
+			try
+			{
+				d?.Cancel();
+			}
+			catch
+			{
+				/* ignore */
+			}
+			finally
+			{
+				d?.Dispose();
+			}
 		}
 
-		return results.ToList();
+		lock (gate)
+		{
+			return results.ToList();
+		}
 	}
 
 	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
 	{
 		string cmd = BuildGoCommand(parameters);
 
-		// Thread-safe collection for lines arriving from the background reader
-		var lines = new ConcurrentQueue<string>();
-
-		void Capture(string l)
-		{
-			if (l.StartsWith("info ",     StringComparison.OrdinalIgnoreCase) ||
-				l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
-			{
-				lines.Enqueue(l);
-			}
-		}
+		// Create and publish the active session before sending the command to avoid races.
+		var session = new SearchSession(parameters.Ponder);
+		_activeSearch = session;
 
 		// Derive a more sensible timeout:
 		// - movetime: movetime + small buffer
@@ -245,26 +338,35 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			return TimeSpan.FromSeconds(30);
 		}
 
-		var bestLineTask = WaitForLineAsync(
-			l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
-			ComputeTimeout(parameters),
-			ct);
+		var timeout = ComputeTimeout(parameters);
 
-		LineReceived += Capture;
+		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+		SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+
+		string? bestLine = null;
+		// Await bestmove with timeout and cancellation without mutating the session TCS state.
 		try
 		{
-			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-			SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+			var bestTask = session.BestMoveTcs.Task;
+			var timeoutTask = timeout == Timeout.InfiniteTimeSpan
+								  ? Task.Delay(Timeout.Infinite, CancellationToken.None)
+								  : Task.Delay(timeout);
 
-			string? bestLine = null;
-			try
+			var       cancelTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			using var reg = ct.Register(static s => ((TaskCompletionSource<object?>)s!).TrySetResult(null), cancelTcs);
+
+			var completed = await Task.WhenAny(bestTask, timeoutTask, cancelTcs.Task).ConfigureAwait(false);
+
+			if (completed == cancelTcs.Task)
+				throw new OperationCanceledException(ct);
+
+			if (completed == bestTask)
 			{
-				bestLine = await bestLineTask.ConfigureAwait(false);
+				bestLine = await bestTask.ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+			else
 			{
-				// Timeout path only (NOT caller cancellation).
-				// Try to stop the search and wait briefly for bestmove to arrive.
+				// Timeout path: try to stop and wait briefly for bestmove to arrive.
 				try
 				{
 					await _transport.WriteLineAsync("stop", CancellationToken.None).ConfigureAwait(false);
@@ -276,38 +378,52 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 				try
 				{
-					bestLine = await WaitForLineAsync(
-									   l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase),
-									   TimeSpan.FromSeconds(2),
-									   CancellationToken.None)
-								   .ConfigureAwait(false);
+					var graceCompleted = await Task.WhenAny(bestTask, Task.Delay(TimeSpan.FromSeconds(2)))
+												   .ConfigureAwait(false);
+
+					if (graceCompleted == bestTask)
+					{
+						bestLine = await bestTask.ConfigureAwait(false);
+					}
+					else
+					{
+						// Still no bestmove; if we captured one already, use it.
+						bestLine = session.Lines.FirstOrDefault(l => l.StartsWith(
+																	"bestmove ",
+																	StringComparison.OrdinalIgnoreCase));
+
+						if (bestLine is null)
+							throw new TimeoutException("Engine search timed out without emitting 'bestmove'.");
+					}
 				}
-				catch
+				catch (OperationCanceledException) when (!ct.IsCancellationRequested)
 				{
-					// Still no bestmove; if we captured one already, use it.
-					bestLine = lines.FirstOrDefault(l => l.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase));
+					// Treat as timeout in this context.
+					bestLine = session.Lines.FirstOrDefault(l => l.StartsWith(
+																"bestmove ",
+																StringComparison.OrdinalIgnoreCase));
 					if (bestLine is null) throw;
 				}
 			}
-			catch (OperationCanceledException) when (ct.IsCancellationRequested)
-			{
-				// Respect caller cancellation.
-				throw;
-			}
-
-			// Ensure bestmove line is in the captured buffer
-			if (bestLine is { }) lines.Enqueue(bestLine);
-
-			// Flip to Idle regardless (read loop will also do so on bestmove)
-			SetActivity(EngineActivity.Idle);
-
-			var snapshot = lines.ToList();
-			return SearchResult.TryParse(snapshot, out var result) ? result : default;
 		}
 		finally
 		{
-			LineReceived -= Capture;
+			// Ensure we flip to Idle; read loop will also do so on bestmove.
+			SetActivity(EngineActivity.Idle);
 		}
+
+		// Ensure bestmove line is present in the buffer for parsing
+		if (bestLine is { })
+			session.Lines.Enqueue(bestLine);
+
+		// Snapshot captured lines once; SearchResult.TryParse expects a stable enumerable
+		var snapshot = session.Lines.ToList();
+
+		// Clear the active session (defensive)
+		if (ReferenceEquals(_activeSearch, session))
+			_activeSearch = null;
+
+		return SearchResult.TryParse(snapshot, out var result) ? result : default;
 	}
 	public async ValueTask DisposeAsync()
 	{
@@ -373,37 +489,60 @@ internal sealed class UciEngineClient : IAsyncDisposable
 				{
 					LineReceived?.Invoke(line);
 
-					if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase) &&
-						PrincipalVariation.TryParse(line, out var pv))
-						InfoPvReceived?.Invoke(pv);
+					// Fast-path: capture search session lines without scanning waiter predicates
+					var sess = _activeSearch;
+
+					if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
+					{
+						if (PrincipalVariation.TryParse(line, out var pv))
+							InfoPvReceived?.Invoke(pv);
+
+						// Capture in active session (if any)
+						sess?.Lines.Enqueue(line);
+					}
 
 					if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
 					{
 						string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 						string    best   = tokens.Length > 1 ? tokens[1] : string.Empty;
 						string    ponder = tokens.Length > 3 && tokens[2] == "ponder" ? tokens[3] : string.Empty;
+
+						// Capture in active session before notifying
+						if (sess is { })
+						{
+							sess.Lines.Enqueue(line);
+							// Complete the session bestmove waiter; ignore if already completed.
+							sess.BestMoveTcs.TrySetResult(line);
+							_activeSearch = null;
+						}
+
 						SetActivity(EngineActivity.Idle);
 						BestMoveReceived?.Invoke(best, ponder);
 					}
 
-					foreach (var id in _waiters.Keys)
+					// Existing generic waiters (control messages like 'uciok', 'readyok')
+					if (Volatile.Read(ref _waiterCount) != 0)
 					{
-						if (!_waiters.TryGetValue(id, out var w)) continue;
+						foreach (var kv in _waiters)
+						{
+							var w = kv.Value;
 
-						bool match;
-						try
-						{
-							match = w.predicate(line);
-						}
-						catch
-						{
-							match = false;
-						}
+							bool match;
+							try
+							{
+								match = w.predicate(line);
+							}
+							catch
+							{
+								match = false;
+							}
 
-						if (match)
-						{
-							_waiters.TryRemove(id, out _);
-							w.tcs.TrySetResult(line);
+							if (match)
+								if (_waiters.TryRemove(kv.Key, out var removed))
+								{
+									Interlocked.Decrement(ref _waiterCount);
+									removed.tcs.TrySetResult(line);
+								}
 						}
 					}
 				}
@@ -422,8 +561,15 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		foreach (var kv in _waiters)
 		{
 			if (_waiters.TryRemove(kv.Key, out var w))
+			{
+				Interlocked.Decrement(ref _waiterCount);
 				w.tcs.TrySetCanceled();
+			}
 		}
+
+		// Fail any active search session if the stream ends unexpectedly
+		_activeSearch?.BestMoveTcs.TrySetCanceled();
+		_activeSearch = null;
 
 		// Ensure we are not stuck in a non-idle state if the read loop ends
 		SetActivity(EngineActivity.Idle);
@@ -433,7 +579,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	{
 		var id  = Guid.NewGuid();
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_waiters.TryAdd(id, (predicate, tcs));
+		if (_waiters.TryAdd(id, (predicate, tcs))) Interlocked.Increment(ref _waiterCount);
 
 		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
 		using var linked = timeoutCts is null
@@ -448,7 +594,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		}
 		finally
 		{
-			_waiters.TryRemove(id, out _);
+			if (_waiters.TryRemove(id, out _)) Interlocked.Decrement(ref _waiterCount);
 		}
 	}
 
