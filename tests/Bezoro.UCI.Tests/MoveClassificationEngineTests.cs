@@ -71,8 +71,10 @@ public class MoveClassificationEngineTests
 		var found = false;
 		await foreach (var item in stream)
 		{
-			if (item.Analysis.IsCheck && item.Analysis.IsMate)
-				found = true;
+			if (!item.Analysis.IsCheck || !item.Analysis.IsMate) continue;
+
+			found = true;
+			break;
 		}
 
 		found.Should().BeTrue();
@@ -94,8 +96,10 @@ public class MoveClassificationEngineTests
 		var found = false;
 		await foreach (var item in stream)
 		{
-			if (item.Analysis.IsStalemate)
-				found = true;
+			if (!item.Analysis.IsStalemate) continue;
+
+			found = true;
+			break;
 		}
 
 		found.Should().BeTrue();
