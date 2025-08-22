@@ -84,4 +84,43 @@ public class MoveClassificationEngineIntegrationTests
 
 		found.Should().BeTrue();
 	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenMateInOne_MoveIsFlaggedAsMateAndCheck()
+	{
+		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
+		// Move f7g7 is checkmate.
+		var fen   = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
+		var board = BoardState.FromFen(fen!.Value)!.Value;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var result = await engine.ClassifyMoveAsync(fen.Value, board, "f7g7");
+
+		result.HasValue.Should().BeTrue();
+		var move = result.Value;
+		move.Move.Should().Be("f7g7");
+		move.Analysis.IsCheck.Should().BeTrue();
+		move.Analysis.IsMate.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenStalemateInOne_MoveIsFlaggedAsStalemate()
+	{
+		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
+		// Move b7b6 stalemates Black.
+		var fen   = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
+		var board = BoardState.FromFen(fen!.Value)!.Value;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var result = await engine.ClassifyMoveAsync(fen.Value, board, "b7b6");
+
+		result.HasValue.Should().BeTrue();
+		var move = result.Value;
+		move.Move.Should().Be("b7b6");
+		move.Analysis.IsStalemate.Should().BeTrue();
+	}
 }
