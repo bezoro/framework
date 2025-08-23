@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,7 +14,12 @@ internal sealed class MoveClassificationEngine(
 	string?              workingDirectory = null
 ) : IAsyncDisposable
 {
-	private readonly IEnumerable<string>? _args = args;
+	private readonly
+		ConcurrentDictionary<(string Fen, string Move, uint Depth), (MoveScore Score, bool IsMate, bool IsStalemate)>
+		_moveEvalCache = new();
+	private readonly ConcurrentDictionary<(string Fen, string Move), bool> _isMateCache      = new();
+	private readonly ConcurrentDictionary<(string Fen, string Move), bool> _isStalemateCache = new();
+	private readonly IEnumerable<string>?                                  _args             = args;
 
 	private readonly QuickInfoEngine _quick = new(enginePath, args, workingDirectory);
 
@@ -59,12 +65,17 @@ internal sealed class MoveClassificationEngine(
 		await _client.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
 		await _client.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
 
+		ClearCaches();
+
 		_started = true;
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		await _quick.StopAsync(ct).ConfigureAwait(false);
+
+		// Clear caches when engine session ends
+		ClearCaches();
 
 		if (_client is { })
 		{
@@ -106,9 +117,16 @@ internal sealed class MoveClassificationEngine(
 	{
 		EnsureStarted();
 
+		var key = (fen.ToString(), move);
+		if (_isMateCache.TryGetValue(key, out bool cached))
+			return cached;
+
 		await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-		var result = await _client.GoAsync(new() { Depth = 1, SearchMoves = [move] }, ct).ConfigureAwait(false);
-		return !result.BestCpScore.HasValue && result.MateScore == 1;
+		var  result = await _client.GoAsync(new() { Depth = 1, SearchMoves = [move] }, ct).ConfigureAwait(false);
+		bool isMate = !result.BestCpScore.HasValue && result.MateScore == 1;
+
+		_isMateCache[key] = isMate;
+		return isMate;
 	}
 
 	public async Task<bool> IsStalemateAsync(
@@ -117,16 +135,26 @@ internal sealed class MoveClassificationEngine(
 		CancellationToken ct = default)
 	{
 		EnsureStarted();
+
+		var key = (fen.ToString(), move);
+		if (_isStalemateCache.TryGetValue(key, out bool cached))
+			return cached;
+
 		// Play the move and see if opponent has any legal moves
 		await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 		var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 		if (replies is { Count: > 0 })
+		{
+			_isStalemateCache[key] = false;
 			return false;
+		}
 
 		// No legal replies: differentiate stalemate from checkmate using the main engine
-		bool isMate = await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
+		bool isMate      = await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
+		bool isStalemate = !isMate;
 
-		return !isMate;
+		_isStalemateCache[key] = isStalemate;
+		return isStalemate;
 	}
 
 	public async ValueTask DisposeAsync()
@@ -166,15 +194,25 @@ internal sealed class MoveClassificationEngine(
 		uint              perMoveDepth,
 		CancellationToken ct)
 	{
-		(string Move, MoveAnalysis Analysis, MoveScore Score)? resultTuple = null;
+		var fenKey   = fen.ToString();
+		var cacheKey = (fenKey, move, perMoveDepth);
 
+		MoveScore    score;
+		MoveAnalysis analysis;
+		if (_moveEvalCache.TryGetValue(cacheKey, out var cached))
+		{
+			// Recompute analysis based on current board, reuse cached score and flags
+			score    = cached.Score;
+			analysis = MoveAnalysis.Analyze(move, board, score, cached.IsStalemate);
+			return (move, analysis, score);
+		}
 
 		// Ensure engine is at root position and restrict search to this single move
 		await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 		var result = await _client.GoAsync(new() { Depth = perMoveDepth, SearchMoves = [move] }, ct)
 								  .ConfigureAwait(false);
 
-		var score = ScoreFromResult(result);
+		score = ScoreFromResult(result);
 
 		// Determine terminal positions using helper methods for consistency.
 		bool isMate      = await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
@@ -184,11 +222,18 @@ internal sealed class MoveClassificationEngine(
 		if (isMate && score.ScoreMate is not -1)
 			score = MoveScore.FromMate(-1);
 
-		var analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
+		// Store normalized result in cache
+		_moveEvalCache[cacheKey] = (score, isMate, isStalemate);
 
-		resultTuple = (move, analysis, score);
+		analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
+		return (move, analysis, score);
+	}
 
-		return resultTuple;
+	private void ClearCaches()
+	{
+		_moveEvalCache.Clear();
+		_isMateCache.Clear();
+		_isStalemateCache.Clear();
 	}
 
 	private void EnsureStarted()
