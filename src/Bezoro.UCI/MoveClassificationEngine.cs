@@ -90,17 +90,14 @@ internal sealed class MoveClassificationEngine(
 		uint              perMoveDepth = 6,
 		CancellationToken ct           = default)
 	{
-		// Validate that the move is legal in the given position
 		try
 		{
+			// Validate that the move is legal in the given position
 			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
 			if (legalMoves is null || legalMoves.All(m => m != move))
 				return null;
-
-			// Set main engine once at the root and evaluate only this move
-			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 
 			return await EvaluateMoveAtRootAsync(fen, board, move, perMoveDepth, ct).ConfigureAwait(false);
 		}
@@ -108,6 +105,60 @@ internal sealed class MoveClassificationEngine(
 		{
 			// best-effort: return null on error
 			return null;
+		}
+	}
+
+	public async Task<bool> IsCheckmateAsync(
+		Fen               fen,
+		string            move,
+		CancellationToken ct = default)
+	{
+		try
+		{
+			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+			var result = await _client.GoAsync(new() { Depth = 1, SearchMoves = [move] }, ct).ConfigureAwait(false);
+			var score  = ScoreFromResult(result);
+			return score.ScoreMate.HasValue;
+		}
+		catch
+		{
+			// best-effort
+			return false;
+		}
+	}
+
+	public async Task<bool> IsStalemateAsync(
+		Fen               fen,
+		string            move,
+		CancellationToken ct = default)
+	{
+		try
+		{
+			// Ensure the move is legal in the given position
+			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+			if (legalMoves is null || legalMoves.All(m => m != move))
+				return false;
+
+			// Play the move and see if opponent has any legal moves
+			await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+			var  replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+			bool noMoves = replies is null || replies.Count == 0;
+			if (!noMoves)
+				return false;
+
+			// Differentiate stalemate from checkmate by asking the main engine
+			await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+			var  result           = await _client.GoAsync(new() { Depth = 1 }, ct).ConfigureAwait(false);
+			var  score            = ScoreFromResult(result);
+			bool engineThinksMate = score.ScoreMate.HasValue ? score.ScoreMate.Value != 0 : result.HasMate;
+
+			return !engineThinksMate;
+		}
+		catch
+		{
+			// best-effort
+			return false;
 		}
 	}
 
@@ -171,14 +222,10 @@ internal sealed class MoveClassificationEngine(
 				// best-effort: if quick check fails, fall back to score-based inference only
 			}
 
-			// If terminal and engine indicates mate,
-			// normalize to mate -1 so MoveAnalysis flags mate/check reliably.
-			bool engineThinksMate = score.ScoreMate.HasValue
-										? score.ScoreMate.Value != 0
-										: result.HasMate;
-
-			bool isMate      = noMoves && engineThinksMate;
-			bool isStalemate = noMoves && !engineThinksMate;
+			// If terminal, determine checkmate/stalemate using helper methods,
+			// then normalize to mate -1 so MoveAnalysis flags mate/check reliably.
+			bool isMate      = noMoves && await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
+			bool isStalemate = noMoves && !isMate;
 
 			if (isMate && score.ScoreMate is not -1)
 				score = MoveScore.FromMate(-1);
