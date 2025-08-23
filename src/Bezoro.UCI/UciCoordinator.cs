@@ -8,8 +8,11 @@ namespace Bezoro.UCI;
 internal sealed class UciCoordinator : IAsyncDisposable
 {
 	private readonly MoveClassificationEngine _classifier;
-	private readonly PonderEngine             _ponder;
-	private readonly QuickInfoEngine          _quick;
+
+	private readonly object          _cacheLock = new();
+	private readonly PonderEngine    _ponder;
+	private readonly QuickInfoEngine _quick;
+	private          string?         _lastPonderKey;
 
 	public event Action<string, string>?     PonderBestMove;
 	public event Action<PrincipalVariation>? PonderInfo;
@@ -38,10 +41,28 @@ internal sealed class UciCoordinator : IAsyncDisposable
 			_ponder.StartAsync(ct),
 			_classifier.StartAsync(ct)
 		).ConfigureAwait(false);
+
+		// Clear cached state at the start of a session
+		lock (_cacheLock)
+		{
+			_lastPonderKey = null;
+		}
 	}
 
-	public Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default) =>
-		_ponder.StartPonderAsync(fen, playedMoves, ct);
+	public Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default)
+	{
+		string key = BuildPositionKey(fen, playedMoves);
+		lock (_cacheLock)
+		{
+			if (string.Equals(_lastPonderKey, key, StringComparison.Ordinal))
+				// Already pondering this position; skip restart
+				return Task.CompletedTask;
+
+			_lastPonderKey = key;
+		}
+
+		return _ponder.StartPonderAsync(fen, playedMoves, ct);
+	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
@@ -50,20 +71,41 @@ internal sealed class UciCoordinator : IAsyncDisposable
 			_ponder.StopAsync(ct),
 			_quick.StopAsync(ct)
 		).ConfigureAwait(false);
+
+		// Clear cached state on stop
+		lock (_cacheLock)
+		{
+			_lastPonderKey = null;
+		}
 	}
 
-	public Task StopPonderAsync(CancellationToken ct = default) =>
-		_ponder.StopPonderAsync(ct);
+	public async Task StopPonderAsync(CancellationToken ct = default)
+	{
+		await _ponder.StopPonderAsync(ct).ConfigureAwait(false);
+		// Clear cached ponder key so future identical requests are not skipped
+		lock (_cacheLock)
+		{
+			_lastPonderKey = null;
+		}
+	}
 
-	// Position update: stop ponder, then restart ponder on the new position.
+	// Position update: only restart ponder if the position actually changed.
 	public async Task UpdatePositionAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
 		BoardState           board,
 		CancellationToken    ct = default)
 	{
-		await _ponder.StopPonderAsync(ct).ConfigureAwait(false);
-		_ = _ponder.StartPonderAsync(fen, playedMoves, ct);
+		string key = BuildPositionKey(fen, playedMoves);
+		lock (_cacheLock)
+		{
+			if (string.Equals(_lastPonderKey, key, StringComparison.Ordinal))
+				// No change in position; keep current pondering
+				return;
+		}
+
+		await StopPonderAsync(ct).ConfigureAwait(false);
+		_ = StartPonderAsync(fen, playedMoves, ct);
 	}
 
 	// Convenience proxies
@@ -79,5 +121,11 @@ internal sealed class UciCoordinator : IAsyncDisposable
 		await _classifier.DisposeAsync();
 		await _ponder.DisposeAsync();
 		await _quick.DisposeAsync();
+	}
+
+	private static string BuildPositionKey(Fen fen, IEnumerable<string>? playedMoves)
+	{
+		string movesJoined = playedMoves is null ? string.Empty : string.Join(' ', playedMoves);
+		return $"{fen}|{movesJoined}";
 	}
 }
