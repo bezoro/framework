@@ -123,4 +123,60 @@ public class MoveClassificationEngineIntegrationTests
 		move.Move.Should().Be("b7b6");
 		move.Analysis.IsStalemate.Should().BeTrue();
 	}
+
+	[Fact]
+	public async Task IsCheckmateAsync_WhenMateInOne_ReturnsTrue()
+	{
+		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
+		// Move f7g7 is checkmate.
+		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		bool isMate = await engine.IsCheckmateAsync(fen!.Value, "f7g7");
+
+		isMate.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task IsCheckmateAsync_WhenNotMate_ReturnsFalse()
+	{
+		var fen = Fen.Default;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		bool isMate = await engine.IsCheckmateAsync(fen, "e2e4");
+
+		isMate.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task IsStalemateAsync_WhenNotStalemate_ReturnsFalse()
+	{
+		var fen = Fen.Default;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		bool isStalemate = await engine.IsStalemateAsync(fen, "e2e4");
+
+		isStalemate.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task IsStalemateAsync_WhenStalemateInOne_ReturnsTrue()
+	{
+		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
+		// Move b7b6 stalemates Black.
+		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		bool isStalemate = await engine.IsStalemateAsync(fen!.Value, "b7b6");
+
+		isStalemate.Should().BeTrue();
+	}
 }
