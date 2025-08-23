@@ -88,4 +88,40 @@ public class PonderEngineTests
 
 		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
+
+	[Fact]
+	public async Task StartPonderAsync_ThenStopPonderAsync_RaisesBestMove()
+	{
+		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		string? best   = null;
+		string? ponder = null;
+		var     tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.BestMove += (b, p) =>
+		{
+			best   = b;
+			ponder = p;
+			tcs.TrySetResult(true);
+		};
+
+		await engine.StartPonderAsync(Fen.Default, null);
+		await engine.StopPonderAsync();
+
+		await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+		best.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(best!).Should().BeTrue();
+		if (!string.IsNullOrWhiteSpace(ponder))
+			UciEngineClient.IsUciMoveString(ponder!).Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task StartPonderAsync_WithInvalidFen_ThrowsArgumentException()
+	{
+		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartPonderAsync(Fen.Empty(), null));
+	}
 }
