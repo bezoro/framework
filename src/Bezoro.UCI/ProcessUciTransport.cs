@@ -121,7 +121,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -193,7 +192,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			Volatile.Write(ref _isStarted, 1);
 			Volatile.Write(ref _status,    (int)TransportStatus.Started);
-			_options.Logger?.LogInfo($"UCI engine started. PID={process?.Id.ToString() ?? "n/a"}");
+			if (_options.Logger != null)
+			{
+				string pid = process?.Id.ToString() ?? "n/a";
+				_options.Logger.LogInfo("UCI engine started. PID=" + pid);
+			}
 
 			// Signal successful start
 			localStartTcs.TrySetResult(null);
@@ -238,7 +241,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -337,7 +339,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
 	{
 		ThrowIfDisposed();
@@ -354,15 +355,48 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Fast path: try non-blocking
 		if (writer.TryWrite(line)) return true;
 
-		// Bounded wait path with timeout and cancellation
-		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
-		using var linked = timeoutCts is null
-							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
-							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+		// Zero-timeout: do not allocate CTS; fail fast.
+		if (timeout == TimeSpan.Zero) return false;
+
+		// Tiny bounded spin for very small timeouts to avoid CTS allocations when the channel is about to free.
+		if (timeout > TimeSpan.Zero && timeout <= TimeSpan.FromMilliseconds(1))
+		{
+			var spinner = new SpinWait();
+			for (var i = 0; i < 8; i++)
+			{
+				if (writer.TryWrite(line)) return true;
+
+				if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
+
+				spinner.SpinOnce();
+			}
+		}
 
 		try
 		{
-			await writer.WriteAsync(line, linked.Token).ConfigureAwait(false);
+			// Infinite timeout path: avoid linked CTS when possible
+			if (timeout == Timeout.InfiniteTimeSpan)
+			{
+				if (!ct.CanBeCanceled)
+					await writer.WriteAsync(line, CancellationToken.None).ConfigureAwait(false);
+				else
+					await writer.WriteAsync(line, ct).ConfigureAwait(false);
+
+				return true;
+			}
+
+			// Finite timeout path
+			using var timeoutCts = new CancellationTokenSource(timeout);
+			if (!ct.CanBeCanceled)
+			{
+				await writer.WriteAsync(line, timeoutCts.Token).ConfigureAwait(false);
+			}
+			else
+			{
+				using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+				await writer.WriteAsync(line, linked.Token).ConfigureAwait(false);
+			}
+
 			return true;
 		}
 		catch (OperationCanceledException)
@@ -379,7 +413,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async ValueTask DisposeAsync()
 	{
 		if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -394,13 +427,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			"Disposed UCI transport.").ConfigureAwait(false);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Dispose()
 	{
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static async Task AwaitWithCancellation(Task task, CancellationToken ct)
 	{
 		if (!ct.CanBeCanceled)
@@ -429,7 +460,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await task.ConfigureAwait(false);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		// Fast path: if already exited, avoid allocations.
@@ -571,7 +601,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		return startInfo;
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private async Task CleanupAfterFailedStartAsync()
 	{
 		// Do not set _disposed here; keep the transport reusable.
@@ -714,8 +743,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 				{
 					if (!p.HasExited)
 					{
-						_options.Logger?.LogInfo(
-							$"Killing UCI engine process during failed start cleanup (tree={_options.KillEntireProcessTree}).");
+						if (_options.Logger != null)
+							_options.Logger.LogInfo(
+								"Killing UCI engine process during failed start cleanup (tree=" +
+								_options.KillEntireProcessTree +
+								").");
 #if NET5_0_OR_GREATER
 						p.Kill(_options.KillEntireProcessTree);
 #else
@@ -761,7 +793,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private async Task TearDownCoreAsync(bool sendQuit, TransportStatus finalStatus, string finalLog)
 	{
 		var p = _process;
@@ -972,7 +1003,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (p is { HasExited: false })
 			{
-				_options.Logger?.LogInfo($"Killing UCI engine process (tree={_options.KillEntireProcessTree}).");
+				if (_options.Logger != null)
+					_options.Logger.LogInfo(
+						"Killing UCI engine process (tree=" + _options.KillEntireProcessTree + ").");
 #if NET5_0_OR_GREATER
 				p.Kill(_options.KillEntireProcessTree);
 #else
@@ -1064,7 +1097,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_stdin = new(process.StandardInput.BaseStream, stdinEncoding, 64 * 1024, true)
 		{
 			NewLine   = _options.NewLine,
-			AutoFlush = true
+			AutoFlush = false
 		};
 
 		_stdout = new(
@@ -1138,7 +1171,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		StartExitNotification(process);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartExitNotification(Process process)
 	{
 		_exitNotifyTask = Task.Run(
@@ -1148,7 +1180,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 				{
 					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
 					int exitCode = process.ExitCode;
-					_options.Logger?.LogInfo($"UCI engine process exited with code {exitCode}.");
+					if (_options.Logger != null)
+						_options.Logger.LogInfo("UCI engine process exited with code " + exitCode + ".");
 					try
 					{
 						Exited?.Invoke(exitCode, null);
@@ -1201,7 +1234,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_exitNotifyTask);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartReadLoop()
 	{
 		var localStdout = _stdout!;
@@ -1270,7 +1302,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_readLoopTask);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartStderrLoopIfNeeded()
 	{
 		if (_stderr == null) return;
@@ -1320,7 +1351,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		Observe(_stderrLoopTask);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void StartWriteLoop()
 	{
 		var outgoingReader = _outgoing!.Reader;
@@ -1332,6 +1362,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				try
 				{
+					var       writesSinceFlush = 0;
+					const int FlushBatchSize   = 8;
+
 					while (true)
 					{
 						// Drain everything available
@@ -1339,7 +1372,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 						{
 							try
 							{
-								localStdin.WriteLine(cmd); // AutoFlush is enabled
+								localStdin.WriteLine(cmd);
+								if (++writesSinceFlush >= FlushBatchSize)
+								{
+									localStdin.Flush();
+									writesSinceFlush = 0;
+								}
 							}
 							catch (ObjectDisposedException)
 							{
@@ -1347,10 +1385,38 @@ internal sealed class ProcessUciTransport : IUciTransport
 							}
 						}
 
+						// Flush whatever is pending before possibly blocking
+						if (writesSinceFlush > 0)
+						{
+							try
+							{
+								localStdin.Flush();
+							}
+							catch
+							{
+								/* best-effort */
+							}
+
+							writesSinceFlush = 0;
+						}
+
 						// Await more work or completion synchronously
 						var  vt      = outgoingReader.WaitToReadAsync(writeToken);
 						bool hasMore = vt.IsCompletedSuccessfully ? vt.Result : vt.AsTask().GetAwaiter().GetResult();
 						if (!hasMore) break; // channel completed
+					}
+
+					// Final flush on exit
+					if (writesSinceFlush > 0)
+					{
+						try
+						{
+							localStdin.Flush();
+						}
+						catch
+						{
+							/* best-effort */
+						}
 					}
 				}
 				catch (OperationCanceledException)
