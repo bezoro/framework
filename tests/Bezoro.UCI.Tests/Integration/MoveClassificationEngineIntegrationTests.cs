@@ -11,6 +11,30 @@ public class MoveClassificationEngineIntegrationTests
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 
 	[Fact]
+	public async Task ClassifyAsync_FromStartPosition_ContainsKnownLegalMoveE2E4()
+	{
+		var fen   = Fen.Default;
+		var board = BoardState.FromFen(fen)!.Value;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var stream = engine.ClassifyAsync(fen, board);
+
+		var found = false;
+		await foreach (var item in stream)
+		{
+			if (item.Move == "e2e4")
+			{
+				found = true;
+				break;
+			}
+		}
+
+		found.Should().BeTrue("the classification stream should include known legal moves from the starting position");
+	}
+
+	[Fact]
 	public async Task ClassifyAsync_WhenCalled_ReturnsClassifiedMovesStream()
 	{
 		var fen   = Fen.Default;
@@ -83,6 +107,38 @@ public class MoveClassificationEngineIntegrationTests
 		}
 
 		found.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenIllegalMove_Throws()
+	{
+		// Starting position: "e2e5" is illegal.
+		var fen   = Fen.Default;
+		var board = BoardState.FromFen(fen)!.Value;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(fen, board, "e2e5"));
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenLegalMoveFromStart_ReturnsResult()
+	{
+		// Starting position: "e2e4" is legal.
+		var fen   = Fen.Default;
+		var board = BoardState.FromFen(fen)!.Value;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var result = await engine.ClassifyMoveAsync(fen, board, "e2e4");
+
+		result.HasValue.Should().BeTrue();
+		var move = result.Value;
+		move.Move.Should().Be("e2e4");
+		move.Analysis.Should().NotBeNull();
+		move.Score.Should().NotBeNull();
 	}
 
 	[Fact]
