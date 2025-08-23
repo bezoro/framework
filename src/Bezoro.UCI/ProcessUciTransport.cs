@@ -28,8 +28,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private int _readerActive;
 	private int _startGate; // prevents concurrent StartAsync calls
 
-	private int _status;   // TransportStatus stored as int for interlocked/volatile
-	private int _stopGate; // prevents concurrent StopAsync calls
+	private int  _status;   // TransportStatus stored as int for interlocked/volatile
+	private int  _stopGate; // prevents concurrent StopAsync calls
+	private long _backpressureEvents;
+
+	// Lightweight counters for diagnostics/tuning (thread-safe reads via Interlocked).
+	private long _linesRead;
+	private long _linesWritten;
 
 	private Process?                       _process;
 	private StreamReader?                  _stderr;
@@ -92,7 +97,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 		(_stderr is null || _stderrLoopTask is null || !_stderrLoopTask.IsCompleted) &&
 		(_exitNotifyTask is null || !_exitNotifyTask.IsCompleted);
 
-	public bool IsStarted => Volatile.Read(ref _isStarted) == 1;
+	public bool IsStarted          => Volatile.Read(ref _isStarted) == 1;
+	public long BackpressureEvents => Interlocked.Read(ref _backpressureEvents);
+
+	// Lightweight metrics for tuning; zero overhead when not read.
+	public long LinesRead    => Interlocked.Read(ref _linesRead);
+	public long LinesWritten => Interlocked.Read(ref _linesWritten);
 
 	/// <summary>
 	///     Current transport status. This reflects internal lifecycle transitions.
@@ -362,7 +372,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (timeout > TimeSpan.Zero && timeout <= TimeSpan.FromMilliseconds(1))
 		{
 			var spinner = new SpinWait();
-			for (var i = 0; i < 8; i++)
+			int spins   = _options.SmallTimeoutSpinIterations;
+			for (var i = 0; i < spins; i++)
 			{
 				if (writer.TryWrite(line)) return true;
 
@@ -1070,7 +1081,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_outgoing = Channel.CreateBounded<string>(
 			new BoundedChannelOptions(_options.ChannelCapacity)
 			{
-				SingleWriter = false,
+				SingleWriter = _options.OutgoingSingleWriter,
 				SingleReader = true,
 				FullMode     = BoundedChannelFullMode.Wait
 			});
@@ -1182,6 +1193,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					int exitCode = process.ExitCode;
 					if (_options.Logger != null)
 						_options.Logger.LogInfo("UCI engine process exited with code " + exitCode + ".");
+
 					try
 					{
 						Exited?.Invoke(exitCode, null);
@@ -1265,8 +1277,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 						// If disposal/cancellation has been requested, stop without enqueuing further lines.
 						if (readToken.IsCancellationRequested) break;
 
+						Interlocked.Increment(ref _linesRead);
+
 						// Fast path: try non-blocking write to channel
 						if (!writer.TryWrite(line))
+						{
+							Interlocked.Increment(ref _backpressureEvents);
 							// Backpressure path: wait synchronously until we can write or channel completes/cancels
 							while (true)
 							{
@@ -1281,6 +1297,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 								if (writer.TryWrite(line)) break;
 							}
+						}
 					}
 
 					writer.TryComplete();
@@ -1362,8 +1379,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				try
 				{
-					var       writesSinceFlush = 0;
-					const int FlushBatchSize   = 8;
+					var writesSinceFlush = 0;
+					int flushBatchSize   = _options.FlushBatchSize > 0 ? _options.FlushBatchSize : 8;
 
 					while (true)
 					{
@@ -1373,7 +1390,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 							try
 							{
 								localStdin.WriteLine(cmd);
-								if (++writesSinceFlush >= FlushBatchSize)
+								Interlocked.Increment(ref _linesWritten);
+								if (++writesSinceFlush >= flushBatchSize)
 								{
 									localStdin.Flush();
 									writesSinceFlush = 0;
@@ -1457,7 +1475,11 @@ internal sealed class ProcessUciTransportOptions
 	// When true (and supported by the runtime), attempts to kill the entire process tree on forced termination.
 	public bool KillEntireProcessTree { get; init; } = false;
 
-	public bool RedirectStandardError { get; init; } = true;
+	// If only a single producer calls WriteLine/TryWriteLine concurrently, set to true for slightly lower overhead.
+	public bool OutgoingSingleWriter { get; init; } = false;
+
+	// Redirect stderr only when explicitly requested to minimize overhead.
+	public bool RedirectStandardError { get; init; } = false;
 
 	public bool SendQuitOnDispose { get; init; } = true;
 
@@ -1477,7 +1499,13 @@ internal sealed class ProcessUciTransportOptions
 
 	public int ChannelCapacity { get; init; } = 1024;
 
+	// Number of writes to batch before flushing stdin; tune for latency/throughput.
+	public int FlushBatchSize { get; init; } = 8;
+
 	public int QuitGracePeriodMs { get; init; } = 500;
+
+	// Spin iterations used for very small timeouts in TryWriteLineAsync; set to 0 to disable spinning.
+	public int SmallTimeoutSpinIterations { get; init; } = 3;
 
 	// Optional logger for lifecycle and error events.
 	public IUciTransportLogger? Logger { get; init; }
