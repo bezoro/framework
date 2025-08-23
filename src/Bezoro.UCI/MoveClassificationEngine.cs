@@ -36,8 +36,7 @@ internal sealed class MoveClassificationEngine(
 
 		foreach (string? move in legalMoves)
 		{
-			if (string.IsNullOrWhiteSpace(move))
-				continue;
+			if (string.IsNullOrWhiteSpace(move)) continue;
 
 			(string Move, MoveAnalysis Analysis, MoveScore Score)? resultTuple = null;
 			try
@@ -116,8 +115,7 @@ internal sealed class MoveClassificationEngine(
 		{
 			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 			var result = await _client.GoAsync(new() { Depth = 1, SearchMoves = [move] }, ct).ConfigureAwait(false);
-			var score  = ScoreFromResult(result);
-			return score.ScoreMate.HasValue;
+			return !result.BestCpScore.HasValue && result.MateScore == 1;
 		}
 		catch
 		{
@@ -133,26 +131,16 @@ internal sealed class MoveClassificationEngine(
 	{
 		try
 		{
-			// Ensure the move is legal in the given position
-			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-			if (legalMoves is null || !legalMoves.Contains(move))
-				return false;
-
 			// Play the move and see if opponent has any legal moves
 			await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-			var  replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-			bool noMoves = replies is null || replies.Count == 0;
-			if (!noMoves)
+			var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+			if (replies is { Count: > 0 })
 				return false;
 
-			// Differentiate stalemate from checkmate by asking the main engine
-			await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-			var  result           = await _client.GoAsync(new() { Depth = 1 }, ct).ConfigureAwait(false);
-			var  score            = ScoreFromResult(result);
-			bool engineThinksMate = score.ScoreMate.HasValue ? score.ScoreMate.Value != 0 : result.HasMate;
+			// No legal replies: differentiate stalemate from checkmate using the main engine
+			bool isMate = await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
 
-			return !engineThinksMate;
+			return !isMate;
 		}
 		catch
 		{
