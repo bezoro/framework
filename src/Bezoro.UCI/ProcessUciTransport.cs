@@ -416,8 +416,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			return;
 		}
 
+		// If the caller's token is already canceled, avoid allocations and throw immediately.
+		ct.ThrowIfCancellationRequested();
+
 		var       tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		using var reg = ct.Register(state => ((TaskCompletionSource<object?>)state!).TrySetResult(null), tcs);
+		using var reg = ct.Register(static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null), tcs);
 
 		var completed = await Task.WhenAny(task, tcs.Task).ConfigureAwait(false);
 		if (completed == tcs.Task)
@@ -429,6 +432,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
+		// Fast path: if already exited, avoid allocations.
+		try
+		{
+			if (process.HasExited)
+				return Task.CompletedTask;
+
+			if (!process.EnableRaisingEvents)
+				process.EnableRaisingEvents = true;
+		}
+		catch (ObjectDisposedException)
+		{
+			// If the Process is already disposed, consider it "exited" for our purposes.
+			return Task.CompletedTask;
+		}
+
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		void Handler(object? _, EventArgs __)
@@ -438,7 +456,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		try
 		{
-			if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
 			process.Exited += Handler;
 
 			// If the process already exited after subscribing, complete immediately.
@@ -455,7 +472,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		CancellationTokenRegistration reg = default;
-		if (ct.CanBeCanceled) reg         = ct.Register(() => tcs.TrySetCanceled(ct));
+		if (ct.CanBeCanceled)
+			reg = ct.Register(static state => ((TaskCompletionSource<object?>)state!).TrySetCanceled(), tcs);
 
 		return tcs.Task.ContinueWith(
 			t =>
