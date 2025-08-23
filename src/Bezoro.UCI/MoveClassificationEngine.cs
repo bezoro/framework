@@ -29,7 +29,7 @@ internal sealed class MoveClassificationEngine(
 		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
 		// Fetch legal moves using the quick engine
-		await _quick.SetPositionAsync(fen, null, ct);
+		await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 		if (legalMoves is null || legalMoves.Count == 0)
 			yield break;
@@ -42,7 +42,6 @@ internal sealed class MoveClassificationEngine(
 			(string Move, MoveAnalysis Analysis, MoveScore Score)? resultTuple = null;
 			try
 			{
-				await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 				resultTuple = await EvaluateMoveAtRootAsync(fen, board, move, perMoveDepth, ct).ConfigureAwait(false);
 			}
 			catch
@@ -63,7 +62,7 @@ internal sealed class MoveClassificationEngine(
 		_client    = new(_transport);
 		await _client.StartAsync(ct).ConfigureAwait(false);
 		await _client.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
-		await _client.SetOptionAsync("MultiPv", "3", ct).ConfigureAwait(false);
+		await _client.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
@@ -96,7 +95,7 @@ internal sealed class MoveClassificationEngine(
 			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
-			if (legalMoves is null || legalMoves.All(m => m != move))
+			if (legalMoves is null || !legalMoves.Contains(move))
 				return null;
 
 			return await EvaluateMoveAtRootAsync(fen, board, move, perMoveDepth, ct).ConfigureAwait(false);
@@ -137,7 +136,7 @@ internal sealed class MoveClassificationEngine(
 			// Ensure the move is legal in the given position
 			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-			if (legalMoves is null || legalMoves.All(m => m != move))
+			if (legalMoves is null || !legalMoves.Contains(move))
 				return false;
 
 			// Play the move and see if opponent has any legal moves
@@ -203,30 +202,18 @@ internal sealed class MoveClassificationEngine(
 
 		try
 		{
-			// Search only this move from the current root position
+			// Ensure engine is at root position and restrict search to this single move
+			await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 			var result = await _client.GoAsync(new() { Depth = perMoveDepth, SearchMoves = [move] }, ct)
 									  .ConfigureAwait(false);
 
 			var score = ScoreFromResult(result);
 
-			// Determine terminal positions (mate/stalemate) by checking opponent replies after our move.
-			var noMoves = false;
-			try
-			{
-				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-				var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-				noMoves = replies is null || replies.Count == 0;
-			}
-			catch
-			{
-				// best-effort: if quick check fails, fall back to score-based inference only
-			}
+			// Determine terminal positions using helper methods for consistency.
+			bool isMate      = await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
+			bool isStalemate = !isMate && await IsStalemateAsync(fen, move, ct).ConfigureAwait(false);
 
-			// If terminal, determine checkmate/stalemate using helper methods,
-			// then normalize to mate -1 so MoveAnalysis flags mate/check reliably.
-			bool isMate      = noMoves && await IsCheckmateAsync(fen, move, ct).ConfigureAwait(false);
-			bool isStalemate = noMoves && !isMate;
-
+			// Normalize mate scoring so MoveAnalysis flags mate/check reliably.
 			if (isMate && score.ScoreMate is not -1)
 				score = MoveScore.FromMate(-1);
 
