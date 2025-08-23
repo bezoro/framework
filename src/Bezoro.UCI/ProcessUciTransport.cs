@@ -339,6 +339,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Fast path: try non-blocking write to avoid async state machines on the hot path.
 		if (writer.TryWrite(line)) return;
 
+		// Slow path: channel is full, record backpressure and await space.
+		Interlocked.Increment(ref _backpressureEvents);
+
 		try
 		{
 			await writer.WriteAsync(line, ct).ConfigureAwait(false);
@@ -364,6 +367,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		// Fast path: try non-blocking
 		if (writer.TryWrite(line)) return true;
+
+		// Slow path: channel is full; record backpressure and proceed to spin/await strategies.
+		Interlocked.Increment(ref _backpressureEvents);
 
 		// Zero-timeout: do not allocate CTS; fail fast.
 		if (timeout == TimeSpan.Zero) return false;
