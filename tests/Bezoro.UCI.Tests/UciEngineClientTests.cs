@@ -1,4 +1,5 @@
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -53,6 +54,23 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
+	public async Task GetLegalMovesViaGoPerft1Async_InStalematePosition_ReturnsNoMoves()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+
+		// From this position, the move b7b6 results in stalemate for Black.
+		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
+		await engine.SetPositionAsync(fen!.Value, new[] { "b7b6" }, CancellationToken.None);
+
+		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+
+		legalMoves.Should().NotBeNull();
+		legalMoves.Count.Should().Be(0);
+	}
+
+	[Fact]
 	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ReturnsLegalMoves()
 	{
 		var transport = new ProcessUciTransport(STOCKFISH_PATH);
@@ -63,6 +81,24 @@ public class UciEngineClientTests
 		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
 
 		legalMoves.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task GoAsync_WhenMateInOnePosition_ReturnsHasMateAndMateScore()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+
+		// Position: Black king on h8, White queen on f7, White king on h6 (white to move). f7g7 is mate.
+		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
+		await engine.SetPositionAsync(fen!.Value, null, CancellationToken.None);
+
+		var result = await engine.GoAsync(new() { Depth = 10 }, CancellationToken.None);
+
+		result.Should().NotBeNull();
+		result.HasMate.Should().BeTrue();
+		result.MateScore.HasValue.Should().BeTrue();
 	}
 
 	[Fact]
@@ -123,40 +159,5 @@ public class UciEngineClientTests
 		UciEngineClient.IsUciMoveString("e2e").Should().BeFalse();
 		UciEngineClient.IsUciMoveString("e2e4qq").Should().BeFalse();
 		UciEngineClient.IsUciMoveString("e2e4x").Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task GoAsync_WhenMateInOnePosition_ReturnsHasMateAndMateScore()
-	{
-		var transport = new ProcessUciTransport(STOCKFISH_PATH);
-		var engine    = new UciEngineClient(transport);
-		await engine.StartAsync();
-
-		// Position: Black king on h8, White queen on f7, White king on h6 (white to move). f7g7 is mate.
-		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
-		await engine.SetPositionAsync(fen!.Value, null, CancellationToken.None);
-
-		var result = await engine.GoAsync(new() { Depth = 10 }, CancellationToken.None);
-
-		result.Should().NotBeNull();
-		result.HasMate.Should().BeTrue();
-		result.MateScore.HasValue.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_InStalematePosition_ReturnsNoMoves()
-	{
-		var transport = new ProcessUciTransport(STOCKFISH_PATH);
-		var engine    = new UciEngineClient(transport);
-		await engine.StartAsync();
-
-		// From this position, the move b7b6 results in stalemate for Black.
-		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
-		await engine.SetPositionAsync(fen!.Value, new[] { "b7b6" }, CancellationToken.None);
-
-		var legalMoves = await engine.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
-
-		legalMoves.Should().NotBeNull();
-		legalMoves.Count.Should().Be(0);
 	}
 }

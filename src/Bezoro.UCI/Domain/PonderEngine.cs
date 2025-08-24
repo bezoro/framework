@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 {
@@ -26,9 +26,13 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public bool IsHealthy => _client.IsHealthy;
 	public bool IsStarted => _client.IsStarted;
 
-	public EngineActivity Activity => _client.Activity;
+	public EngineActivity                      Activity => _client.Activity;
+	public ProcessUciTransport.TransportStatus Status   => _client.Status;
 
-	public ProcessUciTransport.TransportStatus Status => _client.Status;
+	public async Task NewGameAsync(CancellationToken ct = default)
+	{
+		await _client.UciNewGameAsync(ct);
+	}
 
 	public async Task StartAsync(CancellationToken ct = default)
 	{

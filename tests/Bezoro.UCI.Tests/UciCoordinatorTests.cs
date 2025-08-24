@@ -1,4 +1,6 @@
+using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -18,8 +20,8 @@ public class UciCoordinatorTests
 		var fen   = Fen.Default;
 		var board = BoardState.FromFen(fen)!.Value;
 
-		var results = new List<(string Move, MoveAnalysis Analysis, MoveScore Score)>();
-		await foreach (var item in coordinator.ClassifyMovesAsync(fen, board, 4))
+		var results = new List<Move>();
+		await foreach (var item in coordinator.ClassifyMovesAsync(fen, 4))
 		{
 			results.Add(item);
 			if (results.Count >= 3) break;
@@ -28,16 +30,13 @@ public class UciCoordinatorTests
 		results.Should().NotBeNull();
 		results.Count.Should().BeGreaterThan(0);
 
-		foreach ((string move, var analysis, var score) in results)
+		foreach (var move in results)
 		{
-			move.Should().NotBeNullOrWhiteSpace();
-			UciEngineClient.IsUciMoveString(move).Should().BeTrue();
+			move.Notation.Should().NotBeNullOrWhiteSpace();
+			UciEngineClient.IsUciMoveString(move.Notation).Should().BeTrue();
 
 			// Score should have either Cp or Mate populated (or both for robustness)
-			(score.ScoreCp.HasValue || score.ScoreMate.HasValue).Should().BeTrue();
-
-			// Analysis should reflect the provided score
-			analysis.Score.Should().Be(score);
+			(move.Analysis.Score.ScoreCp.HasValue || move.Analysis.Score.ScoreMate.HasValue).Should().BeTrue();
 		}
 	}
 
@@ -145,7 +144,7 @@ public class UciCoordinatorTests
 						.Value; // Italian-ish setup
 
 		var board = BoardState.FromFen(newFen)!.Value;
-		await coordinator.UpdatePositionAsync(newFen, null, board);
+		await coordinator.UpdatePositionAsync(newFen, null);
 
 		await tcsSecond.Task.WaitAsync(TimeSpan.FromSeconds(6));
 

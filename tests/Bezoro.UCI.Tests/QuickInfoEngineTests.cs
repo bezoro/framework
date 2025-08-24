@@ -1,4 +1,5 @@
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Common.Constants;
 using FluentAssertions;
 using JetBrains.Annotations;

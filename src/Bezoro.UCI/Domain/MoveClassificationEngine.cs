@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 internal sealed class MoveClassificationEngine(
 	string               enginePath,
@@ -29,9 +29,8 @@ internal sealed class MoveClassificationEngine(
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;
 
-	public async IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyAsync(
+	public async IAsyncEnumerable<Move> ClassifyAsync(
 		Fen                                        fen,
-		BoardState                                 board,
 		uint                                       perMoveDepth = 6,
 		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
@@ -47,12 +46,15 @@ internal sealed class MoveClassificationEngine(
 		{
 			if (string.IsNullOrWhiteSpace(move)) continue;
 
-			(string Move, MoveAnalysis Analysis, MoveScore Score)? resultTuple = null;
-
-			resultTuple = await EvaluateMoveAtRootAsync(fen, board, move, perMoveDepth, ct).ConfigureAwait(false);
+			var resultTuple = await EvaluateMoveAtRootAsync(fen, move, perMoveDepth, ct).ConfigureAwait(false);
 			if (resultTuple.HasValue)
 				yield return resultTuple.Value;
 		}
+	}
+
+	public async Task NewGameAsync(CancellationToken ct = default)
+	{
+		await _client.UciNewGameAsync(ct);
 	}
 
 	public async Task StartAsync(CancellationToken ct = default)
@@ -90,24 +92,6 @@ internal sealed class MoveClassificationEngine(
 		}
 
 		_started = false;
-	}
-
-	public async Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?> ClassifyMoveAsync(
-		Fen               fen,
-		BoardState        board,
-		string            move,
-		uint              perMoveDepth = 6,
-		CancellationToken ct           = default)
-	{
-		EnsureStarted();
-		// Validate that the move is legal in the given position
-		await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-
-		if (legalMoves is null || !legalMoves.Contains(move))
-			throw new ArgumentException($"The move {move} is not legal in position {fen}");
-
-		return await EvaluateMoveAtRootAsync(fen, board, move, perMoveDepth, ct).ConfigureAwait(false);
 	}
 
 	public async Task<bool> IsCheckmateAsync(
@@ -157,6 +141,24 @@ internal sealed class MoveClassificationEngine(
 		return isStalemate;
 	}
 
+	public async Task<Move?> ClassifyMoveAsync(
+		Fen               fen,
+		BoardState        board,
+		string            move,
+		uint              perMoveDepth = 6,
+		CancellationToken ct           = default)
+	{
+		EnsureStarted();
+		// Validate that the move is legal in the given position
+		await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+
+		if (legalMoves is null || !legalMoves.Contains(move))
+			throw new ArgumentException($"The move {move} is not legal in position {fen}");
+
+		return await EvaluateMoveAtRootAsync(fen, move, perMoveDepth, ct).ConfigureAwait(false);
+	}
+
 	public async ValueTask DisposeAsync()
 	{
 		await _quick.DisposeAsync();
@@ -187,9 +189,8 @@ internal sealed class MoveClassificationEngine(
 		return cp.HasValue ? MoveScore.FromCp(cp.Value) : default;
 	}
 
-	private async Task<(string Move, MoveAnalysis Analysis, MoveScore Score)?> EvaluateMoveAtRootAsync(
+	private async Task<Move?> EvaluateMoveAtRootAsync(
 		Fen               fen,
-		BoardState        board,
 		string            move,
 		uint              perMoveDepth,
 		CancellationToken ct)
@@ -203,8 +204,8 @@ internal sealed class MoveClassificationEngine(
 		{
 			// Recompute analysis based on current board, reuse cached score and flags
 			score    = cached.Score;
-			analysis = MoveAnalysis.Analyze(move, board, score, cached.IsStalemate);
-			return (move, analysis, score);
+			analysis = MoveAnalysis.Analyze(move, BoardState.FromFen(fen).Value, score, cached.IsStalemate);
+			return new Move(move, analysis);
 		}
 
 		// Ensure engine is at root position and restrict search to this single move
@@ -225,8 +226,8 @@ internal sealed class MoveClassificationEngine(
 		// Store normalized result in cache
 		_moveEvalCache[cacheKey] = (score, isMate, isStalemate);
 
-		analysis = MoveAnalysis.Analyze(move, board, score, isStalemate);
-		return (move, analysis, score);
+		analysis = MoveAnalysis.Analyze(move, BoardState.FromFen(fen).Value, score, isStalemate);
+		return new Move(move, analysis);
 	}
 
 	private void ClearCaches()

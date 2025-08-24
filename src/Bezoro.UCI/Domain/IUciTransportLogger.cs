@@ -1,4 +1,4 @@
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 /// <summary>
 ///     Optional logger abstraction for UCI transport lifecycle and error reporting.

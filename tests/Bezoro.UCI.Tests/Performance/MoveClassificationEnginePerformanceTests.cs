@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -20,7 +21,7 @@ public class MoveClassificationEnginePerformanceTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var moveStream = engine.ClassifyAsync(fen, board);
+		var moveStream = engine.ClassifyAsync(fen);
 
 		moveStream.Should().NotBeNull();
 		var stopWatch = new Stopwatch();

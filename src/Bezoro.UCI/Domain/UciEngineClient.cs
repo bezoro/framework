@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 internal sealed class UciEngineClient : IAsyncDisposable
 {
@@ -154,7 +154,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		return Fen.TryParseUciOutputLine(fenLine, out var fen) ? fen : null;
 	}
 
-	public async Task<IReadOnlyList<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
+	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
 	{
 		// Collect moves while the engine processes the command; completion is gated by readyok.
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

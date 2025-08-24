@@ -1,4 +1,5 @@
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -19,12 +20,12 @@ public class MoveClassificationEngineIntegrationTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var stream = engine.ClassifyAsync(fen, board);
+		var stream = engine.ClassifyAsync(fen);
 
 		var found = false;
 		await foreach (var item in stream)
 		{
-			if (item.Move == "e2e4")
+			if (item.Notation == "e2e4")
 			{
 				found = true;
 				break;
@@ -43,16 +44,16 @@ public class MoveClassificationEngineIntegrationTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var moveStream = engine.ClassifyAsync(fen, board);
+		var moveStream = engine.ClassifyAsync(fen);
 
 		moveStream.Should().NotBeNull();
 		var moveCount = 0;
 		await foreach (var move in moveStream)
 		{
 			move.Should().NotBeNull();
-			move.Move.Should().NotBeNull();
+			move.Notation.Should().NotBeNull();
 			move.Analysis.Should().NotBeNull();
-			move.Score.Should().NotBeNull();
+			move.Analysis.Score.Should().NotBeNull();
 			moveCount++;
 		}
 
@@ -70,7 +71,7 @@ public class MoveClassificationEngineIntegrationTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var stream = engine.ClassifyAsync(fen.Value, board);
+		var stream = engine.ClassifyAsync(fen.Value);
 
 		var found = false;
 		await foreach (var item in stream)
@@ -95,7 +96,7 @@ public class MoveClassificationEngineIntegrationTests
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var stream = engine.ClassifyAsync(fen.Value, board);
+		var stream = engine.ClassifyAsync(fen.Value);
 
 		var found = false;
 		await foreach (var item in stream)
@@ -136,9 +137,9 @@ public class MoveClassificationEngineIntegrationTests
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;
-		move.Move.Should().Be("e2e4");
+		move.Notation.Should().Be("e2e4");
 		move.Analysis.Should().NotBeNull();
-		move.Score.Should().NotBeNull();
+		move.Analysis.Score.Should().NotBeNull();
 	}
 
 	[Fact]
@@ -156,7 +157,7 @@ public class MoveClassificationEngineIntegrationTests
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;
-		move.Move.Should().Be("f7g7");
+		move.Notation.Should().Be("f7g7");
 		move.Analysis.IsCheck.Should().BeTrue();
 		move.Analysis.IsMate.Should().BeTrue();
 	}
@@ -176,7 +177,7 @@ public class MoveClassificationEngineIntegrationTests
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;
-		move.Move.Should().Be("b7b6");
+		move.Notation.Should().Be("b7b6");
 		move.Analysis.IsStalemate.Should().BeTrue();
 	}
 

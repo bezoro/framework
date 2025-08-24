@@ -5,17 +5,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<(string Fen, uint Depth), SearchResult> _evalCache = new();
 
 	// Caching
-	private readonly object                 _cacheLock = new();
-	private readonly UciEngineClient        _client;
-	private          Fen?                   _currentFenCache;
-	private          IReadOnlyList<string>? _legalMovesCache;
+	private readonly object                      _cacheLock = new();
+	private readonly UciEngineClient             _client;
+	private          Fen?                        _currentFenCache;
+	private          IReadOnlyCollection<string> _legalMovesCache;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
@@ -29,6 +29,11 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public EngineActivity Activity => _client.Activity;
 
 	public ProcessUciTransport.TransportStatus Status => _client.Status;
+
+	public async Task NewGameAsync(CancellationToken ct = default)
+	{
+		await _client.UciNewGameAsync(ct);
+	}
 
 	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves = null, CancellationToken ct = default)
 	{
@@ -71,7 +76,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		return fen;
 	}
 
-	public async Task<IReadOnlyList<string>> GetLegalMovesAsync(CancellationToken ct = default)
+	public async Task<IReadOnlyCollection<string>> GetLegalMovesAsync(CancellationToken ct = default)
 	{
 		lock (_cacheLock)
 		{

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 

@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 internal sealed class ProcessUciTransport : IUciTransport
 {

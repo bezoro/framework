@@ -1,4 +1,5 @@
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -50,46 +51,6 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartPonderAsync_WhenCalled_RaisesInfoPv()
-	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
-		await engine.StartAsync();
-		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.InfoPv += pv => tcs.TrySetResult(pv);
-
-		await engine.StartPonderAsync(Fen.Default, null);
-
-		var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
-		engine.Activity.Should().Be(EngineActivity.Pondering);
-		received?.Moves.Should().NotBeEmpty();
-		received?.ScoreCp.Should().NotBeNull();
-	}
-
-	[Fact]
-	public async Task StopAsync_WhenCalled_StopsEngine()
-	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await engine.StopAsync();
-
-		engine.IsStarted.Should().BeFalse();
-		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
-	}
-
-	[Fact]
-	public async Task StopPonderAsync_WhenCalled_StopsTheSearch()
-	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await engine.StartPonderAsync(Fen.Default, null);
-		await engine.StopPonderAsync();
-
-		engine.Activity.Should().Be(EngineActivity.Idle);
-	}
-
-	[Fact]
 	public async Task StartPonderAsync_ThenStopPonderAsync_RaisesBestMove()
 	{
 		await using var engine = new PonderEngine(STOCKFISH_PATH);
@@ -117,11 +78,51 @@ public class PonderEngineTests
 	}
 
 	[Fact]
+	public async Task StartPonderAsync_WhenCalled_RaisesInfoPv()
+	{
+		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv => tcs.TrySetResult(pv);
+
+		await engine.StartPonderAsync(Fen.Default, null);
+
+		var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
+		engine.Activity.Should().Be(EngineActivity.Pondering);
+		received?.Moves.Should().NotBeEmpty();
+		received?.ScoreCp.Should().NotBeNull();
+	}
+
+	[Fact]
 	public async Task StartPonderAsync_WithInvalidFen_ThrowsArgumentException()
 	{
 		await using var engine = new PonderEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartPonderAsync(Fen.Empty(), null));
+	}
+
+	[Fact]
+	public async Task StopAsync_WhenCalled_StopsEngine()
+	{
+		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await engine.StopAsync();
+
+		engine.IsStarted.Should().BeFalse();
+		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+	}
+
+	[Fact]
+	public async Task StopPonderAsync_WhenCalled_StopsTheSearch()
+	{
+		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await engine.StartPonderAsync(Fen.Default, null);
+		await engine.StopPonderAsync();
+
+		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
 }

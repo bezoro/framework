@@ -2,10 +2,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.API;
 
-internal sealed class UciCoordinator : IAsyncDisposable
+public sealed class UciCoordinator : IAsyncDisposable
 {
 	private readonly MoveClassificationEngine _classifier;
 
@@ -27,12 +28,26 @@ internal sealed class UciCoordinator : IAsyncDisposable
 		_ponder.BestMove += (b, p) => PonderBestMove?.Invoke(b, p);
 	}
 
-	public IAsyncEnumerable<(string Move, MoveAnalysis Analysis, MoveScore Score)> ClassifyMovesAsync(
+	public IAsyncEnumerable<Move> ClassifyMovesAsync(
 		Fen               fen,
-		BoardState        board,
 		uint              perMoveDepth = 6,
 		CancellationToken ct           = default)
-		=> _classifier.ClassifyAsync(fen, board, perMoveDepth, ct);
+		=> _classifier.ClassifyAsync(fen, perMoveDepth, ct);
+
+	public async Task NewGameAsync(CancellationToken ct = default)
+	{
+		await Task.WhenAll(
+			_classifier.NewGameAsync(ct),
+			_ponder.NewGameAsync(ct),
+			_quick.NewGameAsync(ct)
+		).ConfigureAwait(false);
+
+		// Clear cached state for new game
+		lock (_cacheLock)
+		{
+			_lastPonderKey = null;
+		}
+	}
 
 	public async Task StartAsync(CancellationToken ct = default)
 	{
@@ -89,11 +104,9 @@ internal sealed class UciCoordinator : IAsyncDisposable
 		}
 	}
 
-	// Position update: only restart ponder if the position actually changed.
 	public async Task UpdatePositionAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
-		BoardState           board,
 		CancellationToken    ct = default)
 	{
 		string key = BuildPositionKey(fen, playedMoves);
@@ -108,12 +121,16 @@ internal sealed class UciCoordinator : IAsyncDisposable
 		_ = StartPonderAsync(fen, playedMoves, ct);
 	}
 
-	// Convenience proxies
+	public async Task<bool> IsMatchFinishedAsync(CancellationToken ct = default)
+	{
+		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		return legalMoves.Count == 0;
+	}
 
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
 		_quick.GetCurrentFenAsync(ct);
 
-	public Task<IReadOnlyList<string>> GetLegalMovesAsync(CancellationToken ct = default) =>
+	public Task<IReadOnlyCollection<string>> GetLegalMovesAsync(CancellationToken ct = default) =>
 		_quick.GetLegalMovesAsync(ct);
 
 	public async ValueTask DisposeAsync()

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Bezoro.UCI;
+namespace Bezoro.UCI.Domain;
 
 /// <summary>
 ///     Abstraction for UCI engine transport.
