@@ -43,11 +43,13 @@ public readonly record struct ParsedMove
 		}
 
 		char pieceChar = moveNotation.First();
-		if (pieceChar.IsValidPieceChar())
-		{
-			movingPiece  = Piece.FromChar(pieceChar);
-			moveNotation = moveNotation[1..];
-		}
+
+		if (moveNotation.Length > 4)
+			if (pieceChar.IsValidPieceChar())
+			{
+				movingPiece  = Piece.FromChar(pieceChar);
+				moveNotation = moveNotation[1..];
+			}
 
 		from = moveNotation[..2];
 		to   = moveNotation[2..];
