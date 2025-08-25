@@ -15,23 +15,48 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 	private readonly PonderEngine    _ponder;
 	private readonly QuickInfoEngine _quick;
+	private readonly TimeSpan        _ponderBestMoveInterval;
 
 	private CancellationTokenSource? _classificationCts;
-	private string?                  _currentPositionKey;
-	private string?                  _lastPonderKey;
-	public event Action<string>?     MoveClassificationCompleted;
 
+	private volatile int _ponderPulseActiveFlag;
+
+	private string? _currentPositionKey;
+	private string? _lastPonderKey;
+	private string? _latestPonderBest;
+	private string? _latestPonderPonder;
+	private Timer?  _ponderPulseTimer;
+
+	public event Action<string>?             MoveClassificationCompleted;
 	public event Action<string, Move>?       MoveClassified;
 	public event Action<string, string>?     PonderBestMove;
 	public event Action<PrincipalVariation>? PonderInfo;
 
-	public UciCoordinator(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
+	public UciCoordinator(
+		string               enginePath,
+		IEnumerable<string>? args                   = null,
+		string?              workingDirectory       = null,
+		TimeSpan?            ponderBestMoveInterval = null)
 	{
-		_quick      = new(enginePath, args, workingDirectory);
-		_ponder     = new(enginePath, args, workingDirectory);
-		_classifier = new(enginePath, args, workingDirectory);
+		_quick                  = new(enginePath, args, workingDirectory);
+		_ponder                 = new(enginePath, args, workingDirectory);
+		_classifier             = new(enginePath, args, workingDirectory);
+		_ponderBestMoveInterval = ponderBestMoveInterval ?? TimeSpan.FromSeconds(5);
 
-		_ponder.InfoPv   += pv => PonderInfo?.Invoke(pv);
+		_ponder.InfoPv += pv =>
+		{
+			PonderInfo?.Invoke(pv);
+			// Capture the latest best/ponder moves from the PV
+			lock (_cacheLock)
+			{
+				if (pv.Moves is { Count: > 0 })
+				{
+					_latestPonderBest   = pv.Moves[0];
+					_latestPonderPonder = pv.Moves.Count > 1 ? pv.Moves[1] : string.Empty;
+				}
+			}
+		};
+
 		_ponder.BestMove += (b, p) => PonderBestMove?.Invoke(b, p);
 	}
 
@@ -48,6 +73,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_ponder.NewGameAsync(ct),
 			_quick.NewGameAsync(ct)
 		).ConfigureAwait(false);
+
+		// Stop any ongoing ponder pulses
+		StopPonderPulseTimer();
 
 		// Clear cached state for new game
 		CancellationTokenSource? toCancel;
@@ -85,16 +113,23 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default)
 	{
 		string key = BuildPositionKey(fen, playedMoves);
+		bool   identical;
 		lock (_cacheLock)
 		{
-			if (string.Equals(_lastPonderKey, key, StringComparison.Ordinal))
-				// Already pondering this position; skip restart
-				return Task.CompletedTask;
-
-			_lastPonderKey = key;
+			identical = string.Equals(_lastPonderKey, key, StringComparison.Ordinal);
+			if (!identical)
+			{
+				_lastPonderKey      = key;
+				_latestPonderBest   = null;
+				_latestPonderPonder = null;
+			}
 		}
 
-		return _ponder.StartPonderAsync(fen, playedMoves, ct);
+		// Start or refresh periodic PonderBestMove pulses without restarting the search
+		StartPonderPulseTimer();
+
+		// If already pondering the same position, don't restart the engine search
+		return identical ? Task.CompletedTask : _ponder.StartPonderAsync(fen, playedMoves, ct);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
@@ -104,6 +139,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_ponder.StopAsync(ct),
 			_quick.StopAsync(ct)
 		).ConfigureAwait(false);
+
+		// Stop any ongoing ponder pulses
+		StopPonderPulseTimer();
 
 		// Clear cached state on stop
 		CancellationTokenSource? toCancel = null;
@@ -123,6 +161,10 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public async Task StopPonderAsync(CancellationToken ct = default)
 	{
 		await _ponder.StopPonderAsync(ct).ConfigureAwait(false);
+
+		// Stop periodic pulses
+		StopPonderPulseTimer();
+
 		// Clear cached ponder key so future identical requests are not skipped
 		lock (_cacheLock)
 		{
@@ -251,6 +293,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 	public async ValueTask DisposeAsync()
 	{
+		// Stop any ongoing ponder pulses
+		StopPonderPulseTimer();
+
 		// Cancel any background classification
 		CancellationTokenSource? toCancel;
 		lock (_cacheLock)
@@ -274,5 +319,66 @@ public sealed class UciCoordinator : IAsyncDisposable
 	{
 		string movesJoined = playedMoves is null ? string.Empty : string.Join(' ', playedMoves);
 		return $"{fen}|{movesJoined}";
+	}
+
+	private void PonderPulseCallback(object? _)
+	{
+		// Avoid re-entrant callbacks if the action takes longer than the interval
+		if (Interlocked.Exchange(ref _ponderPulseActiveFlag, 1) == 1) return;
+
+		try
+		{
+			string? best;
+			string? ponder;
+			bool    shouldFire;
+			lock (_cacheLock)
+			{
+				shouldFire = _ponderPulseTimer is { } &&
+							 !string.IsNullOrEmpty(_lastPonderKey) &&
+							 !string.IsNullOrEmpty(_latestPonderBest);
+
+				best   = _latestPonderBest;
+				ponder = _latestPonderPonder ?? string.Empty;
+			}
+
+			if (shouldFire && best is { }) PonderBestMove?.Invoke(best, ponder ?? string.Empty);
+		}
+		catch
+		{
+			// best-effort: swallow timer exceptions
+		}
+		finally
+		{
+			Volatile.Write(ref _ponderPulseActiveFlag, 0);
+		}
+	}
+
+	private void StartPonderPulseTimer()
+	{
+		lock (_cacheLock)
+		{
+			_ponderPulseTimer?.Dispose();
+			_ponderPulseActiveFlag = 0;
+			_ponderPulseTimer = new(
+				PonderPulseCallback,
+				null,
+				_ponderBestMoveInterval,
+				_ponderBestMoveInterval);
+		}
+	}
+
+	private void StopPonderPulseTimer()
+	{
+		Timer? timer;
+		lock (_cacheLock)
+		{
+			timer                  = _ponderPulseTimer;
+			_ponderPulseTimer      = null;
+			_latestPonderBest      = null;
+			_latestPonderPonder    = null;
+			_ponderPulseActiveFlag = 0;
+		}
+
+		timer?.Dispose();
 	}
 }
