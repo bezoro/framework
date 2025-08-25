@@ -62,7 +62,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		await WaitForLineAsync(
 			l => l.Trim().Equals("readyok", StringComparison.OrdinalIgnoreCase),
 			TimeSpan.FromSeconds(5),
-			ct).ConfigureAwait(false);
+			CancellationToken.None).ConfigureAwait(false);
 	}
 
 	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
@@ -131,7 +131,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		await WaitForLineAsync(
 			l => l.Trim().Equals("uciok", StringComparison.OrdinalIgnoreCase),
 			TimeSpan.FromSeconds(5),
-			ct).ConfigureAwait(false);
+			CancellationToken.None).ConfigureAwait(false);
 
 		await IsReadyAsync(ct).ConfigureAwait(false);
 	}
