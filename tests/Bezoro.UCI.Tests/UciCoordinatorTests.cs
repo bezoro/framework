@@ -355,4 +355,87 @@ public class UciCoordinatorTests
 
 		await coordinator.StopAsync();
 	}
+
+	[Fact]
+	public async Task StartPonderAsync_RaisesBestLineUpdated_FromSingleEngineStream()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var bestLineTcs =
+			new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.BestLineUpdated += pv =>
+		{
+			if (pv.Moves is { Count: > 0 })
+				bestLineTcs.TrySetResult(pv);
+		};
+
+		await coordinator.StartPonderAsync(Fen.Default, null);
+		var pvLine = await bestLineTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
+
+		pvLine.Moves.Should().NotBeEmpty();
+		// Either CP or Mate score should be present
+		(pvLine.ScoreCp.HasValue || pvLine.ScoreMate.HasValue).Should().BeTrue();
+
+		await coordinator.StopPonderAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task UpdatePositionAsync_RaisesLegalMovesUpdated_Immediately()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var tcs = new TaskCompletionSource<IReadOnlyCollection<string>>(
+			TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.LegalMovesUpdated += moves =>
+		{
+			if (moves is { Count: > 0 })
+				tcs.TrySetResult(moves);
+		};
+
+		// Use a non-starting position to avoid short-circuit and ensure event fires for the new state
+		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!.Value;
+		await coordinator.UpdatePositionAsync(newFen, null);
+
+		var updatedMoves = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		updatedMoves.Should().NotBeNull();
+		updatedMoves.Count.Should().BeGreaterThan(0);
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task NewGameAsync_ResetsState_And_AllowsRestart()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var firstInfo =
+			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.PonderInfo += pv => firstInfo.TrySetResult(pv);
+
+		await coordinator.StartPonderAsync(Fen.Default, null);
+		var pv1 = await firstInfo.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		pv1.Should().NotBeNull();
+
+		// New game should reset internal state and allow pondering again
+		await coordinator.NewGameAsync();
+
+		var secondInfo =
+			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.PonderInfo += pv => secondInfo.TrySetResult(pv);
+
+		await coordinator.StartPonderAsync(Fen.Default, null);
+		var pv2 = await secondInfo.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		pv2.Should().NotBeNull();
+
+		await coordinator.StopPonderAsync();
+		await coordinator.StopAsync();
+	}
 }
