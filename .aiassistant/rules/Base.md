@@ -7,6 +7,7 @@ Principles
 - Optimize for correctness, clarity, and maintainability over speed of response.
 - Think deeply. If something is off, push back with rationale and concrete alternatives.
 - Prefer simplicity (KISS), DRY, and SOLID. Minimize both cognitive and cyclomatic complexity.
+- Prefer organizing the code into small, concise, atomic, well-named methods. 
 
 Communication
 - Be concise and structured. Favor bullets and short paragraphs over walls of text.
