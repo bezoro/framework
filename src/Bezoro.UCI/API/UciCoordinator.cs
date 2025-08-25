@@ -43,20 +43,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_classifier             = new(enginePath, args, workingDirectory);
 		_ponderBestMoveInterval = ponderBestMoveInterval ?? TimeSpan.FromSeconds(5);
 
-		_ponder.InfoPv += pv =>
-		{
-			PonderInfo?.Invoke(pv);
-			// Capture the latest best/ponder moves from the PV
-			lock (_cacheLock)
-			{
-				if (pv.Moves is { Count: > 0 })
-				{
-					_latestPonderBest   = pv.Moves[0];
-					_latestPonderPonder = pv.Moves.Count > 1 ? pv.Moves[1] : string.Empty;
-				}
-			}
-		};
-
+		_ponder.InfoPv   += OnPonderInfo;
 		_ponder.BestMove += (b, p) => PonderBestMove?.Invoke(b, p);
 	}
 
@@ -74,20 +61,10 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_quick.NewGameAsync(ct)
 		).ConfigureAwait(false);
 
-		// Stop any ongoing ponder pulses
 		StopPonderPulseTimer();
 
-		// Clear cached state for new game
-		CancellationTokenSource? toCancel;
-		lock (_cacheLock)
-		{
-			toCancel            = _classificationCts;
-			_classificationCts  = null;
-			_currentPositionKey = null;
-			_classifiedMovesForCurrent.Clear();
-			_lastPonderKey = null;
-		}
-
+		// Clear cached state for new game and cancel any in-flight classification
+		var toCancel = CaptureAndClearStateLocked(true);
 		toCancel?.Cancel();
 		toCancel?.Dispose();
 	}
@@ -101,13 +78,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		).ConfigureAwait(false);
 
 		// Clear cached state at the start of a session
-		lock (_cacheLock)
-		{
-			_classificationCts  = null;
-			_currentPositionKey = null;
-			_classifiedMovesForCurrent.Clear();
-			_lastPonderKey = null;
-		}
+		_ = CaptureAndClearStateLocked(true);
 	}
 
 	public Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default)
@@ -140,20 +111,10 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_quick.StopAsync(ct)
 		).ConfigureAwait(false);
 
-		// Stop any ongoing ponder pulses
 		StopPonderPulseTimer();
 
-		// Clear cached state on stop
-		CancellationTokenSource? toCancel = null;
-		lock (_cacheLock)
-		{
-			toCancel            = _classificationCts;
-			_classificationCts  = null;
-			_currentPositionKey = null;
-			_classifiedMovesForCurrent.Clear();
-			_lastPonderKey = null;
-		}
-
+		// Clear cached state on stop and cancel in-flight classification
+		var toCancel = CaptureAndClearStateLocked(true);
 		toCancel?.Cancel();
 		toCancel?.Dispose();
 	}
@@ -188,17 +149,10 @@ public sealed class UciCoordinator : IAsyncDisposable
 		// Stop previous pondering
 		await StopPonderAsync(ct).ConfigureAwait(false);
 
-		// Cancel any in-flight classification and reset cache for the new position
-		CancellationTokenSource? oldCts;
-		lock (_cacheLock)
-		{
-			oldCts = _classificationCts;
-			var newCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-			_classificationCts  = newCts;
-			_currentPositionKey = key;
-			_classifiedMovesForCurrent.Clear();
-		}
+		// Prepare new classification context (with linked CTS)
+		PrepareNewClassificationContext(key, ct, out var oldCts, out var localCts);
 
+		// Cancel prior classification (outside lock)
 		oldCts?.Cancel();
 		oldCts?.Dispose();
 
@@ -209,50 +163,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_ = StartPonderAsync(fen, playedMoves, ct);
 
 		// Kick off background classification pipeline
-		var localCts = _classificationCts!;
-		_ = Task.Run(
-			async () =>
-			{
-				try
-				{
-					await foreach (var move in _classifier.ClassifyAsync(fen, 6, localCts.Token).ConfigureAwait(false))
-					{
-						bool stillCurrent;
-						lock (_cacheLock)
-						{
-							stillCurrent = string.Equals(_currentPositionKey, key, StringComparison.Ordinal) &&
-										   !localCts.IsCancellationRequested;
-
-							if (stillCurrent)
-								_classifiedMovesForCurrent[move.Notation] = move;
-						}
-
-						if (stillCurrent)
-							MoveClassified?.Invoke(key, move);
-						else
-							break;
-					}
-
-					bool fireCompleted;
-					lock (_cacheLock)
-					{
-						fireCompleted = string.Equals(_currentPositionKey, key, StringComparison.Ordinal) &&
-										!localCts.IsCancellationRequested;
-					}
-
-					if (fireCompleted)
-						MoveClassificationCompleted?.Invoke(key);
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when a new position cancels the pipeline
-				}
-				catch
-				{
-					// Best-effort background processing; swallow unexpected exceptions
-				}
-			},
-			CancellationToken.None);
+		StartClassificationPipeline(fen, key, localCts);
 	}
 
 	public async Task<bool> IsMatchFinishedAsync(CancellationToken ct = default)
@@ -274,20 +185,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public async Task<MovesSnapshot> GetLegalMovesWithClassificationsAsync(CancellationToken ct = default)
 	{
 		var legalStrings = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-		var legal        = new List<ParsedMove>(legalStrings.Count);
-		foreach (string? s in legalStrings)
-			legal.Add(ParsedMove.FromNotation(s));
-
-		IReadOnlyDictionary<ParsedMove, Move> classified;
-		lock (_cacheLock)
-		{
-			var dict = new Dictionary<ParsedMove, Move>(_classifiedMovesForCurrent.Count);
-			foreach (var kvp in _classifiedMovesForCurrent)
-				dict[ParsedMove.FromNotation(kvp.Key)] = kvp.Value;
-
-			classified = dict;
-		}
-
+		var legal        = ToParsedMoves(legalStrings);
+		var classified   = SnapshotClassifiedMoves();
 		return new(legal, classified);
 	}
 
@@ -297,16 +196,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		StopPonderPulseTimer();
 
 		// Cancel any background classification
-		CancellationTokenSource? toCancel;
-		lock (_cacheLock)
-		{
-			toCancel            = _classificationCts;
-			_classificationCts  = null;
-			_currentPositionKey = null;
-			_classifiedMovesForCurrent.Clear();
-			_lastPonderKey = null;
-		}
-
+		var toCancel = CaptureAndClearStateLocked(true);
 		toCancel?.Cancel();
 		toCancel?.Dispose();
 
@@ -315,10 +205,75 @@ public sealed class UciCoordinator : IAsyncDisposable
 		await _quick.DisposeAsync();
 	}
 
+	private static List<ParsedMove> ToParsedMoves(IReadOnlyCollection<string> legalStrings)
+	{
+		var legal = new List<ParsedMove>(legalStrings.Count);
+		foreach (string s in legalStrings)
+			legal.Add(ParsedMove.FromNotation(s));
+
+		return legal;
+	}
+
 	private static string BuildPositionKey(Fen fen, IEnumerable<string>? playedMoves)
 	{
 		string movesJoined = playedMoves is null ? string.Empty : string.Join(' ', playedMoves);
 		return $"{fen}|{movesJoined}";
+	}
+
+	private bool TryGetLatestPonder(out string? best, out string? ponder)
+	{
+		lock (_cacheLock)
+		{
+			bool shouldFire = _ponderPulseTimer is { } &&
+							  !string.IsNullOrEmpty(_lastPonderKey) &&
+							  !string.IsNullOrEmpty(_latestPonderBest);
+
+			best   = _latestPonderBest;
+			ponder = _latestPonderPonder ?? string.Empty;
+			return shouldFire;
+		}
+	}
+
+	private CancellationTokenSource? CaptureAndClearStateLocked(bool clearPonderKey)
+	{
+		CancellationTokenSource? toCancel;
+		lock (_cacheLock)
+		{
+			toCancel            = _classificationCts;
+			_classificationCts  = null;
+			_currentPositionKey = null;
+			_classifiedMovesForCurrent.Clear();
+			if (clearPonderKey)
+				_lastPonderKey = null;
+		}
+
+		return toCancel;
+	}
+
+	private IReadOnlyDictionary<ParsedMove, Move> SnapshotClassifiedMoves()
+	{
+		lock (_cacheLock)
+		{
+			var dict = new Dictionary<ParsedMove, Move>(_classifiedMovesForCurrent.Count);
+			foreach (var kvp in _classifiedMovesForCurrent)
+				dict[ParsedMove.FromNotation(kvp.Key)] = kvp.Value;
+
+			return dict;
+		}
+	}
+
+	private void OnPonderInfo(PrincipalVariation pv)
+	{
+		PonderInfo?.Invoke(pv);
+		// Capture the latest best/ponder moves from the PV
+		lock (_cacheLock)
+		{
+			if (pv.Moves is { Count: > 0 })
+			{
+				_latestPonderBest   = pv.Moves[0];
+				_latestPonderPonder = pv.Moves.Count > 1 ? pv.Moves[1] : string.Empty;
+			}
+		}
 	}
 
 	private void PonderPulseCallback(object? _)
@@ -328,20 +283,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 		try
 		{
-			string? best;
-			string? ponder;
-			bool    shouldFire;
-			lock (_cacheLock)
-			{
-				shouldFire = _ponderPulseTimer is { } &&
-							 !string.IsNullOrEmpty(_lastPonderKey) &&
-							 !string.IsNullOrEmpty(_latestPonderBest);
-
-				best   = _latestPonderBest;
-				ponder = _latestPonderPonder ?? string.Empty;
-			}
-
-			if (shouldFire && best is { }) PonderBestMove?.Invoke(best, ponder ?? string.Empty);
+			if (TryGetLatestPonder(out string? best, out string? ponder) && best is { })
+				PonderBestMove?.Invoke(best, ponder ?? string.Empty);
 		}
 		catch
 		{
@@ -351,6 +294,70 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			Volatile.Write(ref _ponderPulseActiveFlag, 0);
 		}
+	}
+
+	private void PrepareNewClassificationContext(
+		string                       positionKey,
+		CancellationToken            ct,
+		out CancellationTokenSource? oldCts,
+		out CancellationTokenSource  newCts)
+	{
+		lock (_cacheLock)
+		{
+			oldCts = _classificationCts;
+			var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			_classificationCts  = linked;
+			_currentPositionKey = positionKey;
+			_classifiedMovesForCurrent.Clear();
+			newCts = linked;
+		}
+	}
+
+	private void StartClassificationPipeline(Fen fen, string positionKey, CancellationTokenSource localCts)
+	{
+		_ = Task.Run(
+			async () =>
+			{
+				try
+				{
+					await foreach (var move in _classifier.ClassifyAsync(fen, 6, localCts.Token).ConfigureAwait(false))
+					{
+						bool stillCurrent;
+						lock (_cacheLock)
+						{
+							stillCurrent = string.Equals(_currentPositionKey, positionKey, StringComparison.Ordinal) &&
+										   !localCts.IsCancellationRequested;
+
+							if (stillCurrent)
+								_classifiedMovesForCurrent[move.Notation] = move;
+						}
+
+						if (stillCurrent)
+							MoveClassified?.Invoke(positionKey, move);
+						else
+							break;
+					}
+
+					bool fireCompleted;
+					lock (_cacheLock)
+					{
+						fireCompleted = string.Equals(_currentPositionKey, positionKey, StringComparison.Ordinal) &&
+										!localCts.IsCancellationRequested;
+					}
+
+					if (fireCompleted)
+						MoveClassificationCompleted?.Invoke(positionKey);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected when a new position cancels the pipeline
+				}
+				catch
+				{
+					// Best-effort background processing; swallow unexpected exceptions
+				}
+			},
+			CancellationToken.None);
 	}
 
 	private void StartPonderPulseTimer()
