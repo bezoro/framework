@@ -62,10 +62,7 @@ public readonly record struct BoardState()
 		var    positions = new List<Position>(64);
 		string placement = fen.PiecePlacement;
 
-		static string BuildSquare(int fileIndex, int rankIndex)
-		{
-			return $"{(char)('a' + fileIndex)}{rankIndex}";
-		}
+		static string BuildSquare(int fileIndex, int rankIndex) => $"{(char)('a' + fileIndex)}{rankIndex}";
 
 		var rank = 8;
 		var file = 0;

@@ -20,7 +20,7 @@ internal record struct SearchCommand
 	{
 		var parts = new List<string> { "go" };
 
-		if (command.SearchMoves is not null)
+		if (command.SearchMoves is { })
 		{
 			var normalizedMoves = NormalizeMoves(command.SearchMoves);
 			if (normalizedMoves.Count > 0)
