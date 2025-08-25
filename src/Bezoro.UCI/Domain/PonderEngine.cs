@@ -31,7 +31,24 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
-		await _client.UciNewGameAsync(ct);
+		// Ensure any ongoing search is stopped so 'isready' can return promptly.
+		try
+		{
+			await _client.StopSearchAsync(ct).ConfigureAwait(false);
+		}
+		catch
+		{
+			/* best-effort */
+		}
+
+		await _client.UciNewGameAsync(ct).ConfigureAwait(false);
+
+		// Reset cached pondering state after a new game starts
+		lock (_cacheLock)
+		{
+			_isPondering     = false;
+			_lastPositionKey = null;
+		}
 	}
 
 	/// <summary>
