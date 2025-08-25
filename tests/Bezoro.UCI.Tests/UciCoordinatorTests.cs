@@ -232,4 +232,127 @@ public class UciCoordinatorTests
 		secondKey.Should().NotBeNull();
 		secondKey.Should().NotBe(firstKey);
 	}
+
+	[Fact]
+	public async Task StartAsync_WithFen_ImmediatelyStartsSearches_And_BroadcastsLegalMovesAndBest()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+
+		var legalTcs =
+			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestTcs =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.LegalMovesUpdated += moves =>
+		{
+			if (moves is { Count: > 0 }) legalTcs.TrySetResult(moves);
+		};
+
+		coordinator.BestMoveUpdated += (b, p) =>
+		{
+			if (!string.IsNullOrWhiteSpace(b)) bestTcs.TrySetResult((b, p));
+		};
+
+		// Start with initial position (should auto-start best/ponder searches and classification)
+		await coordinator.StartAsync(Fen.Default);
+
+		var legal = await legalTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		legal.Should().NotBeNull();
+		legal.Count.Should().BeGreaterThan(0);
+		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
+
+		var bestPair = await bestTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		bestPair.best.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(bestPair.best).Should().BeTrue();
+		if (!string.IsNullOrWhiteSpace(bestPair.ponder))
+			UciEngineClient.IsUciMoveString(bestPair.ponder!).Should().BeTrue();
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task MoveMadeAsync_RestartsSearches_And_BroadcastsAgain()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+
+		var firstBestTcs =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var secondBestTcs =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestCount = 0;
+		coordinator.BestMoveUpdated += (b, p) =>
+		{
+			if (string.IsNullOrWhiteSpace(b)) return;
+
+			if (Interlocked.Increment(ref bestCount) == 1)
+				firstBestTcs.TrySetResult((b, p));
+			else if (bestCount >= 2)
+				secondBestTcs.TrySetResult((b, p));
+		};
+
+		var legalPulse =
+			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.LegalMovesUpdated += moves =>
+		{
+			if (moves is { Count: > 0 }) legalPulse.TrySetResult(moves);
+		};
+
+		await coordinator.StartAsync(Fen.Default);
+
+		// Wait for initial best
+		var first = await firstBestTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		first.best.Should().NotBeNullOrWhiteSpace();
+
+		// Make a legal move and ensure new best arrives after restart
+		await legalPulse.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await coordinator.MoveMadeAsync("e2e4");
+
+		var second = await secondBestTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		second.best.Should().NotBeNullOrWhiteSpace();
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task BestSearch_StartStop_RestartsCleanly()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var bestTcs1 =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestTcs2 =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var count = 0;
+		coordinator.BestMoveUpdated += (b, p) =>
+		{
+			if (string.IsNullOrWhiteSpace(b)) return;
+
+			if (Interlocked.Increment(ref count) == 1) bestTcs1.TrySetResult((b, p));
+			else if (count >= 2) bestTcs2.TrySetResult((b, p));
+		};
+
+		// Start best search for current FEN
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.StartBestAsync();
+
+		var first = await bestTcs1.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		first.best.Should().NotBeNullOrWhiteSpace();
+
+		// Stop and restart
+		await coordinator.StopBestAsync();
+		await Task.Delay(200); // tiny pause to ensure stop settles
+		await coordinator.StartBestAsync();
+
+		var second = await bestTcs2.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		second.best.Should().NotBeNullOrWhiteSpace();
+
+		await coordinator.StopAsync();
+	}
 }
