@@ -34,6 +34,12 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		await _client.UciNewGameAsync(ct);
 	}
 
+	/// <summary>
+	///     Forwards option setting to the underlying engine client.
+	/// </summary>
+	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
+		_client.SetOptionAsync(name, value, ct);
+
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		await _client.StartAsync(ct).ConfigureAwait(false);
@@ -53,17 +59,29 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			// If we're already pondering exactly this position, skip restarting
 			if (_isPondering && string.Equals(_lastPositionKey, key, StringComparison.Ordinal)) return;
 
-			// Update last key; mark as not pondering until commands are sent
 			_lastPositionKey = key;
 		}
 
-		await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
-		await _client.GoFireAndForgetAsync(new() { Ponder = true, Infinite = true }, ct).ConfigureAwait(false);
+		await StartSearchAsync(fen, playedMoves, true, ct).ConfigureAwait(false);
 
 		lock (_cacheLock)
 		{
 			_isPondering = true;
 		}
+	}
+
+	/// <summary>
+	///     Starts an infinite search; when 'ponder' is true the engine runs in pondering mode.
+	///     Subscribers consume InfoPv and BestMove events to derive best/ponder updates.
+	/// </summary>
+	public async Task StartSearchAsync(
+		Fen                  fen,
+		IEnumerable<string>? playedMoves,
+		bool                 ponder,
+		CancellationToken    ct = default)
+	{
+		await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
+		await _client.GoFireAndForgetAsync(new() { Ponder = ponder, Infinite = true }, ct).ConfigureAwait(false);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
@@ -87,6 +105,11 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			_lastPositionKey = null;
 		}
 	}
+
+	/// <summary>
+	///     Stops any ongoing search (best or ponder).
+	/// </summary>
+	public Task StopSearchAsync(CancellationToken ct = default) => _client.StopSearchAsync(ct);
 
 	public ValueTask DisposeAsync() => _client.DisposeAsync();
 
