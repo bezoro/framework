@@ -29,27 +29,43 @@ internal sealed class MoveClassificationEngine(
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;
 
+	public event Action<IReadOnlyList<Move>>? AllMovesClassified;
+	public event Action<Move>?                MoveClassified;
+
 	public async IAsyncEnumerable<Move> ClassifyAsync(
-		Fen                                        fen,
+		Fen?                                       fen          = null,
 		uint                                       perMoveDepth = 6,
 		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
 		EnsureStarted();
 
-		// Fetch legal moves using the quick engine
-		await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+		fen ??= await _quick.GetCurrentFenAsync(ct);
+		await _quick.SetPositionAsync(fen.Value, null, ct).ConfigureAwait(false);
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+
+		var classifiedMoves = new List<Move>(legalMoves?.Count ?? 0);
+
 		if (legalMoves is null || legalMoves.Count == 0)
+		{
+			AllMovesClassified?.Invoke(classifiedMoves);
 			yield break;
+		}
 
 		foreach (string? move in legalMoves)
 		{
 			if (string.IsNullOrWhiteSpace(move)) continue;
 
-			var resultTuple = await EvaluateMoveAtRootAsync(fen, move, perMoveDepth, ct).ConfigureAwait(false);
-			if (resultTuple.HasValue)
-				yield return resultTuple.Value;
+			var evaluatedMove = await EvaluateMoveAtRootAsync(fen.Value, move, perMoveDepth, ct).ConfigureAwait(false);
+			if (evaluatedMove.HasValue)
+			{
+				var m = evaluatedMove.Value;
+				classifiedMoves.Add(m);
+				MoveClassified?.Invoke(m);
+				yield return m;
+			}
 		}
+
+		AllMovesClassified?.Invoke(classifiedMoves);
 	}
 
 	public async Task NewGameAsync(CancellationToken ct = default)
@@ -76,20 +92,10 @@ internal sealed class MoveClassificationEngine(
 	{
 		await _quick.StopAsync(ct).ConfigureAwait(false);
 
-		// Clear caches when engine session ends
 		ClearCaches();
 
 		if (_client is { })
-		{
-			try
-			{
-				await _client.StopAsync(ct).ConfigureAwait(false);
-			}
-			catch
-			{
-				/* best-effort */
-			}
-		}
+			await _client.StopAsync(ct).ConfigureAwait(false);
 
 		_started = false;
 	}
