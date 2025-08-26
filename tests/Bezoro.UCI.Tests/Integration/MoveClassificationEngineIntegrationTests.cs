@@ -12,6 +12,41 @@ public class MoveClassificationEngineIntegrationTests
 	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 
 	[Fact]
+	public async Task Classify_FullTurn_WhiteThenBlack_WorksForBothSides()
+	{
+		var start = Fen.Default;
+
+		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// White move
+		var white = await engine.ClassifyMoveAsync(start, "e2e4");
+		white.HasValue.Should().BeTrue();
+		white.Value.Notation.Should().Be("e2e4");
+
+		// Position after e2e4 (black to move)
+		var afterE4 = Fen.Parse("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+
+		// Classification stream for black should include a known reply (e7e5 or c7c5)
+		var stream        = engine.ClassifyAsync(afterE4!.Value);
+		var hasKnownReply = false;
+		await foreach (var m in stream)
+		{
+			if (m.Notation != "e7e5" && m.Notation != "c7c5") continue;
+
+			hasKnownReply = true;
+			break;
+		}
+
+		hasKnownReply.Should().BeTrue();
+
+		// Classify a specific black move to complete the full turn
+		var black = await engine.ClassifyMoveAsync(afterE4.Value, "e7e5");
+		black.HasValue.Should().BeTrue();
+		black.Value.Notation.Should().Be("e7e5");
+	}
+
+	[Fact]
 	public async Task ClassifyAsync_FromStartPosition_ContainsKnownLegalMoveE2E4()
 	{
 		var fen = Fen.Default;
