@@ -24,7 +24,10 @@ internal sealed class MoveClassificationEngine(
 	private readonly QuickInfoEngine _quick = new(enginePath, args, workingDirectory);
 
 	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
-	private          bool   _started;
+
+	private bool _started;
+
+	private CancellationTokenSource _classificationCts = new();
 
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;
@@ -39,9 +42,12 @@ internal sealed class MoveClassificationEngine(
 	{
 		EnsureStarted();
 
-		fen ??= await _quick.GetCurrentFenAsync(ct);
-		await _quick.SetPositionAsync(fen.Value, null, ct).ConfigureAwait(false);
-		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _classificationCts.Token);
+		var       token     = linkedCts.Token;
+
+		fen ??= await _quick.GetCurrentFenAsync(token);
+		await _quick.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
+		var legalMoves = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
 
 		var classifiedMoves = new List<Move>(legalMoves?.Count ?? 0);
 
@@ -55,7 +61,9 @@ internal sealed class MoveClassificationEngine(
 		{
 			if (string.IsNullOrWhiteSpace(move)) continue;
 
-			var evaluatedMove = await EvaluateMoveAtRootAsync(fen.Value, move, perMoveDepth, ct).ConfigureAwait(false);
+			var evaluatedMove =
+				await EvaluateMoveAtRootAsync(fen.Value, move, perMoveDepth, token).ConfigureAwait(false);
+
 			if (evaluatedMove.HasValue)
 			{
 				var m = evaluatedMove.Value;
@@ -92,6 +100,7 @@ internal sealed class MoveClassificationEngine(
 	{
 		await _quick.StopAsync(ct).ConfigureAwait(false);
 
+		StopClassification();
 		ClearCaches();
 
 		if (_client is { })
@@ -166,6 +175,8 @@ internal sealed class MoveClassificationEngine(
 
 	public async ValueTask DisposeAsync()
 	{
+		StopClassification();
+
 		await _quick.DisposeAsync();
 
 		if (_client is { })
@@ -183,6 +194,23 @@ internal sealed class MoveClassificationEngine(
 		}
 
 		_transport = null;
+	}
+
+	public void StopClassification()
+	{
+		var cts = Interlocked.Exchange(ref _classificationCts, new());
+		try
+		{
+			cts.Cancel();
+		}
+		catch
+		{
+			/* best-effort */
+		}
+		finally
+		{
+			cts.Dispose();
+		}
 	}
 
 	private static MoveScore ScoreFromResult(SearchResult result)
