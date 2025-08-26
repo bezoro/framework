@@ -7,20 +7,19 @@ namespace Bezoro.UCI.Domain;
 
 internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 {
-	private readonly object          _cacheLock = new();
 	private readonly UciEngineClient _client;
-	private          bool            _isPondering;
-	private          string?         _lastPositionKey;
 
-	public event Action<string, string>?     BestMove;
-	public event Action<PrincipalVariation>? InfoPv;
+	private int? _lastScoreCp;
+	private int? _lastScoreMate;
+
+	public event Action<ParsedMove, ParsedMove?>? BestMove;
+	public event Action<PrincipalVariation>?      InfoPv;
 
 	public PonderEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
 		var transport = new ProcessUciTransport(enginePath, args, workingDirectory);
-		_client                  =  new(transport);
-		_client.InfoPvReceived   += pv => InfoPv?.Invoke(pv);
-		_client.BestMoveReceived += (b, p) => BestMove?.Invoke(b, p);
+		_client                =  new(transport);
+		_client.InfoPvReceived += OnClientInfoPvReceived;
 	}
 
 	public bool IsHealthy => _client.IsHealthy;
@@ -31,24 +30,10 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
-		// Ensure any ongoing search is stopped so 'isready' can return promptly.
-		try
-		{
-			await _client.StopSearchAsync(ct).ConfigureAwait(false);
-		}
-		catch
-		{
-			/* best-effort */
-		}
-
+		await _client.StopSearchAsync(ct).ConfigureAwait(false);
 		await _client.UciNewGameAsync(ct).ConfigureAwait(false);
 
-		// Reset cached pondering state after a new game starts
-		lock (_cacheLock)
-		{
-			_isPondering     = false;
-			_lastPositionKey = null;
-		}
+		ClearLastScores();
 	}
 
 	/// <summary>
@@ -60,73 +45,39 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		await _client.StartAsync(ct).ConfigureAwait(false);
-		// Clear cached state at start
-		lock (_cacheLock)
-		{
-			_isPondering     = false;
-			_lastPositionKey = null;
-		}
-	}
-
-	public async Task StartPonderAsync(Fen fen, IEnumerable<string>? playedMoves, CancellationToken ct = default)
-	{
-		string key = BuildPositionKey(fen, playedMoves);
-		lock (_cacheLock)
-		{
-			// If we're already pondering exactly this position, skip restarting
-			if (_isPondering && string.Equals(_lastPositionKey, key, StringComparison.Ordinal)) return;
-
-			_lastPositionKey = key;
-		}
-
-		await StartSearchAsync(fen, playedMoves, true, ct).ConfigureAwait(false);
-
-		lock (_cacheLock)
-		{
-			_isPondering = true;
-		}
+		ClearLastScores();
 	}
 
 	/// <summary>
-	///     Starts an infinite search; when 'ponder' is true the engine runs in pondering mode.
-	///     Subscribers consume InfoPv and BestMove events to derive best/ponder updates.
+	///     Starts an infinite search on the client. InfoPv is forwarded for each PV update and
+	///     BestMove is raised when the PV improves (mate over cp; higher is better).
 	/// </summary>
 	public async Task StartSearchAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
-		bool                 ponder,
 		CancellationToken    ct = default)
 	{
+		if (Activity is EngineActivity.Searching or EngineActivity.Pondering) return;
+
 		await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
-		await _client.GoFireAndForgetAsync(new() { Ponder = ponder, Infinite = true }, ct).ConfigureAwait(false);
+		await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		await _client.StopAsync(ct).ConfigureAwait(false);
-		// Clear cached state on stop
-		lock (_cacheLock)
-		{
-			_isPondering     = false;
-			_lastPositionKey = null;
-		}
-	}
-
-	public async Task StopPonderAsync(CancellationToken ct = default)
-	{
-		await _client.StopSearchAsync(ct).ConfigureAwait(false);
-		// Clear pondering state so future identical requests are not skipped
-		lock (_cacheLock)
-		{
-			_isPondering     = false;
-			_lastPositionKey = null;
-		}
+		ClearLastScores();
 	}
 
 	/// <summary>
 	///     Stops any ongoing search (best or ponder).
 	/// </summary>
-	public Task StopSearchAsync(CancellationToken ct = default) => _client.StopSearchAsync(ct);
+	public Task StopSearchAsync(CancellationToken ct = default)
+	{
+		_lastScoreMate = null;
+		_lastScoreCp   = null;
+		return _client.StopSearchAsync(ct);
+	}
 
 	public ValueTask DisposeAsync() => _client.DisposeAsync();
 
@@ -135,9 +86,52 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
 	}
 
-	private static string BuildPositionKey(Fen fen, IEnumerable<string>? playedMoves)
+	private void ClearLastScores()
 	{
-		string movesJoined = playedMoves is null ? string.Empty : string.Join(' ', playedMoves);
-		return $"{fen}|{movesJoined}";
+		_lastScoreMate = null;
+		_lastScoreCp   = null;
+	}
+
+	private void OnClientInfoPvReceived(PrincipalVariation pv)
+	{
+		InfoPv?.Invoke(pv);
+
+		var  improved = false;
+		int? newMate  = pv.ScoreMate;
+		int? newCp    = pv.ScoreCp;
+
+		if (newMate.HasValue)
+		{
+			improved = !_lastScoreMate.HasValue || newMate.Value < _lastScoreMate.Value;
+			if (improved)
+				_lastScoreMate = newMate;
+		}
+		else
+		{
+			if (!_lastScoreMate.HasValue &&
+				newCp.HasValue &&
+				(!_lastScoreCp.HasValue || newCp.Value > _lastScoreCp.Value))
+			{
+				_lastScoreCp = newCp;
+				improved     = true;
+			}
+		}
+
+		if (!improved) return;
+
+		string bestStr = pv.Moves is { Count: > 0 } ? pv.Moves[0] : string.Empty;
+		if (string.IsNullOrWhiteSpace(bestStr)) return;
+
+		var bestParsed = ParsedMove.FromNotation(bestStr);
+
+		ParsedMove? ponderParsed = null;
+		if (pv.Moves is { Count: > 1 })
+		{
+			string ponderStr = pv.Moves[1];
+			if (!string.IsNullOrWhiteSpace(ponderStr))
+				ponderParsed = ParsedMove.FromNotation(ponderStr);
+		}
+
+		BestMove?.Invoke(bestParsed, ponderParsed);
 	}
 }
