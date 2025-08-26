@@ -74,6 +74,83 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task FullTurn_WhiteE2E4_ThenBlackResponse_ValidatesApi()
+	{
+		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Initial position: expect legal moves including e2e4
+		var legalStartTcs =
+			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.LegalMovesUpdated += moves =>
+		{
+			if (moves is { Count: > 0 })
+				legalStartTcs.TrySetResult(moves);
+		};
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		var legalStart = await legalStartTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		legalStart.Should().Contain(new[] { "e2e4", "d2d4" });
+
+		// Apply white's move e2e4; validate black-side legal moves, pondering and classification events
+		var legalAfterWhiteTcs =
+			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestAfterWhiteTcs =
+			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var classifiedTcs =
+			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.LegalMovesUpdated += moves =>
+		{
+			if (moves is { Count: > 0 })
+			{
+				var hasReply = false;
+				foreach (string s in moves)
+				{
+					if (s == "e7e5" || s == "c7c5")
+					{
+						hasReply = true;
+						break;
+					}
+				}
+
+				if (hasReply)
+					legalAfterWhiteTcs.TrySetResult(moves);
+			}
+		};
+
+		coordinator.PonderBestMove += (best, ponder) =>
+		{
+			if (!string.IsNullOrWhiteSpace(best))
+				bestAfterWhiteTcs.TrySetResult((best, ponder));
+		};
+
+		coordinator.NewMoveClassified += (notation, move) =>
+		{
+			if (!string.IsNullOrWhiteSpace(notation))
+				classifiedTcs.TrySetResult((notation, move));
+		};
+
+		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+
+		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
+
+		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		bestPair.best.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(bestPair.best).Should().BeTrue();
+
+		var classified = await classifiedTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		classified.notation.Should().NotBeNullOrWhiteSpace();
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task GetLegalMovesAsync_ReturnsParsedMoves()
 	{
 		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
