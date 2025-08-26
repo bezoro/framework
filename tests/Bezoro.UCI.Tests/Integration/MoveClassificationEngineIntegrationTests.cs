@@ -14,8 +14,7 @@ public class MoveClassificationEngineIntegrationTests
 	[Fact]
 	public async Task ClassifyAsync_FromStartPosition_ContainsKnownLegalMoveE2E4()
 	{
-		var fen   = Fen.Default;
-		var board = BoardState.FromFen(fen)!.Value;
+		var fen = Fen.Default;
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -38,8 +37,7 @@ public class MoveClassificationEngineIntegrationTests
 	[Fact]
 	public async Task ClassifyAsync_WhenCalled_ReturnsClassifiedMovesStream()
 	{
-		var fen   = Fen.Default;
-		var board = BoardState.FromFen(fen)!.Value;
+		var fen = Fen.Default;
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -65,8 +63,7 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
 		// Move f7g7 is checkmate.
-		var fen   = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
-		var board = BoardState.FromFen(fen!.Value)!.Value;
+		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -113,26 +110,24 @@ public class MoveClassificationEngineIntegrationTests
 	public async Task ClassifyMoveAsync_WhenIllegalMove_Throws()
 	{
 		// Starting position: "e2e5" is illegal.
-		var fen   = Fen.Default;
-		var board = BoardState.FromFen(fen)!.Value;
+		var fen = Fen.Default;
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(fen, board, "e2e5"));
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(fen, "e2e5"));
 	}
 
 	[Fact]
 	public async Task ClassifyMoveAsync_WhenLegalMoveFromStart_ReturnsResult()
 	{
 		// Starting position: "e2e4" is legal.
-		var fen   = Fen.Default;
-		var board = BoardState.FromFen(fen)!.Value;
+		var fen = Fen.Default;
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var result = await engine.ClassifyMoveAsync(fen, board, "e2e4");
+		var result = await engine.ClassifyMoveAsync(fen, "e2e4");
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;
@@ -146,13 +141,12 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
 		// Move f7g7 is checkmate.
-		var fen   = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
-		var board = BoardState.FromFen(fen!.Value)!.Value;
+		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var result = await engine.ClassifyMoveAsync(fen.Value, board, "f7g7");
+		var result = await engine.ClassifyMoveAsync(fen.Value, "f7g7");
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;
@@ -166,13 +160,12 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
 		// Move b7b6 stalemates Black.
-		var fen   = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
-		var board = BoardState.FromFen(fen!.Value)!.Value;
+		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var result = await engine.ClassifyMoveAsync(fen.Value, board, "b7b6");
+		var result = await engine.ClassifyMoveAsync(fen.Value, "b7b6");
 
 		result.HasValue.Should().BeTrue();
 		var move = result.Value;

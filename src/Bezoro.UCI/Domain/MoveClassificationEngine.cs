@@ -143,7 +143,6 @@ internal sealed class MoveClassificationEngine(
 
 	public async Task<Move?> ClassifyMoveAsync(
 		Fen               fen,
-		BoardState        board,
 		string            move,
 		uint              perMoveDepth = 6,
 		CancellationToken ct           = default)
