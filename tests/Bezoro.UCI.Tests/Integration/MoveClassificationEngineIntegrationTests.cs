@@ -90,13 +90,12 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
 		// Move b7b6 stalemates Black.
-		var fen   = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
-		var board = BoardState.FromFen(fen!.Value)!.Value;
+		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
 		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
 		await engine.StartAsync();
 
-		var stream = engine.ClassifyAsync(fen.Value);
+		var stream = engine.ClassifyAsync(fen!.Value);
 
 		var found = false;
 		await foreach (var item in stream)
