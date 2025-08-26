@@ -41,15 +41,17 @@ public class UciCoordinatorTests
 		await coordinator.StartAsync();
 
 		var bestTcs1 =
-			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var bestTcs2 =
-			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var count = 0;
 		coordinator.PonderBestMove += (b, p) =>
 		{
-			if (string.IsNullOrWhiteSpace(b)) return;
+			if (string.IsNullOrWhiteSpace(b.Raw)) return;
 
 			if (Interlocked.Increment(ref count) == 1) bestTcs1.TrySetResult((b, p));
 			else if (count >= 2) bestTcs2.TrySetResult((b, p));
@@ -60,7 +62,7 @@ public class UciCoordinatorTests
 		await coordinator.StartSearchAsync();
 
 		var first = await bestTcs1.Task.WaitAsync(TimeSpan.FromSeconds(8));
-		first.best.Should().NotBeNullOrWhiteSpace();
+		first.best.Raw.Should().NotBeNullOrWhiteSpace();
 
 		// Stop and restart
 		await coordinator.StopSearchAsync();
@@ -68,7 +70,7 @@ public class UciCoordinatorTests
 		await coordinator.StartSearchAsync();
 
 		var second = await bestTcs2.Task.WaitAsync(TimeSpan.FromSeconds(8));
-		second.best.Should().NotBeNullOrWhiteSpace();
+		second.best.Raw.Should().NotBeNullOrWhiteSpace();
 
 		await coordinator.StopAsync();
 	}
@@ -98,7 +100,8 @@ public class UciCoordinatorTests
 			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var bestAfterWhiteTcs =
-			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var classifiedTcs =
 			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -124,7 +127,7 @@ public class UciCoordinatorTests
 
 		coordinator.PonderBestMove += (best, ponder) =>
 		{
-			if (!string.IsNullOrWhiteSpace(best))
+			if (!string.IsNullOrWhiteSpace(best.Raw))
 				bestAfterWhiteTcs.TrySetResult((best, ponder));
 		};
 
@@ -140,8 +143,8 @@ public class UciCoordinatorTests
 		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
 
 		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
-		bestPair.best.Should().NotBeNullOrWhiteSpace();
-		UciEngineClient.IsUciMoveString(bestPair.best).Should().BeTrue();
+		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
 
 		var classified = await classifiedTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
 		classified.notation.Should().NotBeNullOrWhiteSpace();
@@ -229,7 +232,8 @@ public class UciCoordinatorTests
 			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var bestTcs =
-			new TaskCompletionSource<(string best, string ponder)>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 
 		coordinator.LegalMovesUpdated += moves =>
 		{
@@ -238,7 +242,7 @@ public class UciCoordinatorTests
 
 		coordinator.PonderBestMove += (b, p) =>
 		{
-			if (!string.IsNullOrWhiteSpace(b)) bestTcs.TrySetResult((b, p));
+			if (!string.IsNullOrWhiteSpace(b.Raw)) bestTcs.TrySetResult((b, p));
 		};
 
 		// Start engines, then set the initial position (this triggers search and legal moves)
@@ -251,10 +255,10 @@ public class UciCoordinatorTests
 		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
 
 		var bestPair = await bestTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
-		bestPair.best.Should().NotBeNullOrWhiteSpace();
-		UciEngineClient.IsUciMoveString(bestPair.best).Should().BeTrue();
-		if (!string.IsNullOrWhiteSpace(bestPair.ponder))
-			UciEngineClient.IsUciMoveString(bestPair.ponder!).Should().BeTrue();
+		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
+		if (bestPair.ponder.HasValue)
+			UciEngineClient.IsUciMoveString(bestPair.ponder.Value.Raw).Should().BeTrue();
 
 		await coordinator.StopAsync();
 	}
@@ -291,9 +295,9 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		string? best   = null;
-		string? ponder = null;
-		var     tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		ParsedMove? best   = null;
+		ParsedMove? ponder = null;
+		var         tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		coordinator.PonderBestMove += (b, p) =>
 		{
 			best   = b;
@@ -307,10 +311,10 @@ public class UciCoordinatorTests
 
 		await coordinator.StopSearchAsync();
 
-		best.Should().NotBeNullOrWhiteSpace();
-		UciEngineClient.IsUciMoveString(best!).Should().BeTrue();
-		if (!string.IsNullOrWhiteSpace(ponder))
-			UciEngineClient.IsUciMoveString(ponder!).Should().BeTrue();
+		best.Should().NotBeNull();
+		UciEngineClient.IsUciMoveString(best!.Value.Raw).Should().BeTrue();
+		if (ponder.HasValue)
+			UciEngineClient.IsUciMoveString(ponder.Value.Raw).Should().BeTrue();
 	}
 
 	[Fact]

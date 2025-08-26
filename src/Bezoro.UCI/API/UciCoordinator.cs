@@ -16,14 +16,12 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private readonly PonderEngine    _ponder;
 	private readonly QuickInfoEngine _quick;
 
-	private CancellationTokenSource? _bestCts;
-
-	private string? _lastClassificationFen;
+	private CancellationTokenSource?          _bestCts;
+	public event Action<IReadOnlyList<Move>>? AllMovesClassified;
 
 	public event Action<IReadOnlyCollection<string>>? LegalMovesUpdated;
-	public event Action<string>?                      MoveClassificationCompleted;
 	public event Action<string, Move>?                NewMoveClassified;
-	public event Action<string, string>?              PonderBestMove;
+	public event Action<ParsedMove, ParsedMove?>?     PonderBestMove;
 	public event Action<PrincipalVariation>?          PonderInfo;
 
 	public UciCoordinator(
@@ -142,7 +140,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 		// Determine effective FEN for completion notification
 		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-		_lastClassificationFen = effectiveFen?.ToString();
+		effectiveFen?.ToString();
 
 		// Start pondering for the new position
 		_ = StartSearchAsync(fen, playedMoves, ct);
@@ -229,14 +227,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			_classifiedMovesForCurrent.Clear();
 		}
-
-		_lastClassificationFen = null;
 	}
 
-	private void OnClassifierAllMovesClassified(IReadOnlyList<Move> _)
+	private void OnClassifierAllMovesClassified(IReadOnlyList<Move> moves)
 	{
-		string fenString = _lastClassificationFen ?? string.Empty;
-		MoveClassificationCompleted?.Invoke(fenString);
+		AllMovesClassified?.Invoke(moves);
 	}
 
 	private void OnClassifierMoveClassified(Move move)
@@ -256,6 +251,6 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder)
 	{
-		PonderBestMove?.Invoke(best.Raw, ponder?.Raw ?? string.Empty);
+		PonderBestMove?.Invoke(best, ponder);
 	}
 }
