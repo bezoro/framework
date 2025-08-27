@@ -160,4 +160,85 @@ public class UciEngineClientTests
 		UciEngineClient.IsUciMoveString("e2e4qq").Should().BeFalse();
 		UciEngineClient.IsUciMoveString("e2e4x").Should().BeFalse();
 	}
+
+	[Fact]
+	public async Task GetFenViaDAsync_Returns_CompleteFenObject()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+
+		// Use a known valid position to ensure deterministic behavior
+		await engine.SetPositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var fen = await engine.GetFenViaDAsync(CancellationToken.None);
+
+		fen.HasValue.Should().BeTrue();
+		var f = fen!.Value;
+
+		// Raw and validation
+		f.Raw.Should().NotBeNullOrWhiteSpace();
+		Fen.Validate(f.Raw).Should().BeTrue();
+
+		// Implicit cast and ToString semantics
+		string rawCast = f;
+		rawCast.Should().Be(f.Raw);
+		f.ToString().Should().Be(f.Raw);
+
+		// Core parts
+		f.PiecePlacement.Should().NotBeNullOrWhiteSpace();
+		f.PiecePlacement.Should().Contain("/"); // typical FEN ranks
+
+		(f.ActiveColor == 'w' || f.ActiveColor == 'b').Should().BeTrue();
+
+		f.CastlingRights.Should().NotBeNull();  // may be "-" or castling flags
+		f.EnPassantTarget.Should().NotBeNull(); // may be "-" or a square
+
+		f.FenParts.Should().NotBeNull();
+		f.FenParts.Length.Should().BeGreaterOrEqualTo(6);
+
+		f.HalfmoveClock.Should().BeGreaterOrEqualTo(0);
+		f.FullmoveNumber.Should().BeGreaterOrEqualTo(1);
+
+		// Checkers may be empty depending on engine output, but property should be non-null
+		f.Checkers.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task GetFenViaDAsync_InCheckPosition_Emits_Checkers_Line()
+	{
+		var transport = new ProcessUciTransport(STOCKFISH_PATH);
+		var engine    = new UciEngineClient(transport);
+		await engine.StartAsync();
+
+		// Black to move and in check: White queen on h7 attacks king on h8.
+		var fen = Fen.Parse("7k/7Q/7K/8/8/8/8/8 b - - 0 1");
+		await engine.SetPositionAsync(fen!.Value, null, CancellationToken.None);
+
+		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		void Handler(string line)
+		{
+			if (line.TrimStart().StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+				tcs.TrySetResult(line);
+		}
+
+		engine.LineReceived += Handler;
+		try
+		{
+			// Trigger engine to dump board state, which includes a "checkers" line when in check.
+			await engine.GetFenViaDAsync(CancellationToken.None);
+
+			bool received = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5))) == tcs.Task;
+			received.Should().BeTrue(
+				"engine should emit a 'checkers' line for positions where the side to move is in check");
+
+			string checkersLine = tcs.Task.Result;
+			checkersLine.Should().StartWithEquivalentOf("checkers");
+		}
+		finally
+		{
+			engine.LineReceived -= Handler;
+		}
+	}
 }

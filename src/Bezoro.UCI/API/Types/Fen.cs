@@ -5,8 +5,11 @@ namespace Bezoro.UCI.API.Types;
 
 public readonly record struct Fen
 {
-	private const char   FenSeparator = ':';
-	private const string FenKeyword   = "fen";
+	private const char   FenSeparator     = ':';
+	private const string CHECKERS_KEYWORD = "checkers";
+	private const string FenKeyword       = "fen";
+
+	private static string? _lastRawFen;
 
 	private Fen(
 		string   piecePlacement,
@@ -52,19 +55,58 @@ public readonly record struct Fen
 		string trimmed = line.Trim();
 		if (trimmed.IsEmpty()) return false;
 
-		if (!trimmed.StartsWith(FenKeyword, StringComparison.OrdinalIgnoreCase)) return false;
-
-		try
+		// "fen[: ]<payload>"
+		if (trimmed.StartsWith(FenKeyword, StringComparison.OrdinalIgnoreCase))
 		{
 			string fenPayload = ExtractFenPayloadFromUciLine(trimmed);
-			fen = Parse(fenPayload);
-			return true;
-		}
-		catch
-		{
-			fen = null;
+			var    parsed     = Parse(fenPayload);
+			if (parsed.HasValue)
+			{
+				_lastRawFen = fenPayload;
+				fen         = parsed;
+				return true;
+			}
+
 			return false;
 		}
+
+		// "checkers[: ]<payload>"
+		if (trimmed.StartsWith(CHECKERS_KEYWORD, StringComparison.OrdinalIgnoreCase))
+		{
+			string payload = trimmed[CHECKERS_KEYWORD.Length..].TrimStart();
+			if (payload.Length > 0 && payload[0] == FenSeparator)
+				payload = payload[1..].TrimStart();
+
+			if (!string.IsNullOrEmpty(_lastRawFen))
+			{
+				var lastParsed = Parse(_lastRawFen);
+				if (lastParsed.HasValue)
+				{
+					var last = lastParsed.Value;
+					var enriched = new Fen(
+						last.PiecePlacement,
+						last.ActiveColor,
+						last.CastlingRights,
+						last.EnPassantTarget,
+						last.HalfmoveClock,
+						last.FullmoveNumber,
+						last.FenParts,
+						payload,
+						last.Raw);
+
+					// keep cached raw FEN; 'checkers' is a separate line in engine output
+					fen = enriched;
+					return true;
+				}
+
+				// cached raw FEN failed to parse -> reset cache
+				_lastRawFen = null;
+			}
+
+			return false;
+		}
+
+		return false;
 	}
 
 	public static bool Validate(string rawFen)
@@ -99,9 +141,8 @@ public readonly record struct Fen
 		string castlingRights  = parts.Length > 2 ? parts[2].ThrowIfNull() : string.Empty;
 		string enPassantTarget = parts.Length > 3 ? parts[3].ThrowIfNull() : string.Empty;
 
-		var moveCounters = ParseMoveCounters(parts);
-
-		string checkers = ParseCheckers(parts);
+		var    moveCounters = ParseMoveCounters(parts);
+		string checkers     = ParseCheckers(parts);
 
 		return new(
 			piecePlacement,

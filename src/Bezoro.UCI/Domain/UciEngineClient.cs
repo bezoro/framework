@@ -144,14 +144,65 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task<Fen?> GetFenViaDAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync("d", ct).ConfigureAwait(false);
+		// Capture 'fen' and 'checkers' lines from the 'd' output to avoid races.
+		var fenTcs      = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var checkersTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		string? fenLine = await WaitForLineAsync(
-							  l => Fen.TryParseUciOutputLine(l, out _),
-							  TimeSpan.FromSeconds(2),
-							  ct).ConfigureAwait(false);
+		void Handler(string line)
+		{
+			if (string.IsNullOrEmpty(line)) return;
 
-		return Fen.TryParseUciOutputLine(fenLine, out var fen) ? fen : null;
+			string? trimmed = line.TrimStart();
+
+			if (!fenTcs.Task.IsCompleted &&
+				trimmed.StartsWith("fen", StringComparison.OrdinalIgnoreCase))
+				fenTcs.TrySetResult(line);
+
+			if (!checkersTcs.Task.IsCompleted &&
+				trimmed.StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+				checkersTcs.TrySetResult(line);
+		}
+
+		LineReceived += Handler;
+		try
+		{
+			await _transport.WriteLineAsync("d", ct).ConfigureAwait(false);
+
+			// Await the FEN line first
+			string? fenLine = null;
+			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2), ct))
+										 .ConfigureAwait(false);
+
+			if (fenCompleted == fenTcs.Task)
+				fenLine = await fenTcs.Task.ConfigureAwait(false);
+
+			if (fenLine is null)
+				return null;
+
+			// Give a short window for the 'checkers' line to arrive after the FEN line
+			string? checkersLine = null;
+			var checkersCompleted = await Task.WhenAny(checkersTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(750), ct))
+											  .ConfigureAwait(false);
+
+			if (checkersCompleted == checkersTcs.Task)
+				checkersLine = await checkersTcs.Task.ConfigureAwait(false);
+
+			// Parse FEN from captured lines
+			Fen.TryParseUciOutputLine(fenLine, out var fenFromFen);
+
+			if (checkersLine is { })
+			{
+				// Enrich the cached FEN with 'checkers' info
+				Fen.TryParseUciOutputLine(checkersLine, out var fenWithCheckers);
+				return fenWithCheckers;
+			}
+
+			return fenFromFen;
+		}
+		finally
+		{
+			LineReceived -= Handler;
+		}
 	}
 
 	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
