@@ -26,6 +26,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	// 0 = false, 1 = true (cross-thread visibility)
 	private int _disposed;
+	private int _exitedRaised;
 	private int _isStarted; // 0 = false, 1 = true (cross-thread visibility)
 	private int _readerActive;
 	private int _startGate; // prevents concurrent StartAsync calls
@@ -97,10 +98,15 @@ internal sealed class ProcessUciTransport : IUciTransport
 	public bool IsHealthy =>
 		IsStarted &&
 		_process is { HasExited: false } &&
-		(_readLoopTask is null || !_readLoopTask.IsCompleted) &&
-		(_writeLoopTask is null || !_writeLoopTask.IsCompleted) &&
-		(_stderr is null || _stderrLoopTask is null || !_stderrLoopTask.IsCompleted) &&
-		(_exitNotifyTask is null || !_exitNotifyTask.IsCompleted);
+		(_readLoopTask is null ||
+		 !_readLoopTask.IsCompleted && !_readLoopTask.IsFaulted && !_readLoopTask.IsCanceled) &&
+		(_writeLoopTask is null ||
+		 !_writeLoopTask.IsCompleted && !_writeLoopTask.IsFaulted && !_writeLoopTask.IsCanceled) &&
+		(_stderr is null ||
+		 _stderrLoopTask is null ||
+		 !_stderrLoopTask.IsCompleted && !_stderrLoopTask.IsFaulted && !_stderrLoopTask.IsCanceled) &&
+		(_exitNotifyTask is null ||
+		 !_exitNotifyTask.IsCompleted && !_exitNotifyTask.IsFaulted && !_exitNotifyTask.IsCanceled);
 
 	public bool IsStarted          => Volatile.Read(ref _isStarted) == 1;
 	public long BackpressureEvents => Interlocked.Read(ref _backpressureEvents);
@@ -160,21 +166,68 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Prevent concurrent starts
 		if (Interlocked.CompareExchange(ref _startGate, 1, 0) != 0)
 		{
-			// Another Start acquired the gate; await its TCS if present
-			existingStart = _startingTcs;
-			if (existingStart == null) throw new InvalidOperationException("Transport is already starting.");
+			// Another Start acquired the gate; wait until its TCS is published, then await it
+			while (true)
+			{
+				existingStart = Volatile.Read(ref _startingTcs);
+				if (existingStart != null)
+				{
+					await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
+					return;
+				}
 
-			await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
-			return;
+				// If the gate was released before TCS was published, try to acquire again
+				if (Volatile.Read(ref _startGate) == 0)
+					if (Interlocked.CompareExchange(ref _startGate, 1, 0) == 0)
+						break; // acquired gate; continue with start
+
+				if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
+
+				await Task.Yield();
+			}
 		}
 
 		// We won the start gate: publish starting TCS so others can await
 		var localStartTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Volatile.Write(ref _startingTcs, localStartTcs);
+		// Reset exited flag for new lifecycle
+		Volatile.Write(ref _exitedRaised, 0);
 
 		// Transition to Starting
 		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
 		_options.Logger?.LogInfo("Starting UCI engine process.");
+
+		// Honor cancellation promptly before any heavy validation
+		ct.ThrowIfCancellationRequested();
+
+		// Pre-validate engine executable path and working directory
+		if (!File.Exists(_path))
+			throw new ArgumentException("Engine executable not found at path: " + _path, nameof(_path));
+
+		var workingDir = string.IsNullOrWhiteSpace(_workingDirectory)
+							 ? Environment.CurrentDirectory
+							 : _workingDirectory;
+
+		if (!Directory.Exists(workingDir))
+			throw new ArgumentException("Working directory does not exist: " + workingDir, nameof(_workingDirectory));
+
+		// If we still have a process object but it has already exited, clean it up before starting anew
+		if (_process is { HasExited: true })
+		{
+			try
+			{
+				SafeDispose(_process);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+			finally
+			{
+				_process        = null;
+				_exitNotifyTask = null;
+			}
+		}
 
 		var startInfo = CreateProcessStartInfo();
 
@@ -274,14 +327,24 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Prevent concurrent stops
 		if (Interlocked.CompareExchange(ref _stopGate, 1, 0) != 0)
 		{
-			existingStop = _stoppingTcs;
-			if (existingStop != null)
+			while (true)
 			{
-				await AwaitWithCancellation(existingStop.Task, ct).ConfigureAwait(false);
-				return;
-			}
+				existingStop = Volatile.Read(ref _stoppingTcs);
+				if (existingStop != null)
+				{
+					await AwaitWithCancellation(existingStop.Task, ct).ConfigureAwait(false);
+					return;
+				}
 
-			throw new InvalidOperationException("Transport is already stopping.");
+				// If the gate was released before TCS was published, try to acquire again
+				if (Volatile.Read(ref _stopGate) == 0)
+					if (Interlocked.CompareExchange(ref _stopGate, 1, 0) == 0)
+						break; // acquired gate; continue with stop
+
+				if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
+
+				await Task.Yield();
+			}
 		}
 
 		// Publish stopping TCS
@@ -334,6 +397,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ct.ThrowIfCancellationRequested();
 
 		var writer = GetOutgoingWriterOrThrow();
+
+		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 
 		// Fast path: try non-blocking write to avoid async state machines on the hot path.
 		if (writer.TryWrite(line)) return;
@@ -645,7 +710,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private ChannelWriter<string> GetOutgoingWriterOrThrow()
 	{
 		if (_outgoing is null)
-			throw new InvalidOperationException("Transport not started or already stopping/stopped.");
+			throw new InvalidOperationException("Transport is not started.");
 
 		return _outgoing.Writer;
 	}
@@ -803,7 +868,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
 
-	private async Task TearDownCoreAsync(bool sendQuit, TransportStatus finalStatus, string finalLog)
+	private async Task TearDownCoreAsync(
+		bool              sendQuit,
+		TransportStatus   finalStatus,
+		string            finalLog,
+		CancellationToken ct = default)
 	{
 		var p = _process;
 		_process = null;
@@ -862,7 +931,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				}
 				catch (Exception ex)
 				{
-					ReportError(ex, "Stderr loop faulted.");
+					ReportError(ex, "Failed to write quit to stdin during teardown.");
 				}
 
 				await SafeDisposeAsync(_stdin).ConfigureAwait(false);
@@ -1005,6 +1074,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void FireExitedOnce(int? exitCode, string? error)
+	{
+		if (Interlocked.Exchange(ref _exitedRaised, 1) != 0) return;
+
+		var exited = Exited;
+		if (exited != null)
+			try
+			{
+				exited(exitCode, error);
+			}
+			catch (Exception handlerEx)
+			{
+				ReportError(handlerEx, "Exited event handler threw.");
+			}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void InitializeCancellationSources()
 	{
 		_readLoopCts  = new();
@@ -1109,36 +1195,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
 					int exitCode = process.ExitCode;
 					_options.Logger?.LogInfo("UCI engine process exited with code " + exitCode + ".");
-
-					var exited = Exited;
-					if (exited != null)
-					{
-						try
-						{
-							exited(exitCode, null);
-						}
-						catch (Exception handlerEx)
-						{
-							ReportError(handlerEx, "Exited event handler threw.");
-						}
-					}
+					FireExitedOnce(exitCode, null);
 				}
 				catch (Exception ex)
 				{
 					ReportError(ex, "Error while waiting for process exit.");
-
-					var exited = Exited;
-					if (exited != null)
-					{
-						try
-						{
-							exited(null, ex.Message);
-						}
-						catch (Exception handlerEx)
-						{
-							ReportError(handlerEx, "Exited event handler threw.");
-						}
-					}
+					FireExitedOnce(null, ex.Message);
 				}
 			},
 			CancellationToken.None);
@@ -1411,4 +1473,7 @@ internal sealed class ProcessUciTransportOptions
 
 	// Preferred time-based grace period; when default (zero), QuitGracePeriodMs is used.
 	public TimeSpan QuitGracePeriod { get; init; } = TimeSpan.Zero;
+
+	// Bounded timeout for teardown waits (joining loops and waiting for process exit).
+	public TimeSpan TeardownTimeout { get; init; } = TimeSpan.FromSeconds(5);
 }
