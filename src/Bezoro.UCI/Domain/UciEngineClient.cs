@@ -159,8 +159,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 	{
 		await _transport.StartAsync(ct).ConfigureAwait(false);
 
-		_cts        = new();
-		_readerTask = Task.Run(ReadLoopAsync, ct);
+		_cts = new();
+		// ReSharper disable once MethodSupportsCancellation
+		_readerTask = Task.Run(ReadLoopAsync);
 
 		await UciInitAsync(ct).ConfigureAwait(false);
 		SetActivity(EngineActivity.Idle);
@@ -243,8 +244,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 			// Await the FEN line first
 			string? fenLine = null;
-			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2), ct))
+			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2)))
 										 .ConfigureAwait(false);
+
+			ct.ThrowIfCancellationRequested();
 
 			if (fenCompleted == fenTcs.Task)
 				fenLine = await fenTcs.Task.ConfigureAwait(false);
@@ -254,8 +257,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 			// Give a short window for the 'checkers' line to arrive after the FEN line
 			string? checkersLine = null;
-			var checkersCompleted = await Task.WhenAny(checkersTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(750), ct))
+			var checkersCompleted = await Task.WhenAny(checkersTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(750)))
 											  .ConfigureAwait(false);
+
+			ct.ThrowIfCancellationRequested();
 
 			if (checkersCompleted == checkersTcs.Task)
 				checkersLine = await checkersTcs.Task.ConfigureAwait(false);
@@ -616,7 +621,8 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
 							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-		await using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
+		// ReSharper disable once UseAwaitUsing
+		using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
 
 		try
 		{
