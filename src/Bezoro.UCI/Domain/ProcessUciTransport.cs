@@ -11,13 +11,15 @@ namespace Bezoro.UCI.Domain;
 
 internal sealed class ProcessUciTransport : IUciTransport
 {
-	private readonly IReadOnlyList<string>?     _args;
+	private readonly IReadOnlyList<string>? _args;
+
 	private readonly ProcessUciTransportOptions _options;
 
-	private readonly string                   _path;
-	private readonly string?                  _workingDirectory;
-	private          CancellationTokenSource? _readLoopCts;
-	private          CancellationTokenSource? _writeLoopCts;
+	private readonly string  _path;
+	private readonly string? _workingDirectory;
+
+	private CancellationTokenSource? _readLoopCts;
+	private CancellationTokenSource? _writeLoopCts;
 
 	private Channel<string>? _lines;
 	private Channel<string>? _outgoing;
@@ -27,23 +29,26 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private int _isStarted; // 0 = false, 1 = true (cross-thread visibility)
 	private int _readerActive;
 	private int _startGate; // prevents concurrent StartAsync calls
+	private int _status;    // TransportStatus stored as int for interlocked/volatile
+	private int _stopGate;  // prevents concurrent StopAsync calls
 
-	private int  _status;   // TransportStatus stored as int for interlocked/volatile
-	private int  _stopGate; // prevents concurrent StopAsync calls
 	private long _backpressureEvents;
 
 	// Lightweight counters for diagnostics/tuning (thread-safe reads via Interlocked).
 	private long _linesRead;
 	private long _linesWritten;
 
-	private Process?                       _process;
-	private StreamReader?                  _stderr;
-	private StreamReader?                  _stdout;
-	private StreamWriter?                  _stdin;
-	private Task?                          _exitNotifyTask;
-	private Task?                          _readLoopTask;
-	private Task?                          _stderrLoopTask;
-	private Task?                          _writeLoopTask;
+	private Process? _process;
+
+	private StreamReader? _stderr;
+	private StreamReader? _stdout;
+	private StreamWriter? _stdin;
+
+	private Task? _exitNotifyTask;
+	private Task? _readLoopTask;
+	private Task? _stderrLoopTask;
+	private Task? _writeLoopTask;
+
 	private TaskCompletionSource<object?>? _startingTcs;
 	private TaskCompletionSource<object?>? _stoppingTcs;
 
@@ -157,13 +162,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			// Another Start acquired the gate; await its TCS if present
 			existingStart = _startingTcs;
-			if (existingStart != null)
-			{
-				await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
-				return;
-			}
+			if (existingStart == null) throw new InvalidOperationException("Transport is already starting.");
 
-			throw new InvalidOperationException("Transport is already starting.");
+			await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
+			return;
 		}
 
 		// We won the start gate: publish starting TCS so others can await
@@ -204,7 +206,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Volatile.Write(ref _status,    (int)TransportStatus.Started);
 			if (_options.Logger != null)
 			{
-				string pid = process?.Id.ToString() ?? "n/a";
+				var pid = process.Id.ToString();
 				_options.Logger.LogInfo("UCI engine started. PID=" + pid);
 			}
 
@@ -607,13 +609,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 								   : _workingDirectory
 		};
 
-		if (_args is { Count: > 0 })
-			foreach (string? a in _args)
-			{
-				if (a is null) continue;
+		if (_args is not { Count: > 0 }) return startInfo;
 
-				startInfo.ArgumentList.Add(a);
-			}
+		foreach (string? a in _args)
+		{
+			if (a is null) continue;
+
+			startInfo.ArgumentList.Add(a);
+		}
 
 		return startInfo;
 	}
@@ -1485,18 +1488,15 @@ internal sealed class ProcessUciTransportOptions
 	public bool OutgoingSingleWriter { get; init; } = false;
 
 	// Redirect stderr only when explicitly requested to minimize overhead.
-	public bool RedirectStandardError { get; init; } = false;
-
-	public bool SendQuitOnDispose { get; init; } = true;
-
-	public bool SendQuitOnStop { get; init; } = true;
+	public bool RedirectStandardError { get; init; }
+	public bool SendQuitOnDispose     { get; init; } = true;
+	public bool SendQuitOnStop        { get; init; } = true;
 
 	public bool SingleReader { get; init; } = true;
 
 	// When false, skip command validation for maximum throughput on hot paths (WriteLine/TryWriteLine).
-	public bool ValidateCommands { get; init; } = true;
-
-	public Encoding? StderrEncoding { get; init; }
+	public bool      ValidateCommands { get; init; } = true;
+	public Encoding? StderrEncoding   { get; init; }
 
 	public Encoding? StdinEncoding { get; init; }
 
@@ -1519,5 +1519,5 @@ internal sealed class ProcessUciTransportOptions
 	public string NewLine { get; init; } = "\n";
 
 	// Preferred time-based grace period; when default (zero), QuitGracePeriodMs is used.
-	public TimeSpan QuitGracePeriod { get; init; } = default;
+	public TimeSpan QuitGracePeriod { get; init; } = TimeSpan.Zero;
 }
