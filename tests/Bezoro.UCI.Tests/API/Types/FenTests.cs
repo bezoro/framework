@@ -2,10 +2,10 @@ using Bezoro.UCI.API.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Unit.API.Types;
+namespace Bezoro.UCI.Tests.API.Types;
 
 [TestSubject(typeof(Fen))]
-public class FenUnitTests
+public class FenTests
 {
 	[Fact]
 	public void TryParseUciOutputLine_WhenInvalidFenStructure_ReturnsFalseAndNull()

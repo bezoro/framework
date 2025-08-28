@@ -2,11 +2,10 @@ using Bezoro.UCI.API.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Unit;
+namespace Bezoro.UCI.Tests.API.Types;
 
 [TestSubject(typeof(PrincipalVariation))]
-[Trait("Category", "Unit")]
-public class PrincipalVariationUnitTests
+public class PrincipalVariationTests
 {
 	[Fact]
 	public void TryParse_WithCpScore_ParsesFieldsAndMoves()

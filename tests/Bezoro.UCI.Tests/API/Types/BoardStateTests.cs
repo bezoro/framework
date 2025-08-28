@@ -2,10 +2,10 @@ using Bezoro.UCI.API.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Integration.API.Types;
+namespace Bezoro.UCI.Tests.API.Types;
 
 [TestSubject(typeof(BoardState))]
-public class BoardStateIntegrationTests
+public class BoardStateTests
 {
 	[Fact]
 	public void FromFen_WhenInvalidFen_ShouldThrowArgumentException()

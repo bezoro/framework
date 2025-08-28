@@ -2,10 +2,10 @@ using Bezoro.UCI.API.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Unit.API.Types;
+namespace Bezoro.UCI.Tests.API.Types;
 
 [TestSubject(typeof(MoveScore))]
-public class MoveScoreUnitTests
+public class MoveScoreTests
 {
 	[Fact]
 	public void TryParse_WhenInvalidInput_ReturnsFalseAndNull()

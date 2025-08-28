@@ -1,20 +1,19 @@
 using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests;
+namespace Bezoro.UCI.Tests.API;
 
 [TestSubject(typeof(UciCoordinator))]
 public class UciCoordinatorTests
 {
-	private const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
-
 	[Fact]
 	public async Task AnalysisStream_WhenStarted_YieldsPvWithScore()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -37,7 +36,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task BestSearch_StartStop_RestartsCleanly()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var bestTcs1 =
@@ -78,7 +77,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task FullTurn_WhiteE2E4_ThenBlackResponse_ValidatesApi()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Initial position: expect legal moves including e2e4
@@ -156,7 +155,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task GetLegalMovesAsync_ReturnsParsedMoves()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Start background processing for the default position
@@ -172,7 +171,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task GetLegalMovesAsync_WhenCalled_ReturnsCommonOpeners()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var legalMoves = await coordinator.GetLegalMovesAsync();
@@ -183,7 +182,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task NewGameAsync_ResetsState_And_AllowsRestart()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var firstInfo =
@@ -214,7 +213,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_Then_GetCurrentFenAsync_ReturnsFen()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var fen = await coordinator.GetCurrentFenAsync();
@@ -226,7 +225,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WithFen_ImmediatelyStartsSearches_And_BroadcastsLegalMovesAndBest()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 
 		var legalTcs =
 			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -266,7 +265,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_RaisesBestLineUpdated_FromSingleEngineStream()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var bestLineTcs =
@@ -292,7 +291,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_ThenStop_RaisesPonderBestMove()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		ParsedMove? best   = null;
@@ -320,7 +319,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WhenCalled_RaisesPonderInfo()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -339,7 +338,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WithInvalidFen_ThrowsArgumentException()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => coordinator.StartSearchAsync(Fen.Empty()));
@@ -348,7 +347,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task UpdatePositionAsync_RaisesLegalMovesUpdated_Immediately()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<IReadOnlyCollection<string>>(
@@ -374,7 +373,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task UpdatePositionAsync_RestartsSearch_And_RaisesInfoAgain()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcsFirst  = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -405,7 +404,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task UpdatePositionAsync_WhenCalled_RestartsPonderAndRaisesInfo()
 	{
-		await using var coordinator = new UciCoordinator(STOCKFISH_PATH);
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var infoCount = 0;

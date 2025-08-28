@@ -1,20 +1,18 @@
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests;
+namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(PonderEngine))]
-[Trait("Category", "Integration")]
 public class PonderEngineTests
 {
-	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
-
 	[Fact]
 	public async Task BestMove_EmitsParsedBestAndPonderMatchingPv()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Ensure a single PV stream
@@ -79,7 +77,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task Dispose_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new PonderEngine(STOCKFISH_PATH);
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// ReSharper disable once MethodHasAsyncOverload
@@ -93,7 +91,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new PonderEngine(STOCKFISH_PATH);
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await engine.DisposeAsync();
@@ -106,7 +104,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task NewGameAsync_WhilePondering_StopsSearch_And_AllowsRestart()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var firstInfo =
@@ -138,7 +136,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task SetOptionAsync_MultiPv2_EmitsMultipv2InInfoStream()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Request multiple PVs
@@ -163,7 +161,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartAsync_WhenCalled_StartsEngine()
 	{
-		var engine = new PonderEngine(STOCKFISH_PATH);
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 
 		await engine.StartAsync();
 
@@ -175,7 +173,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_RaisesInfo_And_ActivityTransitions()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -199,7 +197,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_ThenStopAsync_RaisesBestMove()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		ParsedMove? best   = null;
@@ -225,7 +223,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_Twice_RemainsSearching()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await engine.StartSearchAsync(Fen.Default, null);
@@ -244,7 +242,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_WhenCalled_RaisesInfoPv()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		engine.InfoPv += pv => tcs.TrySetResult(pv);
@@ -260,7 +258,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_WithInvalidFen_ThrowsArgumentException()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartSearchAsync(Fen.Empty(), null));
@@ -269,7 +267,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopAsync_WhenCalled_StopsEngine()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await engine.StopAsync();
@@ -281,7 +279,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopSearchAsync_StopsSearch_Twice()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// First run
@@ -302,7 +300,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopSearchAsync_WhenCalled_StopsTheSearch()
 	{
-		await using var engine = new PonderEngine(STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await engine.StartSearchAsync(Fen.Default, null);

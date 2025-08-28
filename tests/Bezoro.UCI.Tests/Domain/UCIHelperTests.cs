@@ -1,10 +1,10 @@
 using Bezoro.UCI.Domain.Common.Helpers;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Unit;
+namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(UCIHelper))]
-public class UCIHelperUnitTests
+public class UCIHelperTests
 {
 	[Theory]
 	[InlineData("")]

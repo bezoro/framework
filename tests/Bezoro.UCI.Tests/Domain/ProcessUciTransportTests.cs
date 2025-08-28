@@ -1,16 +1,14 @@
 using System.Diagnostics;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests;
+namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(ProcessUciTransport))]
-[Trait("Category", "Integration")]
 public class ProcessUciTransportTests
 {
-	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
-
 	[Fact]
 	public async Task Dispose_ThenDisposeAsync_IsIdempotent()
 	{
@@ -734,6 +732,6 @@ public class ProcessUciTransportTests
 		if (!string.IsNullOrWhiteSpace(fromEnv) && File.Exists(fromEnv))
 			return fromEnv;
 
-		return File.Exists(STOCKFISH_PATH) ? STOCKFISH_PATH : null;
+		return File.Exists(TestConsts.STOCKFISH_PATH) ? TestConsts.STOCKFISH_PATH : null;
 	}
 }

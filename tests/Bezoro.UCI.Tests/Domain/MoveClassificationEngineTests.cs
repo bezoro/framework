@@ -1,22 +1,20 @@
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Integration;
+namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(MoveClassificationEngine))]
-[Trait("Category", "Integration")]
-public class MoveClassificationEngineIntegrationTests
+public class MoveClassificationEngineTests
 {
-	public const string STOCKFISH_PATH = "Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
-
 	[Fact]
 	public async Task Classify_FullTurn_WhiteThenBlack_WorksForBothSides()
 	{
 		var start = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// White move
@@ -51,7 +49,7 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen);
@@ -74,7 +72,7 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var moveStream = engine.ClassifyAsync(fen);
@@ -100,7 +98,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen.Value);
@@ -124,7 +122,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen!.Value);
@@ -147,7 +145,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Starting position: "e2e5" is illegal.
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(fen, "e2e5"));
@@ -159,7 +157,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Starting position: "e2e4" is legal.
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen, "e2e4");
@@ -178,7 +176,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen.Value, "f7g7");
@@ -197,7 +195,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen.Value, "b7b6");
@@ -215,7 +213,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isMate = await engine.IsCheckmateAsync(fen!.Value, "f7g7");
@@ -228,7 +226,7 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isMate = await engine.IsCheckmateAsync(fen, "e2e4");
@@ -241,7 +239,7 @@ public class MoveClassificationEngineIntegrationTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isStalemate = await engine.IsStalemateAsync(fen, "e2e4");
@@ -256,7 +254,7 @@ public class MoveClassificationEngineIntegrationTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(STOCKFISH_PATH);
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isStalemate = await engine.IsStalemateAsync(fen!.Value, "b7b6");
