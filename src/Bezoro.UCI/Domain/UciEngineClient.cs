@@ -1,23 +1,19 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.Domain;
 
-internal sealed class UciEngineClient : IAsyncDisposable
+internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposable
 {
-	private static readonly Regex UciMoveRegex = new(
-		@"^[a-h][1-8][a-h][1-8][qrbn]?$",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
 	private readonly ConcurrentDictionary<Guid, (Func<string, bool> predicate, TaskCompletionSource<string> tcs)>
 		_waiters = new();
 
-	private readonly IUciTransport _transport;
+	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
 
 	private CancellationTokenSource? _cts;
 
@@ -37,17 +33,86 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	public event Action<PrincipalVariation>?             InfoPvReceived;
 	public event Action<string>?                         LineReceived;
 
-	public UciEngineClient(IUciTransport transport)
-	{
-		_transport = transport ?? throw new ArgumentNullException(nameof(transport));
-	}
-
 	public bool IsHealthy => _transport.IsHealthy;
 	public bool IsStarted => _transport.IsStarted;
 
 	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
 
 	public ProcessUciTransport.TransportStatus Status => _transport.Status;
+
+	public static bool IsUciMoveString(string s)
+	{
+		var span = s.AsSpan();
+		if ((uint)span.Length - 4 > 1) return false;
+
+		if (!IsFile(span[0]) || !IsRank(span[1]) || !IsFile(span[2]) || !IsRank(span[3])) return false;
+
+		return span.Length == 4 || IsPromo(span[4]);
+
+		static bool IsFile(char c) => (uint)((c | 0x20) - 'a') <= 7;
+
+		static bool IsRank(char c) => (uint)(c - '1') <= 7;
+
+		static bool IsPromo(char c)
+		{
+			int lc = c | 0x20;
+			return lc is 'q' or 'r' or 'b' or 'n';
+		}
+	}
+
+	public static string BuildGoCommand(SearchParameters parameters)
+	{
+		var parts = new List<string> { UciConstants.Commands.GO };
+
+		if (parameters.Ponder) parts.Add(UciConstants.Parameters.PONDER);
+		if (parameters.Infinite) parts.Add(UciConstants.Parameters.INFINITE);
+		if (parameters.WhiteTimeMs.HasValue)
+			parts.Add($"{UciConstants.Parameters.WHITE_TIME} {parameters.WhiteTimeMs.Value}");
+
+		if (parameters.BlackTimeMs.HasValue)
+			parts.Add($"{UciConstants.Parameters.BLACK_TIME} {parameters.BlackTimeMs.Value}");
+
+		if (parameters.WhiteIncrementMs.HasValue)
+			parts.Add($"{UciConstants.Parameters.WHITE_TIME_INCREMENT} {parameters.WhiteIncrementMs.Value}");
+
+		if (parameters.BlackIncrementMs.HasValue)
+			parts.Add($"{UciConstants.Parameters.BLACK_TIME_INCREMENT} {parameters.BlackIncrementMs.Value}");
+
+		if (parameters.MoveTimeMs.HasValue)
+			parts.Add($"{UciConstants.Parameters.MOVE_TIME} {parameters.MoveTimeMs.Value}");
+
+		if (parameters.Nodes.HasValue) parts.Add($"{UciConstants.Parameters.NODES} {parameters.Nodes.Value}");
+		if (parameters.Depth.HasValue) parts.Add($"{UciConstants.Parameters.DEPTH} {parameters.Depth.Value}");
+		if (parameters.Mate.HasValue) parts.Add($"{UciConstants.Parameters.MATE} {parameters.Mate.Value}");
+
+		bool hasAnyLimit =
+			parameters.Infinite ||
+			parameters.Depth.HasValue ||
+			parameters.Mate.HasValue ||
+			parameters.MoveTimeMs.HasValue ||
+			parameters.Nodes.HasValue ||
+			parameters.WhiteTimeMs.HasValue ||
+			parameters.BlackTimeMs.HasValue;
+
+		if (!hasAnyLimit)
+			parts.Add($"{UciConstants.Parameters.DEPTH} 6");
+
+		if (parameters.SearchMoves is not { } sm) return string.Join(' ', parts);
+
+		List<string>? legal = null;
+		foreach (string? s in sm)
+		{
+			if (string.IsNullOrEmpty(s)) continue;
+			if (!IsUciMoveString(s)) continue;
+
+			legal ??= [];
+			legal.Add(s.ToLowerInvariant());
+		}
+
+		if (legal is { Count: > 0 }) parts.Add($"{UciConstants.Parameters.SEARCH_MOVES} " + string.Join(' ', legal));
+
+		return string.Join(' ', parts);
+	}
 
 	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
 	{
@@ -58,9 +123,9 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync("isready", ct).ConfigureAwait(false);
+		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
 		await WaitForLineAsync(
-			l => l.Trim().Equals("readyok", StringComparison.OrdinalIgnoreCase),
+			l => l.Trim().Equals(UciConstants.Responses.READY_OK, StringComparison.OrdinalIgnoreCase),
 			TimeSpan.FromSeconds(10),
 			CancellationToken.None).ConfigureAwait(false);
 	}
@@ -69,7 +134,10 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	{
 		if (string.IsNullOrWhiteSpace(name)) return;
 
-		string cmd = value is null ? $"setoption name {name}" : $"setoption name {name} value {value}";
+		string cmd = value is null
+						 ? $"{UciConstants.Commands.SET_OPTION} {name}"
+						 : $"{UciConstants.Commands.SET_OPTION} {name} {UciConstants.Keywords.VALUE} {value}";
+
 		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
 	}
 
@@ -78,8 +146,13 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		if (!Fen.Validate(fen.Raw))
 			throw new ArgumentException("Invalid FEN provided.", nameof(fen));
 
-		string movePart = moves is { } m && m.Any() ? " moves " + string.Join(' ', m) : string.Empty;
-		await _transport.WriteLineAsync($"position fen {fen.Raw}{movePart}", ct).ConfigureAwait(false);
+		string movePart = moves != null && moves.Any()
+							  ? $"{UciConstants.Keywords.MOVES} " + string.Join(' ', moves)
+							  : string.Empty;
+
+		await _transport.WriteLineAsync(
+			$"{UciConstants.Commands.POSITION} {UciConstants.Keywords.FEN} {fen.Raw} {movePart}",
+			ct).ConfigureAwait(false);
 	}
 
 	public async Task StartAsync(CancellationToken ct = default)
@@ -87,7 +160,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		await _transport.StartAsync(ct).ConfigureAwait(false);
 
 		_cts        = new();
-		_readerTask = Task.Run(ReadLoopAsync);
+		_readerTask = Task.Run(ReadLoopAsync, ct);
 
 		await UciInitAsync(ct).ConfigureAwait(false);
 		SetActivity(EngineActivity.Idle);
@@ -121,15 +194,15 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task StopSearchAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync("stop", ct).ConfigureAwait(false);
+		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
 		SetActivity(EngineActivity.Idle);
 	}
 
 	public async Task UciInitAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync("uci", ct).ConfigureAwait(false);
+		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
 		await WaitForLineAsync(
-			l => l.Trim().Equals("uciok", StringComparison.OrdinalIgnoreCase),
+			l => l.Trim().Equals(UciConstants.Responses.UCI_OK, StringComparison.OrdinalIgnoreCase),
 			TimeSpan.FromSeconds(5),
 			CancellationToken.None).ConfigureAwait(false);
 
@@ -138,7 +211,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 
 	public async Task UciNewGameAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync("ucinewgame", ct).ConfigureAwait(false);
+		await _transport.WriteLineAsync(UciConstants.Commands.UCI_NEW_GAME, ct).ConfigureAwait(false);
 		await IsReadyAsync(ct).ConfigureAwait(false);
 	}
 
@@ -155,18 +228,18 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			string? trimmed = line.TrimStart();
 
 			if (!fenTcs.Task.IsCompleted &&
-				trimmed.StartsWith("fen", StringComparison.OrdinalIgnoreCase))
+				trimmed.StartsWith(UciConstants.Prefixes.FEN, StringComparison.OrdinalIgnoreCase))
 				fenTcs.TrySetResult(line);
 
 			if (!checkersTcs.Task.IsCompleted &&
-				trimmed.StartsWith("checkers", StringComparison.OrdinalIgnoreCase))
+				trimmed.StartsWith(UciConstants.Prefixes.CHECKERS, StringComparison.OrdinalIgnoreCase))
 				checkersTcs.TrySetResult(line);
 		}
 
 		LineReceived += Handler;
 		try
 		{
-			await _transport.WriteLineAsync("d", ct).ConfigureAwait(false);
+			await _transport.WriteLineAsync(UciConstants.Commands.DISPLAY_BOARD, ct).ConfigureAwait(false);
 
 			// Await the FEN line first
 			string? fenLine = null;
@@ -190,14 +263,11 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			// Parse FEN from captured lines
 			Fen.TryParseUciOutputLine(fenLine, out var fenFromFen);
 
-			if (checkersLine is { })
-			{
-				// Enrich the cached FEN with 'checkers' info
-				Fen.TryParseUciOutputLine(checkersLine, out var fenWithCheckers);
-				return fenWithCheckers;
-			}
+			if (checkersLine is null) return fenFromFen;
 
-			return fenFromFen;
+			// Enrich the cached FEN with 'checkers' info
+			Fen.TryParseUciOutputLine(checkersLine, out var fenWithCheckers);
+			return fenWithCheckers;
 		}
 		finally
 		{
@@ -213,7 +283,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		LineReceived += CaptureMoves;
 		try
 		{
-			await _transport.WriteLineAsync("go perft 1", ct).ConfigureAwait(false);
+			await _transport.WriteLineAsync($"{UciConstants.Commands.GO_PERFT} 1", ct).ConfigureAwait(false);
 			await IsReadyAsync(ct).ConfigureAwait(false);
 		}
 		finally
@@ -242,7 +312,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		}
 
 		static bool IsSep(char ch) =>
-			ch == ' ' || ch == '\t' || ch == ',' || ch == ';' || ch == '|' || ch == ':';
+			ch is ' ' or '\t' or ',' or ';' or '|' or ':';
 
 		void CaptureMoves(string l)
 		{
@@ -274,38 +344,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		// Create and publish the active session before sending the command to avoid races.
 		var session = new SearchSession(parameters.Ponder);
 		_activeSearch = session;
-
-		// Derive a more sensible timeout:
-		// - movetime: movetime + small buffer
-		// - depth/nodes: longer ceiling
-		// - infinite: generous cap (but still cancellable via ct)
-		// - default: moderate timeout
-		static TimeSpan ComputeTimeout(SearchParameters p)
-		{
-			if (p.MoveTimeMs is { } mt)
-			{
-				// add a small buffer to allow the engine to flush "bestmove"
-				int buffered = Math.Clamp(mt + 750, 500, 60_000);
-				return TimeSpan.FromMilliseconds(buffered);
-			}
-
-			if (p.Infinite) return TimeSpan.FromSeconds(120);
-
-			if (p.Depth is { } d)
-			{
-				// conservative upper bound for depth-limited searches
-				// (engines typically return much sooner)
-				int sec = Math.Clamp((int)d * 2, 10, 90);
-				return TimeSpan.FromSeconds(sec);
-			}
-
-			if (p.Nodes is { })
-				// node-limited: allow a reasonably long cap
-				return TimeSpan.FromSeconds(60);
-
-			// time-controls (wtime/btime) or unspecified: moderate default
-			return TimeSpan.FromSeconds(30);
-		}
 
 		var timeout = ComputeTimeout(parameters);
 
@@ -394,6 +432,27 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			_activeSearch = null;
 
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
+
+		// Derive a more sensible timeout:
+		// - movetime: movetime + small buffer
+		// - depth/nodes: longer ceiling
+		// - infinite: generous cap (but still cancellable via ct)
+		// - default: moderate timeout
+		static TimeSpan ComputeTimeout(SearchParameters p)
+		{
+			if (p.MoveTimeMs is { } mt)
+			{
+				// add a small buffer to allow the engine to flush "bestmove"
+				int buffered = Math.Clamp(mt + 750, 500, 60_000);
+				return TimeSpan.FromMilliseconds(buffered);
+			}
+
+			if (p.Infinite) return TimeSpan.FromSeconds(120);
+			if (p.Depth is not { } d) return TimeSpan.FromSeconds(p.Nodes is { } ? 60 : 30);
+
+			int sec = Math.Clamp((int)d * 2, 10, 90);
+			return TimeSpan.FromSeconds(sec);
+		}
 	}
 
 	public async ValueTask DisposeAsync()
@@ -408,75 +467,6 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		}
 
 		if (_transport is IAsyncDisposable ad) await ad.DisposeAsync();
-	}
-
-	internal static bool IsUciMoveString(string s)
-	{
-		// Fast ASCII validation: [a-h][1-8][a-h][1-8][qrbn]?
-		if (s is null) return false;
-
-		var span = s.AsSpan();
-		if ((uint)span.Length - 4 > 1) return false;
-
-		static bool IsFile(char c) => (uint)((c | 0x20) - 'a') <= 7;
-		static bool IsRank(char c) => (uint)(c - '1') <= 7;
-
-		static bool IsPromo(char c)
-		{
-			int lc = c | 0x20;
-			return lc is 'q' or 'r' or 'b' or 'n';
-		}
-
-		if (!IsFile(span[0]) || !IsRank(span[1]) || !IsFile(span[2]) || !IsRank(span[3])) return false;
-
-		return span.Length == 4 || IsPromo(span[4]);
-	}
-
-	internal static string BuildGoCommand(SearchParameters parameters)
-	{
-		var parts = new List<string> { "go" };
-
-		if (parameters.Ponder) parts.Add("ponder");
-		if (parameters.Infinite) parts.Add("infinite");
-		if (parameters.WhiteTimeMs.HasValue) parts.Add($"wtime {parameters.WhiteTimeMs.Value}");
-		if (parameters.BlackTimeMs.HasValue) parts.Add($"btime {parameters.BlackTimeMs.Value}");
-		if (parameters.WhiteIncrementMs.HasValue) parts.Add($"winc {parameters.WhiteIncrementMs.Value}");
-		if (parameters.BlackIncrementMs.HasValue) parts.Add($"binc {parameters.BlackIncrementMs.Value}");
-		if (parameters.MoveTimeMs.HasValue) parts.Add($"movetime {parameters.MoveTimeMs.Value}");
-		if (parameters.Nodes.HasValue) parts.Add($"nodes {parameters.Nodes.Value}");
-		if (parameters.Depth.HasValue) parts.Add($"depth {parameters.Depth.Value}");
-		if (parameters.Mate.HasValue) parts.Add($"mate {parameters.Mate.Value}");
-
-		bool hasAnyLimit =
-			parameters.Infinite ||
-			parameters.Depth.HasValue ||
-			parameters.Mate.HasValue ||
-			parameters.MoveTimeMs.HasValue ||
-			parameters.Nodes.HasValue ||
-			parameters.WhiteTimeMs.HasValue ||
-			parameters.BlackTimeMs.HasValue;
-
-		if (!hasAnyLimit)
-			parts.Add("depth 6");
-
-		if (parameters.SearchMoves is { } sm)
-		{
-			List<string>? legal = null;
-			foreach (string? s in sm)
-			{
-				if (string.IsNullOrEmpty(s)) continue;
-
-				if (IsUciMoveString(s))
-				{
-					legal ??= new();
-					legal.Add(s.ToLowerInvariant());
-				}
-			}
-
-			if (legal is { Count: > 0 }) parts.Add("searchmoves " + string.Join(' ', legal));
-		}
-
-		return string.Join(' ', parts);
 	}
 
 	private async Task ReadLoopAsync()
@@ -494,7 +484,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 					// Fast-path: capture search session lines without scanning waiter predicates
 					var sess = _activeSearch;
 
-					if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
+					if (line.StartsWith($"{UciConstants.Prefixes.INFO} ", StringComparison.OrdinalIgnoreCase))
 					{
 						if (PrincipalVariation.TryParse(line, out var pv))
 							InfoPvReceived?.Invoke(pv);
@@ -503,7 +493,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 						sess?.Lines.Enqueue(line);
 					}
 
-					if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
+					if (line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase))
 					{
 						// Zero-allocation parse of "bestmove <move> [ponder <move>]"
 						string best   = string.Empty;
@@ -555,28 +545,26 @@ internal sealed class UciEngineClient : IAsyncDisposable
 					}
 
 					// Existing generic waiters (control messages like 'uciok', 'readyok')
-					if (Volatile.Read(ref _waiterCount) != 0)
-						foreach (var kv in _waiters)
+					if (Volatile.Read(ref _waiterCount) == 0) continue;
+
+					foreach (var (key, value) in _waiters)
+					{
+						bool match;
+						try
 						{
-							var w = kv.Value;
-
-							bool match;
-							try
-							{
-								match = w.predicate(line);
-							}
-							catch
-							{
-								match = false;
-							}
-
-							if (match)
-								if (_waiters.TryRemove(kv.Key, out var removed))
-								{
-									Interlocked.Decrement(ref _waiterCount);
-									removed.tcs.TrySetResult(line);
-								}
+							match = value.predicate(line);
 						}
+						catch
+						{
+							match = false;
+						}
+
+						if (!match) continue;
+						if (!_waiters.TryRemove(key, out var removed)) continue;
+
+						Interlocked.Decrement(ref _waiterCount);
+						removed.tcs.TrySetResult(line);
+					}
 				}
 				catch
 				{
@@ -592,11 +580,10 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		// Cancel any pending waiters
 		foreach (var kv in _waiters)
 		{
-			if (_waiters.TryRemove(kv.Key, out var w))
-			{
-				Interlocked.Decrement(ref _waiterCount);
-				w.tcs.TrySetCanceled();
-			}
+			if (!_waiters.TryRemove(kv.Key, out var w)) continue;
+
+			Interlocked.Decrement(ref _waiterCount);
+			w.tcs.TrySetCanceled();
 		}
 
 		// Fail any active search session if the stream ends unexpectedly
@@ -629,7 +616,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 							   ? CancellationTokenSource.CreateLinkedTokenSource(ct)
 							   : CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-		using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
+		await using var reg = linked.Token.Register(() => tcs.TrySetCanceled());
 
 		try
 		{
@@ -657,17 +644,12 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	}
 
 	// Session optimized path for search: avoids per-line predicate scans and event subscriptions.
-	private sealed class SearchSession
+	private sealed class SearchSession(bool ponder)
 	{
-		public readonly bool                    Ponder;
-		public readonly ConcurrentQueue<string> Lines = new();
+		public readonly bool                    Ponder = ponder;
+		public readonly ConcurrentQueue<string> Lines  = new();
 		public readonly TaskCompletionSource<string> BestMoveTcs =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		public SearchSession(bool ponder)
-		{
-			Ponder = ponder;
-		}
 	}
 }
 

@@ -351,10 +351,10 @@ internal static class UciConstants
 		/// <summary>
 		///     Response indicating engine is ready
 		/// </summary>
-		public const string RESPONSE_READY_OK = "readyok";
+		public const string READY_OK = "readyok";
 		/// <summary>
 		///     Response confirming UCI mode
 		/// </summary>
-		public const string RESPONSE_UCI_OK = "uciok";
+		public const string UCI_OK = "uciok";
 	}
 }
