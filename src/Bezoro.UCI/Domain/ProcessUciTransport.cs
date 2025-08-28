@@ -796,7 +796,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			ReportError(ex, "Failed to join read loop during teardown.");
+			ReportError(ex, "Failed to join read loop during failed start cleanup.");
 		}
 
 		if (_stderrLoopTask != null)
