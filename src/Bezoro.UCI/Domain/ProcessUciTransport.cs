@@ -250,6 +250,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ThrowIfDisposed();
 		ct.ThrowIfCancellationRequested();
 
+		// If a start is currently in progress, wait for it to complete to ensure consistent teardown
+		var existingStartDuringStop = _startingTcs;
+		if (existingStartDuringStop != null)
+			await AwaitWithCancellation(existingStartDuringStop.Task, ct).ConfigureAwait(false);
+
 		// Fast-exit: if not started, ensure state is Stopped and return
 		if (Volatile.Read(ref _isStarted) == 0 && _process is null)
 		{
@@ -703,7 +708,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Error?.Invoke(ex);
+			ReportError(ex, "Failed to join write loop during failed start cleanup.");
 		}
 		finally
 		{
@@ -726,7 +731,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Error?.Invoke(ex);
+			ReportError(ex, "Failed to join read loop during teardown.");
 		}
 
 		if (_stderrLoopTask != null)
@@ -737,7 +742,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 			catch (Exception ex)
 			{
-				Error?.Invoke(ex);
+				ReportError(ex, "Failed to join stderr loop during teardown.");
 			}
 
 			_stderrLoopTask = null;
@@ -782,7 +787,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					}
 					catch (Exception ex)
 					{
-						Error?.Invoke(ex);
+						ReportError(ex, "Failed to await exit notification during failed start cleanup.");
 					}
 
 				SafeDispose(p);
@@ -833,7 +838,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Error?.Invoke(ex);
+			ReportError(ex, "Failed to join write loop during teardown.");
 		}
 		finally
 		{
@@ -857,7 +862,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
+					ReportError(ex, "Stderr loop faulted.");
 				}
 
 				await SafeDisposeAsync(_stdin).ConfigureAwait(false);
@@ -878,7 +883,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Error?.Invoke(ex);
+			ReportError(ex, "Failed to join read loop during failed start cleanup.");
 		}
 		finally
 		{
@@ -894,7 +899,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 			catch (Exception ex)
 			{
-				Error?.Invoke(ex);
+				ReportError(ex, "Failed to join stderr loop during failed start cleanup.");
 			}
 
 			_stderrLoopTask = null;
@@ -962,7 +967,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
+					ReportError(ex, "Failed to await process exit notification during teardown.");
 				}
 
 			SafeDispose(p);
@@ -1103,52 +1108,35 @@ internal sealed class ProcessUciTransport : IUciTransport
 				{
 					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
 					int exitCode = process.ExitCode;
-					if (_options.Logger != null)
-						_options.Logger.LogInfo("UCI engine process exited with code " + exitCode + ".");
+					_options.Logger?.LogInfo("UCI engine process exited with code " + exitCode + ".");
 
-					try
+					var exited = Exited;
+					if (exited != null)
 					{
-						Exited?.Invoke(exitCode, null);
-					}
-					catch (Exception handlerEx)
-					{
-						_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
 						try
 						{
-							Error?.Invoke(handlerEx);
+							exited(exitCode, null);
 						}
-						catch
+						catch (Exception handlerEx)
 						{
-							/* swallow */
+							ReportError(handlerEx, "Exited event handler threw.");
 						}
 					}
 				}
 				catch (Exception ex)
 				{
-					_options.Logger?.LogError(ex, "Error while waiting for process exit.");
-					try
-					{
-						Error?.Invoke(ex);
-					}
-					catch
-					{
-						/* swallow */
-					}
+					ReportError(ex, "Error while waiting for process exit.");
 
-					try
+					var exited = Exited;
+					if (exited != null)
 					{
-						Exited?.Invoke(null, ex.Message);
-					}
-					catch (Exception handlerEx)
-					{
-						_options.Logger?.LogError(handlerEx, "Exited event handler threw.");
 						try
 						{
-							Error?.Invoke(handlerEx);
+							exited(null, ex.Message);
 						}
-						catch
+						catch (Exception handlerEx)
 						{
-							/* swallow */
+							ReportError(handlerEx, "Exited event handler threw.");
 						}
 					}
 				}
@@ -1212,16 +1200,16 @@ internal sealed class ProcessUciTransport : IUciTransport
 						}
 					}
 
-					writer.TryComplete();
+					TryComplete(writer);
 				}
 				catch (OperationCanceledException)
 				{
-					writer.TryComplete();
+					TryComplete(writer);
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
-					writer.TryComplete(ex);
+					ReportError(ex, "Read loop faulted.");
+					TryComplete(writer, ex);
 				}
 			},
 			CancellationToken.None,
@@ -1355,7 +1343,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				}
 				catch (Exception ex)
 				{
-					Error?.Invoke(ex);
+					ReportError(ex, "Write loop faulted.");
 				}
 			},
 			CancellationToken.None,
