@@ -61,7 +61,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		await _transport.WriteLineAsync("isready", ct).ConfigureAwait(false);
 		await WaitForLineAsync(
 			l => l.Trim().Equals("readyok", StringComparison.OrdinalIgnoreCase),
-			TimeSpan.FromSeconds(5),
+			TimeSpan.FromSeconds(10),
 			CancellationToken.None).ConfigureAwait(false);
 	}
 

@@ -55,10 +55,10 @@ public static class CharExtensions
 	/// <summary>
 	///     Checks if the given character is a valid chess piece letter (P/N/B/R/Q/K, any case).
 	/// </summary>
-	public static bool IsValidPieceChar(this char pieceChar) => PieceConstants.PIECE_CHARS.Contains(pieceChar);
+	public static bool IsValidPieceChar(this char pieceChar) => UciConstants.Pieces.CHARS.Contains(pieceChar);
 
 	public static bool IsValidPromotionChar(this char pieceChar) =>
-		PieceConstants.PROMOTION_PIECE_CHARS.Contains(pieceChar);
+		UciConstants.Pieces.CHARS_PROMOTION.Contains(pieceChar);
 
 	public static bool IsWhite(this char pieceChar)
 	{

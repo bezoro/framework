@@ -16,6 +16,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private readonly UciEngineClient             _client;
 	private          Fen?                        _currentFenCache;
 	private          IReadOnlyCollection<string> _legalMovesCache;
+	private readonly SemaphoreSlim               _positionLock = new(1, 1);
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
@@ -32,85 +33,172 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
-		await _client.UciNewGameAsync(ct);
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client.UciNewGameAsync(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+		}
+		finally
+		{
+			_positionLock.Release();
+		}
 	}
 
 	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves = null, CancellationToken ct = default)
 	{
-		await _client.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
-
-		lock (_cacheLock)
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			// Position changed; invalidate caches
-			ClearPositionDependentCaches_NoLock();
+			await _client.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
 
-			// If no moves were applied, the engine's position equals provided fen; cache it
-			if (moves == null || !moves.Any()) _currentFenCache = fen;
+			lock (_cacheLock)
+			{
+				// Position changed; invalidate caches
+				ClearPositionDependentCaches_NoLock();
+
+				// If no moves were applied, the engine's position equals provided fen; cache it
+				if (moves == null || !moves.Any()) _currentFenCache = fen;
+			}
+		}
+		catch
+		{
+			// On failure/cancellation, conservatively invalidate caches
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+
+			throw;
+		}
+		finally
+		{
+			_positionLock.Release();
 		}
 	}
 
-	public Task StartAsync(CancellationToken ct = default) => _client.StartAsync(ct);
+	public async Task StartAsync(CancellationToken ct = default)
+	{
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client.StartAsync(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+		}
+		finally
+		{
+			_positionLock.Release();
+		}
+	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
-		await _client.StopAsync(ct).ConfigureAwait(false);
-		lock (_cacheLock)
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			ClearPositionDependentCaches_NoLock();
+			await _client.StopAsync(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+		}
+		finally
+		{
+			_positionLock.Release();
 		}
 	}
 
 	public async Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default)
 	{
-		lock (_cacheLock)
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			if (_currentFenCache is { }) return _currentFenCache;
-		}
+			lock (_cacheLock)
+			{
+				if (_currentFenCache is { }) return _currentFenCache;
+			}
 
-		var fen = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
-		lock (_cacheLock)
+			var fen = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				_currentFenCache = fen;
+			}
+
+			return fen;
+		}
+		finally
 		{
-			_currentFenCache = fen;
+			_positionLock.Release();
 		}
-
-		return fen;
 	}
 
 	public async Task<IReadOnlyCollection<string>> GetLegalMovesAsync(CancellationToken ct = default)
 	{
-		lock (_cacheLock)
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			if (_legalMovesCache is { }) return _legalMovesCache;
-		}
+			lock (_cacheLock)
+			{
+				if (_legalMovesCache is { }) return _legalMovesCache;
+			}
 
-		var moves = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
-		lock (_cacheLock)
+			var moves = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				_legalMovesCache = moves;
+			}
+
+			return moves;
+		}
+		finally
 		{
-			_legalMovesCache = moves;
+			_positionLock.Release();
 		}
-
-		return moves;
 	}
 
 	public async Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default)
 	{
-		var key = (fen.ToString(), depth);
-		if (_evalCache.TryGetValue(key, out var cached)) return cached;
-
-		await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-		var result = await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);
-
-		_evalCache.TryAdd(key, result);
-
-		lock (_cacheLock)
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			// Engine is now set to 'fen'
-			_currentFenCache = fen;
-			// We didn't compute legal moves here; invalidate to force recomputation if requested
-			_legalMovesCache = null;
-		}
+			var key = (fen.ToString(), depth);
+			if (_evalCache.TryGetValue(key, out var cached)) return cached;
 
-		return result;
+			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+			var result = await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);
+
+			_evalCache.TryAdd(key, result);
+
+			lock (_cacheLock)
+			{
+				// Engine is now set to 'fen'
+				_currentFenCache = fen;
+				// We didn't compute legal moves here; invalidate to force recomputation if requested
+				_legalMovesCache = null;
+			}
+
+			return result;
+		}
+		catch
+		{
+			// On failure/cancellation, conservatively invalidate caches
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+
+			throw;
+		}
+		finally
+		{
+			_positionLock.Release();
+		}
 	}
 
 	public ValueTask DisposeAsync() => _client.DisposeAsync();

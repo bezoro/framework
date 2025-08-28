@@ -42,6 +42,12 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		_client.SetOptionAsync(name, value, ct);
 
+	/// <summary>
+	///     Sets the engine position without starting a search. Keeps ponder engine state synchronized with other engines.
+	/// </summary>
+	public Task SetPositionAsync(Fen fen, IEnumerable<string>? moves = null, CancellationToken ct = default) =>
+		_client.SetPositionAsync(fen, moves, ct);
+
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		await _client.StartAsync(ct).ConfigureAwait(false);
@@ -58,6 +64,9 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		CancellationToken    ct = default)
 	{
 		if (Activity is EngineActivity.Searching or EngineActivity.Pondering) return;
+
+		// Reset last scores when starting a new search to synchronize internal evaluation state
+		ClearLastScores();
 
 		await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
 		await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);

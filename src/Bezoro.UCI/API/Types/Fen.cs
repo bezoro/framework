@@ -33,7 +33,7 @@ public readonly record struct Fen
 		Raw             = raw;
 	}
 
-	public static Fen Default => Parse(UciConstants.STANDARD_FEN)!.Value;
+	public static Fen Default => Parse(UciConstants.Fen.STANDARD)!.Value;
 
 	public char     ActiveColor     { get; }
 	public int      FullmoveNumber  { get; }

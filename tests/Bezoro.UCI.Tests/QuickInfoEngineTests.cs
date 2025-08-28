@@ -1,6 +1,6 @@
 using Bezoro.Core.Common.Extensions;
+using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
-using Bezoro.UCI.Domain.Common.Constants;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -49,7 +49,7 @@ public class QuickInfoEngineTests
 		var fen = await engine.GetCurrentFenAsync();
 
 		fen.Should().NotBeNull();
-		fen?.Raw.Should().Be(UciConstants.STANDARD_FEN);
+		fen?.Raw.Should().Be(Fen.Default);
 	}
 
 	[Fact]

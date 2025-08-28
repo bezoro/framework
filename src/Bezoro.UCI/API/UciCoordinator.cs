@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
@@ -46,9 +47,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
 		await Task.WhenAll(
-			_classifier.NewGameAsync(ct),
+			_quick.NewGameAsync(ct),
 			_ponder.NewGameAsync(ct),
-			_quick.NewGameAsync(ct)
+			_classifier.NewGameAsync(ct)
 		).ConfigureAwait(false);
 
 		ClearState();
@@ -131,9 +132,12 @@ public sealed class UciCoordinator : IAsyncDisposable
 		// Stop previous searches and any ongoing classification
 		await StopSearchAsync(ct).ConfigureAwait(false);
 		_classifier.StopClassification();
+		ClearState();
 
 		// Set the position and publish legal moves
 		await _quick.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
+		// Keep ponder engine synchronized with the quick engine position
+		await _ponder.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
 		var moves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 		CurrentLegalMoves = moves;
 		LegalMovesUpdated?.Invoke(moves);
@@ -231,11 +235,30 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 	private void OnClassifierAllMovesClassified(IReadOnlyList<Move> moves)
 	{
+		// Filter out any moves that are not legal in the current position
+		var legal = CurrentLegalMoves;
+		if (legal != null)
+		{
+			var filtered = new List<Move>(moves.Count);
+			foreach (var m in moves)
+			{
+				if (legal.Contains(m.Notation))
+					filtered.Add(m);
+			}
+
+			moves = filtered;
+		}
+
 		AllMovesClassified?.Invoke(moves);
 	}
 
 	private void OnClassifierMoveClassified(Move move)
 	{
+		// Only accept and publish classifications for legal moves in the current position
+		var legal = CurrentLegalMoves;
+		if (legal != null && !legal.Contains(move.Notation))
+			return;
+
 		lock (_sync)
 		{
 			_classifiedMovesForCurrent[move.Notation] = move;

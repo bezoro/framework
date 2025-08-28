@@ -31,30 +31,30 @@ internal static class GoCommandHelper
 	/// </summary>
 	public static string BuildGoCommand(SearchParameters parameters)
 	{
-		var commandBuilder = new StringBuilder(UciConstants.GO_COMMAND);
+		var commandBuilder = new StringBuilder(UciConstants.Commands.GO);
 
 		AppendSearchMovesIfPresent(commandBuilder, parameters.SearchMoves);
 
-		AppendOptionalParameter(commandBuilder, UciConstants.WHITE_TIME_PARAMETER, parameters.WhiteTimeMs);
-		AppendOptionalParameter(commandBuilder, UciConstants.BLACK_TIME_PARAMETER, parameters.BlackTimeMs);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.WHITE_TIME, parameters.WhiteTimeMs);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.BLACK_TIME,              parameters.BlackTimeMs);
 		AppendOptionalParameter(
 			commandBuilder,
-			UciConstants.WHITE_TIME_INCREMENT_PARAMETER,
+			UciConstants.Parameters.WHITE_TIME_INCREMENT,
 			parameters.WhiteIncrementMs);
 
 		AppendOptionalParameter(
 			commandBuilder,
-			UciConstants.BLACK_TIME_INCREMENT_PARAMETER,
+			UciConstants.Parameters.BLACK_TIME_INCREMENT,
 			parameters.BlackIncrementMs);
 
-		AppendOptionalParameter(commandBuilder, UciConstants.DEPTH_PARAMETER,        (int)parameters.Depth!);
-		AppendOptionalParameter(commandBuilder, UciConstants.NODES_SEARCH_PARAMETER, (int?)parameters.Nodes);
-		AppendOptionalParameter(commandBuilder, UciConstants.MATE_SEARCH_PARAMETER,  parameters.Mate);
-		AppendOptionalParameter(commandBuilder, UciConstants.MOVE_TIME_PARAMETER,    parameters.MoveTimeMs);
-		AppendOptionalParameter(commandBuilder, UciConstants.MOVES_TO_GO_PARAMETER,  parameters.MovesToGo);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.DEPTH,     (int)parameters.Depth!);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.NODES,     (int?)parameters.Nodes);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.MATE,      parameters.Mate);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.MOVE_TIME, parameters.MoveTimeMs);
+		AppendOptionalParameter(commandBuilder, UciConstants.Parameters.MOVES_TO_GO,            parameters.MovesToGo);
 
-		AppendFlagParameter(commandBuilder, UciConstants.INFINITE_SEARCH_PARAMETER, parameters.Infinite);
-		AppendFlagParameter(commandBuilder, UciConstants.PONDER_PARAMETER,          parameters.Ponder);
+		AppendFlagParameter(commandBuilder, UciConstants.Parameters.INFINITE, parameters.Infinite);
+		AppendFlagParameter(commandBuilder, UciConstants.Parameters.PONDER,                parameters.Ponder);
 
 		return commandBuilder.ToString();
 	}
@@ -72,6 +72,6 @@ internal static class GoCommandHelper
 	private static void AppendSearchMovesIfPresent(StringBuilder builder, IEnumerable<string>? searchMoves)
 	{
 		if (searchMoves?.Any() == true)
-			builder.Append($" {UciConstants.SEARCH_MOVES_PARAMETER} ").Append(string.Join(" ", searchMoves));
+			builder.Append($" {UciConstants.Parameters.SEARCH_MOVES} ").Append(string.Join(" ", searchMoves));
 	}
 }
