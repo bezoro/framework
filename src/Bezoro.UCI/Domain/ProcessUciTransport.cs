@@ -172,14 +172,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var localStartTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Volatile.Write(ref _startingTcs, localStartTcs);
 
-		if (_process != null)
-		{
-			localStartTcs.TrySetResult(null);
-			Interlocked.Exchange(ref _startGate, 0);
-			Volatile.Write(ref _startingTcs, null);
-			return;
-		}
-
 		// Transition to Starting
 		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
 		_options.Logger?.LogInfo("Starting UCI engine process.");
@@ -479,6 +471,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await task.ConfigureAwait(false);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static async Task SafeDisposeAsync(IAsyncDisposable? d)
+	{
+		if (d is null) return;
+
+		try
+		{
+			await d.DisposeAsync().ConfigureAwait(false);
+		}
+		catch
+		{
+			/* best-effort */
+		}
+	}
+
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		// Fast path: if already exited, avoid allocations.
@@ -542,6 +549,53 @@ internal sealed class ProcessUciTransport : IUciTransport
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously,
 			TaskScheduler.Default).Unwrap();
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void SafeCancel(CancellationTokenSource? cts)
+	{
+		if (cts is null) return;
+
+		try
+		{
+			cts.Cancel();
+		}
+		catch
+		{
+			/* best-effort */
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void SafeDispose(IDisposable? d)
+	{
+		if (d is null) return;
+
+		try
+		{
+			d.Dispose();
+		}
+		catch
+		{
+			/* best-effort */
+		}
+	}
+
+	// === Small safety/utility helpers to reduce duplication and improve clarity ===
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void TryComplete(ChannelWriter<string>? writer, Exception? error = null)
+	{
+		if (writer is null) return;
+
+		try
+		{
+			if (error is null) writer.TryComplete();
+			else writer.TryComplete(error);
+		}
+		catch
+		{
+			/* best-effort */
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -626,59 +680,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Do not set _disposed here; keep the transport reusable.
 		var cts = _readLoopCts;
 		_readLoopCts = null;
-		try
-		{
-			cts?.Cancel();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+		SafeCancel(cts);
 
-		try
-		{
-			_stdout?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		SafeDispose(_stdout);
 		_stdout = null;
 
 		// Dispose stderr early as well to unblock any pending ReadLineAsync in the stderr loop (failed-start cleanup)
-		try
-		{
-			_stderr?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		SafeDispose(_stderr);
 		_stderr = null;
 
 		// Stop writer loop and complete outgoing channel (failed-start cleanup)
 		var wcts = _writeLoopCts;
 		_writeLoopCts = null;
-		try
-		{
-			wcts?.Cancel();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+		SafeCancel(wcts);
 
-		try
-		{
-			_outgoing?.Writer.TryComplete();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		TryComplete(_outgoing?.Writer);
 		var writeLoop = _writeLoopTask;
 		_writeLoopTask = null;
 		try
@@ -691,29 +707,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		finally
 		{
-			try
-			{
-				wcts?.Dispose();
-			}
-			catch (Exception ex)
-			{
-				Error?.Invoke(ex);
-			}
+			SafeDispose(wcts);
 		}
 
 		_outgoing = null;
 
 		if (_stdin != null)
 		{
-			try
-			{
-				await _stdin.DisposeAsync().ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				Error?.Invoke(ex);
-			}
-
+			await SafeDisposeAsync(_stdin).ConfigureAwait(false);
 			_stdin = null;
 		}
 
@@ -742,15 +743,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			_stderrLoopTask = null;
 		}
 
-		try
-		{
-			_lines?.Writer.TryComplete();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		TryComplete(_lines?.Writer);
 		_lines = null;
 
 		var p = _process;
@@ -792,15 +785,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 						Error?.Invoke(ex);
 					}
 
-				try
-				{
-					// Disposing Process synchronously; no need to offload to thread pool.
-					p.Dispose();
-				}
-				catch (Exception ex)
-				{
-					Error?.Invoke(ex);
-				}
+				SafeDispose(p);
 			}
 		}
 		catch (Exception ex)
@@ -821,70 +806,25 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Cancel read/stderr loops up-front
 		var rcts = _readLoopCts;
 		_readLoopCts = null;
-		try
-		{
-			rcts?.Cancel();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+		SafeCancel(rcts);
 
 		// Complete channel early so any pending readers unblock immediately
-		try
-		{
-			_lines?.Writer.TryComplete();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+		TryComplete(_lines?.Writer);
 
 		// Dispose stdout early to unblock any pending ReadLineAsync
-		try
-		{
-			_stdout?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		SafeDispose(_stdout);
 		_stdout = null;
 
 		// Dispose stderr early as well to unblock any pending ReadLineAsync in the stderr loop
-		try
-		{
-			_stderr?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		SafeDispose(_stderr);
 		_stderr = null;
 
 		// Stop writer loop and complete outgoing channel
 		var wcts = _writeLoopCts;
 		_writeLoopCts = null;
-		try
-		{
-			wcts?.Cancel();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+		SafeCancel(wcts);
 
-		try
-		{
-			_outgoing?.Writer.TryComplete();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		TryComplete(_outgoing?.Writer);
 		var writeLoop = _writeLoopTask;
 		_writeLoopTask = null;
 		try
@@ -897,14 +837,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		finally
 		{
-			try
-			{
-				wcts?.Dispose();
-			}
-			catch (Exception ex)
-			{
-				Error?.Invoke(ex);
-			}
+			SafeDispose(wcts);
 		}
 
 		_outgoing = null;
@@ -927,15 +860,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					Error?.Invoke(ex);
 				}
 
-				try
-				{
-					await _stdin.DisposeAsync().ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					Error?.Invoke(ex);
-				}
-
+				await SafeDisposeAsync(_stdin).ConfigureAwait(false);
 				_stdin = null;
 			}
 		}
@@ -957,14 +882,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		finally
 		{
-			try
-			{
-				rcts?.Dispose();
-			}
-			catch (Exception ex)
-			{
-				Error?.Invoke(ex);
-			}
+			SafeDispose(rcts);
 		}
 
 		// Await stderr loop
@@ -983,15 +901,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		// Complete channel so any consumers finish
-		try
-		{
-			_lines?.Writer.TryComplete();
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-
+		TryComplete(_lines?.Writer);
 		_lines = null;
 
 		// Give the process a brief chance to exit cleanly
@@ -1055,14 +965,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					Error?.Invoke(ex);
 				}
 
-			try
-			{
-				p?.Dispose();
-			}
-			catch (Exception ex)
-			{
-				Error?.Invoke(ex);
-			}
+			SafeDispose(p);
 
 			Volatile.Write(ref _isStarted, 0);
 			Volatile.Write(ref _status,    (int)finalStatus);
