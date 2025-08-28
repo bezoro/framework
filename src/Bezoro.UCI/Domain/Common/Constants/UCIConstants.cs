@@ -269,11 +269,17 @@ internal static class UciConstants
 		public const char CHAR_WHITE_QUEEN  = 'Q';
 		public const char CHAR_WHITE_ROOK   = 'R';
 
-		public const string CHARS = "prnbqkPRNBQK";
+		public const string CHARS_ALL           = "prnbqkPRNBQK";
+		public const string CHARS_ALL_BLACK     = "prnbqk";
+		public const string CHARS_ALL_PROMOTION = "rnbqRNBQ";
+		public const string CHARS_ALL_WHITE     = "PRNBQK";
 
-		public const string CHARS_BLACK     = "prnbqk";
-		public const string CHARS_PROMOTION = "rnbqRNBQ";
-		public const string CHARS_WHITE     = "PRNBQK";
+		public const string CHARS_BISHOP = "bB";
+		public const string CHARS_KING   = "kK";
+		public const string CHARS_KNIGHT = "nN";
+		public const string CHARS_PAWN   = "pP";
+		public const string CHARS_QUEEN  = "qQ";
+		public const string CHARS_ROOK   = "rR";
 	}
 
 	/// <summary>

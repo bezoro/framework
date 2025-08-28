@@ -13,57 +13,56 @@ public static class CharExtensions
 	public static bool IsBishop(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'b';
+		return UciConstants.Pieces.CHARS_BISHOP.Contains(pieceChar);
 	}
 
 	public static bool IsBlack(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.IsLower(pieceChar);
+		return UciConstants.Pieces.CHARS_ALL_BLACK.Contains(pieceChar);
 	}
 
 	public static bool IsKing(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'k';
+		return UciConstants.Pieces.CHARS_KING.Contains(pieceChar);
 	}
 
 	public static bool IsKnight(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'n';
+		return UciConstants.Pieces.CHARS_KNIGHT.Contains(pieceChar);
 	}
 
 	public static bool IsPawn(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'p';
+		return UciConstants.Pieces.CHARS_PAWN.Contains(pieceChar);
 	}
-
 	public static bool IsQueen(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'q';
+		return UciConstants.Pieces.CHARS_ALL.Contains(pieceChar);
 	}
 
 	public static bool IsRook(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.ToLowerInvariant(pieceChar) == 'r';
+		return UciConstants.Pieces.CHARS_ALL.Contains(pieceChar);
 	}
 
 	/// <summary>
 	///     Checks if the given character is a valid chess piece letter (P/N/B/R/Q/K, any case).
 	/// </summary>
-	public static bool IsValidPieceChar(this char pieceChar) => UciConstants.Pieces.CHARS.Contains(pieceChar);
+	public static bool IsValidPieceChar(this char pieceChar) => UciConstants.Pieces.CHARS_ALL.Contains(pieceChar);
 
 	public static bool IsValidPromotionChar(this char pieceChar) =>
-		UciConstants.Pieces.CHARS_PROMOTION.Contains(pieceChar);
+		UciConstants.Pieces.CHARS_ALL_PROMOTION.Contains(pieceChar);
 
 	public static bool IsWhite(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return char.IsUpper(pieceChar);
+		return UciConstants.Pieces.CHARS_ALL_WHITE.Contains(pieceChar);
 	}
 
 	/// <summary>
@@ -74,7 +73,9 @@ public static class CharExtensions
 	/// <exception cref="InvalidPieceCharException">Thrown when the character is not a valid chess piece character.</exception>
 	public static char ThrowIfNotPieceChar(this char pieceChar)
 	{
-		pieceChar.ThrowIfNull().ThrowIfEmpty().ThrowIfNumber().ThrowIfSymbol();
+		pieceChar.ThrowIfNull().ThrowIfEmpty().ThrowIfNumber().ThrowIfSymbol()
+				 .ThrowIf(c => !UciConstants.Pieces.CHARS_ALL.Contains(c));
+
 		return pieceChar;
 	}
 
