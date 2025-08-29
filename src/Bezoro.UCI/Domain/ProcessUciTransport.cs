@@ -556,6 +556,45 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private async Task TryAwaitWithTimeout(Task task, string description)
+	{
+		if (task is null) return;
+
+		var timeout = _options.TeardownTimeout;
+		if (timeout <= TimeSpan.Zero)
+		{
+			await task.ConfigureAwait(false);
+			return;
+		}
+
+		Task completed;
+		try
+		{
+			completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Error while awaiting " + description + ".");
+			return;
+		}
+
+		if (completed == task)
+			// Propagate exceptions if the task faulted; consistent with existing behavior
+			await task.ConfigureAwait(false);
+		else
+			try
+			{
+				_options.Logger?.LogError(
+					new TimeoutException("Timed out waiting for " + description + " after " + timeout + "."),
+					"Timed out awaiting " + description + ".");
+			}
+			catch
+			{
+				/* best-effort */
+			}
+	}
+
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
 		// Fast path: if already exited, avoid allocations.
@@ -769,11 +808,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_writeLoopTask = null;
 		try
 		{
-			if (writeLoop != null) await writeLoop.ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			ReportError(ex, "Failed to join write loop during failed start cleanup.");
+			if (writeLoop != null)
+				await TryAwaitWithTimeout(writeLoop, "write loop during failed start cleanup").ConfigureAwait(false);
 		}
 		finally
 		{
@@ -848,7 +884,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 				if (exitNotify != null)
 					try
 					{
-						await exitNotify.ConfigureAwait(false);
+						await TryAwaitWithTimeout(exitNotify, "exit notification during failed start cleanup")
+							.ConfigureAwait(false);
 					}
 					catch (Exception ex)
 					{
@@ -1032,7 +1069,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			if (!skipAwaitExit && exitNotify != null)
 				try
 				{
-					await exitNotify.ConfigureAwait(false);
+					await TryAwaitWithTimeout(exitNotify, "process exit notification during teardown")
+						.ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
