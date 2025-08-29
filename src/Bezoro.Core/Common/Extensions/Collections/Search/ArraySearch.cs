@@ -60,7 +60,7 @@ public static class ArraySearch
 		return false;
 	}
 
-	public static bool TryFindFirstEmptyIndex<T>(this T[] array, out int index)
+	public static bool TryFindFirstEmptyIndex<T>(this T?[] array, out int index)
 		where T : class
 	{
 		array.ThrowIfNull();
@@ -83,7 +83,7 @@ public static class ArraySearch
 	/// <summary>
 	///     Counts the number of empty (null) indices in the array.
 	/// </summary>
-	public static int CountEmptyIndices<T>(this T[] array)
+	public static int CountEmptyIndices<T>(this T?[] array)
 		where T : class
 	{
 		array.ThrowIfNull();
@@ -115,7 +115,7 @@ public static class ArraySearch
 	/// <summary>
 	///     Counts the number of filled (non-null) indices in the array.
 	/// </summary>
-	public static int CountFilledIndices<T>(this T[] array)
+	public static int CountFilledIndices<T>(this T?[] array)
 		where T : class
 	{
 		array.ThrowIfNull();
