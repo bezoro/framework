@@ -7,17 +7,24 @@ namespace Bezoro.Core.Common.Extensions;
 public static class StringExtensions
 {
 	public static bool IsEmpty(this string text) =>
-		text.AsSpan().Trim() == string.Empty;
+		text.Trim() == string.Empty;
 
 	public static bool IsNullOrEmpty(this string? text) =>
 		text == null || text.IsEmpty();
 
-	public static string Bold(this string text) =>
-		string.IsNullOrEmpty(text) ? "" : $"<b>{text}</b>";
+	public static bool IsNullOrWhiteSpace(this string? text) =>
+		text == null || text.Trim() == string.Empty;
+
+	public static bool IsWhiteSpace(this string text) =>
+		text != "" && text.Trim() == string.Empty;
+
+	public static string Bold(this string text) => string.IsNullOrWhiteSpace(text)
+													   ? throw new ArgumentNullException(nameof(text))
+													   : $"<b>{text}</b>";
 
 	public static string Bracketed(this string text, int padding = 0, Color color = default, char bracket = '[')
 	{
-		if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+		if (string.IsNullOrWhiteSpace(text)) throw new ArgumentNullException(nameof(text));
 
 		char   closingBracket = GetClosingBracket(bracket);
 		string paddedText     = text.PadLeft(text.Length + padding).PadRight(text.Length + 2 * padding);
@@ -29,14 +36,18 @@ public static class StringExtensions
 		return $"{colorTag}{bracket}{closeColorTag}{paddedText}{colorTag}{closingBracket}{closeColorTag}";
 	}
 
-	public static string Capitalize(this string text) =>
-		string.IsNullOrEmpty(text) ? "" : char.ToUpper(text[0]) + text[1..];
+	public static string Capitalize(this string text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) throw new ArgumentNullException(nameof(text));
+
+		return char.ToUpper(text[0]) + text[1..];
+	}
 
 	public static string Italic(this string text) =>
-		string.IsNullOrEmpty(text) ? "" : $"<i>{text}</i>";
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : $"<i>{text}</i>";
 
 	public static string Lowercase(this string text) =>
-		text == null ? "" : text.ToLower();
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : text.ToLower();
 
 	/// <summary>
 	///     Repeats a string a specified number of times.
@@ -44,33 +55,30 @@ public static class StringExtensions
 	/// <param name="str">The string to repeat</param>
 	/// <param name="count">The number of times to repeat the string</param>
 	/// <returns>A new string containing the original string repeated the specified number of times</returns>
-	public static string Repeat(this string str, int count)
+	public static string Repeat(this string str, uint count = 1)
 	{
-		if (str == null) throw new ArgumentNullException(nameof(str));
-
-		if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be negative");
-
-		if (count == 0 || string.IsNullOrEmpty(str)) return string.Empty;
+		if (string.IsNullOrWhiteSpace(str)) throw new ArgumentNullException(nameof(str));
+		if (count == 0) throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be zero.", nameof(count));
 
 		if (count == 1) return str;
 
-		var sb = new StringBuilder(str.Length * count);
+		var sb = new StringBuilder(str.Length * (int)count);
 		for (var i = 0; i < count; i++) sb.Append(str);
 
 		return sb.ToString();
 	}
 
 	public static string Size(this string text, int size) =>
-		string.IsNullOrEmpty(text) ? "" : $"<size={size}>{text}</size>";
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : $"<size={size}>{text}</size>";
 
 	public static string Strikethrough(this string text) =>
-		string.IsNullOrEmpty(text) ? "" : $"<s>{text}</s>";
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : $"<s>{text}</s>";
 
 	public static string Underline(this string text) =>
-		string.IsNullOrEmpty(text) ? "" : $"<u>{text}</u>";
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : $"<u>{text}</u>";
 
 	public static string Uppercase(this string text) =>
-		text == null ? "" : text.ToUpper();
+		string.IsNullOrWhiteSpace(text) ? throw new ArgumentNullException(nameof(text)) : text.ToUpper();
 
 	private static char GetClosingBracket(char openingBracket)
 	{
