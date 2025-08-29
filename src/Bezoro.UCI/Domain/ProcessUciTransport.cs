@@ -1473,7 +1473,7 @@ internal sealed class ProcessUciTransportOptions
 	// Optional logger for lifecycle and error events.
 	public IUciTransportLogger? Logger { get; init; }
 
-	public string NewLine { get; init; } = "\n";
+	public string NewLine { get; init; } = Environment.NewLine;
 
 	// Preferred time-based grace period; when default (zero), QuitGracePeriodMs is used.
 	public TimeSpan QuitGracePeriod { get; init; } = TimeSpan.Zero;
