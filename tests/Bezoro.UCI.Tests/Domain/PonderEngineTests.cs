@@ -180,17 +180,11 @@ public class PonderEngineTests
 		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
 
 		await engine.StartSearchAsync(Fen.Default, null);
-		// Engine should report Searching activity at least at some point
-		// Give it a brief moment to flip state in background
-		await Task.Delay(100);
-		engine.Activity.Should().Be(EngineActivity.Searching);
-
 		var pv = await infoTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
 		pv.Should().NotBeNull();
+		engine.Activity.Should().Be(EngineActivity.Searching);
 
 		await engine.StopSearchAsync();
-		// Give it a moment to settle
-		await Task.Delay(100);
 		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
 
@@ -226,14 +220,15 @@ public class PonderEngineTests
 		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
 		await engine.StartAsync();
 
+		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
+
 		await engine.StartSearchAsync(Fen.Default, null);
-		// Allow activity set
-		await Task.Delay(100);
+		await infoTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
 		engine.Activity.Should().Be(EngineActivity.Searching);
 
 		// Calling again with the same position should not throw and should remain searching
 		await engine.StartSearchAsync(Fen.Default, null);
-		await Task.Delay(100);
 		engine.Activity.Should().Be(EngineActivity.Searching);
 
 		await engine.StopSearchAsync();
@@ -284,16 +279,12 @@ public class PonderEngineTests
 
 		// First run
 		await engine.StartSearchAsync(Fen.Default, null);
-		await Task.Delay(150);
 		await engine.StopSearchAsync();
-		await Task.Delay(100);
 		engine.Activity.Should().Be(EngineActivity.Idle);
 
 		// Second run
 		await engine.StartSearchAsync(Fen.Default, null);
-		await Task.Delay(150);
 		await engine.StopSearchAsync();
-		await Task.Delay(100);
 		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
 

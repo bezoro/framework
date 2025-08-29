@@ -65,7 +65,6 @@ public class UciCoordinatorTests
 
 		// Stop and restart
 		await coordinator.StopSearchAsync();
-		await Task.Delay(200); // tiny pause to ensure stop settles
 		await coordinator.StartSearchAsync();
 
 		var second = await bestTcs2.Task.WaitAsync(TimeSpan.FromSeconds(8));
