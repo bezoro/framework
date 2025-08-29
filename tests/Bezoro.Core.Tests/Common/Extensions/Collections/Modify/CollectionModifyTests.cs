@@ -7,20 +7,23 @@ using Xunit;
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Modify;
 
 [TestSubject(typeof(CollectionModify))]
-public class CollectionModifyTests
+public static class CollectionModifyTests
 {
-	[Fact]
-	public void AddRange_WhenValidCollection_ShouldAddItemsToCollection()
+	public class Unit
 	{
-		// Arrange
-		ICollection<int> sourceCollection = new List<int> { 1, 2, 3 };
-		ICollection<int> itemsToAdd       = new List<int> { 4, 5, 6 };
+		[Fact]
+		public void AddRange_WhenValidCollection_ShouldAddItemsToCollection()
+		{
+			// Arrange
+			ICollection<int> sourceCollection = new List<int> { 1, 2, 3 };
+			ICollection<int> itemsToAdd       = new List<int> { 4, 5, 6 };
 
-		// Act
-		sourceCollection.AddRange(itemsToAdd);
+			// Act
+			sourceCollection.AddRange(itemsToAdd);
 
-		// Assert
-		sourceCollection.Should().HaveCount(6);
-		sourceCollection.Should().ContainInOrder(1, 2, 3, 4, 5, 6);
+			// Assert
+			sourceCollection.Should().HaveCount(6);
+			sourceCollection.Should().ContainInOrder(1, 2, 3, 4, 5, 6);
+		}
 	}
 }
