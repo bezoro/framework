@@ -39,7 +39,15 @@ public static class ArrayProcess
 
 				if (array[y, x] == null) continue;
 
-				await processFunc(array[y, x], x, y, cancellationToken);
+				try
+				{
+					await processFunc(array[y, x], x, y, cancellationToken);
+				}
+				catch (OperationCanceledException)
+				{
+					return;
+				}
+
 				await Task.Yield();
 			}
 		}
