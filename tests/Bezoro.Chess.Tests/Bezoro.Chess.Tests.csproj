@@ -26,11 +26,4 @@
         <ProjectReference Include="..\..\src\Bezoro.Chess\Bezoro.Chess.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="API\Integration\"/>
-        <Folder Include="API\Performance\"/>
-        <Folder Include="API\Unit\"/>
-        <Folder Include="Domain\Integration\"/>
-    </ItemGroup>
-
 </Project>
