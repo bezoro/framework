@@ -429,6 +429,20 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task StartAsync_WithInvalidWorkingDirectory_ThrowsArgumentException()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		string          invalidDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+		await using var process    = new ProcessUciTransport(path, null, invalidDir);
+
+		await FluentActions.Awaiting(() => process.StartAsync())
+						   .Should()
+						   .ThrowAsync<ArgumentException>();
+	}
+
+	[Fact]
 	public async Task Status_Transitions_CreatedToStartedToStoppedToDisposed_AreObserved()
 	{
 		string? path = TryResolveEnginePath();
@@ -478,6 +492,17 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task StopAsync_AfterDispose_ThrowsObjectDisposedException()
+	{
+		await using var process = new ProcessUciTransport("any/nonempty/path");
+		await process.DisposeAsync();
+
+		await FluentActions.Awaiting(() => process.StopAsync())
+						   .Should()
+						   .ThrowAsync<ObjectDisposedException>();
+	}
+
+	[Fact]
 	public async Task StopAsync_ConcurrentCalls_TeardownOnce_BothComplete()
 	{
 		string? path = TryResolveEnginePath();
@@ -516,6 +541,36 @@ public class ProcessUciTransportTests
 		await process.StopAsync();
 
 		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_AfterDispose_ThrowsInvalidOperationException()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+		await process.DisposeAsync();
+
+		await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_AfterStop_ThrowsInvalidOperationException()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		await using var process = new ProcessUciTransport(path);
+		await process.StartAsync();
+		await process.StopAsync();
+
+		await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -618,6 +673,18 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task TryWriteLineAsync_NullLine_ThrowsArgumentNullException()
+	{
+		await using var process = new ProcessUciTransport("any/nonempty/path");
+
+		// ReSharper disable once AssignNullToNotNullAttribute
+		await FluentActions
+			  .Awaiting(() => process.TryWriteLineAsync(null!, TimeSpan.FromMilliseconds(10)))
+			  .Should()
+			  .ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
 	public async Task TryWriteLineAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
 	{
 		await using var process = new ProcessUciTransport("any/nonempty/path");
@@ -640,6 +707,28 @@ public class ProcessUciTransportTests
 		ok.Should().BeTrue();
 
 		await process.DisposeAsync();
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_WhenProcessHasExited_ThrowsInvalidOperationException()
+	{
+		// Start a short-lived cmd that exits immediately to ensure HasExited becomes true
+		string? cmdPath = TryResolveCmdPath();
+		if (cmdPath is null) return;
+
+		await using var transport = new ProcessUciTransport(cmdPath, new[] { "/c", "exit", "0" });
+
+		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		transport.Exited += (_, _) => exitedTcs.TrySetResult(null);
+
+		await transport.StartAsync();
+
+		var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+		completed.Should().Be(exitedTcs.Task);
+
+		await FluentActions.Awaiting(() => transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -839,6 +928,28 @@ public class ProcessUciTransportTests
 		}
 
 		output.Should().Be("uciok", "reading should continue after unknown command");
+	}
+
+	[Fact]
+	public async Task WriteLineAsync_WithValidationDisabled_AllowsWhitespaceAndNewline()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		var             options = new ProcessUciTransportOptions { ValidateCommands = false };
+		await using var process = new ProcessUciTransport(path, null, null, options);
+		await process.StartAsync();
+
+		// Should not throw even though input contains whitespace-only or newline
+		await FluentActions.Awaiting(() => process.WriteLineAsync("   "))
+						   .Should()
+						   .NotThrowAsync();
+
+		await FluentActions.Awaiting(() => process.WriteLineAsync("uci\n"))
+						   .Should()
+						   .NotThrowAsync();
+
+		await process.DisposeAsync();
 	}
 
 	[Fact]
