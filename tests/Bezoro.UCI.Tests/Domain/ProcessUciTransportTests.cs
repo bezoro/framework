@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
@@ -48,6 +49,37 @@ public class ProcessUciTransportTests
 		await process.DisposeAsync();
 
 		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenExitNotificationStuck_CompletesWithinTeardownTimeout()
+	{
+		string? path = TryResolveEnginePath();
+		if (path is null) return;
+
+		var options = new ProcessUciTransportOptions
+		{
+			TeardownTimeout = TimeSpan.FromMilliseconds(200)
+		};
+
+		await using var transport = new ProcessUciTransport(path, null, null, options);
+		await transport.StartAsync();
+
+		// Replace the internal _exitNotifyTask with a never-completing task to simulate a stuck exit notification.
+		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var field = typeof(ProcessUciTransport).GetField(
+			"_exitNotifyTask",
+			BindingFlags.Instance | BindingFlags.NonPublic);
+
+		field.Should().NotBeNull();
+		field!.SetValue(transport, tcs.Task);
+
+		var sw = Stopwatch.StartNew();
+		await transport.DisposeAsync();
+		sw.Stop();
+
+		// Should not hang; should complete reasonably quickly (bounded by TeardownTimeout with slack).
+		sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
 	}
 
 	[Fact]
