@@ -1332,6 +1332,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	private void StartWriteLoop()
 	{
+		// Test-only hook: allow tests to disable the write loop to force channel backpressure scenarios.
+		if (_options.DisableWriteLoop)
+			return;
+
 		var outgoingReader = _outgoing!.Reader;
 		var localStdin     = _stdin!;
 		var writeToken     = _writeLoopCts!.Token;
@@ -1476,4 +1480,7 @@ internal sealed class ProcessUciTransportOptions
 
 	// Bounded timeout for teardown waits (joining loops and waiting for process exit).
 	public TimeSpan TeardownTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+	// NOTE: Test-only hook to deterministically exercise backpressure paths. Defaults to false; no prod impact.
+	internal bool DisableWriteLoop { get; init; } = false;
 }

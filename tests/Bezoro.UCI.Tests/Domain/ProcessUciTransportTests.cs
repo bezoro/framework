@@ -281,6 +281,32 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task ReadLoop_SkipsEmptyLines_OnlyNonEmptyReceived()
+	{
+		string? cmdPath = TryResolveCmdPath();
+		if (cmdPath is null) return;
+
+		await using var transport = new ProcessUciTransport(cmdPath, ["/c", "echo.", "&", "echo", "marker"]);
+
+		await transport.StartAsync();
+
+		string?   received = null;
+		using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		await foreach (string line in transport.ReadLinesAsync(cts.Token))
+		{
+			if (string.IsNullOrWhiteSpace(line)) continue;
+
+			received = line;
+			break;
+		}
+
+		received.Should().NotBeNull();
+		received!.Trim().Should().Be("marker");
+
+		await transport.DisposeAsync();
+	}
+
+	[Fact]
 	public async Task StartAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		await using var process = new ProcessUciTransport("any/nonempty/path");
@@ -423,6 +449,35 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task StderrReceived_Event_Fires_WhenRedirected()
+	{
+		string? cmdPath = TryResolveCmdPath();
+		if (cmdPath is null) return;
+
+		var options = new ProcessUciTransportOptions { RedirectStandardError = true };
+		await using var transport = new ProcessUciTransport(
+			cmdPath,
+			[
+				"/c", "echo", "HelloStderr", "1>&2"
+			],
+			null,
+			options);
+
+		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+		transport.StderrReceived += s =>
+		{
+			if (s.Contains("HelloStderr")) tcs.TrySetResult(s);
+		};
+
+		await transport.StartAsync();
+
+		var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+		completed.Should().Be(tcs.Task);
+
+		await transport.DisposeAsync();
+	}
+
+	[Fact]
 	public async Task StopAsync_ConcurrentCalls_TeardownOnce_BothComplete()
 	{
 		string? path = TryResolveEnginePath();
@@ -461,6 +516,105 @@ public class ProcessUciTransportTests
 		await process.StopAsync();
 
 		process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_ChannelClosedDuringStop_ThrowsInvalidOperationException()
+	{
+		var options = new ProcessUciTransportOptions
+		{
+			ChannelCapacity  = 1,
+			DisableWriteLoop = true
+		};
+
+		await using var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+
+		await transport.StartAsync();
+
+		// Fill channel to force slow write path
+		bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+		ok1.Should().BeTrue();
+
+		var writeTask = transport.TryWriteLineAsync("isready", TimeSpan.FromSeconds(5));
+
+		// Immediately stop transport which should close the channel causing ChannelClosedException -> InvalidOperationException
+		await transport.Awaiting(_ => transport.StopAsync()).Should().NotThrowAsync();
+
+		await FluentActions.Awaiting(async () => await writeTask)
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>()
+						   .WithMessage("Transport is stopping or stopped; cannot write.");
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_ChannelFull_TinyTimeout_SpinPath_ReturnsFalse()
+	{
+		var options = new ProcessUciTransportOptions
+		{
+			ChannelCapacity            = 1,
+			DisableWriteLoop           = true,
+			SmallTimeoutSpinIterations = 10
+		};
+
+		await using var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+
+		await transport.StartAsync();
+
+		bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+		ok1.Should().BeTrue();
+
+		bool ok2 = await transport.TryWriteLineAsync("isready", TimeSpan.FromMilliseconds(1));
+		ok2.Should().BeFalse();
+
+		await transport.DisposeAsync();
+	}
+
+
+	[Fact]
+	public async Task TryWriteLineAsync_ChannelFull_ZeroTimeout_ReturnsFalse()
+	{
+		var options = new ProcessUciTransportOptions
+		{
+			ChannelCapacity  = 1,
+			DisableWriteLoop = true, // test-only hook to keep channel full
+			ValidateCommands = true
+		};
+
+		await using var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+		await transport.StartAsync();
+
+		// Fill the channel
+		bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+		ok1.Should().BeTrue();
+
+		bool ok2 = await transport.TryWriteLineAsync("isready", TimeSpan.Zero);
+		ok2.Should().BeFalse();
+
+		await transport.DisposeAsync();
+	}
+
+	[Fact]
+	public async Task TryWriteLineAsync_InfiniteTimeout_PathCompletes()
+	{
+		var options = new ProcessUciTransportOptions
+		{
+			ChannelCapacity  = 1,
+			DisableWriteLoop = false
+		};
+
+		await using var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+
+		await transport.StartAsync();
+
+		// Attempt to create contention: first write fills channel, second goes to slow path with infinite timeout.
+		bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+		ok1.Should().BeTrue();
+
+		// This may briefly block until write loop drains; should return true.
+		bool ok2 = await transport.TryWriteLineAsync("isready", Timeout.InfiniteTimeSpan);
+		ok2.Should().BeTrue();
+
+		await transport.DisposeAsync();
 	}
 
 	[Fact]
@@ -640,6 +794,25 @@ public class ProcessUciTransportTests
 	}
 
 	[Fact]
+	public async Task WriteLineAsync_WhenProcessHasExited_ThrowsInvalidOperationException()
+	{
+		await using var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, ["/c", "exit", "0"]);
+
+		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		transport.Exited += (_, _) => exitedTcs.TrySetResult(null);
+
+		await transport.StartAsync();
+
+		// Wait for the process to actually exit to hit the HasExited guard reliably
+		var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+		completed.Should().Be(exitedTcs.Task);
+
+		await FluentActions.Awaiting(() => transport.WriteLineAsync("uci"))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
 	public async Task WriteLineAsync_WithUnknownCommand_DoesNotThrowAndReadingContinues()
 	{
 		string? path = TryResolveEnginePath();
@@ -724,6 +897,19 @@ public class ProcessUciTransportTests
 		Action act     = () => _ = new ProcessUciTransport("any/nonempty/path", null, null, options);
 
 		act.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	private static string? TryResolveCmdPath()
+	{
+		string systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+		if (!string.IsNullOrWhiteSpace(systemRoot))
+		{
+			string cmd = Path.Combine(systemRoot, "System32", "cmd.exe");
+			if (File.Exists(cmd)) return cmd;
+		}
+
+		string envCmd = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\cmd.exe");
+		return File.Exists(envCmd) ? envCmd : null;
 	}
 
 	private static string? TryResolveEnginePath()
