@@ -123,11 +123,36 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
-		await WaitForLineAsync(
-			l => l.Trim().Equals(UciConstants.Responses.READY_OK, StringComparison.OrdinalIgnoreCase),
-			TimeSpan.FromSeconds(10),
-			CancellationToken.None).ConfigureAwait(false);
+		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		LineReceived += Handler;
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		using var linked     = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+		using var reg        = linked.Token.Register(() => tcs.TrySetCanceled(linked.Token));
+		try
+		{
+			await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
+			await tcs.Task.ConfigureAwait(false);
+		}
+		finally
+		{
+			LineReceived -= Handler;
+		}
+
+		return;
+
+		void Handler(string l)
+		{
+			try
+			{
+				if (l.Trim().Equals(UciConstants.Responses.READY_OK, StringComparison.OrdinalIgnoreCase))
+					tcs.TrySetResult(l);
+			}
+			catch
+			{
+				/* ignore */
+			}
+		}
 	}
 
 	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
@@ -201,13 +226,37 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 	public async Task UciInitAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
-		await WaitForLineAsync(
-			l => l.Trim().Equals(UciConstants.Responses.UCI_OK, StringComparison.OrdinalIgnoreCase),
-			TimeSpan.FromSeconds(5),
-			CancellationToken.None).ConfigureAwait(false);
+		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		LineReceived += Handler;
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var linked     = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+		using var reg        = linked.Token.Register(() => tcs.TrySetCanceled(linked.Token));
+		try
+		{
+			await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
+			await tcs.Task.ConfigureAwait(false);
+		}
+		finally
+		{
+			LineReceived -= Handler;
+		}
 
 		await IsReadyAsync(ct).ConfigureAwait(false);
+		return;
+
+		void Handler(string l)
+		{
+			try
+			{
+				if (l.Trim().Equals(UciConstants.Responses.UCI_OK, StringComparison.OrdinalIgnoreCase))
+					tcs.TrySetResult(l);
+			}
+			catch
+			{
+				/* ignore */
+			}
+		}
 	}
 
 	public async Task UciNewGameAsync(CancellationToken ct)
