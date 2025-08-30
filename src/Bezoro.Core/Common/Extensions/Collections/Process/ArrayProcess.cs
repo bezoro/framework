@@ -7,20 +7,25 @@ using Bezoro.Core.Common.Interfaces;
 namespace Bezoro.Core.Common.Extensions.Collections.Process;
 
 /// <summary>
-///     Contains methods for processing and formatting arrays.
+///     Contains extension methods for processing and manipulating arrays, providing both synchronous
+///     and asynchronous operations for one-dimensional and two-dimensional arrays.
 /// </summary>
 public static class ArrayProcess
 {
 	/// <summary>
-	///     Processes all elements of a 2D array in their order of appearance.
+	///     Processes all non-null elements of a 2D array in their order of appearance.
 	/// </summary>
 	/// <param name="array">The array to process.</param>
 	/// <param name="processFunc">
 	///     A function that takes an element of the array, its x- and y-coordinates, and a
-	///     CancellationToken, and returns a UniTask.
+	///     CancellationToken, and returns a Task. Null elements are skipped during processing.
 	/// </param>
 	/// <param name="cancellationToken">A CancellationToken that can be used to cancel the processing.</param>
-	/// <returns>A UniTask that represents the asynchronous operation.</returns>
+	/// <returns>A Task that represents the asynchronous operation.</returns>
+	/// <remarks>
+	///     The processing can be cancelled either via the cancellation token or when an OperationCanceledException occurs.
+	///     After processing each element, the method yields control back to the caller.
+	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static async Task Process<T>(
 		this T[,]                                  array,
@@ -53,6 +58,14 @@ public static class ArrayProcess
 		}
 	}
 
+	/// <summary>
+	///     Asynchronously processes all non-null elements in a one-dimensional array.
+	/// </summary>
+	/// <typeparam name="T">The type of elements in the array.</typeparam>
+	/// <param name="array">The array to process.</param>
+	/// <param name="action">The asynchronous action to perform on each non-null element.</param>
+	/// <returns>A Task representing the asynchronous operation.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when the array is null.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static async Task ProcessArrayAsync<T>(this T?[] array, Func<T, Task> action)
 	{
@@ -67,6 +80,13 @@ public static class ArrayProcess
 		}
 	}
 
+	/// <summary>
+	///     Synchronously processes all non-null elements in a one-dimensional array.
+	/// </summary>
+	/// <typeparam name="T">The type of elements in the array.</typeparam>
+	/// <param name="array">The array to process.</param>
+	/// <param name="action">The action to perform on each non-null element.</param>
+	/// <exception cref="ArgumentNullException">Thrown when the array is null.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void ProcessArray<T>(this T?[] array, Action<T> action)
 	{
@@ -81,6 +101,12 @@ public static class ArrayProcess
 		}
 	}
 
+	/// <summary>
+	///     Processes all non-null elements in a one-dimensional array that implement IProcessable.
+	/// </summary>
+	/// <typeparam name="T">The type of elements in the array, must implement IProcessable.</typeparam>
+	/// <param name="array">The array containing IProcessable elements to process.</param>
+	/// <exception cref="ArgumentNullException">Thrown when the array is null.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void ProcessArray<T>(this T?[] array) where T : IProcessable
 	{
