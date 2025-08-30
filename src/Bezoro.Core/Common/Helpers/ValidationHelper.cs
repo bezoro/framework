@@ -1,26 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Bezoro.Core.Common.Extensions;
 
 namespace Bezoro.Core.Common.Helpers;
 
-public class ValidationHelper
+public static class ValidationHelper
 {
 	public static void Condition(
-		bool   condition,
-		string errorMessage,
-		object caller     = null,
-		string methodName = null
+		bool    condition,
+		string  errorMessage,
+		object? caller     = null,
+		string? methodName = null
 	)
 	{
 		if (!condition)
-		{
 			ExceptionHelper.ThrowException<InvalidOperationException>(
 				caller,
 				methodName ?? string.Empty,
 				errorMessage
 			);
-		}
 	}
 
 	public static void IsFalse(bool condition, string errorMessage = "") =>
@@ -40,32 +39,28 @@ public class ValidationHelper
 	}
 
 	public static void IsPositiveValue(
-		float  value,
-		string paramName  = "value",
-		object caller     = null,
-		string methodName = null
+		float   value,
+		string  paramName  = "value",
+		object? caller     = null,
+		string? methodName = null
 	)
 	{
 		if (value <= 0)
-		{
 			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} must be positive. Received: {value}"
 			);
-		}
 	}
 
 	public static void IsSubclassOf<T>(object caller, string methodName, Type type)
 	{
 		if (!type.IsSubclassOf(typeof(T)))
-		{
 			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName,
 				$"Type {type} is not a subclass of {typeof(T).Name}"
 			);
-		}
 	}
 
 	/// <summary>
@@ -79,61 +74,54 @@ public class ValidationHelper
 	public static void IsWithinRange(int file, int rank, int min, int max)
 	{
 		if (file < min || file > max || rank < min || rank > max)
-		{
 			throw new ArgumentOutOfRangeException(
 				$"Coordinates must be between {min} and {max}. Received: file={file}, rank={rank}");
-		}
 	}
 
 	public static void ListNotNullOrEmpty<T>(
 		List<T> list,
 		string  paramName  = "list",
-		object  caller     = null,
-		string  methodName = null
+		object? caller     = null,
+		string? methodName = null
 	)
 	{
-		if (list == null || list.Count == 0)
-		{
+		list.ThrowIfNull();
+
+		if (list.Count == 0)
 			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} is null or empty"
 			);
-		}
 	}
 
 	public static void String(
-		string value,
-		string paramName  = "value",
-		object caller     = null,
-		string methodName = null
+		string  value,
+		string  paramName  = "value",
+		object? caller     = null,
+		string? methodName = null
 	)
 	{
 		if (string.IsNullOrWhiteSpace(value))
-		{
 			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} is null or empty"
 			);
-		}
 	}
 
 	public static void ThrowIfObjectIsNull(
-		object objectToValidate,
-		string paramName        = null,
-		string exceptionMessage = null,
-		object caller           = null,
-		string methodName       = null
+		object  objectToValidate,
+		string? paramName        = null,
+		string? exceptionMessage = null,
+		object? caller           = null,
+		string? methodName       = null
 	)
 	{
-		if (objectToValidate != null) return;
+		objectToValidate.ThrowIfNull();
 
 		var messageBuilder = new StringBuilder();
-		if (string.IsNullOrEmpty(paramName))
-			messageBuilder.Append("Object is null");
-		else
-			messageBuilder.Append($"{paramName} is null");
+		messageBuilder.Append(string.IsNullOrEmpty(paramName) ? "Object is null" : $"{paramName} is null");
 
 		if (!string.IsNullOrWhiteSpace(exceptionMessage)) messageBuilder.Append($"; {exceptionMessage}");
 
@@ -145,21 +133,19 @@ public class ValidationHelper
 	}
 
 	public static void ValueNotAboveMax(
-		int    value,
-		int    max,
-		string valueName  = "value",
-		string maxName    = "max",
-		object caller     = null,
-		string methodName = null
+		int     value,
+		int     max,
+		string  valueName  = "value",
+		string  maxName    = "max",
+		object? caller     = null,
+		string? methodName = null
 	)
 	{
 		if (value > max)
-		{
 			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{valueName} cannot be greater than {maxName}. Received: {value}, Max: {max}"
 			);
-		}
 	}
 }
