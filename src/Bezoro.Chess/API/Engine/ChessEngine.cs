@@ -9,7 +9,6 @@ using Bezoro.Chess.Domain.Types.Records;
 using Bezoro.Chess.Domain.Types.Structs;
 using Bezoro.Core;
 using MoveType = Bezoro.Chess.API.Shared.Enums.MoveType;
-using PromotionType = Bezoro.Chess.Domain.Shared.Enums.PromotionType;
 
 namespace Bezoro.Chess.API.Engine
 {
@@ -26,7 +25,7 @@ namespace Bezoro.Chess.API.Engine
 		public Result<GameStateViewModel> StartNewGame()
 		{
 			_state = GameState.CreateInitial();
-			return Result.Succeeded(_state.ToViewModel());
+			return ResultFactory.Succeeded(_state.ToViewModel());
 		}
 
 		/// <summary>
@@ -39,15 +38,12 @@ namespace Bezoro.Chess.API.Engine
 		/// </remarks>
 		public Result<ImmutableArray<MoveViewModel>> GetCurrentLegalMoves()
 		{
-			IEnumerable<Move> moves = MoveGenerator.GenerateMoves(_state);
+			var moves = MoveGenerator.GenerateMoves(_state);
 
 			var viewModels = new List<MoveViewModel>();
-			foreach (Move move in moves)
-			{
-				viewModels.Add(new MoveViewModel(move));
-			}
+			foreach (var move in moves) viewModels.Add(new(move));
 
-			return Result.Succeeded(viewModels.ToImmutableArray());
+			return ResultFactory.Succeeded(viewModels.ToImmutableArray());
 		}
 
 		/// <summary>
@@ -59,12 +55,12 @@ namespace Bezoro.Chess.API.Engine
 		/// <exception cref="ArgumentOutOfRangeException">Thrown when the move type is not recognized.</exception>
 		public Result<MoveViewModel> TryApplyMove(MoveViewModel moveViewModel)
 		{
-			Position      from           = moveViewModel.From.ToDomain();
-			Position      to             = moveViewModel.To.ToDomain();
-			MoveType      type           = moveViewModel.Type;
-			Piece         piece          = moveViewModel.Piece.ToDomain();
-			Piece?        capturedPiece  = moveViewModel.CapturedPiece.Value.ToDomain();
-			PromotionType promotionPiece = moveViewModel.PromotionPieceType.ToDomain();
+			var    from           = moveViewModel.From.ToDomain();
+			var    to             = moveViewModel.To.ToDomain();
+			var    type           = moveViewModel.Type;
+			var    piece          = moveViewModel.Piece.ToDomain();
+			Piece? capturedPiece  = moveViewModel.CapturedPiece.Value.ToDomain();
+			var    promotionPiece = moveViewModel.PromotionPieceType.ToDomain();
 
 			Move move;
 
@@ -80,6 +76,7 @@ namespace Bezoro.Chess.API.Engine
 					break;
 				case MoveType.Castling:
 					throw new NotImplementedException();
+
 					break;
 				case MoveType.EnPassant:
 					move = Move.EnPassant(from, to, piece, capturedPiece.Value);
@@ -95,7 +92,7 @@ namespace Bezoro.Chess.API.Engine
 			}
 
 			_state = MoveExecution.ExecuteMove(_state, move);
-			return Result.Succeeded(moveViewModel);
+			return ResultFactory.Succeeded(moveViewModel);
 		}
 	}
 }
