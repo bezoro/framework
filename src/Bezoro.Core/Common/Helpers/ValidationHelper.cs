@@ -15,7 +15,7 @@ public class ValidationHelper
 	{
 		if (!condition)
 		{
-			ExceptionHelpers.ThrowException<InvalidOperationException>(
+			ExceptionHelper.ThrowException<InvalidOperationException>(
 				caller,
 				methodName ?? string.Empty,
 				errorMessage
@@ -31,7 +31,7 @@ public class ValidationHelper
 	public static void IsFalse<TException>(bool condition, string errorMessage = "")
 		where TException : Exception
 	{
-		if (condition) ExceptionHelpers.ThrowException<TException>(errorMessage);
+		if (condition) ExceptionHelper.ThrowException<TException>(errorMessage);
 	}
 
 	public static void IsNotNull<T>(T obj) where T : class
@@ -48,7 +48,7 @@ public class ValidationHelper
 	{
 		if (value <= 0)
 		{
-			ExceptionHelpers.ThrowException<ArgumentException>(
+			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} must be positive. Received: {value}"
@@ -60,7 +60,7 @@ public class ValidationHelper
 	{
 		if (!type.IsSubclassOf(typeof(T)))
 		{
-			ExceptionHelpers.ThrowException<ArgumentException>(
+			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName,
 				$"Type {type} is not a subclass of {typeof(T).Name}"
@@ -94,7 +94,7 @@ public class ValidationHelper
 	{
 		if (list == null || list.Count == 0)
 		{
-			ExceptionHelpers.ThrowException<ArgumentException>(
+			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} is null or empty"
@@ -111,7 +111,7 @@ public class ValidationHelper
 	{
 		if (string.IsNullOrWhiteSpace(value))
 		{
-			ExceptionHelpers.ThrowException<ArgumentException>(
+			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{paramName} is null or empty"
@@ -137,7 +137,7 @@ public class ValidationHelper
 
 		if (!string.IsNullOrWhiteSpace(exceptionMessage)) messageBuilder.Append($"; {exceptionMessage}");
 
-		ExceptionHelpers.ThrowException<ArgumentNullException>(
+		ExceptionHelper.ThrowException<ArgumentNullException>(
 			caller,
 			methodName ?? string.Empty,
 			messageBuilder.ToString()
@@ -155,7 +155,7 @@ public class ValidationHelper
 	{
 		if (value > max)
 		{
-			ExceptionHelpers.ThrowException<ArgumentException>(
+			ExceptionHelper.ThrowException<ArgumentException>(
 				caller,
 				methodName ?? string.Empty,
 				$"{valueName} cannot be greater than {maxName}. Received: {value}, Max: {max}"

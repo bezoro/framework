@@ -56,4 +56,7 @@ public static class ExceptionHelper
 				   ? string.Empty
 				   : string.Join(", ", paramNames.Select(p => p?.GetType().Name ?? "Unknown"));
 	}
+
+	public static void ThrowException<TException>(string errorMessage) where TException : Exception =>
+		throw ((TException)Activator.CreateInstance(typeof(TException), errorMessage));
 }
