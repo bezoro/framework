@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core;
 
@@ -13,22 +14,22 @@ public static class FloatComparer
 	/// <summary>
 	///     Default absolute epsilon for float comparisons.
 	/// </summary>
-	public const float DefaultFloatEpsilon = 1e-6f;
+	public const float DEFAULT_FLOAT_EPSILON = 1e-6f;
 
 	/// <summary>
 	///     Default absolute epsilon for double comparisons.
 	/// </summary>
-	public const double DefaultDoubleEpsilon = 1e-15;
+	public const double DEFAULT_DOUBLE_EPSILON = 1e-15;
 
 	/// <summary>
 	///     Default relative epsilon for relative comparisons.
 	/// </summary>
-	public const float DefaultRelativeEpsilon = 1e-5f;
+	public const float DEFAULT_RELATIVE_EPSILON = 1e-5f;
 
 	/// <summary>
 	///     Default relative epsilon for double relative comparisons.
 	/// </summary>
-	public const double DefaultDoubleRelativeEpsilon = 1e-14;
+	public const double DEFAULT_DOUBLE_RELATIVE_EPSILON = 1e-14;
 
 	#endregion
 
@@ -41,18 +42,14 @@ public static class FloatComparer
 	/// <param name="b">Second float value</param>
 	/// <param name="epsilon">Absolute epsilon tolerance (default: 1e-6f)</param>
 	/// <returns>True if the values are considered equal within the epsilon tolerance</returns>
-	public static bool AreEqual(float a, float b, float epsilon = DefaultFloatEpsilon)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool AreEqual(float a, float b, float epsilon = DEFAULT_FLOAT_EPSILON)
 	{
-		// Handle exact matches, infinities, and NaN
+		// Handle exact matches and short-circuit for non-finite inputs
 		if (a == b) return true;
+		if (!float.IsFinite(a) || !float.IsFinite(b)) return false;
 
-		// Handle NaN cases
-		if (float.IsNaN(a) || float.IsNaN(b)) return false;
-
-		// Handle infinity cases
-		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
-
-		return Math.Abs(a - b) < epsilon;
+		return MathF.Abs(a - b) <= epsilon;
 	}
 
 	/// <summary>
@@ -63,7 +60,8 @@ public static class FloatComparer
 	/// <param name="b">Second float value</param>
 	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-5f)</param>
 	/// <returns>True if the values are considered equal within the relative tolerance</returns>
-	public static bool AreEqualRelative(float a, float b, float relativeEpsilon = DefaultRelativeEpsilon)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool AreEqualRelative(float a, float b, float relativeEpsilon = DEFAULT_RELATIVE_EPSILON)
 	{
 		// Handle exact matches, infinities, and NaN
 		if (a == b) return true;
@@ -74,10 +72,18 @@ public static class FloatComparer
 		// Handle infinity cases
 		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
 
-		float diff    = Math.Abs(a - b);
-		float largest = Math.Max(Math.Abs(a), Math.Abs(b));
+		// Compute in double precision to reduce rounding error and add a ULP-sized cushion at this scale
+		double da     = a;
+		double db     = b;
+		double diff   = Math.Abs(da - db);
+		double maxAbs = Math.Max(Math.Abs(da), Math.Abs(db));
+		double thresh = relativeEpsilon * maxAbs;
 
-		return diff <= relativeEpsilon * largest;
+		// float machine epsilon near 1.0f
+		const double floatMachineEps = 1.1920928955078125e-07;
+		double       cushion         = floatMachineEps * maxAbs;
+
+		return diff <= thresh + cushion;
 	}
 
 	/// <summary>
@@ -92,8 +98,8 @@ public static class FloatComparer
 	public static bool AreEqualRobust(
 		float a,
 		float b,
-		float absoluteEpsilon = DefaultFloatEpsilon,
-		float relativeEpsilon = DefaultRelativeEpsilon)
+		float absoluteEpsilon = DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = DEFAULT_RELATIVE_EPSILON)
 	{
 		// Handle exact matches, infinities, and NaN
 		if (a == b) return true;
@@ -104,45 +110,54 @@ public static class FloatComparer
 		// Handle infinity cases
 		if (float.IsInfinity(a) || float.IsInfinity(b)) return false;
 
-		float diff = Math.Abs(a - b);
+		float diff   = MathF.Abs(a - b);
+		float maxAbs = Math.Max(MathF.Abs(a), MathF.Abs(b));
 
 		// Use absolute epsilon for numbers close to zero
-		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon) return diff < absoluteEpsilon;
+		if (maxAbs <= absoluteEpsilon) return diff <= absoluteEpsilon;
 
-		// Use relative epsilon for larger numbers
-		float largest = Math.Max(Math.Abs(a), Math.Abs(b));
-		return diff < relativeEpsilon * largest;
+		// Use relative epsilon for larger numbers (in double precision with a ULP-sized cushion)
+		{
+			double       ddiff           = diff;
+			double       dmaxAbs         = maxAbs;
+			double       dThresh         = relativeEpsilon * dmaxAbs;
+			const double floatMachineEps = 1.1920928955078125e-07;
+			double       cushion         = floatMachineEps * dmaxAbs;
+
+			return ddiff <= dThresh + cushion;
+		}
 	}
 
 	/// <summary>
 	///     Determines if the first float is less than the second.
 	/// </summary>
-	public static bool IsLessThan(float a, float b, float epsilon = DefaultFloatEpsilon) =>
+	public static bool IsLessThan(float a, float b, float epsilon = DEFAULT_FLOAT_EPSILON) =>
 		a < b && !AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first float is greater than the second.
 	/// </summary>
-	public static bool IsGreaterThan(float a, float b, float epsilon = DefaultFloatEpsilon) =>
+	public static bool IsGreaterThan(float a, float b, float epsilon = DEFAULT_FLOAT_EPSILON) =>
 		a > b && !AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first float is less than or equal to the second.
 	/// </summary>
-	public static bool IsLessThanOrEqual(float a, float b, float epsilon = DefaultFloatEpsilon) =>
+	public static bool IsLessThanOrEqual(float a, float b, float epsilon = DEFAULT_FLOAT_EPSILON) =>
 		a < b || AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first float is greater than or equal to the second.
 	/// </summary>
-	public static bool IsGreaterThanOrEqual(float a, float b, float epsilon = DefaultFloatEpsilon) =>
+	public static bool IsGreaterThanOrEqual(float a, float b, float epsilon = DEFAULT_FLOAT_EPSILON) =>
 		a > b || AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if a float value is effectively zero.
 	/// </summary>
-	public static bool IsZero(float value, float epsilon = DefaultFloatEpsilon) =>
-		Math.Abs(value) < epsilon;
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsZero(float value, float epsilon = DEFAULT_FLOAT_EPSILON) =>
+		MathF.Abs(value) <= epsilon;
 
 	#endregion
 
@@ -155,7 +170,8 @@ public static class FloatComparer
 	/// <param name="b">Second double value</param>
 	/// <param name="epsilon">Absolute epsilon tolerance (default: 1e-15)</param>
 	/// <returns>True if the values are considered equal within the epsilon tolerance</returns>
-	public static bool AreEqual(double a, double b, double epsilon = DefaultDoubleEpsilon)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool AreEqual(double a, double b, double epsilon = DEFAULT_DOUBLE_EPSILON)
 	{
 		// Handle exact matches, infinities, and NaN
 		if (a == b) return true;
@@ -166,7 +182,7 @@ public static class FloatComparer
 		// Handle infinity cases
 		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
-		return Math.Abs(a - b) < epsilon;
+		return Math.Abs(a - b) <= epsilon;
 	}
 
 	/// <summary>
@@ -177,7 +193,8 @@ public static class FloatComparer
 	/// <param name="b">Second double value</param>
 	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-14)</param>
 	/// <returns>True if the values are considered equal within the relative tolerance</returns>
-	public static bool AreEqualRelative(double a, double b, double relativeEpsilon = DefaultDoubleRelativeEpsilon)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool AreEqualRelative(double a, double b, double relativeEpsilon = DEFAULT_DOUBLE_RELATIVE_EPSILON)
 	{
 		// Handle exact matches, infinities, and NaN
 		if (a == b) return true;
@@ -188,10 +205,15 @@ public static class FloatComparer
 		// Handle infinity cases
 		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
-		double diff    = Math.Abs(a - b);
-		double largest = Math.Max(Math.Abs(a), Math.Abs(b));
+		double diff   = Math.Abs(a - b);
+		double maxAbs = Math.Max(Math.Abs(a), Math.Abs(b));
+		double thresh = relativeEpsilon * maxAbs;
 
-		return diff <= relativeEpsilon * largest;
+		// double machine epsilon near 1.0
+		const double doubleMachineEps = 2.2204460492503131e-16;
+		double       cushion          = doubleMachineEps * maxAbs;
+
+		return diff <= thresh + cushion;
 	}
 
 	/// <summary>
@@ -206,8 +228,8 @@ public static class FloatComparer
 	public static bool AreEqualRobust(
 		double a,
 		double b,
-		double absoluteEpsilon = DefaultDoubleEpsilon,
-		double relativeEpsilon = DefaultDoubleRelativeEpsilon)
+		double absoluteEpsilon = DEFAULT_DOUBLE_EPSILON,
+		double relativeEpsilon = DEFAULT_DOUBLE_RELATIVE_EPSILON)
 	{
 		// Handle exact matches, infinities, and NaN
 		if (a == b) return true;
@@ -218,45 +240,51 @@ public static class FloatComparer
 		// Handle infinity cases
 		if (double.IsInfinity(a) || double.IsInfinity(b)) return false;
 
-		double diff = Math.Abs(a - b);
+		double diff   = Math.Abs(a - b);
+		double maxAbs = Math.Max(Math.Abs(a), Math.Abs(b));
 
 		// Use absolute epsilon for numbers close to zero
-		if (Math.Abs(a) < absoluteEpsilon || Math.Abs(b) < absoluteEpsilon) return diff < absoluteEpsilon;
+		if (maxAbs <= absoluteEpsilon) return diff <= absoluteEpsilon;
 
-		// Use relative epsilon for larger numbers
-		double largest = Math.Max(Math.Abs(a), Math.Abs(b));
-		return diff < relativeEpsilon * largest;
+		// Use relative epsilon for larger numbers with a ULP-sized cushion
+		{
+			double       dThresh          = relativeEpsilon * maxAbs;
+			const double doubleMachineEps = 2.2204460492503131e-16;
+			double       cushion          = doubleMachineEps * maxAbs;
+			return diff <= dThresh + cushion;
+		}
 	}
 
 	/// <summary>
 	///     Determines if the first double is less than the second.
 	/// </summary>
-	public static bool IsLessThan(double a, double b, double epsilon = DefaultDoubleEpsilon) =>
+	public static bool IsLessThan(double a, double b, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
 		a < b && !AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first double is greater than the second.
 	/// </summary>
-	public static bool IsGreaterThan(double a, double b, double epsilon = DefaultDoubleEpsilon) =>
+	public static bool IsGreaterThan(double a, double b, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
 		a > b && !AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first double is less than or equal to the second.
 	/// </summary>
-	public static bool IsLessThanOrEqual(double a, double b, double epsilon = DefaultDoubleEpsilon) =>
+	public static bool IsLessThanOrEqual(double a, double b, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
 		a < b || AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if the first double is greater than or equal to the second.
 	/// </summary>
-	public static bool IsGreaterThanOrEqual(double a, double b, double epsilon = DefaultDoubleEpsilon) =>
+	public static bool IsGreaterThanOrEqual(double a, double b, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
 		a > b || AreEqual(a, b, epsilon);
 
 	/// <summary>
 	///     Determines if a double value is effectively zero.
 	/// </summary>
-	public static bool IsZero(double value, double epsilon = DefaultDoubleEpsilon) =>
-		Math.Abs(value) < epsilon;
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsZero(double value, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
+		Math.Abs(value) <= epsilon;
 
 	#endregion
 
@@ -269,9 +297,7 @@ public static class FloatComparer
 	{
 		if (value < min) return min;
 
-		if (value > max) return max;
-
-		return value;
+		return value > max ? max : value;
 	}
 
 	/// <summary>
@@ -281,30 +307,20 @@ public static class FloatComparer
 	{
 		if (value < min) return min;
 
-		if (value > max) return max;
-
-		return value;
+		return value > max ? max : value;
 	}
 
 	/// <summary>
 	///     Returns the sign of a float value, treating values close to zero as zero.
 	/// </summary>
-	public static int Sign(float value, float epsilon = DefaultFloatEpsilon)
-	{
-		if (IsZero(value, epsilon)) return 0;
-
-		return Math.Sign(value);
-	}
+	public static int Sign(float value, float epsilon = DEFAULT_FLOAT_EPSILON) =>
+		IsZero(value, epsilon) ? 0 : Math.Sign(value);
 
 	/// <summary>
 	///     Returns the sign of a double value, treating values close to zero as zero.
 	/// </summary>
-	public static int Sign(double value, double epsilon = DefaultDoubleEpsilon)
-	{
-		if (IsZero(value, epsilon)) return 0;
-
-		return Math.Sign(value);
-	}
+	public static int Sign(double value, double epsilon = DEFAULT_DOUBLE_EPSILON) =>
+		IsZero(value, epsilon) ? 0 : Math.Sign(value);
 
 	#endregion
 }
