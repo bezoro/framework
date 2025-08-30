@@ -1,4 +1,5 @@
 using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Common.Extensions.String;
 using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.API.Types;

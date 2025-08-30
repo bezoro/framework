@@ -1,14 +1,14 @@
 using System;
-using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Common.Extensions.String;
 using Bezoro.Core.Common.Primitives;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests.Common.Extensions;
+namespace Bezoro.Core.Tests.Common.Extensions.String;
 
-[TestSubject(typeof(StringExtensions))]
-public static class StringExtensionsTests
+[TestSubject(typeof(Checks))]
+public static class ChecksTests
 {
 	public class Unit
 	{

@@ -4,9 +4,9 @@ using System;
 using System.Globalization;
 using Bezoro.Core.Common.Primitives;
 
-namespace Bezoro.Core.Common.Extensions;
+namespace Bezoro.Core.Common.Extensions.String;
 
-public static class StringColourExtensions
+public static class ColourFormatting
 {
 	#region Core Methods
 

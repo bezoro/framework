@@ -1,4 +1,5 @@
 ﻿using System;
+using Bezoro.Core.Common.Extensions.String;
 using Color = Bezoro.Core.Common.Primitives.Color;
 
 namespace Bezoro.Core.Common.Extensions;
