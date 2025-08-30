@@ -6,8 +6,8 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Search;
 
-[TestSubject(typeof(CollectionSearch))]
-public static class CollectionSearchTests
+[TestSubject(typeof(CollectionSearchExtensions))]
+public static class CollectionSearchExtensionsTests
 {
 	public class Unit
 	{

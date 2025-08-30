@@ -6,8 +6,8 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Check;
 
-[TestSubject(typeof(CollectionCheck))]
-public static class CollectionCheckTests
+[TestSubject(typeof(CollectionCheckExtensions))]
+public static class CollectionCheckExtensionsTests
 {
 	public class Unit
 	{

@@ -5,16 +5,17 @@ namespace Bezoro.Core.Common.Extensions.Collections.Search;
 /// <summary>
 ///     Contains methods for searching and counting elements in arrays.
 /// </summary>
-public static class ArraySearch
+public static class ArraySearchExtensions
 {
 	/// <summary>
-	///     Searches for the specified element in the array and returns its index.
+	///     Searches for the specified element in the array using Equals method and returns its index.
 	/// </summary>
 	/// <typeparam name="T">The type of elements in the array. Must be a reference type.</typeparam>
-	/// <param name="array">The array to search in.</param>
-	/// <param name="element">The element to find.</param>
+	/// <param name="array">The array to search in. Cannot be null.</param>
+	/// <param name="element">The element to find. Cannot be null.</param>
 	/// <param name="index">
-	///     When this method returns, contains the index of the found element, or -1 if the element was not
+	///     When this method returns, contains the zero-based index of the found element in the array, or -1 if the element was
+	///     not
 	///     found.
 	/// </param>
 	/// <returns>true if the element was found; otherwise, false.</returns>
@@ -41,6 +42,14 @@ public static class ArraySearch
 	/// <summary>
 	///     Searches for the specified struct element in the array and returns its index.
 	/// </summary>
+	/// <typeparam name="T">The type of elements in the array. Must be a value type implementing IEquatable{T}.</typeparam>
+	/// <param name="array">The array to search in.</param>
+	/// <param name="element">The element to find.</param>
+	/// <param name="index">
+	///     When this method returns, contains the index of the found element, or -1 if the element was not
+	///     found.
+	/// </param>
+	/// <returns>true if the element was found; otherwise, false.</returns>
 	public static bool ContainsStruct<T>(this T[] array, T element, out int index)
 		where T : struct, IEquatable<T>
 	{
@@ -60,6 +69,16 @@ public static class ArraySearch
 		return false;
 	}
 
+	/// <summary>
+	///     Attempts to find the first null element in the array and returns its index.
+	/// </summary>
+	/// <typeparam name="T">The type of elements in the array. Must be a reference type.</typeparam>
+	/// <param name="array">The array to search in.</param>
+	/// <param name="index">
+	///     When this method returns, contains the index of the first null element, or -1 if no null elements
+	///     were found.
+	/// </param>
+	/// <returns>true if a null element was found; otherwise, false.</returns>
 	public static bool TryFindFirstEmptyIndex<T>(this T?[] array, out int index)
 		where T : class
 	{

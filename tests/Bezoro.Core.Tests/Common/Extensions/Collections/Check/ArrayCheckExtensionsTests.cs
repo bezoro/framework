@@ -5,8 +5,8 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Check;
 
-[TestSubject(typeof(ArrayCheck))]
-public static class ArrayCheckTests
+[TestSubject(typeof(ArrayCheckExtensions))]
+public static class ArrayCheckExtensionsTests
 {
 	public class Unit
 	{

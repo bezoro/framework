@@ -4,16 +4,17 @@ using System.Linq;
 namespace Bezoro.Core.Common.Extensions.Collections.Check;
 
 /// <summary>
-///     Contains methods for checking array state and properties.
+///     Contains methods for checking array state, properties and performing equality comparisons between arrays.
+///     Provides functionality for both single-dimensional and two-dimensional arrays.
 /// </summary>
-public static class ArrayCheck
+public static class ArrayCheckExtensions
 {
 	/// <summary>
-	///     Checks if two arrays are equal.
+	///     Checks if two single-dimensional arrays have the same length and contain equal elements in the same order.
 	/// </summary>
-	/// <param name="array">The first array to compare.</param>
-	/// <param name="b">The second array to compare.</param>
-	/// <returns>true if the arrays are equal, false otherwise.</returns>
+	/// <param name="array">The source array to compare.</param>
+	/// <param name="b">The target array to compare against.</param>
+	/// <returns>true if arrays have same length and contain equal elements in the same order; otherwise, false.</returns>
 	public static bool AreEqual<T>(this T[] array, T[] b)
 	{
 		array.ThrowIfNull();
@@ -22,6 +23,13 @@ public static class ArrayCheck
 		return array.Length == b.Length && array.SequenceEqual(b);
 	}
 
+	/// <summary>
+	///     Checks if two two-dimensional arrays have the same dimensions and contain equal elements at corresponding
+	///     positions.
+	/// </summary>
+	/// <param name="array2d">The source two-dimensional array to compare.</param>
+	/// <param name="b">The target two-dimensional array to compare against.</param>
+	/// <returns>true if arrays have same dimensions and contain equal elements at corresponding positions; otherwise, false.</returns>
 	public static bool AreEqual<T>(this T[,] array2d, T[,] b)
 	{
 		array2d.ThrowIfNull();

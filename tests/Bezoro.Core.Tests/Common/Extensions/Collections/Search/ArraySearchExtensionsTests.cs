@@ -5,8 +5,8 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Search;
 
-[TestSubject(typeof(ArraySearch))]
-public static class ArraySearchTests
+[TestSubject(typeof(ArraySearchExtensions))]
+public static class ArraySearchExtensionsTests
 {
 	public class Unit
 	{

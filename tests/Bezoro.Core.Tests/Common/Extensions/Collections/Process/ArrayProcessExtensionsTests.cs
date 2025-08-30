@@ -10,8 +10,8 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Extensions.Collections.Process;
 
-[TestSubject(typeof(ArrayProcess))]
-public static class ArrayProcessTests
+[TestSubject(typeof(ArrayProcessExtensions))]
+public static class ArrayProcessExtensionsTests
 {
 	public class Unit
 	{
