@@ -4,20 +4,11 @@ namespace Bezoro.Core.Common.Extensions;
 
 public static class ActionExtensions
 {
-	public static void SafeInvoke(this Action? handler)
+	public static void SafeInvoke(this Action handler)
 	{
-		if (handler == null) return;
+		handler.ThrowIfNull();
 
 		foreach (var d in handler.GetInvocationList())
-		{
-			try
-			{
-				((Action)d)();
-			}
-			catch (Exception ex)
-			{
-				Logger.LogException(ex);
-			}
-		}
+			((Action)d)?.Invoke();
 	}
 }
