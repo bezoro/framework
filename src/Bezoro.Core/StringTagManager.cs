@@ -7,32 +7,46 @@ namespace Bezoro.Core;
 
 public static class StringTags
 {
-	private static readonly ConcurrentDictionary<string, Func<object>> _tags =
-		new(StringComparer.Ordinal);
-	private static readonly Regex _tagPattern = new(@"\{(\w+)\}", RegexOptions.Compiled);
+	private static readonly ConcurrentDictionary<string, Func<object>> Tags = new(StringComparer.Ordinal);
+	private static readonly Regex TagNamePattern = new(@"^\w+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+	private static readonly Regex TagPattern = new(
+		@"(?<!\\)\{(\w+)\}",
+		RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
 	/// <summary>
 	///     Get all registered tag names
 	/// </summary>
-	public static IEnumerable<string> GetRegisteredTags() =>
-		_tags.Keys;
+	public static IEnumerable<string> GetRegisteredTags() => Tags.Keys;
 
 	/// <summary>
 	///     Process a string and replace all registered tags
+	///     Escaped braces (\{tag\}) are treated as literals.
 	/// </summary>
 	public static string Process(string input)
 	{
 		if (string.IsNullOrEmpty(input)) return input;
 
-		return _tagPattern.Replace(
+		string result = TagPattern.Replace(
 			input,
 			match =>
 			{
 				string tagName = match.Groups[1].Value;
-				return _tags.TryGetValue(tagName, out var provider)
-						   ? provider()?.ToString() ?? string.Empty
-						   : match.Value;
+				if (!Tags.TryGetValue(tagName, out var provider)) return match.Value;
+
+				try
+				{
+					object? value = provider?.Invoke();
+					return value?.ToString() ?? string.Empty;
+				}
+				catch
+				{
+					// If a provider throws, leave the original tag untouched
+					return match.Value;
+				}
 			});
+
+		// Unescape any escaped braces
+		return result.Replace("\\{", "{").Replace("\\}", "}");
 	}
 
 	/// <summary>
@@ -40,7 +54,7 @@ public static class StringTags
 	/// </summary>
 	public static void Clear()
 	{
-		_tags.Clear();
+		Tags.Clear();
 	}
 
 	/// <summary>
@@ -52,16 +66,35 @@ public static class StringTags
 	/// <exception cref="InvalidOperationException">Thrown when tag already exists and allowOverwrite is false</exception>
 	public static void Register(string tagName, Func<object> valueProvider, bool allowOverwrite = false)
 	{
+		if (valueProvider is null) throw new ArgumentNullException(nameof(valueProvider));
+		if (string.IsNullOrWhiteSpace(tagName))
+			throw new ArgumentException("Tag name cannot be null or whitespace.", nameof(tagName));
+
+		tagName = tagName.Trim();
+		if (!TagNamePattern.IsMatch(tagName))
+			throw new ArgumentException("Tag name must contain only letters, digits, or underscores.", nameof(tagName));
+
 		if (!allowOverwrite)
 		{
-			if (!_tags.TryAdd(tagName, valueProvider))
-			{
+			if (!Tags.TryAdd(tagName, valueProvider))
 				throw new InvalidOperationException(
 					$"Tag '{tagName}' is already registered. Use allowOverwrite parameter to replace it.");
-			}
 		}
 		else
-			_tags[tagName] = valueProvider;
+		{
+			Tags.AddOrUpdate(tagName, valueProvider, (_, _) => valueProvider);
+		}
+	}
+
+	/// <summary>
+	///     Register a tag with a constant value
+	/// </summary>
+	/// <param name="tagName">The name of the tag</param>
+	/// <param name="value">Constant value to be used for the tag</param>
+	/// <param name="allowOverwrite">Whether to allow overwriting existing tags</param>
+	public static void RegisterValue(string tagName, object value, bool allowOverwrite = false)
+	{
+		Register(tagName, () => value, allowOverwrite);
 	}
 
 	/// <summary>
@@ -69,6 +102,6 @@ public static class StringTags
 	/// </summary>
 	public static void Unregister(string tagName)
 	{
-		_tags.TryRemove(tagName, out _);
+		Tags.TryRemove(tagName, out _);
 	}
 }
