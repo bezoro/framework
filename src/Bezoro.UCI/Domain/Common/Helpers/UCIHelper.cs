@@ -6,7 +6,7 @@ namespace Bezoro.UCI.Domain.Common.Helpers;
 ///     Provides static helper methods for working with UCI and FEN notations.
 ///     This class contains pure functions with no side effects.
 /// </summary>
-internal static class UCIHelper
+internal static class UciHelper
 {
 	/// <summary>
 	///     Validates if a string is in proper algebraic notation for a single square.
@@ -51,15 +51,5 @@ internal static class UCIHelper
 			"b" => 'b',
 			_   => null
 		};
-	}
-
-	/// <summary>
-	///     Extracts the best move from a UCI engine response.
-	/// </summary>
-	public static string? ParseBestMoveFromResponse(string bestMoveLine)
-	{
-		// Expected format is "bestmove <move> [ponder <move>]"
-		string[] parts = bestMoveLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		return parts.Length > 1 ? parts[1] : null;
 	}
 }
