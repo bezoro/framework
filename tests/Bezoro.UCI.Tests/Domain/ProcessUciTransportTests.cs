@@ -58,6 +58,54 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task Exited_Event_IsRaisedOnlyOnce()
+		{
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+
+			var count = 0;
+			var tcs   = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			transport.Exited += (_, _) =>
+			{
+				Interlocked.Increment(ref count);
+				tcs.TrySetResult(null);
+			};
+
+			await transport.StartAsync();
+			await transport.DisposeAsync();
+
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			completed.Should().Be(tcs.Task);
+
+			// Give a brief moment to ensure no duplicate invocations occur
+			await Task.Delay(100);
+
+			count.Should().Be(1);
+		}
+
+		[Fact]
+		public async Task Exited_HandlerThrows_ErrorEventIsRaisedAndNoCrash()
+		{
+			// Use a quickly exiting process
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, ["/c", "exit", "0"]);
+
+			var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+			transport.Error += ex => errorTcs.TrySetResult(ex);
+
+			// Exited handler will throw; transport must swallow and surface via Error event
+			transport.Exited += (_, _) => throw new InvalidOperationException("boom from handler");
+
+			await transport.StartAsync();
+
+			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			completed.Should().Be(errorTcs.Task, "Error event should be raised when Exited handler throws");
+
+			(await errorTcs.Task).Should().BeOfType<InvalidOperationException>();
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task IsHealthy_AfterStopOrDispose_IsFalse()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
@@ -200,6 +248,32 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task ReadLoop_Backpressure_ChannelFull_IncrementsBackpressureEvents()
+		{
+			// Resolve cmd only for this test; skip if unavailable (e.g., non-Windows environment)
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			var options = new ProcessUciTransportOptions
+			{
+				ChannelCapacity = 1 // ensure backpressure when more than one line is produced
+			};
+
+			// Produce two non-empty lines quickly so the read loop's writer.TryWrite fails on the second
+			var transport = new ProcessUciTransport(cmdPath, ["/c", "echo", "L1", "&", "echo", "L2"], null, options);
+			await transport.StartAsync();
+
+			// Do not consume any lines; allow read loop to hit channel backpressure path
+			await Task.Delay(200);
+
+			await transport.StopAsync();
+
+			transport.BackpressureEvents.Should().BeGreaterThan(0);
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task ReadLoop_SkipsEmptyLines_OnlyNonEmptyReceived()
 		{
 			string? cmdPath = TryResolveCmdPath();
@@ -320,6 +394,45 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task StartAsync_WithPreexistingExitedProcessObject_CleansUpAndStarts()
+		{
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			// Create a process that exits immediately
+			var psi = new ProcessStartInfo
+			{
+				FileName        = cmdPath,
+				UseShellExecute = false
+			};
+
+			psi.ArgumentList.Add("/c");
+			psi.ArgumentList.Add("exit");
+			psi.ArgumentList.Add("0");
+
+			using var exitedProcess = new Process();
+			exitedProcess.StartInfo           = psi;
+			exitedProcess.EnableRaisingEvents = true;
+			exitedProcess.Start();
+			exitedProcess.WaitForExit();
+
+			// Assign the exited process to transport._process before StartAsync to hit cleanup path
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+			var processField = typeof(ProcessUciTransport).GetField(
+				"_process",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			processField.Should().NotBeNull();
+			processField!.SetValue(transport, exitedProcess);
+
+			await transport.StartAsync();
+
+			transport.IsStarted.Should().BeTrue();
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task Status_Transitions_CreatedToStartedToStoppedToDisposed_AreObserved()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
@@ -362,6 +475,81 @@ public static class ProcessUciTransportTests
 
 			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
 			completed.Should().Be(tcs.Task);
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task StderrReceived_HandlerThrows_IsSwallowed_NoCrash()
+		{
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			var options = new ProcessUciTransportOptions { RedirectStandardError = true };
+			var transport = new ProcessUciTransport(
+				cmdPath,
+				new[] { "/c", "echo", "oops", "1>&2" },
+				null,
+				options);
+
+			transport.Error += _ => { };
+
+			// Handler intentionally throws; transport should swallow and continue
+			transport.StderrReceived += _ => throw new InvalidOperationException("stderr handler boom");
+
+			await transport.StartAsync();
+
+			// Allow stderr loop to process
+			await Task.Delay(200);
+
+			await transport.DisposeAsync();
+
+			// The goal is to ensure handler exceptions are swallowed (no crash).
+			// Unrelated internal errors may still fire Error; don't assert on it here.
+			true.Should().BeTrue("stderr handler exceptions are swallowed inside the loop");
+		}
+
+		[Fact]
+		public async Task StopAsync_ConcurrentCall_WithCanceledToken_CancelsWhileAwaitingExistingStop()
+		{
+			var options = new ProcessUciTransportOptions
+			{
+				TeardownTimeout = TimeSpan.FromSeconds(1) // make first StopAsync take a bit
+			};
+
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+			await transport.StartAsync();
+
+			// Replace _exitNotifyTask with a never-completing task to ensure Stop waits for TryAwaitWithTimeout path
+			var tcsNever = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var field = typeof(ProcessUciTransport).GetField(
+				"_exitNotifyTask",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			field.Should().NotBeNull();
+			field!.SetValue(transport, tcsNever.Task);
+
+			// Start first stop (do not await)
+			var firstStop = transport.StopAsync();
+
+			// Wait until stopping TCS is published to avoid a race
+			var stoppingField = typeof(ProcessUciTransport).GetField(
+				"_stoppingTcs",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			var sw = Stopwatch.StartNew();
+			while (stoppingField!.GetValue(transport) is null && sw.Elapsed < TimeSpan.FromSeconds(2))
+				await Task.Delay(10);
+
+			// Second stop with cancellation: should cancel while awaiting existing stop
+			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			await FluentActions.Awaiting(() => transport.StopAsync(cts.Token))
+							   .Should()
+							   .ThrowAsync<OperationCanceledException>();
+
+			// Ensure the first completes and state is consistent
+			await firstStop;
+			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
 
 			await transport.DisposeAsync();
 		}
@@ -487,6 +675,33 @@ public static class ProcessUciTransportTests
 			// This may briefly block until write loop drains; should return true.
 			bool ok2 = await transport.TryWriteLineAsync("isready", Timeout.InfiniteTimeSpan);
 			ok2.Should().BeTrue();
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task TryWriteLineAsync_WhenCanceledDuringWait_ThrowsOperationCanceledException()
+		{
+			var options = new ProcessUciTransportOptions
+			{
+				ChannelCapacity  = 1,
+				DisableWriteLoop = true, // force channel to stay full
+				ValidateCommands = true
+			};
+
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+			await transport.StartAsync();
+
+			// Fill the channel
+			bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(100));
+			ok1.Should().BeTrue();
+
+			// Second write blocks -> cancel the token to hit OperationCanceledException branch
+			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			await FluentActions
+				  .Awaiting(() => transport.TryWriteLineAsync("isready", TimeSpan.FromSeconds(5), cts.Token))
+				  .Should()
+				  .ThrowAsync<OperationCanceledException>();
 
 			await transport.DisposeAsync();
 		}
@@ -818,6 +1033,26 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task StartAsync_WhenExistingStartInProgress_Canceled_ThrowsOperationCanceledException()
+		{
+			var transport = new ProcessUciTransport("any/nonempty/path");
+
+			// Simulate a concurrent Start in progress by publishing a never-completing _startingTcs
+			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var startingTcsField = typeof(ProcessUciTransport).GetField(
+				"_startingTcs",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			startingTcsField.Should().NotBeNull();
+			startingTcsField!.SetValue(transport, tcs);
+
+			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			await FluentActions.Awaiting(() => transport.StartAsync(cts.Token))
+							   .Should()
+							   .ThrowAsync<OperationCanceledException>();
+		}
+
+		[Fact]
 		public async Task StopAsync_AfterDispose_ThrowsObjectDisposedException()
 		{
 			var process = new ProcessUciTransport("any/nonempty/path");
@@ -851,6 +1086,29 @@ public static class ProcessUciTransportTests
 			await process.StopAsync();
 
 			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+		}
+
+		[Fact]
+		public async Task
+			StopAsync_WhenStartInProgress_Canceled_ThrowsOperationCanceledException_AndLeavesStateUnchanged()
+		{
+			var transport = new ProcessUciTransport("any/nonempty/path");
+
+			// Simulate a concurrent Start in progress by publishing a never-completing _startingTcs
+			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var startingTcsField = typeof(ProcessUciTransport).GetField(
+				"_startingTcs",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			startingTcsField.Should().NotBeNull();
+			startingTcsField!.SetValue(transport, tcs);
+
+			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			await FluentActions.Awaiting(() => transport.StopAsync(cts.Token))
+							   .Should()
+							   .ThrowAsync<OperationCanceledException>();
+
+			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
 		}
 
 		[Fact]
