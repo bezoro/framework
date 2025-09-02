@@ -1,7 +1,7 @@
 using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.API.Common.Enums;
-using Bezoro.UCI.API.Common.Exceptions;
 using Bezoro.UCI.Domain.Common.Constants;
+using Bezoro.UCI.Domain.Common.Exceptions;
 
 namespace Bezoro.UCI.API.Common.Extensions;
 
@@ -39,6 +39,7 @@ public static class CharExtensions
 		pieceChar.ThrowIfNotPieceChar();
 		return UciConstants.Pieces.CHARS_PAWN.Contains(pieceChar);
 	}
+
 	public static bool IsQueen(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
