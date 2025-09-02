@@ -502,21 +502,23 @@ public static class ProcessUciTransportTests
 				null,
 				options);
 
-			transport.Error += _ => { };
+			var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+			transport.Error += ex => errorTcs.TrySetResult(ex);
 
-			// Handler intentionally throws; transport should swallow and continue
+			// Handler intentionally throws; transport should swallow and NOT surface via Error.
 			transport.StderrReceived += _ => throw new InvalidOperationException("stderr handler boom");
 
 			await transport.StartAsync();
 
-			// Allow stderr loop to process
-			await Task.Delay(200);
+			// Allow stderr loop to process and observe whether Error was raised due to the thrown handler.
+			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+
+			// If handler exceptions were not swallowed, Error would fire.
+			completed.Should().NotBe(
+				errorTcs.Task,
+				"stderr handler exceptions must be swallowed and not surface via Error");
 
 			await transport.DisposeAsync();
-
-			// The goal is to ensure handler exceptions are swallowed (no crash).
-			// Unrelated internal errors may still fire Error; don't assert on it here.
-			true.Should().BeTrue("stderr handler exceptions are swallowed inside the loop");
 		}
 
 		[Fact]
