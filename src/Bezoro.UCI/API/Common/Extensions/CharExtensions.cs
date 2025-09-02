@@ -43,13 +43,13 @@ public static class CharExtensions
 	public static bool IsQueen(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return UciConstants.Pieces.CHARS_ALL.Contains(pieceChar);
+		return UciConstants.Pieces.CHARS_QUEEN.Contains(pieceChar);
 	}
 
 	public static bool IsRook(this char pieceChar)
 	{
 		pieceChar.ThrowIfNotPieceChar();
-		return UciConstants.Pieces.CHARS_ALL.Contains(pieceChar);
+		return UciConstants.Pieces.CHARS_ROOK.Contains(pieceChar);
 	}
 
 	/// <summary>
