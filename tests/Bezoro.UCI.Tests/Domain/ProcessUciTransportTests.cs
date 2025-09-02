@@ -89,7 +89,7 @@ public static class ProcessUciTransportTests
 			// Use a quickly exiting process
 			var transport = new ProcessUciTransport(
 				TestConsts.STOCKFISH_PATH,
-				[ProcessArgs.CmdExecute, ProcessArgs.Exit, ProcessArgs.Zero]);
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO]);
 
 			var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
 			transport.Error += ex => errorTcs.TrySetResult(ex);
@@ -264,9 +264,10 @@ public static class ProcessUciTransportTests
 			// Produce two non-empty lines quickly so the read loop's writer.TryWrite fails on the second
 			var transport = new ProcessUciTransport(
 				cmdPath,
-				[ProcessArgs.CmdExecute, ProcessArgs.Echo, "L1", ProcessArgs.Chain, ProcessArgs.Echo, "L2"],
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "L1", ProcessArgs.CHAIN, ProcessArgs.ECHO, "L2"],
 				null,
 				options);
+
 			await transport.StartAsync();
 
 			// Do not consume any lines; allow read loop to hit channel backpressure path
@@ -287,7 +288,8 @@ public static class ProcessUciTransportTests
 
 			var transport = new ProcessUciTransport(
 				cmdPath,
-				[ProcessArgs.CmdExecute, ProcessArgs.EchoEmpty, ProcessArgs.Chain, ProcessArgs.Echo, "marker"]);
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO_EMPTY, ProcessArgs.CHAIN, ProcessArgs.ECHO, "marker"]);
+
 			await transport.StartAsync();
 
 			string?   received = null;
@@ -468,7 +470,7 @@ public static class ProcessUciTransportTests
 			var transport = new ProcessUciTransport(
 				cmdPath,
 				[
-					ProcessArgs.CmdExecute, ProcessArgs.Echo, "HelloStderr", ProcessArgs.StdOutToStdErr
+					ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "HelloStderr", ProcessArgs.STD_OUT_TO_STD_ERR
 				],
 				null,
 				options);
@@ -496,7 +498,7 @@ public static class ProcessUciTransportTests
 			var options = new ProcessUciTransportOptions { RedirectStandardError = true };
 			var transport = new ProcessUciTransport(
 				cmdPath,
-				new[] { ProcessArgs.CmdExecute, ProcessArgs.Echo, "oops", ProcessArgs.StdOutToStdErr },
+				new[] { ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "oops", ProcessArgs.STD_OUT_TO_STD_ERR },
 				null,
 				options);
 
@@ -730,10 +732,10 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task TryWriteLineAsync_WhenProcessHasExited_ThrowsInvalidOperationException()
 		{
-			const string cmdPath   = TestConsts.STOCKFISH_PATH;
+			const string cmdPath = TestConsts.STOCKFISH_PATH;
 			var transport = new ProcessUciTransport(
 				cmdPath,
-				[ProcessArgs.CmdExecute, ProcessArgs.Exit, ProcessArgs.Zero]);
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO]);
 
 			var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			transport.Exited += (_, _) => exitedTcs.TrySetResult(null);
@@ -866,7 +868,7 @@ public static class ProcessUciTransportTests
 		{
 			var transport = new ProcessUciTransport(
 				TestConsts.STOCKFISH_PATH,
-				[ProcessArgs.CmdExecute, ProcessArgs.Exit, ProcessArgs.Zero]);
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO]);
 
 			var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			transport.Exited += (_, _) => exitedTcs.TrySetResult(null);
