@@ -179,6 +179,55 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task GetLegalMovesWithClassificationsAsync_WhenCalled_ReturnsMoveSnapshot()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Subscribe to capture at least one classification
+		var classifiedTcs =
+			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.NewMoveClassified += (notation, move) =>
+		{
+			if (!string.IsNullOrWhiteSpace(notation))
+				classifiedTcs.TrySetResult((notation, move));
+		};
+
+		// Set a standard position and trigger background classification
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// Await at least one classified move to ensure snapshot contains some classifications
+		var firstClassified = await classifiedTcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+
+		// Get the snapshot: legal moves + any classifications ready so far
+		var snapshot = await coordinator.GetLegalMovesWithClassificationsAsync();
+
+		// Legal moves should be non-empty and contain common openers
+		snapshot.Legal.Should().NotBeNull();
+		snapshot.Legal.Count.Should().BeGreaterThan(0);
+		snapshot.Legal.Should().Contain(m => m.Raw == "e2e4" || m.Raw == "d2d4");
+
+		// There should be at least one classification captured
+		snapshot.Classified.Should().NotBeNull();
+		snapshot.Classified.Count.Should().BeGreaterThan(0);
+
+		// Snapshot should include the classified move we observed
+		var key = ParsedMove.FromNotation(firstClassified.notation);
+		snapshot.Classified.TryGetValue(key, out var classifiedMove).Should().BeTrue();
+		classifiedMove.Notation.Should().Be(firstClassified.notation);
+
+		// All classified moves should be legal in the current position
+		var legalSet = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var pm in snapshot.Legal) legalSet.Add(pm.Raw);
+		foreach (var pm in snapshot.Classified.Keys)
+			legalSet.Contains(pm.Raw).Should().BeTrue($"classified move {pm.Raw} must be legal");
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task NewGameAsync_ResetsState_And_AllowsRestart()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
