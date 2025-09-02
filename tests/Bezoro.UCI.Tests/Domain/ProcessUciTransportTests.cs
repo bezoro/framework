@@ -331,29 +331,18 @@ public static class ProcessUciTransportTests
 			var          process = new ProcessUciTransport(path);
 			await process.StartAsync();
 
-			await process.StartAsync(); // second call should be a no-op and not throw
-
-			process.IsStarted.Should().BeTrue();
-
-			await process.DisposeAsync();
-		}
-
-		[Fact]
-		public async Task StartAsync_WhenAlreadyStartedAndProcessAlive_ReturnsImmediately_NoStateChange()
-		{
-			const string path    = TestConsts.STOCKFISH_PATH;
-			var          process = new ProcessUciTransport(path);
-			await process.StartAsync();
-
 			var before = process.Status;
-			await process.StartAsync(); // should be a fast no-op
+
+			await process.StartAsync(); // second call should be a no-op and not throw
 			var after = process.Status;
 
+			process.IsStarted.Should().BeTrue();
 			before.Should().Be(ProcessUciTransport.TransportStatus.Started);
 			after.Should().Be(ProcessUciTransport.TransportStatus.Started);
 
 			await process.DisposeAsync();
 		}
+
 
 		[Fact]
 		public async Task StartAsync_WhenCalledWithValidProcess_StartsProcess()
@@ -989,17 +978,9 @@ public static class ProcessUciTransportTests
 			await using var process = new ProcessUciTransport("any/nonempty/path");
 			await process.Awaiting(p => p.DisposeAsync().AsTask()).Should().NotThrowAsync();
 			process.IsStarted.Should().BeFalse();
-		}
-
-		[Fact]
-		public async Task DisposeAsync_SetsStatusDisposed()
-		{
-			var process = new ProcessUciTransport("any/nonempty/path");
-
-			await process.DisposeAsync();
-
 			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
 		}
+
 
 		[Fact]
 		public async Task ReadLinesAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
