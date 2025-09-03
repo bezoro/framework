@@ -1364,7 +1364,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task TryWriteLineAsync_NullLine_ThrowsArgumentNullException()
 		{
-			var process = new ProcessUciTransport("any/nonempty/path");
+			var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+			await process.StartAsync();
 
 			await FluentActions
 				  .Awaiting(() => process.TryWriteLineAsync(null!, TimeSpan.FromMilliseconds(10)))
@@ -1385,7 +1386,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task TryWriteLineAsync_WithNegativeNonInfiniteTimeout_ThrowsArgumentOutOfRangeException()
 		{
-			var process = new ProcessUciTransport("any/nonempty/path");
+			var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+			await process.StartAsync();
 
 			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(-2)))
 							   .Should()
@@ -1395,7 +1397,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task WriteLineAsync_WhenCalledWithCarriageReturn_ThrowsArgumentException()
 		{
-			var process = new ProcessUciTransport("any/nonempty/path");
+			var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+			await process.StartAsync();
 
 			await FluentActions.Awaiting(() => process.WriteLineAsync("uci\r"))
 							   .Should()
