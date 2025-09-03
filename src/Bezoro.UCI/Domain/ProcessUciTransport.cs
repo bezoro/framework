@@ -27,7 +27,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 	// 0 = false, 1 = true (cross-thread visibility)
 	private int _disposed;
 	private int _exitedRaised;
-	private int _isStarted;    // 0 = false, 1 = true (cross-thread visibility)
 	private int _processAlive; // 0 = false, 1 = true (access via Volatile.Read/Write)
 	private int _readerActive;
 	private int _startGate; // prevents concurrent StartAsync calls
@@ -110,7 +109,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		(_exitNotifyTask is null ||
 		 !_exitNotifyTask.IsCompleted && !_exitNotifyTask.IsFaulted && !_exitNotifyTask.IsCanceled);
 
-	public bool IsStarted          => Volatile.Read(ref _isStarted) == 1;
+	public bool IsStarted          => Volatile.Read(ref _status) == (int)TransportStatus.Started;
 	public long BackpressureEvents => Interlocked.Read(ref _backpressureEvents);
 
 	// Lightweight metrics for tuning; zero overhead when not read.
@@ -149,7 +148,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ThrowIfDisposed();
 
 		// Fast path: already started and process alive
-		if (Volatile.Read(ref _isStarted) == 1 && _process is { HasExited: false }) return;
+		if (Volatile.Read(ref _status) == (int)TransportStatus.Started && _process is { HasExited: false }) return;
 
 		// If another Start is in progress, await it
 		var existingStart = _startingTcs;
@@ -258,8 +257,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			InitializeCancellationSources();
 			StartBackgroundLoops(process);
 
-			Volatile.Write(ref _isStarted, 1);
-			Volatile.Write(ref _status,    (int)TransportStatus.Started);
+			Volatile.Write(ref _status, (int)TransportStatus.Started);
 			if (_options.Logger != null)
 			{
 				var pid = process.Id.ToString();
@@ -320,7 +318,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			await AwaitWithCancellation(existingStartDuringStop.Task, ct).ConfigureAwait(false);
 
 		// Fast-exit: if not started, ensure state is Stopped and return
-		if (Volatile.Read(ref _isStarted) == 0 && _process is null)
+		if (Volatile.Read(ref _status) != (int)TransportStatus.Started && _process is null)
 		{
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 			_options.Logger?.LogDebug("StopAsync: transport not started; no-op.");
@@ -879,7 +877,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Error?.Invoke(ex);
 		}
 
-		Volatile.Write(ref _isStarted, 0);
 		if (Volatile.Read(ref _disposed) == 0)
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
@@ -1059,8 +1056,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 			SafeDispose(p);
 
-			Volatile.Write(ref _isStarted, 0);
-			Volatile.Write(ref _status,    (int)finalStatus);
+			Volatile.Write(ref _status, (int)finalStatus);
 			_options.Logger?.LogInfo(finalLog);
 		}
 	}
@@ -1505,7 +1501,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	private void ThrowIfProcessNotStarted()
 	{
-		if (Volatile.Read(ref _isStarted) == 0)
+		if (Volatile.Read(ref _status) != (int)TransportStatus.Started)
 			throw new InvalidOperationException("Transport is not started.");
 	}
 
