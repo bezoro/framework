@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Threading.Channels;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
@@ -35,6 +36,20 @@ public static class ProcessUciTransportTests
 			await process.DisposeAsync();
 
 			process.IsStarted.Should().BeFalse();
+		}
+
+		[Fact]
+		public async Task DisposeAsync_MultipleCalls_ShouldBeIdempotent()
+		{
+			const string path    = TestConsts.STOCKFISH_PATH;
+			var          process = new ProcessUciTransport(path);
+			await process.StartAsync();
+
+			await process.DisposeAsync();
+			await process.DisposeAsync();
+
+			process.IsStarted.Should().BeFalse();
+			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
 		}
 
 		[Fact]
@@ -356,6 +371,24 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task StartAsync_WhenConcurrent_ShouldStartOnceAndAwaitOthers()
+		{
+			const string path    = TestConsts.STOCKFISH_PATH;
+			var          process = new ProcessUciTransport(path);
+
+			var t1 = process.StartAsync();
+			var t2 = process.StartAsync();
+			var t3 = process.StartAsync();
+
+			await Task.WhenAll(t1, t2, t3);
+
+			process.IsStarted.Should().BeTrue();
+			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Started);
+
+			await process.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task StartAsync_WhileStopping_ThrowsInvalidOperationException()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
@@ -447,6 +480,38 @@ public static class ProcessUciTransportTests
 
 			await process.DisposeAsync();
 			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+		}
+
+		[Fact]
+		public async Task StderrDisabled_ShouldNotStartStderrLoop()
+		{
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			var options = new ProcessUciTransportOptions
+			{
+				RedirectStandardError = false
+			};
+
+			var transport = new ProcessUciTransport(
+				cmdPath,
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "HelloErr", ProcessArgs.STD_OUT_TO_STD_ERR],
+				null,
+				options);
+
+			var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+			transport.StderrReceived += s =>
+			{
+				if (!string.IsNullOrEmpty(s)) tcs.TrySetResult(s);
+			};
+
+			await transport.StartAsync();
+
+			// Since stderr isn't redirected, the event should not fire within a short window
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+			completed.Should().NotBe(tcs.Task);
+
+			await transport.DisposeAsync();
 		}
 
 		[Fact]
@@ -550,6 +615,51 @@ public static class ProcessUciTransportTests
 
 			// Ensure the first completes and state is consistent
 			await firstStop;
+			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task StopAsync_ShouldDisposeStreamsAndCompleteChannels()
+		{
+			const string path    = TestConsts.STOCKFISH_PATH;
+			var          process = new ProcessUciTransport(path);
+			await process.StartAsync();
+
+			var enumerator = process.ReadLinesAsync(CancellationToken.None).GetAsyncEnumerator();
+			var pending    = enumerator.MoveNextAsync().AsTask();
+
+			await process.StopAsync();
+
+			var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(5)));
+			completed.Should().Be(pending);
+			(await pending).Should().BeFalse();
+
+			await enumerator.DisposeAsync();
+
+			await process.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task StopAsync_ShouldSendQuitThenKillAfterGrace()
+		{
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			var options = new ProcessUciTransportOptions
+			{
+				QuitGracePeriod = TimeSpan.FromMilliseconds(100)
+			};
+
+			var transport = new ProcessUciTransport(cmdPath, [ProcessArgs.CMD_KEEP], null, options);
+			await transport.StartAsync();
+
+			var sw = Stopwatch.StartNew();
+			await transport.StopAsync();
+			sw.Stop();
+
+			sw.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(50));
 			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
 
 			await transport.DisposeAsync();
@@ -742,6 +852,61 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task TryWriteLineAsync_WithTimeout_ShouldReturnFalseAfterTimeout()
+		{
+			var options = new ProcessUciTransportOptions
+			{
+				ChannelCapacity  = 1,
+				DisableWriteLoop = true
+			};
+
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+			await transport.StartAsync();
+
+			bool firstOk = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(50));
+			firstOk.Should().BeTrue();
+
+			bool ok = await transport.TryWriteLineAsync("isready", TimeSpan.FromMilliseconds(100));
+			ok.Should().BeFalse();
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task WhenProcessExits_ExitedEventRaisedOnce_WithExitCode()
+		{
+			string? cmdPath = TryResolveCmdPath();
+			if (cmdPath is null) return;
+
+			var transport = new ProcessUciTransport(
+				cmdPath,
+				[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO]);
+
+			var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+
+			var count = 0;
+			transport.Exited += (code, error) =>
+			{
+				Interlocked.Increment(ref count);
+				tcs.TrySetResult((code, error));
+			};
+
+			await transport.StartAsync();
+
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			completed.Should().Be(tcs.Task);
+
+			var result = await tcs.Task;
+			result.Code.HasValue.Should().BeTrue();
+			result.Code!.Value.Should().Be(0);
+			result.Error.Should().BeNull();
+			count.Should().Be(1);
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task WriteLineAsync_AfterDispose_ThrowsInvalidOperationException()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
@@ -852,6 +1017,46 @@ public static class ProcessUciTransportTests
 							   .ThrowAsync<OperationCanceledException>();
 
 			await process.DisposeAsync();
+		}
+
+		[Fact]
+		public async Task WriteLineAsync_WhenChannelFull_ShouldBlockThenSucceed()
+		{
+			var options = new ProcessUciTransportOptions
+			{
+				ChannelCapacity  = 1,
+				DisableWriteLoop = true
+			};
+
+			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
+			await transport.StartAsync();
+
+			// Fill the channel once
+			await transport.WriteLineAsync("uci");
+
+			// Next write should block until drained
+			var secondWrite = transport.WriteLineAsync("isready");
+
+			var completedEarly = await Task.WhenAny(secondWrite, Task.Delay(50));
+			completedEarly.Should().NotBe(secondWrite);
+
+			// Drain one item from the private _outgoing channel to free capacity
+			var outgoingField = typeof(ProcessUciTransport).GetField(
+				"_outgoing",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			outgoingField.Should().NotBeNull();
+
+			var channel = (Channel<string>?)outgoingField!.GetValue(transport);
+			channel.Should().NotBeNull();
+
+			bool drained = channel!.Reader.TryRead(out _);
+			drained.Should().BeTrue();
+
+			// Now the blocked write should complete
+			await secondWrite;
+
+			await transport.DisposeAsync();
 		}
 
 		[Fact]
@@ -1050,6 +1255,27 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
+		public async Task StartAsync_WithMissingPath_ShouldThrowAndCleanup()
+		{
+			string missing = Path.Combine(
+				Path.GetTempPath(),
+				"no-such-dir",
+				Guid.NewGuid().ToString("N"),
+				"missing.exe");
+
+			var transport = new ProcessUciTransport(missing);
+
+			await FluentActions.Awaiting(() => transport.StartAsync())
+							   .Should()
+							   .ThrowAsync<ArgumentException>();
+
+			transport.IsStarted.Should().BeFalse();
+			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Failed);
+
+			await transport.DisposeAsync();
+		}
+
+		[Fact]
 		public async Task StopAsync_AfterDispose_ThrowsObjectDisposedException()
 		{
 			var process = new ProcessUciTransport("any/nonempty/path");
@@ -1058,6 +1284,33 @@ public static class ProcessUciTransportTests
 			await FluentActions.Awaiting(() => process.StopAsync())
 							   .Should()
 							   .ThrowAsync<ObjectDisposedException>();
+		}
+
+		[Fact]
+		public async Task StopAsync_DuringStart_ShouldWaitForStartThenStop()
+		{
+			var transport = new ProcessUciTransport("any/nonempty/path");
+			var tcs       = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			var startingTcsField = typeof(ProcessUciTransport).GetField(
+				"_startingTcs",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+
+			startingTcsField.Should().NotBeNull();
+			startingTcsField!.SetValue(transport, tcs);
+
+			var stopTask = transport.StopAsync();
+
+			var notDone = await Task.WhenAny(stopTask, Task.Delay(50));
+			notDone.Should().NotBe(stopTask);
+
+			tcs.TrySetResult(null);
+
+			await stopTask;
+
+			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+
+			await transport.DisposeAsync();
 		}
 
 		[Fact]
