@@ -147,125 +147,43 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		ThrowIfDisposed();
 
-		// Fast path: already started and process alive
-		if (Volatile.Read(ref _status) == (int)TransportStatus.Started && _process is { HasExited: false }) return;
+		if (IsStartedAndAlive()) return;
 
 		// If another Start is in progress, await it
-		var existingStart = _startingTcs;
-		if (existingStart != null)
+		var existingStartTcs = _startingTcs;
+		if (existingStartTcs is { })
 		{
-			await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
+			await TryAwaitExistingStartAsync(existingStartTcs, ct).ConfigureAwait(false);
 			return;
 		}
 
 		// Ensure valid state to start
-		int currentStatus = Volatile.Read(ref _status);
-		if (currentStatus is not (int)TransportStatus.Created and not (int)TransportStatus.Stopped)
-		{
-			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
-			throw new InvalidOperationException("Transport cannot be started in its current state.");
-		}
+		EnsureValidStartState();
 
 		// Prevent concurrent starts
-		if (Interlocked.CompareExchange(ref _startGate, 1, 0) != 0)
-		{
-			// Another Start acquired the gate; wait until its TCS is published, then await it
-			while (true)
-			{
-				existingStart = Volatile.Read(ref _startingTcs);
-				if (existingStart != null)
-				{
-					await AwaitWithCancellation(existingStart.Task, ct).ConfigureAwait(false);
-					return;
-				}
-
-				// If the gate was released before TCS was published, try to acquire again
-				if (Volatile.Read(ref _startGate) == 0)
-					if (Interlocked.CompareExchange(ref _startGate, 1, 0) == 0)
-						break; // acquired gate; continue with start
-
-				if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
-
-				await Task.Yield();
-			}
-		}
+		bool acquired = await TryAcquireStartGateAsync(ct).ConfigureAwait(false);
+		if (!acquired) return;
 
 		// We won the start gate: publish starting TCS so others can await
-		var localStartTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		Volatile.Write(ref _startingTcs, localStartTcs);
-		// Reset exited flag for new lifecycle
-		Volatile.Write(ref _exitedRaised, 0);
-
-		// Transition to Starting
-		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
-		_options.Logger?.LogInfo("Starting UCI engine process.");
-
-		// Honor cancellation promptly before any heavy validation
-		ct.ThrowIfCancellationRequested();
-
-		// Pre-validate engine executable path and working directory
-		if (!File.Exists(_path))
-		{
-			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
-			throw new ArgumentException("Engine executable not found at path: " + _path, nameof(_path));
-		}
-
-		var workingDir = string.IsNullOrWhiteSpace(_workingDirectory)
-							 ? Environment.CurrentDirectory
-							 : _workingDirectory;
-
-		if (!Directory.Exists(workingDir))
-		{
-			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
-			throw new ArgumentException("Working directory does not exist: " + workingDir, nameof(_workingDirectory));
-		}
-
-		// If we still have a process object but it has already exited, clean it up before starting anew
-		if (_process is { HasExited: true })
-		{
-			try
-			{
-				SafeDispose(_process);
-			}
-			catch
-			{
-				/* best-effort */
-			}
-			finally
-			{
-				_process        = null;
-				_exitNotifyTask = null;
-			}
-		}
-
-		var startInfo = CreateProcessStartInfo(workingDir);
-
-		var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+		var startingSignal = PublishStartingSignal();
 
 		try
 		{
+			// Reset exited flag for new lifecycle, transition to Starting
+			Volatile.Write(ref _exitedRaised, 0);
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
+			_options.Logger?.LogInfo("Starting UCI engine process.");
+
+			// Honor cancellation promptly before any heavy validation
 			ct.ThrowIfCancellationRequested();
 
-			if (!process.Start())
-				throw new InvalidOperationException("Failed to start UCI engine process.");
+			string workingDir = ResolveWorkingDirectory();
+			ValidateFileSystem(workingDir);
 
-			_process = process;
-			Volatile.Write(ref _processAlive, 1);
+			// If we still have a process object but it has already exited, clean it up before starting anew
+			CleanupExitedProcessIfAny();
 
-			InitializeStreams(process);
-			CreateChannels();
-			InitializeCancellationSources();
-			StartBackgroundLoops(process);
-
-			Volatile.Write(ref _status, (int)TransportStatus.Started);
-			if (_options.Logger != null)
-			{
-				var pid = process.Id.ToString();
-				_options.Logger.LogInfo("UCI engine started. PID=" + pid);
-			}
-
-			// Signal successful start
-			localStartTcs.TrySetResult(null);
+			await InitializeProcessAndPipelinesAsync(workingDir, startingSignal, ct).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -273,9 +191,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 			try
 			{
 				if (ex is OperationCanceledException)
-					localStartTcs.TrySetCanceled(ct);
+					startingSignal.TrySetCanceled(ct);
 				else
-					localStartTcs.TrySetException(ex);
+					startingSignal.TrySetException(ex);
 			}
 			catch
 			{
@@ -292,11 +210,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 				Error?.Invoke(exception);
 			}
 
-			if (Volatile.Read(ref _disposed) == 0)
+			if (Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _status) != (int)TransportStatus.Failed)
 				Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 
 			_options.Logger?.LogError(ex, "UCI engine failed to start.");
-
 			throw;
 		}
 		finally
@@ -304,6 +221,130 @@ internal sealed class ProcessUciTransport : IUciTransport
 			// Always release the start gate and clear the TCS
 			Interlocked.Exchange(ref _startGate, 0);
 			Volatile.Write(ref _startingTcs, null);
+		}
+
+		return;
+
+		bool IsStartedAndAlive() =>
+			Volatile.Read(ref _status) == (int)TransportStatus.Started &&
+			_process is { HasExited: false };
+
+		Task TryAwaitExistingStartAsync(TaskCompletionSource<object?>? tcs, CancellationToken token) =>
+			tcs is null ? Task.CompletedTask : AwaitWithCancellation(tcs.Task, token);
+
+		void EnsureValidStartState()
+		{
+			int status = Volatile.Read(ref _status);
+			if (status is (int)TransportStatus.Created or (int)TransportStatus.Stopped) return;
+
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
+			throw new InvalidOperationException("Transport cannot be started in its current state.");
+		}
+
+		string ResolveWorkingDirectory() =>
+			string.IsNullOrWhiteSpace(_workingDirectory)
+				? Environment.CurrentDirectory
+				: _workingDirectory;
+
+		void ValidateFileSystem(string workingDir)
+		{
+			if (!File.Exists(_path))
+			{
+				Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
+				throw new ArgumentException($"Engine executable not found at path: {_path}", nameof(_path));
+			}
+
+			if (Directory.Exists(workingDir)) return;
+
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
+			throw new ArgumentException(
+				$"Working directory does not exist: {workingDir}",
+				nameof(_workingDirectory));
+		}
+
+		async Task<bool> TryAcquireStartGateAsync(CancellationToken token)
+		{
+			// Attempt to acquire the start gate; if we fail, wait on the published TCS or retry.
+			if (Interlocked.CompareExchange(ref _startGate, 1, 0) == 0)
+				return true;
+
+			while (true)
+			{
+				var published = Volatile.Read(ref _startingTcs);
+				if (published is { })
+				{
+					await AwaitWithCancellation(published.Task, token).ConfigureAwait(false);
+					return false;
+				}
+
+				// If the gate was released before TCS was published, try to acquire again
+				if (Volatile.Read(ref _startGate) == 0 &&
+					Interlocked.CompareExchange(ref _startGate, 1, 0) == 0)
+					return true;
+
+				if (token.IsCancellationRequested) throw new OperationCanceledException(token);
+
+				await Task.Yield();
+			}
+		}
+
+		TaskCompletionSource<object?> PublishStartingSignal()
+		{
+			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			Volatile.Write(ref _startingTcs, tcs);
+			return tcs;
+		}
+
+		void CleanupExitedProcessIfAny()
+		{
+			if (_process is not { HasExited: true }) return;
+
+			try
+			{
+				SafeDispose(_process);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+			finally
+			{
+				_process        = null;
+				_exitNotifyTask = null;
+			}
+		}
+
+		Task InitializeProcessAndPipelinesAsync(
+			string                        workingDir,
+			TaskCompletionSource<object?> startingSignal,
+			CancellationToken             token)
+		{
+			var startInfo      = CreateProcessStartInfo(workingDir);
+			var startedProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+			token.ThrowIfCancellationRequested();
+			if (!startedProcess.Start())
+				throw new InvalidOperationException("Failed to start UCI engine process.");
+
+			_process = startedProcess;
+			Volatile.Write(ref _processAlive, 1);
+
+			InitializeStreams(startedProcess);
+			CreateChannels();
+			InitializeCancellationSources();
+			StartBackgroundLoops(startedProcess);
+
+			Volatile.Write(ref _status, (int)TransportStatus.Started);
+
+			if (_options.Logger is { })
+			{
+				var pid = startedProcess.Id.ToString();
+				_options.Logger.LogInfo($"UCI engine started. PID={pid}");
+			}
+
+			// Signal successful start
+			startingSignal.TrySetResult(null);
+			return Task.CompletedTask;
 		}
 	}
 
@@ -586,11 +627,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		void Handler(object? _, EventArgs __)
-		{
-			tcs.TrySetResult(null);
-		}
-
 		try
 		{
 			process.Exited += Handler;
@@ -636,6 +672,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously,
 			TaskScheduler.Default).Unwrap();
+
+		void Handler(object? _, EventArgs __)
+		{
+			tcs.TrySetResult(null);
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -877,7 +918,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Error?.Invoke(ex);
 		}
 
-		if (Volatile.Read(ref _disposed) == 0)
+		if (Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _status) != (int)TransportStatus.Failed)
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
 	}
 
