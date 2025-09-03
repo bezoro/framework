@@ -147,8 +147,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ThrowIfDisposed();
 
 		// Fast path: already started and process alive
-		if (Volatile.Read(ref _isStarted) == 1 && _process is { HasExited: false })
-			return;
+		if (Volatile.Read(ref _isStarted) == 1 && _process is { HasExited: false }) return;
 
 		// If another Start is in progress, await it
 		var existingStart = _startingTcs;
@@ -161,7 +160,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 		// Ensure valid state to start
 		int currentStatus = Volatile.Read(ref _status);
 		if (currentStatus is not (int)TransportStatus.Created and not (int)TransportStatus.Stopped)
+		{
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
 			throw new InvalidOperationException("Transport cannot be started in its current state.");
+		}
 
 		// Prevent concurrent starts
 		if (Interlocked.CompareExchange(ref _startGate, 1, 0) != 0)
@@ -202,14 +204,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		// Pre-validate engine executable path and working directory
 		if (!File.Exists(_path))
+		{
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
 			throw new ArgumentException("Engine executable not found at path: " + _path, nameof(_path));
+		}
 
 		var workingDir = string.IsNullOrWhiteSpace(_workingDirectory)
 							 ? Environment.CurrentDirectory
 							 : _workingDirectory;
 
 		if (!Directory.Exists(workingDir))
+		{
+			Interlocked.Exchange(ref _status, (int)TransportStatus.Failed);
 			throw new ArgumentException("Working directory does not exist: " + workingDir, nameof(_workingDirectory));
+		}
 
 		// If we still have a process object but it has already exited, clean it up before starting anew
 		if (_process is { HasExited: true })
@@ -554,45 +562,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			/* best-effort */
 		}
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private async Task TryAwaitWithTimeout(Task task, string description)
-	{
-		if (task is null) return;
-
-		var timeout = _options.TeardownTimeout;
-		if (timeout <= TimeSpan.Zero)
-		{
-			await task.ConfigureAwait(false);
-			return;
-		}
-
-		Task completed;
-		try
-		{
-			completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			ReportError(ex, "Error while awaiting " + description + ".");
-			return;
-		}
-
-		if (completed == task)
-			// Propagate exceptions if the task faulted; consistent with existing behavior
-			await task.ConfigureAwait(false);
-		else
-			try
-			{
-				_options.Logger?.LogError(
-					new TimeoutException("Timed out waiting for " + description + " after " + timeout + "."),
-					"Timed out awaiting " + description + ".");
-			}
-			catch
-			{
-				/* best-effort */
-			}
 	}
 
 	private static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
@@ -1086,8 +1055,47 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private async Task TryAwaitWithTimeout(Task task, string description)
+	{
+		if (task is null) return;
+
+		var timeout = _options.TeardownTimeout;
+		if (timeout <= TimeSpan.Zero)
+		{
+			await task.ConfigureAwait(false);
+			return;
+		}
+
+		Task completed;
+		try
+		{
+			completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Error while awaiting " + description + ".");
+			return;
+		}
+
+		if (completed == task)
+			// Propagate exceptions if the task faulted; consistent with existing behavior
+			await task.ConfigureAwait(false);
+		else
+			try
+			{
+				_options.Logger?.LogError(
+					new TimeoutException("Timed out waiting for " + description + " after " + timeout + "."),
+					"Timed out awaiting " + description + ".");
+			}
+			catch
+			{
+				/* best-effort */
+			}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private TimeSpan GetQuitGracePeriod() =>
-		_options.QuitGracePeriod != default
+		_options.QuitGracePeriod != TimeSpan.Zero
 			? _options.QuitGracePeriod
 			: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
 
@@ -1465,11 +1473,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	internal enum TransportStatus
 	{
-		Created  = 0,
-		Starting = 1,
-		Started  = 2,
-		Stopping = 3,
-		Stopped  = 4,
-		Disposed = 5
+		Created   = 0,
+		Starting  = 1,
+		Started   = 2,
+		Stopping  = 3,
+		Stopped   = 4,
+		Disposing = 5,
+		Disposed  = 6,
+		Failed    = 7,
+		Canceled  = 8
 	}
 }
