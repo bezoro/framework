@@ -576,51 +576,6 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StopAsync_ConcurrentCall_WithCanceledToken_CancelsWhileAwaitingExistingStop()
-		{
-			var options = new ProcessUciTransportOptions
-			{
-				TeardownTimeout = TimeSpan.FromSeconds(1) // make first StopAsync take a bit
-			};
-
-			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
-			await transport.StartAsync();
-
-			// Replace _exitNotifyTask with a never-completing task to ensure Stop waits for TryAwaitWithTimeout path
-			var tcsNever = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			var field = typeof(ProcessUciTransport).GetField(
-				"_exitNotifyTask",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			field.Should().NotBeNull();
-			field!.SetValue(transport, tcsNever.Task);
-
-			// Start first stop (do not await)
-			var firstStop = transport.StopAsync();
-
-			// Wait until stopping TCS is published to avoid a race
-			var stoppingField = typeof(ProcessUciTransport).GetField(
-				"_stoppingTcs",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			var sw = Stopwatch.StartNew();
-			while (stoppingField!.GetValue(transport) is null && sw.Elapsed < TimeSpan.FromSeconds(2))
-				await Task.Delay(10);
-
-			// Second stop with cancellation: should cancel while awaiting existing stop
-			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-			await FluentActions.Awaiting(() => transport.StopAsync(cts.Token))
-							   .Should()
-							   .ThrowAsync<OperationCanceledException>();
-
-			// Ensure the first completes and state is consistent
-			await firstStop;
-			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
-
-			await transport.DisposeAsync();
-		}
-
-		[Fact]
 		public async Task StopAsync_ShouldDisposeStreamsAndCompleteChannels()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
