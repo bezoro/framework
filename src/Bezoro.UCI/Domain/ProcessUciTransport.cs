@@ -27,7 +27,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	// 0 = false, 1 = true (cross-thread visibility)
 	private int _disposed;
 	private int _exitedRaised;
-	private int _isStarted; // 0 = false, 1 = true (cross-thread visibility)
+	private int _isStarted;    // 0 = false, 1 = true (cross-thread visibility)
+	private int _processAlive; // 0 = false, 1 = true (access via Volatile.Read/Write)
 	private int _readerActive;
 	private int _startGate; // prevents concurrent StartAsync calls
 	private int _status;    // TransportStatus stored as int for interlocked/volatile
@@ -67,8 +68,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	/// <summary>
 	///     Raised when a line is received on stderr (if redirected).
-	///     Threading: invoked inline on the stderr read loop (ThreadPool thread); slow handlers can throttle stderr
-	///     consumption. Exceptions thrown by handlers are swallowed.
+	///     Threading: dispatched via Task.Run from the stderr read loop to isolate slow handlers; this can reduce
+	///     throughput and may reorder stderr callbacks relative to stdout processing. Exceptions thrown by handlers are
+	///     swallowed.
 	/// </summary>
 	public event Action<string>? StderrReceived;
 
@@ -237,7 +239,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			}
 		}
 
-		var startInfo = CreateProcessStartInfo();
+		var startInfo = CreateProcessStartInfo(workingDir);
 
 		var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
@@ -249,6 +251,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				throw new InvalidOperationException("Failed to start UCI engine process.");
 
 			_process = process;
+			Volatile.Write(ref _processAlive, 1);
 
 			InitializeStreams(process);
 			CreateChannels();
@@ -395,8 +398,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
 	{
+		ThrowIfProcessNotStarted();
 		ThrowIfDisposed();
-		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
+		ThrowIfProcessNotAlive();
+
 		if (line is null) throw new ArgumentNullException(nameof(line));
 
 		if (_options.ValidateCommands)
@@ -405,8 +410,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		ct.ThrowIfCancellationRequested();
 
 		var writer = GetOutgoingWriterOrThrow();
-
-		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
 
 		// Fast path: try non-blocking write to avoid async state machines on the hot path.
 		if (writer.TryWrite(line)) return;
@@ -426,8 +429,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
 	{
+		ThrowIfProcessNotStarted();
 		ThrowIfDisposed();
-		if (_process is { HasExited: true }) throw new InvalidOperationException("Engine process has exited.");
+		ThrowIfProcessNotAlive();
+
 		if (line is null) throw new ArgumentNullException(nameof(line));
 		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
@@ -607,7 +612,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		CancellationTokenRegistration reg = default;
 		if (ct.CanBeCanceled)
-			reg = ct.Register(static state => ((TaskCompletionSource<object?>)state!).TrySetCanceled(), tcs);
+			reg = ct.Register(
+				static state =>
+				{
+					var tuple = ((TaskCompletionSource<object?>, CancellationToken))state!;
+					tuple.Item1.TrySetCanceled(tuple.Item2);
+				},
+				(tcs, ct));
 
 		return tcs.Task.ContinueWith(
 			t =>
@@ -724,7 +735,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private ProcessStartInfo CreateProcessStartInfo()
+	private ProcessStartInfo CreateProcessStartInfo(string workingDir)
 	{
 		var startInfo = new ProcessStartInfo
 		{
@@ -736,9 +747,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			StandardOutputEncoding = _options.StdoutEncoding,
 			StandardErrorEncoding  = _options.StderrEncoding,
 			CreateNoWindow         = true,
-			WorkingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
-								   ? Environment.CurrentDirectory
-								   : _workingDirectory
+			WorkingDirectory       = workingDir
 		};
 
 		if (_args is not { Count: > 0 }) return startInfo;
@@ -756,6 +765,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private async Task CleanupAfterFailedStartAsync()
 	{
 		// Do not set _disposed here; keep the transport reusable.
+		Volatile.Write(ref _processAlive, 0);
 		var cts = _readLoopCts;
 		_readLoopCts = null;
 		SafeCancel(cts);
@@ -882,6 +892,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		var p = _process;
 		_process = null;
+		Volatile.Write(ref _processAlive, 0);
 
 		// Cancel read/stderr loops up-front
 		var rcts = _readLoopCts;
@@ -1239,6 +1250,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				try
 				{
 					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
+					Volatile.Write(ref _processAlive, 0);
 					int exitCode = process.ExitCode;
 					_options.Logger?.LogInfo("UCI engine process exited with code " + exitCode + ".");
 					FireExitedOnce(exitCode, null);
@@ -1356,7 +1368,21 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 						try
 						{
-							StderrReceived?.Invoke(line);
+							var handler = StderrReceived;
+							if (handler != null)
+							{
+								Task.Run(() =>
+								{
+									try
+									{
+										handler(line);
+									}
+									catch
+									{
+										/* best-effort */
+									}
+								});
+							}
 						}
 						catch
 						{
@@ -1469,6 +1495,18 @@ internal sealed class ProcessUciTransport : IUciTransport
 	private void ThrowIfDisposed()
 	{
 		if (Volatile.Read(ref _disposed) == 1) throw new ObjectDisposedException(nameof(ProcessUciTransport));
+	}
+
+	private void ThrowIfProcessNotAlive()
+	{
+		if (Volatile.Read(ref _processAlive) == 0 || _process is { HasExited: true })
+			throw new InvalidOperationException("Engine process has exited.");
+	}
+
+	private void ThrowIfProcessNotStarted()
+	{
+		if (Volatile.Read(ref _isStarted) == 0)
+			throw new InvalidOperationException("Transport is not started.");
 	}
 
 	internal enum TransportStatus
