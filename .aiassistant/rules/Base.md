@@ -119,6 +119,20 @@ Testing Standards:
   - Keep tests isolated and deterministic; avoid external side effects (use in-memory fakes or substitutes).
   - NEVER write hacky tests or workarounds to fake a green test; assert observable behavior and public contracts over implementation details; do not disable logic, swallow exceptions, or overuse mocks to bypass real behavior.
   - Ensure each test is high-value: it would catch a real regression, is deterministic, keeps setup minimal, and has a single clear reason to fail.
+- Green test validation (no fake greens):
+  - Ensure the test would fail if the underlying behavior regresses.
+  - Assert observable outputs, state changes, and externally visible effects over implementation details or method-call counts. Interaction-only tests are acceptable only when state/output cannot be observed.
+  - Do not stub or mock out the core behavior of the system under test (SUT). Mock only collaborators and I/O; if the SUT can “do nothing” and the test still passes, it is a fake green.
+  - Avoid overly permissive or vacuous assertions (e.g., asserting non-null when null is impossible, or asserting that a collection “is not empty” when one element is always added irrespective of logic).
+  - Cover at least one happy path and one edge/error path per public behavior; justify any uncovered branches. Use coverage as a heuristic, not a target—explain intentional gaps.
+  - Keep tests relevant to the behavior under test: minimal setup, focused inputs, and precise, behaviorally meaningful assertions.
+- Failing test triage and resolution:
+  - Validate the test first: is the setup correct, deterministic, and representative (no hidden time, randomness, or environment coupling)? Fix the test setup if it is invalid.
+  - Re-check expectations against current requirements/specs. If the test encodes outdated or incorrect expectations, correct the test and document why the expectation changed.
+  - Identify whether mocks/fakes are misconfigured (e.g., incorrect returns, missing arrangements) causing artificial failures. Fix the test doubles rather than changing production to satisfy a broken test.
+  - If the test is valid and expectations are correct, fix the production code with the smallest change necessary to satisfy the behavior. Do not weaken the test to accommodate broken behavior.
+  - Never apply workarounds/bandaids to make tests pass: do not swallow exceptions, add arbitrary sleeps/retries, introduce environment-dependent branches, or loosen assertions. Remove flakiness at the source.
+  - After fixing code, consider strengthening the test (e.g., tighter assertions, additional edge case) to prevent regressions.
 - Run all tests locally (dotnet test) before submitting changes.
 - If the change touches performance-critical code, consider adding performance tests or benchmarks when feasible.
 - Never consider a task complete until all tests pass; iterate and refine code and tests as long as needed to achieve a fully green run.
