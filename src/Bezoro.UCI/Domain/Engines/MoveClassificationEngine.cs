@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.Engines;
 
 internal sealed class MoveClassificationEngine(
 	string               enginePath,

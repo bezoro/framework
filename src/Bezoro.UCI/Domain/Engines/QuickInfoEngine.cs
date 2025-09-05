@@ -5,18 +5,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.Engines;
 
 internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<(string Fen, uint Depth), SearchResult> _evalCache = new();
 
 	// Caching
-	private readonly object                      _cacheLock = new();
+	private readonly object                      _cacheLock    = new();
+	private readonly SemaphoreSlim               _positionLock = new(1, 1);
 	private readonly UciEngineClient             _client;
 	private          Fen?                        _currentFenCache;
 	private          IReadOnlyCollection<string> _legalMovesCache;
-	private readonly SemaphoreSlim               _positionLock = new(1, 1);
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{

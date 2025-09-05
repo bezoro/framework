@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain;
+using Bezoro.UCI.Domain.Engines;
 
 namespace Bezoro.UCI.API;
 

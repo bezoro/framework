@@ -1,5 +1,5 @@
 using Bezoro.UCI.API.Types;
-using Bezoro.UCI.Domain;
+using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;

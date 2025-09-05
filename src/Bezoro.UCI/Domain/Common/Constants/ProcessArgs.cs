@@ -1,4 +1,4 @@
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.Common.Constants;
 
 internal static class ProcessArgs
 {

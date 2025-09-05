@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading.Channels;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Domain.Common.Constants;
 using Bezoro.UCI.Tests._Resources;
 using FluentAssertions;
 using JetBrains.Annotations;
