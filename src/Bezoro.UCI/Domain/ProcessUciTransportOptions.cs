@@ -36,9 +36,6 @@ internal sealed class ProcessUciTransportOptions
 	// Spin iterations used for very small timeouts in TryWriteLineAsync; set to 0 to disable spinning.
 	public int SmallTimeoutSpinIterations { get; init; } = 3;
 
-	// Optional logger for lifecycle and error events.
-	public IUciTransportLogger? Logger { get; init; }
-
 	public string NewLine { get; init; } = Environment.NewLine;
 
 	// Preferred time-based grace period; when default (zero), QuitGracePeriodMs is used.

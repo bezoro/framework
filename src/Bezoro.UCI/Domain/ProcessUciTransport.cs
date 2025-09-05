@@ -135,7 +135,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			SignalStartFailure(startingSignal, ex, ct);
 			await CleanupAfterFailedStartSafeAsync().ConfigureAwait(false);
 			ResetStatusIfNeeded();
-			_options.Logger?.LogError(ex, "UCI engine failed to start.");
+			Logger.LogException($"UCI engine failed to start. ex={ex}", category: LogCategory.UCI);
 			throw;
 		}
 		finally
@@ -154,7 +154,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (!IsStarted && _process is null)
 		{
 			Volatile.Write(ref _status, (int)TransportStatus.Stopped);
-			_options.Logger?.LogDebug("StopAsync: transport not started; no-op.");
+			Logger.LogInfo("StopAsync: transport not started; no-op.", category: LogCategory.UCI);
 			return;
 		}
 
@@ -165,7 +165,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			Interlocked.Exchange(ref _status, (int)TransportStatus.Stopping);
-			_options.Logger?.LogInfo("Stopping UCI transport.");
+			Logger.LogInfo("Stopping UCI transport.", category: LogCategory.UCI);
 
 			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.")
 				.ConfigureAwait(false);
@@ -263,7 +263,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
 		Interlocked.Exchange(ref _status, (int)TransportStatus.Stopping);
-		_options.Logger?.LogInfo("Disposing UCI transport.");
+		Logger.LogInfo("Disposing UCI transport.", category: LogCategory.UCI);
 
 		await TearDownCoreAsync(_options.SendQuitOnDispose, TransportStatus.Disposed, "Disposed UCI transport.")
 			.ConfigureAwait(false);
@@ -605,10 +605,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 				{
 					if (!p.HasExited)
 					{
-						_options.Logger?.LogInfo(
-							"Killing UCI engine process during failed start cleanup (tree=" +
-							_options.KillEntireProcessTree +
-							").");
+						Logger.LogInfo(
+							$"Killing UCI engine process during failed start cleanup (tree={_options.KillEntireProcessTree}).",
+							category: LogCategory.UCI);
 #if NET5_0_OR_GREATER
 						p.Kill(_options.KillEntireProcessTree);
 #else
@@ -618,7 +617,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 				}
 				catch (Exception ex)
 				{
-					_options.Logger?.LogError(ex, "Failed to kill process during failed start cleanup.");
+					Logger.LogException(
+						$"Failed to kill process during failed start cleanup. ex={ex}",
+						category: LogCategory.UCI);
 				}
 
 				var exitNotify = _exitNotifyTask;
@@ -679,7 +680,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		Volatile.Write(ref _status, (int)TransportStatus.Started);
 
-		_options.Logger?.LogInfo($"UCI engine started. PID={startedProcess.Id}");
+		Logger.LogInfo($"UCI engine started. PID={startedProcess.Id}", category: LogCategory.UCI);
 
 		startingSignal.TrySetResult(null);
 		await Task.CompletedTask;
@@ -808,7 +809,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (p is { HasExited: false })
 			{
-				_options.Logger?.LogInfo("Killing UCI engine process (tree=" + _options.KillEntireProcessTree + ").");
+				Logger.LogInfo(
+					$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
+					category: LogCategory.UCI);
 #if NET5_0_OR_GREATER
 				p.Kill(_options.KillEntireProcessTree);
 #else
@@ -839,7 +842,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			SafeDispose(p);
 
 			Volatile.Write(ref _status, (int)finalStatus);
-			_options.Logger?.LogInfo(finalLog);
+			Logger.LogInfo(finalLog, category: LogCategory.UCI);
 		}
 	}
 
@@ -870,9 +873,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		else
 			try
 			{
-				_options.Logger?.LogError(
-					new TimeoutException("Timed out waiting for " + description + " after " + timeout + "."),
-					"Timed out awaiting " + description + ".");
+				Logger.LogException(
+					$"Timed out awaiting {description}. Timed out waiting for {description} after {timeout}.",
+					category: LogCategory.UCI);
 			}
 			catch { }
 	}
@@ -1069,7 +1072,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		Volatile.Write(ref _exitedRaised, 0);
 		Interlocked.Exchange(ref _status, (int)TransportStatus.Starting);
-		_options.Logger?.LogInfo("Starting UCI engine process.");
+		Logger.LogInfo("Starting UCI engine process.", category: LogCategory.UCI);
 	}
 
 	private void ReleaseReaderIfSingle()
@@ -1094,7 +1097,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		try
 		{
-			_options.Logger?.LogError(ex, message);
+			Logger.LogException($"{message} ex={ex}", category: LogCategory.UCI);
 		}
 		catch { }
 
@@ -1140,7 +1143,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					await WaitForProcessExitAsync(process, CancellationToken.None).ConfigureAwait(false);
 					Volatile.Write(ref _processAlive, 0);
 					int exitCode = process.ExitCode;
-					_options.Logger?.LogInfo("UCI engine process exited with code " + exitCode + ".");
+					Logger.LogInfo($"UCI engine process exited with code {exitCode}.", category: LogCategory.UCI);
 					FireExitedOnce(exitCode, null);
 				}
 				catch (Exception ex)
