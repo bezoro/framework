@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Bezoro.Core.Common.Primitives;
 
@@ -15,9 +16,10 @@ namespace Bezoro.Core.Common.Primitives;
 ///     any removed element, avoiding the need to shift subsequent elements. This makes
 ///     removal operations O(1) but does not preserve element ordering.
 /// </remarks>
-public class SwapbackArray<T>
+public class SwapbackArray<T> : IEnumerable<T>
 {
 	private const int MINIMUM_ARRAY_SIZE = 4;
+	private const int MAX_ARRAY_LENGTH = 0x7FFFFFC7; // match CLR array max length heuristic
 
 	/// <summary>
 	///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
@@ -30,7 +32,7 @@ public class SwapbackArray<T>
 	///     to optimize memory usage and access efficiency. This array supports reordering
 	///     of elements when removing items.
 	/// </summary>
-	private T?[] _items;
+	private T[] _items;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="SwapbackArray{T}" /> class.
@@ -47,7 +49,6 @@ public class SwapbackArray<T>
 		_items = new T[actualCapacity];
 		_count = 0;
 
-		Logger.LogSuccess($"SwapbackArray initialized with capacity: {actualCapacity}");
 	}
 
 
@@ -60,6 +61,20 @@ public class SwapbackArray<T>
 	///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 	/// </summary>
 	public int Count => _count;
+
+	public T this[int index]
+	{
+		get
+		{
+			if ((uint)index >= (uint)_count) throw new ArgumentOutOfRangeException(nameof(index));
+			return _items[index];
+		}
+		set
+		{
+			if ((uint)index >= (uint)_count) throw new ArgumentOutOfRangeException(nameof(index));
+			_items[index] = value;
+		}
+	}
 
 	/// <summary>
 	///     Removes the first occurrence of the specified item using EqualityComparer&lt;T&gt;.Default.
@@ -75,11 +90,9 @@ public class SwapbackArray<T>
 		var comparer = EqualityComparer<T>.Default;
 		for (var i = 0; i < _count; i++)
 		{
-			if (comparer.Equals(_items[i]!, item))
+			if (comparer.Equals(_items[i], item))
 				return RemoveAt(i);
 		}
-
-		Logger.LogWarning("Attempted to remove an item that does not exist in the array.");
 		return false;
 	}
 
@@ -95,14 +108,11 @@ public class SwapbackArray<T>
 			return false;
 		}
 
-		PerformSwapAndTrim(index);
+		// swap last into index and trim
+		_items[index] = _items[_count - 1];
+		_items[--_count] = default!;
 
-		// Downsize if array is underutilized
-		if (!ShouldResize(_count, _items.Length)) return true;
-
-		int newSize = Math.Max(_items.Length / 2, MINIMUM_ARRAY_SIZE);
-		Resize(newSize);
-
+		MaybeShrink();
 		return true;
 	}
 
@@ -117,17 +127,16 @@ public class SwapbackArray<T>
 	/// <returns>
 	///     A boolean value indicating whether the retrieval was successful.
 	/// </returns>
-	public bool TryGet(int index, out T? value)
+	public bool TryGet(int index, [MaybeNullWhen(false)] out T value)
 	{
 		if (index < 0 || index >= _count)
 		{
 			Logger.LogError($"Attempted to access invalid index: {index}");
-			value = default;
+			value = default!;
 			return false;
 		}
 
 		value = _items[index];
-		Logger.LogSuccess($"Item retrieved at index {index}: {value}");
 		return true;
 	}
 
@@ -138,15 +147,8 @@ public class SwapbackArray<T>
 	/// <param name="item">The item to add to the SwapbackArray.</param>
 	public void Add(T item)
 	{
-		if (_count == _items.Length)
-		{
-			Logger.LogWarning("Array capacity reached. Resizing...");
-			Resize(_items.Length * 2);
-			Logger.LogSuccess($"Array resized to new capacity: {_items.Length}");
-		}
-
+		EnsureCapacity(_count + 1);
 		_items[_count++] = item;
-		Logger.LogSuccess($"Item added. Current count: {_count}");
 	}
 
 	/// <summary>
@@ -154,43 +156,89 @@ public class SwapbackArray<T>
 	/// </summary>
 	public void Clear()
 	{
-		Logger.LogInfo("Clearing all elements from the array.", this, LogCategory.Utilities);
 		Array.Clear(_items, 0, _count);
 		_count = 0;
-		Logger.LogSuccess("Array cleared.");
 
 		// Trim capacity back to minimum to free memory
 		if (Capacity <= MINIMUM_ARRAY_SIZE) return;
-
 		Resize(MINIMUM_ARRAY_SIZE);
-		Logger.LogSuccess("Capacity trimmed to minimum after clearing.");
 	}
 
-	private static bool ShouldResize(int currentCount, int currentCapacity) =>
-		currentCount <= currentCapacity / 4 && currentCapacity > MINIMUM_ARRAY_SIZE;
-
-	private void PerformSwapAndTrim(int index)
+	public bool Contains(T item)
 	{
-		Logger.LogInfo($"Removing item at index {index}.", this, LogCategory.Utilities);
-
-		// Replace the item at the given index with the last item (swap-and-trim)
-		_items[index] = _items[_count - 1];
-
-		// Clear the last item and reduce the count
-		_items[--_count] = default;
-		Logger.LogSuccess($"Item removed. Current count: {_count}");
+		var comparer = EqualityComparer<T>.Default;
+		for (int i = 0; i < _count; i++)
+			if (comparer.Equals(_items[i], item)) return true;
+		return false;
 	}
+
+	public T[] ToArray()
+	{
+		var result = new T[_count];
+		Array.Copy(_items, 0, result, 0, _count);
+		return result;
+	}
+
+	public void CopyTo(T[] destination, int destinationIndex = 0)
+	{
+		if (destination is null) throw new ArgumentNullException(nameof(destination));
+		if (destinationIndex < 0) throw new ArgumentOutOfRangeException(nameof(destinationIndex));
+		if (destinationIndex + _count > destination.Length) throw new ArgumentException("Destination too small.");
+		Array.Copy(_items, 0, destination, destinationIndex, _count);
+	}
+
+	public void EnsureCapacity(int min)
+	{
+		if (_items.Length >= min) return;
+
+		int newCapacity = _items.Length == 0 ? MINIMUM_ARRAY_SIZE : _items.Length * 2;
+		if (newCapacity < min) newCapacity = min;
+		if (newCapacity > MAX_ARRAY_LENGTH)
+		{
+			if (min > MAX_ARRAY_LENGTH) throw new OutOfMemoryException("Required capacity exceeds maximum array length.");
+			newCapacity = MAX_ARRAY_LENGTH;
+		}
+
+		Resize(newCapacity);
+	}
+
+	public void TrimExcess()
+	{
+		int threshold = (int)(_items.Length * 0.9);
+		if (_items.Length > MINIMUM_ARRAY_SIZE && _count < threshold)
+		{
+			int newSize = Math.Max(_count, MINIMUM_ARRAY_SIZE);
+			Resize(newSize);
+		}
+	}
+
+	public ReadOnlySpan<T> AsSpan() => new ReadOnlySpan<T>(_items, 0, _count);
 
 	/// <summary>
 	///     Resizes the internal array to a new specified size, preserving existing elements.
 	/// </summary>
 	/// <param name="newSize">The new size of the array.</param>
+	private void MaybeShrink()
+	{
+		if (_items.Length > MINIMUM_ARRAY_SIZE && _count <= _items.Length / 4)
+		{
+			int newSize = Math.Max(_items.Length / 2, MINIMUM_ARRAY_SIZE);
+			Resize(newSize);
+		}
+	}
+
 	private void Resize(int newSize)
 	{
 		var newItems = new T[newSize];
 		Array.Copy(_items, newItems, _count);
 		_items = newItems;
-
-		Logger.LogSuccess($"Resize operation complete. New size: {newSize}");
 	}
+
+	public IEnumerator<T> GetEnumerator()
+	{
+		for (int i = 0; i < _count; i++)
+			yield return _items[i];
+	}
+
+	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }
