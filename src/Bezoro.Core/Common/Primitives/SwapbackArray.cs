@@ -19,14 +19,8 @@ namespace Bezoro.Core.Common.Primitives;
 /// </remarks>
 public class SwapbackArray<T> : IEnumerable<T>
 {
-	private const int MAX_ARRAY_LENGTH   = 0x7FFFFFC7; // match CLR array max length heuristic
-	private const int MINIMUM_ARRAY_SIZE = 4;
-
-	/// <summary>
-	///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
-	/// </summary>
-	private int _count;
-	private int _version;
+	private const uint MAX_ARRAY_LENGTH   = 0x7FFFFFC7; // match CLR array max length heuristic
+	private const uint MINIMUM_ARRAY_SIZE = 4;
 
 	/// <summary>
 	///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -37,47 +31,64 @@ public class SwapbackArray<T> : IEnumerable<T>
 	private T[] _items;
 
 	/// <summary>
+	///     Represents the current number of elements in the <see cref="SwapbackArray{T}" />.
+	/// </summary>
+	private uint _count;
+
+	/// <summary>
+	///     Version counter that increments on collection modifications. Used to detect
+	///     concurrent modifications during enumeration to ensure collection consistency.
+	/// </summary>
+	private uint _version;
+
+	/// <summary>
 	///     Initializes a new instance of the <see cref="SwapbackArray{T}" /> class.
 	/// </summary>
 	/// <param name="initialCapacity">The initial capacity of the array. Must be non-negative.</param>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when initialCapacity is negative.</exception>
-	public SwapbackArray(int initialCapacity = MINIMUM_ARRAY_SIZE)
+	public SwapbackArray(uint initialCapacity = MINIMUM_ARRAY_SIZE)
 	{
 		if (initialCapacity < MINIMUM_ARRAY_SIZE)
 			throw new ArgumentOutOfRangeException(
 				nameof(initialCapacity),
-				$"Initial capacity cannot <= {MINIMUM_ARRAY_SIZE}.");
+				$"Initial capacity must be at least {MINIMUM_ARRAY_SIZE}.");
 
-		int actualCapacity = Math.Max(initialCapacity, MINIMUM_ARRAY_SIZE);
-
-		_items = new T[actualCapacity];
-		_count = 0;
+		_items   = new T[initialCapacity];
+		_count   = 0;
+		_version = 0;
 	}
 
-	public SwapbackArray(ICollection<T> values)
+	public SwapbackArray(ICollection<T> collection)
 	{
-		_items = new T[values.Count];
-		_count = values.Count;
-		values.CopyTo(_items, 0);
+		if (collection is null) throw new ArgumentNullException(nameof(collection));
+
+		var capacity = (uint)Math.Max(collection.Count, MINIMUM_ARRAY_SIZE);
+		_items = new T[capacity];
+		_count = (uint)collection.Count;
+
+		if (_count > 0)
+			collection.CopyTo(_items, 0);
+
+		_version = 0;
 	}
 
 
 	/// <summary>
 	///     Gets the total number of elements that the internal array can hold without resizing.
 	/// </summary>
-	public int Capacity => _items.Length;
+	public uint Capacity => (uint)_items.Length;
 
 	/// <summary>
 	///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 	/// </summary>
-	public int Count => _count;
+	public uint Count => _count;
 
-	public T this[int index]
+	public T this[uint index]
 	{
-		get => (uint)index >= (uint)_count ? throw new ArgumentOutOfRangeException(nameof(index)) : _items[index];
+		get => index >= _count ? throw new ArgumentOutOfRangeException(nameof(index)) : _items[index];
 		set
 		{
-			if ((uint)index >= (uint)_count) throw new ArgumentOutOfRangeException(nameof(index));
+			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
 
 			_items[index] = value;
 		}
@@ -86,7 +97,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	public bool Contains(T item)
 	{
 		var comparer = EqualityComparer<T>.Default;
-		for (var i = 0; i < _count; i++)
+		for (uint i = 0; i < _count; i++)
 		{
 			if (comparer.Equals(_items[i], item))
 				return true;
@@ -106,11 +117,8 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <returns>
 	///     A boolean value indicating whether the retrieval was successful.
 	/// </returns>
-	public bool TryGet(int index, [MaybeNullWhen(false)] out T value)
+	public bool TryGet(uint index, [MaybeNullWhen(false)] out T value)
 	{
-		if (index < 0)
-			throw new ArgumentOutOfRangeException(nameof(index), index, "Index must be zero or positive.");
-
 		if (index >= _count)
 		{
 			value = default!;
@@ -133,7 +141,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	public bool TryRemove(T item)
 	{
 		var comparer = EqualityComparer<T>.Default;
-		for (var i = 0; i < _count; i++)
+		for (uint i = 0; i < _count; i++)
 		{
 			if (comparer.Equals(_items[i], item))
 				return TryRemoveAt(i);
@@ -146,23 +154,24 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     Removes the element at the specified index by swapping the last element into that position.
 	///     Returns false if the index is invalid.
 	/// </summary>
-	public bool TryRemoveAt(int index)
+	public bool TryRemoveAt(uint index)
 	{
-		if (index < 0 || index >= _count)
-			throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {_count - 1}.");
+		if (index >= _count)
+			return false;
 
 		// swap last into index and trim
 		_items[index]    = _items[_count - 1];
 		_items[--_count] = default!;
 
+		_version++;
 		MaybeShrink();
 		return true;
 	}
 
 	public IEnumerator<T> GetEnumerator()
 	{
-		int version = _version;
-		for (var i = 0; i < _count; i++)
+		uint version = _version;
+		for (uint i = 0; i < _count; i++)
 		{
 			if (version != _version)
 				throw new InvalidOperationException("Collection was modified during enumeration.");
@@ -171,7 +180,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		}
 	}
 
-	public ReadOnlySpan<T> AsSpan() => new(_items, 0, _count);
+	public ReadOnlySpan<T> AsSpan() => new(_items, 0, (int)_count);
 
 	public T[] ToArray()
 	{
@@ -197,8 +206,9 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// </summary>
 	public void Clear()
 	{
-		Array.Clear(_items, 0, _count);
+		Array.Clear(_items, 0, (int) _count);
 		_count = 0;
+		_version++;
 
 		// Trim capacity back to minimum to free memory
 		if (Capacity <= MINIMUM_ARRAY_SIZE) return;
@@ -206,20 +216,35 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Resize(MINIMUM_ARRAY_SIZE);
 	}
 
-	public void CopyTo(T[] destination, int destinationIndex = 0)
+	public void CopyTo(T[] destination, uint destinationIndex = 0)
 	{
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
-		if (destinationIndex < 0) throw new ArgumentOutOfRangeException(nameof(destinationIndex));
-		if (destinationIndex + _count > destination.Length) throw new ArgumentException("Destination too small.");
+
+		if (destinationIndex > destination.Length || _count > (uint)destination.Length - destinationIndex)
+			throw new ArgumentException("Destination array is not large enough.");
 
 		Array.Copy(_items, 0, destination, destinationIndex, _count);
 	}
 
-	public void EnsureCapacity(int min)
+	/// <summary>
+	///     Ensures the internal array has sufficient capacity to accommodate at least the specified number of elements.
+	/// </summary>
+	/// <param name="min">The minimum capacity required.</param>
+	/// <exception cref="OutOfMemoryException">
+	///     Thrown when the required capacity exceeds the maximum array length supported by the runtime.
+	/// </exception>
+	/// <remarks>
+	///     Growth strategy:
+	///     - For empty arrays, starts with minimum size (4)
+	///     - For non-empty arrays, doubles the current capacity
+	///     - If doubled capacity is not enough, uses requested minimum
+	///     - Respects maximum array length limit (0x7FFFFFC7)
+	/// </remarks>
+	public void EnsureCapacity(uint min)
 	{
 		if (_items.Length >= min) return;
 
-		int newCapacity                    = _items.Length == 0 ? MINIMUM_ARRAY_SIZE : _items.Length * 2;
+		uint newCapacity                   = _items.Length == 0 ? MINIMUM_ARRAY_SIZE : (uint)(_items.Length * 2);
 		if (newCapacity < min) newCapacity = min;
 		if (newCapacity > MAX_ARRAY_LENGTH)
 		{
@@ -234,10 +259,10 @@ public class SwapbackArray<T> : IEnumerable<T>
 
 	public void TrimExcess()
 	{
-		var threshold = (int)(_items.Length * 0.9);
+		var threshold = (_items.Length * 9) / 10;
 		if (_items.Length <= MINIMUM_ARRAY_SIZE || _count >= threshold) return;
 
-		int newSize = Math.Max(_count, MINIMUM_ARRAY_SIZE);
+		uint newSize = Math.Max(_count, MINIMUM_ARRAY_SIZE);
 		Resize(newSize);
 	}
 
@@ -249,13 +274,14 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <param name="newSize">The new size of the array.</param>
 	private void MaybeShrink()
 	{
-		if (_items.Length <= MINIMUM_ARRAY_SIZE || _count > _items.Length / 4) return;
+		var length = (uint)_items.Length;
+		if (length <= MINIMUM_ARRAY_SIZE || _count > length / 4) return;
 
-		int newSize = Math.Max(_items.Length / 2, MINIMUM_ARRAY_SIZE);
+		uint newSize = Math.Max(length / 2, MINIMUM_ARRAY_SIZE);
 		Resize(newSize);
 	}
 
-	private void Resize(int newSize)
+	private void Resize(uint newSize)
 	{
 		var newItems = new T[newSize];
 		Array.Copy(_items, newItems, _count);

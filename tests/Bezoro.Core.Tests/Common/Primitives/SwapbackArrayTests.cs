@@ -37,6 +37,31 @@ public abstract class SwapbackArrayTests
 			}
 		}
 
+		public class AsSpan
+		{
+			[Fact]
+			public void AsSpan_WhenCalled_ShouldReturnSpanWithSameLengthAsArray()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				var span = arr.AsSpan();
+
+				(span.Length == arr.Count).Should().BeTrue();
+			}
+
+			[Fact]
+			public void AsSpan_WhenCalled_ShouldReturnSpanWithSameValuesAsArray()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				var span = arr.AsSpan();
+
+				span.ToArray().Should().Equal(arr.ToArray());
+			}
+		}
+
 		public class Clear
 		{
 			[Fact]
@@ -65,15 +90,9 @@ public abstract class SwapbackArrayTests
 			}
 		}
 
-		public class Constructor
+		public class Constructors
 		{
-			[Fact]
-			public void Constructor_WhenInitialCapacityIsNegative_ShouldThrow()
-			{
-				var act = () => new SwapbackArray<int>(-1);
-
-				act.Should().Throw<ArgumentOutOfRangeException>();
-			}
+			#region Capacity
 
 			[Fact]
 			public void Constructor_WhenInitialIsSmallerThanMinimum_ShouldThrow()
@@ -98,6 +117,275 @@ public abstract class SwapbackArrayTests
 
 				arr.Count.Should().Be(0);
 			}
+
+			#endregion
+
+			#region ICollection
+
+			[Fact]
+			public void Constructor_WhenCollectionIsNull_ShouldThrow()
+			{
+				var act = () => new SwapbackArray<int>(null!);
+
+				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+			}
+
+			[Fact]
+			public void Constructor_WhenCollectionIsEmpty_ShouldCreateArrayWithMinimumCapacity()
+			{
+				int[] values = [];
+				var   arr    = new SwapbackArray<int>(values);
+
+				arr.Capacity.Should().Be(4);
+			}
+
+			[Fact]
+			public void Constructor_WhenCollectionHasElements_ShouldCreateArrayWithSameElements()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				arr.ToArray().Should().Equal(values);
+			}
+
+			#endregion
+		}
+
+		public class Contains
+		{
+			[Fact]
+			public void Contains_WhenDefaultItemExists_ShouldReturnTrue()
+			{
+				// ReSharper disable once PreferConcreteValueOverDefault
+				var arr = new SwapbackArray<int> { 1, 2, 3, default };
+
+				// ReSharper disable once PreferConcreteValueOverDefault
+				arr.Contains(default).Should().BeTrue();
+			}
+
+			[Fact]
+			public void Contains_WhenDefaultItemNotFound_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				// ReSharper disable once PreferConcreteValueOverDefault
+				arr.Contains(default).Should().BeFalse();
+			}
+
+			[Fact]
+			public void Contains_WhenItemExists_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.Contains(2).Should().BeTrue();
+			}
+
+			[Fact]
+			public void Contains_WhenItemNotFound_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.Contains(5).Should().BeFalse();
+			}
+
+			[Fact]
+			public void Contains_WhenNullItemExists_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int?> { 1, 2, 3, null };
+
+				arr.Contains(null).Should().BeTrue();
+			}
+
+			[Fact]
+			public void Contains_WhenNullItemNotFound_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int?> { 1, 2, 3, 4 };
+
+				arr.Contains(null).Should().BeFalse();
+			}
+		}
+
+		public class CopyTo
+		{
+			[Fact]
+			public void CopyTo_WhenInsufficientDestinationCapacity_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				var act = () => arr.CopyTo(new int[2]);
+
+				act.Should().Throw<ArgumentException>();
+			}
+
+			[Fact]
+			public void CopyTo_WhenNullDestination_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				var act = () => arr.CopyTo(null!);
+
+				act.Should().Throw<ArgumentNullException>();
+			}
+
+			[Fact]
+			public void CopyTo_WhenValidDestination_ShouldCopyAllItems()
+			{
+				int[] values      = [1, 2, 3, 4];
+				var   arr         = new SwapbackArray<int>(values);
+				var   destination = new int[4];
+
+				arr.CopyTo(destination);
+
+				destination.Should().Equal(values);
+			}
+		}
+
+		public class EnsureCapacity
+		{
+			[Fact]
+			public void EnsureCapacity_WhenRequestedMinimumExceedsMaximum_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int>();
+				var act = () => arr.EnsureCapacity(int.MaxValue);
+				act.Should().Throw<OutOfMemoryException>();
+			}
+
+			[Fact]
+			public void EnsureCapacity_WhenValidRequestedMinimumBelowDoubleCapacity_ShouldDoubleCapacity()
+			{
+				var initialCapacity = 5u;
+				var arr             = new SwapbackArray<int>(initialCapacity);
+
+				arr.EnsureCapacity(7);
+
+				arr.Capacity.Should().Be(initialCapacity * 2);
+			}
+
+			[Fact]
+			public void EnsureCapacity_WhenValidRequestedMinimumIsAboveDoubleCurrentCapacity_ShouldUseMinimum()
+			{
+				var initialCapacity = 5u;
+				var arr             = new SwapbackArray<int>(initialCapacity);
+
+				arr.EnsureCapacity(20);
+
+				arr.Capacity.Should().Be(20);
+			}
+
+			[Fact]
+			public void EnsureCapacity_WhenValidRequestedMinimumIsBelowCurrentCapacity_ShouldNotChangeCapacity()
+			{
+				var arr = new SwapbackArray<int>(8);
+
+				arr.EnsureCapacity(6);
+
+				arr.Capacity.Should().Be(8);
+			}
+		}
+
+		public class Indexer
+		{
+			[Fact]
+			public void Indexer_WhenGetOutOfBounds_ShouldThrow()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				var act = () => arr[(uint)values.Length];
+
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void Indexer_WhenGetValidIndex_ShouldReturnItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr[0].Should().Be(1);
+				arr[1].Should().Be(2);
+				arr[2].Should().Be(3);
+				arr[3].Should().Be(4);
+			}
+
+			[Fact]
+			public void Indexer_WhenSetOutOfBounds_ShouldThrow()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				var act = () => arr[(uint)values.Length] = 10;
+
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void Indexer_WhenSetValidIndex_ShouldSetItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr[1] = 10;
+
+				arr[1].Should().Be(10);
+			}
+		}
+
+		public class ToArray
+		{
+			[Fact]
+			public void ToArray_WhenCalled_ShouldReturnArrayWithSameLengthAsArray()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				int[] arr2 = arr.ToArray();
+
+				arr2.Length.Should().Be((int)arr.Count);
+			}
+
+			[Fact]
+			public void ToArray_WhenCalled_ShouldReturnArrayWithSameValuesAsArray()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				int[] arr2 = arr.ToArray();
+
+				arr2.Should().Equal(arr);
+			}
+
+			[Fact]
+			public void ToArray_WhenCalled_ShouldReturnCopyOfArray()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				int[] arr2 = arr.ToArray();
+
+				arr2.Should().NotBeSameAs(arr);
+			}
+
+			[Fact]
+			public void ToArray_WhenEmpty_ShouldReturnEmptyArray()
+			{
+				var arr = new SwapbackArray<int>();
+
+				int[] arr2 = arr.ToArray();
+
+				arr2.Should().BeEmpty();
+			}
+		}
+
+		public class TrimExcess
+		{
+			[Fact]
+			public void TrimExcess_WhenArrayHasExcessCapacity_ShouldShrinkCapacityToCount()
+			{
+				var arr = new SwapbackArray<int>(32) { 1, 2, 3, 4, 5 };
+
+				arr.TrimExcess();
+
+				arr.Capacity.Should().Be(5);
+			}
 		}
 
 		public class TryGet
@@ -111,12 +399,13 @@ public abstract class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryGet_WhenNegativeIndex_ShouldThrow()
+			public void TryGet_WhenValidIndex_ShouldReturnItem()
 			{
 				var arr = new SwapbackArray<int?> { 1, 2 };
 
-				var act = () => arr.TryGet(-1, out int? _);
-				act.Should().Throw<ArgumentOutOfRangeException>();
+				arr.TryGet(0, out int? value).Should().BeTrue();
+
+				value.Should().Be(1);
 			}
 		}
 
@@ -144,7 +433,7 @@ public abstract class SwapbackArrayTests
 			[Fact]
 			public void TryRemove_WhenItemNotFound_ShouldNotModifyArray()
 			{
-				int[] values = new[] { 1, 2 };
+				int[] values = [1, 2];
 				var   arr    = new SwapbackArray<int>(values);
 
 				arr.TryRemove(3);
@@ -185,21 +474,11 @@ public abstract class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenIndexIsOutOfBounds_ShouldThrow()
+			public void TryRemoveAt_WhenIndexIsOutOfBounds_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 10 };
 
-				var act = () => arr.TryRemoveAt(1);
-				act.Should().Throw<ArgumentOutOfRangeException>();
-			}
-
-			[Fact]
-			public void TryRemoveAt_WhenNegativeIndex_ShouldThrow()
-			{
-				var arr = new SwapbackArray<int> { 10 };
-
-				var act = () => arr.TryRemoveAt(-1);
-				act.Should().Throw<ArgumentOutOfRangeException>();
+				arr.TryRemoveAt(1).Should().BeFalse();
 			}
 
 			[Fact]
