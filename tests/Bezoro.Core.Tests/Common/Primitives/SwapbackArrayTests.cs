@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Bezoro.Core.Common.Primitives;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -8,176 +6,232 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Common.Primitives;
 
-[TestSubject(typeof(SwapbackArray<int>))]
-public static class SwapbackArrayTests
+[TestSubject(typeof(SwapbackArray<>))]
+public abstract class SwapbackArrayTests
 {
-	public class Unit
+	public abstract class UnitTests
 	{
-		[Fact]
-		public void Add_ShouldIncreaseCount_AndResizeWhenFull()
+		public class Add
 		{
-			var arr = new SwapbackArray<int>();
-
-			for (var i = 0; i < 4; i++)
-				arr.Add(i);
-
-			arr.Count.Should().Be(4);
-			arr.Capacity.Should().Be(4);
-
-			// Trigger resize
-			arr.Add(4);
-			arr.Count.Should().Be(5);
-			arr.Capacity.Should().Be(8);
-
-			arr.TryGet(4, out int value).Should().BeTrue();
-			value.Should().Be(4);
-		}
-
-		[Fact]
-		public void Clear_ShouldEmptyArray_AndTrimCapacityToMinimum()
-		{
-			var arr = new SwapbackArray<int>();
-			for (var i = 0; i < 10; i++) arr.Add(i); // capacity should grow to >= 16
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(16);
-
-			arr.Clear();
-
-			arr.Count.Should().Be(0);
-			arr.Capacity.Should().Be(4);
-			arr.TryGet(0, out int _).Should().BeFalse();
-		}
-
-		[Fact]
-		public void Constructor_ShouldThrow_WhenInitialCapacityIsNegative()
-		{
-			var act = () => new SwapbackArray<int>(-1);
-			act.Should().Throw<ArgumentOutOfRangeException>();
-		}
-
-		[Fact]
-		public void Constructor_ShouldUseMinimumCapacity_WhenInitialIsSmaller()
-		{
-			var arr = new SwapbackArray<int>(0);
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(4);
-			arr.Count.Should().Be(0);
-		}
-
-		[Fact]
-		public void Constructor_ShouldUseProvidedCapacity_WhenInitialIsSufficient()
-		{
-			var arr = new SwapbackArray<int>(10);
-			arr.Capacity.Should().Be(10);
-			arr.Count.Should().Be(0);
-		}
-
-		[Fact]
-		public void Remove_ShouldRemoveFirstOccurrence_IfExists()
-		{
-			var arr = new SwapbackArray<int>();
-			arr.Add(1);
-			arr.Add(2);
-			arr.Add(3);
-			arr.Add(2);
-
-			arr.Remove(2).Should().BeTrue();
-			arr.Count.Should().Be(3);
-
-			// Gather current values without assuming order
-			var values = new List<int>();
-			for (var i = 0; i < arr.Count; i++)
+			[Fact]
+			public void Add_WhenCalledMultipleTimes_ShouldIncreaseCount()
 			{
-				arr.TryGet(i, out int v).Should().BeTrue();
-				values.Add(v);
+				var arr = new SwapbackArray<int>();
+
+				for (var i = 0; i < 4; i++)
+					arr.Add(i);
+
+				arr.Count.Should().Be(4);
+				arr.Capacity.Should().Be(4);
 			}
 
-			values.Should().Contain([1, 3, 2]);
-			values.Should().HaveCount(3);
-			values.Count(x => x == 2).Should().Be(1);
+			[Fact]
+			public void Add_WhenFull_ShouldDoubleCapacity()
+			{
+				var arr = new SwapbackArray<int>();
+
+				for (var i = 0; i < 5; i++) arr.Add(i);
+
+				arr.Count.Should().Be(5);
+				arr.Capacity.Should().Be(8);
+			}
 		}
 
-		[Fact]
-		public void Remove_ShouldReturnFalse_IfItemNotFound()
+		public class Clear
 		{
-			var arr = new SwapbackArray<int>();
-			arr.Add(1);
-			arr.Add(2);
+			[Fact]
+			public void Clear_WhenCalled_ShouldEmptyArray()
+			{
+				var arr = new SwapbackArray<int>();
+				for (var i = 0; i < 10; i++) arr.Add(i); // capacity should grow to >= 16
+				arr.Capacity.Should().BeGreaterThanOrEqualTo(16);
 
-			arr.Remove(3).Should().BeFalse();
-			arr.Count.Should().Be(2);
+				arr.Clear();
+
+				arr.Count.Should().Be(0);
+			}
+
+			[Fact]
+			public void Clear_WhenCalled_ShouldShrinkCapacity()
+			{
+				var arr = new SwapbackArray<int>();
+				for (var i = 0; i < 10; i++) arr.Add(i); // capacity should grow to >= 16
+				arr.Capacity.Should().BeGreaterThanOrEqualTo(16);
+
+				arr.Clear();
+
+				arr.Capacity.Should().Be(4);
+				arr.TryGet(0, out int _).Should().BeFalse();
+			}
 		}
 
-		[Fact]
-		public void RemoveAt_ShouldAutoDownsize_WhenUnderutilized()
+		public class Constructor
 		{
-			// Start with capacity 16
-			var arr = new SwapbackArray<int>(16);
-			for (var i = 0; i < 16; i++) arr.Add(i);
-			arr.Capacity.Should().Be(16);
-			arr.Count.Should().Be(16);
+			[Fact]
+			public void Constructor_WhenInitialCapacityIsNegative_ShouldThrow()
+			{
+				var act = () => new SwapbackArray<int>(-1);
 
-			// Remove until count == 4 -> Should resize to 8
-			while (arr.Count > 4)
-				arr.RemoveAt(0).Should().BeTrue();
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
 
-			arr.Count.Should().Be(4);
-			arr.Capacity.Should().Be(8);
+			[Fact]
+			public void Constructor_WhenInitialIsSmallerThanMinimum_ShouldThrow()
+			{
+				var act = () => new SwapbackArray<int>(3);
 
-			// Remove until count == 2 -> Should resize to 4 (minimum)
-			while (arr.Count > 2)
-				arr.RemoveAt(0).Should().BeTrue();
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
 
-			arr.Count.Should().Be(2);
-			arr.Capacity.Should().Be(4);
+			[Fact]
+			public void Constructor_WhenInitialIsSufficient_ShouldUseProvidedCapacity()
+			{
+				var arr = new SwapbackArray<int>(10);
+
+				arr.Capacity.Should().Be(10);
+			}
+
+			[Fact]
+			public void Constructor_WhenValidInitialCapacity_ShouldCreateEmptyArray()
+			{
+				var arr = new SwapbackArray<int>(10);
+
+				arr.Count.Should().Be(0);
+			}
 		}
 
-		[Fact]
-		public void RemoveAt_ShouldReturnFalse_ForInvalidIndex()
+		public class TryGet
 		{
-			var arr = new SwapbackArray<int>();
-			arr.Add(10);
+			[Fact]
+			public void TryGet_WhenIndexIsOutOfBounds_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int?> { 1, 2 };
 
-			arr.RemoveAt(-1).Should().BeFalse();
-			arr.RemoveAt(1).Should().BeFalse();
-			arr.Count.Should().Be(1);
+				arr.TryGet(2, out int? _).Should().BeFalse();
+			}
+
+			[Fact]
+			public void TryGet_WhenNegativeIndex_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int?> { 1, 2 };
+
+				var act = () => arr.TryGet(-1, out int? _);
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
 		}
 
-		[Fact]
-		public void RemoveAt_ShouldSwapLastIntoRemovedIndex_AndTrimCount()
+		public class TryRemove
 		{
-			var arr = new SwapbackArray<int>();
-			arr.Add(10); // index 0
-			arr.Add(20); // index 1
-			arr.Add(30); // index 2
-			arr.Add(40); // index 3
+			[Fact]
+			public void TryRemove_WhenItemExists_ShouldRemoveItem()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
 
-			// Remove element at index 1 (value 20), last (40) should move to index 1
-			arr.RemoveAt(1).Should().BeTrue();
-			arr.Count.Should().Be(3);
+				arr.TryRemove(2);
 
-			arr.TryGet(0, out int v0).Should().BeTrue();
-			arr.TryGet(1, out int v1).Should().BeTrue();
-			arr.TryGet(2, out int v2).Should().BeTrue();
+				arr.ToArray().Should().BeEquivalentTo([1, 3, 4]);
+			}
 
-			v0.Should().Be(10);
-			v1.Should().Be(40);
-			v2.Should().Be(30);
+			[Fact]
+			public void TryRemove_WhenItemExists_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
-			// Ensure no extra elements accessible
-			arr.TryGet(3, out int _).Should().BeFalse();
+				arr.TryRemove(2).Should().BeTrue();
+			}
+
+			[Fact]
+			public void TryRemove_WhenItemNotFound_ShouldNotModifyArray()
+			{
+				int[] values = new[] { 1, 2 };
+				var   arr    = new SwapbackArray<int>(values);
+
+				arr.TryRemove(3);
+
+				arr.ToArray().Should().BeEquivalentTo(values);
+			}
+
+			[Fact]
+			public void TryRemove_WhenItemNotFound_ShouldReturnFalse()
+			{
+				int[] values = [1, 2];
+				var   arr    = new SwapbackArray<int>(values);
+
+				arr.TryRemove(3).Should().BeFalse();
+			}
 		}
 
-		[Fact]
-		public void TryGet_ShouldReturnFalse_ForInvalidIndex()
+		public class TryRemoveAt
 		{
-			var arr = new SwapbackArray<int?>();
-			arr.Add(1);
-			arr.Add(2);
+			[Fact]
+			public void TryRemoveAt_WhenCalled_ShouldDecrementCount()
+			{
+				var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
 
-			arr.TryGet(-1, out int? v1).Should().BeFalse();
-			v1.Should().BeNull();
+				arr.TryRemoveAt(1);
 
-			arr.TryGet(2, out int? v2).Should().BeFalse();
-			v2.Should().BeNull();
+				arr.Count.Should().Be(3);
+			}
+
+			[Fact]
+			public void TryRemoveAt_WhenCalled_ShouldSwapLastItemIntoRemovedIndex()
+			{
+				var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
+
+				arr.TryRemoveAt(1);
+
+				arr.ToArray().Should().BeEquivalentTo([10, 40, 30]);
+			}
+
+			[Fact]
+			public void TryRemoveAt_WhenIndexIsOutOfBounds_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 10 };
+
+				var act = () => arr.TryRemoveAt(1);
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void TryRemoveAt_WhenNegativeIndex_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 10 };
+
+				var act = () => arr.TryRemoveAt(-1);
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void TryRemoveAt_WhenUnderutilized_ShouldAutoDownsize()
+			{
+				var arr = new SwapbackArray<int>(16);
+				for (var i = 0; i < 16; i++) arr.Add(i);
+				arr.Capacity.Should().Be(16);
+				arr.Count.Should().Be(16);
+
+				// Remove until count == 4 -> Should resize to 8
+				while (arr.Count > 4)
+					arr.TryRemoveAt(0).Should().BeTrue();
+
+				arr.Count.Should().Be(4);
+				arr.Capacity.Should().Be(8);
+
+				// Remove until count == 2 -> Should resize to 4 (minimum)
+				while (arr.Count > 2)
+					arr.TryRemoveAt(0).Should().BeTrue();
+
+				arr.Count.Should().Be(2);
+				arr.Capacity.Should().Be(4);
+			}
+
+			[Fact]
+			public void TryRemoveAt_WhenValidIndex_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.TryRemoveAt(1).Should().BeTrue();
+			}
 		}
 	}
 }

@@ -43,13 +43,22 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when initialCapacity is negative.</exception>
 	public SwapbackArray(int initialCapacity = MINIMUM_ARRAY_SIZE)
 	{
-		if (initialCapacity < 0)
-			throw new ArgumentOutOfRangeException(nameof(initialCapacity), "Initial capacity cannot be negative.");
+		if (initialCapacity < MINIMUM_ARRAY_SIZE)
+			throw new ArgumentOutOfRangeException(
+				nameof(initialCapacity),
+				$"Initial capacity cannot <= {MINIMUM_ARRAY_SIZE}.");
 
 		int actualCapacity = Math.Max(initialCapacity, MINIMUM_ARRAY_SIZE);
 
 		_items = new T[actualCapacity];
 		_count = 0;
+	}
+
+	public SwapbackArray(ICollection<T> values)
+	{
+		_items = new T[values.Count];
+		_count = values.Count;
+		values.CopyTo(_items, 0);
 	}
 
 
@@ -87,44 +96,6 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	/// <summary>
-	///     Removes the first occurrence of the specified item using EqualityComparer&lt;T&gt;.Default.
-	/// </summary>
-	/// <param name="item">The item to remove from the array.</param>
-	/// <returns>true if item was successfully removed; otherwise, false.</returns>
-	/// <remarks>
-	///     This method performs a linear search through the array to find the specified item.
-	///     When found, the item is removed by replacing it with the last element in the array.
-	/// </remarks>
-	public bool Remove(T item)
-	{
-		var comparer = EqualityComparer<T>.Default;
-		for (var i = 0; i < _count; i++)
-		{
-			if (comparer.Equals(_items[i], item))
-				return RemoveAt(i);
-		}
-
-		return false;
-	}
-
-	/// <summary>
-	///     Removes the element at the specified index by swapping the last element into that position.
-	///     Returns false if the index is invalid.
-	/// </summary>
-	public bool RemoveAt(int index)
-	{
-		if (index < 0 || index >= _count)
-			throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {_count - 1}.");
-
-		// swap last into index and trim
-		_items[index]    = _items[_count - 1];
-		_items[--_count] = default!;
-
-		MaybeShrink();
-		return true;
-	}
-
-	/// <summary>
 	///     Attempts to retrieve the value at the specified index in the dynamic array.
 	/// </summary>
 	/// <param name="index">The zero-based index of the element to retrieve.</param>
@@ -137,14 +108,54 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// </returns>
 	public bool TryGet(int index, [MaybeNullWhen(false)] out T value)
 	{
-		if (index < 0 || index >= _count)
+		if (index < 0)
+			throw new ArgumentOutOfRangeException(nameof(index), index, "Index must be zero or positive.");
+
+		if (index >= _count)
 		{
-			Logger.LogError($"Attempted to access invalid index: {index}");
 			value = default!;
 			return false;
 		}
 
 		value = _items[index];
+		return true;
+	}
+
+	/// <summary>
+	///     Removes the first occurrence of the specified item using EqualityComparer&lt;T&gt;.Default.
+	/// </summary>
+	/// <param name="item">The item to remove from the array.</param>
+	/// <returns>true if item was successfully removed; otherwise, false.</returns>
+	/// <remarks>
+	///     This method performs a linear search through the array to find the specified item.
+	///     When found, the item is removed by replacing it with the last element in the array.
+	/// </remarks>
+	public bool TryRemove(T item)
+	{
+		var comparer = EqualityComparer<T>.Default;
+		for (var i = 0; i < _count; i++)
+		{
+			if (comparer.Equals(_items[i], item))
+				return TryRemoveAt(i);
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Removes the element at the specified index by swapping the last element into that position.
+	///     Returns false if the index is invalid.
+	/// </summary>
+	public bool TryRemoveAt(int index)
+	{
+		if (index < 0 || index >= _count)
+			throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {_count - 1}.");
+
+		// swap last into index and trim
+		_items[index]    = _items[_count - 1];
+		_items[--_count] = default!;
+
+		MaybeShrink();
 		return true;
 	}
 
