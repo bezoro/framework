@@ -37,6 +37,41 @@ public abstract class SwapbackArrayTests
 			}
 		}
 
+		public class AddRange
+		{
+			[Fact]
+			public void AddRange_WhenCollectionHasElements_ShouldAddAllItems()
+			{
+				var   arr        = new SwapbackArray<int>();
+				int[] collection = [1, 2, 3, 4];
+
+				arr.AddRange(collection);
+
+				arr.ToArray().Should().Equal(collection);
+			}
+
+			[Fact]
+			public void AddRange_WhenCollectionIsEmpty_ShouldNotModifyArray()
+			{
+				var   arr        = new SwapbackArray<int>();
+				int[] collection = [];
+
+				arr.AddRange(collection);
+
+				arr.Count.Should().Be(0);
+			}
+
+			[Fact]
+			public void AddRange_WhenCollectionIsNull_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int>();
+
+				var act = () => arr.AddRange(null!);
+
+				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+			}
+		}
+
 		public class AsSpan
 		{
 			[Fact]

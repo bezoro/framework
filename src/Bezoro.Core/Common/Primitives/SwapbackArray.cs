@@ -228,7 +228,6 @@ public class SwapbackArray<T> : IEnumerable<T>
 		_version++;
 	}
 
-
 	/// <summary>
 	///     Removes all elements from the array.
 	/// </summary>
