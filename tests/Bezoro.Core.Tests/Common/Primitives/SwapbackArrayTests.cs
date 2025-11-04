@@ -82,7 +82,7 @@ public abstract class SwapbackArrayTests
 
 				var span = arr.AsSpan();
 
-				(span.Length == arr.Count).Should().BeTrue();
+				span.Length.Should().Be((int)arr.Count);
 			}
 
 			[Fact]
