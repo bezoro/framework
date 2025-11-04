@@ -95,14 +95,6 @@ public abstract class SwapbackArrayTests
 			#region Capacity
 
 			[Fact]
-			public void Constructor_WhenInitialIsSmallerThanMinimum_ShouldThrow()
-			{
-				var act = () => new SwapbackArray<int>(3);
-
-				act.Should().Throw<ArgumentOutOfRangeException>();
-			}
-
-			[Fact]
 			public void Constructor_WhenInitialIsSufficient_ShouldUseProvidedCapacity()
 			{
 				var arr = new SwapbackArray<int>(10);

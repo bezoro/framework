@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Common.Primitives;
 
@@ -48,12 +48,8 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when initialCapacity is negative.</exception>
 	public SwapbackArray(uint initialCapacity = MINIMUM_ARRAY_SIZE)
 	{
-		if (initialCapacity < MINIMUM_ARRAY_SIZE)
-			throw new ArgumentOutOfRangeException(
-				nameof(initialCapacity),
-				$"Initial capacity must be at least {MINIMUM_ARRAY_SIZE}.");
-
-		_items   = new T[initialCapacity];
+		uint capacity = Math.Max(initialCapacity, MINIMUM_ARRAY_SIZE);
+		_items   = new T[capacity];
 		_count   = 0;
 		_version = 0;
 	}
@@ -85,12 +81,15 @@ public class SwapbackArray<T> : IEnumerable<T>
 
 	public T this[uint index]
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get => index >= _count ? throw new ArgumentOutOfRangeException(nameof(index)) : _items[index];
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		set
 		{
 			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
 
 			_items[index] = value;
+			_version++;
 		}
 	}
 
@@ -117,7 +116,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <returns>
 	///     A boolean value indicating whether the retrieval was successful.
 	/// </returns>
-	public bool TryGet(uint index, [MaybeNullWhen(false)] out T value)
+	public bool TryGet(uint index, out T? value)
 	{
 		if (index >= _count)
 		{
@@ -202,11 +201,40 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	/// <summary>
+	///     Adds all elements from the specified collection to the end of this array.
+	/// </summary>
+	/// <param name="collection">The collection whose elements should be added.</param>
+	/// <exception cref="ArgumentNullException">Thrown if collection is null.</exception>
+	public void AddRange(IEnumerable<T> collection)
+	{
+		switch (collection)
+		{
+			case null:
+				throw new ArgumentNullException(nameof(collection));
+			case ICollection<T> c:
+				EnsureCapacity(_count + (uint)c.Count);
+				c.CopyTo(_items, (int)_count);
+				_count += (uint)c.Count;
+				break;
+			default:
+			{
+				foreach (var item in collection)
+					Add(item);
+
+				break;
+			}
+		}
+
+		_version++;
+	}
+
+
+	/// <summary>
 	///     Removes all elements from the array.
 	/// </summary>
 	public void Clear()
 	{
-		Array.Clear(_items, 0, (int) _count);
+		Array.Clear(_items, 0, (int)_count);
 		_count = 0;
 		_version++;
 
@@ -244,8 +272,15 @@ public class SwapbackArray<T> : IEnumerable<T>
 	{
 		if (_items.Length >= min) return;
 
-		uint newCapacity                   = _items.Length == 0 ? MINIMUM_ARRAY_SIZE : (uint)(_items.Length * 2);
+		uint newCapacity;
+
+		if (_items.Length == 0)
+			newCapacity = MINIMUM_ARRAY_SIZE;
+		else
+			newCapacity = _items.Length <= MAX_ARRAY_LENGTH / 2 ? (uint)(_items.Length * 2) : MAX_ARRAY_LENGTH;
+
 		if (newCapacity < min) newCapacity = min;
+
 		if (newCapacity > MAX_ARRAY_LENGTH)
 		{
 			if (min > MAX_ARRAY_LENGTH)
@@ -259,7 +294,10 @@ public class SwapbackArray<T> : IEnumerable<T>
 
 	public void TrimExcess()
 	{
-		var threshold = (_items.Length * 9) / 10;
+		const int UTILIZATION_THRESHOLD_PERCENT = 90;
+
+		int threshold = _items.Length * UTILIZATION_THRESHOLD_PERCENT / 100;
+
 		if (_items.Length <= MINIMUM_ARRAY_SIZE || _count >= threshold) return;
 
 		uint newSize = Math.Max(_count, MINIMUM_ARRAY_SIZE);
