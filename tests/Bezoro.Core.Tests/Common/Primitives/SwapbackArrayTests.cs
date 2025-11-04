@@ -70,6 +70,18 @@ public abstract class SwapbackArrayTests
 
 				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
 			}
+
+			[Fact]
+			public void AddRange_WhenEnumerableIsEmpty_ShouldNotIncrementVersion()
+			{
+				var  arr            = new SwapbackArray<int>();
+				uint initialVersion = arr.Version;
+
+				arr.AddRange([]);
+
+				uint finalVersion = arr.Version;
+				finalVersion.Should().Be(initialVersion);
+			}
 		}
 
 		public class AsSpan
@@ -307,6 +319,26 @@ public abstract class SwapbackArrayTests
 				arr.EnsureCapacity(6);
 
 				arr.Capacity.Should().Be(8);
+			}
+		}
+
+		public class GetEnumerator
+		{
+			[Fact]
+			public void GetEnumerator_WhenCollectionModifiedDuringEnumeration_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				var act = () =>
+				{
+					foreach (int item in arr)
+					{
+						if (item == 2)
+							arr.Add(99);
+					}
+				};
+
+				act.Should().Throw<InvalidOperationException>();
 			}
 		}
 

@@ -36,12 +36,6 @@ public class SwapbackArray<T> : IEnumerable<T>
 	private uint _count;
 
 	/// <summary>
-	///     Version counter that increments on collection modifications. Used to detect
-	///     concurrent modifications during enumeration to ensure collection consistency.
-	/// </summary>
-	private uint _version;
-
-	/// <summary>
 	///     Initializes a new instance of the <see cref="SwapbackArray{T}" /> class.
 	/// </summary>
 	/// <param name="initialCapacity">The initial capacity of the array. Must be non-negative.</param>
@@ -49,9 +43,9 @@ public class SwapbackArray<T> : IEnumerable<T>
 	public SwapbackArray(uint initialCapacity = MINIMUM_ARRAY_SIZE)
 	{
 		uint capacity = Math.Max(initialCapacity, MINIMUM_ARRAY_SIZE);
-		_items   = new T[capacity];
-		_count   = 0;
-		_version = 0;
+		_items  = new T[capacity];
+		_count  = 0;
+		Version = 0;
 	}
 
 	public SwapbackArray(ICollection<T> collection)
@@ -65,7 +59,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		if (_count > 0)
 			collection.CopyTo(_items, 0);
 
-		_version = 0;
+		Version = 0;
 	}
 
 
@@ -79,6 +73,12 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// </summary>
 	public uint Count => _count;
 
+	/// <summary>
+	///     Version counter that increments on collection modifications. Used to detect
+	///     concurrent modifications during enumeration to ensure collection consistency.
+	/// </summary>
+	public uint Version { get; private set; }
+
 	public T this[uint index]
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -89,7 +89,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
 
 			_items[index] = value;
-			_version++;
+			Version++;
 		}
 	}
 
@@ -159,20 +159,22 @@ public class SwapbackArray<T> : IEnumerable<T>
 			return false;
 
 		// swap last into index and trim
-		_items[index]    = _items[_count - 1];
-		_items[--_count] = default!;
+		_count--;
+		_items[index]  = _items[_count];
+		_items[_count] = default!;
 
-		_version++;
+		Version++;
 		MaybeShrink();
 		return true;
 	}
 
 	public IEnumerator<T> GetEnumerator()
 	{
-		uint version = _version;
-		for (uint i = 0; i < _count; i++)
+		uint version = Version;
+		uint count   = _count;
+		for (uint i = 0; i < count; i++)
 		{
-			if (version != _version)
+			if (version != Version)
 				throw new InvalidOperationException("Collection was modified during enumeration.");
 
 			yield return _items[i];
@@ -197,7 +199,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	{
 		EnsureCapacity(_count + 1);
 		_items[_count++] = item;
-		_version++;
+		Version++;
 	}
 
 	/// <summary>
@@ -212,20 +214,30 @@ public class SwapbackArray<T> : IEnumerable<T>
 			case null:
 				throw new ArgumentNullException(nameof(collection));
 			case ICollection<T> c:
-				EnsureCapacity(_count + (uint)c.Count);
-				c.CopyTo(_items, (int)_count);
-				_count += (uint)c.Count;
+				if (c.Count > 0)
+				{
+					EnsureCapacity(_count + (uint)c.Count);
+					c.CopyTo(_items, (int)_count);
+					_count += (uint)c.Count;
+					Version++;
+				}
+
 				break;
 			default:
 			{
+				uint startCount = _count;
 				foreach (var item in collection)
-					Add(item);
+				{
+					EnsureCapacity(_count + 1);
+					_items[_count++] = item;
+				}
+
+				if (_count != startCount)
+					Version++;
 
 				break;
 			}
 		}
-
-		_version++;
 	}
 
 	/// <summary>
@@ -235,7 +247,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	{
 		Array.Clear(_items, 0, (int)_count);
 		_count = 0;
-		_version++;
+		Version++;
 
 		// Trim capacity back to minimum to free memory
 		if (Capacity <= MINIMUM_ARRAY_SIZE) return;
@@ -276,7 +288,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		if (_items.Length == 0)
 			newCapacity = MINIMUM_ARRAY_SIZE;
 		else
-			newCapacity = _items.Length <= MAX_ARRAY_LENGTH / 2 ? (uint)(_items.Length * 2) : MAX_ARRAY_LENGTH;
+			newCapacity = _items.Length <= MAX_ARRAY_LENGTH / 2 ? (uint)_items.Length * 2 : MAX_ARRAY_LENGTH;
 
 		if (newCapacity < min) newCapacity = min;
 
