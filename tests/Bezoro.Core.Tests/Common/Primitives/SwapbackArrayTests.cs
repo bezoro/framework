@@ -257,7 +257,28 @@ public static class SwapbackArrayTests
 			public class EnumerableOverload
 			{
 				[Fact]
-				public void AddRange_IEnumerable_ShouldAddAllItems()
+				public void WhenEmpty_ShouldNotIncrementVersion()
+				{
+					var  arr            = new SwapbackArray<int>();
+					uint initialVersion = arr.Version;
+
+					arr.AddRange(Enumerable.Empty<int>());
+
+					arr.Version.Should().Be(initialVersion);
+				}
+
+				[Fact]
+				public void WhenNull_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int>();
+
+					var act = () => arr.AddRange((IEnumerable<int>)null!);
+
+					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+				}
+
+				[Fact]
+				public void WhenValid_ShouldAddAllItems()
 				{
 					var arr = new SwapbackArray<int>();
 
@@ -267,7 +288,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void AddRange_WhenNonEmpty_ShouldIncrementVersionOnce()
+				public void WhenValid_ShouldIncrementVersionOnce()
 				{
 					var  arr            = new SwapbackArray<int>();
 					uint initialVersion = arr.Version;
@@ -276,22 +297,33 @@ public static class SwapbackArrayTests
 
 					arr.Version.Should().Be(initialVersion + 1);
 				}
-
-				[Fact]
-				public void AddRange_WhenNull_ShouldThrow()
-				{
-					var arr = new SwapbackArray<int>();
-
-					var act = () => arr.AddRange((IEnumerable<int>)null!);
-
-					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
-				}
 			}
 
 			public class SpanOverload
 			{
 				[Fact]
-				public void AddRange_Span_ShouldAddAllItems()
+				public void WhenEmpty_ShouldNotIncrementVersion()
+				{
+					var  arr            = new SwapbackArray<int>();
+					uint initialVersion = arr.Version;
+
+					arr.AddRange(new Span<int>([]));
+
+					arr.Version.Should().Be(initialVersion);
+				}
+
+				[Fact]
+				public void WhenNull_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int>();
+
+					var act = () => arr.AddRange((ReadOnlySpan<int>)null);
+
+					act.Should().Throw<ArgumentNullException>();
+				}
+
+				[Fact]
+				public void WhenValid_ShouldAddAllItems()
 				{
 					var arr = new SwapbackArray<int> { 1, 2 };
 
@@ -301,14 +333,16 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void AddRange_WhenEmpty_ShouldNotIncrementVersion()
+				public void WhenValid_ShouldIncrementVersionOnce()
 				{
 					var  arr            = new SwapbackArray<int>();
 					uint initialVersion = arr.Version;
 
-					arr.AddRange([]);
+					arr.AddRange(new ReadOnlySpan<int>([1, 2, 3]));
+					uint finalVersion = arr.Version;
 
-					arr.Version.Should().Be(initialVersion);
+					finalVersion.Should().NotBe(initialVersion);
+					arr.Version.Should().Be(finalVersion);
 				}
 			}
 		}
@@ -434,18 +468,7 @@ public static class SwapbackArrayTests
 			public class CollectionOverload
 			{
 				[Fact]
-				public void Constructor_WithCollection_ShouldCopyElements()
-				{
-					int[] values = [1, 2, 3, 4];
-
-					var arr = new SwapbackArray<int>(values);
-
-					arr.ToArray().Should().Equal(values);
-					arr.Count.Should().Be(4);
-				}
-
-				[Fact]
-				public void Constructor_WithEmptyCollection_ShouldUseMinimumCapacity()
+				public void WhenEmpty_ShouldUseMinimumCapacity()
 				{
 					var arr = new SwapbackArray<int>(Array.Empty<int>());
 
@@ -454,18 +477,85 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void Constructor_WithNullCollection_ShouldThrow()
+				public void WhenNull_ShouldThrow()
 				{
 					var act = () => new SwapbackArray<int>(null!);
 
 					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+				}
+
+				[Fact]
+				public void WhenValid_ShouldCopyElements()
+				{
+					int[] values = [1, 2, 3, 4];
+
+					var arr = new SwapbackArray<int>(values);
+
+					arr.ToArray().Should().Equal(values);
+					arr.Count.Should().Be(4);
+					arr.Capacity.Should().BeGreaterThanOrEqualTo(4);
+				}
+			}
+
+			public class EnumerableOverload
+			{
+				[Fact]
+				public void WhenEmpty_ShouldCreateEmptyArray()
+				{
+					var values = GetNonCollectionEnumerable();
+					var arr    = new SwapbackArray<int>(values);
+
+					arr.Count.Should().Be(0);
+					arr.Capacity.Should().Be(arr.MinimumArraySize);
+				}
+
+				[Fact]
+				public void WhenLargeEnumerable_ShouldGrowCapacityAsNeeded()
+				{
+					var values = GetNonCollectionEnumerable(Enumerable.Range(0, 100).ToArray());
+					var arr    = new SwapbackArray<int>(values);
+
+					arr.Count.Should().Be(100);
+					arr.ToArray().Should().Equal(Enumerable.Range(0, 100));
+				}
+
+				[Fact]
+				public void WhenNull_ShouldThrow()
+				{
+					var act = () => new SwapbackArray<int>((IEnumerable<int>)null!);
+
+					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+				}
+
+				[Fact]
+				public void WhenValid_ShouldCopyElements()
+				{
+					var values = GetNonCollectionEnumerable(1, 2, 3, 4);
+					var arr    = new SwapbackArray<int>(values);
+
+					arr.ToArray().Should().Equal(1, 2, 3, 4);
+					arr.Count.Should().Be(4);
+				}
+
+				private static IEnumerable<int> GetNonCollectionEnumerable(params int[] values)
+				{
+					foreach (int value in values)
+						yield return value;
 				}
 			}
 
 			public class IntOverload
 			{
 				[Fact]
-				public void Constructor_Default_ShouldUseMinimumCapacity()
+				public void WhenLessThanMinimumCapacity_ShouldUseMinimumCapacity()
+				{
+					var arr = new SwapbackArray<int>(3);
+
+					arr.Capacity.Should().Be(4);
+				}
+
+				[Fact]
+				public void WhenParameterless_ShouldUseMinimumCapacity()
 				{
 					var arr = new SwapbackArray<int>();
 
@@ -474,7 +564,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void Constructor_WithCapacity_ShouldUseProvidedCapacity()
+				public void WhenValidCapacity_ShouldUseProvidedCapacity()
 				{
 					var arr = new SwapbackArray<int>(10);
 
