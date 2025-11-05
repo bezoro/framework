@@ -20,7 +20,7 @@ namespace Bezoro.Core.Common.Primitives;
 public class SwapbackArray<T> : IEnumerable<T>
 {
 	private const uint MAX_ARRAY_LENGTH   = 0x7FFFFFC7; // match CLR array max length heuristic
-	private const uint MINIMUM_ARRAY_SIZE = 4;
+	private const uint MINIMUM_ARRAY_SIZE = 4u;
 
 	/// <summary>
 	///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -42,7 +42,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when initialCapacity is negative.</exception>
 	public SwapbackArray(uint initialCapacity = MINIMUM_ARRAY_SIZE)
 	{
-		uint capacity = Math.Max(initialCapacity, MINIMUM_ARRAY_SIZE);
+		uint capacity = Math.Max(initialCapacity, MinimumArraySize);
 		_items  = new T[capacity];
 		_count  = 0;
 		Version = 0;
@@ -52,7 +52,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	{
 		if (collection is null) throw new ArgumentNullException(nameof(collection));
 
-		var capacity = (uint)Math.Max(collection.Count, MINIMUM_ARRAY_SIZE);
+		var capacity = (uint)Math.Max(collection.Count, MinimumArraySize);
 		_items = new T[capacity];
 		_count = (uint)collection.Count;
 
@@ -72,6 +72,15 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     Gets the number of elements currently contained in the <see cref="SwapbackArray{T}" />.
 	/// </summary>
 	public uint Count => _count;
+
+	public uint MaxCapacity => MAX_ARRAY_LENGTH;
+
+	public uint MinimumArraySize => MINIMUM_ARRAY_SIZE;
+
+	/// <summary>
+	///     The percentage of the array's capacity that must be occupied before it is trimmed.'
+	/// </summary>
+	public uint TrimThresholdPercent => 90;
 
 	/// <summary>
 	///     Version counter that increments on collection modifications. Used to detect
@@ -191,7 +200,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	/// <summary>
-	///     Adds an item to the end of the SwapbackArray. If the array's capacity is insufficient,
+	///     Adds an item to the end of the SwapbackArray. If the array's capacity is not enough,
 	///     its size is doubled to accommodate the new element.
 	/// </summary>
 	/// <param name="item">The item to add to the SwapbackArray.</param>
@@ -250,9 +259,9 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Version++;
 
 		// Trim capacity back to minimum to free memory
-		if (Capacity <= MINIMUM_ARRAY_SIZE) return;
+		if (Capacity <= MinimumArraySize) return;
 
-		Resize(MINIMUM_ARRAY_SIZE);
+		Resize(MinimumArraySize);
 	}
 
 	public void CopyTo(T[] destination, uint destinationIndex = 0)
@@ -286,7 +295,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		uint newCapacity;
 
 		if (_items.Length == 0)
-			newCapacity = MINIMUM_ARRAY_SIZE;
+			newCapacity = MinimumArraySize;
 		else
 			newCapacity = _items.Length <= MAX_ARRAY_LENGTH / 2 ? (uint)_items.Length * 2 : MAX_ARRAY_LENGTH;
 
@@ -305,13 +314,11 @@ public class SwapbackArray<T> : IEnumerable<T>
 
 	public void TrimExcess()
 	{
-		const int UTILIZATION_THRESHOLD_PERCENT = 90;
+		int threshold = _items.Length * (int)TrimThresholdPercent / 100;
 
-		int threshold = _items.Length * UTILIZATION_THRESHOLD_PERCENT / 100;
+		if (_items.Length <= MinimumArraySize || _count >= threshold) return;
 
-		if (_items.Length <= MINIMUM_ARRAY_SIZE || _count >= threshold) return;
-
-		uint newSize = Math.Max(_count, MINIMUM_ARRAY_SIZE);
+		uint newSize = Math.Max(_count, MinimumArraySize);
 		Resize(newSize);
 	}
 
@@ -324,9 +331,9 @@ public class SwapbackArray<T> : IEnumerable<T>
 	private void MaybeShrink()
 	{
 		var length = (uint)_items.Length;
-		if (length <= MINIMUM_ARRAY_SIZE || _count > length / 4) return;
+		if (length <= MinimumArraySize || _count > length / 4) return;
 
-		uint newSize = Math.Max(length / 2, MINIMUM_ARRAY_SIZE);
+		uint newSize = Math.Max(length / 2, MinimumArraySize);
 		Resize(newSize);
 	}
 
