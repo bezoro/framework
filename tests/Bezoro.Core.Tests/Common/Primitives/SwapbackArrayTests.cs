@@ -67,6 +67,32 @@ public abstract class SwapbackArrayTests
 		}
 
 		[Fact]
+		public void StressTest_ChurnPattern_ShouldNotLeakMemory()
+		{
+			var       arr        = new SwapbackArray<int>();
+			const int ITERATIONS = 1_000; // Reduced for reasonable test time
+
+			// Simulate entity system churn: add/remove repeatedly
+			for (var i = 0; i < ITERATIONS; i++)
+			{
+				// Add 100 items
+				for (var j = 0; j < 100; j++)
+					arr.Add(j);
+
+				// Remove 50 items (net +50 per iteration)
+				for (var j = 0; j < 50; j++)
+					arr.TryRemoveAt(0);
+			}
+
+			// After 1000 iterations: 50,000 items net accumulated
+			// With 50% shrink threshold and 2× headroom:
+			// Expected capacity ≈ 100,000 (2× count for headroom)
+			arr.Count.Should().Be(50_000);
+			arr.Capacity.Should().BeGreaterThanOrEqualTo(50_000); // Must hold items
+			arr.Capacity.Should().BeLessThan(150_000);            // But not excessively large
+		}
+
+		[Fact]
 		public void StressTest_GrowAndShrink_ShouldReclaimMemory()
 		{
 			var arr = new SwapbackArray<int>();
@@ -573,6 +599,17 @@ public abstract class SwapbackArrayTests
 			}
 
 			[Fact]
+			public void EnsureCapacity_WhenAtMaxCapacity_ShouldNotGrow()
+			{
+				const uint MAX_CAPACITY = 0x7FFFFFC7;
+				var        arr          = new SwapbackArray<int>(MAX_CAPACITY);
+
+				arr.EnsureCapacity(MAX_CAPACITY);
+
+				arr.MaxCapacity.Should().Be(MAX_CAPACITY);
+			}
+
+			[Fact]
 			public void EnsureCapacity_WhenDoublingWouldExceedMax_ShouldUseMaxCapacity()
 			{
 				var arr = new SwapbackArray<int>(int.MaxValue / 2);
@@ -833,12 +870,12 @@ public abstract class SwapbackArrayTests
 			[Fact]
 			public void TryRemove_WhenDuplicateItemExists_ShouldRemoveFirstInstance()
 			{
-				int[] values = [1, 2, 3, 4, 2];
+				int[] values = [1, 2, 3, 4, 2, 5];
 				var   arr    = new SwapbackArray<int>(values);
 
 				arr.TryRemove(2);
 
-				arr.ToArray().Should().BeEquivalentTo([1, 3, 4, 2]);
+				arr.ToArray().Should().Equal(1, 5, 3, 4, 2);
 			}
 
 			[Fact]
@@ -859,7 +896,7 @@ public abstract class SwapbackArrayTests
 
 				arr.TryRemove(2);
 
-				arr.ToArray().Should().BeEquivalentTo([1, 3, 4]);
+				arr.ToArray().Should().Equal(1, 4, 3);
 			}
 
 			[Fact]
@@ -878,7 +915,7 @@ public abstract class SwapbackArrayTests
 
 				arr.TryRemove(3);
 
-				arr.ToArray().Should().BeEquivalentTo(values);
+				arr.ToArray().Should().Equal(values);
 			}
 
 			[Fact]
@@ -946,7 +983,7 @@ public abstract class SwapbackArrayTests
 
 				arr.TryRemoveAt(1);
 
-				arr.ToArray().Should().BeEquivalentTo([10, 40, 30]);
+				arr.ToArray().Should().Equal(10, 40, 30);
 			}
 
 			[Fact]

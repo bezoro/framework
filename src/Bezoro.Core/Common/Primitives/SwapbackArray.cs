@@ -19,8 +19,9 @@ namespace Bezoro.Core.Common.Primitives;
 /// </remarks>
 public class SwapbackArray<T> : IEnumerable<T>
 {
-	private const uint MAX_ARRAY_LENGTH   = 0x7FFFFFC7; // match CLR array max length heuristic
-	private const uint MINIMUM_ARRAY_SIZE = 4u;
+	private const uint MAX_ARRAY_LENGTH         = 0x7FFFFFC7; // match CLR array max length heuristic
+	private const uint MINIMUM_ARRAY_SIZE       = 4u;
+	private const uint SHRINK_THRESHOLD_PERCENT = 25u;
 
 	/// <summary>
 	///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -48,6 +49,13 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Version = 0;
 	}
 
+	/// <summary>
+	///     Initializes a new instance of the <see cref="SwapbackArray{T}" /> class.
+	/// </summary>
+	/// <param name="collection"></param>
+	/// The collection to initialize the array with.
+	/// <exception cref="ArgumentNullException"></exception>
+	/// Thrown when collection is null.
 	public SwapbackArray(ICollection<T> collection)
 	{
 		if (collection is null) throw new ArgumentNullException(nameof(collection));
@@ -62,7 +70,6 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Version = 0;
 	}
 
-
 	/// <summary>
 	///     Gets the total number of elements that the internal array can hold without resizing.
 	/// </summary>
@@ -73,8 +80,14 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// </summary>
 	public uint Count => _count;
 
+	/// <summary>
+	///     The maximum capacity of the array.
+	/// </summary>
 	public uint MaxCapacity => MAX_ARRAY_LENGTH;
 
+	/// <summary>
+	///     The minimum capacity of the array.
+	/// </summary>
 	public uint MinimumArraySize => MINIMUM_ARRAY_SIZE;
 
 	/// <summary>
@@ -102,6 +115,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool Contains(T item)
 	{
 		var comparer = EqualityComparer<T>.Default;
@@ -125,6 +139,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <returns>
 	///     A boolean value indicating whether the retrieval was successful.
 	/// </returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryGet(uint index, out T? value)
 	{
 		if (index >= _count)
@@ -146,6 +161,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     This method performs a linear search through the array to find the specified item.
 	///     When found, the item is removed by replacing it with the last element in the array.
 	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryRemove(T item)
 	{
 		var comparer = EqualityComparer<T>.Default;
@@ -162,6 +178,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     Removes the element at the specified index by swapping the last element into that position.
 	///     Returns false if the index is invalid.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryRemoveAt(uint index)
 	{
 		if (index >= _count)
@@ -177,6 +194,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		return true;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public IEnumerator<T> GetEnumerator()
 	{
 		uint version = Version;
@@ -190,8 +208,10 @@ public class SwapbackArray<T> : IEnumerable<T>
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ReadOnlySpan<T> AsSpan() => new(_items, 0, (int)_count);
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public T[] ToArray()
 	{
 		var result = new T[_count];
@@ -204,6 +224,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     its size is doubled to accommodate the new element.
 	/// </summary>
 	/// <param name="item">The item to add to the SwapbackArray.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Add(T item)
 	{
 		EnsureCapacity(_count + 1);
@@ -216,6 +237,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// </summary>
 	/// <param name="collection">The collection whose elements should be added.</param>
 	/// <exception cref="ArgumentNullException">Thrown if collection is null.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(IEnumerable<T> collection)
 	{
 		switch (collection)
@@ -252,6 +274,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	/// <summary>
 	///     Removes all elements from the array.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Clear()
 	{
 		Array.Clear(_items, 0, (int)_count);
@@ -264,6 +287,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Resize(MinimumArraySize);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void CopyTo(T[] destination, uint destinationIndex = 0)
 	{
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
@@ -288,6 +312,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 	///     - If doubled capacity is not enough, uses requested minimum
 	///     - Respects maximum array length limit (0x7FFFFFC7)
 	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void EnsureCapacity(uint min)
 	{
 		if (_items.Length >= min) return;
@@ -295,9 +320,16 @@ public class SwapbackArray<T> : IEnumerable<T>
 		uint newCapacity;
 
 		if (_items.Length == 0)
+		{
 			newCapacity = MinimumArraySize;
+		}
 		else
-			newCapacity = _items.Length <= MAX_ARRAY_LENGTH / 2 ? (uint)_items.Length * 2 : MAX_ARRAY_LENGTH;
+		{
+			if ((uint)_items.Length > MAX_ARRAY_LENGTH / 2)
+				newCapacity = MAX_ARRAY_LENGTH;
+			else
+				newCapacity = (uint)_items.Length * 2;
+		}
 
 		if (newCapacity < min) newCapacity = min;
 
@@ -312,6 +344,7 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Resize(newCapacity);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void TrimExcess()
 	{
 		int threshold = _items.Length * (int)TrimThresholdPercent / 100;
@@ -324,19 +357,21 @@ public class SwapbackArray<T> : IEnumerable<T>
 
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-	/// <summary>
-	///     Resizes the internal array to a new specified size, preserving existing elements.
-	/// </summary>
-	/// <param name="newSize">The new size of the array.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void MaybeShrink()
 	{
 		var length = (uint)_items.Length;
-		if (length <= MinimumArraySize || _count > length / 4) return;
+		if (length <= MinimumArraySize) return;
 
-		uint newSize = Math.Max(length / 2, MinimumArraySize);
-		Resize(newSize);
+		float utilization = (float)_count / length;
+		if (!(utilization <= (float)SHRINK_THRESHOLD_PERCENT / 100)) return;
+
+		uint targetCapacity = Math.Max(_count * 2, MinimumArraySize);
+		if (targetCapacity < length)
+			Resize(targetCapacity);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void Resize(uint newSize)
 	{
 		var newItems = new T[newSize];
