@@ -88,23 +88,30 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// </exception>
 	public SwapbackArray(IEnumerable<T> collection)
 	{
-		if (collection is null) throw new ArgumentNullException(nameof(collection));
-
-		if (collection is ICollection<T> c)
+		switch (collection)
 		{
-			var capacity = (uint)Math.Max(c.Count, MinimumArraySize);
-			_items = new T[capacity];
-			_count = (uint)c.Count;
+			case null:
+				throw new ArgumentNullException(nameof(collection));
+			case ICollection<T> c:
+			{
+				var capacity = (uint)Math.Max(c.Count, MinimumArraySize);
+				_items = new T[capacity];
+				_count = (uint)c.Count;
 
-			if (_count > 0)
-				c.CopyTo(_items, 0);
-		}
-		else
-		{
-			_items = new T[MinimumArraySize];
-			_count = 0;
-			foreach (var item in collection)
-				Add(item);
+				if (_count > 0)
+					c.CopyTo(_items, 0);
+
+				break;
+			}
+			default:
+			{
+				_items = new T[MinimumArraySize];
+				_count = 0;
+				foreach (var item in collection)
+					Add(item);
+
+				break;
+			}
 		}
 
 		Version = 0;
@@ -448,9 +455,11 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(ReadOnlySpan<T> span)
 	{
-		EnsureCapacity(_count + (uint)span.Length);
+		if (span == null) throw new ArgumentNullException();
+
 		if (span.Length == 0) return;
 
+		EnsureCapacity(_count + (uint)span.Length);
 		span.CopyTo(new(_items, (int)_count, span.Length));
 		_count += (uint)span.Length;
 		Version++;
