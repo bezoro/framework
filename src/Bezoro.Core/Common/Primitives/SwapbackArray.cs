@@ -251,11 +251,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		var comparer = EqualityComparer<T>.Default;
 		for (uint i = 0; i < _count; i++)
 		{
-			if (comparer.Equals(_items[i], item))
-			{
-				index = i;
-				return true;
-			}
+			if (!comparer.Equals(_items[i], item)) continue;
+
+			index = i;
+			return true;
 		}
 
 		return false;
@@ -371,6 +370,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint IndexOf(T item)
 	{
+		if (_count == 0)
+			throw new InvalidOperationException("Array is empty.");
+
 		int index;
 		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
 		{
@@ -382,17 +384,16 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			index = -1;
 			for (uint i = 0; i < _count; i++)
 			{
-				if (comparer.Equals(_items[i], item))
-				{
-					index = (int)i;
-					break;
-				}
+				if (!comparer.Equals(_items[i], item)) continue;
+
+				index = (int)i;
+				break;
 			}
 		}
 
 		if (index >= 0) return (uint)index;
 
-		throw new ArgumentException("Item not found.");
+		throw new InvalidOperationException("Item not found.");
 	}
 
 	/// <summary>
