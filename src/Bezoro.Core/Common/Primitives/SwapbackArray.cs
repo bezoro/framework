@@ -14,10 +14,10 @@ namespace Bezoro.Core.Common.Primitives;
 /// <typeparam name="T">Specifies the type of elements stored in the array.</typeparam>
 /// <remarks>
 ///     The array maintains efficiency by moving the last element into the position of
-///     any removed element, avoiding the need to shift subsequent elements. This makes
+///     any removed element, avoiding the need to shift later elements. This makes
 ///     removal operations O(1) but does not preserve element ordering.
 /// </remarks>
-public class SwapbackArray<T> : IEnumerable<T>
+public sealed class SwapbackArray<T> : IEnumerable<T>
 {
 	private const uint MAX_ARRAY_LENGTH         = 0x7FFFFFC7; // match CLR array max length heuristic
 	private const uint MINIMUM_ARRAY_SIZE       = 4u;
@@ -153,6 +153,28 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	/// <summary>
+	///     Removes and returns the last element, if any.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryPopBack(out T value)
+	{
+		if (_count == 0)
+		{
+			value = default!;
+			return false;
+		}
+
+		_count--;
+		value = _items[_count];
+		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+			_items[_count] = default!;
+
+		Version++;
+		MaybeShrink();
+		return true;
+	}
+
+	/// <summary>
 	///     Removes the first occurrence of the specified item using EqualityComparer&lt;T&gt;.Default.
 	/// </summary>
 	/// <param name="item">The item to remove from the array.</param>
@@ -184,10 +206,11 @@ public class SwapbackArray<T> : IEnumerable<T>
 		if (index >= _count)
 			return false;
 
-		// swap last into index and trim
 		_count--;
-		_items[index]  = _items[_count];
-		_items[_count] = default!;
+		_items[index] = _items[_count];
+
+		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+			_items[_count] = default!;
 
 		Version++;
 		MaybeShrink();
@@ -195,21 +218,16 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public IEnumerator<T> GetEnumerator()
-	{
-		uint version = Version;
-		uint count   = _count;
-		for (uint i = 0; i < count; i++)
-		{
-			if (version != Version)
-				throw new InvalidOperationException("Collection was modified during enumeration.");
+	public ReadOnlySpan<T> AsSpan() => new(_items, 0, (int)_count);
 
-			yield return _items[i];
-		}
-	}
+	/// <summary>
+	///     Returns a writable span over the active elements. Mutations won't bump Version.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public Span<T> AsMutableSpan() => new(_items, 0, (int)_count);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ReadOnlySpan<T> AsSpan() => new(_items, 0, (int)_count);
+	public SwapbackArrayEnumerator GetEnumerator() => new(this);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public T[] ToArray()
@@ -272,12 +290,24 @@ public class SwapbackArray<T> : IEnumerable<T>
 	}
 
 	/// <summary>
+	///     Adds an item without capacity checks. Caller must ensure capacity first.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void AddUnchecked(T item)
+	{
+		_items[_count++] = item;
+		Version++;
+	}
+
+	/// <summary>
 	///     Removes all elements from the array.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Clear()
 	{
-		Array.Clear(_items, 0, (int)_count);
+		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && _count > 0)
+			Array.Clear(_items, 0, (int)_count);
+
 		_count = 0;
 		Version++;
 
@@ -315,21 +345,14 @@ public class SwapbackArray<T> : IEnumerable<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void EnsureCapacity(uint min)
 	{
-		if (_items.Length >= min) return;
+		var current = (uint)_items.Length;
+		if (current >= min) return;
 
 		uint newCapacity;
-
-		if (_items.Length == 0)
-		{
+		if (current == 0)
 			newCapacity = MinimumArraySize;
-		}
 		else
-		{
-			if ((uint)_items.Length > MAX_ARRAY_LENGTH / 2)
-				newCapacity = MAX_ARRAY_LENGTH;
-			else
-				newCapacity = (uint)_items.Length * 2;
-		}
+			newCapacity = current > MAX_ARRAY_LENGTH / 2 ? MAX_ARRAY_LENGTH : current * 2;
 
 		if (newCapacity < min) newCapacity = min;
 
@@ -347,7 +370,8 @@ public class SwapbackArray<T> : IEnumerable<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void TrimExcess()
 	{
-		int threshold = _items.Length * (int)TrimThresholdPercent / 100;
+		var   len       = (ulong)_items.Length;
+		ulong threshold = len * TrimThresholdPercent / 100UL;
 
 		if (_items.Length <= MinimumArraySize || _count >= threshold) return;
 
@@ -355,7 +379,8 @@ public class SwapbackArray<T> : IEnumerable<T>
 		Resize(newSize);
 	}
 
-	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+	IEnumerator IEnumerable.      GetEnumerator() => new SwapbackArrayEnumerator(this);
+	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SwapbackArrayEnumerator(this);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void MaybeShrink()
@@ -363,8 +388,9 @@ public class SwapbackArray<T> : IEnumerable<T>
 		var length = (uint)_items.Length;
 		if (length <= MinimumArraySize) return;
 
-		float utilization = (float)_count / length;
-		if (!(utilization <= (float)SHRINK_THRESHOLD_PERCENT / 100)) return;
+		ulong left  = _count * 100UL;
+		ulong right = length * (ulong)SHRINK_THRESHOLD_PERCENT;
+		if (left > right) return;
 
 		uint targetCapacity = Math.Max(_count * 2, MinimumArraySize);
 		if (targetCapacity < length)
@@ -375,7 +401,49 @@ public class SwapbackArray<T> : IEnumerable<T>
 	private void Resize(uint newSize)
 	{
 		var newItems = new T[newSize];
-		Array.Copy(_items, newItems, _count);
+		if (_count > 0)
+			Array.Copy(_items, newItems, _count);
+
 		_items = newItems;
+	}
+
+	public struct SwapbackArrayEnumerator : IEnumerator<T>
+	{
+		private readonly SwapbackArray<T> _array;
+		private readonly uint             _version;
+		private          uint             _index;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		internal SwapbackArrayEnumerator(SwapbackArray<T> array)
+		{
+			_array   = array;
+			_version = array.Version;
+			_index   = 0;
+			Current  = default!;
+		}
+
+		object IEnumerator.Current => Current!;
+
+		public T Current { get; private set; }
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public bool MoveNext()
+		{
+			if (_version != _array.Version)
+				throw new InvalidOperationException("Collection was modified during enumeration.");
+
+			if (_index < _array._count)
+			{
+				Current = _array._items[_index++];
+				return true;
+			}
+
+			Current = default!;
+			return false;
+		}
+
+		public void Dispose() { }
+
+		public void Reset() => throw new NotSupportedException();
 	}
 }
