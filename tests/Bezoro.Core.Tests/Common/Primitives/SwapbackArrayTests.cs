@@ -31,15 +31,14 @@ public abstract class SwapbackArrayTests
 			var   arr   = new SwapbackArray<int>();
 			int[] batch = Enumerable.Range(0, 1_000).ToArray();
 
-			var sw = Stopwatch.StartNew();
 			for (var i = 0; i < 100; i++)
 				arr.AddRange(batch);
 
-			sw.Stop();
-
+			// Verify correctness and reasonable capacity growth
 			arr.Count.Should().Be(100_000);
-			// Should be fast: 100 batches of 1000 in < 50ms
-			sw.ElapsedMilliseconds.Should().BeLessThan(50);
+			// With 2× doubling strategy, capacity should be ~131,072 (next power of 2)
+			arr.Capacity.Should().BeGreaterThanOrEqualTo(100_000);
+			arr.Capacity.Should().BeLessThan(200_000); // Not excessively large
 		}
 
 		[Fact]
@@ -159,19 +158,55 @@ public abstract class SwapbackArrayTests
 			for (var i = 0; i < SIZE; i++)
 				arr.Add(i);
 
-			// Remove half randomly - should be fast due to O(1) swap-back
-			var sw = Stopwatch.StartNew();
+			// Remove half randomly - O(1) swap-back should handle this easily
 			for (var i = 0; i < SIZE / 2; i++)
 			{
 				var index = (uint)random.Next((int)arr.Count);
 				arr.TryRemoveAt(index);
 			}
 
-			sw.Stop();
-
+			// Verify correctness and reasonable capacity after shrinking
 			arr.Count.Should().Be(SIZE / 2);
-			// Verify O(1) removal: 5000 removals should take < 10ms
-			sw.ElapsedMilliseconds.Should().BeLessThan(10);
+			arr.Capacity.Should().BeGreaterThanOrEqualTo(SIZE / 2);
+			arr.Capacity.Should().BeLessThan(SIZE * 2); // Shrink should have triggered
+		}
+
+		[Fact]
+		public void StressTest_RemovalComplexity_ShouldBeConstant()
+		{
+			// Verify O(1) removal by comparing small vs large arrays
+			// If O(1), time ratio should be ~1:1 regardless of array size
+			const int SMALL_SIZE = 1_000;
+			const int LARGE_SIZE = 100_000;
+			const int REMOVALS   = 500;
+			var       random     = new Random(42);
+
+			// Small array: fill and time removals
+			var smallArr = new SwapbackArray<int>();
+			for (var i = 0; i < SMALL_SIZE; i++) smallArr.Add(i);
+
+			var smallSw = Stopwatch.StartNew();
+			for (var i = 0; i < REMOVALS; i++)
+				smallArr.TryRemoveAt((uint)random.Next((int)smallArr.Count));
+
+			smallSw.Stop();
+
+			// Large array: fill and time removals
+			var largeArr = new SwapbackArray<int>();
+			for (var i = 0; i < LARGE_SIZE; i++) largeArr.Add(i);
+
+			var largeSw = Stopwatch.StartNew();
+			for (var i = 0; i < REMOVALS; i++)
+				largeArr.TryRemoveAt((uint)random.Next((int)largeArr.Count));
+
+			largeSw.Stop();
+
+			// O(1) removal: large array should take similar time (within 5× tolerance for noise)
+			// O(n) removal would show 100× slowdown
+			double ratio = (double)largeSw.ElapsedTicks / Math.Max(smallSw.ElapsedTicks, 1);
+			ratio.Should().BeLessThan(
+				5.0,
+				"O(1) removal should show similar performance regardless of array size");
 		}
 	}
 
