@@ -252,67 +252,65 @@ public static class SwapbackArrayTests
 			}
 		}
 
-		public class AddRange
+		public static class AddRange
 		{
-			#region Span
-
-			[Fact]
-			public void AddRange_Span_ShouldAddAllItems()
+			public class EnumerableOverload
 			{
-				var arr = new SwapbackArray<int> { 1, 2 };
+				[Fact]
+				public void AddRange_IEnumerable_ShouldAddAllItems()
+				{
+					var arr = new SwapbackArray<int>();
 
-				arr.AddRange(new ReadOnlySpan<int>([3, 4, 5]));
+					arr.AddRange((IEnumerable<int>)[1, 2, 3, 4]);
 
-				arr.ToArray().Should().Equal(1, 2, 3, 4, 5);
+					arr.ToArray().Should().Equal(1, 2, 3, 4);
+				}
+
+				[Fact]
+				public void AddRange_WhenNonEmpty_ShouldIncrementVersionOnce()
+				{
+					var  arr            = new SwapbackArray<int>();
+					uint initialVersion = arr.Version;
+
+					arr.AddRange(Enumerable.Range(1, 3));
+
+					arr.Version.Should().Be(initialVersion + 1);
+				}
+
+				[Fact]
+				public void AddRange_WhenNull_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int>();
+
+					var act = () => arr.AddRange((IEnumerable<int>)null!);
+
+					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+				}
 			}
 
-			[Fact]
-			public void AddRange_WhenEmpty_ShouldNotIncrementVersion()
+			public class SpanOverload
 			{
-				var  arr            = new SwapbackArray<int>();
-				uint initialVersion = arr.Version;
+				[Fact]
+				public void AddRange_Span_ShouldAddAllItems()
+				{
+					var arr = new SwapbackArray<int> { 1, 2 };
 
-				arr.AddRange([]);
+					arr.AddRange(new ReadOnlySpan<int>([3, 4, 5]));
 
-				arr.Version.Should().Be(initialVersion);
+					arr.ToArray().Should().Equal(1, 2, 3, 4, 5);
+				}
+
+				[Fact]
+				public void AddRange_WhenEmpty_ShouldNotIncrementVersion()
+				{
+					var  arr            = new SwapbackArray<int>();
+					uint initialVersion = arr.Version;
+
+					arr.AddRange([]);
+
+					arr.Version.Should().Be(initialVersion);
+				}
 			}
-
-			#endregion
-
-			#region IEnumerable
-
-			[Fact]
-			public void AddRange_IEnumerable_ShouldAddAllItems()
-			{
-				var arr = new SwapbackArray<int>();
-
-				arr.AddRange((IEnumerable<int>)[1, 2, 3, 4]);
-
-				arr.ToArray().Should().Equal(1, 2, 3, 4);
-			}
-
-			[Fact]
-			public void AddRange_WhenNonEmpty_ShouldIncrementVersionOnce()
-			{
-				var  arr            = new SwapbackArray<int>();
-				uint initialVersion = arr.Version;
-
-				arr.AddRange(Enumerable.Range(1, 3));
-
-				arr.Version.Should().Be(initialVersion + 1);
-			}
-
-			[Fact]
-			public void AddRange_WhenNull_ShouldThrow()
-			{
-				var arr = new SwapbackArray<int>();
-
-				var act = () => arr.AddRange((IEnumerable<int>)null!);
-
-				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
-			}
-
-			#endregion
 		}
 
 		public class AddUnchecked
@@ -431,52 +429,58 @@ public static class SwapbackArrayTests
 			}
 		}
 
-		public class Constructors
+		public static class Constructors
 		{
-			[Fact]
-			public void Constructor_Default_ShouldUseMinimumCapacity()
+			public class CollectionOverload
 			{
-				var arr = new SwapbackArray<int>();
+				[Fact]
+				public void Constructor_WithCollection_ShouldCopyElements()
+				{
+					int[] values = [1, 2, 3, 4];
 
-				arr.Capacity.Should().Be(4);
-				arr.Count.Should().Be(0);
+					var arr = new SwapbackArray<int>(values);
+
+					arr.ToArray().Should().Equal(values);
+					arr.Count.Should().Be(4);
+				}
+
+				[Fact]
+				public void Constructor_WithEmptyCollection_ShouldUseMinimumCapacity()
+				{
+					var arr = new SwapbackArray<int>(Array.Empty<int>());
+
+					arr.Capacity.Should().Be(4);
+					arr.Count.Should().Be(0);
+				}
+
+				[Fact]
+				public void Constructor_WithNullCollection_ShouldThrow()
+				{
+					var act = () => new SwapbackArray<int>(null!);
+
+					act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+				}
 			}
 
-			[Fact]
-			public void Constructor_WithCapacity_ShouldUseProvidedCapacity()
+			public class IntOverload
 			{
-				var arr = new SwapbackArray<int>(10);
+				[Fact]
+				public void Constructor_Default_ShouldUseMinimumCapacity()
+				{
+					var arr = new SwapbackArray<int>();
 
-				arr.Capacity.Should().Be(10);
-				arr.Count.Should().Be(0);
-			}
+					arr.Capacity.Should().Be(4);
+					arr.Count.Should().Be(0);
+				}
 
-			[Fact]
-			public void Constructor_WithCollection_ShouldCopyElements()
-			{
-				int[] values = [1, 2, 3, 4];
+				[Fact]
+				public void Constructor_WithCapacity_ShouldUseProvidedCapacity()
+				{
+					var arr = new SwapbackArray<int>(10);
 
-				var arr = new SwapbackArray<int>(values);
-
-				arr.ToArray().Should().Equal(values);
-				arr.Count.Should().Be(4);
-			}
-
-			[Fact]
-			public void Constructor_WithEmptyCollection_ShouldUseMinimumCapacity()
-			{
-				var arr = new SwapbackArray<int>(Array.Empty<int>());
-
-				arr.Capacity.Should().Be(4);
-				arr.Count.Should().Be(0);
-			}
-
-			[Fact]
-			public void Constructor_WithNullCollection_ShouldThrow()
-			{
-				var act = () => new SwapbackArray<int>(null!);
-
-				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
+					arr.Capacity.Should().Be(10);
+					arr.Count.Should().Be(0);
+				}
 			}
 		}
 
@@ -542,75 +546,93 @@ public static class SwapbackArrayTests
 			}
 		}
 
-		public class CopyTo
+		public static class CopyTo
 		{
-			#region Span<T>
-
-			// TODO: Add tests for CopyTo(Span<T>)
-
-			#endregion
-
-			#region T[]
-
-			[Fact]
-			public void CopyTo_WhenDestinationIndexExceedsLength_ShouldThrow()
+			public class GenericOverload
 			{
-				var arr                     = new SwapbackArray<int> { 1, 2 };
-				var destination             = new int[5];
-				var invalidDestinationIndex = (uint)destination.Length;
+				[Fact]
+				public void CopyTo_WhenDestinationIndexExceedsLength_ShouldThrow()
+				{
+					var arr                     = new SwapbackArray<int> { 1, 2 };
+					var destination             = new int[5];
+					var invalidDestinationIndex = (uint)destination.Length;
 
-				var act = () => arr.CopyTo(destination, invalidDestinationIndex);
+					var act = () => arr.CopyTo(destination, invalidDestinationIndex);
 
-				act.Should().Throw<ArgumentException>();
+					act.Should().Throw<ArgumentException>();
+				}
+
+				[Fact]
+				public void CopyTo_WhenDestinationIndexProvided_ShouldCopyToOffset()
+				{
+					int[]      startingValues    = [1, 2, 3];
+					var        arr               = new SwapbackArray<int>(startingValues);
+					var        destination       = new int[5];
+					const uint DESTINATION_INDEX = 2u;
+					int[]      expectedResult    = [0, 0, 1, 2, 3];
+
+					arr.CopyTo(destination, DESTINATION_INDEX);
+
+					destination.Should().Equal(expectedResult);
+				}
+
+				[Fact]
+				public void CopyTo_WhenInsufficientDestinationCapacity_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+					var act = () => arr.CopyTo(new int[2]);
+
+					act.Should().Throw<ArgumentException>();
+				}
+
+				[Fact]
+				public void CopyTo_WhenNullDestination_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+					var act = () => arr.CopyTo(null!);
+
+					act.Should().Throw<ArgumentNullException>();
+				}
+
+				[Fact]
+				public void CopyTo_WhenValidDestination_ShouldCopyAllItems()
+				{
+					int[] values      = [1, 2, 3, 4];
+					var   arr         = new SwapbackArray<int>(values);
+					var   destination = new int[4];
+
+					arr.CopyTo(destination);
+
+					destination.Should().Equal(values);
+				}
 			}
 
-			[Fact]
-			public void CopyTo_WhenDestinationIndexProvided_ShouldCopyToOffset()
+			public class SpanOverload
 			{
-				int[]      startingValues    = [1, 2, 3];
-				var        arr               = new SwapbackArray<int>(startingValues);
-				var        destination       = new int[5];
-				const uint DESTINATION_INDEX = 2u;
-				int[]      expectedResult    = [0, 0, 1, 2, 3];
+				[Fact]
+				public void CopyTo_Span_WhenDestinationIsTooSmall_ShouldThrow()
+				{
+					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
-				arr.CopyTo(destination, DESTINATION_INDEX);
+					var act = () => arr.CopyTo(new Span<int>(new int[2]));
 
-				destination.Should().Equal(expectedResult);
+					act.Should().Throw<ArgumentException>();
+				}
+
+				[Fact]
+				public void CopyTo_Span_WhenDestinationIsValid_ShouldCopyAllItems()
+				{
+					int[] values      = [1, 2, 3, 4];
+					var   arr         = new SwapbackArray<int>(values);
+					var   destination = new Span<int>(new int[4]);
+
+					arr.CopyTo(destination);
+
+					arr.ToArray().Should().Equal(values);
+				}
 			}
-
-			[Fact]
-			public void CopyTo_WhenInsufficientDestinationCapacity_ShouldThrow()
-			{
-				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
-
-				var act = () => arr.CopyTo(new int[2]);
-
-				act.Should().Throw<ArgumentException>();
-			}
-
-			[Fact]
-			public void CopyTo_WhenNullDestination_ShouldThrow()
-			{
-				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
-
-				var act = () => arr.CopyTo(null!);
-
-				act.Should().Throw<ArgumentNullException>();
-			}
-
-			[Fact]
-			public void CopyTo_WhenValidDestination_ShouldCopyAllItems()
-			{
-				int[] values      = [1, 2, 3, 4];
-				var   arr         = new SwapbackArray<int>(values);
-				var   destination = new int[4];
-
-				arr.CopyTo(destination);
-
-				destination.Should().Equal(values);
-			}
-
-			#endregion
 		}
 
 		public class EnsureCapacity
@@ -780,7 +802,34 @@ public static class SwapbackArrayTests
 
 		public class IndexOf
 		{
-			// TODO: Add tests for IndexOf(T)
+			[Fact]
+			public void IndexOf_WhenArrayIsEmpty_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int>();
+
+				var act = () => arr.IndexOf(1);
+
+				act.Should().Throw<InvalidOperationException>();
+			}
+
+			[Fact]
+			public void IndexOf_WhenArrayIsNotEmpty_ShouldReturnIndex()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.IndexOf(2).Should().Be(1);
+			}
+
+			[Fact]
+			public void IndexOf_WhenReferenceType_ShouldReturnIndex()
+			{
+				var obj1 = new object();
+				var obj2 = new object();
+				var obj3 = new object();
+				var arr  = new SwapbackArray<object> { obj1, obj2, obj3 };
+
+				arr.IndexOf(obj2).Should().Be(1);
+			}
 		}
 
 		public class IsEmpty
@@ -1318,12 +1367,61 @@ public static class SwapbackArrayTests
 
 		public class TryIndexOf
 		{
-			// TODO: Add tests for TryIndexOf(T, out int)
+			[Fact]
+			public void TryIndexOf_WhenItemDoesNotExist_ShouldReturnFalseAndNullIndex()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
+
+				bool found = arr.TryIndexOf(6, out uint? index);
+
+				found.Should().BeFalse();
+				index.Should().BeNull();
+			}
+
+			[Fact]
+			public void TryIndexOf_WhenItemExists_ShouldReturnTrueAndIndex()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
+
+				bool found = arr.TryIndexOf(3, out uint? index);
+
+				found.Should().BeTrue();
+				index.Should().Be(2);
+			}
+
+			[Fact]
+			public void TryIndexOf_WhenReferenceType_ShouldReturnTrueAndIndex()
+			{
+				var obj1 = new object();
+				var obj2 = new object();
+				var obj3 = new object();
+				var arr  = new SwapbackArray<object> { obj1, obj2, obj3 };
+
+				bool found = arr.TryIndexOf(obj2, out uint? index);
+
+				found.Should().BeTrue();
+				index.Should().Be(1);
+			}
 		}
 
 		public class TryPopBack
 		{
-			// TODO: Add tests for TryPopBack(out T)
+			[Fact]
+			public void TryPopBack_WhenEmpty_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int>();
+
+				arr.TryPopBack(out int _).Should().BeFalse();
+			}
+
+			[Fact]
+			public void TryPopBack_WhenNotEmpty_ShouldReturnLastItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+				arr.TryPopBack(out int value).Should().BeTrue();
+				value.Should().Be(3);
+			}
 		}
 
 		public class TryRemove
