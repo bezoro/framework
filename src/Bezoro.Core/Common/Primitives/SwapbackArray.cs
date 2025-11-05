@@ -135,7 +135,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// <summary>
 	///     The maximum capacity of the array.
 	/// </summary>
-	public uint MaxCapacity => MAX_ARRAY_LENGTH;
+	public uint MaxArrayLength => MAX_ARRAY_LENGTH;
 
 	/// <summary>
 	///     The minimum capacity of the array.
@@ -412,37 +412,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 		if (_count == 0) return 0;
 
-		uint write         = 0;
-		uint read          = 0;
 		uint originalCount = _count;
-
-		// First, move all items that should stay into the lower part of the buffer.
-		while (read < originalCount)
-		{
-			if (!match(_items[read]))
-			{
-				if (write != read)
-					_items[write] = _items[read];
-
-				write++;
-			}
-
-			read++;
-		}
-
-		uint removedCount = originalCount - write;
+		uint newCount      = CompactArray(match, originalCount);
+		uint removedCount  = originalCount - newCount;
 
 		if (removedCount > 0)
-		{
-			// Clear references if necessary
-			if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-				for (uint i = write; i < originalCount; i++)
-					_items[i] = default!;
-
-			_count = write;
-			Version++;
-			MaybeShrink();
-		}
+			FinalizeRemoval(newCount, originalCount);
 
 		return removedCount;
 	}
@@ -488,47 +463,18 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(IEnumerable<T> collection)
 	{
-		switch (collection)
+		if (collection is null)
+			throw new ArgumentNullException(nameof(collection));
+
+		bool added = collection switch
 		{
-			case null:
-				throw new ArgumentNullException(nameof(collection));
-			case ICollection<T> c:
-				if (c.Count > 0)
-				{
-					EnsureCapacity(_count + (uint)c.Count);
-					c.CopyTo(_items, (int)_count);
-					_count += (uint)c.Count;
-					Version++;
-				}
+			ICollection<T> c           => TryAddCollection(c),
+			IReadOnlyCollection<T> roc => TryAddReadOnlyCollection(roc),
+			_                          => AddEnumerable(collection)
+		};
 
-				break;
-			case IReadOnlyCollection<T> roc:
-				if (roc.Count > 0)
-				{
-					EnsureCapacity(_count + (uint)roc.Count);
-					uint startCount                                   = _count;
-					foreach (var item in collection) _items[_count++] = item;
-
-					if (_count != startCount)
-						Version++;
-				}
-
-				break;
-			default:
-			{
-				uint startCount = _count;
-				foreach (var item in collection)
-				{
-					EnsureCapacity(_count + 1);
-					_items[_count++] = item;
-				}
-
-				if (_count != startCount)
-					Version++;
-
-				break;
-			}
-		}
+		if (added)
+			Version++;
 	}
 
 	/// <summary>
@@ -660,8 +606,87 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		Resize(newSize);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool AddEnumerable(IEnumerable<T> collection)
+	{
+		uint startCount = _count;
+		foreach (var item in collection)
+		{
+			EnsureCapacity(_count + 1);
+			_items[_count++] = item;
+		}
+
+		return _count != startCount;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryAddCollection(ICollection<T> collection)
+	{
+		if (collection.Count <= 0)
+			return false;
+
+		EnsureCapacity(_count + (uint)collection.Count);
+		collection.CopyTo(_items, (int)_count);
+		_count += (uint)collection.Count;
+		return true;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryAddReadOnlyCollection(IReadOnlyCollection<T> collection)
+	{
+		if (collection.Count <= 0)
+			return false;
+
+		EnsureCapacity(_count + (uint)collection.Count);
+		foreach (var item in collection)
+			_items[_count++] = item;
+
+		return true;
+	}
+
 	IEnumerator IEnumerable.      GetEnumerator() => new SwapbackArrayEnumerator(this);
 	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SwapbackArrayEnumerator(this);
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private uint CompactArray(Predicate<T> match, uint originalCount)
+	{
+		uint write = 0;
+		uint read  = 0;
+
+		while (read < originalCount)
+		{
+			if (!match(_items[read]))
+			{
+				if (write != read)
+					_items[write] = _items[read];
+
+				write++;
+			}
+
+			read++;
+		}
+
+		return write;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ClearRemovedSlots(uint startIndex, uint endIndex)
+	{
+		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+			return;
+
+		for (uint i = startIndex; i < endIndex; i++)
+			_items[i] = default!;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void FinalizeRemoval(uint newCount, uint originalCount)
+	{
+		ClearRemovedSlots(newCount, originalCount);
+		_count = newCount;
+		Version++;
+		MaybeShrink();
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void MaybeShrink()

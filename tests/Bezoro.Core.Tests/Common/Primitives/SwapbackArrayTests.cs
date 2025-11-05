@@ -10,7 +10,7 @@ using Xunit;
 namespace Bezoro.Core.Tests.Common.Primitives;
 
 [TestSubject(typeof(SwapbackArray<>))]
-public abstract class SwapbackArrayTests
+public static class SwapbackArrayTests
 {
 	public class Performance
 	{
@@ -211,33 +211,33 @@ public abstract class SwapbackArrayTests
 		}
 	}
 
-	public abstract class UnitTests
+	public static class UnitTests
 	{
 		public class Add
 		{
 			[Fact]
-			public void Add_WhenArrayIsFull_ShouldAddValueToEndOfArray()
+			public void Add_WhenArrayIsFull_ShouldDoubleCapacity()
 			{
-				int[]     startingValues = [1, 2, 3, 4];
-				var       swapbackArray  = new SwapbackArray<int>(startingValues);
-				const int VALUE_TO_ADD   = 5;
-				int[]     expectedValues = startingValues.Concat([VALUE_TO_ADD]).ToArray();
+				const uint INITIAL_CAPACITY = 5u;
+				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
 
-				swapbackArray.Add(VALUE_TO_ADD);
+				for (var i = 0; i < INITIAL_CAPACITY + 1; i++)
+					arr.Add(i);
 
-				swapbackArray.ToArray().Should().Equal(expectedValues);
+				arr.Capacity.Should().Be(INITIAL_CAPACITY * 2);
 			}
 
 			[Fact]
-			public void Add_WhenArrayIsFull_ShouldDoubleArrayCapacityToAccomodateNewValue()
+			public void Add_WhenSuccessful_ShouldAppendItem()
 			{
-				const uint STARTING_CAPACITY = 5u;
-				var        swapbackArray     = new SwapbackArray<int>(STARTING_CAPACITY);
+				int[] startingValues = [1, 2, 3];
+				// ReSharper disable once UseObjectOrCollectionInitializer
+				var arr = new SwapbackArray<int>(startingValues);
 
-				for (var i = 0; i < STARTING_CAPACITY + 1; i++)
-					swapbackArray.Add(i);
+				arr.Add(4);
 
-				swapbackArray.Capacity.Should().Be(STARTING_CAPACITY * 2);
+				arr.ToArray().Should().Equal(1, 2, 3, 4);
+				arr.Count.Should().Be(4);
 			}
 
 			[Fact]
@@ -247,63 +247,63 @@ public abstract class SwapbackArrayTests
 				uint initialVersion = arr.Version;
 
 				arr.Add(1);
-				uint finalVersion = arr.Version;
 
-				finalVersion.Should().NotBe(initialVersion);
-				arr.Version.Should().Be(finalVersion);
-			}
-
-			[Fact]
-			public void Add_WhenThereIsAvailableSpace_ShouldAddValueToEndOfArray()
-			{
-				int[]     startingValues = [1, 2, 3];
-				var       swapbackArray  = new SwapbackArray<int>(startingValues);
-				const int VALUE_TO_ADD   = 4;
-				int[]     expectedValues = startingValues.Concat([VALUE_TO_ADD]).ToArray();
-
-				swapbackArray.Add(VALUE_TO_ADD);
-
-				swapbackArray.ToArray().Should().Equal(expectedValues);
-			}
-
-			[Fact]
-			public void Add_WhenThereIsSpaceAvailable_ShouldIncreaseArrayCount()
-			{
-				// ReSharper disable once UseObjectOrCollectionInitializer
-				var arr = new SwapbackArray<int>();
-
-				arr.Add(1);
-
-				arr.Count.Should().Be(1);
+				arr.Version.Should().Be(initialVersion + 1);
 			}
 		}
 
 		public class AddRange
 		{
+			#region Span
+
 			[Fact]
-			public void AddRange_WhenCollectionHasElements_ShouldAddAllItems()
+			public void AddRange_Span_ShouldAddAllItems()
 			{
-				var   arr        = new SwapbackArray<int>();
-				int[] collection = [1, 2, 3, 4];
+				var arr = new SwapbackArray<int> { 1, 2 };
 
-				arr.AddRange((IEnumerable<int>)collection);
+				arr.AddRange(new ReadOnlySpan<int>([3, 4, 5]));
 
-				arr.ToArray().Should().Equal(collection);
+				arr.ToArray().Should().Equal(1, 2, 3, 4, 5);
 			}
 
 			[Fact]
-			public void AddRange_WhenCollectionIsEmpty_ShouldNotModifyArray()
+			public void AddRange_WhenEmpty_ShouldNotIncrementVersion()
 			{
-				var   arr        = new SwapbackArray<int>();
-				int[] collection = [];
+				var  arr            = new SwapbackArray<int>();
+				uint initialVersion = arr.Version;
 
-				arr.AddRange((IEnumerable<int>)collection);
+				arr.AddRange([]);
 
-				arr.Count.Should().Be(0);
+				arr.Version.Should().Be(initialVersion);
+			}
+
+			#endregion
+
+			#region IEnumerable
+
+			[Fact]
+			public void AddRange_IEnumerable_ShouldAddAllItems()
+			{
+				var arr = new SwapbackArray<int>();
+
+				arr.AddRange((IEnumerable<int>)[1, 2, 3, 4]);
+
+				arr.ToArray().Should().Equal(1, 2, 3, 4);
 			}
 
 			[Fact]
-			public void AddRange_WhenCollectionIsNull_ShouldThrow()
+			public void AddRange_WhenNonEmpty_ShouldIncrementVersionOnce()
+			{
+				var  arr            = new SwapbackArray<int>();
+				uint initialVersion = arr.Version;
+
+				arr.AddRange(Enumerable.Range(1, 3));
+
+				arr.Version.Should().Be(initialVersion + 1);
+			}
+
+			[Fact]
+			public void AddRange_WhenNull_ShouldThrow()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -312,49 +312,66 @@ public abstract class SwapbackArrayTests
 				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
 			}
 
+			#endregion
+		}
+
+		public class AddUnchecked
+		{
 			[Fact]
-			public void AddRange_WhenEnumerableIsEmpty_ShouldNotIncrementVersion()
+			public void AddUnchecked_ShouldIncrementVersion()
 			{
-				var  arr            = new SwapbackArray<int>();
+				var  arr            = new SwapbackArray<int>(10);
 				uint initialVersion = arr.Version;
 
-				arr.AddRange([]);
-
-				uint finalVersion = arr.Version;
-				finalVersion.Should().Be(initialVersion);
-			}
-
-			[Fact]
-			public void AddRange_WhenICollection_ShouldIncrementVersionOnce()
-			{
-				var  arr            = new SwapbackArray<int>();
-				uint initialVersion = arr.Version;
-
-				arr.AddRange((IEnumerable<int>)[1, 2, 3]);
+				arr.AddUnchecked(1);
 				uint finalVersion = arr.Version;
 
-				finalVersion.Should().Be(initialVersion + 1);
+				arr.Version.Should().NotBe(initialVersion);
 				arr.Version.Should().Be(finalVersion);
 			}
 
 			[Fact]
-			public void AddRange_WhenNonICollection_ShouldIncrementVersionOnce()
+			public void AddUnchecked_WhenSuccessful_ShouldAppendItem()
 			{
-				var  arr            = new SwapbackArray<int>();
+				var arr = new SwapbackArray<int>(10);
+
+				arr.AddUnchecked(42);
+
+				arr[0].Should().Be(42);
+				arr.Count.Should().Be(1);
+			}
+		}
+
+		public class AsMutableSpan
+		{
+			[Fact]
+			public void AsMutableSpan_ShouldNotIncrementVersion()
+			{
+				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
 
-				arr.AddRange(Enumerable.Range(1, 3));
-				uint finalVersion = arr.Version;
+				var span = arr.AsMutableSpan();
+				span[0] = 99;
 
-				finalVersion.Should().Be(initialVersion + 1);
-				arr.Version.Should().Be(finalVersion);
+				arr.Version.Should().Be(initialVersion);
+			}
+
+			[Fact]
+			public void AsMutableSpan_ShouldReturnWritableSpan()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+				var span = arr.AsMutableSpan();
+				span[1] = 99;
+
+				arr[1].Should().Be(99);
 			}
 		}
 
 		public class AsSpan
 		{
 			[Fact]
-			public void AsSpan_WhenCalled_ShouldReturnSpanWithSameLengthAsArray()
+			public void AsSpan_ShouldReturnSpanWithCorrectLengthAndValues()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -362,141 +379,105 @@ public abstract class SwapbackArrayTests
 				var span = arr.AsSpan();
 
 				span.Length.Should().Be((int)arr.Count);
-			}
-
-			[Fact]
-			public void AsSpan_WhenCalled_ShouldReturnSpanWithSameValuesAsArray()
-			{
-				int[] values = [1, 2, 3, 4];
-				var   arr    = new SwapbackArray<int>(values);
-
-				var span = arr.AsSpan();
-
-				span.ToArray().Should().Equal(arr.ToArray());
+				span.ToArray().Should().Equal(values);
 			}
 		}
 
 		public class Clear
 		{
 			[Fact]
-			public void Clear_WhenAlreadyEmpty_ShouldRemainEmpty()
-			{
-				var arr = new SwapbackArray<int>();
-
-				arr.Clear();
-
-				arr.Count.Should().Be(0);
-				arr.Capacity.Should().Be(arr.MinimumArraySize);
-			}
-
-			[Fact]
-			public void Clear_WhenCalled_ShouldEmptyArray()
-			{
-				var arr = new SwapbackArray<int>();
-				for (var i = 0; i < 10; i++) arr.Add(i); // capacity should grow to >= 16
-				arr.Capacity.Should().BeGreaterThanOrEqualTo(16);
-
-				arr.Clear();
-
-				arr.Count.Should().Be(0);
-			}
-
-			[Fact]
-			public void Clear_WhenCalled_ShouldIncrementVersion()
+			public void Clear_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
 
 				arr.Clear();
-				uint finalVersion = arr.Version;
 
-				finalVersion.Should().NotBe(initialVersion);
-				arr.Version.Should().Be(finalVersion);
+				arr.Version.Should().Be(initialVersion + 1);
 			}
 
 			[Fact]
-			public void Clear_WhenCalled_ShouldShrinkCapacity()
+			public void Clear_ShouldResetCountToZero()
 			{
-				var arr = new SwapbackArray<int>();
-				for (var i = 0; i < 10; i++) arr.Add(i); // capacity should grow to >= 16
-				arr.Capacity.Should().BeGreaterThanOrEqualTo(16);
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
 				arr.Clear();
 
-				arr.Capacity.Should().Be(4);
-				arr.TryGet(0, out int _).Should().BeFalse();
+				arr.Count.Should().Be(0);
+				arr.IsEmpty.Should().BeTrue();
+			}
+
+			[Fact]
+			public void Clear_WithoutTrim_ShouldMaintainCapacity()
+			{
+				var arr = new SwapbackArray<int>(100);
+				for (var i = 0; i < 50; i++) arr.Add(i);
+				uint capacity = arr.Capacity;
+
+				arr.Clear(false);
+
+				arr.Capacity.Should().Be(capacity);
+			}
+
+			[Fact]
+			public void Clear_WithTrim_ShouldShrinkToMinimumCapacity()
+			{
+				var arr = new SwapbackArray<int>(100);
+				for (var i = 0; i < 50; i++) arr.Add(i);
+
+				arr.Clear();
+
+				arr.Capacity.Should().Be(arr.MinimumArraySize);
 			}
 		}
 
 		public class Constructors
 		{
-			#region Capacity
-
 			[Fact]
-			public void Constructor_WhenInitialCapacityIsSufficient_ShouldUseProvidedCapacity()
-			{
-				var arr = new SwapbackArray<int>(10);
-
-				arr.Capacity.Should().Be(10);
-			}
-
-			[Fact]
-			public void Constructor_WhenValidInitialCapacity_ShouldCreateEmptyArray()
-			{
-				var arr = new SwapbackArray<int>(10);
-
-				arr.Count.Should().Be(0);
-			}
-
-			[Fact]
-			public void Constructor_WhenCapacityIsNotDefined_ShouldUseMinimumCapacity()
+			public void Constructor_Default_ShouldUseMinimumCapacity()
 			{
 				var arr = new SwapbackArray<int>();
 
 				arr.Capacity.Should().Be(4);
+				arr.Count.Should().Be(0);
 			}
 
-			#endregion
+			[Fact]
+			public void Constructor_WithCapacity_ShouldUseProvidedCapacity()
+			{
+				var arr = new SwapbackArray<int>(10);
 
-			#region ICollection
+				arr.Capacity.Should().Be(10);
+				arr.Count.Should().Be(0);
+			}
 
 			[Fact]
-			public void Constructor_WhenCollectionIsNull_ShouldThrow()
+			public void Constructor_WithCollection_ShouldCopyElements()
+			{
+				int[] values = [1, 2, 3, 4];
+
+				var arr = new SwapbackArray<int>(values);
+
+				arr.ToArray().Should().Equal(values);
+				arr.Count.Should().Be(4);
+			}
+
+			[Fact]
+			public void Constructor_WithEmptyCollection_ShouldUseMinimumCapacity()
+			{
+				var arr = new SwapbackArray<int>(Array.Empty<int>());
+
+				arr.Capacity.Should().Be(4);
+				arr.Count.Should().Be(0);
+			}
+
+			[Fact]
+			public void Constructor_WithNullCollection_ShouldThrow()
 			{
 				var act = () => new SwapbackArray<int>(null!);
 
 				act.Should().Throw<ArgumentNullException>().WithParameterName("collection");
 			}
-
-			[Fact]
-			public void Constructor_WhenCollectionIsEmpty_ShouldCreateArrayWithMinimumCapacity()
-			{
-				int[] values = [];
-				var   arr    = new SwapbackArray<int>(values);
-
-				arr.Capacity.Should().Be(4);
-			}
-
-			[Fact]
-			public void Constructor_WhenCollectionHasElements_ShouldCreateArrayWithSameElements()
-			{
-				int[] values = [1, 2, 3, 4];
-				var   arr    = new SwapbackArray<int>(values);
-
-				arr.ToArray().Should().Equal(values);
-			}
-
-			[Fact]
-			public void Constructor_WhenCollectionExceedsMinimumCapacity_ShouldUseCollectionCount()
-			{
-				int[] values = [1, 2, 3, 4, 5, 6, 7, 8];
-				var   arr    = new SwapbackArray<int>(values);
-
-				arr.Capacity.Should().Be(8);
-				arr.Count.Should().Be(8);
-			}
-
-			#endregion
 		}
 
 		public class Contains
@@ -563,6 +544,14 @@ public abstract class SwapbackArrayTests
 
 		public class CopyTo
 		{
+			#region Span<T>
+
+			// TODO: Add tests for CopyTo(Span<T>)
+
+			#endregion
+
+			#region T[]
+
 			[Fact]
 			public void CopyTo_WhenDestinationIndexExceedsLength_ShouldThrow()
 			{
@@ -620,6 +609,8 @@ public abstract class SwapbackArrayTests
 
 				destination.Should().Equal(values);
 			}
+
+			#endregion
 		}
 
 		public class EnsureCapacity
@@ -635,14 +626,14 @@ public abstract class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenAtMaxCapacity_ShouldNotGrow()
+			public void EnsureCapacity_WhenAtMaxArrayLength_ShouldNotGrow()
 			{
-				const uint MAX_CAPACITY = 0x7FFFFFC7;
-				var        arr          = new SwapbackArray<int>(MAX_CAPACITY);
+				const uint MAX_ARRAY_LENGTH = 0x7FFFFFC7;
+				var        arr              = new SwapbackArray<int>(MAX_ARRAY_LENGTH);
 
-				arr.EnsureCapacity(MAX_CAPACITY);
+				arr.EnsureCapacity(MAX_ARRAY_LENGTH);
 
-				arr.MaxCapacity.Should().Be(MAX_CAPACITY);
+				arr.MaxArrayLength.Should().Be(MAX_ARRAY_LENGTH);
 			}
 
 			[Fact]
@@ -652,7 +643,7 @@ public abstract class SwapbackArrayTests
 
 				arr.EnsureCapacity(int.MaxValue / 2 + 1);
 
-				arr.Capacity.Should().Be(arr.MaxCapacity);
+				arr.Capacity.Should().Be(arr.MaxArrayLength);
 			}
 
 			[Fact]
@@ -784,6 +775,51 @@ public abstract class SwapbackArrayTests
 				arr[1] = 10;
 
 				arr[1].Should().Be(10);
+			}
+		}
+
+		public class IndexOf
+		{
+			// TODO: Add tests for IndexOf(T)
+		}
+
+		public class IsEmpty
+		{
+			[Fact]
+			public void IsEmpty_WhenArrayIsEmpty_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int>();
+
+				arr.IsEmpty.Should().BeTrue();
+			}
+
+			[Fact]
+			public void IsEmpty_WhenArrayIsNotEmpty_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+				arr.IsEmpty.Should().BeFalse();
+			}
+		}
+
+		public class IsFull
+		{
+			[Fact]
+			public void IsFull_WhenArrayIsFull_ShouldReturnTrue()
+			{
+				var arr = new SwapbackArray<int>(10);
+
+				for (var i = 0; i < arr.Capacity; i++) arr.Add(i);
+
+				arr.IsFull.Should().BeTrue();
+			}
+
+			[Fact]
+			public void IsFull_WhenArrayIsNotFull_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int>(10);
+
+				arr.IsFull.Should().BeFalse();
 			}
 		}
 
@@ -1278,6 +1314,16 @@ public abstract class SwapbackArrayTests
 
 				value.Should().Be(1);
 			}
+		}
+
+		public class TryIndexOf
+		{
+			// TODO: Add tests for TryIndexOf(T, out int)
+		}
+
+		public class TryPopBack
+		{
+			// TODO: Add tests for TryPopBack(out T)
 		}
 
 		public class TryRemove
