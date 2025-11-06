@@ -25,9 +25,8 @@ namespace Bezoro.Core.Common.Primitives;
 [DebuggerDisplay("Count = {Count}, Capacity = {Capacity}")]
 public sealed class SwapbackArray<T> : IReadOnlyList<T>
 {
-	private const uint MAX_ARRAY_LENGTH         = 0x7FFFFFC7; // match CLR array max length heuristic
-	private const uint MINIMUM_ARRAY_SIZE       = 4u;
-	private const uint SHRINK_THRESHOLD_PERCENT = 25u;
+	private const uint MAX_ARRAY_LENGTH   = 0x7FFFFFC7; // match CLR array max length heuristic
+	private const uint MINIMUM_ARRAY_SIZE = 4u;
 
 	/// <summary>
 	///     Internal storage array for the elements of the <see cref="SwapbackArray{T}" />.
@@ -149,12 +148,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// </summary>
 	public uint MinimumArraySize => MINIMUM_ARRAY_SIZE;
 
-	/// <summary>
-	///     The percentage of the array's capacity that must be occupied before it is trimmed.
-	/// </summary>
-	public uint TrimThresholdPercent => 90;
-
 	int IReadOnlyCollection<T>.Count => (int)_count;
+
+	public uint ShrinkThresholdPercent { get; set; } = 25u;
 
 	/// <summary>
 	///     Version counter that increments on collection modifications. Used to detect
@@ -173,7 +169,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	public T this[uint index]
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => index >= _count ? throw new ArgumentOutOfRangeException(nameof(index)) : _items[index];
+		get
+		{
+			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
+
+			return _items[index];
+		}
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		set
 		{
@@ -268,6 +269,26 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
+	///     Attempts to retrieve the last element without removing it.
+	/// </summary>
+	/// <param name="value">
+	///     When this method returns true, contains the last element; otherwise, the default value.
+	/// </param>
+	/// <returns>true if the array contains at least one element; otherwise, false.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryPeek(out T value)
+	{
+		if (_count == 0)
+		{
+			value = default!;
+			return false;
+		}
+
+		value = _items[_count - 1];
+		return true;
+	}
+
+	/// <summary>
 	///     Removes and returns the last element, if any.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -342,6 +363,17 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
+	///     Returns a read-only collection view of this array.
+	/// </summary>
+	/// <returns>A read-only collection wrapper around this array.</returns>
+	/// <remarks>
+	///     The returned collection reflects the current state of the array.
+	///     Changes to the underlying array will be visible through the read-only view.
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public IReadOnlyCollection<T> AsReadOnlyCollection() => this;
+
+	/// <summary>
 	///     Returns a read-only span over the active elements of the array.
 	/// </summary>
 	/// <returns>A read-only span over the active elements.</returns>
@@ -353,7 +385,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	///     but may cause enumeration inconsistencies if the collection is modified during iteration.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public Span<T> AsMutableSpan() => new(_items, 0, (int)_count);
+	public Span<T> AsMutableSpanUnsafe() => new(_items, 0, (int)_count);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public SwapbackArrayEnumerator GetEnumerator() => new(this);
@@ -400,7 +432,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 		if (index >= 0) return (uint)index;
 
-		throw new InvalidOperationException("Item not found.");
+		throw new ArgumentException("Item not found.");
 	}
 
 	/// <summary>
@@ -455,8 +487,6 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(ReadOnlySpan<T> span)
 	{
-		if (span == null) throw new ArgumentNullException();
-
 		if (span.Length == 0) return;
 
 		EnsureCapacity(_count + (uint)span.Length);
@@ -595,21 +625,62 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	///     Trims excess capacity when utilization is below the trim threshold.
-	///     The array will only be trimmed if its utilization is below <see cref="TrimThresholdPercent" />.
+	///     Inserts an item at the specified index using swapback semantics.
+	///     The last element in the array is moved to the insertion index, and the new item
+	///     becomes the last element.
 	/// </summary>
+	/// <param name="index">The zero-based index at which to insert the item.</param>
+	/// <param name="item">The item to insert.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Thrown when index is greater than <see cref="Count" />.
+	/// </exception>
+	/// <remarks>
+	///     This operation maintains O(1) complexity by not shifting elements.
+	///     If index equals Count, this is equivalent to Add(item).
+	///     Otherwise, the current element at index is swapped to the end, and item takes its place.
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void InsertAt(uint index, T item)
+	{
+		if (index > _count)
+			throw new ArgumentOutOfRangeException(nameof(index), "Index cannot be greater than Count.");
+
+		EnsureCapacity(_count + 1);
+
+		if (index == _count)
+		{
+			_items[_count++] = item;
+		}
+		else
+		{
+			_items[_count] = _items[index];
+			_items[index]  = item;
+			_count++;
+		}
+
+		Version++;
+	}
+
+	/// <summary>
+	///     Trims excess capacity when utilization is below the trim threshold.
+	///     The array will only be trimmed if its utilization is below <see cref="minimumUtilizationThreshold" />.
+	/// </summary>
+	/// <param name="minimumUtilizationThreshold">
+	///     The minimum required capacity utilization percentage before array size
+	///     reduction is allowed.
+	/// </param>
 	/// <remarks>
 	///     This method resizes the internal array to match the current count if utilization
 	///     is below the threshold, but never below <see cref="MinimumArraySize" />.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void TrimExcess()
+	public void TrimExcess(uint minimumUtilizationThreshold = 90u)
 	{
 		var length = (uint)_items.Length;
 		if (length <= MinimumArraySize) return;
 
 		ulong left  = _count * 100UL;
-		ulong right = length * (ulong)TrimThresholdPercent;
+		ulong right = length * minimumUtilizationThreshold;
 		if (left >= right) return;
 
 		uint newSize = Math.Max(_count, MinimumArraySize);
@@ -705,7 +776,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		if (length <= MinimumArraySize) return;
 
 		ulong left  = _count * 100UL;
-		ulong right = length * (ulong)SHRINK_THRESHOLD_PERCENT;
+		ulong right = length * (ulong)ShrinkThresholdPercent;
 		if (left > right) return;
 
 		uint targetCapacity = Math.Max(_count * 2, MinimumArraySize);
@@ -716,6 +787,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void Resize(uint newSize)
 	{
+		if (newSize > MAX_ARRAY_LENGTH)
+			throw new OutOfMemoryException("Array size exceeds maximum array length.");
+
 		var newItems = new T[newSize];
 		if (_count > 0)
 			Array.Copy(_items, newItems, (int)_count);

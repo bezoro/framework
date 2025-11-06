@@ -313,16 +313,6 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void WhenNull_ShouldThrow()
-				{
-					var arr = new SwapbackArray<int>();
-
-					var act = () => arr.AddRange((ReadOnlySpan<int>)null);
-
-					act.Should().Throw<ArgumentNullException>();
-				}
-
-				[Fact]
 				public void WhenValid_ShouldAddAllItems()
 				{
 					var arr = new SwapbackArray<int> { 1, 2 };
@@ -382,7 +372,7 @@ public static class SwapbackArrayTests
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
 
-				var span = arr.AsMutableSpan();
+				var span = arr.AsMutableSpanUnsafe();
 				span[0] = 99;
 
 				arr.Version.Should().Be(initialVersion);
@@ -393,7 +383,7 @@ public static class SwapbackArrayTests
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
-				var span = arr.AsMutableSpan();
+				var span = arr.AsMutableSpanUnsafe();
 				span[1] = 99;
 
 				arr[1].Should().Be(99);
@@ -1404,7 +1394,7 @@ public static class SwapbackArrayTests
 			{
 				const uint INITIAL_CAPACITY = 100u;
 				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
-				uint       threshold        = arr.TrimThresholdPercent;
+				var        threshold        = 90u;
 				for (var i = 0; i < threshold; i++) arr.Add(i);
 
 				arr.TrimExcess();
@@ -1417,10 +1407,10 @@ public static class SwapbackArrayTests
 			{
 				const uint INITIAL_CAPACITY = 100u;
 				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
-				uint       threshold        = arr.TrimThresholdPercent - 1;
+				uint       threshold        = 49;
 				for (var i = 0; i < threshold; i++) arr.Add(i);
 
-				arr.TrimExcess();
+				arr.TrimExcess(50u);
 
 				arr.Capacity.Should().Be(threshold);
 			}
