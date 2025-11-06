@@ -216,7 +216,7 @@ public static class SwapbackArrayTests
 		public class Add
 		{
 			[Fact]
-			public void Add_WhenArrayIsFull_ShouldDoubleCapacity()
+			public void WhenArrayIsFull_ShouldDoubleCapacity()
 			{
 				const uint INITIAL_CAPACITY = 5u;
 				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
@@ -228,7 +228,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Add_WhenSuccessful_ShouldAppendItem()
+			public void WhenSuccessful_ShouldAppendItem()
 			{
 				int[] startingValues = [1, 2, 3];
 				// ReSharper disable once UseObjectOrCollectionInitializer
@@ -241,7 +241,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Add_WhenSuccessful_ShouldIncrementVersion()
+			public void WhenSuccessful_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int>();
 				uint initialVersion = arr.Version;
@@ -340,7 +340,7 @@ public static class SwapbackArrayTests
 		public class AddUnchecked
 		{
 			[Fact]
-			public void AddUnchecked_ShouldIncrementVersion()
+			public void ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int>(10);
 				uint initialVersion = arr.Version;
@@ -353,7 +353,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void AddUnchecked_WhenSuccessful_ShouldAppendItem()
+			public void WhenSuccessful_ShouldAppendItem()
 			{
 				var arr = new SwapbackArray<int>(10);
 
@@ -364,10 +364,10 @@ public static class SwapbackArrayTests
 			}
 		}
 
-		public class AsMutableSpan
+		public class AsMutableSpanUnsafe
 		{
 			[Fact]
-			public void AsMutableSpan_ShouldNotIncrementVersion()
+			public void WhenCalled_ShouldNotIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
@@ -379,7 +379,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void AsMutableSpan_ShouldReturnWritableSpan()
+			public void WhenCalled_ShouldReturnWritableSpan()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -393,7 +393,7 @@ public static class SwapbackArrayTests
 		public class AsSpan
 		{
 			[Fact]
-			public void AsSpan_ShouldReturnSpanWithCorrectLengthAndValues()
+			public void WhenCalled_ShouldReturnSpanWithExpectedLength()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -401,6 +401,16 @@ public static class SwapbackArrayTests
 				var span = arr.AsSpan();
 
 				span.Length.Should().Be((int)arr.Count);
+			}
+
+			[Fact]
+			public void WhenCalled_ShouldReturnSpanWithExpectedValues()
+			{
+				int[] values = [1, 2, 3, 4];
+				var   arr    = new SwapbackArray<int>(values);
+
+				var span = arr.AsSpan();
+
 				span.ToArray().Should().Equal(values);
 			}
 		}
@@ -408,7 +418,7 @@ public static class SwapbackArrayTests
 		public class Clear
 		{
 			[Fact]
-			public void Clear_ShouldIncrementVersion()
+			public void WhenSuccessful_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
@@ -419,7 +429,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Clear_ShouldResetCountToZero()
+			public void WhenSuccessful_ShouldResetCountToZero()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -430,7 +440,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Clear_WithoutTrim_ShouldMaintainCapacity()
+			public void WhenSuccessful_WithoutTrim_ShouldMaintainCapacity()
 			{
 				var arr = new SwapbackArray<int>(100);
 				for (var i = 0; i < 50; i++) arr.Add(i);
@@ -442,7 +452,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Clear_WithTrim_ShouldShrinkToMinimumCapacity()
+			public void WhenSuccessful_WithTrim_ShouldShrinkToMinimumCapacity()
 			{
 				var arr = new SwapbackArray<int>(100);
 				for (var i = 0; i < 50; i++) arr.Add(i);
@@ -567,7 +577,7 @@ public static class SwapbackArrayTests
 		public class Contains
 		{
 			[Fact]
-			public void Contains_WhenArrayIsEmpty_ShouldReturnFalse()
+			public void WhenArrayIsEmpty_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -575,7 +585,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenDefaultItemExists_ShouldReturnTrue()
+			public void WhenDefaultItemExists_ShouldReturnTrue()
 			{
 				// ReSharper disable once PreferConcreteValueOverDefault
 				var arr = new SwapbackArray<int> { 1, 2, 3, default };
@@ -585,7 +595,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenDefaultItemNotFound_ShouldReturnFalse()
+			public void WhenDefaultItemNotFound_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -594,7 +604,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenItemExists_ShouldReturnTrue()
+			public void WhenItemExists_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -602,7 +612,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenItemNotFound_ShouldReturnFalse()
+			public void WhenItemNotFound_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -610,7 +620,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenNullItemExists_ShouldReturnTrue()
+			public void WhenNullItemExists_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int?> { 1, 2, 3, null };
 
@@ -618,7 +628,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Contains_WhenNullItemNotFound_ShouldReturnFalse()
+			public void WhenNullItemNotFound_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int?> { 1, 2, 3, 4 };
 
@@ -631,7 +641,7 @@ public static class SwapbackArrayTests
 			public class GenericOverload
 			{
 				[Fact]
-				public void CopyTo_WhenDestinationIndexExceedsLength_ShouldThrow()
+				public void WhenDestinationIndexExceedsLength_ShouldThrow()
 				{
 					var arr                     = new SwapbackArray<int> { 1, 2 };
 					var destination             = new int[5];
@@ -643,7 +653,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void CopyTo_WhenDestinationIndexProvided_ShouldCopyToOffset()
+				public void WhenDestinationIndexProvided_ShouldCopyToOffset()
 				{
 					int[]      startingValues    = [1, 2, 3];
 					var        arr               = new SwapbackArray<int>(startingValues);
@@ -657,7 +667,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void CopyTo_WhenInsufficientDestinationCapacity_ShouldThrow()
+				public void WhenInsufficientDestinationCapacity_ShouldThrow()
 				{
 					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -667,7 +677,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void CopyTo_WhenNullDestination_ShouldThrow()
+				public void WhenNullDestination_ShouldThrow()
 				{
 					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -677,7 +687,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void CopyTo_WhenValidDestination_ShouldCopyAllItems()
+				public void WhenValidDestination_ShouldCopyAllItems()
 				{
 					int[] values      = [1, 2, 3, 4];
 					var   arr         = new SwapbackArray<int>(values);
@@ -692,7 +702,7 @@ public static class SwapbackArrayTests
 			public class SpanOverload
 			{
 				[Fact]
-				public void CopyTo_Span_WhenDestinationIsTooSmall_ShouldThrow()
+				public void WhenDestinationIsTooSmall_ShouldThrow()
 				{
 					var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -702,7 +712,7 @@ public static class SwapbackArrayTests
 				}
 
 				[Fact]
-				public void CopyTo_Span_WhenDestinationIsValid_ShouldCopyAllItems()
+				public void WhenDestinationIsValid_ShouldCopyAllItems()
 				{
 					int[] values      = [1, 2, 3, 4];
 					var   arr         = new SwapbackArray<int>(values);
@@ -718,7 +728,7 @@ public static class SwapbackArrayTests
 		public class EnsureCapacity
 		{
 			[Fact]
-			public void EnsureCapacity_WhenArrayIsEmpty_ShouldUseMinimumCapacity()
+			public void WhenArrayIsEmpty_ShouldUseMinimumCapacity()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -728,7 +738,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenAtMaxArrayLength_ShouldNotGrow()
+			public void WhenAtMaxArrayLength_ShouldNotGrow()
 			{
 				const uint MAX_ARRAY_LENGTH = 0x7FFFFFC7;
 				var        arr              = new SwapbackArray<int>(MAX_ARRAY_LENGTH);
@@ -739,7 +749,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenDoublingWouldExceedMax_ShouldUseMaxCapacity()
+			public void WhenDoublingWouldExceedMax_ShouldUseMaxCapacity()
 			{
 				var arr = new SwapbackArray<int>(int.MaxValue / 2);
 
@@ -749,7 +759,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenRequestedMinimumExceedsMaximum_ShouldThrow()
+			public void WhenRequestedMinimumExceedsMaximum_ShouldThrow()
 			{
 				var arr = new SwapbackArray<int>();
 				var act = () => arr.EnsureCapacity(int.MaxValue);
@@ -757,7 +767,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenValidRequestedMinimumBelowDoubleCapacity_ShouldDoubleCapacity()
+			public void WhenValidRequestedMinimumBelowDoubleCapacity_ShouldDoubleCapacity()
 			{
 				var initialCapacity = 5u;
 				var arr             = new SwapbackArray<int>(initialCapacity);
@@ -768,7 +778,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenValidRequestedMinimumIsAboveDoubleCurrentCapacity_ShouldUseMinimum()
+			public void WhenValidRequestedMinimumIsAboveDoubleCurrentCapacity_ShouldUseMinimum()
 			{
 				var initialCapacity = 5u;
 				var arr             = new SwapbackArray<int>(initialCapacity);
@@ -779,7 +789,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void EnsureCapacity_WhenValidRequestedMinimumIsBelowCurrentCapacity_ShouldNotChangeCapacity()
+			public void WhenValidRequestedMinimumIsBelowCurrentCapacity_ShouldNotChangeCapacity()
 			{
 				var arr = new SwapbackArray<int>(8);
 
@@ -792,7 +802,7 @@ public static class SwapbackArrayTests
 		public class GetEnumerator
 		{
 			[Fact]
-			public void GetEnumerator_WhenArrayIsEmpty_ShouldNotIterate()
+			public void WhenArrayIsEmpty_ShouldNotIterate()
 			{
 				var arr   = new SwapbackArray<int>();
 				var count = 0;
@@ -804,7 +814,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void GetEnumerator_WhenCollectionModifiedDuringEnumeration_ShouldThrow()
+			public void WhenCollectionModifiedDuringEnumeration_ShouldThrow()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -824,7 +834,7 @@ public static class SwapbackArrayTests
 		public class Indexer
 		{
 			[Fact]
-			public void Indexer_WhenGetOutOfBounds_ShouldThrow()
+			public void WhenGetOutOfBounds_ShouldThrow()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -835,7 +845,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Indexer_WhenGetValidIndex_ShouldReturnItem()
+			public void WhenGetValidIndex_ShouldReturnItem()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -846,7 +856,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Indexer_WhenSetOutOfBounds_ShouldThrow()
+			public void WhenSetOutOfBounds_ShouldThrow()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -857,7 +867,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Indexer_WhenSetValidIndex_ShouldIncrementVersion()
+			public void WhenSetValidIndex_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
@@ -870,7 +880,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void Indexer_WhenSetValidIndex_ShouldSetItem()
+			public void WhenSetValidIndex_ShouldSetItem()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -883,7 +893,7 @@ public static class SwapbackArrayTests
 		public class IndexOf
 		{
 			[Fact]
-			public void IndexOf_WhenArrayIsEmpty_ShouldThrow()
+			public void WhenArrayIsEmpty_ShouldThrow()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -893,7 +903,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void IndexOf_WhenArrayIsNotEmpty_ShouldReturnIndex()
+			public void WhenArrayIsNotEmpty_ShouldReturnIndex()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -901,7 +911,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void IndexOf_WhenReferenceType_ShouldReturnIndex()
+			public void WhenReferenceType_ShouldReturnIndex()
 			{
 				var obj1 = new object();
 				var obj2 = new object();
@@ -915,7 +925,7 @@ public static class SwapbackArrayTests
 		public class IsEmpty
 		{
 			[Fact]
-			public void IsEmpty_WhenArrayIsEmpty_ShouldReturnTrue()
+			public void WhenArrayIsEmpty_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -923,7 +933,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void IsEmpty_WhenArrayIsNotEmpty_ShouldReturnFalse()
+			public void WhenArrayIsNotEmpty_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -934,7 +944,7 @@ public static class SwapbackArrayTests
 		public class IsFull
 		{
 			[Fact]
-			public void IsFull_WhenArrayIsFull_ShouldReturnTrue()
+			public void WhenArrayIsFull_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int>(10);
 
@@ -944,7 +954,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void IsFull_WhenArrayIsNotFull_ShouldReturnFalse()
+			public void WhenArrayIsNotFull_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int>(10);
 
@@ -955,7 +965,7 @@ public static class SwapbackArrayTests
 		public class RemoveAll
 		{
 			[Fact]
-			public void RemoveAll_WhenAllMatch_ShouldRemoveAllItems()
+			public void WhenAllMatch_ShouldRemoveAllItems()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -966,7 +976,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenAllMatch_ShouldReturnCorrectCount()
+			public void WhenAllMatch_ShouldReturnCorrectCount()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -976,7 +986,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenArrayIsEmpty_ShouldNotIncrementVersion()
+			public void WhenArrayIsEmpty_ShouldNotIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int>();
 				uint initialVersion = arr.Version;
@@ -987,7 +997,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenArrayIsEmpty_ShouldReturnZero()
+			public void WhenArrayIsEmpty_ShouldReturnZero()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -998,7 +1008,27 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenFindsItems_ShouldRemoveItems()
+			public void WhenComplexPredicate_ShouldWork()
+			{
+				var arr = new SwapbackArray<int> { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
+
+				arr.RemoveAll(i => i >= 30 && i <= 70 && i % 10 == 0);
+
+				arr.Count.Should().Be(5);
+				arr.Should().Contain(10);
+				arr.Should().Contain(20);
+				arr.Should().Contain(80);
+				arr.Should().Contain(90);
+				arr.Should().Contain(100);
+				arr.Should().NotContain(30);
+				arr.Should().NotContain(40);
+				arr.Should().NotContain(50);
+				arr.Should().NotContain(60);
+				arr.Should().NotContain(70);
+			}
+
+			[Fact]
+			public void WhenFindsItems_ShouldRemoveItems()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -1020,7 +1050,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenItemsRemoved_ShouldIncrementVersion()
+			public void WhenItemsRemoved_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 				uint initialVersion = arr.Version;
@@ -1033,7 +1063,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenNoMatches_ShouldNotIncrementVersion()
+			public void WhenNoMatches_ShouldNotIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
@@ -1044,7 +1074,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenNoMatches_ShouldNotModifyArray()
+			public void WhenNoMatches_ShouldNotModifyArray()
 			{
 				var   arr      = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 				int[] original = arr.ToArray();
@@ -1056,7 +1086,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenNoMatches_ShouldReturnZero()
+			public void WhenNoMatches_ShouldReturnZero()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1067,7 +1097,22 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenNullPredicate_ShouldThrow()
+			public void WhenNullableType_ShouldHandleNulls()
+			{
+				var arr = new SwapbackArray<int?> { 1, null, 3, null, 5 };
+
+				uint removed = arr.RemoveAll(i => i == null);
+
+				removed.Should().Be(2);
+				arr.Count.Should().Be(3);
+				arr.Should().NotContain((int?)null);
+				arr.Should().Contain(1);
+				arr.Should().Contain(3);
+				arr.Should().Contain(5);
+			}
+
+			[Fact]
+			public void WhenNullPredicate_ShouldThrow()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -1077,7 +1122,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenPredicateThrows_ShouldPropagateException()
+			public void WhenPredicateThrows_ShouldPropagateException()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1087,7 +1132,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenReferenceType_ShouldClearRemovedSlots()
+			public void WhenReferenceType_ShouldClearRemovedSlots()
 			{
 				var obj1 = new object();
 				var obj2 = new object();
@@ -1103,7 +1148,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingAdjacentItems_ShouldWork()
+			public void WhenRemovingAdjacentItems_ShouldWork()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1120,7 +1165,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingAllDuplicates_ShouldRemoveAllInstances()
+			public void WhenRemovingAllDuplicates_ShouldRemoveAllInstances()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 2, 2, 3, 4, 2, 5 };
 
@@ -1136,7 +1181,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingFirstItem_ShouldWork()
+			public void WhenRemovingFirstItem_ShouldWork()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1153,7 +1198,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingFromLargeArray_ShouldHandleCorrectly()
+			public void WhenRemovingFromLargeArray_ShouldHandleCorrectly()
 			{
 				var arr = new SwapbackArray<int>();
 				for (var i = 0; i < 100; i++)
@@ -1169,7 +1214,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingLastItem_ShouldWork()
+			public void WhenRemovingLastItem_ShouldWork()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1184,7 +1229,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingMiddleItem_ShouldWork()
+			public void WhenRemovingMiddleItem_ShouldWork()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1199,7 +1244,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingMultipleItems_ShouldPreserveRemainingItems()
+			public void WhenRemovingMultipleItems_ShouldPreserveRemainingItems()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -1221,7 +1266,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenRemovingSingleItem_ShouldWork()
+			public void WhenRemovingSingleItem_ShouldWork()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -1235,7 +1280,30 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenSomeItemsMatch_ShouldReturnCorrectCount()
+			public void WhenSingleElement_ShouldWork()
+			{
+				var arr = new SwapbackArray<int> { 42 };
+
+				uint removed = arr.RemoveAll(i => i == 42);
+
+				removed.Should().Be(1);
+				arr.Count.Should().Be(0);
+			}
+
+			[Fact]
+			public void WhenSingleElement_WhenNoMatch_ShouldNotRemove()
+			{
+				var arr = new SwapbackArray<int> { 42 };
+
+				uint removed = arr.RemoveAll(i => i == 0);
+
+				removed.Should().Be(0);
+				arr.Count.Should().Be(1);
+				arr.Should().Contain(42);
+			}
+
+			[Fact]
+			public void WhenSomeItemsMatch_ShouldReturnCorrectCount()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -1245,7 +1313,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenSomeItemsMatch_ShouldUpdateCount()
+			public void WhenSomeItemsMatch_ShouldUpdateCount()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -1255,7 +1323,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void RemoveAll_WhenUnderutilizedAfterRemoval_ShouldTriggerShrink()
+			public void WhenUnderutilizedAfterRemoval_ShouldTriggerShrink()
 			{
 				var arr = new SwapbackArray<int>(16);
 				for (var i = 0; i < 16; i++)
@@ -1271,70 +1339,12 @@ public static class SwapbackArrayTests
 				// Capacity should shrink (based on 25% threshold and 2x headroom)
 				arr.Capacity.Should().BeLessThan(initialCapacity);
 			}
-
-			[Fact]
-			public void RemoveAll_WithComplexPredicate_ShouldWork()
-			{
-				var arr = new SwapbackArray<int> { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
-
-				arr.RemoveAll(i => i >= 30 && i <= 70 && i % 10 == 0);
-
-				arr.Count.Should().Be(5);
-				arr.Should().Contain(10);
-				arr.Should().Contain(20);
-				arr.Should().Contain(80);
-				arr.Should().Contain(90);
-				arr.Should().Contain(100);
-				arr.Should().NotContain(30);
-				arr.Should().NotContain(40);
-				arr.Should().NotContain(50);
-				arr.Should().NotContain(60);
-				arr.Should().NotContain(70);
-			}
-
-			[Fact]
-			public void RemoveAll_WithNullableType_ShouldHandleNulls()
-			{
-				var arr = new SwapbackArray<int?> { 1, null, 3, null, 5 };
-
-				uint removed = arr.RemoveAll(i => i == null);
-
-				removed.Should().Be(2);
-				arr.Count.Should().Be(3);
-				arr.Should().NotContain((int?)null);
-				arr.Should().Contain(1);
-				arr.Should().Contain(3);
-				arr.Should().Contain(5);
-			}
-
-			[Fact]
-			public void RemoveAll_WithSingleElement_ShouldWork()
-			{
-				var arr = new SwapbackArray<int> { 42 };
-
-				uint removed = arr.RemoveAll(i => i == 42);
-
-				removed.Should().Be(1);
-				arr.Count.Should().Be(0);
-			}
-
-			[Fact]
-			public void RemoveAll_WithSingleElement_WhenNoMatch_ShouldNotRemove()
-			{
-				var arr = new SwapbackArray<int> { 42 };
-
-				uint removed = arr.RemoveAll(i => i == 0);
-
-				removed.Should().Be(0);
-				arr.Count.Should().Be(1);
-				arr.Should().Contain(42);
-			}
 		}
 
 		public class ToArray
 		{
 			[Fact]
-			public void ToArray_WhenCalled_ShouldReturnArrayWithSameLengthAsArray()
+			public void WhenCalled_ShouldReturnArrayWithSameLengthAsArray()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1345,7 +1355,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void ToArray_WhenCalled_ShouldReturnArrayWithSameValuesAsArray()
+			public void WhenCalled_ShouldReturnArrayWithSameValuesAsArray()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1356,7 +1366,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void ToArray_WhenCalled_ShouldReturnCopyOfArray()
+			public void WhenCalled_ShouldReturnCopyOfArray()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1367,7 +1377,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void ToArray_WhenEmpty_ShouldReturnEmptyArray()
+			public void WhenEmpty_ShouldReturnEmptyArray()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -1380,7 +1390,7 @@ public static class SwapbackArrayTests
 		public class TrimExcess
 		{
 			[Fact]
-			public void TrimExcess_WhenAtMinimumCapacity_ShouldNotShrink()
+			public void WhenAtMinimumCapacity_ShouldNotShrink()
 			{
 				var arr = new SwapbackArray<int> { 1 };
 
@@ -1390,7 +1400,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TrimExcess_WhenUtilizationAtOrAboveTrimThreshold_ShouldNotTrim()
+			public void WhenUtilizationAtOrAboveTrimThreshold_ShouldNotTrim()
 			{
 				const uint INITIAL_CAPACITY = 100u;
 				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
@@ -1403,7 +1413,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TrimExcess_WhenUtilizationBelowShrinkThreshold_ShouldTrim()
+			public void WhenUtilizationBelowShrinkThreshold_ShouldTrim()
 			{
 				const uint INITIAL_CAPACITY = 100u;
 				var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
@@ -1419,7 +1429,7 @@ public static class SwapbackArrayTests
 		public class TryGet
 		{
 			[Fact]
-			public void TryGet_WhenIndexEqualsCount_ShouldReturnFalse()
+			public void WhenIndexEqualsCount_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -1427,7 +1437,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryGet_WhenIndexIsOutOfBounds_ShouldReturnFalse()
+			public void WhenIndexIsOutOfBounds_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int?> { 1, 2 };
 
@@ -1435,7 +1445,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryGet_WhenValidIndex_ShouldReturnItem()
+			public void WhenValidIndex_ShouldReturnItem()
 			{
 				var arr = new SwapbackArray<int?> { 1, 2 };
 
@@ -1448,7 +1458,7 @@ public static class SwapbackArrayTests
 		public class TryIndexOf
 		{
 			[Fact]
-			public void TryIndexOf_WhenItemDoesNotExist_ShouldReturnFalseAndNullIndex()
+			public void WhenItemDoesNotExist_ShouldReturnFalseAndNullIndex()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1459,7 +1469,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryIndexOf_WhenItemExists_ShouldReturnTrueAndIndex()
+			public void WhenItemExists_ShouldReturnTrueAndIndex()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -1470,7 +1480,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryIndexOf_WhenReferenceType_ShouldReturnTrueAndIndex()
+			public void WhenReferenceType_ShouldReturnTrueAndIndex()
 			{
 				var obj1 = new object();
 				var obj2 = new object();
@@ -1487,7 +1497,7 @@ public static class SwapbackArrayTests
 		public class TryPopBack
 		{
 			[Fact]
-			public void TryPopBack_WhenEmpty_ShouldReturnFalse()
+			public void WhenEmpty_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int>();
 
@@ -1495,7 +1505,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryPopBack_WhenNotEmpty_ShouldReturnLastItem()
+			public void WhenNotEmpty_ShouldReturnLastItem()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -1507,7 +1517,7 @@ public static class SwapbackArrayTests
 		public class TryRemove
 		{
 			[Fact]
-			public void TryRemove_WhenDuplicateItemExists_ShouldRemoveFirstInstance()
+			public void WhenDuplicateItemExists_ShouldRemoveFirstInstance()
 			{
 				int[] values = [1, 2, 3, 4, 2, 5];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1518,7 +1528,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenItemExists_ShouldDecrementCount()
+			public void WhenItemExists_ShouldDecrementCount()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -1528,7 +1538,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenItemExists_ShouldRemoveItem()
+			public void WhenItemExists_ShouldRemoveItem()
 			{
 				int[] values = [1, 2, 3, 4];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1539,7 +1549,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenItemExists_ShouldReturnTrue()
+			public void WhenItemExists_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -1547,7 +1557,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenItemNotFound_ShouldNotModifyArray()
+			public void WhenItemNotFound_ShouldNotModifyArray()
 			{
 				int[] values = [1, 2];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1558,7 +1568,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenItemNotFound_ShouldReturnFalse()
+			public void WhenItemNotFound_ShouldReturnFalse()
 			{
 				int[] values = [1, 2];
 				var   arr    = new SwapbackArray<int>(values);
@@ -1567,7 +1577,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemove_WhenReferenceType_ShouldClearRemovedSlot()
+			public void WhenReferenceType_ShouldClearRemovedSlot()
 			{
 				var obj1 = new object();
 				var obj2 = new object();
@@ -1577,23 +1587,12 @@ public static class SwapbackArrayTests
 
 				arr.Contains(obj1).Should().BeFalse();
 			}
-
-			[Fact]
-			public void TryRemoveAt_WhenRemovingLastElement_ShouldNotSwap()
-			{
-				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
-
-				arr.TryRemoveAt(arr.Count - 1);
-
-				arr.ToArray().Should().Equal(1, 2, 3);
-				arr.Count.Should().Be(3);
-			}
 		}
 
 		public class TryRemoveAt
 		{
 			[Fact]
-			public void TryRemoveAt_WhenCalled_ShouldDecrementCount()
+			public void WhenCalled_ShouldDecrementCount()
 			{
 				var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
 
@@ -1603,7 +1602,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenCalled_ShouldIncrementVersion()
+			public void WhenCalled_ShouldIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
@@ -1616,7 +1615,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenCalled_ShouldSwapLastItemIntoRemovedIndex()
+			public void WhenCalled_ShouldSwapLastItemIntoRemovedIndex()
 			{
 				var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
 
@@ -1626,7 +1625,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenFails_ShouldNotIncrementVersion()
+			public void WhenFails_ShouldNotIncrementVersion()
 			{
 				var  arr            = new SwapbackArray<int> { 1 };
 				uint initialVersion = arr.Version;
@@ -1637,7 +1636,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenIndexIsOutOfBounds_ShouldReturnFalse()
+			public void WhenIndexIsOutOfBounds_ShouldReturnFalse()
 			{
 				var arr = new SwapbackArray<int> { 10 };
 
@@ -1645,7 +1644,18 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenUnderutilized_ShouldAutoDownsize()
+			public void WhenRemovingLastElement_ShouldNotSwap()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.TryRemoveAt(arr.Count - 1);
+
+				arr.ToArray().Should().Equal(1, 2, 3);
+				arr.Count.Should().Be(3);
+			}
+
+			[Fact]
+			public void WhenUnderutilized_ShouldAutoDownsize()
 			{
 				var arr = new SwapbackArray<int>(16);
 				for (var i = 0; i < 16; i++) arr.Add(i);
@@ -1668,7 +1678,7 @@ public static class SwapbackArrayTests
 			}
 
 			[Fact]
-			public void TryRemoveAt_WhenValidIndex_ShouldReturnTrue()
+			public void WhenValidIndex_ShouldReturnTrue()
 			{
 				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
