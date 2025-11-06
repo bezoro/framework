@@ -150,7 +150,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 	int IReadOnlyCollection<T>.Count => (int)_count;
 
-	public uint ShrinkThresholdPercent { get; set; } = 25u;
+	public Percent ShrinkThresholdPercent { get; set; } = Percent.Quarter;
 
 	/// <summary>
 	///     Version counter that increments on collection modifications. Used to detect
@@ -674,13 +674,16 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	///     is below the threshold, but never below <see cref="MinimumArraySize" />.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void TrimExcess(uint minimumUtilizationThreshold = 90u)
+	public void TrimExcess(Percent minimumUtilizationThreshold = default)
 	{
+		if (minimumUtilizationThreshold == default)
+			minimumUtilizationThreshold = Percent.Ninety;
+
 		var length = (uint)_items.Length;
 		if (length <= MinimumArraySize) return;
 
 		ulong left  = _count * 100UL;
-		ulong right = length * minimumUtilizationThreshold;
+		ulong right = length * minimumUtilizationThreshold.Value;
 		if (left >= right) return;
 
 		uint newSize = Math.Max(_count, MinimumArraySize);
@@ -776,7 +779,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		if (length <= MinimumArraySize) return;
 
 		ulong left  = _count * 100UL;
-		ulong right = length * (ulong)ShrinkThresholdPercent;
+		ulong right = length * (ulong)ShrinkThresholdPercent.Value;
 		if (left > right) return;
 
 		uint targetCapacity = Math.Max(_count * 2, MinimumArraySize);

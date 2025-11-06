@@ -1420,7 +1420,7 @@ public static class SwapbackArrayTests
 				uint       threshold        = 49;
 				for (var i = 0; i < threshold; i++) arr.Add(i);
 
-				arr.TrimExcess(50u);
+				arr.TrimExcess(Percent.Half);
 
 				arr.Capacity.Should().Be(threshold);
 			}
