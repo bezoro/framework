@@ -276,11 +276,11 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// </param>
 	/// <returns>true if the array contains at least one element; otherwise, false.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool TryPeek(out T value)
+	public bool TryPeek(out T? value)
 	{
 		if (_count == 0)
 		{
-			value = default!;
+			value = default;
 			return false;
 		}
 
@@ -626,8 +626,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 	/// <summary>
 	///     Inserts an item at the specified index using swapback semantics.
-	///     The last element in the array is moved to the insertion index, and the new item
-	///     becomes the last element.
+	///     The current element at index is moved to the end, and "item" takes its place.
 	/// </summary>
 	/// <param name="index">The zero-based index at which to insert the item.</param>
 	/// <param name="item">The item to insert.</param>
@@ -636,8 +635,8 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// </exception>
 	/// <remarks>
 	///     This operation maintains O(1) complexity by not shifting elements.
-	///     If index equals Count, this is equivalent to Add(item).
-	///     Otherwise, the current element at index is swapped to the end, and item takes its place.
+	///     The element currently at the specified index is moved to the end of the array.
+	///     If index equals Count, the item is appended to the end.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void InsertAt(uint index, T item)
@@ -649,15 +648,28 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 		if (index == _count)
 		{
-			_items[_count++] = item;
+			_items[_count] = item;
 		}
 		else
 		{
 			_items[_count] = _items[index];
 			_items[index]  = item;
-			_count++;
 		}
 
+		_count++;
+		Version++;
+	}
+
+	/// <summary>
+	///     Replaces the element at the specified index.
+	///     Equivalent to using the indexer, but with explicit validation.
+	/// </summary>
+	public void ReplaceAt(uint index, T item)
+	{
+		if (index > _count)
+			throw new ArgumentOutOfRangeException(nameof(index), "Index cannot be greater than Count.");
+
+		_items[index] = item;
 		Version++;
 	}
 
