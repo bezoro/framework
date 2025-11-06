@@ -390,6 +390,19 @@ public static class SwapbackArrayTests
 			}
 		}
 
+		public class AsReadOnlyCollection
+		{
+			[Fact]
+			public void WhenCalled_ShouldReturnReadOnlyCollectionWithSameItems()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+				var rc = arr.AsReadOnlyCollection();
+
+				rc.Should().Equal(arr);
+			}
+		}
+
 		public class AsSpan
 		{
 			[Fact]
@@ -922,6 +935,54 @@ public static class SwapbackArrayTests
 			}
 		}
 
+		public class InsertAt
+		{
+			[Fact]
+			public void WhenIndexIsOutOfBounds_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				var act = () => arr.InsertAt(10, 5);
+
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void WhenInsertingAtLastIndex_ShouldAppend()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.InsertAt(4, 5);
+
+				arr.Count.Should().Be(5);
+				arr.ToArray().Should().Equal(1, 2, 3, 4, 5);
+			}
+
+			[Fact]
+			public void WhenInsertingAtOccupiedIndex_ShouldIncrementVersion()
+			{
+				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
+				uint initialVersion = arr.Version;
+
+				arr.InsertAt(1, 4);
+				uint finalVersion = arr.Version;
+
+				finalVersion.Should().NotBe(initialVersion);
+				arr.Version.Should().Be(finalVersion);
+			}
+
+			[Fact]
+			public void WhenInsertingAtOccupiedIndex_ShouldPerformSwapback()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.InsertAt(1, 5);
+
+				arr.Count.Should().Be(5);
+				arr.ToArray().Should().Equal(1, 5, 3, 4, 2);
+			}
+		}
+
 		public class IsEmpty
 		{
 			[Fact]
@@ -1341,6 +1402,43 @@ public static class SwapbackArrayTests
 			}
 		}
 
+		public class ReplaceAt
+		{
+			[Fact]
+			public void WhenIndexIsOutOfBounds_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				var act = () => arr.ReplaceAt(10, 5);
+
+				act.Should().Throw<ArgumentOutOfRangeException>();
+			}
+
+			[Fact]
+			public void WhenValidCall_ShouldIncrementVersion()
+			{
+				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
+				uint initialVersion = arr.Version;
+
+				arr.ReplaceAt(1, 4);
+				uint finalVersion = arr.Version;
+
+				finalVersion.Should().NotBe(initialVersion);
+				arr.Version.Should().Be(finalVersion);
+			}
+
+			[Fact]
+			public void WhenValidCall_ShouldReplaceItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
+
+				arr.ReplaceAt(1, 5);
+
+				arr.Count.Should().Be(4);
+				arr.ToArray().Should().Equal(1, 5, 3, 4);
+			}
+		}
+
 		public class ToArray
 		{
 			[Fact]
@@ -1491,6 +1589,27 @@ public static class SwapbackArrayTests
 
 				found.Should().BeTrue();
 				index.Should().Be(1);
+			}
+		}
+
+		public class TryPeek
+		{
+			[Fact]
+			public void WhenEmpty_ShouldReturnFalse()
+			{
+				var arr = new SwapbackArray<int>();
+
+				arr.TryPeek(out int _).Should().BeFalse();
+			}
+
+			[Fact]
+			public void WhenNotEmpty_ShouldReturnItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+				arr.TryPeek(out int value).Should().BeTrue();
+
+				value.Should().Be(3);
 			}
 		}
 
