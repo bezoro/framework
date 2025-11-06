@@ -81,5 +81,5 @@ public readonly struct Percent : IEquatable<Percent>, IComparable<Percent>
 	/// <summary>
 	///     Converts the percentage to a decimal ratio (0.0–1.0).
 	/// </summary>
-	public double ToRatio() => Value / 100.0;
+	public float ToRatio() => Value / 100f;
 }
