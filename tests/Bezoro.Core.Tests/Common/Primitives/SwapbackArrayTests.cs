@@ -12,6 +12,50 @@ namespace Bezoro.Core.Tests.Common.Primitives;
 [TestSubject(typeof(SwapbackArray<>))]
 public static class SwapbackArrayTests
 {
+	public class IntegrationTests
+	{
+		[Fact]
+		public void AddRangeThenClearThenReuse_ShouldNotLeakReferences()
+		{
+			var      arr  = new SwapbackArray<object>();
+			object[] refs = Enumerable.Range(0, 100).Select(_ => new object()).ToArray();
+
+			arr.AddRange((IEnumerable<object>)refs);
+			arr.Clear();
+			arr.Add(new());
+
+			arr.Count.Should().Be(1);
+			arr.Capacity.Should().Be(arr.MinimumArraySize);
+		}
+
+		[Fact]
+		public void AddRangeThenRemoveAll_ShouldMaintainConsistency()
+		{
+			var arr = new SwapbackArray<int>();
+
+			arr.AddRange(Enumerable.Range(0, 100));
+			arr.RemoveAll(x => x % 2 == 0);
+
+			arr.Count.Should().Be(50);
+			arr.Should().OnlyContain(x => x % 2 == 1);
+			arr.ToArray().Should().BeInAscendingOrder();
+		}
+
+		[Fact]
+		public void EnsureCapacityThenTrimExcess_ShouldRoundTrip()
+		{
+			var arr = new SwapbackArray<int> { 1, 2, 3 };
+
+			arr.EnsureCapacity(100);
+			uint largeCapacity = arr.Capacity;
+			arr.TrimExcess();
+
+			arr.Capacity.Should().BeLessThan(largeCapacity);
+			arr.Count.Should().Be(3);
+			arr.ToArray().Should().Equal(1, 2, 3);
+		}
+	}
+
 	public class Performance
 	{
 		[Fact]
@@ -88,8 +132,8 @@ public static class SwapbackArrayTests
 			// With 50% shrink threshold and 2× headroom:
 			// Expected capacity ≈ 100,000 (2× count for headroom)
 			arr.Count.Should().Be(50_000);
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(50_000); // Must hold items
-			arr.Capacity.Should().BeLessThan(150_000);            // But not excessively large
+			arr.Capacity.Should().BeGreaterThanOrEqualTo(arr.Count); // Always holds
+			arr.Capacity.Should().BeLessThan(arr.Count * 3);         // Reasonable overhead
 		}
 
 		[Fact]
@@ -1710,6 +1754,14 @@ public static class SwapbackArrayTests
 
 		public class TryRemoveAt
 		{
+			[Fact]
+			public void TryRemoveAt_WhenRemovingPenultimateElement_ShouldSwapLastElement()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+				arr.TryRemoveAt(1);                 // Remove middle element
+				arr.ToArray().Should().Equal(1, 3); // Last swapped in
+			}
+
 			[Fact]
 			public void WhenCalled_ShouldDecrementCount()
 			{
