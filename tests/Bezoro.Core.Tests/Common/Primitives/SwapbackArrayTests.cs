@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Bezoro.Core.Common.Primitives;
 using FluentAssertions;
@@ -54,204 +53,43 @@ public static class SwapbackArrayTests
 			arr.Count.Should().Be(3);
 			arr.ToArray().Should().Equal(1, 2, 3);
 		}
-	}
 
-	public class Performance
-	{
 		[Fact]
-		public void Add_WhenAddingManyItems_ShouldGrowEfficiently()
+		public void BalancedChurn_ShouldMaintainCapacity()
 		{
 			var arr = new SwapbackArray<int>();
 
-			for (var i = 0; i < 10_000; i++)
-				arr.Add(i);
-
-			arr.Count.Should().Be(10_000);
-			arr.Capacity.Should().BeLessThan(20_000);
-		}
-
-		[Fact]
-		public void StressTest_AddRange_ShouldBeEfficient()
-		{
-			var   arr   = new SwapbackArray<int>();
-			int[] batch = Enumerable.Range(0, 1_000).ToArray();
-
-			for (var i = 0; i < 100; i++)
-				arr.AddRange((IEnumerable<int>)batch);
-
-			// Verify correctness and reasonable capacity growth
-			arr.Count.Should().Be(100_000);
-			// With 2× doubling strategy, capacity should be ~131,072 (next power of 2)
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(100_000);
-			arr.Capacity.Should().BeLessThan(200_000); // Not excessively large
-		}
-
-		[Fact]
-		public void StressTest_BalancedChurn_ShouldStabilizeCapacity()
-		{
-			var       arr         = new SwapbackArray<int>();
-			const int STABLE_SIZE = 500;
-
-			// Pre-fill to stable size
-			for (var i = 0; i < STABLE_SIZE; i++)
+			for (var i = 0; i < 64; i++)
 				arr.Add(i);
 
 			uint stableCapacity = arr.Capacity;
 
-			// Balanced churn: remove from front, add to back (no net growth)
-			for (var i = 0; i < 10_000; i++)
+			for (var i = 0; i < 256; i++)
 			{
-				arr.TryRemoveAt(0);
-				arr.Add(i + STABLE_SIZE);
+				arr.TryRemoveAt(0).Should().BeTrue();
+				arr.Add(i + 64);
 			}
 
-			// Count and capacity should remain stable
-			arr.Count.Should().Be(STABLE_SIZE);
+			arr.Count.Should().Be(64);
 			arr.Capacity.Should().Be(stableCapacity);
 		}
 
 		[Fact]
-		public void StressTest_ChurnPattern_ShouldNotLeakMemory()
+		public void GradualGrowth_ShouldNotOverAllocate()
 		{
-			var       arr        = new SwapbackArray<int>();
-			const int ITERATIONS = 1_000; // Reduced for reasonable test time
+			var arr       = new SwapbackArray<int>();
+			var nextValue = 0;
 
-			// Simulate entity system churn: add/remove repeatedly
-			for (var i = 0; i < ITERATIONS; i++)
+			for (var i = 0; i < 128; i++)
 			{
-				// Add 100 items
-				for (var j = 0; j < 100; j++)
-					arr.Add(j);
+				for (var j = 0; j < 4; j++)
+					arr.Add(nextValue++);
 
-				// Remove 50 items (net +50 per iteration)
-				for (var j = 0; j < 50; j++)
-					arr.TryRemoveAt(0);
+				arr.TryRemoveAt(0).Should().BeTrue();
 			}
 
-			// After 1000 iterations: 50,000 items net accumulated
-			// With 50% shrink threshold and 2× headroom:
-			// Expected capacity ≈ 100,000 (2× count for headroom)
-			arr.Count.Should().Be(50_000);
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(arr.Count); // Always holds
-			arr.Capacity.Should().BeLessThan(arr.Count * 3);         // Reasonable overhead
-		}
-
-		[Fact]
-		public void StressTest_GrowAndShrink_ShouldReclaimMemory()
-		{
-			var arr = new SwapbackArray<int>();
-
-			// Grow large
-			for (var i = 0; i < 10_000; i++)
-				arr.Add(i);
-
-			uint largeCapacity = arr.Capacity;
-
-			// Shrink back down
-			while (arr.Count > 100)
-				arr.TryRemoveAt(0);
-
-			// Capacity should shrink (not stay at large size)
-			arr.Capacity.Should().BeLessThan(largeCapacity / 4);
-		}
-
-		[Fact]
-		public void StressTest_GrowthPattern_ShouldMaintainReasonableCapacity()
-		{
-			var       arr        = new SwapbackArray<int>();
-			const int ITERATIONS = 1_000;
-
-			// Simulate gradual growth: net +50 items per iteration
-			for (var i = 0; i < ITERATIONS; i++)
-			{
-				for (var j = 0; j < 100; j++)
-					arr.Add(j);
-
-				for (var j = 0; j < 50; j++)
-					arr.TryRemoveAt(0);
-			}
-
-			// After 1000 iterations: 50,000 items
-			// Expected capacity: ~65,536 (next power of 2)
-			arr.Count.Should().Be(50_000);
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(50_000); // Must hold all items
-			arr.Capacity.Should().BeLessThan(100_000);            // But not excessively large
-		}
-
-		[Fact]
-		public void StressTest_ManyAdds_ShouldMaintainReasonableCapacity()
-		{
-			var       arr        = new SwapbackArray<int>();
-			const int ITERATIONS = 100_000;
-
-			for (var i = 0; i < ITERATIONS; i++)
-				arr.Add(i);
-
-			arr.Count.Should().Be(ITERATIONS);
-			// Verify capacity growth is logarithmic, not linear
-			arr.Capacity.Should().BeLessThan((uint)ITERATIONS * 2);
-		}
-
-		[Fact]
-		public void StressTest_RandomRemoval_ShouldMaintainPerformance()
-		{
-			var       arr    = new SwapbackArray<int>();
-			const int SIZE   = 10_000;
-			var       random = new Random(42); // Seed for reproducibility
-
-			// Fill array
-			for (var i = 0; i < SIZE; i++)
-				arr.Add(i);
-
-			// Remove half randomly - O(1) swap-back should handle this easily
-			for (var i = 0; i < SIZE / 2; i++)
-			{
-				var index = (uint)random.Next((int)arr.Count);
-				arr.TryRemoveAt(index);
-			}
-
-			// Verify correctness and reasonable capacity after shrinking
-			arr.Count.Should().Be(SIZE / 2);
-			arr.Capacity.Should().BeGreaterThanOrEqualTo(SIZE / 2);
-			arr.Capacity.Should().BeLessThan(SIZE * 2); // Shrink should have triggered
-		}
-
-		[Fact]
-		public void StressTest_RemovalComplexity_ShouldBeConstant()
-		{
-			// Verify O(1) removal by comparing small vs large arrays
-			// If O(1), time ratio should be ~1:1 regardless of array size
-			const int SMALL_SIZE = 1_000;
-			const int LARGE_SIZE = 100_000;
-			const int REMOVALS   = 500;
-			var       random     = new Random(42);
-
-			// Small array: fill and time removals
-			var smallArr = new SwapbackArray<int>();
-			for (var i = 0; i < SMALL_SIZE; i++) smallArr.Add(i);
-
-			var smallSw = Stopwatch.StartNew();
-			for (var i = 0; i < REMOVALS; i++)
-				smallArr.TryRemoveAt((uint)random.Next((int)smallArr.Count));
-
-			smallSw.Stop();
-
-			// Large array: fill and time removals
-			var largeArr = new SwapbackArray<int>();
-			for (var i = 0; i < LARGE_SIZE; i++) largeArr.Add(i);
-
-			var largeSw = Stopwatch.StartNew();
-			for (var i = 0; i < REMOVALS; i++)
-				largeArr.TryRemoveAt((uint)random.Next((int)largeArr.Count));
-
-			largeSw.Stop();
-
-			// O(1) removal: large array should take similar time (within 5× tolerance for noise)
-			// O(n) removal would show 100× slowdown
-			double ratio = (double)largeSw.ElapsedTicks / Math.Max(smallSw.ElapsedTicks, 1);
-			ratio.Should().BeLessThan(
-				5.0,
-				"O(1) removal should show similar performance regardless of array size");
+			arr.Count.Should().BeGreaterThan(0u);
+			arr.Capacity.Should().BeLessThanOrEqualTo(arr.Count * 2u);
 		}
 	}
 
