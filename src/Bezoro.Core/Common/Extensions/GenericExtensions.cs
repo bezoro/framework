@@ -129,7 +129,7 @@ public static class GenericExtensions
 	{
 		sequence.ThrowIfNull(paramName);
 
-		if (sequence is ICollection { Count: 0 } || !sequence.HasAny())
+		if (!sequence.HasAny())
 			throw new ArgumentException("Sequence cannot be empty.", paramName);
 
 		return sequence;

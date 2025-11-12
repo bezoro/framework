@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Bezoro.Core.Common.Extensions;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -104,6 +106,36 @@ public abstract class GenericExtensionsTests
 		}
 
 		[Fact]
+		public void ThrowIfEmpty_WhenReadOnlyCollectionIsEmpty_ThrowsArgumentException()
+		{
+			IReadOnlyCollection<int> collection = new TestReadOnlyCollection<int>(Array.Empty<int>());
+
+			Action action = () => collection.ThrowIfEmpty();
+
+			action.Should().Throw<ArgumentException>().WithMessage("Sequence cannot be empty.*");
+		}
+
+		[Fact]
+		public void ThrowIfEmpty_WhenReadOnlyCollectionIsNotEmpty_ReturnsCollection()
+		{
+			IReadOnlyCollection<int> collection = new TestReadOnlyCollection<int>(new[] { 42 });
+
+			IReadOnlyCollection<int> result = collection.ThrowIfEmpty();
+
+			result.Should().BeSameAs(collection);
+		}
+
+		[Fact]
+		public void ThrowIfEmpty_WhenEnumerableWithoutCountIsEmpty_ThrowsArgumentException()
+		{
+			IEnumerable<int> enumerable = GetEmptyIterator();
+
+			Action action = () => enumerable.ThrowIfEmpty();
+
+			action.Should().Throw<ArgumentException>().WithMessage("Sequence cannot be empty.*");
+		}
+
+		[Fact]
 		public void ThrowIfNull_WhenValueIsNotNull_ReturnsValue()
 		{
 			string result = "test".ThrowIfNull();
@@ -123,6 +155,24 @@ public abstract class GenericExtensionsTests
 		{
 			var result = 42.Yield();
 			result.Should().ContainSingle().Which.Should().Be(42);
+		}
+
+		private static IEnumerable<int> GetEmptyIterator()
+		{
+			yield break;
+		}
+
+		private sealed class TestReadOnlyCollection<T> : IReadOnlyCollection<T>
+		{
+			private readonly T[] _items;
+
+			public TestReadOnlyCollection(IEnumerable<T> items) => _items = items.ToArray();
+
+			public int Count => _items.Length;
+
+			public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)_items).GetEnumerator();
+
+			System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _items.GetEnumerator();
 		}
 	}
 }
