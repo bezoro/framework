@@ -9,18 +9,22 @@ using System.Runtime.CompilerServices;
 namespace Bezoro.Core.Common.Extensions;
 
 /// <summary>
-///     A collection of frequently-used helper methods that extend the capabilities of any type <typeparamref name="T" />.
-///     All members are implemented as pure functions (no side-effects) and therefore can be safely used in
-///     LINQ queries, unit-tests or anywhere short, expressive code is preferred.
+/// A collection of frequently-used helper methods that extend the capabilities of any type.
+/// All members are implemented as pure functions (no side-effects) and therefore can be safely used in
+/// LINQ queries, unit-tests or anywhere short, expressive code is preferred.
 /// </summary>
 public static class GenericExtensions
 {
 	/// <summary>
-	///     Returns <see langword="true" /> when <paramref name="value" /> is greater than or equal to
-	///     <paramref name="min" /> and less than or equal to <paramref name="max" />.
+	/// Determines whether <paramref name="value"/> is within the inclusive range defined by <paramref name="min"/> and <paramref name="max"/>.
 	/// </summary>
-	/// <exception cref="ArgumentException">
-	///     Thrown when <paramref name="min" /> is greater than <paramref name="max" />.
+	/// <typeparam name="T">A type that implements <see cref="IComparable{T}"/>.</typeparam>
+	/// <param name="value">The value to check.</param>
+	/// <param name="min">The minimum (inclusive) value.</param>
+	/// <param name="max">The maximum (inclusive) value.</param>
+	/// <returns><c>true</c> if <paramref name="value"/> is greater than or equal to <paramref name="min"/> and less than or equal to <paramref name="max"/>; otherwise, <c>false</c>.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if any argument is <c>null</c>.
 	/// </exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsBetween<T>(this T value, T min, T max) where T : IComparable<T>
@@ -33,29 +37,40 @@ public static class GenericExtensions
 	}
 
 	/// <summary>
-	///     Determines whether <paramref name="value" /> equals the default value for its type.
+	/// Determines whether <paramref name="value"/> equals the default value for its type.
 	/// </summary>
+	/// <typeparam name="T">A value type.</typeparam>
+	/// <param name="value">The value to check.</param>
+	/// <returns><c>true</c> if <paramref name="value"/> equals <c>default(T)</c>; otherwise, <c>false</c>.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsDefault<T>(this T value) where T : struct =>
 		EqualityComparer<T>.Default.Equals(value, default);
 
-
 	/// <summary>
-	///     Determines whether a <see langword="nullable" /> value is <see langword="null" />.
+	/// Determines whether a <see langword="nullable"/> value is <see langword="null"/>.
 	/// </summary>
+	/// <typeparam name="T">The type of the input.</typeparam>
+	/// <param name="value">The value to check for null.</param>
+	/// <returns><c>true</c> if <paramref name="value"/> is <c>null</c>; otherwise, <c>false</c>.</returns>
 	/// <remarks>
-	///     An unconstrained generic <typeparamref name="T" /> is used so that both reference and value-types wrapped in
-	///     <c>Nullable&lt;T&gt;</c> are supported.
+	/// An unconstrained generic <typeparamref name="T"/> is used so that both reference and value-types wrapped in
+	/// <c>Nullable&lt;T&gt;</c> are supported.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool IsNull<T>([NotNullWhen(false)] this T? value) => value is null;
 
 	/// <summary>
-	///     Determines whether <paramref name="value" /> is equal to any element of <paramref name="candidates" />.
+	/// Determines whether <paramref name="value"/> is equal to any element in <paramref name="candidates"/>.
 	/// </summary>
+	/// <typeparam name="T">The type being compared.</typeparam>
+	/// <param name="value">The source value to test.</param>
+	/// <param name="candidates">One or more values to compare against.</param>
+	/// <returns><c>true</c> if <paramref name="value"/> equals any element in <paramref name="candidates"/>; otherwise, <c>false</c>.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> or <paramref name="candidates"/> is <c>null</c>.</exception>
+	/// <exception cref="ArgumentException">Thrown if <paramref name="candidates"/> is empty.</exception>
 	/// <example>
-	///     <code>
-	/// if (statusCode.IsOneOf(200, 201, 202)) …
+	/// <code>
+	/// if (statusCode.IsOneOf(200, 201, 202)) { ... }
 	/// </code>
 	/// </example>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -69,9 +84,13 @@ public static class GenericExtensions
 	}
 
 	/// <summary>
-	///     Converts a single item into an <see cref="IEnumerable{T}" /> containing that item.
-	///     Handy for feeding single elements into APIs that expect an enumerable.
+	/// Wraps a single item into an <see cref="IEnumerable{T}"/> containing that item.
+	/// Handy for providing single elements to APIs expecting an enumerable.
 	/// </summary>
+	/// <typeparam name="T">The type of the item.</typeparam>
+	/// <param name="item">The item to yield.</param>
+	/// <returns><see cref="IEnumerable{T}"/> containing the specified <paramref name="item"/>.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="item"/> is <c>null</c>.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static IEnumerable<T> Yield<T>(this T item)
 	{
@@ -80,6 +99,17 @@ public static class GenericExtensions
 		yield return item;
 	}
 
+	/// <summary>
+	/// Throws an exception if the provided predicate expression evaluates to <c>true</c> for the specified value.
+	/// </summary>
+	/// <typeparam name="T">The type of the value being checked.</typeparam>
+	/// <param name="value">The value to check.</param>
+	/// <param name="predicate">The predicate expression used for validation.</param>
+	/// <param name="paramName">The name of the parameter (optional).</param>
+	/// <param name="customException">A custom exception to throw if the condition is met (optional).</param>
+	/// <returns>The validated value if the condition is not satisfied.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is <c>null</c>.</exception>
+	/// <exception cref="ArgumentException">Thrown if the predicate evaluates to true for <paramref name="value"/>.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                    value,
@@ -102,6 +132,18 @@ public static class GenericExtensions
 		throw new ArgumentException(msg, name);
 	}
 
+	/// <summary>
+	/// Throws an <see cref="ArgumentException"/> if the boolean <paramref name="condition"/> is <c>true</c>.
+	/// </summary>
+	/// <typeparam name="T">The type of value being checked.</typeparam>
+	/// <param name="value">The value being checked.</param>
+	/// <param name="condition">If set to <c>true</c>, the exception is thrown.</param>
+	/// <param name="paramName">Name of the parameter related to the exception.</param>
+	/// <param name="message">An optional custom message for the exception.</param>
+	/// <param name="conditionExpr">Caller argument expression for <paramref name="condition"/> (automatically generated).</param>
+	/// <param name="valueExpr">Caller argument expression for <paramref name="value"/> (automatically generated).</param>
+	/// <returns>The value if <paramref name="condition"/> is <c>false</c>.</returns>
+	/// <exception cref="ArgumentException">Thrown if <paramref name="condition"/> is <c>true</c>.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                                          value,
@@ -121,6 +163,15 @@ public static class GenericExtensions
 		return value;
 	}
 
+	/// <summary>
+	/// Throws an <see cref="ArgumentException"/> if the sequence is empty.
+	/// </summary>
+	/// <typeparam name="T">The type of sequence, must be <see cref="IEnumerable"/>.</typeparam>
+	/// <param name="sequence">The sequence to test for emptiness.</param>
+	/// <param name="paramName">Name of the parameter (optional).</param>
+	/// <returns>The non-empty <paramref name="sequence"/>.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="sequence"/> is <c>null</c>.</exception>
+	/// <exception cref="ArgumentException">Thrown if <paramref name="sequence"/> is empty.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIfEmpty<T>(
 		this                                   T       sequence,
@@ -136,12 +187,19 @@ public static class GenericExtensions
 	}
 
 	/// <summary>
-	///     Throws <see cref="ArgumentNullException" /> when <paramref name="value" /> is <see langword="null" />.
-	///     The method returns the non-null value thus enabling fluent usage:
-	///     <code>
+	/// Throws an <see cref="ArgumentNullException"/> if <paramref name="value"/> is <see langword="null"/>.
+	/// The method returns the non-null value, thus enabling fluent use.
+	/// </summary>
+	/// <typeparam name="T">The type of <paramref name="value"/>.</typeparam>
+	/// <param name="value">The value to check for null.</param>
+	/// <param name="paramName">The name of the parameter (optional).</param>
+	/// <returns>The non-null value.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> is <c>null</c>.</exception>
+	/// <example>
+	/// <code>
 	/// var nameLength = user.Name.ThrowIfNull().Length;
 	/// </code>
-	/// </summary>
+	/// </example>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null) =>
 		value ?? throw new ArgumentNullException(paramName ?? typeof(T).Name);

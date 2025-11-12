@@ -254,7 +254,13 @@ public abstract class Singleton<T> where T : class
 				t.FullName ?? t.Name,
 				new InvalidOperationException($"Cannot create a singleton for open generic type {t.FullName}."));
 
-		return (T)Activator.CreateInstance(t, true);
+		var instance = Activator.CreateInstance(t, true);
+		if (instance is null)
+			throw new TypeInitializationException(
+				t.FullName ?? t.Name,
+				new InvalidOperationException($"Could not create an instance of type {t.FullName}."));
+
+		return (T)instance;
 	}
 
 	private static void DisposeIfNeeded(ref T? instance)

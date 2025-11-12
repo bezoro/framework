@@ -3,69 +3,136 @@ using Bezoro.Core.Common.Extensions;
 
 namespace Bezoro.Core.Common.Helpers;
 
+/// <summary>
+/// Provides helper methods for common fixed-size array operations such as comparison, addition, removal, and uniqueness.
+/// All methods validate their input arrays for null or emptiness.
+/// </summary>
 public static class ArrayHelper
 {
-	public static bool CompareArrays<T>(T[] first, T[] second)
-	{
-		ValidateArray(first);
-		ValidateArray(second);
+    /// <summary>
+    /// Compares two arrays for equality by element.
+    /// </summary>
+    /// <typeparam name="T">Type of the array elements.</typeparam>
+    /// <param name="first">The first array.</param>
+    /// <param name="second">The second array.</param>
+    /// <returns>True if arrays are equal in length and sequence; otherwise, false.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if either array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if either array is empty.</exception>
+    public static bool CompareArrays<T>(T[] first, T[] second)
+    {
+        ValidateArray(first);
+        ValidateArray(second);
 
-		if (first.Length != second.Length) return false;
+        if (first.Length != second.Length) return false;
 
-		for (var i = 0; i < first.Length; i++)
-		{
-			if (!Equals(first[i], second[i]))
-				return false;
-		}
+        for (var i = 0; i < first.Length; i++)
+        {
+            if (!Equals(first[i], second[i]))
+                return false;
+        }
 
-		return true;
-	}
+        return true;
+    }
 
-	public static T?[] RemoveElement<T>(ref T?[] array, T item) where T : class
-	{
-		ValidateArray(array);
+    /// <summary>
+    /// Removes the specified item from the array by setting its first occurrence to null.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the array (must be a reference type).</typeparam>
+    /// <param name="array">The array to modify (passed by reference).</param>
+    /// <param name="item">The item to remove.</param>
+    /// <returns>The same array instance, with the specified item set to null if found; otherwise, unchanged.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if the array is empty.</exception>
+    public static T?[] RemoveElement<T>(ref T?[] array, T item) where T : class
+    {
+        ValidateArray(array);
 
-		int index                    = Array.IndexOf(array, item);
-		if (index >= 0) array[index] = null;
+        int index = Array.IndexOf(array, item);
+        if (index >= 0) array[index] = null;
 
-		return array;
-	}
+        return array;
+    }
 
-	public static T[] Add<T>(ref T[] array, T item)
-	{
-		ValidateArray(array);
+    /// <summary>
+    /// Adds an item to the first available empty (null) slot in the array, or throws if the array is full.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the array.</typeparam>
+    /// <param name="array">The array to modify (passed by reference).</param>
+    /// <param name="item">The item to add.</param>
+    /// <returns>The same array instance, with the item added to the first empty slot.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if the array is empty.</exception>
+    /// <exception cref="ArrayIsFullException">Thrown if the array is full (no empty slot).</exception>
+    public static T[] Add<T>(ref T[] array, T item)
+    {
+        ValidateArray(array);
 
-		return TryAddToFirstEmptySlot(ref array, item) ? array : throw new ArrayIsFullException();
-	}
+        return TryAddToFirstEmptySlot(ref array, item) ? array : throw new ArrayIsFullException();
+    }
 
-	public static T[] AddUnique<T>(ref T[] array, T item)
-	{
-		ValidateArray(array);
+    /// <summary>
+    /// Adds an item to the first available empty (null) slot in the array if it doesn't already exist;
+    /// throws if the item exists or the array is full.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the array.</typeparam>
+    /// <param name="array">The array to modify (passed by reference).</param>
+    /// <param name="item">The item to add.</param>
+    /// <returns>The same array instance, with the item added to the first empty slot.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if the array is empty.</exception>
+    /// <exception cref="ArrayIsFullException">Thrown if the array is full or the item already exists.</exception>
+    public static T[] AddUnique<T>(ref T[] array, T item)
+    {
+        ValidateArray(array);
 
-		if (Array.IndexOf(array, item) >= 0 || TryAddToFirstEmptySlot(ref array, item))
-			return array;
+        if (Array.IndexOf(array, item) >= 0 || TryAddToFirstEmptySlot(ref array, item))
+            return array;
 
-		throw new ArrayIsFullException();
-	}
+        throw new ArrayIsFullException();
+    }
 
-	private static bool TryAddToFirstEmptySlot<T>(ref T[] array, T item)
-	{
-		int count = array.Length;
-		for (var i = 0; i < count; i++)
-		{
-			if (!array[i].IsNull()) continue;
+    /// <summary>
+    /// Attempts to add an item to the first available empty (null) slot in the array.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the array.</typeparam>
+    /// <param name="array">The array to search for an empty slot (passed by reference).</param>
+    /// <param name="item">The item to add.</param>
+    /// <returns>True if the item was added; otherwise, false (array is full).</returns>
+    private static bool TryAddToFirstEmptySlot<T>(ref T[] array, T item)
+    {
+        int count = array.Length;
+        for (var i = 0; i < count; i++)
+        {
+            if (!array[i].IsNull()) continue;
 
-			array[i] = item;
-			return true;
-		}
+            array[i] = item;
+            return true;
+        }
 
-		return false;
-	}
+        return false;
+    }
 
-	private static void ValidateArray<T>(T[] array)
-	{
-		array.ThrowIfNull().ThrowIfEmpty();
-	}
+    /// <summary>
+    /// Ensures the array is not null and not empty.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the array.</typeparam>
+    /// <param name="array">The array to validate.</param>
+    /// <exception cref="ArgumentNullException">Thrown if the array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if the array is empty.</exception>
+    private static void ValidateArray<T>(T[] array)
+    {
+        array.ThrowIfNull().ThrowIfEmpty();
+    }
 }
 
-public sealed class ArrayIsFullException() : Exception("The array is full and cannot accept more items.");
+/// <summary>
+/// Exception thrown when an array is full and cannot accept more items.
+/// </summary>
+public sealed class ArrayIsFullException : Exception
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ArrayIsFullException"/> class with a standard error message.
+    /// </summary>
+    public ArrayIsFullException()
+        : base("The array is full and cannot accept more items.") { }
+}
