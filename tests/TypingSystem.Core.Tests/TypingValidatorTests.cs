@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using FluentAssertions;
 using JetBrains.Annotations;
+using TypingSystem.Core;
 
 namespace TypingSystem.Core.Tests;
 
@@ -94,6 +96,79 @@ public static class TypingValidatorTests
 				result.IsComplete.Should().BeFalse();
 				result.NextPosition.Should().Be(0);
 				result.TargetLength.Should().Be(0);
+			}
+
+			[Fact]
+			public void WhenIgnoreCaseEnabled_ShouldTreatDifferentCaseAsMatch()
+			{
+				var target = "Abc".AsSpan();
+
+				var result = TypingValidator.ValidateInput(target, 0, 'a', new TypingValidatorOptions
+				{
+					IgnoreCase = true
+				});
+
+				result.Status.Should().Be(TypingValidationStatus.Match);
+				result.IsCorrect.Should().BeTrue();
+			}
+
+			[Fact]
+			public void WhenIgnoreCaseDisabled_ShouldRespectCase()
+			{
+				var target = "Abc".AsSpan();
+
+				var result = TypingValidator.ValidateInput(target, 0, 'a');
+
+				result.Status.Should().Be(TypingValidationStatus.Mismatch);
+				result.IsCorrect.Should().BeFalse();
+			}
+
+			[Fact]
+			public void ShouldInvokeCallbacksBasedOnResult()
+			{
+				var target = "abc".AsSpan();
+
+				var captured = new List<TypingValidationStatus>();
+
+				var options = new TypingValidatorOptions
+				{
+					OnValidated = r => captured.Add(r.Status),
+					OnMatch = r => captured.Add(TypingValidationStatus.Match),
+					OnMismatch = r => captured.Add(TypingValidationStatus.Mismatch),
+					OnCompleted = r => captured.Add(TypingValidationStatus.Completed),
+					OnFault = r => captured.Add(TypingValidationStatus.PositionOutOfRange)
+				};
+
+				TypingValidator.ValidateInput(target, 0, 'a', options);
+				TypingValidator.ValidateInput(target, 1, 'z', options);
+				TypingValidator.ValidateInput(target, 2, 'c', options);
+				TypingValidator.ValidateInput(target, 4, 'x', options);
+
+				captured.Should().Contain(new[]
+				{
+					TypingValidationStatus.Match,
+					TypingValidationStatus.Completed,
+					TypingValidationStatus.Mismatch,
+					TypingValidationStatus.PositionOutOfRange
+				});
+			}
+
+			[Fact]
+			public void ShouldRecordMetrics()
+			{
+				var metrics = new TypingMetrics();
+				var options = new TypingValidatorOptions { Metrics = metrics };
+				var target = "abc".AsSpan();
+
+				TypingValidator.ValidateInput(target, 0, 'a', options);
+				TypingValidator.ValidateInput(target, 1, 'z', options);
+				TypingValidator.ValidateInput(ReadOnlySpan<char>.Empty, 0, 'x', options);
+
+				metrics.TotalInputs.Should().Be(3);
+				metrics.CorrectInputs.Should().Be(1);
+				metrics.MistakeInputs.Should().Be(1);
+				metrics.FaultedInputs.Should().Be(1);
+				metrics.Accuracy.Should().Be(0.5);
 			}
 
 			[Fact]

@@ -29,6 +29,34 @@ namespace TypingSystem.Core
 
 		public static TypingState Initial => new(0, 0, 0);
 
+		public TypingState WithMistake()
+		{
+			if (MistakeCount >= ushort.MaxValue)
+			{
+				throw new InvalidOperationException("Mistake count cannot exceed 65535.");
+			}
+
+			return new TypingState(Position, CorrectCount, (ushort)(MistakeCount + 1));
+		}
+
+		public TypingState WithCorrect()
+		{
+			if (Position >= byte.MaxValue)
+			{
+				throw new InvalidOperationException("Position cannot exceed 255.");
+			}
+
+			if (CorrectCount >= byte.MaxValue)
+			{
+				throw new InvalidOperationException("Correct count cannot exceed 255.");
+			}
+
+			return new TypingState(
+				(byte)(Position + 1),
+				(byte)(CorrectCount + 1),
+				MistakeCount);
+		}
+
 		public bool IsComplete(byte targetLength)
 		{
 			if (targetLength < Position)

@@ -14,7 +14,7 @@ namespace TypingSystem.Core
 		/// <param name="inputChar">The input character to validate.</param>
 		/// <returns>The result of the validation.</returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static TypingResult ValidateInput(ReadOnlySpan<char> target, byte position, char inputChar)
+		public static TypingResult ValidateInput(ReadOnlySpan<char> target, byte position, char inputChar, TypingValidatorOptions? options = null)
 		{
 			int targetLength = target.Length;
 			if (targetLength > byte.MaxValue)
@@ -29,24 +29,38 @@ namespace TypingSystem.Core
 
 			if (length == 0)
 			{
-				return TypingResult.EmptyTarget(position, inputChar);
+				return Dispatch(options, TypingResult.EmptyTarget(position, inputChar));
 			}
 
 			if (position >= length)
 			{
-				return TypingResult.PositionOutOfRange(position, length, inputChar);
+				return Dispatch(options, TypingResult.PositionOutOfRange(position, length, inputChar));
 			}
 
 			char expectedChar = target[position];
-			if (inputChar != expectedChar)
+
+			bool ignoreCase = options?.IgnoreCase ?? false;
+			bool isMatch = ignoreCase
+				? char.ToUpperInvariant(inputChar) == char.ToUpperInvariant(expectedChar)
+				: inputChar == expectedChar;
+
+			if (!isMatch)
 			{
-				return TypingResult.Mismatch(expectedChar, position, inputChar, length);
+				return Dispatch(options, TypingResult.Mismatch(expectedChar, position, inputChar, length));
 			}
 
 			bool completes = position + 1 == length;
-			return completes
-				? TypingResult.Completed(expectedChar, position, inputChar, length)
-				: TypingResult.Match(expectedChar, position, inputChar, length);
+			return Dispatch(
+				options,
+				completes
+					? TypingResult.Completed(expectedChar, position, inputChar, length)
+					: TypingResult.Match(expectedChar, position, inputChar, length));
+
+			static TypingResult Dispatch(TypingValidatorOptions? opts, TypingResult result)
+			{
+				opts?.Notify(result);
+				return result;
+			}
 		}
 	}
 }
