@@ -2,9 +2,9 @@
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
-		<LangVersion>default</LangVersion>
-		<ImplicitUsings>disable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
 		<IsPackable>false</IsPackable>
 		<OutputType>Library</OutputType>
 		<AssemblyName>Bezoro.Core.Tests</AssemblyName>

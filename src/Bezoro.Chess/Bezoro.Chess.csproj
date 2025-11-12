@@ -1,19 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <ItemGroup>
-        <InternalsVisibleTo Include="Bezoro.Chess.Tests"/>
-    </ItemGroup>
-    <ItemGroup>
-        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
-    </ItemGroup>
-    <ItemGroup>
-        <Folder Include="API\Abstractions\"/>
-        <Folder Include="API\Helpers\"/>
-        <Folder Include="API\Shared\Consts\"/>
-        <Folder Include="API\Types\"/>
-        <Folder Include="Docs\"/>
-        <Folder Include="Domain\Functions\"/>
-    </ItemGroup>
-    <ItemGroup>
-        <PackageReference Include="System.Collections.Immutable" Version="10.0.0-preview.5.25277.114"/>
-    </ItemGroup>
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+	<ItemGroup>
+		<InternalsVisibleTo Include="Bezoro.Chess.Tests" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<Folder Include="API\Abstractions\" />
+		<Folder Include="API\Helpers\" />
+		<Folder Include="API\Shared\Consts\" />
+		<Folder Include="API\Types\" />
+		<Folder Include="Docs\" />
+		<Folder Include="Domain\Functions\" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="System.Collections.Immutable"
+			Version="10.0.0-preview.5.25277.114" />
+	</ItemGroup>
 </Project>

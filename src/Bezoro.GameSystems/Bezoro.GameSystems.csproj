@@ -1,36 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
-        <LangVersion>9</LangVersion>
-        <Nullable>enable</Nullable>
-    </PropertyGroup>
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj"/>
-    </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+	</ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="API\ViewModels\"/>
-        <Folder Include="Domain\"/>
-    </ItemGroup>
+	<ItemGroup>
+		<Folder Include="API\ViewModels\" />
+		<Folder Include="Domain\" />
+	</ItemGroup>
 
-    <Target Name="CopyToUnity" AfterTargets="Build">
-        <!-- copy built DLL into your Unity project -->
-        <PropertyGroup>
-            <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\GameSystems\</UnityPluginDir>
-        </PropertyGroup>
+	<Target Name="CopyToUnity" AfterTargets="Build">
+		<!-- copy built DLL into your Unity project -->
+		<PropertyGroup>
+			<UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\GameSystems\</UnityPluginDir>
+		</PropertyGroup>
 
-        <ItemGroup>
-            <BuiltOutputs Include="$(TargetDir)$(AssemblyName).dll"/>
-            <BuiltOutputs Include="$(TargetDir)$(AssemblyName).pdb"
-                          Condition="Exists('$(TargetDir)$(AssemblyName).pdb')"/>
-        </ItemGroup>
+		<ItemGroup>
+			<BuiltOutputs Include="$(TargetDir)$(AssemblyName).dll" />
+			<BuiltOutputs Include="$(TargetDir)$(AssemblyName).pdb"
+				Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+		</ItemGroup>
 
-        <MakeDir Directories="$(UnityPluginDir)" Condition="!Exists('$(UnityPluginDir)')"/>
-        <Copy SourceFiles="@(BuiltOutputs)"
-              DestinationFolder="$(UnityPluginDir)"
-              SkipUnchangedFiles="true"/>
-    </Target>
+		<MakeDir Directories="$(UnityPluginDir)" Condition="!Exists('$(UnityPluginDir)')" />
+		<Copy SourceFiles="@(BuiltOutputs)"
+			DestinationFolder="$(UnityPluginDir)"
+			SkipUnchangedFiles="true" />
+	</Target>
 
 </Project>
