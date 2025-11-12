@@ -112,7 +112,7 @@ namespace TypingSystem.Core
 
 		private static byte CalculateNextPositionForOutOfRange(byte position, byte targetLength)
 		{
-			if (targetLength <= 0) return 0;
+			if (targetLength == 0) return 0;
 
 			var maxIndex = (byte)(targetLength - 1);
 			return position > maxIndex ? maxIndex : position;

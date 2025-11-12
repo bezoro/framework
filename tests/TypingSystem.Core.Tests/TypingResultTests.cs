@@ -90,6 +90,21 @@ public static class TypingResultTests
 				result.TargetLength.Should().Be(TARGET_LENGTH);
 				result.NextPosition.Should().Be(POSITION + 1);
 			}
+
+			[Fact]
+			public void WhenTargetLengthIsMaximum_ShouldStillAdvance()
+			{
+				const byte TARGET_LENGTH = byte.MaxValue;
+				const byte POSITION      = 0;
+				const char EXPECTED      = 'a';
+				const char INPUT         = 'a';
+
+				var result = TypingResult.Match(EXPECTED, POSITION, INPUT, TARGET_LENGTH);
+
+				result.Status.Should().Be(TypingValidationStatus.Match);
+				result.TargetLength.Should().Be(TARGET_LENGTH);
+				result.NextPosition.Should().Be(POSITION + 1);
+			}
 		}
 
 		public class CompletedTests

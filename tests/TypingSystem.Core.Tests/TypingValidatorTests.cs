@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+﻿using System;
+using FluentAssertions;
 using JetBrains.Annotations;
 
 namespace TypingSystem.Core.Tests;
@@ -93,6 +94,34 @@ public static class TypingValidatorTests
 				result.IsComplete.Should().BeFalse();
 				result.NextPosition.Should().Be(0);
 				result.TargetLength.Should().Be(0);
+			}
+
+			[Fact]
+			public void WhenTargetLengthEqualsMaximum_ShouldValidateSuccessfully()
+			{
+				string word = new('a', byte.MaxValue);
+				var    target = word.AsSpan();
+				const byte POSITION = 0;
+				const char INPUT    = 'a';
+
+				var result = TypingValidator.ValidateInput(target, POSITION, INPUT);
+
+				result.Status.Should().Be(TypingValidationStatus.Match);
+				result.TargetLength.Should().Be(byte.MaxValue);
+				result.NextPosition.Should().Be(POSITION + 1);
+			}
+
+			[Fact]
+			public void WhenTargetExceedsMaximumLength_ShouldThrow()
+			{
+				string word = new('a', byte.MaxValue + 1);
+
+				Action action = () => TypingValidator.ValidateInput(word.AsSpan(), 0, 'a');
+
+				action.Should()
+					.Throw<ArgumentOutOfRangeException>()
+					.WithParameterName("target")
+					.WithMessage("*Target length cannot exceed 255 characters.*");
 			}
 		}
 	}

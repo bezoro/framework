@@ -16,7 +16,16 @@ namespace TypingSystem.Core
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static TypingResult ValidateInput(ReadOnlySpan<char> target, byte position, char inputChar)
 		{
-			byte length = (byte)target.Length;
+			int targetLength = target.Length;
+			if (targetLength > byte.MaxValue)
+			{
+				throw new ArgumentOutOfRangeException(
+					nameof(target),
+					targetLength,
+					"Target length cannot exceed 255 characters.");
+			}
+
+			byte length = (byte)targetLength;
 
 			if (length == 0)
 			{
