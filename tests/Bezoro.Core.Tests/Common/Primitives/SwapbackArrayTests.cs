@@ -1590,6 +1590,28 @@ public static class SwapbackArrayTests
 			}
 		}
 
+		public class Remove
+		{
+			[Fact]
+			public void WhenItemNotFound_ShouldThrow()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+				var act = () => arr.Remove(4);
+
+				act.Should().Throw<InvalidOperationException>();
+			}
+
+			[Fact]
+			public void WhenItemFound_ShouldRemoveItem()
+			{
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
+				arr.Remove(2);
+
+				arr.ToArray().Should().Equal(1, 3);
+			}
+
+		}
+
 		public class TryRemoveAt
 		{
 			[Fact]
@@ -1613,7 +1635,7 @@ public static class SwapbackArrayTests
 			[Fact]
 			public void WhenCalled_ShouldIncrementVersion()
 			{
-				var  arr            = new SwapbackArray<int> { 1, 2, 3 };
+				var arr = new SwapbackArray<int> { 1, 2, 3 };
 				uint initialVersion = arr.Version;
 
 				arr.TryRemoveAt(1);
@@ -1636,7 +1658,7 @@ public static class SwapbackArrayTests
 			[Fact]
 			public void WhenFails_ShouldNotIncrementVersion()
 			{
-				var  arr            = new SwapbackArray<int> { 1 };
+				var arr = new SwapbackArray<int> { 1 };
 				uint initialVersion = arr.Version;
 
 				arr.TryRemoveAt(99);

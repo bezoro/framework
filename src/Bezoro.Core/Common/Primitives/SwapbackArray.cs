@@ -341,6 +341,20 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
+	///     Removes the first occurrence of the specified item from the array.
+	/// </summary>
+	/// <param name="item">The item to remove from the array.</param>
+	/// <exception cref="InvalidOperationException">
+	///     Thrown if the item is not found in the array.
+	/// </exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void Remove(T item)
+	{
+		if (!TryRemove(item))
+			throw new InvalidOperationException("The specified item was not found in the SwapbackArray.");
+	}
+
+	/// <summary>
 	///     Removes the element at the specified index by swapping the last element into that position.
 	///     Returns false if the index is invalid.
 	/// </summary>
