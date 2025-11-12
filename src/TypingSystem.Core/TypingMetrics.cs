@@ -24,7 +24,7 @@ public sealed class TypingMetrics
 
 	public uint TotalEvaluated => TotalInputs - FaultedInputs;
 
-	public double Accuracy => TotalEvaluated == 0 ? 1d : (double)CorrectInputs / TotalEvaluated;
+	public double Accuracy => TotalEvaluated == 0 ? 0d : (double)CorrectInputs / TotalEvaluated;
 
 	public double CharactersPerMinute => Elapsed.TotalMinutes <= 0 ? 0d : CorrectInputs / Elapsed.TotalMinutes;
 

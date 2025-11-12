@@ -172,6 +172,14 @@ public static class TypingValidatorTests
 			}
 
 			[Fact]
+			public void WhenNoAttempts_ShouldReportZeroAccuracy()
+			{
+				var metrics = new TypingMetrics();
+
+				metrics.Accuracy.Should().Be(0d);
+			}
+
+			[Fact]
 			public void WhenTargetLengthEqualsMaximum_ShouldValidateSuccessfully()
 			{
 				string word = new('a', byte.MaxValue);
