@@ -76,7 +76,24 @@ public readonly record struct MoveScore()
 		if (result.HasMate && result.MateScore.HasValue)
 			return FromMate(result.MateScore.Value);
 
-		int? cp = result.BestCpScore ?? result.PrincipalVariations.FirstOrDefault().ScoreCp;
+		int? cp = result.BestCpScore;
+		if (!cp.HasValue)
+		{
+			var variations = result.PrincipalVariations;
+			if (variations is { Count: > 0 })
+			{
+				// Prefer the first available centipawn score
+				foreach (var pv in variations)
+				{
+					if (pv.ScoreCp.HasValue)
+					{
+						cp = pv.ScoreCp;
+						break;
+					}
+				}
+			}
+		}
+
 		return cp.HasValue ? FromCp(cp.Value) : default;
 	}
 }
