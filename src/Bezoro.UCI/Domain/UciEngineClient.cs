@@ -8,38 +8,91 @@ using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.Domain;
 
+/// <summary>
+/// Provides high-level async orchestration and lifecycle management for a UCI engine process/transport.
+/// Maintains a single search session at a time, parses UCI output, tracks engine activity state, and
+/// exposes events and helpers for UCI clients.
+/// </summary>
 internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposable
 {
+	/// <summary>
+	/// Maps waiter tokens to asynchronous completion sources for awaiting specific output lines.
+	/// Used to bridge imperative await-points (e.g. wait for "uciok", "readyok") with the background 
+	/// read loop.
+	/// </summary>
 	private readonly ConcurrentDictionary<Guid, (Func<string, bool> predicate, TaskCompletionSource<string> tcs)>
 		_waiters = new();
 
+	/// <summary>
+	/// Underlying transport abstraction for communicating with the engine.
+	/// </summary>
 	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
 
+	/// <summary>
+	/// Cancellation source for the read loop and engine lifetime.
+	/// </summary>
 	private CancellationTokenSource? _cts;
 
-	// Engine activity state: 0 = Idle, 1 = Searching, 2 = Pondering
+	/// <summary>
+	/// Atomic int representing current engine activity state (see <see cref="EngineActivity"/>).
+	/// </summary>
 	private int _activity;
 
-	// Fast-path waiter count to avoid per-line scans when there are no waiters.
+	/// <summary>
+	/// Fast-track count for waiter presence, avoiding dictionary scans when there are no waiters.
+	/// </summary>
 	private int _waiterCount;
 
-	// Single active session is sufficient because UCI engines handle one search at a time.
+	/// <summary>
+	/// Current <see cref="SearchSession"/> tracked for an ongoing search operation.
+	/// Only one search is permitted at a time.
+	/// </summary>
 	private volatile SearchSession? _activeSearch;
 
+	/// <summary>
+	/// Holds background read loop Task.
+	/// </summary>
 	private Task? _readerTask;
 
+	/// <summary>
+	/// Occurs when the engine transitions between <see cref="EngineActivity"/> states.
+	/// </summary>
 	public event Action<EngineActivity, EngineActivity>? ActivityChanged;
+	/// <summary>
+	/// Notifies when the engine emits a "bestmove" line.
+	/// </summary>
 	public event Action<string, string>?                 BestMoveReceived;
+	/// <summary>
+	/// Raised for principal variation ("info ... pv ...") lines.
+	/// </summary>
 	public event Action<PrincipalVariation>?             InfoPvReceived;
+	/// <summary>
+	/// Raised for every output line received from the engine.
+	/// </summary>
 	public event Action<string>?                         LineReceived;
 
+	/// <summary>
+	/// Indicates whether the underlying transport is healthy.
+	/// </summary>
 	public bool IsHealthy => _transport.IsHealthy;
+	/// <summary>
+	/// Returns true after <see cref="StartAsync"/> is called and until <see cref="StopAsync"/> completes.
+	/// </summary>
 	public bool IsStarted => _transport.IsStarted;
 
+	/// <summary>
+	/// Gets the current engine activity state.
+	/// </summary>
 	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
 
+	/// <summary>
+	/// Engine process/transport status.
+	/// </summary>
 	public ProcessUciTransport.TransportStatus Status => _transport.Status;
 
+	/// <summary>
+	/// Determines if a string is a valid UCI move (e.g. "e2e4", "a7a8q").
+	/// </summary>
 	public static bool IsUciMoveString(string s)
 	{
 		var span = s.AsSpan();
@@ -60,6 +113,11 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Builds a UCI-compliant "go ..." command from <paramref name="parameters"/>.
+	/// </summary>
+	/// <param name="parameters">Search configuration</param>
+	/// <returns>Full "go ..." line to send to engine</returns>
 	public static string BuildGoCommand(SearchParameters parameters)
 	{
 		var parts = new List<string> { UciConstants.Commands.GO };
@@ -114,6 +172,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		return string.Join(' ', parts);
 	}
 
+	/// <summary>
+	/// Starts a search with the given parameters and does not await engine termination nor the bestmove response.
+	/// Use for fire-and-forget searches (e.g., GUI spinning).
+	/// </summary>
 	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
 	{
 		string cmd = BuildGoCommand(parameters);
@@ -121,6 +183,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
 	}
 
+	/// <summary>
+	/// Sends "isready" to the engine and waits up to 10 seconds for "readyok".
+	/// </summary>
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -141,6 +206,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 		return;
 
+		/// <summary>
+		/// Completion handler for "readyok" response.
+		/// </summary>
 		void Handler(string l)
 		{
 			try
@@ -155,6 +223,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Sends a "setoption" command to the engine.
+	/// </summary>
 	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
 	{
 		if (string.IsNullOrWhiteSpace(name)) return;
@@ -166,6 +237,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Sets the board position using a FEN and (optionally) a move list.
+	/// </summary>
 	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct)
 	{
 		if (!Fen.Validate(fen.Raw))
@@ -180,6 +254,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 			ct).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Starts the engine process/connection, background read loop, and completes UCI handshake.
+	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		await _transport.StartAsync(ct).ConfigureAwait(false);
@@ -192,6 +269,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		SetActivity(EngineActivity.Idle);
 	}
 
+	/// <summary>
+	/// Gracefully stops the engine, read loop, and disposes transports.
+	/// </summary>
 	public async Task StopAsync(CancellationToken ct = default)
 	{
 		try
@@ -218,12 +298,18 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		SetActivity(EngineActivity.Idle);
 	}
 
+	/// <summary>
+	/// Sends the "stop" command to the engine and immediately transitions to Idle.
+	/// </summary>
 	public async Task StopSearchAsync(CancellationToken ct)
 	{
 		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
 		SetActivity(EngineActivity.Idle);
 	}
 
+	/// <summary>
+	/// Sends "uci" to the engine and waits for "uciok" and "readyok" to confirm supported handshaking.
+	/// </summary>
 	public async Task UciInitAsync(CancellationToken ct)
 	{
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -245,6 +331,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		await IsReadyAsync(ct).ConfigureAwait(false);
 		return;
 
+		/// <summary>
+		/// Handler sets completion for "uciok" response.
+		/// </summary>
 		void Handler(string l)
 		{
 			try
@@ -259,12 +348,18 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Informs the engine of a new game context via "ucinewgame"; calls <see cref="IsReadyAsync"/>.
+	/// </summary>
 	public async Task UciNewGameAsync(CancellationToken ct)
 	{
 		await _transport.WriteLineAsync(UciConstants.Commands.UCI_NEW_GAME, ct).ConfigureAwait(false);
 		await IsReadyAsync(ct).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Requests the current engine FEN using the "d" command and parses "fen ..." and "checkers ..." output.
+	/// </summary>
 	public async Task<Fen?> GetFenViaDAsync(CancellationToken ct)
 	{
 		// Capture 'fen' and 'checkers' lines from the 'd' output to avoid races.
@@ -330,6 +425,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Issues a "go perft 1" command and harvests all legal moves listed in the output.
+	/// Waits for "readyok" for completion.
+	/// </summary>
 	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
 	{
 		// Collect moves while the engine processes the command; completion is gated by readyok.
@@ -369,6 +468,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		static bool IsSep(char ch) =>
 			ch is ' ' or '\t' or ',' or ';' or '|' or ':';
 
+		/// <summary>
+		/// Receives each output line and extracts UCI moves.
+		/// </summary>
 		void CaptureMoves(string l)
 		{
 			var span = l.AsSpan();
@@ -392,6 +494,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		static bool IsFile(char c) => (uint)((c | 0x20) - 'a') <= 7; // a-h
 	}
 
+	/// <summary>
+	/// Runs a search with the supplied parameters and returns a <see cref="SearchResult"/> from "bestmove" and info lines.
+	/// Applies a derived timeout based on input <paramref name="parameters"/>.
+	/// </summary>
 	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
 	{
 		string cmd = BuildGoCommand(parameters);
@@ -488,11 +594,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
 
-		// Derive a more sensible timeout:
-		// - movetime: movetime + small buffer
-		// - depth/nodes: longer ceiling
-		// - infinite: generous cap (but still cancellable via ct)
-		// - default: moderate timeout
+		/// <summary>
+		/// Computes an appropriate timeout for the search session, based on input search parameters.
+		/// </summary>
 		static TimeSpan ComputeTimeout(SearchParameters p)
 		{
 			if (p.MoveTimeMs is { } mt)
@@ -510,6 +614,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Disposes the engine client, releasing and stopping underlying transports.
+	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
 		try
@@ -524,6 +631,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		if (_transport is IAsyncDisposable ad) await ad.DisposeAsync();
 	}
 
+	/// <summary>
+	/// Main receive/read loop. Reads transport output lines, dispatches output events, parses known output, and
+	/// manages generic waiters and search session events.
+	/// </summary>
 	private async Task ReadLoopAsync()
 	{
 		var token = _cts?.Token ?? CancellationToken.None;
@@ -649,6 +760,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		SetActivity(EngineActivity.Idle);
 	}
 
+	/// <summary>
+	/// Awaits an output line matching a predicate within an optional timeout and cancellation.
+	/// </summary>
 	private async Task<string> WaitForLineAsync(Func<string, bool> predicate, TimeSpan timeout, CancellationToken ct)
 	{
 		var id  = Guid.NewGuid();
@@ -684,6 +798,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
+	/// <summary>
+	/// Atomically sets the engine activity state and publishes activity change notifications, if the state changed.
+	/// </summary>
 	private void SetActivity(EngineActivity next)
 	{
 		var previous = (EngineActivity)Interlocked.Exchange(ref _activity, (int)next);
@@ -699,19 +816,31 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 	}
 
-	// Session optimized path for search: avoids per-line predicate scans and event subscriptions.
+	/// <summary>
+	/// Holds shared data for a search session for the duration of an active "go ..." command.
+	/// Tracks output lines and the bestmove completion.
+	/// </summary>
 	private sealed class SearchSession(bool ponder)
 	{
+		/// <summary>True if this session was started in pondering mode.</summary>
 		public readonly bool                    Ponder = ponder;
+		/// <summary>Collects all info/bestmove lines output during the search.</summary>
 		public readonly ConcurrentQueue<string> Lines  = new();
+		/// <summary>Completes when the engine emits "bestmove".</summary>
 		public readonly TaskCompletionSource<string> BestMoveTcs =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 	}
 }
 
+/// <summary>
+/// Enumerates the coarse-grained activity states tracked for the engine.
+/// </summary>
 public enum EngineActivity
 {
+	/// <summary>Idle; engine is not searching or pondering.</summary>
 	Idle      = 0,
+	/// <summary>Engine is actively searching.</summary>
 	Searching = 1,
+	/// <summary>Engine is pondering (analyzing at opponent's turn).</summary>
 	Pondering = 2
 }
