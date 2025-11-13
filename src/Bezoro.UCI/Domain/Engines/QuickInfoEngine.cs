@@ -15,9 +15,9 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private readonly object                      _cacheLock    = new();
 	private readonly SemaphoreSlim               _positionLock = new(1, 1);
 	private readonly UciEngineClient             _client;
+	private          bool                        _disposed;
 	private          Fen?                        _currentFenCache;
 	private          IReadOnlyCollection<string> _legalMovesCache;
-	private          bool                        _disposed;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
@@ -205,6 +205,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public async ValueTask DisposeAsync()
 	{
 		if (_disposed) return;
+
 		_disposed = true;
 
 		try

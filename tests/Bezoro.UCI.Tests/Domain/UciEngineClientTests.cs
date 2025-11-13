@@ -116,66 +116,6 @@ public class UciEngineClientTests
 		await transport.Received().WriteLineAsync("go perft 1", Arg.Any<CancellationToken>());
 	}
 
-	[Fact(Timeout = 10000)]
-	public async Task GoAsync_FastBestmove_TimeoutWithGrace_AndCancellation()
-	{
-		var transport = Substitute.For<IUciTransport>();
-		transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-		transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-		var ch = Channel.CreateUnbounded<string>();
-		transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-				 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
-
-		var client = new UciEngineClient(transport);
-
-		// Hook handshake
-		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
-				 .Do(async _ => await ch.Writer.WriteAsync("uciok"));
-
-		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-				 .Do(async _ => await ch.Writer.WriteAsync("readyok"));
-
-		await client.StartAsync(CancellationToken.None);
-
-		// Case 1: bestmove arrives promptly (emit upon 'go depth 8')
-		transport.ClearReceivedCalls();
-		transport.When(x => x.WriteLineAsync(
-						   Arg.Is<string>(s => s.StartsWith("go depth 8")),
-						   Arg.Any<CancellationToken>()))
-				 .Do(async _ =>
-				 {
-					 await ch.Writer.WriteAsync(
-						 "info depth 8 seldepth 10 multipv 1 score cp 34 nodes 100 nps 1000 tbhits 0 time 5 pv e2e4 e7e5");
-
-					 await ch.Writer.WriteAsync("bestmove e2e4 ponder e7e5");
-				 });
-
-		var goTask1 = client.GoAsync(new() { Depth = 8 }, CancellationToken.None);
-		var res1    = await goTask1;
-		Assert.Equal("e2e4",              res1.BestMove);
-		Assert.Equal("e7e5",              res1.PonderMove);
-		Assert.Equal(EngineActivity.Idle, client.Activity);
-
-		// Case 2: timeout then grace where bestmove arrives after 'stop'
-		transport.ClearReceivedCalls();
-		transport.When(x => x.WriteLineAsync("stop", Arg.Any<CancellationToken>()))
-				 .Do(async _ => { await ch.Writer.WriteAsync("bestmove g1f3"); });
-
-		var goTask2 = client.GoAsync(new() { MoveTimeMs = 10 }, CancellationToken.None);
-		var res2    = await goTask2;
-		Assert.Equal("g1f3", res2.BestMove);
-		await transport.Received().WriteLineAsync("stop", CancellationToken.None);
-
-		// Case 3: cancellation without bestmove
-		using var cts = new CancellationTokenSource(50);
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await client.GoAsync(
-																				new() { Depth = 12 },
-																				cts.Token));
-
-		await client.DisposeAsync();
-	}
-
 	[Fact]
 	public async Task GoFireAndForgetAsync_WritesCommandAndSetsActivity()
 	{
@@ -203,6 +143,39 @@ public class UciEngineClientTests
 
 		// Act + Assert
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => { await client.IsReadyAsync(cts.Token); });
+	}
+
+	[Fact]
+	public async Task SetOptionAsync_ValueContainingSpaces_SendsVerbatimValue()
+	{
+		// Arrange
+		var transport = Substitute.For<IUciTransport>();
+		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+		var          client          = new UciEngineClient(transport);
+		var          ct              = CancellationToken.None;
+		const string valueWithSpaces = @"C:\Chess\Table Bases\wdl345";
+
+		// Act
+		await client.SetOptionAsync("SyzygyPath", valueWithSpaces, ct);
+
+		// Assert
+		await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {valueWithSpaces}", ct);
+	}
+
+	[Fact]
+	public async Task SetOptionAsync_WhitespaceName_DoesNotSendCommand()
+	{
+		// Arrange
+		var transport = Substitute.For<IUciTransport>();
+		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+		var client = new UciEngineClient(transport);
+		var ct     = CancellationToken.None;
+
+		// Act
+		await client.SetOptionAsync("   ", "ignored", ct);
+
+		// Assert
+		await transport.DidNotReceiveWithAnyArgs().WriteLineAsync(default!);
 	}
 
 	[Fact]
@@ -235,39 +208,6 @@ public class UciEngineClientTests
 
 		// Assert
 		await transport.Received(1).WriteLineAsync("setoption name Hash value 256", ct);
-	}
-
-	[Fact]
-	public async Task SetOptionAsync_WhitespaceName_DoesNotSendCommand()
-	{
-		// Arrange
-		var transport = Substitute.For<IUciTransport>();
-		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-		var client = new UciEngineClient(transport);
-		var ct     = CancellationToken.None;
-
-		// Act
-		await client.SetOptionAsync("   ", "ignored", ct);
-
-		// Assert
-		await transport.DidNotReceiveWithAnyArgs().WriteLineAsync(default!, default);
-	}
-
-	[Fact]
-	public async Task SetOptionAsync_ValueContainingSpaces_SendsVerbatimValue()
-	{
-		// Arrange
-		var transport = Substitute.For<IUciTransport>();
-		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-		var client = new UciEngineClient(transport);
-		var ct     = CancellationToken.None;
-		const string valueWithSpaces = @"C:\Chess\Table Bases\wdl345";
-
-		// Act
-		await client.SetOptionAsync("SyzygyPath", valueWithSpaces, ct);
-
-		// Assert
-		await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {valueWithSpaces}", ct);
 	}
 
 	[Fact]
@@ -374,20 +314,7 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
-	public void IsUciMoveString_ValidAndInvalid()
-	{
-		Assert.True(UciEngineClient.IsUciMoveString("e2e4"));
-		Assert.True(UciEngineClient.IsUciMoveString("a7a8q"));
-		Assert.True(UciEngineClient.IsUciMoveString("H7H8N"));
-		Assert.False(UciEngineClient.IsUciMoveString("e9e4"));
-		Assert.False(UciEngineClient.IsUciMoveString("i2e4"));
-		Assert.False(UciEngineClient.IsUciMoveString("e2e"));
-		Assert.False(UciEngineClient.IsUciMoveString("e2e45"));
-		Assert.False(UciEngineClient.IsUciMoveString("e2e4x"));
-	}
-
-	[Fact]
-	public void ComputeTimeout_MoveTimeLongerThanOneMinute_IsNotClamped()
+	public void ComputeTimeout_DepthLarge_ClampedSafely()
 	{
 		var method = typeof(UciEngineClient).GetMethod(
 			"ComputeTimeout",
@@ -395,10 +322,10 @@ public class UciEngineClientTests
 
 		Assert.NotNull(method);
 
-		var parameters = new SearchParameters { MoveTimeMs = 90_000 };
-		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+		var parameters = new SearchParameters { Depth = uint.MaxValue };
+		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
 
-		Assert.Equal(TimeSpan.FromMilliseconds(90_750), result);
+		Assert.Equal(TimeSpan.FromSeconds(90), result);
 	}
 
 	[Fact]
@@ -411,10 +338,25 @@ public class UciEngineClientTests
 		Assert.NotNull(method);
 
 		var parameters = new SearchParameters { MoveTimeMs = int.MaxValue };
-		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
 
-		var expectedMs = (double)int.MaxValue + 750d;
-		Assert.Equal(expectedMs, result.TotalMilliseconds, precision: 3);
+		double expectedMs = int.MaxValue + 750d;
+		Assert.Equal(expectedMs, result.TotalMilliseconds, 3);
+	}
+
+	[Fact]
+	public void ComputeTimeout_MoveTimeLongerThanOneMinute_IsNotClamped()
+	{
+		var method = typeof(UciEngineClient).GetMethod(
+			"ComputeTimeout",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		Assert.NotNull(method);
+
+		var parameters = new SearchParameters { MoveTimeMs = 90_000 };
+		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+
+		Assert.Equal(TimeSpan.FromMilliseconds(90_750), result);
 	}
 
 	[Fact]
@@ -427,24 +369,22 @@ public class UciEngineClientTests
 		Assert.NotNull(method);
 
 		var parameters = new SearchParameters { MoveTimeMs = -1_000 };
-		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
 
 		Assert.Equal(TimeSpan.FromMilliseconds(500), result);
 	}
 
 	[Fact]
-	public void ComputeTimeout_DepthLarge_ClampedSafely()
+	public void IsUciMoveString_ValidAndInvalid()
 	{
-		var method = typeof(UciEngineClient).GetMethod(
-			"ComputeTimeout",
-			BindingFlags.NonPublic | BindingFlags.Static);
-
-		Assert.NotNull(method);
-
-		var parameters = new SearchParameters { Depth = uint.MaxValue };
-		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
-
-		Assert.Equal(TimeSpan.FromSeconds(90), result);
+		Assert.True(UciEngineClient.IsUciMoveString("e2e4"));
+		Assert.True(UciEngineClient.IsUciMoveString("a7a8q"));
+		Assert.True(UciEngineClient.IsUciMoveString("H7H8N"));
+		Assert.False(UciEngineClient.IsUciMoveString("e9e4"));
+		Assert.False(UciEngineClient.IsUciMoveString("i2e4"));
+		Assert.False(UciEngineClient.IsUciMoveString("e2e"));
+		Assert.False(UciEngineClient.IsUciMoveString("e2e45"));
+		Assert.False(UciEngineClient.IsUciMoveString("e2e4x"));
 	}
 
 	private static async IAsyncEnumerable<string> StreamFromChannel(

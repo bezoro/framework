@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -81,7 +80,6 @@ public readonly record struct MoveScore()
 		{
 			var variations = result.PrincipalVariations;
 			if (variations is { Count: > 0 })
-			{
 				// Prefer the first available centipawn score
 				foreach (var pv in variations)
 				{
@@ -91,7 +89,6 @@ public readonly record struct MoveScore()
 						break;
 					}
 				}
-			}
 		}
 
 		return cp.HasValue ? FromCp(cp.Value) : default;

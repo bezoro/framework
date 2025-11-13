@@ -20,9 +20,10 @@ public readonly record struct Move()
 	public string       From       { get; }
 	public string       Notation   { get; }
 	public string       To         { get; }
+
 	private static Piece ResolvePiece(ParsedMove parsedMove, MoveAnalysis analysis, string notation)
 	{
-		Piece? resolved = analysis.MovingPiece;
+		var resolved = analysis.MovingPiece;
 		if (resolved is null && parsedMove.MovingPiece.Char != '\0')
 			resolved = parsedMove.MovingPiece;
 

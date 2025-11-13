@@ -72,11 +72,11 @@ public readonly record struct Promotion
 	public static Promotion FromNotation(string moveNotation)
 	{
 		moveNotation.ThrowIfNull().Length.ThrowIfLessThan(4).ThrowIfMoreThan(5);
-		var parsedMove  = ParsedMove.FromNotation(moveNotation);
-		var color       = DetermineColor(parsedMove);
-		var pawnChar    = color == PieceColor.White ? 'P' : 'p';
-		var position    = Position.Create(parsedMove.To, Piece.FromChar(pawnChar));
-		var chosenPiece = moveNotation.Last().ToPieceType();
+		var  parsedMove  = ParsedMove.FromNotation(moveNotation);
+		var  color       = DetermineColor(parsedMove);
+		char pawnChar    = color == PieceColor.White ? 'P' : 'p';
+		var  position    = Position.Create(parsedMove.To, Piece.FromChar(pawnChar));
+		var  chosenPiece = moveNotation.Last().ToPieceType();
 		return new(chosenPiece, position);
 	}
 

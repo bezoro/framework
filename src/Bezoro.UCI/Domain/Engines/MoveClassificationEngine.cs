@@ -24,9 +24,9 @@ internal sealed class MoveClassificationEngine(
 	private readonly QuickInfoEngine _quick = new(enginePath, args, workingDirectory);
 
 	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
+	private          bool   _disposed;
 
 	private bool _started;
-	private bool _disposed;
 
 	private CancellationTokenSource _classificationCts = new();
 
@@ -50,6 +50,7 @@ internal sealed class MoveClassificationEngine(
 		var boardStateOption = BoardState.FromFen(fen.Value);
 		if (!boardStateOption.HasValue)
 			throw new ArgumentException("Cannot classify moves because the supplied FEN is invalid.", nameof(fen));
+
 		var boardState = boardStateOption.Value;
 
 		await _quick.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
@@ -447,6 +448,7 @@ internal sealed class MoveClassificationEngine(
 	public async ValueTask DisposeAsync()
 	{
 		if (_disposed) return;
+
 		_disposed = true;
 
 		StopClassification();
@@ -529,11 +531,12 @@ internal sealed class MoveClassificationEngine(
 		uint              perMoveDepth,
 		CancellationToken ct)
 	{
-		var fenKey   = fen.ToString();
-		var cacheKey = (fenKey, move, perMoveDepth);
+		var fenKey           = fen.ToString();
+		var cacheKey         = (fenKey, move, perMoveDepth);
 		var boardStateOption = BoardState.FromFen(fen);
 		if (!boardStateOption.HasValue)
 			throw new ArgumentException("Cannot evaluate move because the supplied FEN is invalid.", nameof(fen));
+
 		var boardState = boardStateOption.Value;
 
 		MoveScore    score;
@@ -553,13 +556,13 @@ internal sealed class MoveClassificationEngine(
 			var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 			if (replies is { Count: 0 })
 			{
-				var afterFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-				bool inCheck = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
-				bool isMateFast = inCheck;
+				var  afterFen    = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+				bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
+				bool isMateFast  = inCheck;
 				bool isStaleFast = !isMateFast;
-				score = isMateFast ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
+				score                    = isMateFast ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
 				_moveEvalCache[cacheKey] = (score, isMateFast, isStaleFast);
-				analysis = MoveAnalysis.Analyze(move, boardState, score, isStaleFast);
+				analysis                 = MoveAnalysis.Analyze(move, boardState, score, isStaleFast);
 				return new Move(move, analysis);
 			}
 		}

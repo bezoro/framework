@@ -62,8 +62,8 @@ public readonly record struct Fen
 			var    parsed     = Parse(fenPayload);
 			if (parsed.HasValue)
 			{
-				fen         = parsed;
-				lastRawFen  = fenPayload;
+				fen        = parsed;
+				lastRawFen = fenPayload;
 				return true;
 			}
 
@@ -171,9 +171,11 @@ public readonly record struct Fen
 
 		string token = parts[1].ThrowIfEmpty();
 		if (token.Length != 1)
-			throw new ArgumentException("Invalid active color in FEN. Expected single character 'w' or 'b'.", nameof(parts));
+			throw new ArgumentException(
+				"Invalid active color in FEN. Expected single character 'w' or 'b'.",
+				nameof(parts));
 
-		char c = char.ToLowerInvariant(token[0]);
+		var c = char.ToLowerInvariant(token[0]);
 		return c switch
 		{
 			'w' => 'w',
@@ -184,7 +186,7 @@ public readonly record struct Fen
 
 	private static string ExtractFenPayloadFromUciLine(string line)
 	{
-		string payload = line[FenKeyword.Length..].TrimStart();
+		string payload                                                = line[FenKeyword.Length..].TrimStart();
 		if (payload.Length > 0 && payload[0] == FenSeparator) payload = payload[1..].TrimStart();
 		return payload;
 	}
