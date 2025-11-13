@@ -315,12 +315,13 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 				checkersLine = await checkersTcs.Task.ConfigureAwait(false);
 
 			// Parse FEN from captured lines
-			Fen.TryParseUciOutputLine(fenLine, out var fenFromFen);
+			string? rawFenCache = null;
+			Fen.TryParseUciOutputLine(fenLine, ref rawFenCache, out var fenFromFen);
 
 			if (checkersLine is null) return fenFromFen;
 
 			// Enrich the cached FEN with 'checkers' info
-			Fen.TryParseUciOutputLine(checkersLine, out var fenWithCheckers);
+			Fen.TryParseUciOutputLine(checkersLine, ref rawFenCache, out var fenWithCheckers);
 			return fenWithCheckers;
 		}
 		finally

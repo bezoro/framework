@@ -42,7 +42,7 @@ public readonly record struct MoveAnalysis
 			 isNormal    = false,
 			 isPromotion = false;
 
-		if (CheckIsCastling(parsedMove, boardState))
+		if (CheckIsCastling(parsedMove, movingPiece, boardState))
 			isCastling = true;
 
 		if (movingPiece.HasValue && CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
@@ -81,13 +81,13 @@ public readonly record struct MoveAnalysis
 		};
 	}
 
-	private static bool CheckIsCastling(ParsedMove move, BoardState boardState)
+	private static bool CheckIsCastling(ParsedMove move, Piece? movingPiece, BoardState boardState)
 	{
 		move.ThrowIfNull();
 		boardState.ThrowIfNull();
 
-		move.MovingPiece.ThrowIfNull();
-		if (char.ToLower(move.MovingPiece.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
+		if (!movingPiece.HasValue) return false;
+		if (char.ToLower(movingPiece.Value.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
 
 		bool isKingside = move.To[0] == 'g';
 		return boardState.ActiveColor switch

@@ -302,12 +302,14 @@ internal sealed class MoveClassificationEngine(
 		string            move,
 		CancellationToken ct = default)
 	{
+		var fenString = fen.ToString();
 		EnsureStarted();
 
-		var key = (fen.ToString(), move);
+		var key = (fenString, move);
 		if (_isMateCache.TryGetValue(key, out bool cached))
 			return cached;
 
+		bool originalStateRestored = false;
 		try
 		{
 			// Apply the move and inspect the resulting position with the main client.
@@ -325,6 +327,7 @@ internal sealed class MoveClassificationEngine(
 			_isMateCache[key] = isMate;
 			// Revert the move
 			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+			originalStateRestored = true;
 			return isMate;
 		}
 		catch (OperationCanceledException)
@@ -337,6 +340,20 @@ internal sealed class MoveClassificationEngine(
 			_isMateCache[key] = false;
 			return false;
 		}
+		finally
+		{
+			if (!originalStateRestored)
+			{
+				try
+				{
+					await _client.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort */
+				}
+			}
+		}
 	}
 
 	public async Task<bool> IsStalemateAsync(
@@ -344,50 +361,74 @@ internal sealed class MoveClassificationEngine(
 		string            move,
 		CancellationToken ct = default)
 	{
+		var fenString = fen.ToString();
 		EnsureStarted();
 
-		var key = (fen.ToString(), move);
+		var key = (fenString, move);
 		if (_isStalemateCache.TryGetValue(key, out bool cached))
 			return cached;
 
 		// Play the move and see if opponent has any legal moves using the main client
-		await _client.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
-		var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
-		if (replies is { Count: > 0 })
+		bool originalStateRestored = false;
+		try
 		{
-			// Double-check with the quick engine in case of transient client issues
+			await _client.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
+			var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
+			if (replies is { Count: > 0 })
+			{
+				// Double-check with the quick engine in case of transient client issues
+				try
+				{
+					await _quick.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
+					var quickReplies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+					if (quickReplies is { Count: 0 })
+					{
+						var  quickFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+						bool quickInCheck = quickFen.HasValue && !string.IsNullOrEmpty(quickFen.Value.Checkers);
+						bool quickStale   = !quickInCheck;
+						_isStalemateCache[key] = quickStale;
+						return quickStale;
+					}
+				}
+				catch
+				{
+					/* best-effort */
+				}
+
+				_isStalemateCache[key] = false;
+				return false;
+			}
+
+			// No legal replies: it's stalemate if the side to move is not in check
+			var  afterFen    = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
+			bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
+			bool isStalemate = !inCheck;
+
+			_isStalemateCache[key] = isStalemate;
+			return isStalemate;
+		}
+		finally
+		{
 			try
 			{
-				await _quick.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
-				var quickReplies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-				if (quickReplies is { Count: 0 })
-				{
-					var  quickFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-					bool quickInCheck = quickFen.HasValue && !string.IsNullOrEmpty(quickFen.Value.Checkers);
-					bool quickStale   = !quickInCheck;
-					_isStalemateCache[key] = quickStale;
-					return quickStale;
-				}
+				await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+				originalStateRestored = true;
 			}
 			catch
 			{
 				/* best-effort */
 			}
 
-			_isStalemateCache[key] = false;
-			return false;
+			if (!originalStateRestored)
+				try
+				{
+					await _client.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort */
+				}
 		}
-
-		// No legal replies: it's stalemate if the side to move is not in check
-		var  afterFen    = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
-		bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
-		bool isStalemate = !inCheck;
-
-		_isStalemateCache[key] = isStalemate;
-
-		// Revert the move
-		await _client.SetPositionAsync(fen, null, ct);
-		return isStalemate;
 	}
 
 	public async Task<Move?> ClassifyMoveAsync(

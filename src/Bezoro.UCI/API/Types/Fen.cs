@@ -10,8 +10,6 @@ public readonly record struct Fen
 	private const string CHECKERS_KEYWORD = "checkers";
 	private const string FenKeyword       = "fen";
 
-	private static string? _lastRawFen;
-
 	private Fen(
 		string   piecePlacement,
 		char     activeColor,
@@ -48,7 +46,7 @@ public readonly record struct Fen
 
 	public static implicit operator string(Fen fen) => fen.Raw;
 
-	public static bool TryParseUciOutputLine(string line, out Fen? fen)
+	public static bool TryParseUciOutputLine(string line, ref string? lastRawFen, out Fen? fen)
 	{
 		fen = null;
 		if (line.IsNullOrEmpty()) return false;
@@ -63,8 +61,8 @@ public readonly record struct Fen
 			var    parsed     = Parse(fenPayload);
 			if (parsed.HasValue)
 			{
-				_lastRawFen = fenPayload;
 				fen         = parsed;
+				lastRawFen  = fenPayload;
 				return true;
 			}
 
@@ -78,9 +76,9 @@ public readonly record struct Fen
 			if (payload.Length > 0 && payload[0] == FenSeparator)
 				payload = payload[1..].TrimStart();
 
-			if (!string.IsNullOrEmpty(_lastRawFen))
+			if (!string.IsNullOrEmpty(lastRawFen))
 			{
-				var lastParsed = Parse(_lastRawFen);
+				var lastParsed = Parse(lastRawFen);
 				if (lastParsed.HasValue)
 				{
 					var last = lastParsed.Value;
@@ -100,8 +98,7 @@ public readonly record struct Fen
 					return true;
 				}
 
-				// cached raw FEN failed to parse -> reset cache
-				_lastRawFen = null;
+				lastRawFen = null;
 			}
 
 			return false;
