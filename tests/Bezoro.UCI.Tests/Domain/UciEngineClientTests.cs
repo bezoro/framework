@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Bezoro.UCI.API.Types;
@@ -383,6 +384,21 @@ public class UciEngineClientTests
 		Assert.False(UciEngineClient.IsUciMoveString("e2e"));
 		Assert.False(UciEngineClient.IsUciMoveString("e2e45"));
 		Assert.False(UciEngineClient.IsUciMoveString("e2e4x"));
+	}
+
+	[Fact]
+	public void ComputeTimeout_MoveTimeLongerThanOneMinute_IsNotClamped()
+	{
+		var method = typeof(UciEngineClient).GetMethod(
+			"ComputeTimeout",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		Assert.NotNull(method);
+
+		var parameters = new SearchParameters { MoveTimeMs = 90_000 };
+		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+
+		Assert.Equal(TimeSpan.FromMilliseconds(90_750), result);
 	}
 
 	private static async IAsyncEnumerable<string> StreamFromChannel(

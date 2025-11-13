@@ -593,25 +593,25 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 			_activeSearch = null;
 
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
+	}
 
-		/// <summary>
-		/// Computes an appropriate timeout for the search session, based on input search parameters.
-		/// </summary>
-		static TimeSpan ComputeTimeout(SearchParameters p)
+	/// <summary>
+	/// Computes an appropriate timeout for the search session, based on input search parameters.
+	/// </summary>
+	private static TimeSpan ComputeTimeout(SearchParameters p)
+	{
+		if (p.MoveTimeMs is { } mt)
 		{
-			if (p.MoveTimeMs is { } mt)
-			{
-				// add a small buffer to allow the engine to flush "bestmove"
-				int buffered = Math.Clamp(mt + 750, 500, 60_000);
-				return TimeSpan.FromMilliseconds(buffered);
-			}
-
-			if (p.Infinite) return TimeSpan.FromSeconds(120);
-			if (p.Depth is not { } d) return TimeSpan.FromSeconds(p.Nodes is { } ? 60 : 30);
-
-			int sec = Math.Clamp((int)d * 2, 10, 90);
-			return TimeSpan.FromSeconds(sec);
+			// add a small buffer to allow the engine to flush "bestmove"
+			int buffered = Math.Max(mt + 750, 500);
+			return TimeSpan.FromMilliseconds(buffered);
 		}
+
+		if (p.Infinite) return TimeSpan.FromSeconds(120);
+		if (p.Depth is not { } d) return TimeSpan.FromSeconds(p.Nodes is { } ? 60 : 30);
+
+		int sec = Math.Clamp((int)d * 2, 10, 90);
+		return TimeSpan.FromSeconds(sec);
 	}
 
 	/// <summary>
