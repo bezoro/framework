@@ -150,14 +150,16 @@ public readonly record struct Fen
 		if (parts.Length > 4)
 		{
 			parts[4].ThrowIfNull().ThrowIfEmpty();
-			int.TryParse(parts[4], out halfmoveClock);
+			if (!int.TryParse(parts[4], out halfmoveClock))
+				throw new ArgumentException("Halfmove clock in FEN must be an integer.", nameof(parts));
 		}
 
 		var fullmoveNumber = 1;
 		if (parts.Length > 5)
 		{
 			parts[5].ThrowIfNull().ThrowIfEmpty();
-			int.TryParse(parts[5], out fullmoveNumber);
+			if (!int.TryParse(parts[5], out fullmoveNumber))
+				throw new ArgumentException("Fullmove number in FEN must be an integer.", nameof(parts));
 		}
 
 		return (halfmoveClock, fullmoveNumber);

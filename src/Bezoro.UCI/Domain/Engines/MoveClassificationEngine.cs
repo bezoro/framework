@@ -26,6 +26,7 @@ internal sealed class MoveClassificationEngine(
 	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
 
 	private bool _started;
+	private bool _disposed;
 
 	private CancellationTokenSource _classificationCts = new();
 
@@ -46,6 +47,11 @@ internal sealed class MoveClassificationEngine(
 		var       token     = linkedCts.Token;
 
 		fen ??= await _quick.GetCurrentFenAsync(token);
+		var boardStateOption = BoardState.FromFen(fen.Value);
+		if (!boardStateOption.HasValue)
+			throw new ArgumentException("Cannot classify moves because the supplied FEN is invalid.", nameof(fen));
+		var boardState = boardStateOption.Value;
+
 		await _quick.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
 		await _client.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
 		var legalMoves = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
@@ -86,7 +92,7 @@ internal sealed class MoveClassificationEngine(
 		if (stalemateFirst is { })
 		{
 			var sc0 = MoveScore.FromCp(0);
-			var an0 = MoveAnalysis.Analyze(stalemateFirst, BoardState.FromFen(fen.Value).Value, sc0, true);
+			var an0 = MoveAnalysis.Analyze(stalemateFirst, boardState, sc0, true);
 			var mv0 = new Move(stalemateFirst, an0);
 			classifiedMoves.Add(mv0);
 			MoveClassified?.Invoke(mv0);
@@ -104,7 +110,7 @@ internal sealed class MoveClassificationEngine(
 				if (await IsStalemateAsync(fen.Value, move, token).ConfigureAwait(false))
 				{
 					var sc = MoveScore.FromCp(0);
-					var an = MoveAnalysis.Analyze(move, BoardState.FromFen(fen.Value).Value, sc, true);
+					var an = MoveAnalysis.Analyze(move, boardState, sc, true);
 					preMove = new Move(move, an);
 				}
 			}
@@ -135,7 +141,7 @@ internal sealed class MoveClassificationEngine(
 					var  quickScore    = inCheckQuick ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
 					var quickAnalysis = MoveAnalysis.Analyze(
 						move,
-						BoardState.FromFen(fen.Value).Value,
+						boardState,
 						quickScore,
 						true);
 
@@ -176,7 +182,7 @@ internal sealed class MoveClassificationEngine(
 						var  fallbackScore = inCheck ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
 						var analysis = MoveAnalysis.Analyze(
 							move,
-							BoardState.FromFen(fen.Value).Value,
+							boardState,
 							fallbackScore,
 							!inCheck);
 
@@ -207,7 +213,7 @@ internal sealed class MoveClassificationEngine(
 						if (!forceScore.ScoreMate.HasValue) forceScore = MoveScore.FromCp(0);
 						var forcedAnalysis = MoveAnalysis.Analyze(
 							move,
-							BoardState.FromFen(fen.Value).Value,
+							boardState,
 							forceScore,
 							true);
 
@@ -243,7 +249,7 @@ internal sealed class MoveClassificationEngine(
 					if (inCheckF) continue;
 
 					var scF = MoveScore.FromCp(0);
-					var anF = MoveAnalysis.Analyze(m, BoardState.FromFen(fen.Value).Value, scF, true);
+					var anF = MoveAnalysis.Analyze(m, boardState, scF, true);
 					fallbackMove = new Move(m, anF);
 					break;
 				}
@@ -440,9 +446,19 @@ internal sealed class MoveClassificationEngine(
 
 	public async ValueTask DisposeAsync()
 	{
+		if (_disposed) return;
+		_disposed = true;
+
 		StopClassification();
 
-		await _quick.DisposeAsync();
+		try
+		{
+			await _quick.DisposeAsync().ConfigureAwait(false);
+		}
+		finally
+		{
+			_classificationCts.Dispose();
+		}
 
 		if (_client is { })
 		{
@@ -459,6 +475,7 @@ internal sealed class MoveClassificationEngine(
 		}
 
 		_transport = null;
+		GC.SuppressFinalize(this);
 	}
 
 	public void StopClassification()
@@ -514,6 +531,10 @@ internal sealed class MoveClassificationEngine(
 	{
 		var fenKey   = fen.ToString();
 		var cacheKey = (fenKey, move, perMoveDepth);
+		var boardStateOption = BoardState.FromFen(fen);
+		if (!boardStateOption.HasValue)
+			throw new ArgumentException("Cannot evaluate move because the supplied FEN is invalid.", nameof(fen));
+		var boardState = boardStateOption.Value;
 
 		MoveScore    score;
 		MoveAnalysis analysis;
@@ -521,7 +542,7 @@ internal sealed class MoveClassificationEngine(
 		{
 			// Recompute analysis based on current board, reuse cached score and flags
 			score    = cached.Score;
-			analysis = MoveAnalysis.Analyze(move, BoardState.FromFen(fen).Value, score, cached.IsStalemate);
+			analysis = MoveAnalysis.Analyze(move, boardState, score, cached.IsStalemate);
 			return new Move(move, analysis);
 		}
 
@@ -538,7 +559,7 @@ internal sealed class MoveClassificationEngine(
 				bool isStaleFast = !isMateFast;
 				score = isMateFast ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
 				_moveEvalCache[cacheKey] = (score, isMateFast, isStaleFast);
-				analysis = MoveAnalysis.Analyze(move, BoardState.FromFen(fen).Value, score, isStaleFast);
+				analysis = MoveAnalysis.Analyze(move, boardState, score, isStaleFast);
 				return new Move(move, analysis);
 			}
 		}
@@ -633,7 +654,7 @@ internal sealed class MoveClassificationEngine(
 		// Store normalized result in cache
 		_moveEvalCache[cacheKey] = (score, isMate, isStalemate);
 
-		analysis = MoveAnalysis.Analyze(move, BoardState.FromFen(fen).Value, score, isStalemate);
+		analysis = MoveAnalysis.Analyze(move, boardState, score, isStalemate);
 		return new Move(move, analysis);
 	}
 

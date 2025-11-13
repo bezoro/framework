@@ -17,6 +17,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private readonly UciEngineClient             _client;
 	private          Fen?                        _currentFenCache;
 	private          IReadOnlyCollection<string> _legalMovesCache;
+	private          bool                        _disposed;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
@@ -201,11 +202,25 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	public ValueTask DisposeAsync() => _client.DisposeAsync();
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		try
+		{
+			await _client.DisposeAsync().ConfigureAwait(false);
+		}
+		finally
+		{
+			_positionLock.Dispose();
+		}
+	}
 
 	public void Dispose()
 	{
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
+		GC.SuppressFinalize(this);
 	}
 
 	private void ClearPositionDependentCaches_NoLock()

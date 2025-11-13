@@ -32,7 +32,11 @@ public readonly record struct MoveAnalysis
 
 		var parsedMove = ParsedMove.FromNotation(moveNotation);
 
-		boardState.TryGetPieceAt(parsedMove.From, out var movingPiece);
+		if (!boardState.TryGetPieceAt(parsedMove.From, out var movingPiece) || movingPiece is null)
+			throw new ArgumentException(
+				$"No piece found on square '{parsedMove.From}' for move '{moveNotation}'.",
+				nameof(boardState));
+
 		bool isCaptureOnToSquare = boardState.TryGetPieceAt(parsedMove.To, out var targetPiece) && targetPiece.HasValue;
 
 		bool isCapture   = false,
@@ -46,13 +50,13 @@ public readonly record struct MoveAnalysis
 		if (CheckIsCastling(parsedMove, movingPiece, boardState))
 			isCastling = true;
 
-		if (movingPiece.HasValue && CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
+		if (CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
 		{
 			isCapture   = true;
 			isEnpassant = true;
 		}
 
-		if (movingPiece.HasValue && CheckIsPromotion(parsedMove, movingPiece.Value)) isPromotion = true;
+		if (CheckIsPromotion(parsedMove, movingPiece.Value)) isPromotion = true;
 
 		if (isCaptureOnToSquare)
 			isCapture = true;
@@ -65,7 +69,7 @@ public readonly record struct MoveAnalysis
 		if (score.ScoreMate.HasValue)
 		{
 			isMate  = score.ScoreMate.Value == -1;
-			isCheck = isMate || false; // If we mated, it's necessarily also a check.
+			isCheck = isMate;
 		}
 
 		return new()
