@@ -73,8 +73,22 @@ public readonly record struct Promotion
 	{
 		moveNotation.ThrowIfNull().Length.ThrowIfLessThan(4).ThrowIfMoreThan(5);
 		var parsedMove  = ParsedMove.FromNotation(moveNotation);
-		var position    = Position.Create(parsedMove.To, parsedMove.MovingPiece);
+		var color       = DetermineColor(parsedMove);
+		var pawnChar    = color == PieceColor.White ? 'P' : 'p';
+		var position    = Position.Create(parsedMove.To, Piece.FromChar(pawnChar));
 		var chosenPiece = moveNotation.Last().ToPieceType();
 		return new(chosenPiece, position);
+	}
+
+	private static PieceColor DetermineColor(ParsedMove move)
+	{
+		if (move.From.Length < 2 || move.To.Length < 2)
+			return PieceColor.White;
+
+		char fromRank = move.From[1];
+		char toRank   = move.To[1];
+
+		// Promotions always occur on the last rank for the mover.
+		return toRank > fromRank ? PieceColor.White : PieceColor.Black;
 	}
 }

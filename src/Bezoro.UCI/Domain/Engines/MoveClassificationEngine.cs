@@ -330,16 +330,6 @@ internal sealed class MoveClassificationEngine(
 			originalStateRestored = true;
 			return isMate;
 		}
-		catch (OperationCanceledException)
-		{
-			_isMateCache[key] = false;
-			return false;
-		}
-		catch (InvalidOperationException)
-		{
-			_isMateCache[key] = false;
-			return false;
-		}
 		finally
 		{
 			if (!originalStateRestored)

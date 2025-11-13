@@ -1,6 +1,7 @@
 using Bezoro.Core.Common.Extensions;
 using Bezoro.Core.Common.Extensions.String;
 using Bezoro.UCI.Domain.Common.Constants;
+using Bezoro.UCI.Domain.Common.Helpers;
 
 namespace Bezoro.UCI.API.Types;
 
@@ -107,30 +108,16 @@ public readonly record struct Fen
 		return false;
 	}
 
-	public static bool Validate(string rawFen)
-	{
-		if (rawFen.IsNullOrEmpty()) return false;
-
-		string[] parts = rawFen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		if (parts.Length < 6) return false;
-
-		foreach (string part in parts)
-		{
-			if (part.IsNullOrEmpty())
-				return false;
-		}
-
-		return true;
-	}
+	public static bool Validate(string rawFen) =>
+		!string.IsNullOrWhiteSpace(rawFen) && UciHelper.IsValidFen(rawFen.Trim());
 
 	public static Fen Empty() => new();
 
 	public static Fen? Parse(string rawFen)
 	{
-		if (rawFen.IsNullOrEmpty()) return null;
+		if (!Validate(rawFen)) return null;
 
-		string[] parts = rawFen.Split([' '], StringSplitOptions.RemoveEmptyEntries);
-		if (parts.Length < 6) return null;
+		string[] parts = rawFen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
 		string piecePlacement = parts[0].ThrowIfEmpty();
 
@@ -178,17 +165,27 @@ public readonly record struct Fen
 
 	private static char ParseActiveColor(string[] parts)
 	{
-		parts[1].ThrowIfEmpty();
-		var c = char.ToLowerInvariant(parts[1][0]);
-		return c is 'w' or 'b'
-				   ? c
-				   : throw new ArgumentException("Invalid active color in FEN. Expected 'w' or 'b'.", nameof(parts));
+		if (parts.Length < 2) throw new ArgumentException("FEN does not specify active color.", nameof(parts));
+
+		string token = parts[1].ThrowIfEmpty();
+		if (token.Length != 1)
+			throw new ArgumentException("Invalid active color in FEN. Expected single character 'w' or 'b'.", nameof(parts));
+
+		char c = char.ToLowerInvariant(token[0]);
+		return c switch
+		{
+			'w' => 'w',
+			'b' => 'b',
+			_   => throw new ArgumentException("Invalid active color in FEN. Expected 'w' or 'b'.", nameof(parts))
+		};
 	}
 
-	private static string ExtractFenPayloadFromUciLine(string line) =>
-		line is [_, _, _, FenSeparator, ..]
-			? line[4..].TrimStart()
-			: line[3..].TrimStart();
+	private static string ExtractFenPayloadFromUciLine(string line)
+	{
+		string payload = line[FenKeyword.Length..].TrimStart();
+		if (payload.Length > 0 && payload[0] == FenSeparator) payload = payload[1..].TrimStart();
+		return payload;
+	}
 
 	private static string ParseCheckers(string[] parts)
 	{

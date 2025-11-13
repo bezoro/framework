@@ -17,6 +17,7 @@ public readonly record struct MoveAnalysis
 	public bool      IsNormal    { get; private init; }
 	public bool      IsPromotion { get; private init; }
 	public bool      IsStalemate { get; private init; }
+	public Piece?    MovingPiece { get; private init; }
 	public MoveScore Score       { get; private init; }
 
 
@@ -77,7 +78,8 @@ public readonly record struct MoveAnalysis
 			IsNormal    = isNormal,
 			IsPromotion = isPromotion,
 			IsStalemate = isStalemate,
-			Score       = score
+			Score       = score,
+			MovingPiece = movingPiece
 		};
 	}
 

@@ -11,7 +11,7 @@ public readonly record struct Move()
 		To       = parsedMove.To;
 		Notation = parsedMove.Notation;
 		Analysis = analysis;
-		Piece    = parsedMove.MovingPiece;
+		Piece    = ResolvePiece(parsedMove, analysis, notation);
 	}
 
 	public MoveAnalysis Analysis   { get; }
@@ -20,4 +20,16 @@ public readonly record struct Move()
 	public string       From       { get; }
 	public string       Notation   { get; }
 	public string       To         { get; }
+	private static Piece ResolvePiece(ParsedMove parsedMove, MoveAnalysis analysis, string notation)
+	{
+		Piece? resolved = analysis.MovingPiece;
+		if (resolved is null && parsedMove.MovingPiece.Char != '\0')
+			resolved = parsedMove.MovingPiece;
+
+		if (resolved is null)
+			throw new InvalidOperationException(
+				$"Unable to determine moving piece for move '{notation}'. Ensure the move was analyzed with a valid board state or include a piece designator.");
+
+		return resolved.Value;
+	}
 }
