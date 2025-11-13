@@ -401,6 +401,52 @@ public class UciEngineClientTests
 		Assert.Equal(TimeSpan.FromMilliseconds(90_750), result);
 	}
 
+	[Fact]
+	public void ComputeTimeout_MoveTimeAtIntMax_DoesNotOverflow()
+	{
+		var method = typeof(UciEngineClient).GetMethod(
+			"ComputeTimeout",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		Assert.NotNull(method);
+
+		var parameters = new SearchParameters { MoveTimeMs = int.MaxValue };
+		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+
+		var expectedMs = (double)int.MaxValue + 750d;
+		Assert.Equal(expectedMs, result.TotalMilliseconds, precision: 3);
+	}
+
+	[Fact]
+	public void ComputeTimeout_NegativeMoveTime_UsesFloor()
+	{
+		var method = typeof(UciEngineClient).GetMethod(
+			"ComputeTimeout",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		Assert.NotNull(method);
+
+		var parameters = new SearchParameters { MoveTimeMs = -1_000 };
+		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+
+		Assert.Equal(TimeSpan.FromMilliseconds(500), result);
+	}
+
+	[Fact]
+	public void ComputeTimeout_DepthLarge_ClampedSafely()
+	{
+		var method = typeof(UciEngineClient).GetMethod(
+			"ComputeTimeout",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		Assert.NotNull(method);
+
+		var parameters = new SearchParameters { Depth = uint.MaxValue };
+		var result = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
+
+		Assert.Equal(TimeSpan.FromSeconds(90), result);
+	}
+
 	private static async IAsyncEnumerable<string> StreamFromChannel(
 		ChannelReader<string>                      reader,
 		[EnumeratorCancellation] CancellationToken ct = default)

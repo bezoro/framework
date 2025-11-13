@@ -265,8 +265,24 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		// ReSharper disable once MethodSupportsCancellation
 		_readerTask = Task.Run(ReadLoopAsync);
 
-		await UciInitAsync(ct).ConfigureAwait(false);
-		SetActivity(EngineActivity.Idle);
+		try
+		{
+			await UciInitAsync(ct).ConfigureAwait(false);
+			SetActivity(EngineActivity.Idle);
+		}
+		catch
+		{
+			try
+			{
+				await StopAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				/* best-effort cleanup */
+			}
+
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -388,7 +404,7 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 			// Await the FEN line first
 			string? fenLine = null;
-			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2)))
+			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2), ct))
 										 .ConfigureAwait(false);
 
 			ct.ThrowIfCancellationRequested();
@@ -401,7 +417,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 			// Give a short window for the 'checkers' line to arrive after the FEN line
 			string? checkersLine = null;
-			var checkersCompleted = await Task.WhenAny(checkersTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(750)))
+			var checkersCompleted = await Task.WhenAny(
+											checkersTcs.Task,
+											Task.Delay(TimeSpan.FromMilliseconds(750), ct))
 											  .ConfigureAwait(false);
 
 			ct.ThrowIfCancellationRequested();
@@ -504,17 +522,21 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 		// Create and publish the active session before sending the command to avoid races.
 		var session = new SearchSession(parameters.Ponder);
-		_activeSearch = session;
+		if (Interlocked.CompareExchange(ref _activeSearch, session, null) is not null)
+		{
+			session.BestMoveTcs.TrySetCanceled();
+			throw new InvalidOperationException("A search is already in progress.");
+		}
 
 		var timeout = ComputeTimeout(parameters);
-
-		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-		SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
 
 		string? bestLine = null;
 		// Await bestmove with timeout and cancellation without mutating the session TCS state.
 		try
 		{
+			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+			SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+
 			var bestTask = session.BestMoveTcs.Task;
 			var timeoutTask = timeout == Timeout.InfiniteTimeSpan
 								  ? Task.Delay(Timeout.Infinite, CancellationToken.None)
@@ -546,8 +568,10 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 				try
 				{
-					var graceCompleted = await Task.WhenAny(bestTask, Task.Delay(TimeSpan.FromSeconds(2)))
+					var graceCompleted = await Task.WhenAny(bestTask, Task.Delay(TimeSpan.FromSeconds(2), ct))
 												   .ConfigureAwait(false);
+
+					ct.ThrowIfCancellationRequested();
 
 					if (graceCompleted == bestTask)
 					{
@@ -577,6 +601,12 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 		finally
 		{
+			if (ReferenceEquals(_activeSearch, session))
+				_activeSearch = null;
+
+			if (!session.BestMoveTcs.Task.IsCompleted)
+				session.BestMoveTcs.TrySetCanceled();
+
 			// Ensure we flip to Idle; read loop will also do so on bestmove.
 			SetActivity(EngineActivity.Idle);
 		}
@@ -587,10 +617,6 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 
 		// Snapshot captured lines once; SearchResult.TryParse expects a stable enumerable
 		var snapshot = session.Lines.ToList();
-
-		// Clear the active session (defensive)
-		if (ReferenceEquals(_activeSearch, session))
-			_activeSearch = null;
 
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
 	}
@@ -603,15 +629,18 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		if (p.MoveTimeMs is { } mt)
 		{
 			// add a small buffer to allow the engine to flush "bestmove"
-			int buffered = Math.Max(mt + 750, 500);
-			return TimeSpan.FromMilliseconds(buffered);
+			long buffered = (long)mt + 750;
+			if (buffered < 500) buffered = 500;
+
+			double capped = Math.Min(buffered, TimeSpan.MaxValue.TotalMilliseconds);
+			return TimeSpan.FromMilliseconds(capped);
 		}
 
 		if (p.Infinite) return TimeSpan.FromSeconds(120);
 		if (p.Depth is not { } d) return TimeSpan.FromSeconds(p.Nodes is { } ? 60 : 30);
 
-		int sec = Math.Clamp((int)d * 2, 10, 90);
-		return TimeSpan.FromSeconds(sec);
+		long seconds = Math.Clamp((long)d * 2, 10L, 90L);
+		return TimeSpan.FromSeconds(seconds);
 	}
 
 	/// <summary>
