@@ -321,7 +321,10 @@ public static class ChecksTests
 		public void Repeat_WhenZeroCount_ShouldThrow()
 		{
 			Action act = () => "ab".Repeat(0);
-			act.Should().Throw<ArgumentOutOfRangeException>();
+			var exception = act.Should().Throw<ArgumentOutOfRangeException>()
+							   .Which;
+			exception.ParamName.Should().Be("count");
+			exception.ActualValue.Should().Be(0u);
 		}
 
 		[Fact]

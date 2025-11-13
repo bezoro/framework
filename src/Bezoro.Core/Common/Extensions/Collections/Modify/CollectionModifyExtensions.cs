@@ -33,8 +33,10 @@ public static class CollectionModifyExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void AddRange<T>(this ICollection<T> collection, ICollection<T> items)
 	{
-		collection.ThrowIfNull().ThrowIfEmpty();
-		items.ThrowIfNull().ThrowIfEmpty();
+		collection.ThrowIfNull();
+		items.ThrowIfNull();
+
+		if (items.Count == 0) return;
 
 		foreach (var item in items)
 			collection.Add(item);

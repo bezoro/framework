@@ -87,7 +87,11 @@ public static class TextFormatting
 	public static string Repeat(this string str, uint count = 1)
 	{
 		if (string.IsNullOrWhiteSpace(str)) throw new ArgumentNullException(nameof(str));
-		if (count == 0) throw new ArgumentOutOfRangeException(nameof(count), "Count cannot be zero.", nameof(count));
+		if (count == 0)
+			throw new ArgumentOutOfRangeException(
+				nameof(count),
+				count,
+				"Count cannot be zero.");
 
 		if (count == 1) return str;
 
