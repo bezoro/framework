@@ -44,4 +44,31 @@ public class FenTests
 		enrichedFen.Should().NotBeNull();
 		enrichedFen!.Value.Checkers.Should().Be("e4");
 	}
+
+	[Fact]
+	public void Validate_WhenFenIsValid_ReturnsTrue()
+	{
+		Fen.Validate(Fen.Default).Should().BeTrue();
+	}
+
+	[Fact]
+	public void Validate_WhenFenIsInvalid_ReturnsFalse()
+	{
+		Fen.Validate("not a fen at all").Should().BeFalse();
+	}
+
+	[Fact]
+	public void Parse_WhenFenIsValid_ReturnsFenStruct()
+	{
+		var parsed = Fen.Parse(Fen.Default);
+
+		parsed.Should().NotBeNull();
+		parsed!.Value.Raw.Should().Be(Fen.Default);
+	}
+
+	[Fact]
+	public void Parse_WhenFenIsInvalid_ReturnsNull()
+	{
+		Fen.Parse("invalid fen string").Should().BeNull();
+	}
 }

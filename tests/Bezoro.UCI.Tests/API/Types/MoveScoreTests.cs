@@ -33,4 +33,83 @@ public class MoveScoreTests
 		moveScore.Should().NotBeNull();
 		moveScore!.Value.ScoreCp.Should().Be(34);
 	}
+
+	[Fact]
+	public void FromSearchResult_WhenMateScoreAvailable_UsesMate()
+	{
+		var pv = new PrincipalVariation(
+			10,
+			10,
+			1,
+			null,
+			-2,
+			1000,
+			100_000,
+			0,
+			50,
+			new[] { "f7g7" },
+			"f7g7");
+
+		var result = new SearchResult(
+			10,
+			10,
+			1,
+			1000,
+			0,
+			50,
+			new[] { pv },
+			"f7g7",
+			string.Empty);
+
+		var score = MoveScore.FromSearchResult(result);
+
+		score.ScoreMate.Should().Be(-2);
+		score.ScoreCp.Should().BeNull();
+	}
+
+	[Fact]
+	public void FromSearchResult_WhenPrimaryPvMissingCp_FallsBackToFirstAvailable()
+	{
+		var pv1 = new PrincipalVariation(
+			8,
+			8,
+			1,
+			null,
+			null,
+			500,
+			50_000,
+			0,
+			20,
+			new[] { "e2e4" },
+			"e2e4");
+
+		var pv2 = new PrincipalVariation(
+			8,
+			9,
+			2,
+			25,
+			null,
+			600,
+			60_000,
+			0,
+			25,
+			new[] { "d2d4" },
+			"d2d4");
+
+		var result = new SearchResult(
+			8,
+			9,
+			2,
+			1100,
+			0,
+			45,
+			new[] { pv1, pv2 },
+			"e2e4",
+			string.Empty);
+
+		var score = MoveScore.FromSearchResult(result);
+
+		score.ScoreCp.Should().Be(25);
+		score.ScoreMate.Should().BeNull();
+	}
 }

@@ -261,4 +261,24 @@ public class MoveClassificationEngineTests
 
 		isStalemate.Should().BeTrue();
 	}
+
+	[Fact]
+	public async Task ClassifyAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	{
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await using var enumerator = engine.ClassifyAsync(Fen.Empty()).GetAsyncEnumerator();
+
+		await Assert.ThrowsAsync<ArgumentException>(async () => await enumerator.MoveNextAsync());
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	{
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(Fen.Empty(), "e2e4"));
+	}
 }
