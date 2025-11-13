@@ -52,7 +52,7 @@ internal static class UciConstants
 		/// <summary>
 		///     Command to set an engine option
 		/// </summary>
-		public const string SET_OPTION = "setoption name";
+		public const string SET_OPTION = "setoption";
 		/// <summary>
 		///     Command to set initial chess position
 		/// </summary>

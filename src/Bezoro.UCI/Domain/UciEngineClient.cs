@@ -231,8 +231,8 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		if (string.IsNullOrWhiteSpace(name)) return;
 
 		string cmd = value is null
-						 ? $"{UciConstants.Commands.SET_OPTION} {name}"
-						 : $"{UciConstants.Commands.SET_OPTION} {name} {UciConstants.Keywords.VALUE} {value}";
+						 ? $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name}"
+						 : $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name} {UciConstants.Keywords.VALUE} {value}";
 
 		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
 	}

@@ -237,6 +237,39 @@ public class UciEngineClientTests
 	}
 
 	[Fact]
+	public async Task SetOptionAsync_WhitespaceName_DoesNotSendCommand()
+	{
+		// Arrange
+		var transport = Substitute.For<IUciTransport>();
+		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+		var client = new UciEngineClient(transport);
+		var ct     = CancellationToken.None;
+
+		// Act
+		await client.SetOptionAsync("   ", "ignored", ct);
+
+		// Assert
+		await transport.DidNotReceiveWithAnyArgs().WriteLineAsync(default!, default);
+	}
+
+	[Fact]
+	public async Task SetOptionAsync_ValueContainingSpaces_SendsVerbatimValue()
+	{
+		// Arrange
+		var transport = Substitute.For<IUciTransport>();
+		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+		var client = new UciEngineClient(transport);
+		var ct     = CancellationToken.None;
+		const string valueWithSpaces = @"C:\Chess\Table Bases\wdl345";
+
+		// Act
+		await client.SetOptionAsync("SyzygyPath", valueWithSpaces, ct);
+
+		// Assert
+		await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {valueWithSpaces}", ct);
+	}
+
+	[Fact]
 	public async Task SetPositionAsync_ValidAndInvalid()
 	{
 		var transport = Substitute.For<IUciTransport>();
