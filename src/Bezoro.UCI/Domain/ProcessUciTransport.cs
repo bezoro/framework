@@ -76,7 +76,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		try
 		{
-			await foreach (string? line in reader.ReadAllAsync(ct).ConfigureAwait(false))
+			await foreach (string line in reader.ReadAllAsync(ct).ConfigureAwait(false))
 				yield return line;
 		}
 		finally
@@ -425,6 +425,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 					{
 						await _streams.Stdin.WriteLineAsync("quit").ConfigureAwait(false);
 						await _streams.Stdin.FlushAsync().ConfigureAwait(false);
+						_options.OnQuitSent?.Invoke();
 					}
 				}
 				catch (Exception ex)

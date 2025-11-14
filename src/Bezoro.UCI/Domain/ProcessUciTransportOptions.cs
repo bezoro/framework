@@ -96,4 +96,9 @@ internal sealed class ProcessUciTransportOptions
 	/// Test-only hook to deterministically exercise backpressure code-paths. Defaults to false; no production impact.
 	/// </summary>
 	internal bool DisableWriteLoop { get; init; } = false;
+
+	/// <summary>
+	/// Test-only callback invoked when "quit" command is sent to the process. Used for verification in tests.
+	/// </summary>
+	internal Action? OnQuitSent { get; init; }
 }
