@@ -24,25 +24,26 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private readonly UciLineWaiterRegistry _lineWaiters = new();
 	private readonly UciOutputDispatcher _outputDispatcher;
 
-private readonly UciSearchCoordinator    _searchCoordinator;
-private readonly UciEngineCommandModule  _commandModule;
-private readonly EngineActivityTracker   _activityTracker = new();
+	private readonly UciSearchCoordinator    _searchCoordinator;
+	private readonly UciEngineCommandModule  _commandModule;
+	private readonly EngineActivityTracker   _activityTracker = new();
 
-/// <summary>
-///     Cancellation source for the read loop and engine lifetime.
-/// </summary>
-private CancellationTokenSource? _cts;
+	/// <summary>
+	///     Cancellation source for the read loop and engine lifetime.
+	/// </summary>
+	private CancellationTokenSource? _cts;
 
 	private Task? _readerTask;
+	private readonly object _lifecycleLock = new();
 
 	/// <summary>
 	///     Occurs when the engine transitions between <see cref="EngineActivity" /> states.
 	/// </summary>
-public event Action<EngineActivity, EngineActivity>? ActivityChanged
-{
-	add => _activityTracker.ActivityChanged += value;
-	remove => _activityTracker.ActivityChanged -= value;
-}
+	public event Action<EngineActivity, EngineActivity>? ActivityChanged
+	{
+		add => _activityTracker.ActivityChanged += value;
+		remove => _activityTracker.ActivityChanged -= value;
+	}
 
 	/// <summary>
 	///     Notifies when the engine emits a "bestmove" line.
@@ -86,7 +87,7 @@ public event Action<EngineActivity, EngineActivity>? ActivityChanged
 	/// <summary>
 	///     Gets the current engine activity state.
 	/// </summary>
-public EngineActivity Activity => _activityTracker.Current;
+	public EngineActivity Activity => _activityTracker.Current;
 
 	/// <summary>
 	///     Engine process/transport status.
@@ -135,26 +136,50 @@ public EngineActivity Activity => _activityTracker.Current;
 	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
-		await _transport.StartAsync(ct).ConfigureAwait(false);
+		lock (_lifecycleLock)
+		{
+			if (_cts is not null)
+				throw new InvalidOperationException("Engine client is already started.");
 
-		_cts = new();
-		// ReSharper disable once MethodSupportsCancellation
-		_readerTask = Task.Run(ReadLoopAsync);
+			_cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		}
 
 		try
 		{
-			await UciInitAsync(ct).ConfigureAwait(false);
-			SetActivity(EngineActivity.Idle);
-		}
-		catch
-		{
+			await _transport.StartAsync(ct).ConfigureAwait(false);
+
+			lock (_lifecycleLock)
+			{
+				// ReSharper disable once MethodSupportsCancellation
+				_readerTask = Task.Run(ReadLoopAsync);
+			}
+
 			try
 			{
-				await StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await UciInitAsync(ct).ConfigureAwait(false);
+				SetActivity(EngineActivity.Idle);
 			}
 			catch
 			{
-				/* best-effort cleanup */
+				try
+				{
+					await StopAsync(CancellationToken.None).ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort cleanup */
+				}
+
+				throw;
+			}
+		}
+		catch
+		{
+			lock (_lifecycleLock)
+			{
+				_cts?.Dispose();
+				_cts = null;
+				_readerTask = null;
 			}
 
 			throw;
@@ -166,13 +191,26 @@ public EngineActivity Activity => _activityTracker.Current;
 	/// </summary>
 	public async Task StopAsync(CancellationToken ct = default)
 	{
+		CancellationTokenSource? ctsToCancel = null;
+		Task? readerTaskToAwait = null;
+
+		lock (_lifecycleLock)
+		{
+			if (_cts is null) return; // Already stopped
+
+			ctsToCancel = _cts;
+			readerTaskToAwait = _readerTask;
+			_cts = null;
+			_readerTask = null;
+		}
+
 		try
 		{
-			_cts?.Cancel();
-			if (_readerTask is { })
+			ctsToCancel.Cancel();
+			if (readerTaskToAwait is { })
 				try
 				{
-					await _readerTask.ConfigureAwait(false);
+					await readerTaskToAwait.ConfigureAwait(false);
 				}
 				catch
 				{
@@ -181,9 +219,7 @@ public EngineActivity Activity => _activityTracker.Current;
 		}
 		finally
 		{
-			_readerTask = null;
-			_cts?.Dispose();
-			_cts = null;
+			ctsToCancel.Dispose();
 		}
 
 		await _transport.StopAsync(ct).ConfigureAwait(false);
@@ -239,7 +275,7 @@ public EngineActivity Activity => _activityTracker.Current;
 			/* best-effort */
 		}
 
-		if (_transport is IAsyncDisposable ad) await ad.DisposeAsync();
+		await _transport.DisposeAsync();
 	}
 
 	/// <summary>
@@ -248,7 +284,19 @@ public EngineActivity Activity => _activityTracker.Current;
 	/// </summary>
 	private async Task ReadLoopAsync()
 	{
-		var token = _cts?.Token ?? CancellationToken.None;
+		CancellationToken token;
+		lock (_lifecycleLock)
+		{
+			if (_cts is null)
+			{
+				// Client was stopped before this task started - exit immediately
+				_outputDispatcher.OnShutdown();
+				SetActivity(EngineActivity.Idle);
+				return;
+			}
+
+			token = _cts.Token;
+		}
 
 		try
 		{
