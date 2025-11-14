@@ -68,56 +68,101 @@ public static class UciEngineClientTests
 			{
 				// Arrange
 				var (transport, channel) = CreateMockTransport();
-				var client = await StartClientWithHandshakeAsync(transport, channel);
-
-				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-				transport.ClearReceivedCalls();
-				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-						 .Do(async _ =>
-						 {
-							 await readyGate.Task;
-							 await channel.Writer.WriteAsync("readyok");
-						 });
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
 
 				// Act
 				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
-				await channel.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
+				await channel.Writer.WriteAsync("e2e4 ; bad");
 				await Task.Delay(TestConstants.MediumDelay);
-				readyGate.TrySetResult();
+				completeReady();
 				var moves = await perftTask;
 
 				// Assert
+				moves.Should().Contain("e2e4", "valid move should be included");
 				moves.Should().NotContain("bad", "invalid move notation should be filtered out");
 			}
 
 			[Fact(Timeout = 3000)]
-			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMoves()
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldHandleMixedValidAndInvalidMoves()
 			{
 				// Arrange
 				var (transport, channel) = CreateMockTransport();
-				var client = await StartClientWithHandshakeAsync(transport, channel);
-
-				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-				transport.ClearReceivedCalls();
-				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-						 .Do(async _ =>
-						 {
-							 await readyGate.Task;
-							 await channel.Writer.WriteAsync("readyok");
-						 });
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
 
 				// Act
 				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
 				await channel.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
 				await Task.Delay(TestConstants.MediumDelay);
-				readyGate.TrySetResult();
+				completeReady();
 				var moves = await perftTask;
 
 				// Assert
-				moves.Should().Contain("e2e4",  "e2e4 should be parsed as a valid move");
-				moves.Should().Contain("e7e5",  "e7e5 should be parsed as a valid move");
-				moves.Should().Contain("a7a8q", "a7a8q should be parsed as a valid move");
-				moves.Should().Contain("h7h8N", "h7h8N should be parsed as a valid move");
+				moves.Should().Contain("e2e4",  "e2e4 should be parsed");
+				moves.Should().Contain("e7e5",  "e7e5 should be parsed");
+				moves.Should().Contain("a7a8q", "a7a8q should be parsed");
+				moves.Should().Contain("h7h8N", "h7h8N should be parsed");
+				moves.Should().NotContain("bad", "invalid move should be filtered");
+			}
+
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseMultipleValidMoves()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
+
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4, e7e5");
+				await Task.Delay(TestConstants.MediumDelay);
+				completeReady();
+				var moves = await perftTask;
+
+				// Assert
+				moves.Should().Contain("e2e4", "e2e4 should be parsed");
+				moves.Should().Contain("e7e5", "e7e5 should be parsed");
+			}
+
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldParsePromotionMoves()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
+
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("a7a8q : h7h8N");
+				await Task.Delay(TestConstants.MediumDelay);
+				completeReady();
+				var moves = await perftTask;
+
+				// Assert
+				moves.Should().Contain("a7a8q", "a7a8q should be parsed as a valid promotion move");
+				moves.Should().Contain("h7h8N", "h7h8N should be parsed as a valid promotion move");
+			}
+
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMove()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
+
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4");
+				await Task.Delay(TestConstants.MediumDelay);
+				completeReady();
+				var moves = await perftTask;
+
+				// Assert
+				moves.Should().Contain("e2e4", "e2e4 should be parsed as a valid move");
 			}
 
 			[Fact(Timeout = 3000)]
@@ -125,8 +170,22 @@ public static class UciEngineClientTests
 			{
 				// Arrange
 				var (transport, channel) = CreateMockTransport();
-				var client = await StartClientWithHandshakeAsync(transport, channel);
+				var client        = await StartClientWithHandshakeAsync(transport, channel);
+				var completeReady = SetupDelayedReadyResponse(transport, channel);
 
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4");
+				await Task.Delay(TestConstants.MediumDelay);
+				completeReady();
+				await perftTask;
+
+				// Assert
+				await transport.Received().WriteLineAsync("go perft 1", Arg.Any<CancellationToken>());
+			}
+
+			private static Action SetupDelayedReadyResponse(IUciTransport transport, Channel<string> channel)
+			{
 				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 				transport.ClearReceivedCalls();
 				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
@@ -136,15 +195,7 @@ public static class UciEngineClientTests
 							 await channel.Writer.WriteAsync("readyok");
 						 });
 
-				// Act
-				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
-				await channel.Writer.WriteAsync("e2e4");
-				await Task.Delay(TestConstants.MediumDelay);
-				readyGate.TrySetResult();
-				await perftTask;
-
-				// Assert
-				await transport.Received().WriteLineAsync("go perft 1", Arg.Any<CancellationToken>());
+				return () => readyGate.TrySetResult();
 			}
 		}
 
@@ -331,9 +382,7 @@ public static class UciEngineClientTests
 			public async Task ShouldWriteCommandAndSetActivityToSearching()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
+				var (transport, client) = CreateClientWithTransport();
 
 				// Act
 				await client.GoFireAndForgetAsync(new(), CancellationToken.None);
@@ -347,9 +396,7 @@ public static class UciEngineClientTests
 			public async Task WithPonder_ShouldSetActivityToPondering()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
+				var (transport, client) = CreateClientWithTransport();
 
 				// Act
 				await client.GoFireAndForgetAsync(new() { Ponder = true }, CancellationToken.None);
@@ -360,6 +407,14 @@ public static class UciEngineClientTests
 					EngineActivity.Pondering,
 					"activity should be Pondering when ponder is enabled");
 			}
+
+			private static (IUciTransport transport, UciEngineClient client) CreateClientWithTransport()
+			{
+				var transport = Substitute.For<IUciTransport>();
+				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+				var client = new UciEngineClient(transport);
+				return (transport, client);
+			}
 		}
 
 		public class IsReadyTests
@@ -368,16 +423,22 @@ public static class UciEngineClientTests
 			public async Task WhenCancelled_ShouldThrowOperationCanceledException()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var cts    = new CancellationTokenSource(TestConstants.CancellationTimeout);
+				var (_, client) = CreateClientWithTransport();
+				var cts = new CancellationTokenSource(TestConstants.CancellationTimeout);
 
 				// Act + Assert
 				await FluentActions
 					  .Awaiting(() => client.IsReadyAsync(cts.Token))
 					  .Should()
 					  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
+			}
+
+			private static (IUciTransport transport, UciEngineClient client) CreateClientWithTransport()
+			{
+				var transport = Substitute.For<IUciTransport>();
+				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+				var client = new UciEngineClient(transport);
+				return (transport, client);
 			}
 		}
 
@@ -404,10 +465,8 @@ public static class UciEngineClientTests
 			public async Task WhenNameIsWhitespace_ShouldNotSendCommand()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = CancellationToken.None;
+				var (transport, client) = CreateClientWithTransport();
+				var ct = CancellationToken.None;
 
 				// Act
 				await client.SetOptionAsync("   ", "ignored", ct);
@@ -420,10 +479,8 @@ public static class UciEngineClientTests
 			public async Task WhenNoValue_ShouldSendCorrectUciCommand()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = new CancellationTokenSource().Token;
+				var (transport, client) = CreateClientWithTransport();
+				var ct = new CancellationTokenSource().Token;
 
 				// Act
 				await client.SetOptionAsync("Ponder", null, ct);
@@ -436,9 +493,7 @@ public static class UciEngineClientTests
 			public async Task WhenValueContainsSpaces_ShouldSendVerbatimValue()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var          client          = new UciEngineClient(transport);
+				var (transport, client) = CreateClientWithTransport();
 				var          ct              = CancellationToken.None;
 				const string valueWithSpaces = @"C:\Chess\Table Bases\wdl345";
 
@@ -453,16 +508,22 @@ public static class UciEngineClientTests
 			public async Task WhenValueProvided_ShouldSendCorrectUciCommand()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = new CancellationTokenSource().Token;
+				var (transport, client) = CreateClientWithTransport();
+				var ct = new CancellationTokenSource().Token;
 
 				// Act
 				await client.SetOptionAsync("Hash", "256", ct);
 
 				// Assert
 				await transport.Received(1).WriteLineAsync("setoption name Hash value 256", ct);
+			}
+
+			private static (IUciTransport transport, UciEngineClient client) CreateClientWithTransport()
+			{
+				var transport = Substitute.For<IUciTransport>();
+				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+				var client = new UciEngineClient(transport);
+				return (transport, client);
 			}
 		}
 
@@ -472,10 +533,8 @@ public static class UciEngineClientTests
 			public async Task WhenInvalidFen_ShouldThrow()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = CancellationToken.None;
+				var (_, client) = CreateClientWithTransport();
+				var ct = CancellationToken.None;
 
 				// Act & Assert - invalid fen -> throws
 				await FluentActions
@@ -488,13 +547,14 @@ public static class UciEngineClientTests
 			public async Task WithValidFenWithMoves_ShouldSendCommandWithMoves()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = CancellationToken.None;
-
+				var (transport, client) = CreateClientWithTransport();
+				var ct  = CancellationToken.None;
 				var fen = Fen.Default;
+
+				// Act
 				await client.SetPositionAsync(fen, new[] { "e2e4", "e7e5" }, ct);
+
+				// Assert
 				await transport.Received().WriteLineAsync(Arg.Is<string>(s => s.Contains("moves e2e4 e7e5")), ct);
 			}
 
@@ -502,16 +562,25 @@ public static class UciEngineClientTests
 			public async Task WithValidFenWithoutMoves_ShouldSendCommand()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var ct     = CancellationToken.None;
-
+				var (transport, client) = CreateClientWithTransport();
+				var ct  = CancellationToken.None;
 				var fen = Fen.Default;
+
+				// Act
 				await client.SetPositionAsync(fen, null, ct);
+
+				// Assert
 				await transport.Received().WriteLineAsync(
 					Arg.Is<string>(s => s.StartsWith($"position fen {fen.Raw}")),
 					ct);
+			}
+
+			private static (IUciTransport transport, UciEngineClient client) CreateClientWithTransport()
+			{
+				var transport = Substitute.For<IUciTransport>();
+				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+				var client = new UciEngineClient(transport);
+				return (transport, client);
 			}
 		}
 
@@ -521,16 +590,22 @@ public static class UciEngineClientTests
 			public async Task WhenCancelled_ShouldThrowOperationCanceledException()
 			{
 				// Arrange
-				var transport = Substitute.For<IUciTransport>();
-				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-				var client = new UciEngineClient(transport);
-				var cts    = new CancellationTokenSource(TestConstants.CancellationTimeout);
+				var (_, client) = CreateClientWithTransport();
+				var cts = new CancellationTokenSource(TestConstants.CancellationTimeout);
 
 				// Act + Assert
 				await FluentActions
 					  .Awaiting(() => client.UciInitAsync(cts.Token))
 					  .Should()
 					  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
+			}
+
+			private static (IUciTransport transport, UciEngineClient client) CreateClientWithTransport()
+			{
+				var transport = Substitute.For<IUciTransport>();
+				transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+				var client = new UciEngineClient(transport);
+				return (transport, client);
 			}
 		}
 	}
