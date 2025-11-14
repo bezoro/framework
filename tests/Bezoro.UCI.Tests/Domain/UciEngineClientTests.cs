@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Bezoro.UCI.API.Types;
@@ -311,67 +310,6 @@ public class UciEngineClientTests
 			new() { SearchMoves = new[] { "E2E4", "bad", "a7a8Q", "" } });
 
 		Assert.Equal("go depth 6 searchmoves e2e4 a7a8q", cmd5);
-	}
-
-	[Fact]
-	public void ComputeTimeout_DepthLarge_ClampedSafely()
-	{
-		var method = typeof(UciEngineClient).GetMethod(
-			"ComputeTimeout",
-			BindingFlags.NonPublic | BindingFlags.Static);
-
-		Assert.NotNull(method);
-
-		var parameters = new SearchParameters { Depth = uint.MaxValue };
-		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
-
-		Assert.Equal(TimeSpan.FromSeconds(90), result);
-	}
-
-	[Fact]
-	public void ComputeTimeout_MoveTimeAtIntMax_DoesNotOverflow()
-	{
-		var method = typeof(UciEngineClient).GetMethod(
-			"ComputeTimeout",
-			BindingFlags.NonPublic | BindingFlags.Static);
-
-		Assert.NotNull(method);
-
-		var parameters = new SearchParameters { MoveTimeMs = int.MaxValue };
-		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
-
-		double expectedMs = int.MaxValue + 750d;
-		Assert.Equal(expectedMs, result.TotalMilliseconds, 3);
-	}
-
-	[Fact]
-	public void ComputeTimeout_MoveTimeLongerThanOneMinute_IsNotClamped()
-	{
-		var method = typeof(UciEngineClient).GetMethod(
-			"ComputeTimeout",
-			BindingFlags.NonPublic | BindingFlags.Static);
-
-		Assert.NotNull(method);
-
-		var parameters = new SearchParameters { MoveTimeMs = 90_000 };
-		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
-
-		Assert.Equal(TimeSpan.FromMilliseconds(90_750), result);
-	}
-
-	[Fact]
-	public void ComputeTimeout_NegativeMoveTime_UsesFloor()
-	{
-		var method = typeof(UciEngineClient).GetMethod(
-			"ComputeTimeout",
-			BindingFlags.NonPublic | BindingFlags.Static);
-
-		Assert.NotNull(method);
-
-		var parameters = new SearchParameters { MoveTimeMs = -1_000 };
-		var result     = (TimeSpan)method.Invoke(null, new object[] { parameters })!;
-
-		Assert.Equal(TimeSpan.FromMilliseconds(500), result);
 	}
 
 	[Fact]

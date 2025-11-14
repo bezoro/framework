@@ -12,17 +12,20 @@ namespace Bezoro.UCI.Domain;
 ///     Maintains a single search session at a time, parses UCI output, tracks engine activity state, and
 ///     exposes events and helpers for UCI clients.
 /// </summary>
-internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposable
+internal sealed class UciEngineClient : IAsyncDisposable
 {
 	/// <summary>
 	///     Underlying transport abstraction for communicating with the engine.
 	/// </summary>
-	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+	private readonly IUciTransport _transport;
 
 	/// <summary>
 	///     Registry for awaiting specific engine output lines.
 	/// </summary>
 	private readonly UciLineWaiterRegistry _lineWaiters = new();
+	private readonly UciOutputDispatcher _outputDispatcher;
+
+	private readonly UciSearchCoordinator _searchCoordinator;
 
 	/// <summary>
 	///     Cancellation source for the read loop and engine lifetime.
@@ -34,15 +37,6 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 	/// </summary>
 	private int _activity;
 
-	/// <summary>
-	///     Current <see cref="SearchSession" /> tracked for an ongoing search operation.
-	///     Only one search is permitted at a time.
-	/// </summary>
-	private volatile SearchSession? _activeSearch;
-
-	/// <summary>
-	///     Holds background read loop Task.
-	/// </summary>
 	private Task? _readerTask;
 
 	/// <summary>
@@ -64,6 +58,19 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 	///     Raised for every output line received from the engine.
 	/// </summary>
 	public event Action<string>? LineReceived;
+
+	public UciEngineClient(IUciTransport transport)
+	{
+		_transport = transport ?? throw new ArgumentNullException(nameof(transport));
+
+		_searchCoordinator = new(
+			_transport,
+			SetActivity,
+			pv => InfoPvReceived?.Invoke(pv),
+			(best, ponder) => BestMoveReceived?.Invoke(best, ponder));
+
+		_outputDispatcher = new(_lineWaiters, _searchCoordinator);
+	}
 
 	/// <summary>
 	///     Indicates whether the underlying transport is healthy.
@@ -349,111 +356,8 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 	///     lines.
 	///     Applies a derived timeout based on input <paramref name="parameters" />.
 	/// </summary>
-	public async Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct)
-	{
-		string cmd = BuildGoCommand(parameters);
-
-		// Create and publish the active session before sending the command to avoid races.
-		var session = new SearchSession(parameters.Ponder);
-		if (Interlocked.CompareExchange(ref _activeSearch, session, null) is { })
-		{
-			session.BestMoveCompletion.TrySetCanceled();
-			throw new InvalidOperationException("A search is already in progress.");
-		}
-
-		var timeout = ComputeTimeout(parameters);
-
-		string? bestLine = null;
-		// Await bestmove with timeout and cancellation without mutating the session TCS state.
-		try
-		{
-			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-			SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-
-			var bestTask = session.BestMoveCompletion.Task;
-			var timeoutTask = timeout == Timeout.InfiniteTimeSpan
-								  ? Task.Delay(Timeout.Infinite, CancellationToken.None)
-								  : Task.Delay(timeout);
-
-			var       cancelTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			using var reg = ct.Register(static s => ((TaskCompletionSource<object?>)s!).TrySetResult(null), cancelTcs);
-
-			var completed = await Task.WhenAny(bestTask, timeoutTask, cancelTcs.Task).ConfigureAwait(false);
-
-			if (completed == cancelTcs.Task)
-				throw new OperationCanceledException(ct);
-
-			if (completed == bestTask)
-			{
-				bestLine = await bestTask.ConfigureAwait(false);
-			}
-			else
-			{
-				// Timeout path: try to stop and wait briefly for bestmove to arrive.
-				try
-				{
-					await _transport.WriteLineAsync(UciConstants.Commands.STOP, CancellationToken.None)
-									.ConfigureAwait(false);
-				}
-				catch
-				{
-					/* best-effort */
-				}
-
-				try
-				{
-					var graceCompleted = await Task.WhenAny(bestTask, Task.Delay(TimeSpan.FromSeconds(2), ct))
-												   .ConfigureAwait(false);
-
-					ct.ThrowIfCancellationRequested();
-
-					if (graceCompleted == bestTask)
-					{
-						bestLine = await bestTask.ConfigureAwait(false);
-					}
-					else
-					{
-						// Still no bestmove; if we captured one already, use it.
-						bestLine = session.FindFirstLine(static l => l.StartsWith(
-															 UciConstants.Prefixes.BEST_MOVE + " ",
-															 StringComparison.OrdinalIgnoreCase));
-
-						if (bestLine is null)
-							throw new TimeoutException("Engine search timed out without emitting 'bestmove'.");
-					}
-				}
-				catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-				{
-					// Treat as timeout in this context.
-					bestLine = session.FindFirstLine(static l => l.StartsWith(
-														 UciConstants.Prefixes.BEST_MOVE + " ",
-														 StringComparison.OrdinalIgnoreCase));
-
-					if (bestLine is null) throw;
-				}
-			}
-		}
-		finally
-		{
-			if (ReferenceEquals(_activeSearch, session))
-				_activeSearch = null;
-
-			if (!session.BestMoveCompletion.Task.IsCompleted)
-				session.BestMoveCompletion.TrySetCanceled();
-
-			// Ensure we flip to Idle; read loop will also do so on bestmove.
-			SetActivity(EngineActivity.Idle);
-		}
-
-		// Ensure bestmove line is present in the buffer for parsing
-		if (bestLine is { })
-			session.AddLine(bestLine);
-
-		// Snapshot captured lines once; SearchResult.TryParse expects a stable enumerable
-		var snapshot = session.SnapshotLines();
-
-		return SearchResult.TryParse(snapshot, out var result) ? result : default;
-	}
+	public Task<SearchResult> GoAsync(SearchParameters parameters, CancellationToken ct) =>
+		_searchCoordinator.ExecuteSearchAsync(parameters, ct);
 
 	/// <summary>
 	///     Disposes the engine client, releasing and stopping underlying transports.
@@ -473,28 +377,6 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 	}
 
 	/// <summary>
-	///     Computes an appropriate timeout for the search session, based on input search parameters.
-	/// </summary>
-	private static TimeSpan ComputeTimeout(SearchParameters p)
-	{
-		if (p.MoveTimeMs is { } mt)
-		{
-			// add a small buffer to allow the engine to flush "bestmove"
-			long buffered                = (long)mt + 750;
-			if (buffered < 500) buffered = 500;
-
-			double capped = Math.Min(buffered, TimeSpan.MaxValue.TotalMilliseconds);
-			return TimeSpan.FromMilliseconds(capped);
-		}
-
-		if (p.Infinite) return TimeSpan.FromSeconds(120);
-		if (p.Depth is not { } d) return TimeSpan.FromSeconds(p.Nodes is { } ? 60 : 30);
-
-		long seconds = Math.Clamp((long)d * 2, 10L, 90L);
-		return TimeSpan.FromSeconds(seconds);
-	}
-
-	/// <summary>
 	///     Main receive/read loop. Reads transport output lines, dispatches output events, parses known output, and
 	///     manages generic waiters and search session events.
 	/// </summary>
@@ -508,7 +390,8 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 			{
 				try
 				{
-					ProcessTransportLine(line);
+					LineReceived?.Invoke(line);
+					_outputDispatcher.Process(line);
 				}
 				catch
 				{
@@ -522,55 +405,9 @@ internal sealed class UciEngineClient(IUciTransport transport) : IAsyncDisposabl
 		}
 		finally
 		{
-			_lineWaiters.CancelAll();
-
-			_activeSearch?.BestMoveCompletion.TrySetCanceled();
-			_activeSearch = null;
-
+			_outputDispatcher.OnShutdown();
 			SetActivity(EngineActivity.Idle);
 		}
-	}
-
-	private void HandleBestMoveLine(string line, SearchSession? session)
-	{
-		if (session is { })
-		{
-			session.AddLine(line);
-			session.CompleteBestMove(line);
-			_activeSearch = null;
-		}
-
-		SetActivity(EngineActivity.Idle);
-
-		if (BestMoveLine.TryParse(line, out var bestMove))
-		{
-			BestMoveReceived?.Invoke(bestMove.BestMove, bestMove.PonderMove ?? string.Empty);
-			return;
-		}
-
-		BestMoveReceived?.Invoke(string.Empty, string.Empty);
-	}
-
-	private void HandleInfoLine(string line, SearchSession? session)
-	{
-		if (PrincipalVariation.TryParse(line, out var pv))
-			InfoPvReceived?.Invoke(pv);
-
-		session?.AddLine(line);
-	}
-
-	private void ProcessTransportLine(string line)
-	{
-		LineReceived?.Invoke(line);
-
-		var session = _activeSearch;
-
-		if (line.StartsWith($"{UciConstants.Prefixes.INFO} ", StringComparison.OrdinalIgnoreCase))
-			HandleInfoLine(line, session);
-		else if (line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase))
-			HandleBestMoveLine(line, session);
-
-		_lineWaiters.Notify(line);
 	}
 
 	/// <summary>
