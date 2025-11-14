@@ -1,6 +1,8 @@
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests._Resources;
+using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -88,7 +90,7 @@ public class MoveClassificationEngineTests
 			moveCount++;
 		}
 
-		moveCount.Should().Be(20);
+		moveCount.Should().Be(TestConstants.ExpectedStartingPositionMoves);
 	}
 
 	[Fact]

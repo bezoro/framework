@@ -4,6 +4,9 @@ using System.Threading.Channels;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Common.Constants;
 using Bezoro.UCI.Tests._Resources;
+using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.Helpers;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -27,7 +30,8 @@ public static class ProcessUciTransportTests
 
 	public class Integration
 	{
-		[Fact]
+		[IntegrationTest]
+		[Trait("Requires", "Stockfish")]
 		public async Task DisposeAsync_AfterStart_StopsProcessAndResetsIsStarted()
 		{
 			const string path    = TestConsts.STOCKFISH_PATH;
@@ -65,7 +69,7 @@ public static class ProcessUciTransportTests
 			await process.StartAsync();
 			await process.DisposeAsync();
 
-			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(tcs.Task, "Exited event should be raised on process exit");
 
 			var result = await tcs.Task;
@@ -90,11 +94,11 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 			await transport.DisposeAsync();
 
-			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(tcs.Task);
 
 			// Give a brief moment to ensure no duplicate invocations occur
-			await Task.Delay(100);
+			await Task.Delay(TestConstants.StandardDelay);
 
 			count.Should().Be(1);
 		}
@@ -115,7 +119,7 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(errorTcs.Task, "Error event should be raised when Exited handler throws");
 
 			(await errorTcs.Task).Should().BeOfType<InvalidOperationException>();
@@ -162,7 +166,7 @@ public static class ProcessUciTransportTests
 
 			await process.DisposeAsync();
 
-			var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(pending, "enumeration should complete after dispose");
 			(await pending).Should().BeFalse("no more lines should be available after transport is disposed");
 		}
@@ -179,7 +183,7 @@ public static class ProcessUciTransportTests
 
 			await process.StopAsync();
 
-			var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(pending, "enumeration should complete after stop");
 			(await pending).Should().BeFalse("no more lines should be available after transport is stopped");
 
@@ -211,7 +215,7 @@ public static class ProcessUciTransportTests
 			var          process = new ProcessUciTransport(path);
 			await process.StartAsync();
 
-			using var cts1 = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
+			using var cts1 = new CancellationTokenSource(TestConstants.TinyTimeout);
 			var       e1   = process.ReadLinesAsync(cts1.Token).GetAsyncEnumerator(cts1.Token);
 			// Start enumeration to acquire the single-reader gate
 			var firstMoveTask = e1.MoveNextAsync().AsTask();
@@ -228,7 +232,7 @@ public static class ProcessUciTransportTests
 
 			await e1.DisposeAsync();
 
-			using var cts2 = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			using var cts2 = new CancellationTokenSource(TestConstants.MediumDelay);
 			var       e2   = process.ReadLinesAsync(cts2.Token).GetAsyncEnumerator(cts2.Token);
 
 			await FluentActions.Awaiting(async () => await e2.MoveNextAsync())
@@ -247,7 +251,7 @@ public static class ProcessUciTransportTests
 			var          process = new ProcessUciTransport(path, null, null, options);
 			await process.StartAsync();
 
-			using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			using var cts = new CancellationTokenSource(TestConstants.MediumDelay);
 			var       e1  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 			var       e2  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 
@@ -287,7 +291,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Do not consume any lines; allow read loop to hit channel backpressure path
-			await Task.Delay(200);
+			await Task.Delay(TestConstants.LongerDelay);
 
 			await transport.StopAsync();
 
@@ -309,7 +313,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			string?   received = null;
-			using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var cts      = new CancellationTokenSource(TestConstants.DefaultTimeout);
 			await foreach (string line in transport.ReadLinesAsync(cts.Token))
 			{
 				if (string.IsNullOrWhiteSpace(line)) continue;
@@ -401,8 +405,8 @@ public static class ProcessUciTransportTests
 			// Wait until the status transitions to Stopping to avoid a race
 			var sw = Stopwatch.StartNew();
 			while (process.Status != TransportStatus.Stopping &&
-				   sw.Elapsed < TimeSpan.FromSeconds(2))
-				await Task.Delay(10);
+				   sw.Elapsed < TestConstants.ShortTimeout)
+				await Task.Delay(TestConstants.ShortDelay);
 
 			await FluentActions.Awaiting(() => process.StartAsync())
 							   .Should()
@@ -509,7 +513,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Since stderr isn't redirected, the event should not fire within a short window
-			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.BackpressureDelay));
 			completed.Should().NotBe(tcs.Task);
 
 			await transport.DisposeAsync();
@@ -566,7 +570,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Allow stderr loop to process and observe whether Error was raised due to the thrown handler.
-			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TestConstants.BackpressureDelay));
 
 			// If handler exceptions were not swallowed, Error would fire.
 			completed.Should().NotBe(
@@ -588,7 +592,7 @@ public static class ProcessUciTransportTests
 
 			await process.StopAsync();
 
-			var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(pending);
 			(await pending).Should().BeFalse();
 
@@ -605,7 +609,7 @@ public static class ProcessUciTransportTests
 
 			var options = new ProcessUciTransportOptions
 			{
-				QuitGracePeriod = TimeSpan.FromMilliseconds(100)
+				QuitGracePeriod = TestConstants.QuitGracePeriod
 			};
 
 			var transport = new ProcessUciTransport(cmdPath, [ProcessArgs.CMD_KEEP], null, options);
@@ -615,7 +619,7 @@ public static class ProcessUciTransportTests
 			await transport.StopAsync();
 			sw.Stop();
 
-			sw.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(50));
+			sw.Elapsed.Should().BeGreaterThanOrEqualTo(TestConstants.MediumDelay);
 			transport.Status.Should().Be(TransportStatus.Stopped);
 
 			await transport.DisposeAsync();
@@ -630,7 +634,7 @@ public static class ProcessUciTransportTests
 			await process.StartAsync();
 			await process.DisposeAsync();
 
-			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TestConstants.TinyTimeout))
 							   .Should()
 							   .ThrowAsync<InvalidOperationException>();
 		}
@@ -643,7 +647,7 @@ public static class ProcessUciTransportTests
 			await process.StartAsync();
 			await process.StopAsync();
 
-			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TestConstants.TinyTimeout))
 							   .Should()
 							   .ThrowAsync<InvalidOperationException>();
 		}
@@ -662,10 +666,10 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Fill channel to force slow write path
-			bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+			bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 			ok1.Should().BeTrue();
 
-			var writeTask = transport.TryWriteLineAsync("isready", TimeSpan.FromSeconds(5));
+			var writeTask = transport.TryWriteLineAsync("isready", TestConstants.DefaultTimeout);
 
 			// Immediately stop transport which should close the channel causing ChannelClosedException -> InvalidOperationException
 			await transport.Awaiting(_ => transport.StopAsync()).Should().NotThrowAsync();
@@ -690,10 +694,10 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+			bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 			ok1.Should().BeTrue();
 
-			bool ok2 = await transport.TryWriteLineAsync("isready", TimeSpan.FromMilliseconds(1));
+			bool ok2 = await transport.TryWriteLineAsync("isready", TestConstants.VeryShortDelay);
 			ok2.Should().BeFalse();
 
 			await transport.DisposeAsync();
@@ -736,7 +740,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Attempt to create contention: first write fills channel, second goes to slow path with infinite timeout.
-			bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+			bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 			ok1.Should().BeTrue();
 
 			// This may briefly block until write loop drains; should return true.
@@ -760,13 +764,13 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Fill the channel
-			bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(100));
+			bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.SmallTimeout);
 			ok1.Should().BeTrue();
 
 			// Second write blocks -> cancel the token to hit OperationCanceledException branch
-			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+			var cts = new CancellationTokenSource(TestConstants.MediumDelay);
 			await FluentActions
-				  .Awaiting(() => transport.TryWriteLineAsync("isready", TimeSpan.FromSeconds(5), cts.Token))
+				  .Awaiting(() => transport.TryWriteLineAsync("isready", TestConstants.DefaultTimeout, cts.Token))
 				  .Should()
 				  .ThrowAsync<OperationCanceledException>();
 
@@ -780,7 +784,7 @@ public static class ProcessUciTransportTests
 			var          process = new ProcessUciTransport(path);
 			await process.StartAsync();
 
-			bool ok = await process.TryWriteLineAsync("uci", TimeSpan.FromSeconds(1));
+			bool ok = await process.TryWriteLineAsync("uci", TestConstants.ShortTimeout);
 			ok.Should().BeTrue();
 
 			await process.DisposeAsync();
@@ -799,10 +803,10 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(exitedTcs.Task);
 
-			await FluentActions.Awaiting(() => transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+			await FluentActions.Awaiting(() => transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout))
 							   .Should()
 							   .ThrowAsync<InvalidOperationException>();
 		}
@@ -819,10 +823,10 @@ public static class ProcessUciTransportTests
 			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
 			await transport.StartAsync();
 
-			bool firstOk = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(50));
+			bool firstOk = await transport.TryWriteLineAsync("uci", TestConstants.MediumDelay);
 			firstOk.Should().BeTrue();
 
-			bool ok = await transport.TryWriteLineAsync("isready", TimeSpan.FromMilliseconds(100));
+			bool ok = await transport.TryWriteLineAsync("isready", TestConstants.SmallTimeout);
 			ok.Should().BeFalse();
 
 			await transport.DisposeAsync();
@@ -850,7 +854,7 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(tcs.Task);
 
 			var result = await tcs.Task;
@@ -898,7 +902,7 @@ public static class ProcessUciTransportTests
 			await process.WriteLineAsync("uci");
 
 			string?   output = null;
-			using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var cts    = new CancellationTokenSource(TestConstants.DefaultTimeout);
 
 			await foreach (string line in process.ReadLinesAsync(cts.Token))
 			{
@@ -993,7 +997,7 @@ public static class ProcessUciTransportTests
 			// Next write should block until drained
 			var secondWrite = transport.WriteLineAsync("isready");
 
-			var completedEarly = await Task.WhenAny(secondWrite, Task.Delay(50));
+			var completedEarly = await Task.WhenAny(secondWrite, Task.Delay(TestConstants.MediumDelay));
 			completedEarly.Should().NotBe(secondWrite);
 
 			// Drain one item from the private _outgoing channel to free capacity
@@ -1028,7 +1032,7 @@ public static class ProcessUciTransportTests
 			await transport.StartAsync();
 
 			// Wait for the process to actually exit to hit the HasExited guard reliably
-			var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(exitedTcs.Task);
 
 			await FluentActions.Awaiting(() => transport.WriteLineAsync("uci"))
@@ -1052,7 +1056,7 @@ public static class ProcessUciTransportTests
 			await process.WriteLineAsync("uci");
 
 			string?   output = null;
-			using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var cts    = new CancellationTokenSource(TestConstants.DefaultTimeout);
 
 			await foreach (string line in process.ReadLinesAsync(cts.Token))
 			{
@@ -1230,7 +1234,7 @@ public static class ProcessUciTransportTests
 		{
 			var process = new ProcessUciTransport("any/nonempty/path");
 
-			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10)))
+			await FluentActions.Awaiting(() => process.TryWriteLineAsync("uci", TestConstants.TinyTimeout))
 							   .Should()
 							   .ThrowAsync<InvalidOperationException>();
 		}

@@ -2,6 +2,8 @@ using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests._Resources;
+using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -70,7 +72,7 @@ public class PonderEngineTests
 
 		await engine.StartSearchAsync(Fen.Default, null);
 
-		await tcs.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
 
 		await engine.StopSearchAsync();
 	}
@@ -115,7 +117,7 @@ public class PonderEngineTests
 
 		// Start search and wait for first info
 		await engine.StartSearchAsync(Fen.Default, null);
-		var pv1 = await firstInfo.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		var pv1 = await firstInfo.Task.WaitAsync(TestConstants.MediumTimeout);
 		pv1.Should().NotBeNull();
 
 		// New game should stop search and reset internal state
@@ -128,7 +130,7 @@ public class PonderEngineTests
 
 		// Start search again and ensure we receive info
 		await engine.StartSearchAsync(Fen.Default, null);
-		var pv2 = await secondInfo.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		var pv2 = await secondInfo.Task.WaitAsync(TestConstants.MediumTimeout);
 		pv2.Should().NotBeNull();
 
 		await engine.StopSearchAsync();
@@ -152,7 +154,7 @@ public class PonderEngineTests
 		};
 
 		await engine.StartSearchAsync(Fen.Default, null);
-		bool got = await sawMultiPv2.Task.WaitAsync(TimeSpan.FromSeconds(8));
+		bool got = await sawMultiPv2.Task.WaitAsync(TestConstants.ExtendedTimeout);
 
 		got.Should().BeTrue();
 
@@ -181,7 +183,7 @@ public class PonderEngineTests
 		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
 
 		await engine.StartSearchAsync(Fen.Default, null);
-		var pv = await infoTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		var pv = await infoTcs.Task.WaitAsync(TestConstants.MediumTimeout);
 		pv.Should().NotBeNull();
 		engine.Activity.Should().Be(EngineActivity.Searching);
 
@@ -206,7 +208,7 @@ public class PonderEngineTests
 		};
 
 		await engine.StartSearchAsync(Fen.Default, null);
-		await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		await engine.StopAsync();
 
 		best.Should().NotBeNull();
@@ -245,7 +247,7 @@ public class PonderEngineTests
 
 		await engine.StartSearchAsync(Fen.Default, null);
 
-		var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		var received = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		engine.Activity.Should().Be(EngineActivity.Searching);
 		received?.Moves.Should().NotBeEmpty();
 		received?.ScoreCp.Should().NotBeNull();

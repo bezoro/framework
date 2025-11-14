@@ -3,6 +3,8 @@ using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests._Resources;
+using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -60,7 +62,7 @@ public class QuickInfoEngineTests
 		var moves = await engine.GetLegalMovesAsync();
 
 		moves.Should().NotBeNull();
-		moves.Count.Should().Be(20);
+		moves.Count.Should().Be(TestConstants.ExpectedStartingPositionMoves);
 	}
 
 
