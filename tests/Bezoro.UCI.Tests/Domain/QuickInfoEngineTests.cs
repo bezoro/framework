@@ -22,7 +22,7 @@ public class QuickInfoEngineTests
 
 		engine.IsStarted.Should().BeFalse();
 		engine.IsHealthy.Should().BeFalse();
-		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+		engine.Status.Should().Be(TransportStatus.Disposed);
 	}
 
 	[Fact]
@@ -35,7 +35,7 @@ public class QuickInfoEngineTests
 
 		engine.IsStarted.Should().BeFalse();
 		engine.IsHealthy.Should().BeFalse();
-		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+		engine.Status.Should().Be(TransportStatus.Disposed);
 	}
 
 
@@ -88,7 +88,7 @@ public class QuickInfoEngineTests
 
 		engine.IsStarted.Should().BeTrue();
 		engine.IsHealthy.Should().BeTrue();
-		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Started);
+		engine.Status.Should().Be(TransportStatus.Started);
 	}
 
 	[Fact]
@@ -100,6 +100,6 @@ public class QuickInfoEngineTests
 		await engine.StopAsync();
 
 		engine.IsStarted.Should().BeFalse();
-		engine.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+		engine.Status.Should().Be(TransportStatus.Stopped);
 	}
 }

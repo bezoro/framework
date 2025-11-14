@@ -30,7 +30,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 
 	public EngineActivity Activity => _client.Activity;
 
-	public ProcessUciTransport.TransportStatus Status => _client.Status;
+	public TransportStatus Status => _client.Status;
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{

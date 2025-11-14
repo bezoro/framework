@@ -21,7 +21,7 @@ internal interface IUciTransport : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Current transport status. This reflects internal lifecycle transitions.
 	/// </summary>
-	ProcessUciTransport.TransportStatus Status { get; }
+	TransportStatus Status { get; }
 
 	/// <summary>
 	///     Asynchronously reads lines from the transport stream.

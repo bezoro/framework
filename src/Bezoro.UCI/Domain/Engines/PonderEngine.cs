@@ -26,7 +26,7 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public bool IsStarted => _client.IsStarted;
 
 	public EngineActivity                      Activity => _client.Activity;
-	public ProcessUciTransport.TransportStatus Status   => _client.Status;
+	public TransportStatus Status   => _client.Status;
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{

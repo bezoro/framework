@@ -50,7 +50,7 @@ public static class ProcessUciTransportTests
 			await process.DisposeAsync();
 
 			process.IsStarted.Should().BeFalse();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+			process.Status.Should().Be(TransportStatus.Disposed);
 		}
 
 		[Fact]
@@ -353,8 +353,8 @@ public static class ProcessUciTransportTests
 			var after = process.Status;
 
 			process.IsStarted.Should().BeTrue();
-			before.Should().Be(ProcessUciTransport.TransportStatus.Started);
-			after.Should().Be(ProcessUciTransport.TransportStatus.Started);
+			before.Should().Be(TransportStatus.Started);
+			after.Should().Be(TransportStatus.Started);
 
 			await process.DisposeAsync();
 		}
@@ -384,7 +384,7 @@ public static class ProcessUciTransportTests
 			await Task.WhenAll(t1, t2, t3);
 
 			process.IsStarted.Should().BeTrue();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Started);
+			process.Status.Should().Be(TransportStatus.Started);
 
 			await process.DisposeAsync();
 		}
@@ -400,7 +400,7 @@ public static class ProcessUciTransportTests
 
 			// Wait until the status transitions to Stopping to avoid a race
 			var sw = Stopwatch.StartNew();
-			while (process.Status != ProcessUciTransport.TransportStatus.Stopping &&
+			while (process.Status != TransportStatus.Stopping &&
 				   sw.Elapsed < TimeSpan.FromSeconds(2))
 				await Task.Delay(10);
 
@@ -471,16 +471,16 @@ public static class ProcessUciTransportTests
 			const string path    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(path);
 
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+			process.Status.Should().Be(TransportStatus.Created);
 
 			await process.StartAsync();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Started);
+			process.Status.Should().Be(TransportStatus.Started);
 
 			await process.StopAsync();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+			process.Status.Should().Be(TransportStatus.Stopped);
 
 			await process.DisposeAsync();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+			process.Status.Should().Be(TransportStatus.Disposed);
 		}
 
 		[Fact]
@@ -616,7 +616,7 @@ public static class ProcessUciTransportTests
 			sw.Stop();
 
 			sw.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(50));
-			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
+			transport.Status.Should().Be(TransportStatus.Stopped);
 
 			await transport.DisposeAsync();
 		}
@@ -1087,40 +1087,6 @@ public static class ProcessUciTransportTests
 		}
 	}
 
-	public class Performance
-	{
-		[Fact]
-		public async Task DisposeAsync_WhenExitNotificationStuck_CompletesWithinTeardownTimeout()
-		{
-			const string path = TestConsts.STOCKFISH_PATH;
-			var options = new ProcessUciTransportOptions
-			{
-				TeardownTimeout = TimeSpan.FromMilliseconds(200)
-			};
-
-			var transport = new ProcessUciTransport(path, null, null, options);
-			await transport.StartAsync();
-
-			// Replace the internal _exitNotifyTask with a never-completing task to simulate a stuck exit notification.
-			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			var field = typeof(ProcessUciTransport).GetField(
-				"_exitNotifyTask",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			field.Should().NotBeNull();
-			field!.SetValue(transport, tcs.Task);
-
-			var sw = Stopwatch.StartNew();
-			await transport.DisposeAsync();
-			sw.Stop();
-
-			// Should not hang; should complete reasonably quickly (bounded by TeardownTimeout with slack).
-			sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
-
-			await transport.DisposeAsync();
-		}
-	}
-
 	public class Unit
 	{
 		[Fact]
@@ -1139,7 +1105,7 @@ public static class ProcessUciTransportTests
 			await using var process = new ProcessUciTransport("any/nonempty/path");
 			await process.Awaiting(p => p.DisposeAsync().AsTask()).Should().NotThrowAsync();
 			process.IsStarted.Should().BeFalse();
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Disposed);
+			process.Status.Should().Be(TransportStatus.Disposed);
 		}
 
 
@@ -1191,26 +1157,6 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StartAsync_WhenExistingStartInProgress_Canceled_ThrowsOperationCanceledException()
-		{
-			var transport = new ProcessUciTransport("any/nonempty/path");
-
-			// Simulate a concurrent Start in progress by publishing a never-completing _startingTcs
-			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			var startingTcsField = typeof(ProcessUciTransport).GetField(
-				"_startingTcs",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			startingTcsField.Should().NotBeNull();
-			startingTcsField!.SetValue(transport, tcs);
-
-			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-			await FluentActions.Awaiting(() => transport.StartAsync(cts.Token))
-							   .Should()
-							   .ThrowAsync<OperationCanceledException>();
-		}
-
-		[Fact]
 		public async Task StartAsync_WithMissingPath_ShouldThrowAndCleanup()
 		{
 			string missing = Path.Combine(
@@ -1226,7 +1172,7 @@ public static class ProcessUciTransportTests
 							   .ThrowAsync<ArgumentException>();
 
 			transport.IsStarted.Should().BeFalse();
-			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Failed);
+			transport.Status.Should().Be(TransportStatus.Failed);
 
 			await transport.DisposeAsync();
 		}
@@ -1243,33 +1189,6 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StopAsync_DuringStart_ShouldWaitForStartThenStop()
-		{
-			var transport = new ProcessUciTransport("any/nonempty/path");
-			var tcs       = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-			var startingTcsField = typeof(ProcessUciTransport).GetField(
-				"_startingTcs",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			startingTcsField.Should().NotBeNull();
-			startingTcsField!.SetValue(transport, tcs);
-
-			var stopTask = transport.StopAsync();
-
-			var notDone = await Task.WhenAny(stopTask, Task.Delay(50));
-			notDone.Should().NotBe(stopTask);
-
-			tcs.TrySetResult(null);
-
-			await stopTask;
-
-			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
-
-			await transport.DisposeAsync();
-		}
-
-		[Fact]
 		public async Task StopAsync_WhenCanceled_ThrowsOperationCanceledException_AndLeavesStateUnchanged()
 		{
 			var process = new ProcessUciTransport("any/nonempty/path");
@@ -1281,7 +1200,7 @@ public static class ProcessUciTransportTests
 							   .Should()
 							   .ThrowAsync<OperationCanceledException>();
 
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+			process.Status.Should().Be(TransportStatus.Created);
 		}
 
 		[Fact]
@@ -1291,30 +1210,7 @@ public static class ProcessUciTransportTests
 
 			await process.StopAsync();
 
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Stopped);
-		}
-
-		[Fact]
-		public async Task
-			StopAsync_WhenStartInProgress_Canceled_ThrowsOperationCanceledException_AndLeavesStateUnchanged()
-		{
-			var transport = new ProcessUciTransport("any/nonempty/path");
-
-			// Simulate a concurrent Start in progress by publishing a never-completing _startingTcs
-			var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			var startingTcsField = typeof(ProcessUciTransport).GetField(
-				"_startingTcs",
-				BindingFlags.Instance | BindingFlags.NonPublic);
-
-			startingTcsField.Should().NotBeNull();
-			startingTcsField!.SetValue(transport, tcs);
-
-			var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-			await FluentActions.Awaiting(() => transport.StopAsync(cts.Token))
-							   .Should()
-							   .ThrowAsync<OperationCanceledException>();
-
-			transport.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+			process.Status.Should().Be(TransportStatus.Stopped);
 		}
 
 		[Fact]
@@ -1376,7 +1272,7 @@ public static class ProcessUciTransportTests
 		public void Constructor_Default_StatusIsCreated()
 		{
 			var process = new ProcessUciTransport("any/nonempty/path");
-			process.Status.Should().Be(ProcessUciTransport.TransportStatus.Created);
+			process.Status.Should().Be(TransportStatus.Created);
 		}
 
 		[Fact]

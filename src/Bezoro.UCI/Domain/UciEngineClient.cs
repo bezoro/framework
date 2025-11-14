@@ -92,7 +92,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <summary>
 	///     Engine process/transport status.
 	/// </summary>
-	public ProcessUciTransport.TransportStatus Status => _transport.Status;
+	public TransportStatus Status => _transport.Status;
 
 	/// <summary>
 	///     Determines if a string is a valid UCI move (e.g. "e2e4", "a7a8q").
