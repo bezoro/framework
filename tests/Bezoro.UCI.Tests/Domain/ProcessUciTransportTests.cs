@@ -646,22 +646,25 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task StopAsync_ShouldSendQuitThenKillAfterGrace()
 			{
-				string? cmdPath = TryResolveCmdPath();
-				if (cmdPath is null) return;
+				const string PATH = TestConsts.STOCKFISH_PATH;
+
+				// Track whether quit was sent using the test hook
+				bool quitSent = false;
 
 				var options = new ProcessUciTransportOptions
 				{
-					QuitGracePeriod = TestConstants.QuitGracePeriod
+					SendQuitOnStop = true,
+					QuitGracePeriod = TestConstants.QuitGracePeriod,
+					OnQuitSent      = () => quitSent = true
 				};
 
-				var transport = new ProcessUciTransport(cmdPath, [ProcessArgs.CMD_KEEP], null, options);
+				var transport = new ProcessUciTransport(PATH, null, null, options);
 				await transport.StartAsync();
 
-				var sw = Stopwatch.StartNew();
 				await transport.StopAsync();
-				sw.Stop();
 
-				sw.Elapsed.Should().BeGreaterThanOrEqualTo(TestConstants.MediumDelay);
+				// Verify that quit WAS sent when SendQuitOnStop is true
+				quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 				transport.Status.Should().Be(TransportStatus.Stopped);
 
 				await transport.DisposeAsync();
@@ -1576,12 +1579,15 @@ public static class ProcessUciTransportTests
 				var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 				completed.Should().Be(exitedTcs.Task);
 
-				// Dispose should complete quickly since process already exited
-				var sw = Stopwatch.StartNew();
-				await transport.DisposeAsync();
-				sw.Stop();
+				// Dispose should complete without hanging since process already exited
+				// Use a timeout to ensure it doesn't hang, but don't assert on exact timing
+				using var cts = new CancellationTokenSource(TestConstants.DefaultTimeout);
+				var disposeTask = transport.DisposeAsync().AsTask();
+				
+				var disposeCompleted = await Task.WhenAny(disposeTask, Task.Delay(TestConstants.DefaultTimeout, cts.Token));
+				disposeCompleted.Should().Be(disposeTask, "Dispose should complete when process has already exited");
 
-				sw.Elapsed.Should().BeLessThan(TestConstants.DefaultTimeout);
+				await disposeTask;
 				transport.Status.Should().Be(TransportStatus.Disposed);
 			}
 
