@@ -12,126 +12,216 @@ namespace Bezoro.UCI.Tests.Domain;
 [TestSubject(typeof(UciEngineClient))]
 public static class UciEngineClientTests
 {
-	public class IntegrationTests
+	public static class IntegrationTests
 	{
-		[Fact(Timeout = 4000)]
-		public async Task GetFenViaDAsync_ShouldReturnCheckersIfPresent()
+		public class GetFenViaDTests
 		{
-			var transport = Substitute.For<IUciTransport>();
-			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			var ch = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
+			[Fact(Timeout = 4000)]
+			public async Task GetFenViaDAsync_ShouldReturnCheckersWhenPresent()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client = await StartClientWithHandshakeAsync(transport, channel);
 
-			var client = new UciEngineClient(transport);
+				string fen = Fen.Default.Raw;
+				transport.ClearReceivedCalls();
+				transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
+						 .Do(async _ =>
+						 {
+							 await channel.Writer.WriteAsync($"fen: {fen}");
+							 await channel.Writer.WriteAsync("checkers: e1");
+						 });
 
-			// Start with a handshake pump to avoid races
-			var pumpCts = new CancellationTokenSource();
-			var pump = Task.Run(
-				async () =>
-				{
-					for (var i = 0;
-						 i < TestConstants.ExtendedHandshakePumpIterations && !pumpCts.IsCancellationRequested;
-						 i++)
-					{
-						await ch.Writer.WriteAsync("uciok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-						await ch.Writer.WriteAsync("readyok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-					}
-				},
-				pumpCts.Token);
+				// Act
+				var fenResult = await client.GetFenViaDAsync(CancellationToken.None);
 
-			await client.StartAsync(CancellationToken.None);
-			pumpCts.Cancel();
-			await pump;
+				// Assert
+				fenResult.Should().NotBeNull("FEN result should be returned");
+				fenResult!.Value.Checkers.Should().Be("e1", "checkers should be e1");
+			}
 
-			string fen = Fen.Default.Raw;
-			transport.ClearReceivedCalls();
-			transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
-					 .Do(async _ =>
-					 {
-						 await ch.Writer.WriteAsync($"fen: {fen}");
-						 await ch.Writer.WriteAsync("checkers: e1");
-					 });
+			[Fact(Timeout = 4000)]
+			public async Task GetFenViaDAsync_ShouldReturnFen()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client = await StartClientWithHandshakeAsync(transport, channel);
 
-			var fenTask   = client.GetFenViaDAsync(CancellationToken.None);
-			var fenResult = await fenTask;
-			fenResult.Should().NotBeNull("FEN result should be returned");
-			fenResult!.Value.Checkers.Should().Be("e1", "checkers should be e1");
+				string fen = Fen.Default.Raw;
+				transport.ClearReceivedCalls();
+				transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
+						 .Do(async _ => { await channel.Writer.WriteAsync($"fen: {fen}"); });
+
+				// Act
+				var fenResult = await client.GetFenViaDAsync(CancellationToken.None);
+
+				// Assert
+				fenResult.Should().NotBeNull("FEN result should be returned");
+				fenResult!.Value.Raw.Should().Be(fen, "FEN raw should match");
+			}
 		}
 
-		[Fact(Timeout = 4000)]
-		public async Task GetFenViaDAsync_ShouldReturnFen()
+		public class GetLegalMovesViaGoPerft1Tests
 		{
-			var transport = Substitute.For<IUciTransport>();
-			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			var ch = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldFilterInvalidMoves()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client = await StartClientWithHandshakeAsync(transport, channel);
 
-			var client = new UciEngineClient(transport);
+				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				transport.ClearReceivedCalls();
+				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+						 .Do(async _ =>
+						 {
+							 await readyGate.Task;
+							 await channel.Writer.WriteAsync("readyok");
+						 });
 
-			// Start with a handshake pump to avoid races
-			var pumpCts = new CancellationTokenSource();
-			var pump = Task.Run(
-				async () =>
-				{
-					for (var i = 0;
-						 i < TestConstants.ExtendedHandshakePumpIterations && !pumpCts.IsCancellationRequested;
-						 i++)
-					{
-						await ch.Writer.WriteAsync("uciok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-						await ch.Writer.WriteAsync("readyok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-					}
-				},
-				pumpCts.Token);
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
+				await Task.Delay(TestConstants.MediumDelay);
+				readyGate.TrySetResult();
+				var moves = await perftTask;
 
-			await client.StartAsync(CancellationToken.None);
-			pumpCts.Cancel();
-			await pump;
+				// Assert
+				moves.Should().NotContain("bad", "invalid move notation should be filtered out");
+			}
 
-			string fen = Fen.Default.Raw;
-			transport.ClearReceivedCalls();
-			transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
-					 .Do(async _ => { await ch.Writer.WriteAsync($"fen: {fen}"); });
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMoves()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client = await StartClientWithHandshakeAsync(transport, channel);
 
-			var fenTask   = client.GetFenViaDAsync(CancellationToken.None);
-			var fenResult = await fenTask;
-			fenResult.Should().NotBeNull("FEN result should be returned");
-			fenResult!.Value.Raw.Should().Be(fen, "FEN raw should match");
+				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				transport.ClearReceivedCalls();
+				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+						 .Do(async _ =>
+						 {
+							 await readyGate.Task;
+							 await channel.Writer.WriteAsync("readyok");
+						 });
+
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
+				await Task.Delay(TestConstants.MediumDelay);
+				readyGate.TrySetResult();
+				var moves = await perftTask;
+
+				// Assert
+				moves.Should().Contain("e2e4",  "e2e4 should be parsed as a valid move");
+				moves.Should().Contain("e7e5",  "e7e5 should be parsed as a valid move");
+				moves.Should().Contain("a7a8q", "a7a8q should be parsed as a valid move");
+				moves.Should().Contain("h7h8N", "h7h8N should be parsed as a valid move");
+			}
+
+			[Fact(Timeout = 3000)]
+			public async Task GetLegalMovesViaGoPerft1Async_ShouldSendGoPerftCommand()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+				var client = await StartClientWithHandshakeAsync(transport, channel);
+
+				var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				transport.ClearReceivedCalls();
+				transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+						 .Do(async _ =>
+						 {
+							 await readyGate.Task;
+							 await channel.Writer.WriteAsync("readyok");
+						 });
+
+				// Act
+				var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+				await channel.Writer.WriteAsync("e2e4");
+				await Task.Delay(TestConstants.MediumDelay);
+				readyGate.TrySetResult();
+				await perftTask;
+
+				// Assert
+				await transport.Received().WriteLineAsync("go perft 1", Arg.Any<CancellationToken>());
+			}
 		}
 
-		[Fact(Timeout = 3000)]
-		public async Task GetLegalMovesViaGoPerft1Async_ShouldNotReturnInvalidMoves()
+		public class StartTests
+		{
+			[Fact(Timeout = 4000)]
+			public async Task StartAsync_ShouldSetActivityToIdle()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+
+				// Act
+				var client = await StartClientWithConcurrentHandshakeAsync(transport, channel);
+
+				// Assert
+				client.Activity.Should().Be(EngineActivity.Idle, "client should be idle after initialization");
+			}
+
+			[Fact(Timeout = 4000)]
+			public async Task StartAsync_ShouldWriteIsReadyCommand()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+
+				// Act
+				var client = await StartClientWithConcurrentHandshakeAsync(transport, channel);
+
+				// Assert
+				await transport.Received().WriteLineAsync("isready", Arg.Any<CancellationToken>());
+			}
+
+			[Fact(Timeout = 4000)]
+			public async Task StartAsync_ShouldWriteUciCommand()
+			{
+				// Arrange
+				var (transport, channel) = CreateMockTransport();
+
+				// Act
+				var client = await StartClientWithConcurrentHandshakeAsync(transport, channel);
+
+				// Assert
+				await transport.Received().WriteLineAsync("uci", Arg.Any<CancellationToken>());
+			}
+		}
+
+		#region Helper Methods
+
+		private static (IUciTransport transport, Channel<string> channel) CreateMockTransport()
 		{
 			var transport = Substitute.For<IUciTransport>();
 			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			var ch = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
 
+			var channel = Channel.CreateUnbounded<string>();
+			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
+					 .Returns(ci => StreamFromChannel(channel.Reader, (CancellationToken)ci[0]));
+
+			return (transport, channel);
+		}
+
+		private static async Task<UciEngineClient> StartClientWithHandshakeAsync(
+			IUciTransport   transport,
+			Channel<string> channel,
+			int             pumpIterations = TestConstants.ExtendedHandshakePumpIterations)
+		{
 			var client = new UciEngineClient(transport);
 
 			using var pumpCts = new CancellationTokenSource();
 			var pump = Task.Run(
 				async () =>
 				{
-					for (var i = 0;
-						 i < TestConstants.ExtendedHandshakePumpIterations && !pumpCts.IsCancellationRequested;
-						 i++)
+					for (var i = 0; i < pumpIterations && !pumpCts.IsCancellationRequested; i++)
 					{
-						await ch.Writer.WriteAsync("uciok");
+						await channel.Writer.WriteAsync("uciok");
 						await Task.Delay(TestConstants.VeryShortDelay);
-						await ch.Writer.WriteAsync("readyok");
+						await channel.Writer.WriteAsync("readyok");
 						await Task.Delay(TestConstants.VeryShortDelay);
 					}
 				},
@@ -141,103 +231,24 @@ public static class UciEngineClientTests
 			pumpCts.Cancel();
 			await pump;
 
-			var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-			transport.ClearReceivedCalls();
-			transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-					 .Do(async _ =>
-					 {
-						 await readyGate.Task;
-						 await ch.Writer.WriteAsync("readyok");
-					 });
-
-			var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
-			await ch.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
-			await Task.Delay(TestConstants.MediumDelay);
-			readyGate.TrySetResult();
-			var moves = await perftTask;
-
-			moves.Should().NotContain("bad", "invalid move notation should be filtered out");
-			await transport.Received().WriteLineAsync("go perft 1", Arg.Any<CancellationToken>());
+			return client;
 		}
 
-		[Fact(Timeout = 3000)]
-		public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMoves()
+		private static async Task<UciEngineClient> StartClientWithConcurrentHandshakeAsync(
+			IUciTransport   transport,
+			Channel<string> channel)
 		{
-			var transport = Substitute.For<IUciTransport>();
-			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			var ch = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
-
 			var client = new UciEngineClient(transport);
 
 			using var pumpCts = new CancellationTokenSource();
-			var pump = Task.Run(
-				async () =>
-				{
-					for (var i = 0;
-						 i < TestConstants.ExtendedHandshakePumpIterations && !pumpCts.IsCancellationRequested;
-						 i++)
-					{
-						await ch.Writer.WriteAsync("uciok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-						await ch.Writer.WriteAsync("readyok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-					}
-				},
-				pumpCts.Token);
-
-			await client.StartAsync(CancellationToken.None);
-			pumpCts.Cancel();
-			await pump;
-
-			var readyGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-			transport.ClearReceivedCalls();
-			transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-					 .Do(async _ =>
-					 {
-						 await readyGate.Task;
-						 await ch.Writer.WriteAsync("readyok");
-					 });
-
-			var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
-			await ch.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
-			await Task.Delay(TestConstants.MediumDelay);
-			readyGate.TrySetResult();
-			var moves = await perftTask;
-
-			moves.Should().Contain("e2e4",  "e2e4 should be parsed as a valid move");
-			moves.Should().Contain("e7e5",  "e7e5 should be parsed as a valid move");
-			moves.Should().Contain("a7a8q", "a7a8q should be parsed as a valid move");
-			moves.Should().Contain("h7h8N", "h7h8N should be parsed as a valid move");
-		}
-
-		[Fact(Timeout = 4000)]
-		public async Task StartAsync_ShouldWriteUciAndIsreadyAndBecomeIdle()
-		{
-			var transport = Substitute.For<IUciTransport>();
-			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-
-			var ch = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(ch.Reader, (CancellationToken)ci[0]));
-
-			var client = new UciEngineClient(transport);
-
-			// Pump handshake lines in background to avoid races
-			var pumpCts = new CancellationTokenSource();
 			var pump = Task.Run(
 				async () =>
 				{
 					for (var i = 0; i < TestConstants.HandshakePumpIterations && !pumpCts.IsCancellationRequested; i++)
 					{
-						await ch.Writer.WriteAsync("uciok");
+						await channel.Writer.WriteAsync("uciok");
 						await Task.Delay(TestConstants.ShortDelay);
-						await ch.Writer.WriteAsync("readyok");
+						await channel.Writer.WriteAsync("readyok");
 						await Task.Delay(TestConstants.ShortDelay);
 					}
 				},
@@ -247,11 +258,7 @@ public static class UciEngineClientTests
 			pumpCts.Cancel();
 			await pump;
 
-			await transport.Received().WriteLineAsync("uci",     Arg.Any<CancellationToken>());
-			await transport.Received().WriteLineAsync("isready", Arg.Any<CancellationToken>());
-			client.Activity.Should().Be(EngineActivity.Idle, "client should be idle after initialization");
-
-			await client.DisposeAsync();
+			return client;
 		}
 
 		private static async IAsyncEnumerable<string> StreamFromChannel(
@@ -267,6 +274,8 @@ public static class UciEngineClientTests
 				if (!canRead) yield break;
 			}
 		}
+
+		#endregion
 	}
 
 	public static class UnitTests
