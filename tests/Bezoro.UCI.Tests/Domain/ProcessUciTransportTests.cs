@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Channels;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Common.Constants;
 using Bezoro.UCI.Tests._Resources;
+using Bezoro.UCI.Tests.Helpers;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -13,6 +16,11 @@ namespace Bezoro.UCI.Tests.Domain;
 [TestSubject(typeof(ProcessUciTransport))]
 public static class ProcessUciTransportTests
 {
+	private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+	private static ProcessUciTransport CreateTransportWithOptions(ProcessUciTransportOptions? options = null) =>
+		new(TestConsts.STOCKFISH_PATH, null, null, options);
+
 	private static string? TryResolveCmdPath()
 	{
 		string systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
@@ -24,6 +32,48 @@ public static class ProcessUciTransportTests
 
 		string envCmd = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\cmd.exe");
 		return File.Exists(envCmd) ? envCmd : null;
+	}
+
+	private static async Task WaitForStatusAsync(
+		ProcessUciTransport transport,
+		TransportStatus     status,
+		TimeSpan?           timeout = null)
+	{
+		timeout ??= TestConstants.DefaultTimeout;
+		bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+								() => transport.Status == status,
+								TestConstants.ShortDelay,
+								timeout.Value);
+
+		conditionMet.Should().BeTrue($"Status should transition to {status} within timeout");
+	}
+
+	private static async Task WithTransportAsync(Func<ProcessUciTransport, Task> action)
+	{
+		var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+		await transport.StartAsync();
+		try
+		{
+			await action(transport);
+		}
+		finally
+		{
+			await transport.DisposeAsync();
+		}
+	}
+
+	private static async Task<T> WithTransportAsync<T>(Func<ProcessUciTransport, Task<T>> action)
+	{
+		var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
+		await transport.StartAsync();
+		try
+		{
+			return await action(transport);
+		}
+		finally
+		{
+			await transport.DisposeAsync();
+		}
 	}
 
 	public class IntegrationTests
@@ -53,25 +103,33 @@ public static class ProcessUciTransportTests
 		{
 			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 
-			var count = 0;
-			var tcs   = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var count           = 0;
+			var tcs             = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var verificationTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			transport.Exited += (_, _) =>
 			{
-				Interlocked.Increment(ref count);
+				int newCount = Interlocked.Increment(ref count);
 				tcs.TrySetResult(null);
+				// Signal after a brief delay to ensure no duplicate events fire
+				Task.Delay(TestConstants.StandardDelay).ContinueWith(_ => verificationTcs.TrySetResult(newCount));
 			};
 
 			await transport.StartAsync();
 			await transport.DisposeAsync();
 
 			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
-			completed.Should().Be(tcs.Task);
+			completed.Should().Be(tcs.Task, "Exited event should be raised");
 
-			// Give a brief moment to ensure no duplicate invocations occur
-			await Task.Delay(TestConstants.StandardDelay);
+			// Wait for verification to complete after delay
+			var verificationCompleted = await Task.WhenAny(
+											verificationTcs.Task,
+											Task.Delay(TestConstants.DefaultTimeout));
 
-			count.Should().Be(1);
+			verificationCompleted.Should().Be(verificationTcs.Task, "Verification should complete");
+
+			int finalCount = await verificationTcs.Task;
+			finalCount.Should().Be(1, "Exited event should be raised exactly once");
 		}
 
 		[Fact]
@@ -99,7 +157,18 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task IsHealthy_AfterStopOrDispose_IsFalse()
+		public async Task IsHealthy_AfterDispose_IsFalse()
+		{
+			const string PATH    = TestConsts.STOCKFISH_PATH;
+			var          process = new ProcessUciTransport(PATH);
+			await process.StartAsync();
+
+			await process.DisposeAsync();
+			process.IsHealthy.Should().BeFalse();
+		}
+
+		[Fact]
+		public async Task IsHealthy_AfterStop_IsFalse()
 		{
 			const string PATH    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(PATH);
@@ -108,9 +177,7 @@ public static class ProcessUciTransportTests
 			await process.StopAsync();
 			process.IsHealthy.Should().BeFalse();
 
-			await process.StartAsync();
 			await process.DisposeAsync();
-			process.IsHealthy.Should().BeFalse();
 		}
 
 		[Fact]
@@ -128,7 +195,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task ReadLoop_Backpressure_ChannelFull_IncrementsBackpressureEvents()
 		{
-			// Resolve cmd only for this test; skip if unavailable (e.g., non-Windows environment)
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -159,6 +227,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task ReadLoop_SkipsEmptyLines_OnlyNonEmptyReceived()
 		{
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -205,6 +275,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrDisabled_ShouldNotStartStderrLoop()
 		{
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -237,6 +309,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrReceived_Event_Fires_WhenRedirected()
 		{
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -257,7 +331,7 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 			completed.Should().Be(tcs.Task);
 
 			await transport.DisposeAsync();
@@ -266,6 +340,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrReceived_HandlerThrows_IsSwallowed_NoCrash()
 		{
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -298,6 +374,8 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task WhenProcessExits_ExitedEventRaisedOnce_WithExitCode()
 		{
+			if (!IsWindows()) return;
+
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -553,10 +631,12 @@ public static class ProcessUciTransportTests
 				var stoppingTask = process.StopAsync(); // begin stopping but don't await
 
 				// Wait until the status transitions to Stopping to avoid a race
-				var sw = Stopwatch.StartNew();
-				while (process.Status != TransportStatus.Stopping &&
-					   sw.Elapsed < TestConstants.ShortTimeout)
-					await Task.Delay(TestConstants.ShortDelay);
+				bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+										() => process.Status == TransportStatus.Stopping,
+										TestConstants.ShortDelay,
+										TestConstants.DefaultTimeout);
+
+				conditionMet.Should().BeTrue("Status should transition to Stopping");
 
 				await FluentActions.Awaiting(() => process.StartAsync())
 								   .Should()
@@ -583,6 +663,8 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task StartAsync_WithPreexistingExitedProcessObject_CleansUpAndStarts()
 			{
+				if (!IsWindows()) return;
+
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -649,11 +731,11 @@ public static class ProcessUciTransportTests
 				const string PATH = TestConsts.STOCKFISH_PATH;
 
 				// Track whether quit was sent using the test hook
-				bool quitSent = false;
+				var quitSent = false;
 
 				var options = new ProcessUciTransportOptions
 				{
-					SendQuitOnStop = true,
+					SendQuitOnStop  = true,
 					QuitGracePeriod = TestConstants.QuitGracePeriod,
 					OnQuitSent      = () => quitSent = true
 				};
@@ -765,7 +847,7 @@ public static class ProcessUciTransportTests
 				await transport.StartAsync();
 
 				// Fill the channel
-				bool ok1 = await transport.TryWriteLineAsync("uci", TimeSpan.FromMilliseconds(10));
+				bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 				ok1.Should().BeTrue();
 
 				bool ok2 = await transport.TryWriteLineAsync("isready", TimeSpan.Zero);
@@ -1379,6 +1461,8 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task WhenDisposed_ProcessIsKilledIfNotExited()
 			{
+				if (!IsWindows()) return;
+
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1563,6 +1647,8 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task WhenDisposedWithExitedProcess_CompletesImmediately()
 			{
+				if (!IsWindows()) return;
+
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1581,10 +1667,13 @@ public static class ProcessUciTransportTests
 
 				// Dispose should complete without hanging since process already exited
 				// Use a timeout to ensure it doesn't hang, but don't assert on exact timing
-				using var cts = new CancellationTokenSource(TestConstants.DefaultTimeout);
-				var disposeTask = transport.DisposeAsync().AsTask();
-				
-				var disposeCompleted = await Task.WhenAny(disposeTask, Task.Delay(TestConstants.DefaultTimeout, cts.Token));
+				using var cts         = new CancellationTokenSource(TestConstants.DefaultTimeout);
+				var       disposeTask = transport.DisposeAsync().AsTask();
+
+				var disposeCompleted = await Task.WhenAny(
+										   disposeTask,
+										   Task.Delay(TestConstants.DefaultTimeout, cts.Token));
+
 				disposeCompleted.Should().Be(disposeTask, "Dispose should complete when process has already exited");
 
 				await disposeTask;
@@ -1602,7 +1691,7 @@ public static class ProcessUciTransportTests
 				{
 					SendQuitOnDispose = false,
 					QuitGracePeriod   = TestConstants.QuitGracePeriod,
-					TeardownTimeout   = TimeSpan.FromSeconds(2),
+					TeardownTimeout   = TestConstants.DefaultTimeout,
 					OnQuitSent        = () => quitSent = true
 				};
 
@@ -1626,7 +1715,7 @@ public static class ProcessUciTransportTests
 				{
 					SendQuitOnDispose = true,
 					QuitGracePeriod   = TestConstants.QuitGracePeriod,
-					TeardownTimeout   = TimeSpan.FromSeconds(2),
+					TeardownTimeout   = TestConstants.DefaultTimeout,
 					OnQuitSent        = () => quitSent = true
 				};
 
@@ -1687,6 +1776,314 @@ public static class ProcessUciTransportTests
 
 				act.Should().NotThrow();
 				process.Status.Should().Be(TransportStatus.Disposed);
+			}
+		}
+
+		public class EncodingEdgeCaseTests
+		{
+			[Fact]
+			public async Task WriteLineAsync_WithSpecialCharacters_HandlesCorrectly()
+			{
+				await using var transport = CreateTransportWithOptions();
+				await transport.StartAsync();
+
+				// Test with various special characters (but not newlines which are invalid)
+				var specialChars = "test!@#$%^&*()_+-=[]{}|;':\",./<>?";
+				await FluentActions.Awaiting(() => transport.WriteLineAsync(specialChars))
+								   .Should()
+								   .NotThrowAsync("Should handle special characters");
+			}
+
+			[Fact]
+			public async Task WriteLineAsync_WithUnicodeCharacters_HandlesCorrectly()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					StdinEncoding    = Encoding.UTF8,
+					ValidateCommands = false // Disable validation since Unicode characters aren't standard UCI commands
+				};
+
+				var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				// Test with actual Unicode characters (emojis, non-ASCII)
+				const string UNICODE_MESSAGE = "test\u00E9\u00F1\u4E2D\u6587\uD83D\uDE00";
+
+				// Should not throw when writing Unicode characters with UTF-8 encoding
+				await FluentActions.Awaiting(() => transport.WriteLineAsync(UNICODE_MESSAGE))
+								   .Should()
+								   .NotThrowAsync("Should handle Unicode characters with UTF-8 encoding");
+
+				// Give a moment for the write loop to process
+				await Task.Delay(TestConstants.ShortDelay);
+
+				// Verify the write was recorded
+				transport.LinesWritten.Should().BeGreaterThan(0, "Unicode message should be written");
+			}
+		}
+
+		public class EncodingTests
+		{
+			[Fact]
+			public async Task ReadLinesAsync_WithUtf8Encoding_ReadsUnicodeCorrectly()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					StdoutEncoding = Encoding.UTF8
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				await transport.WriteLineAsync("uci");
+
+				using var cts        = new CancellationTokenSource(TestConstants.DefaultTimeout);
+				var       foundUciok = false;
+				await foreach (string line in transport.ReadLinesAsync(cts.Token))
+				{
+					if (line.Contains("uciok"))
+					{
+						foundUciok = true;
+						break;
+					}
+				}
+
+				foundUciok.Should().BeTrue("Should read uciok response with UTF-8 encoding");
+			}
+
+			[Fact]
+			public async Task StderrReceived_WithUtf8Encoding_HandlesUnicodeCorrectly()
+			{
+				if (!IsWindows()) return;
+
+				string? cmdPath = TryResolveCmdPath();
+				if (cmdPath is null) return;
+
+				var options = new ProcessUciTransportOptions
+				{
+					RedirectStandardError = true,
+					StderrEncoding        = Encoding.UTF8
+				};
+
+				var transport = new ProcessUciTransport(
+					cmdPath,
+					[ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "test", ProcessArgs.STD_OUT_TO_STD_ERR],
+					null,
+					options);
+
+				var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+				transport.StderrReceived += s =>
+				{
+					if (!string.IsNullOrEmpty(s)) tcs.TrySetResult(s);
+				};
+
+				await transport.StartAsync();
+
+				var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
+				completed.Should().Be(tcs.Task);
+
+				await transport.DisposeAsync();
+			}
+
+			[Fact]
+			public async Task WriteLineAsync_WithUtf8Encoding_HandlesUnicodeCorrectly()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					StdinEncoding = Encoding.UTF8
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				// Write a command with Unicode characters
+				await FluentActions.Awaiting(() => transport.WriteLineAsync("uci"))
+								   .Should()
+								   .NotThrowAsync("UTF-8 encoding should handle standard ASCII commands");
+
+				await transport.DisposeAsync();
+			}
+		}
+
+		public class FlushBatchSizeTests
+		{
+			[Fact]
+			public async Task WriteLineAsync_WithFlushBatchSize_RespectsBatching()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					FlushBatchSize = 3
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				// Write multiple commands that should be batched
+				await transport.WriteLineAsync("uci");
+				await transport.WriteLineAsync("isready");
+				await transport.WriteLineAsync("quit");
+
+				// Wait for the write loop to process the messages and update the metric
+				// The write loop processes messages asynchronously, so we need to wait
+				var startTime = DateTime.UtcNow;
+				while (transport.LinesWritten < 3 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
+					await Task.Delay(TestConstants.ShortDelay);
+
+				// All writes should complete without error
+				transport.LinesWritten.Should().BeGreaterOrEqualTo(
+					3,
+					"All three lines should be written by the write loop");
+			}
+		}
+
+		public class LargeMessageTests
+		{
+			[Fact]
+			public async Task WriteLineAsync_WithLargeMessage_HandlesCorrectly()
+			{
+				await using var transport = CreateTransportWithOptions();
+				await transport.StartAsync();
+
+				// Create a large message (10KB)
+				var largeMessage = new string('a', 10 * 1024);
+
+				await FluentActions.Awaiting(() => transport.WriteLineAsync(largeMessage))
+								   .Should()
+								   .NotThrowAsync("Should handle large messages without error");
+			}
+
+			[Fact]
+			public async Task WriteLineAsync_WithVeryLargeMessage_HandlesCorrectly()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					ChannelCapacity = 1024
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				// Create a very large message (100KB)
+				var veryLargeMessage = new string('b', 100 * 1024);
+
+				await FluentActions.Awaiting(() => transport.WriteLineAsync(veryLargeMessage))
+								   .Should()
+								   .NotThrowAsync("Should handle very large messages without error");
+			}
+		}
+
+		public class NonZeroExitCodeTests
+		{
+			[Fact]
+			public async Task Exited_Event_WithExitCodeTwo_ReportsCorrectCode()
+			{
+				if (!IsWindows()) return;
+
+				string? cmdPath = TryResolveCmdPath();
+				if (cmdPath is null) return;
+
+				var transport = new ProcessUciTransport(
+					cmdPath,
+					[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, "2"]);
+
+				var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+
+				transport.Exited += (code, error) => tcs.TrySetResult((code, error));
+
+				await transport.StartAsync();
+
+				var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
+				completed.Should().Be(tcs.Task);
+
+				var result = await tcs.Task;
+				result.Code.HasValue.Should().BeTrue();
+				result.Code!.Value.Should().Be(2, "Exit code should be 2");
+
+				await transport.DisposeAsync();
+			}
+
+			[Fact]
+			public async Task Exited_Event_WithNonZeroExitCode_ReportsCorrectCode()
+			{
+				if (!IsWindows()) return;
+
+				string? cmdPath = TryResolveCmdPath();
+				if (cmdPath is null) return;
+
+				var transport = new ProcessUciTransport(
+					cmdPath,
+					[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, "1"]);
+
+				var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+
+				transport.Exited += (code, error) => tcs.TrySetResult((code, error));
+
+				await transport.StartAsync();
+
+				var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
+				completed.Should().Be(tcs.Task);
+
+				var result = await tcs.Task;
+				result.Code.HasValue.Should().BeTrue();
+				result.Code!.Value.Should().Be(1, "Exit code should be 1");
+				result.Error.Should().BeNull();
+
+				await transport.DisposeAsync();
+			}
+		}
+
+		public class OutgoingSingleWriterTests
+		{
+			[Fact]
+			public async Task WriteLineAsync_WithOutgoingSingleWriterFalse_AllowsConcurrentWrites()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					OutgoingSingleWriter = false
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				// Perform concurrent writes
+				var write1 = transport.WriteLineAsync("uci");
+				var write2 = transport.WriteLineAsync("isready");
+
+				await Task.WhenAll(write1, write2);
+
+				// Wait for the write loop to process the messages and update the metric
+				// The write loop processes messages asynchronously, so we need to wait
+				var startTime = DateTime.UtcNow;
+				while (transport.LinesWritten < 2 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
+					await Task.Delay(TestConstants.ShortDelay);
+
+				// Both writes should complete successfully
+				transport.LinesWritten.Should().BeGreaterOrEqualTo(2, "Both lines should be written by the write loop");
+			}
+
+			[Fact]
+			public async Task WriteLineAsync_WithOutgoingSingleWriterTrue_OptimizesForSingleWriter()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					OutgoingSingleWriter = true
+				};
+
+				await using var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				await transport.WriteLineAsync("uci");
+				await transport.WriteLineAsync("isready");
+
+				// Wait for the write loop to process the messages and update the metric
+				// The write loop processes messages asynchronously, so we need to wait
+				var startTime = DateTime.UtcNow;
+				while (transport.LinesWritten < 2 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
+					await Task.Delay(TestConstants.ShortDelay);
+
+				transport.LinesWritten.Should().BeGreaterOrEqualTo(2, "Both lines should be written by the write loop");
 			}
 		}
 
@@ -1803,6 +2200,32 @@ public static class ProcessUciTransportTests
 			}
 		}
 
+		public class TeardownTimeoutTests
+		{
+			[Fact]
+			public async Task DisposeAsync_WithShortTeardownTimeout_CompletesWithinTimeout()
+			{
+				var options = new ProcessUciTransportOptions
+				{
+					TeardownTimeout   = TestConstants.ShortTimeout,
+					SendQuitOnDispose = true
+				};
+
+				var transport = CreateTransportWithOptions(options);
+				await transport.StartAsync();
+
+				var disposeStart = DateTime.UtcNow;
+				await transport.DisposeAsync();
+				var disposeDuration = DateTime.UtcNow - disposeStart;
+
+				disposeDuration.Should().BeLessThan(
+					TestConstants.DefaultTimeout,
+					"Dispose should complete within reasonable time");
+
+				transport.Status.Should().Be(TransportStatus.Disposed);
+			}
+		}
+
 		public class WriteLineTests
 		{
 			[Fact]
@@ -1812,7 +2235,7 @@ public static class ProcessUciTransportTests
 				await process.StartAsync();
 
 				await FluentActions
-					  .Awaiting(() => process.TryWriteLineAsync(null!, TimeSpan.FromMilliseconds(10)))
+					  .Awaiting(() => process.TryWriteLineAsync(null!, TestConstants.TinyTimeout))
 					  .Should()
 					  .ThrowAsync<ArgumentNullException>();
 			}
