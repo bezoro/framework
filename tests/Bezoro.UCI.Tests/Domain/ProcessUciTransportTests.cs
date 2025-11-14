@@ -77,7 +77,7 @@ public static class ProcessUciTransportTests
 	public class IntegrationTests
 	{
 		[Fact]
-		public async Task Exited_Event_IsRaised_OnProcessExit()
+		public async Task Exited_WhenProcessExits_ShouldRaiseExitedEvent()
 		{
 			const string PATH = TestConsts.STOCKFISH_PATH;
 			var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
@@ -97,7 +97,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task Exited_Event_IsRaisedOnlyOnce()
+		public async Task Exited_WhenExited_ShouldBeRaisedOnlyOnce()
 		{
 			var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 
@@ -131,9 +131,8 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task Exited_HandlerThrows_ErrorEventIsRaisedAndNoCrash()
+		public async Task Exited_WhenHandlerThrows_ShouldRaiseErrorEventAndNotCrash()
 		{
-			// Use a quickly exiting process
 			var transport = new ProcessUciTransport(
 				TestConsts.STOCKFISH_PATH,
 				[ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO]);
@@ -141,7 +140,6 @@ public static class ProcessUciTransportTests
 			var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
 			transport.Error += ex => errorTcs.TrySetResult(ex);
 
-			// Exited handler will throw; transport must swallow and surface via Error event
 			transport.Exited += (_, _) => throw new InvalidOperationException("boom from handler");
 
 			await transport.StartAsync();
@@ -155,7 +153,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task IsHealthy_AfterDispose_IsFalse()
+		public async Task IsHealthy_WhenDisposed_ShouldBeFalse()
 		{
 			const string PATH    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(PATH);
@@ -166,7 +164,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task IsHealthy_AfterStop_IsFalse()
+		public async Task IsHealthy_WhenStopped_ShouldBeFalse()
 		{
 			const string PATH    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(PATH);
@@ -179,7 +177,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task IsHealthy_WhenRunning_IsTrue()
+		public async Task IsHealthy_WhenRunning_ShouldBeTrue()
 		{
 			const string PATH    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(PATH);
@@ -191,17 +189,16 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task ReadLoop_Backpressure_ChannelFull_IncrementsBackpressureEvents()
+		public async Task ReadLoop_WhenChannelFull_ShouldIncrementBackpressureEvents()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
 			var options = new ProcessUciTransportOptions
 			{
-				ChannelCapacity = 1 // ensure backpressure when more than one line is produced
+				ChannelCapacity = 1
 			};
 
-			// Produce two non-empty lines quickly so the read loop's writer.TryWrite fails on the second
 			var transport = new ProcessUciTransport(
 				cmdPath,
 				[ProcessArgs.CMD_EXECUTE, ProcessArgs.ECHO, "L1", ProcessArgs.CHAIN, ProcessArgs.ECHO, "L2"],
@@ -210,7 +207,6 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			// Do not consume any lines; allow read loop to hit channel backpressure path
 			await Task.Delay(TestConstants.LongerDelay);
 
 			await transport.StopAsync();
@@ -221,7 +217,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task ReadLoop_SkipsEmptyLines_OnlyNonEmptyReceived()
+		public async Task ReadLoop_WhenEmptyLines_ShouldSkipEmptyLinesAndEmitNonEmpty()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
@@ -249,7 +245,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task Status_Transitions_CreatedToStartedToStoppedToDisposed_AreObserved()
+		public async Task Status_WhenTransitioning_ShouldGoCreatedToStartedToStoppedToDisposed()
 		{
 			const string PATH    = TestConsts.STOCKFISH_PATH;
 			var          process = new ProcessUciTransport(PATH);
@@ -267,7 +263,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StderrDisabled_ShouldNotStartStderrLoop()
+		public async Task StderrReceived_WhenStderrDisabled_ShouldNotStartStderrLoop()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
@@ -291,7 +287,6 @@ public static class ProcessUciTransportTests
 
 			await transport.StartAsync();
 
-			// Since stderr isn't redirected, the event should not fire within a short window
 			var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.BackpressureDelay));
 			completed.Should().NotBe(tcs.Task);
 
@@ -299,7 +294,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StderrReceived_Event_Fires_WhenRedirected()
+		public async Task StderrReceived_WhenRedirected_ShouldFireEvent()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
@@ -328,7 +323,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task StderrReceived_HandlerThrows_IsSwallowed_NoCrash()
+		public async Task StderrReceived_WhenHandlerThrows_ShouldSwallowExceptionAndNotCrash()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
@@ -343,15 +338,11 @@ public static class ProcessUciTransportTests
 			var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
 			transport.Error += ex => errorTcs.TrySetResult(ex);
 
-			// Handler intentionally throws; transport should swallow and NOT surface via Error.
 			transport.StderrReceived += _ => throw new InvalidOperationException("stderr handler boom");
 
 			await transport.StartAsync();
 
-			// Allow stderr loop to process and observe whether Error was raised due to the thrown handler.
 			var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TestConstants.BackpressureDelay));
-
-			// If handler exceptions were not swallowed, Error would fire.
 			completed.Should().NotBe(
 				errorTcs.Task,
 				"stderr handler exceptions must be swallowed and not surface via Error");
@@ -360,7 +351,7 @@ public static class ProcessUciTransportTests
 		}
 
 		[Fact]
-		public async Task WhenProcessExits_ExitedEventRaisedOnce_WithExitCode()
+		public async Task Exited_WhenProcessExits_ShouldRaiseEventWithExitCode()
 		{
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
@@ -396,7 +387,7 @@ public static class ProcessUciTransportTests
 		public class DisposeTests
 		{
 			[Fact]
-			public async Task DisposeAsync_MultipleCalls_ShouldBeIdempotent()
+			public async Task DisposeAsync_WhenCalledMultipleTimes_ShouldBeIdempotent()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -410,7 +401,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenAsyncDisposedAfterStart_StopsProcessAndResetsIsStarted()
+			public async Task DisposeAsync_WhenDisposedAfterStart_ShouldStopProcessAndResetIsStarted()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -425,7 +416,7 @@ public static class ProcessUciTransportTests
 		public class ReadLinesTests
 		{
 			[Fact]
-			public async Task ReadLinesAsync_AfterDispose_CompletesGracefully()
+			public async Task ReadLinesAsync_WhenDisposed_ShouldCompleteGracefully()
 			{
 				const string? PATH    = TestConsts.STOCKFISH_PATH;
 				var           process = new ProcessUciTransport(PATH);
@@ -442,7 +433,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task ReadLinesAsync_AfterStop_CompletesGracefully()
+			public async Task ReadLinesAsync_WhenStopped_ShouldCompleteGracefully()
 			{
 				const string    PATH    = TestConsts.STOCKFISH_PATH;
 				await using var process = new ProcessUciTransport(PATH);
@@ -461,7 +452,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task ReadLinesAsync_WithSecondConcurrentReader_ThrowsInvalidOperationException()
+			public async Task ReadLinesAsync_WithSecondConcurrentReader_ShouldThrowInvalidOperationException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -479,7 +470,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task ReadLinesAsync_WithSingleReader_ReleasesGateAfterEnumeratorDisposed()
+			public async Task ReadLinesAsync_WithSingleReader_WhenFirstDisposed_ReleasesGateForSecondReader()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -487,17 +478,14 @@ public static class ProcessUciTransportTests
 
 				using var cts1 = new CancellationTokenSource(TestConstants.TinyTimeout);
 				var       e1   = process.ReadLinesAsync(cts1.Token).GetAsyncEnumerator(cts1.Token);
-				// Start enumeration to acquire the single-reader gate
 				var firstMoveTask = e1.MoveNextAsync().AsTask();
 
-				// Await the first move task: it will complete (likely due to cancellation), triggering finally to release the gate
 				try
 				{
 					await firstMoveTask;
 				}
 				catch
 				{
-					// Cancellation or completion is fine
 				}
 
 				await e1.DisposeAsync();
@@ -525,7 +513,6 @@ public static class ProcessUciTransportTests
 				var       e1  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 				var       e2  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 
-				// Should not fail with InvalidOperationException due to multiple readers
 				await FluentActions.Awaiting(async () => await e1.MoveNextAsync())
 								   .Should()
 								   .NotThrowAsync<InvalidOperationException>();
@@ -543,7 +530,7 @@ public static class ProcessUciTransportTests
 		public class StartTests
 		{
 			[Fact]
-			public async Task StartAsync_ConcurrentCalls_StartsOnceAndBothComplete()
+			public async Task StartAsync_WhenConcurrentCalls_ShouldStartOnceAndCompleteAll()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -559,7 +546,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WhenAlreadyStarted_IsIdempotent()
+			public async Task StartAsync_WhenAlreadyStarted_ShouldBeIdempotent()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -567,7 +554,7 @@ public static class ProcessUciTransportTests
 
 				var before = process.Status;
 
-				await process.StartAsync(); // second call should be a no-op and not throw
+				await process.StartAsync();
 				var after = process.Status;
 
 				process.IsStarted.Should().BeTrue();
@@ -577,9 +564,8 @@ public static class ProcessUciTransportTests
 				await process.DisposeAsync();
 			}
 
-
 			[Fact]
-			public async Task StartAsync_WhenCalledWithValidProcess_StartsProcess()
+			public async Task StartAsync_WhenCalledWithValidProcess_ShouldStartProcess()
 			{
 				const string    PATH    = TestConsts.STOCKFISH_PATH;
 				await using var process = new ProcessUciTransport(PATH);
@@ -590,7 +576,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WhenConcurrent_ShouldStartOnceAndAwaitOthers()
+			public async Task StartAsync_WhenMultipleConcurrent_ShouldStartOnceAndAwaitOthers()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -608,15 +594,14 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WhileStopping_ThrowsInvalidOperationException()
+			public async Task StartAsync_WhenStopping_ShouldThrowInvalidOperationException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
 				await process.StartAsync();
 
-				var stoppingTask = process.StopAsync(); // begin stopping but don't await
+				var stoppingTask = process.StopAsync();
 
-				// Wait until the status transitions to Stopping to avoid a race
 				bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
 										() => process.Status == TransportStatus.Stopping,
 										TestConstants.ShortDelay,
@@ -628,12 +613,12 @@ public static class ProcessUciTransportTests
 								   .Should()
 								   .ThrowAsync<InvalidOperationException>();
 
-				await stoppingTask; // clean up
+				await stoppingTask;
 				await process.DisposeAsync();
 			}
 
 			[Fact]
-			public async Task StartAsync_WithInvalidWorkingDirectory_ThrowsArgumentException()
+			public async Task StartAsync_WithInvalidWorkingDirectory_ShouldThrowArgumentException()
 			{
 				const string PATH       = TestConsts.STOCKFISH_PATH;
 				string       invalidDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -647,12 +632,11 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WithPreexistingExitedProcessObject_CleansUpAndStarts()
+			public async Task StartAsync_WithPreexistingExitedProcessObject_ShouldCleanUpAndStart()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
-				// Create a process that exits immediately
 				var psi = new ProcessStartInfo
 				{
 					FileName        = cmdPath,
@@ -669,7 +653,6 @@ public static class ProcessUciTransportTests
 				exitedProcess.Start();
 				exitedProcess.WaitForExit();
 
-				// Assign the exited process to transport._process before StartAsync to hit cleanup path
 				var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 				var processField = typeof(ProcessUciTransport).GetField(
 					"_process",
@@ -689,7 +672,7 @@ public static class ProcessUciTransportTests
 		public class StopTests
 		{
 			[Fact]
-			public async Task StopAsync_ShouldDisposeStreamsAndCompleteChannels()
+			public async Task StopAsync_WhenCalled_ShouldDisposeStreamsAndCompleteChannels()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -710,11 +693,10 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StopAsync_ShouldSendQuitThenKillAfterGrace()
+			public async Task StopAsync_WhenSendQuitOnStop_ShouldSendQuitCommandAndThenKillAfterGrace()
 			{
 				const string PATH = TestConsts.STOCKFISH_PATH;
 
-				// Track whether quit was sent using the test hook
 				var quitSent = false;
 
 				var options = new ProcessUciTransportOptions
@@ -729,7 +711,6 @@ public static class ProcessUciTransportTests
 
 				await transport.StopAsync();
 
-				// Verify that quit WAS sent when SendQuitOnStop is true
 				quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 				transport.Status.Should().Be(TransportStatus.Stopped);
 
@@ -740,7 +721,7 @@ public static class ProcessUciTransportTests
 		public class TryWriteLineTests
 		{
 			[Fact]
-			public async Task TryWriteLineAsync_AfterDispose_ThrowsInvalidOperationException()
+			public async Task TryWriteLineAsync_WhenDisposed_ShouldThrowInvalidOperationException()
 			{
 				const string PATH = TestConsts.STOCKFISH_PATH;
 
@@ -754,7 +735,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_AfterStop_ThrowsInvalidOperationException()
+			public async Task TryWriteLineAsync_WhenStopped_ShouldThrowInvalidOperationException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -767,7 +748,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_ChannelClosedDuringStop_ThrowsInvalidOperationException()
+			public async Task TryWriteLineAsync_WhenChannelClosedDuringStop_ShouldThrowInvalidOperationException()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -779,13 +760,11 @@ public static class ProcessUciTransportTests
 
 				await transport.StartAsync();
 
-				// Fill channel to force slow write path
 				bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 				ok1.Should().BeTrue();
 
 				var writeTask = transport.TryWriteLineAsync("isready", TestConstants.DefaultTimeout);
 
-				// Immediately stop transport which should close the channel causing ChannelClosedException -> InvalidOperationException
 				await transport.Awaiting(_ => transport.StopAsync()).Should().NotThrowAsync();
 
 				await FluentActions.Awaiting(async () => await writeTask)
@@ -795,7 +774,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_ChannelFull_TinyTimeout_SpinPath_ReturnsFalse()
+			public async Task TryWriteLineAsync_WhenChannelFullAndTinyTimeout_ShouldSpinAndReturnFalse()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -818,19 +797,18 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_ChannelFull_ZeroTimeout_ReturnsFalse()
+			public async Task TryWriteLineAsync_WhenChannelFullAndZeroTimeout_ShouldReturnFalse()
 			{
 				var options = new ProcessUciTransportOptions
 				{
 					ChannelCapacity  = 1,
-					DisableWriteLoop = true, // test-only hook to keep channel full
+					DisableWriteLoop = true,
 					ValidateCommands = true
 				};
 
 				var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
 				await transport.StartAsync();
 
-				// Fill the channel
 				bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 				ok1.Should().BeTrue();
 
@@ -841,7 +819,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_InfiniteTimeout_PathCompletes()
+			public async Task TryWriteLineAsync_WhenInfiniteTimeoutAndChannelFull_ShouldComplete()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -853,11 +831,9 @@ public static class ProcessUciTransportTests
 
 				await transport.StartAsync();
 
-				// Attempt to create contention: first write fills channel, second goes to slow path with infinite timeout.
 				bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.TinyTimeout);
 				ok1.Should().BeTrue();
 
-				// This may briefly block until write loop drains; should return true.
 				bool ok2 = await transport.TryWriteLineAsync("isready", Timeout.InfiniteTimeSpan);
 				ok2.Should().BeTrue();
 
@@ -865,23 +841,21 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WhenCanceledDuringWait_ThrowsOperationCanceledException()
+			public async Task TryWriteLineAsync_WhenCanceledDuringWait_ShouldThrowOperationCanceledException()
 			{
 				var options = new ProcessUciTransportOptions
 				{
 					ChannelCapacity  = 1,
-					DisableWriteLoop = true, // force channel to stay full
+					DisableWriteLoop = true,
 					ValidateCommands = true
 				};
 
 				var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
 				await transport.StartAsync();
 
-				// Fill the channel
 				bool ok1 = await transport.TryWriteLineAsync("uci", TestConstants.SmallTimeout);
 				ok1.Should().BeTrue();
 
-				// Second write blocks -> cancel the token to hit OperationCanceledException branch
 				var cts = new CancellationTokenSource(TestConstants.MediumDelay);
 				await FluentActions
 					  .Awaiting(() => transport.TryWriteLineAsync("isready", TestConstants.DefaultTimeout, cts.Token))
@@ -892,7 +866,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WhenChannelReady_ReturnsTrue()
+			public async Task TryWriteLineAsync_WhenChannelReady_ShouldReturnTrue()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -905,7 +879,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WhenProcessHasExited_ThrowsInvalidOperationException()
+			public async Task TryWriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException()
 			{
 				const string CMD_PATH = TestConsts.STOCKFISH_PATH;
 				var transport = new ProcessUciTransport(
@@ -926,7 +900,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WithTimeout_ShouldReturnFalseAfterTimeout()
+			public async Task TryWriteLineAsync_WhenTimeout_ShouldReturnFalseAfterTimeout()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -950,7 +924,7 @@ public static class ProcessUciTransportTests
 		public class WriteLineTests
 		{
 			[Fact]
-			public async Task WriteLineAsync_AfterDispose_ThrowsInvalidOperationException()
+			public async Task WriteLineAsync_WhenDisposed_ShouldThrowInvalidOperationException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -963,7 +937,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_AfterStop_ThrowsInvalidOperationException()
+			public async Task WriteLineAsync_WhenStopped_ShouldThrowInvalidOperationException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -976,7 +950,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithEngineStart_WritesLineToEngine()
+			public async Task WriteLineAsync_WhenEngineStarted_ShouldWriteLineToEngine()
 			{
 				const string    PATH    = TestConsts.STOCKFISH_PATH;
 				await using var process = new ProcessUciTransport(PATH);
@@ -1001,7 +975,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithNewline_ThrowsArgumentException()
+			public async Task WriteLineAsync_WhenCalledWithNewline_ShouldThrowArgumentException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1016,13 +990,12 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithNull_ThrowsArgumentNullException()
+			public async Task WriteLineAsync_WhenNull_ShouldThrowArgumentNullException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
 				await process.StartAsync();
 
-				// ReSharper disable once AssignNullToNotNullAttribute
 				await FluentActions
 					  .Awaiting(() => process.WriteLineAsync(null!))
 					  .Should()
@@ -1032,7 +1005,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithWhitespace_ThrowsArgumentException()
+			public async Task WriteLineAsync_WhenWhitespace_ShouldThrowArgumentException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1047,14 +1020,13 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCanceled_ThrowsOperationCanceledException()
+			public async Task WriteLineAsync_WhenCanceled_ShouldThrowOperationCanceledException()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
 				await process.StartAsync();
 
 				var cts = new CancellationTokenSource();
-				// ReSharper disable once MethodHasAsyncOverload
 				cts.Cancel();
 
 				await FluentActions.Awaiting(() => process.WriteLineAsync("uci", cts.Token))
@@ -1076,16 +1048,13 @@ public static class ProcessUciTransportTests
 				var transport = new ProcessUciTransport(TestConsts.STOCKFISH_PATH, null, null, options);
 				await transport.StartAsync();
 
-				// Fill the channel once
 				await transport.WriteLineAsync("uci");
 
-				// Next write should block until drained
 				var secondWrite = transport.WriteLineAsync("isready");
 
 				var completedEarly = await Task.WhenAny(secondWrite, Task.Delay(TestConstants.MediumDelay));
 				completedEarly.Should().NotBe(secondWrite);
 
-				// Drain one item from the private _outgoing channel to free capacity
 				var outgoingField = typeof(ProcessUciTransport).GetField(
 					"_outgoing",
 					BindingFlags.Instance | BindingFlags.NonPublic);
@@ -1098,14 +1067,13 @@ public static class ProcessUciTransportTests
 				bool drained = channel!.Reader.TryRead(out _);
 				drained.Should().BeTrue();
 
-				// Now the blocked write should complete
 				await secondWrite;
 
 				await transport.DisposeAsync();
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenProcessHasExited_ThrowsInvalidOperationException()
+			public async Task WriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException()
 			{
 				var transport = new ProcessUciTransport(
 					TestConsts.STOCKFISH_PATH,
@@ -1116,7 +1084,6 @@ public static class ProcessUciTransportTests
 
 				await transport.StartAsync();
 
-				// Wait for the process to actually exit to hit the HasExited guard reliably
 				var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 				completed.Should().Be(exitedTcs.Task);
 
@@ -1128,7 +1095,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithUnknownCommand_DoesNotThrowAndReadingContinues()
+			public async Task WriteLineAsync_WhenUnknownCommand_ShouldNotThrowAndReadingContinues()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1156,14 +1123,13 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithValidationDisabled_AllowsWhitespaceAndNewline()
+			public async Task WriteLineAsync_WhenValidationDisabled_ShouldAllowWhitespaceAndNewline()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          options = new ProcessUciTransportOptions { ValidateCommands = false };
 				var          process = new ProcessUciTransport(PATH, null, null, options);
 				await process.StartAsync();
 
-				// Should not throw even though input contains whitespace-only or newline
 				await FluentActions.Awaiting(() => process.WriteLineAsync("   "))
 								   .Should()
 								   .NotThrowAsync();
@@ -1182,7 +1148,7 @@ public static class ProcessUciTransportTests
 		public class ConstructorTests
 		{
 			[Fact]
-			public void Default_InitialStateIsCorrect()
+			public void Constructor_WhenDefault_ShouldHaveInitialStateCorrect()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1194,7 +1160,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void Default_StatusIsCreated()
+			public void Constructor_WhenDefault_ShouldSetStatusToCreated()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1202,7 +1168,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void FourParameterOverload_WorksCorrectly()
+			public void Constructor_WhenFourParameterOverload_ShouldWorkCorrectly()
 			{
 				var      customOptions = new ProcessUciTransportOptions { ChannelCapacity = 512 };
 				string[] args          = new[] { "arg1", "arg2" };
@@ -1215,7 +1181,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithEmptyArgs_CreatesSuccessfully()
+			public void Constructor_WhenEmptyArgs_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path", []);
 
@@ -1224,7 +1190,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithEmptyPath_ThrowsArgumentException()
+			public void Constructor_WhenEmptyPath_ShouldThrowArgumentException()
 			{
 				var act = () => _ = new ProcessUciTransport("");
 
@@ -1232,7 +1198,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithEmptyWorkingDirectory_CreatesSuccessfully()
+			public void Constructor_WhenEmptyWorkingDirectory_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path", null, "");
 
@@ -1241,7 +1207,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithInvalidOptions_ChannelCapacityZero_ThrowsArgumentOutOfRangeException()
+			public void Constructor_WhenInvalidChannelCapacity_ShouldThrowArgumentOutOfRangeException()
 			{
 				var    invalidOptions = new ProcessUciTransportOptions { ChannelCapacity = 0 };
 				Action act = () => _ = new ProcessUciTransport("any/nonempty/path", null, null, invalidOptions);
@@ -1250,7 +1216,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithInvalidOptions_NewLineEmpty_ThrowsArgumentException()
+			public void Constructor_WhenInvalidNewLine_ShouldThrowArgumentException()
 			{
 				var    invalidOptions = new ProcessUciTransportOptions { NewLine = "" };
 				Action act = () => _ = new ProcessUciTransport("any/nonempty/path", null, null, invalidOptions);
@@ -1259,7 +1225,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithMultipleArgs_CreatesSuccessfully()
+			public void Constructor_WhenMultipleArgs_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path", ["arg1", "arg2", "arg3"]);
 
@@ -1268,7 +1234,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithNullArgs_DefaultCreatesSuccessfully()
+			public void Constructor_WhenNullArgs_ShouldUseDefaults()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1277,13 +1243,12 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithNullOptions_CreatesDefaultOptions()
+			public void Constructor_WhenNullOptions_ShouldUseDefaultOptions()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path", null, null, null);
 				process.Should().NotBeNull();
 				process.Status.Should().Be(TransportStatus.Created);
 
-				// Verify default options are used by checking via reflection
 				var optionsField = typeof(ProcessUciTransport).GetField(
 					"_options",
 					BindingFlags.NonPublic | BindingFlags.Instance);
@@ -1296,7 +1261,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithNullPath_ThrowsArgumentException()
+			public void Constructor_WhenNullPath_ShouldThrowArgumentException()
 			{
 				var act = () => _ = new ProcessUciTransport(null!);
 
@@ -1304,7 +1269,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithSingleArg_CreatesSuccessfully()
+			public void Constructor_WhenSingleArg_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path", ["arg1"]);
 
@@ -1313,7 +1278,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithValidCustomOptions_UsesCustomOptions()
+			public void Constructor_WhenCustomOptions_ShouldUseCustomOptions()
 			{
 				var customOptions = new ProcessUciTransportOptions
 				{
@@ -1326,7 +1291,6 @@ public static class ProcessUciTransportTests
 				process.Should().NotBeNull();
 				process.Status.Should().Be(TransportStatus.Created);
 
-				// Verify custom options are used by checking via reflection
 				var optionsField = typeof(ProcessUciTransport).GetField(
 					"_options",
 					BindingFlags.NonPublic | BindingFlags.Instance);
@@ -1340,7 +1304,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithValidPath_CreatesSuccessfully()
+			public void Constructor_WhenValidPath_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport("valid/path/to/engine.exe");
 
@@ -1349,7 +1313,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithValidPathBackslashes_CreatesSuccessfully()
+			public void Constructor_WhenValidPathBackslashes_ShouldCreateSuccessfully()
 			{
 				var process = new ProcessUciTransport(@"valid\path\to\engine.exe");
 
@@ -1358,7 +1322,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithValidWorkingDirectory_CreatesSuccessfully()
+			public void Constructor_WhenValidWorkingDirectory_ShouldCreateSuccessfully()
 			{
 				string workingDir = Environment.CurrentDirectory;
 				var    process    = new ProcessUciTransport("any/nonempty/path", null, workingDir);
@@ -1368,7 +1332,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WithWhitespacePath_ThrowsArgumentException()
+			public void Constructor_WhenWhitespacePath_ShouldThrowArgumentException()
 			{
 				var act = () => _ = new ProcessUciTransport("   ");
 
@@ -1379,13 +1343,12 @@ public static class ProcessUciTransportTests
 		public class DisposeTests
 		{
 			[Fact]
-			public async Task WhenDisposed_ChannelsAreCompleted()
+			public async Task DisposeAsync_WhenCalled_ChannelsShouldBeCompleted()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
 				await process.StartAsync();
 
-				// Get channels via reflection
 				var linesField = typeof(ProcessUciTransport).GetField(
 					"_lines",
 					BindingFlags.Instance | BindingFlags.NonPublic);
@@ -1405,7 +1368,6 @@ public static class ProcessUciTransportTests
 
 				await process.DisposeAsync();
 
-				// After dispose, channels should be null (cleaned up)
 				var linesAfter    = (Channel<string>?)linesField.GetValue(process);
 				var outgoingAfter = (Channel<string>?)outgoingField.GetValue(process);
 
@@ -1414,7 +1376,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposed_ErrorEventIsNotRaisedForNormalDisposal()
+			public async Task DisposeAsync_WhenNormalDisposal_ErrorEventShouldNotBeRaised()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1429,7 +1391,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposed_IsHealthyReturnsFalse()
+			public async Task DisposeAsync_WhenDisposed_IsHealthyShouldReturnFalse()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1443,7 +1405,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposed_ProcessIsKilledIfNotExited()
+			public async Task DisposeAsync_WhenNotExitedProcess_ShouldKillProcess()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
@@ -1451,7 +1413,6 @@ public static class ProcessUciTransportTests
 				var transport = new ProcessUciTransport(cmdPath, [ProcessArgs.CMD_KEEP]);
 				await transport.StartAsync();
 
-				// Get process via reflection to verify it exists
 				var processField = typeof(ProcessUciTransport).GetField(
 					"_process",
 					BindingFlags.Instance | BindingFlags.NonPublic);
@@ -1464,14 +1425,13 @@ public static class ProcessUciTransportTests
 
 				await transport.DisposeAsync();
 
-				// Process should be killed and cleaned up
 				var processAfter = (Process?)processField.GetValue(transport);
 				processAfter.Should().BeNull();
 				transport.Status.Should().Be(TransportStatus.Disposed);
 			}
 
 			[Fact]
-			public async Task WhenDisposedAfterStart_StatusTransitionsCorrectly()
+			public async Task DisposeAsync_AfterStart_ShouldTransitionStatusCorrectly()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1486,7 +1446,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedAfterStart_StopsProcessAndSetsStatusDisposed()
+			public async Task DisposeAsync_AfterStart_ShouldStopProcessAndSetStatusDisposed()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1499,7 +1459,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedAfterStop_DoesNotThrow()
+			public async Task DisposeAsync_AfterStop_ShouldNotThrow()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1513,7 +1473,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedAfterStop_StatusTransitionsCorrectly()
+			public async Task DisposeAsync_AfterStop_ShouldTransitionStatusCorrectly()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1531,7 +1491,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedConcurrently_IsIdempotent()
+			public async Task DisposeAsync_WhenCalledConcurrently_ShouldBeIdempotent()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1548,7 +1508,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWhileStarting_WaitsForStartThenDisposes()
+			public async Task DisposeAsync_WhileStarting_ShouldWaitForStartThenDispose()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1563,7 +1523,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWhileStopping_WaitsForStopThenCompletes()
+			public async Task DisposeAsync_WhileStopping_ShouldWaitForStopThenComplete()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1578,7 +1538,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWithActiveReader_CompletesReaderGracefully()
+			public async Task DisposeAsync_WithActiveReader_ShouldCompleteReaderGracefully()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
@@ -1589,7 +1549,6 @@ public static class ProcessUciTransportTests
 
 				await process.DisposeAsync();
 
-				// Reader should complete after dispose
 				var completed = await Task.WhenAny(readTask, Task.Delay(TestConstants.DefaultTimeout));
 				completed.Should().Be(readTask);
 				(await readTask).Should().BeFalse();
@@ -1598,36 +1557,31 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWithActiveWriter_ClosesChannelAndThrowsOnWrite()
+			public async Task DisposeAsync_WithActiveWriter_ShouldCloseChannelAndThrowOnWrite()
 			{
 				const string PATH    = TestConsts.STOCKFISH_PATH;
 				var          process = new ProcessUciTransport(PATH);
 				await process.StartAsync();
 
-				// Start a write that might be in progress
 				var writeTask = process.WriteLineAsync("uci");
 
-				// Dispose immediately (might interrupt write)
 				await process.DisposeAsync();
 
-				// Subsequent writes should throw
 				await FluentActions.Awaiting(() => process.WriteLineAsync("isready"))
 								   .Should()
 								   .ThrowAsync<InvalidOperationException>();
 
-				// Wait for initial write to complete or fail
 				try
 				{
 					await writeTask;
 				}
 				catch
 				{
-					// Expected if dispose interrupted it
 				}
 			}
 
 			[Fact]
-			public async Task WhenDisposedWithExitedProcess_CompletesImmediately()
+			public async Task DisposeAsync_WithExitedProcess_ShouldCompleteImmediately()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
@@ -1641,12 +1595,9 @@ public static class ProcessUciTransportTests
 
 				await transport.StartAsync();
 
-				// Wait for process to exit
 				var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 				completed.Should().Be(exitedTcs.Task);
 
-				// Dispose should complete without hanging since process already exited
-				// Use a timeout to ensure it doesn't hang, but don't assert on exact timing
 				using var cts         = new CancellationTokenSource(TestConstants.DefaultTimeout);
 				var       disposeTask = transport.DisposeAsync().AsTask();
 
@@ -1661,7 +1612,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWithSendQuitOnDisposeFalse_DoesNotSendQuitCommand()
+			public async Task DisposeAsync_WhenSendQuitOnDisposeFalse_ShouldNotSendQuitCommand()
 			{
 				const string PATH = TestConsts.STOCKFISH_PATH;
 
@@ -1685,7 +1636,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WhenDisposedWithSendQuitOnDisposeTrue_SendsQuitCommand()
+			public async Task DisposeAsync_WhenSendQuitOnDisposeTrue_ShouldSendQuitCommand()
 			{
 				const string PATH = TestConsts.STOCKFISH_PATH;
 
@@ -1708,7 +1659,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WhenAsyncDisposedBeforeStart_DoesNotThrow()
+			public void DisposeAsync_BeforeStart_ShouldNotThrow()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1720,7 +1671,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WhenDisposeAsyncAfterDisposed_ShouldNotThrow()
+			public void DisposeAsync_AfterDisposed_ShouldNotThrow()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1731,7 +1682,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WhenDisposedBeforeStart_DoesNotThrow()
+			public void Dispose_BeforeStart_ShouldNotThrow()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1743,7 +1694,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public void WhenDisposedMultipleTimesSynchronously_IsIdempotent()
+			public void Dispose_WhenMultipleTimesSynchronously_ShouldBeIdempotent()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -1762,12 +1713,11 @@ public static class ProcessUciTransportTests
 		public class EncodingEdgeCaseTests
 		{
 			[Fact]
-			public async Task WriteLineAsync_WithSpecialCharacters_HandlesCorrectly()
+			public async Task WriteLineAsync_WithSpecialCharacters_ShouldHandleCorrectly()
 			{
 				await using var transport = CreateTransportWithOptions();
 				await transport.StartAsync();
 
-				// Test with various special characters (but not newlines which are invalid)
 				var specialChars = "test!@#$%^&*()_+-=[]{}|;':\",./<>?";
 				await FluentActions.Awaiting(() => transport.WriteLineAsync(specialChars))
 								   .Should()
@@ -1775,29 +1725,25 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithUnicodeCharacters_HandlesCorrectly()
+			public async Task WriteLineAsync_WithUnicodeCharacters_ShouldHandleCorrectly()
 			{
 				var options = new ProcessUciTransportOptions
 				{
 					StdinEncoding    = Encoding.UTF8,
-					ValidateCommands = false // Disable validation since Unicode characters aren't standard UCI commands
+					ValidateCommands = false
 				};
 
 				var transport = CreateTransportWithOptions(options);
 				await transport.StartAsync();
 
-				// Test with actual Unicode characters (emojis, non-ASCII)
 				const string UNICODE_MESSAGE = "test\u00E9\u00F1\u4E2D\u6587\uD83D\uDE00";
 
-				// Should not throw when writing Unicode characters with UTF-8 encoding
 				await FluentActions.Awaiting(() => transport.WriteLineAsync(UNICODE_MESSAGE))
 								   .Should()
 								   .NotThrowAsync("Should handle Unicode characters with UTF-8 encoding");
 
-				// Give a moment for the write loop to process
 				await Task.Delay(TestConstants.ShortDelay);
 
-				// Verify the write was recorded
 				transport.LinesWritten.Should().BeGreaterThan(0, "Unicode message should be written");
 			}
 		}
@@ -1805,7 +1751,7 @@ public static class ProcessUciTransportTests
 		public class EncodingTests
 		{
 			[Fact]
-			public async Task ReadLinesAsync_WithUtf8Encoding_ReadsUnicodeCorrectly()
+			public async Task ReadLinesAsync_WithUtf8Encoding_ShouldReadUnicodeCorrectly()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -1832,7 +1778,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StderrReceived_WithUtf8Encoding_HandlesUnicodeCorrectly()
+			public async Task StderrReceived_WithUtf8Encoding_ShouldHandleUnicodeCorrectly()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
@@ -1864,7 +1810,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithUtf8Encoding_HandlesUnicodeCorrectly()
+			public async Task WriteLineAsync_WithUtf8Encoding_ShouldHandleUnicodeCorrectly()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -1874,7 +1820,6 @@ public static class ProcessUciTransportTests
 				await using var transport = CreateTransportWithOptions(options);
 				await transport.StartAsync();
 
-				// Write a command with Unicode characters
 				await FluentActions.Awaiting(() => transport.WriteLineAsync("uci"))
 								   .Should()
 								   .NotThrowAsync("UTF-8 encoding should handle standard ASCII commands");
@@ -1886,7 +1831,7 @@ public static class ProcessUciTransportTests
 		public class FlushBatchSizeTests
 		{
 			[Fact]
-			public async Task WriteLineAsync_WithFlushBatchSize_RespectsBatching()
+			public async Task WriteLineAsync_WithFlushBatchSize_ShouldRespectBatching()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -1896,18 +1841,14 @@ public static class ProcessUciTransportTests
 				await using var transport = CreateTransportWithOptions(options);
 				await transport.StartAsync();
 
-				// Write multiple commands that should be batched
 				await transport.WriteLineAsync("uci");
 				await transport.WriteLineAsync("isready");
 				await transport.WriteLineAsync("quit");
 
-				// Wait for the write loop to process the messages and update the metric
-				// The write loop processes messages asynchronously, so we need to wait
 				var startTime = DateTime.UtcNow;
 				while (transport.LinesWritten < 3 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
 					await Task.Delay(TestConstants.ShortDelay);
 
-				// All writes should complete without error
 				transport.LinesWritten.Should().BeGreaterOrEqualTo(
 					3,
 					"All three lines should be written by the write loop");
@@ -1917,12 +1858,11 @@ public static class ProcessUciTransportTests
 		public class LargeMessageTests
 		{
 			[Fact]
-			public async Task WriteLineAsync_WithLargeMessage_HandlesCorrectly()
+			public async Task WriteLineAsync_WithLargeMessage_ShouldHandleCorrectly()
 			{
 				await using var transport = CreateTransportWithOptions();
 				await transport.StartAsync();
 
-				// Create a large message (10KB)
 				var largeMessage = new string('a', 10 * 1024);
 
 				await FluentActions.Awaiting(() => transport.WriteLineAsync(largeMessage))
@@ -1931,7 +1871,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithVeryLargeMessage_HandlesCorrectly()
+			public async Task WriteLineAsync_WithVeryLargeMessage_ShouldHandleCorrectly()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -1941,7 +1881,6 @@ public static class ProcessUciTransportTests
 				await using var transport = CreateTransportWithOptions(options);
 				await transport.StartAsync();
 
-				// Create a very large message (100KB)
 				var veryLargeMessage = new string('b', 100 * 1024);
 
 				await FluentActions.Awaiting(() => transport.WriteLineAsync(veryLargeMessage))
@@ -1953,7 +1892,7 @@ public static class ProcessUciTransportTests
 		public class NonZeroExitCodeTests
 		{
 			[Fact]
-			public async Task Exited_Event_WithExitCodeTwo_ReportsCorrectCode()
+			public async Task Exited_WhenExitCodeTwo_ShouldReportCorrectCode()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
@@ -1980,7 +1919,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task Exited_Event_WithNonZeroExitCode_ReportsCorrectCode()
+			public async Task Exited_WhenNonZeroExitCode_ShouldReportCorrectCode()
 			{
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
@@ -2011,7 +1950,7 @@ public static class ProcessUciTransportTests
 		public class OutgoingSingleWriterTests
 		{
 			[Fact]
-			public async Task WriteLineAsync_WithOutgoingSingleWriterFalse_AllowsConcurrentWrites()
+			public async Task WriteLineAsync_WithOutgoingSingleWriterFalse_ShouldAllowConcurrentWrites()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -2021,24 +1960,20 @@ public static class ProcessUciTransportTests
 				await using var transport = CreateTransportWithOptions(options);
 				await transport.StartAsync();
 
-				// Perform concurrent writes
 				var write1 = transport.WriteLineAsync("uci");
 				var write2 = transport.WriteLineAsync("isready");
 
 				await Task.WhenAll(write1, write2);
 
-				// Wait for the write loop to process the messages and update the metric
-				// The write loop processes messages asynchronously, so we need to wait
 				var startTime = DateTime.UtcNow;
 				while (transport.LinesWritten < 2 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
 					await Task.Delay(TestConstants.ShortDelay);
 
-				// Both writes should complete successfully
 				transport.LinesWritten.Should().BeGreaterOrEqualTo(2, "Both lines should be written by the write loop");
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithOutgoingSingleWriterTrue_OptimizesForSingleWriter()
+			public async Task WriteLineAsync_WithOutgoingSingleWriterTrue_ShouldOptimizeForSingleWriter()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -2051,8 +1986,6 @@ public static class ProcessUciTransportTests
 				await transport.WriteLineAsync("uci");
 				await transport.WriteLineAsync("isready");
 
-				// Wait for the write loop to process the messages and update the metric
-				// The write loop processes messages asynchronously, so we need to wait
 				var startTime = DateTime.UtcNow;
 				while (transport.LinesWritten < 2 && DateTime.UtcNow - startTime < TestConstants.DefaultTimeout)
 					await Task.Delay(TestConstants.ShortDelay);
@@ -2064,7 +1997,7 @@ public static class ProcessUciTransportTests
 		public class ReadLinesTests
 		{
 			[Fact]
-			public async Task ReadLinesAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
+			public async Task ReadLinesAsync_WhenNotStarted_ShouldThrowInvalidOperationException()
 			{
 				await using var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -2080,7 +2013,7 @@ public static class ProcessUciTransportTests
 		public class StartTests
 		{
 			[Fact]
-			public async Task StartAsync_AfterDispose_ThrowsObjectDisposedException()
+			public async Task StartAsync_WhenDisposed_ShouldThrowObjectDisposedException()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 				await process.DisposeAsync();
@@ -2091,7 +2024,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WhenCalledWithInvalidProcess_ThrowsException()
+			public async Task StartAsync_WhenInvalidProcess_ShouldThrowException()
 			{
 				var process = new ProcessUciTransport("invalid/path");
 
@@ -2099,11 +2032,10 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StartAsync_WhenCanceled_ThrowsAndLeavesCleanState()
+			public async Task StartAsync_WhenCanceled_ShouldThrowAndCleanState()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 				var cts     = new CancellationTokenSource();
-				// ReSharper disable once MethodHasAsyncOverload
 				cts.Cancel();
 
 				await FluentActions.Awaiting(() => process.StartAsync(cts.Token))
@@ -2138,7 +2070,7 @@ public static class ProcessUciTransportTests
 		public class StopTests
 		{
 			[Fact]
-			public async Task StopAsync_AfterDispose_ThrowsObjectDisposedException()
+			public async Task StopAsync_WhenDisposed_ShouldThrowObjectDisposedException()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 				await process.DisposeAsync();
@@ -2149,11 +2081,10 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StopAsync_WhenCanceled_ThrowsOperationCanceledException_AndLeavesStateUnchanged()
+			public async Task StopAsync_WhenCanceled_ShouldThrowOperationCanceledExceptionAndLeaveStateUnchanged()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 				var cts     = new CancellationTokenSource();
-				// ReSharper disable once MethodHasAsyncOverload
 				cts.Cancel();
 
 				await FluentActions.Awaiting(() => process.StopAsync(cts.Token))
@@ -2164,7 +2095,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task StopAsync_WhenNotStarted_NoOpAndSetsStatusStopped()
+			public async Task StopAsync_WhenNotStarted_ShouldNoOpAndSetStatusStopped()
 			{
 				await using var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -2177,7 +2108,7 @@ public static class ProcessUciTransportTests
 		public class TeardownTimeoutTests
 		{
 			[Fact]
-			public async Task DisposeAsync_WithShortTeardownTimeout_CompletesWithinTimeout()
+			public async Task DisposeAsync_WithShortTeardownTimeout_ShouldCompleteWithinTimeout()
 			{
 				var options = new ProcessUciTransportOptions
 				{
@@ -2203,7 +2134,7 @@ public static class ProcessUciTransportTests
 		public class WriteLineTests
 		{
 			[Fact]
-			public async Task TryWriteLineAsync_NullLine_ThrowsArgumentNullException()
+			public async Task TryWriteLineAsync_WhenNullLine_ShouldThrowArgumentNullException()
 			{
 				var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 				await process.StartAsync();
@@ -2215,7 +2146,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WhenCalledWithoutEngineStart_ThrowsInvalidOperationException()
+			public async Task TryWriteLineAsync_WhenNotStarted_ShouldThrowInvalidOperationException()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
@@ -2225,7 +2156,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task TryWriteLineAsync_WithNegativeNonInfiniteTimeout_ThrowsArgumentOutOfRangeException()
+			public async Task TryWriteLineAsync_WhenNegativeNonInfiniteTimeout_ShouldThrowArgumentOutOfRangeException()
 			{
 				var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 				await process.StartAsync();
@@ -2236,7 +2167,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithCarriageReturn_ThrowsArgumentException()
+			public async Task WriteLineAsync_WithCarriageReturn_ShouldThrowArgumentException()
 			{
 				var process = new ProcessUciTransport(TestConsts.STOCKFISH_PATH);
 				await process.StartAsync();
@@ -2247,7 +2178,7 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WhenCalledWithoutEngineStart_ThrowsException()
+			public async Task WriteLineAsync_WhenNotStarted_ShouldThrowInvalidOperationException()
 			{
 				var process = new ProcessUciTransport("any/nonempty/path");
 
