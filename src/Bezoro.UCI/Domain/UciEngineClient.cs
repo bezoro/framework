@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
@@ -12,7 +11,7 @@ namespace Bezoro.UCI.Domain;
 ///     Maintains a single search session at a time, parses UCI output, tracks engine activity state, and
 ///     exposes events and helpers for UCI clients.
 /// </summary>
-internal sealed class UciEngineClient : IAsyncDisposable
+internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 {
 	/// <summary>
 	///     Underlying transport abstraction for communicating with the engine.
@@ -25,24 +24,25 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	private readonly UciLineWaiterRegistry _lineWaiters = new();
 	private readonly UciOutputDispatcher _outputDispatcher;
 
-	private readonly UciSearchCoordinator _searchCoordinator;
+private readonly UciSearchCoordinator    _searchCoordinator;
+private readonly UciEngineCommandModule  _commandModule;
+private readonly EngineActivityTracker   _activityTracker = new();
 
-	/// <summary>
-	///     Cancellation source for the read loop and engine lifetime.
-	/// </summary>
-	private CancellationTokenSource? _cts;
-
-	/// <summary>
-	///     Atomic int representing current engine activity state (see <see cref="EngineActivity" />).
-	/// </summary>
-	private int _activity;
+/// <summary>
+///     Cancellation source for the read loop and engine lifetime.
+/// </summary>
+private CancellationTokenSource? _cts;
 
 	private Task? _readerTask;
 
 	/// <summary>
 	///     Occurs when the engine transitions between <see cref="EngineActivity" /> states.
 	/// </summary>
-	public event Action<EngineActivity, EngineActivity>? ActivityChanged;
+public event Action<EngineActivity, EngineActivity>? ActivityChanged
+{
+	add => _activityTracker.ActivityChanged += value;
+	remove => _activityTracker.ActivityChanged -= value;
+}
 
 	/// <summary>
 	///     Notifies when the engine emits a "bestmove" line.
@@ -70,6 +70,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 			(best, ponder) => BestMoveReceived?.Invoke(best, ponder));
 
 		_outputDispatcher = new(_lineWaiters, _searchCoordinator);
+		_commandModule    = new(_transport, _lineWaiters, this, SetActivity);
 	}
 
 	/// <summary>
@@ -85,7 +86,7 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	/// <summary>
 	///     Gets the current engine activity state.
 	/// </summary>
-	public EngineActivity Activity => (EngineActivity)Volatile.Read(ref _activity);
+public EngineActivity Activity => _activityTracker.Current;
 
 	/// <summary>
 	///     Engine process/transport status.
@@ -109,58 +110,25 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	///     Starts a search with the given parameters and does not await engine termination nor the bestmove response.
 	///     Use for fire-and-forget searches (e.g., GUI spinning).
 	/// </summary>
-	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
-	{
-		string cmd = BuildGoCommand(parameters);
-		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-		SetActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-	}
+	public Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct) =>
+		_commandModule.GoFireAndForgetAsync(parameters, ct);
 
 	/// <summary>
 	///     Sends "isready" to the engine and waits up to 10 seconds for "readyok".
 	/// </summary>
-	public async Task IsReadyAsync(CancellationToken ct)
-	{
-		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
-		await _lineWaiters.WaitForAsync(
-							  static l => l.Trim().Equals(
-								  UciConstants.Responses.READY_OK,
-								  StringComparison.OrdinalIgnoreCase),
-							  TimeSpan.FromSeconds(10),
-							  ct)
-						  .ConfigureAwait(false);
-	}
+	public Task IsReadyAsync(CancellationToken ct) => _commandModule.IsReadyAsync(ct);
 
 	/// <summary>
 	///     Sends a "setoption" command to the engine.
 	/// </summary>
-	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
-	{
-		if (string.IsNullOrWhiteSpace(name)) return;
-
-		string cmd = value is null
-						 ? $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name}"
-						 : $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name} {UciConstants.Keywords.VALUE} {value}";
-
-		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-	}
+	public Task SetOptionAsync(string name, string? value, CancellationToken ct) =>
+		_commandModule.SetOptionAsync(name, value, ct);
 
 	/// <summary>
 	///     Sets the board position using a FEN and (optionally) a move list.
 	/// </summary>
-	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct)
-	{
-		if (!Fen.Validate(fen.Raw))
-			throw new ArgumentException("Invalid FEN provided.", nameof(fen));
-
-		string movePart = moves != null && moves.Any()
-							  ? $"{UciConstants.Keywords.MOVES} " + string.Join(' ', moves)
-							  : string.Empty;
-
-		await _transport.WriteLineAsync(
-			$"{UciConstants.Commands.POSITION} {UciConstants.Keywords.FEN} {fen.Raw} {movePart}",
-			ct).ConfigureAwait(false);
-	}
+	public Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct) =>
+		_commandModule.SetPositionAsync(fen, moves, ct);
 
 	/// <summary>
 	///     Starts the engine process/connection, background read loop, and completes UCI handshake.
@@ -225,131 +193,29 @@ internal sealed class UciEngineClient : IAsyncDisposable
 	/// <summary>
 	///     Sends the "stop" command to the engine and immediately transitions to Idle.
 	/// </summary>
-	public async Task StopSearchAsync(CancellationToken ct)
-	{
-		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
-		SetActivity(EngineActivity.Idle);
-	}
+	public Task StopSearchAsync(CancellationToken ct) => _commandModule.StopSearchAsync(ct);
 
 	/// <summary>
 	///     Sends "uci" to the engine and waits for "uciok" and "readyok" to confirm supported handshaking.
 	/// </summary>
-	public async Task UciInitAsync(CancellationToken ct)
-	{
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
-		await _lineWaiters.WaitForAsync(
-							  static l => l.Trim().Equals(
-								  UciConstants.Responses.UCI_OK,
-								  StringComparison.OrdinalIgnoreCase),
-							  TimeSpan.FromSeconds(5),
-							  ct)
-						  .ConfigureAwait(false);
-
-		await IsReadyAsync(ct).ConfigureAwait(false);
-	}
+	public Task UciInitAsync(CancellationToken ct) => _commandModule.UciInitAsync(ct);
 
 	/// <summary>
 	///     Informs the engine of a new game context via "ucinewgame"; calls <see cref="IsReadyAsync" />.
 	/// </summary>
-	public async Task UciNewGameAsync(CancellationToken ct)
-	{
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI_NEW_GAME, ct).ConfigureAwait(false);
-		await IsReadyAsync(ct).ConfigureAwait(false);
-	}
+	public Task UciNewGameAsync(CancellationToken ct) => _commandModule.UciNewGameAsync(ct);
 
 	/// <summary>
 	///     Requests the current engine FEN using the "d" command and parses "fen ..." and "checkers ..." output.
 	/// </summary>
-	public async Task<Fen?> GetFenViaDAsync(CancellationToken ct)
-	{
-		// Capture 'fen' and 'checkers' lines from the 'd' output to avoid races.
-		var fenTcs      = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var checkersTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		void Handler(string line)
-		{
-			if (string.IsNullOrEmpty(line)) return;
-
-			string? trimmed = line.TrimStart();
-
-			if (!fenTcs.Task.IsCompleted &&
-				trimmed.StartsWith(UciConstants.Prefixes.FEN, StringComparison.OrdinalIgnoreCase))
-				fenTcs.TrySetResult(line);
-
-			if (!checkersTcs.Task.IsCompleted &&
-				trimmed.StartsWith(UciConstants.Prefixes.CHECKERS, StringComparison.OrdinalIgnoreCase))
-				checkersTcs.TrySetResult(line);
-		}
-
-		LineReceived += Handler;
-		try
-		{
-			await _transport.WriteLineAsync(UciConstants.Commands.DISPLAY_BOARD, ct).ConfigureAwait(false);
-
-			// Await the FEN line first
-			string? fenLine = null;
-			var fenCompleted = await Task.WhenAny(fenTcs.Task, Task.Delay(TimeSpan.FromSeconds(2), ct))
-										 .ConfigureAwait(false);
-
-			ct.ThrowIfCancellationRequested();
-
-			if (fenCompleted == fenTcs.Task)
-				fenLine = await fenTcs.Task.ConfigureAwait(false);
-
-			if (fenLine is null)
-				return null;
-
-			// Give a short window for the 'checkers' line to arrive after the FEN line
-			string? checkersLine = null;
-			var checkersCompleted = await Task.WhenAny(
-												  checkersTcs.Task,
-												  Task.Delay(TimeSpan.FromMilliseconds(750), ct))
-											  .ConfigureAwait(false);
-
-			ct.ThrowIfCancellationRequested();
-
-			if (checkersCompleted == checkersTcs.Task)
-				checkersLine = await checkersTcs.Task.ConfigureAwait(false);
-
-			// Parse FEN from captured lines
-			string? rawFenCache = null;
-			Fen.TryParseUciOutputLine(fenLine, ref rawFenCache, out var fenFromFen);
-
-			if (checkersLine is null) return fenFromFen;
-
-			// Enrich the cached FEN with 'checkers' info
-			Fen.TryParseUciOutputLine(checkersLine, ref rawFenCache, out var fenWithCheckers);
-			return fenWithCheckers;
-		}
-		finally
-		{
-			LineReceived -= Handler;
-		}
-	}
+	public Task<Fen?> GetFenViaDAsync(CancellationToken ct) => _commandModule.GetFenViaDAsync(ct);
 
 	/// <summary>
 	///     Issues a "go perft 1" command and harvests all legal moves listed in the output.
 	///     Waits for "readyok" for completion.
 	/// </summary>
-	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
-	{
-		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		void CaptureMoves(string line) => UciCommandBuilder.CollectMovesFromLine(line, results);
-
-		LineReceived += CaptureMoves;
-		try
-		{
-			await _transport.WriteLineAsync($"{UciConstants.Commands.GO_PERFT} 1", ct).ConfigureAwait(false);
-			await IsReadyAsync(ct).ConfigureAwait(false);
-		}
-		finally
-		{
-			LineReceived -= CaptureMoves;
-		}
-
-		return results.ToList();
-	}
+	public Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct) =>
+		_commandModule.GetLegalMovesViaGoPerft1Async(ct);
 
 	/// <summary>
 	///     Runs a search with the supplied parameters and returns a <see cref="SearchResult" /> from "bestmove" and info
@@ -410,34 +276,44 @@ internal sealed class UciEngineClient : IAsyncDisposable
 		}
 	}
 
+	IDisposable IUciLineSource.Subscribe(Action<string> handler)
+	{
+		if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+		LineReceived += handler;
+		return new EventSubscription(() => LineReceived -= handler);
+	}
+
 	/// <summary>
 	///     Atomically sets the engine activity state and publishes activity change notifications, if the state changed.
 	/// </summary>
 	private void SetActivity(EngineActivity next)
 	{
-		var previous = (EngineActivity)Interlocked.Exchange(ref _activity, (int)next);
-		if (previous == next) return;
+		_activityTracker.Set(next);
+	}
 
-		try
+	private sealed class EventSubscription : IDisposable
+	{
+		private readonly Action _unsubscribe;
+		private int _disposed;
+
+		public EventSubscription(Action unsubscribe)
 		{
-			ActivityChanged?.Invoke(previous, next);
+			_unsubscribe = unsubscribe ?? throw new ArgumentNullException(nameof(unsubscribe));
 		}
-		catch
+
+		public void Dispose()
 		{
-			/* swallow */
+			if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+			try
+			{
+				_unsubscribe();
+			}
+			catch
+			{
+				/* swallow */
+			}
 		}
 	}
-}
-
-/// <summary>
-///     Enumerates the coarse-grained activity states tracked for the engine.
-/// </summary>
-public enum EngineActivity
-{
-	/// <summary>Idle; engine is not searching or pondering.</summary>
-	Idle = 0,
-	/// <summary>Engine is actively searching.</summary>
-	Searching = 1,
-	/// <summary>Engine is pondering (analyzing at opponent's turn).</summary>
-	Pondering = 2
 }

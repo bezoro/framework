@@ -7,9 +7,9 @@ namespace Bezoro.UCI.API.Types;
 
 public readonly record struct Fen
 {
-	private const char   FenSeparator     = ':';
+	private const char   FEN_SEPARATOR    = ':';
 	private const string CHECKERS_KEYWORD = "checkers";
-	private const string FenKeyword       = "fen";
+	private const string FEN_KEYWORD      = "fen";
 
 	private Fen(
 		string   piecePlacement,
@@ -56,54 +56,47 @@ public readonly record struct Fen
 		if (trimmed.IsEmpty()) return false;
 
 		// "fen[: ]<payload>"
-		if (trimmed.StartsWith(FenKeyword, StringComparison.OrdinalIgnoreCase))
+		if (trimmed.StartsWith(FEN_KEYWORD, StringComparison.OrdinalIgnoreCase))
 		{
 			string fenPayload = ExtractFenPayloadFromUciLine(trimmed);
 			var    parsed     = Parse(fenPayload);
-			if (parsed.HasValue)
-			{
-				fen        = parsed;
-				lastRawFen = fenPayload;
-				return true;
-			}
+			if (!parsed.HasValue) return false;
 
-			return false;
+			fen        = parsed;
+			lastRawFen = fenPayload;
+			return true;
 		}
 
 		// "checkers[: ]<payload>"
-		if (trimmed.StartsWith(CHECKERS_KEYWORD, StringComparison.OrdinalIgnoreCase))
+		if (!trimmed.StartsWith(CHECKERS_KEYWORD, StringComparison.OrdinalIgnoreCase)) return false;
+
+		string payload = trimmed[CHECKERS_KEYWORD.Length..].TrimStart();
+		if (payload.Length > 0 && payload[0] == FEN_SEPARATOR)
+			payload = payload[1..].TrimStart();
+
+		if (string.IsNullOrEmpty(lastRawFen)) return false;
+
+		var lastParsed = Parse(lastRawFen);
+		if (lastParsed.HasValue)
 		{
-			string payload = trimmed[CHECKERS_KEYWORD.Length..].TrimStart();
-			if (payload.Length > 0 && payload[0] == FenSeparator)
-				payload = payload[1..].TrimStart();
+			var last = lastParsed.Value;
+			var enriched = new Fen(
+				last.PiecePlacement,
+				last.ActiveColor,
+				last.CastlingRights,
+				last.EnPassantTarget,
+				last.HalfmoveClock,
+				last.FullmoveNumber,
+				last.FenParts,
+				payload,
+				last.Raw);
 
-			if (!string.IsNullOrEmpty(lastRawFen))
-			{
-				var lastParsed = Parse(lastRawFen);
-				if (lastParsed.HasValue)
-				{
-					var last = lastParsed.Value;
-					var enriched = new Fen(
-						last.PiecePlacement,
-						last.ActiveColor,
-						last.CastlingRights,
-						last.EnPassantTarget,
-						last.HalfmoveClock,
-						last.FullmoveNumber,
-						last.FenParts,
-						payload,
-						last.Raw);
-
-					// keep cached raw FEN; 'checkers' is a separate line in engine output
-					fen = enriched;
-					return true;
-				}
-
-				lastRawFen = null;
-			}
-
-			return false;
+			// keep cached raw FEN; 'checkers' is a separate line in engine output
+			fen = enriched;
+			return true;
 		}
+
+		lastRawFen = null;
 
 		return false;
 	}
@@ -186,8 +179,8 @@ public readonly record struct Fen
 
 	private static string ExtractFenPayloadFromUciLine(string line)
 	{
-		string payload                                                = line[FenKeyword.Length..].TrimStart();
-		if (payload.Length > 0 && payload[0] == FenSeparator) payload = payload[1..].TrimStart();
+		string payload                                                 = line[FEN_KEYWORD.Length..].TrimStart();
+		if (payload.Length > 0 && payload[0] == FEN_SEPARATOR) payload = payload[1..].TrimStart();
 		return payload;
 	}
 
