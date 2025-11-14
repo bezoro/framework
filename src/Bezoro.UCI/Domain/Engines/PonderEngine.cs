@@ -63,7 +63,7 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default)
 	{
-		if (Activity is EngineActivity.Searching or EngineActivity.Pondering) return;
+		if (Activity.IsActive()) return;
 
 		// Reset last scores when starting a new search to synchronize internal evaluation state
 		ClearLastScores();
