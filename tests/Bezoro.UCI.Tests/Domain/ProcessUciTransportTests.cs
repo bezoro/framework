@@ -16,8 +16,6 @@ namespace Bezoro.UCI.Tests.Domain;
 [TestSubject(typeof(ProcessUciTransport))]
 public static class ProcessUciTransportTests
 {
-	private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-
 	private static ProcessUciTransport CreateTransportWithOptions(ProcessUciTransportOptions? options = null) =>
 		new(TestConsts.STOCKFISH_PATH, null, null, options);
 
@@ -195,8 +193,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task ReadLoop_Backpressure_ChannelFull_IncrementsBackpressureEvents()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -227,8 +223,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task ReadLoop_SkipsEmptyLines_OnlyNonEmptyReceived()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -275,8 +269,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrDisabled_ShouldNotStartStderrLoop()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -309,8 +301,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrReceived_Event_Fires_WhenRedirected()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -340,8 +330,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task StderrReceived_HandlerThrows_IsSwallowed_NoCrash()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -374,8 +362,6 @@ public static class ProcessUciTransportTests
 		[Fact]
 		public async Task WhenProcessExits_ExitedEventRaisedOnce_WithExitCode()
 		{
-			if (!IsWindows()) return;
-
 			string? cmdPath = TryResolveCmdPath();
 			if (cmdPath is null) return;
 
@@ -663,8 +649,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task StartAsync_WithPreexistingExitedProcessObject_CleansUpAndStarts()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1461,8 +1445,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task WhenDisposed_ProcessIsKilledIfNotExited()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1647,8 +1629,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task WhenDisposedWithExitedProcess_CompletesImmediately()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1854,8 +1834,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task StderrReceived_WithUtf8Encoding_HandlesUnicodeCorrectly()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -1977,8 +1955,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task Exited_Event_WithExitCodeTwo_ReportsCorrectCode()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
@@ -2006,8 +1982,6 @@ public static class ProcessUciTransportTests
 			[Fact]
 			public async Task Exited_Event_WithNonZeroExitCode_ReportsCorrectCode()
 			{
-				if (!IsWindows()) return;
-
 				string? cmdPath = TryResolveCmdPath();
 				if (cmdPath is null) return;
 
