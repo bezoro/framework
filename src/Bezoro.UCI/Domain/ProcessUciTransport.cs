@@ -42,7 +42,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_path             = path;
 		_workingDirectory = workingDirectory;
-		_args             = args is null ? null : new List<string>(args);
+		_args             = args is null ? null : ValidateAndCreateArgsList(args);
 		_options          = options ?? new ProcessUciTransportOptions();
 
 		ProcessUciTransportValidator.ValidateOptions(_options);
@@ -258,6 +258,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 			.ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Synchronous dispose implementation. Prefer <see cref="DisposeAsync"/> for async scenarios.
+	/// </summary>
 	public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
 	private bool IsStartedAndAlive() =>
@@ -395,6 +398,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		string            finalLog,
 		CancellationToken ct = default)
 	{
+		// Capture process reference before nulling the field to ensure we can safely
+		// await operations on it even after _process is set to null.
 		var p = _process;
 		_process = null;
 		_stateManager.MarkProcessAlive(false);
@@ -628,5 +633,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
 		ct.ThrowIfCancellationRequested();
+	}
+
+	/// <summary>
+	/// Validates and creates an immutable list of arguments, ensuring no null values.
+	/// </summary>
+	private static IReadOnlyList<string>? ValidateAndCreateArgsList(IEnumerable<string> args)
+	{
+		if (args is null) return null;
+
+		var list = new List<string>();
+		foreach (var arg in args)
+		{
+			if (arg is null)
+				throw new ArgumentException("Argument list cannot contain null values.", nameof(args));
+			list.Add(arg);
+		}
+
+		return list;
 	}
 }

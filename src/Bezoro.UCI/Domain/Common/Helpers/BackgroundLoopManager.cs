@@ -59,8 +59,8 @@ internal sealed class BackgroundLoopManager
 	{
 		var readToken = _readLoopCts!.Token;
 
-		_readLoopTask = Task.Factory.StartNew(
-			() =>
+		_readLoopTask = Task.Run(
+			async () =>
 			{
 				try
 				{
@@ -92,10 +92,7 @@ internal sealed class BackgroundLoopManager
 								if (readToken.IsCancellationRequested)
 									throw new OperationCanceledException(readToken);
 
-								var vt = writer.WaitToWriteAsync(readToken);
-								bool canWrite = vt.IsCompletedSuccessfully
-													? vt.Result
-													: vt.AsTask().GetAwaiter().GetResult();
+								bool canWrite = await writer.WaitToWriteAsync(readToken).ConfigureAwait(false);
 
 								if (!canWrite) break;
 								if (writer.TryWrite(line)) break;
@@ -115,9 +112,7 @@ internal sealed class BackgroundLoopManager
 					ChannelFactory.TryComplete(writer, ex);
 				}
 			},
-			CancellationToken.None,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
+			CancellationToken.None);
 
 		Observe(_readLoopTask);
 	}
@@ -129,8 +124,8 @@ internal sealed class BackgroundLoopManager
 	{
 		if (stderr == null) return;
 
-		_stderrLoopTask = Task.Factory.StartNew(
-			() =>
+		_stderrLoopTask = Task.Run(
+			async () =>
 			{
 				try
 				{
@@ -154,14 +149,18 @@ internal sealed class BackgroundLoopManager
 						{
 							var handler = _stderrReceived;
 							if (handler != null)
-								Task.Run(() =>
+							{
+								// Invoke handler on thread pool to avoid blocking the stderr loop.
+								// Exceptions are swallowed as per interface contract.
+								await Task.Run(() =>
 								{
 									try
 									{
 										handler(line);
 									}
 									catch { }
-								});
+								}).ConfigureAwait(false);
+							}
 						}
 						catch { }
 					}
@@ -171,9 +170,7 @@ internal sealed class BackgroundLoopManager
 					_reportError(ex, "Stderr loop faulted.");
 				}
 			},
-			CancellationToken.None,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
+			CancellationToken.None);
 
 		Observe(_stderrLoopTask);
 	}
@@ -187,8 +184,8 @@ internal sealed class BackgroundLoopManager
 
 		var writeToken = _writeLoopCts!.Token;
 
-		_writeLoopTask = Task.Factory.StartNew(
-			() =>
+		_writeLoopTask = Task.Run(
+			async () =>
 			{
 				try
 				{
@@ -226,8 +223,7 @@ internal sealed class BackgroundLoopManager
 							writesSinceFlush = 0;
 						}
 
-						var  vt      = outgoingReader.WaitToReadAsync(writeToken);
-						bool hasMore = vt.IsCompletedSuccessfully ? vt.Result : vt.AsTask().GetAwaiter().GetResult();
+						bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
 						if (!hasMore) break;
 					}
 
@@ -244,9 +240,7 @@ internal sealed class BackgroundLoopManager
 					_reportError(ex, "Write loop faulted.");
 				}
 			},
-			CancellationToken.None,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
+			CancellationToken.None);
 
 		Observe(_writeLoopTask);
 	}
