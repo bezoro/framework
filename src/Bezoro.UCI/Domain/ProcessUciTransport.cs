@@ -203,6 +203,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		ValidateTryWritePreconditions(line, timeout);
 
+		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
+
 		var writer = GetOutgoingWriterOrThrow();
 
 		if (writer.TryWrite(line)) return true;
@@ -284,31 +286,74 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		_stateManager.MarkProcessAlive(false);
 
-		_loopManager.CancelReadLoop();
-		StreamInitializer.SafeDispose(_streams.Stdout);
-		_streams.Stdout = null;
-		StreamInitializer.SafeDispose(_streams.Stderr);
-		_streams.Stderr = null;
-
-		_loopManager.CancelWriteLoop();
-
-		ChannelFactory.TryComplete(_outgoing?.Writer);
-		await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
-		_loopManager.DisposeCancellationSources();
-
-		_outgoing = null;
-
-		if (_streams.Stdin != null)
+		try
 		{
-			await StreamInitializer.SafeDisposeAsync(_streams.Stdin).ConfigureAwait(false);
-			_streams.Stdin = null;
+			_loopManager.CancelReadLoop();
+			// Complete the channel immediately so active readers can exit gracefully
+			ChannelFactory.TryComplete(_lines?.Writer);
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cancel read loop during cleanup.");
 		}
 
-		await _loopManager.AwaitReadLoopAsync().ConfigureAwait(false);
-		await _loopManager.AwaitStderrLoopAsync().ConfigureAwait(false);
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stdout);
+			_streams.Stdout = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stdout during cleanup.");
+		}
 
-		ChannelFactory.TryComplete(_lines?.Writer);
-		_lines = null;
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stderr);
+			_streams.Stderr = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stderr during cleanup.");
+		}
+
+		try
+		{
+			_loopManager.CancelWriteLoop();
+			ChannelFactory.TryComplete(_outgoing?.Writer);
+			await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
+			_loopManager.DisposeCancellationSources();
+			_outgoing = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cleanup write loop during cleanup.");
+		}
+
+		try
+		{
+			if (_streams.Stdin != null)
+			{
+				await StreamInitializer.SafeDisposeAsync(_streams.Stdin).ConfigureAwait(false);
+				_streams.Stdin = null;
+			}
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stdin during cleanup.");
+		}
+
+		try
+		{
+			await _loopManager.AwaitReadLoopAsync().ConfigureAwait(false);
+			await _loopManager.AwaitStderrLoopAsync().ConfigureAwait(false);
+			// Channel is already completed above, but ensure it's nulled after read loop finishes
+			_lines = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cleanup read loops during cleanup.");
+		}
 
 		var p = _process;
 		_process = null;
@@ -405,21 +450,49 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_process = null;
 		_stateManager.MarkProcessAlive(false);
 
-		_loopManager.CancelReadLoop();
-		ChannelFactory.TryComplete(_lines?.Writer);
+		try
+		{
+			_loopManager.CancelReadLoop();
+			// Complete the channel immediately so active readers can exit gracefully
+			ChannelFactory.TryComplete(_lines?.Writer);
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cancel read loop during teardown.");
+		}
 
-		StreamInitializer.SafeDispose(_streams.Stdout);
-		_streams.Stdout = null;
-		StreamInitializer.SafeDispose(_streams.Stderr);
-		_streams.Stderr = null;
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stdout);
+			_streams.Stdout = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stdout during teardown.");
+		}
 
-		_loopManager.CancelWriteLoop();
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stderr);
+			_streams.Stderr = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stderr during teardown.");
+		}
 
-		ChannelFactory.TryComplete(_outgoing?.Writer);
-		await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
-		_loopManager.DisposeCancellationSources();
-
-		_outgoing = null;
+		try
+		{
+			_loopManager.CancelWriteLoop();
+			ChannelFactory.TryComplete(_outgoing?.Writer);
+			await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
+			_loopManager.DisposeCancellationSources();
+			_outgoing = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cleanup write loop during teardown.");
+		}
 
 		try
 		{
@@ -451,8 +524,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await _loopManager.AwaitReadLoopAsync().ConfigureAwait(false);
 		await _loopManager.AwaitStderrLoopAsync().ConfigureAwait(false);
 
-		// Complete the lines channel after read loop has finished to ensure no more data is written.
-		ChannelFactory.TryComplete(_lines?.Writer);
+		// Channel is already completed above, but ensure it's nulled after read loop finishes
 		_lines = null;
 
 		var skipAwaitExit = false;
