@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
@@ -450,25 +451,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await _loopManager.AwaitReadLoopAsync().ConfigureAwait(false);
 		await _loopManager.AwaitStderrLoopAsync().ConfigureAwait(false);
 
+		// Complete the lines channel after read loop has finished to ensure no more data is written.
 		ChannelFactory.TryComplete(_lines?.Writer);
 		_lines = null;
-
-		try
-		{
-			if (p is { HasExited: false })
-			{
-				using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
-				try
-				{
-					await ProcessHelper.WaitForProcessExitAsync(p, timeoutCts.Token).ConfigureAwait(false);
-				}
-				catch (OperationCanceledException) { }
-			}
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
 
 		var skipAwaitExit = false;
 
@@ -476,17 +461,38 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			if (p is { HasExited: false })
 			{
-				Logger.LogInfo(
-					$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
-					category: LogCategory.UCI);
+				try
+				{
+					using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
+					try
+					{
+						await ProcessHelper.WaitForProcessExitAsync(p, timeoutCts.Token).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException) { }
+				}
+				catch (Exception ex)
+				{
+					Error?.Invoke(ex);
+				}
 
-				ProcessHelper.SafeKillProcess(p, _options.KillEntireProcessTree);
+				// Re-check after grace period - process may have exited
+				if (p is { HasExited: false })
+				{
+					try
+					{
+						Logger.LogInfo(
+							$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
+							category: LogCategory.UCI);
+
+						ProcessHelper.SafeKillProcess(p, _options.KillEntireProcessTree);
+					}
+					catch (Exception ex)
+					{
+						Error?.Invoke(ex);
+						skipAwaitExit = true;
+					}
+				}
 			}
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-			skipAwaitExit = true;
 		}
 		finally
 		{
@@ -642,13 +648,10 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		if (args is null) return null;
 
-		var list = new List<string>();
-		foreach (var arg in args)
-		{
-			if (arg is null)
-				throw new ArgumentException("Argument list cannot contain null values.", nameof(args));
-			list.Add(arg);
-		}
+		// Use LINQ to validate and materialize in one pass for better performance with large collections.
+		var list = args.ToList();
+		if (list.Any(arg => arg is null))
+			throw new ArgumentException("Argument list cannot contain null values.", nameof(args));
 
 		return list;
 	}

@@ -66,6 +66,8 @@ internal sealed class BackgroundLoopManager
 				{
 					while (true)
 					{
+						if (readToken.IsCancellationRequested) break;
+
 						string? line;
 						try
 						{
@@ -79,8 +81,6 @@ internal sealed class BackgroundLoopManager
 						if (line is null) break;
 
 						if (line.Length == 0) continue;
-
-						if (readToken.IsCancellationRequested) break;
 
 						_metrics.IncrementLinesRead();
 
@@ -222,6 +222,8 @@ internal sealed class BackgroundLoopManager
 
 							writesSinceFlush = 0;
 						}
+
+						if (writeToken.IsCancellationRequested) break;
 
 						bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
 						if (!hasMore) break;
