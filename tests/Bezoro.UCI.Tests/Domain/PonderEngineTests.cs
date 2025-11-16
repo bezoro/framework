@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
@@ -356,5 +358,245 @@ public class PonderEngineTests
 		await engine.StopSearchAsync();
 
 		bestMoveRaised.Should().BeTrue("BestMove should be raised when mate score is found");
+	}
+
+	[Fact]
+	public void BestMove_WhenNegativeMateScoreImproves_RaisesBestMove()
+	{
+		// Arrange: mate in -1 (better) vs mate in -5 (worse)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveRaised = false;
+		ParsedMove? receivedBest = null;
+		engine.BestMove += (best, ponder) =>
+		{
+			bestMoveRaised = true;
+			receivedBest = best;
+		};
+
+		// First PV: mate in -5 (losing, worse)
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(-5)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: mate in -1 (losing, but better - less negative)
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(-1)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Act: Simulate receiving worse mate first, then better mate
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveRaised.Should().BeTrue("First PV should raise BestMove");
+		bestMoveRaised = false; // Reset
+
+		engine.OnClientInfoPvReceived(pv2);
+		bestMoveRaised.Should().BeTrue("Improved negative mate score should raise BestMove");
+		receivedBest.Should().NotBeNull();
+		receivedBest!.Value.Notation.Should().Be("d2d4");
+	}
+
+	[Fact]
+	public void BestMove_WhenPositiveMateScoreImproves_RaisesBestMove()
+	{
+		// Arrange: mate in 1 (better) vs mate in 5 (worse)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveRaised = false;
+		ParsedMove? receivedBest = null;
+		engine.BestMove += (best, ponder) =>
+		{
+			bestMoveRaised = true;
+			receivedBest = best;
+		};
+
+		// First PV: mate in 5 (winning, worse)
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(5)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: mate in 1 (winning, better - lower number)
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(1)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Act: Simulate receiving worse mate first, then better mate
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveRaised.Should().BeTrue("First PV should raise BestMove");
+		bestMoveRaised = false; // Reset
+
+		engine.OnClientInfoPvReceived(pv2);
+		bestMoveRaised.Should().BeTrue("Improved positive mate score should raise BestMove");
+		receivedBest.Should().NotBeNull();
+		receivedBest!.Value.Notation.Should().Be("d2d4");
+	}
+
+	[Fact]
+	public void BestMove_WhenTransitioningFromCpToMate_RaisesBestMove()
+	{
+		// Arrange: cp score → mate score (mate is always better)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveRaised = false;
+		engine.BestMove += (best, ponder) => { bestMoveRaised = true; };
+
+		// First PV: cp score
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreCp(100)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: mate score (should be better)
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(3)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Act
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveRaised.Should().BeTrue("First PV should raise BestMove");
+		bestMoveRaised = false;
+
+		engine.OnClientInfoPvReceived(pv2);
+		bestMoveRaised.Should().BeTrue("Transition from cp to mate should raise BestMove");
+	}
+
+	[Fact]
+	public void BestMove_WhenTransitioningFromPositiveMateToCp_DoesNotRaiseBestMove()
+	{
+		// Arrange: positive mate (winning) → cp (mate is always better)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveCount = 0;
+		engine.BestMove += (best, ponder) => { bestMoveCount++; };
+
+		// First PV: positive mate (winning)
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(3)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: cp score (should NOT be better than winning mate)
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreCp(200)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Act
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveCount.Should().Be(1, "First PV should raise BestMove");
+
+		engine.OnClientInfoPvReceived(pv2);
+		bestMoveCount.Should().Be(1, "Transition from positive mate to cp should NOT raise BestMove");
+	}
+
+	[Fact]
+	public void BestMove_WhenTransitioningFromNegativeMateToPositiveCp_RaisesBestMove()
+	{
+		// Arrange: negative mate (losing) → positive cp (winning cp is better)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveCount = 0;
+		engine.BestMove += (best, ponder) => { bestMoveCount++; };
+
+		// First PV: negative mate (losing)
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(-3)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: positive cp (winning - better than losing mate)
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreCp(50)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Act
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveCount.Should().Be(1, "First PV should raise BestMove");
+
+		engine.OnClientInfoPvReceived(pv2);
+		bestMoveCount.Should().Be(2, "Transition from negative mate to positive cp should raise BestMove");
+	}
+
+	[Fact]
+	public void BestMove_WhenTransitioningFromNegativeMateToNegativeCp_ComparesCorrectly()
+	{
+		// Arrange: negative mate → negative cp (both losing, compare cp values)
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveCount = 0;
+		engine.BestMove += (best, ponder) => { bestMoveCount++; };
+
+		// First PV: negative mate (losing)
+		var pv1 = TestDataBuilders.PrincipalVariation()
+			.WithScoreMate(-3)
+			.WithMoves("e2e4")
+			.Build();
+
+		// Second PV: negative cp, but higher (less negative) - should be better
+		var pv2 = TestDataBuilders.PrincipalVariation()
+			.WithScoreCp(-50)
+			.WithMoves("d2d4")
+			.Build();
+
+		// Third PV: negative cp, even higher (better)
+		var pv3 = TestDataBuilders.PrincipalVariation()
+			.WithScoreCp(-20)
+			.WithMoves("c2c4")
+			.Build();
+
+		// Act
+		engine.OnClientInfoPvReceived(pv1);
+		bestMoveCount.Should().Be(1, "First PV should raise BestMove");
+
+		engine.OnClientInfoPvReceived(pv2);
+		// Transition from mate to cp when both are losing: compare cp values
+		// Since we're transitioning, we check if newCp > lastCp (if lastCp exists)
+		// Initially lastCp is null, so this should raise BestMove
+		bestMoveCount.Should().Be(2, "Transition from negative mate to negative cp should raise BestMove if cp is higher");
+
+		engine.OnClientInfoPvReceived(pv3);
+		bestMoveCount.Should().Be(3, "Higher negative cp should raise BestMove");
+	}
+
+	[Fact]
+	public async Task BestMove_WhenConcurrentInfoPvReceived_ThreadSafe()
+	{
+		// Arrange
+		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+
+		var bestMoveCount = 0;
+		var lockObj = new object();
+		engine.BestMove += (best, ponder) =>
+		{
+			lock (lockObj)
+			{
+				bestMoveCount++;
+			}
+		};
+
+		// Create multiple PVs with improving scores
+		var pvs = Enumerable.Range(1, 20)
+			.Select(i => TestDataBuilders.PrincipalVariation()
+				.WithScoreCp(i * 10) // Improving cp scores
+				.WithMoves($"e{i % 8 + 2}e{(i % 8 + 4)}") // Valid move notation
+				.Build())
+			.ToArray();
+
+		// Act: Invoke concurrently
+		var tasks = pvs.Select(pv => Task.Run(() => engine.OnClientInfoPvReceived(pv)))
+			.ToArray();
+
+		await Task.WhenAll(tasks);
+
+		// Assert: Should have raised BestMove multiple times (at least for improvements)
+		// Thread safety means no exceptions and consistent state
+		bestMoveCount.Should().BeGreaterThan(0, "BestMove should be raised for score improvements");
+		// All tasks should complete without exceptions (thread safety)
+		tasks.All(t => t.IsCompletedSuccessfully).Should().BeTrue();
 	}
 }

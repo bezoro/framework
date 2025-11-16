@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Bezoro.Core.Common.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
@@ -149,5 +151,111 @@ public class QuickInfoEngineTests
 		result2.Should().NotBeNull();
 		// Both results should be valid, but the cache was cleared so result2 is fresh
 		result2.BestMove.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task GetCurrentFenAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Call GetCurrentFenAsync concurrently
+		var tasks = Enumerable.Range(0, 10)
+			.Select(_ => engine.GetCurrentFenAsync())
+			.ToArray();
+
+		var results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return valid FENs
+		foreach (var fen in results)
+		{
+			fen.Should().NotBeNull();
+			fen!.Value.Raw.Should().NotBeNullOrWhiteSpace();
+		}
+
+		// All should return the same FEN (starting position)
+		results.Select(f => f!.Value.Raw).Distinct().Should().HaveCount(1);
+	}
+
+	[Fact]
+	public async Task GetLegalMovesAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Call GetLegalMovesAsync concurrently
+		var tasks = Enumerable.Range(0, 10)
+			.Select(_ => engine.GetLegalMovesAsync())
+			.ToArray();
+
+		var results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return valid move collections
+		foreach (var moves in results)
+		{
+			moves.Should().NotBeNull();
+			moves.Count.Should().Be(TestConstants.ExpectedStartingPositionMoves);
+		}
+
+		// All should return the same moves (cached)
+		results.Select(m => m.Count).Distinct().Should().HaveCount(1);
+	}
+
+	[Fact]
+	public async Task QuickEvalAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var fen = Fen.Default;
+
+		// Act: Call QuickEvalAsync concurrently with the same position
+		var tasks = Enumerable.Range(0, 5)
+			.Select(_ => engine.QuickEvalAsync(fen, depth: 4))
+			.ToArray();
+
+		var results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return valid results
+		foreach (var result in results)
+		{
+			result.BestMove.Should().NotBeNullOrWhiteSpace();
+			result.BestCpScore.Should().NotBeNull();
+		}
+
+		// All should return results (may be cached or fresh, but all valid)
+		results.Length.Should().Be(5);
+	}
+
+	[Fact]
+	public async Task SetPositionAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var fen1 = Fen.Default;
+		var fen2 = Fen.Parse(TestConstants.AfterE2E4Fen);
+		fen2.Should().NotBeNull();
+
+		// Act: Call SetPositionAsync concurrently with different positions
+		var tasks = new List<Task>
+		{
+			engine.SetPositionAsync(fen1),
+			engine.SetPositionAsync(fen2!.Value),
+			engine.SetPositionAsync(fen1),
+			engine.SetPositionAsync(fen2.Value),
+			engine.SetPositionAsync(fen1)
+		};
+
+		// Should not throw exceptions
+		var act = async () => await Task.WhenAll(tasks);
+
+		await act.Should().NotThrowAsync("Concurrent SetPositionAsync calls should be thread-safe");
+
+		// Verify final state is consistent
+		var finalFen = await engine.GetCurrentFenAsync();
+		finalFen.Should().NotBeNull();
+		// Final position should be one of the positions we set
+		finalFen!.Value.Raw.Should().BeOneOf(fen1.Raw, fen2.Value.Raw);
 	}
 }

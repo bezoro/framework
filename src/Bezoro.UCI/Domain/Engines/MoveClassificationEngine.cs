@@ -29,6 +29,7 @@ internal sealed class MoveClassificationEngine(
 	private bool _started;
 
 	private CancellationTokenSource _classificationCts = new();
+	private readonly SemaphoreSlim  _clientPositionLock = new(1, 1);
 
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;
@@ -54,7 +55,16 @@ internal sealed class MoveClassificationEngine(
 		var boardState = boardStateOption.Value;
 
 		await _quick.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
-		await _client.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
+		await _clientPositionLock.WaitAsync(token).ConfigureAwait(false);
+		try
+		{
+			await _client.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
+		}
+		finally
+		{
+			_clientPositionLock.Release();
+		}
+
 		var legalMoves = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
 
 		var classifiedMoves = new List<Move>(legalMoves?.Count ?? 0);
@@ -237,23 +247,33 @@ internal sealed class MoveClassificationEngine(
 		try
 		{
 			if (!classifiedMoves.Any(x => x.Analysis.IsStalemate) && legalMoves is { Count: > 0 })
-				foreach (string? m in legalMoves)
+			{
+				await _clientPositionLock.WaitAsync(token).ConfigureAwait(false);
+				try
 				{
-					if (string.IsNullOrWhiteSpace(m)) continue;
+					foreach (string? m in legalMoves)
+					{
+						if (string.IsNullOrWhiteSpace(m)) continue;
 
-					await _client.SetPositionAsync(fen.Value, new[] { m }, token).ConfigureAwait(false);
-					var repliesF = await _client.GetLegalMovesViaGoPerft1Async(token).ConfigureAwait(false);
-					if (repliesF is not { Count: 0 }) continue;
+						await _client.SetPositionAsync(fen.Value, new[] { m }, token).ConfigureAwait(false);
+						var repliesF = await _client.GetLegalMovesViaGoPerft1Async(token).ConfigureAwait(false);
+						if (repliesF is not { Count: 0 }) continue;
 
-					var  fenF     = await _client.GetFenViaDAsync(token).ConfigureAwait(false);
-					bool inCheckF = fenF.HasValue && !string.IsNullOrEmpty(fenF.Value.Checkers);
-					if (inCheckF) continue;
+						var  fenF     = await _client.GetFenViaDAsync(token).ConfigureAwait(false);
+						bool inCheckF = fenF.HasValue && !string.IsNullOrEmpty(fenF.Value.Checkers);
+						if (inCheckF) continue;
 
-					var scF = MoveScore.FromCp(0);
-					var anF = MoveAnalysis.Analyze(m, boardState, scF, true);
-					fallbackMove = new Move(m, anF);
-					break;
+						var scF = MoveScore.FromCp(0);
+						var anF = MoveAnalysis.Analyze(m, boardState, scF, true);
+						fallbackMove = new Move(m, anF);
+						break;
+					}
 				}
+				finally
+				{
+					_clientPositionLock.Release();
+				}
+			}
 		}
 		catch
 		{
@@ -316,11 +336,12 @@ internal sealed class MoveClassificationEngine(
 		if (_isMateCache.TryGetValue(key, out bool cached))
 			return cached;
 
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
 		bool originalStateRestored = false;
 		try
 		{
 			// Apply the move and inspect the resulting position with the main client.
-			await _client.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+			await _client!.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 			var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
 			if (replies is { Count: > 0 })
 			{
@@ -343,13 +364,15 @@ internal sealed class MoveClassificationEngine(
 			{
 				try
 				{
-					await _client.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
+					await _client!.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch
 				{
 					/* best-effort */
 				}
 			}
+
+			_clientPositionLock.Release();
 		}
 	}
 
@@ -365,11 +388,12 @@ internal sealed class MoveClassificationEngine(
 		if (_isStalemateCache.TryGetValue(key, out bool cached))
 			return cached;
 
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
 		// Play the move and see if opponent has any legal moves using the main client
 		bool originalStateRestored = false;
 		try
 		{
-			await _client.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
+			await _client!.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
 			var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
 			if (replies is { Count: > 0 })
 			{
@@ -408,7 +432,7 @@ internal sealed class MoveClassificationEngine(
 		{
 			try
 			{
-				await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+				await _client!.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 				originalStateRestored = true;
 			}
 			catch
@@ -425,6 +449,8 @@ internal sealed class MoveClassificationEngine(
 				{
 					/* best-effort */
 				}
+
+			_clientPositionLock.Release();
 		}
 	}
 
@@ -477,6 +503,7 @@ internal sealed class MoveClassificationEngine(
 		}
 
 		_transport = null;
+		_clientPositionLock.Dispose();
 		GC.SuppressFinalize(this);
 	}
 
@@ -576,6 +603,8 @@ internal sealed class MoveClassificationEngine(
 		if (_client is null || !_client.IsStarted || !_client.IsHealthy)
 			result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
 		else
+		{
+			await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
 			try
 			{
 				await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
@@ -598,6 +627,11 @@ internal sealed class MoveClassificationEngine(
 				// Engine process may have exited unexpectedly; fallback to QuickInfoEngine for a quick eval
 				result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
 			}
+			finally
+			{
+				_clientPositionLock.Release();
+			}
+		}
 
 		score = ScoreFromResult(result);
 
