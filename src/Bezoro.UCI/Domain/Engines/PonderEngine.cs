@@ -111,19 +111,45 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 
 		if (newMate.HasValue)
 		{
-			improved = !_lastScoreMate.HasValue || newMate.Value < _lastScoreMate.Value;
+			// Mate score: lower absolute value is better (mate in 1 is better than mate in 5)
+			// If we had a cp score before, mate is always an improvement
+			if (_lastScoreMate.HasValue)
+			{
+				improved = newMate.Value < _lastScoreMate.Value;
+			}
+			else
+			{
+				// Transition from cp to mate: mate is always better than cp
+				improved = true;
+			}
+
 			if (improved)
+			{
 				_lastScoreMate = newMate;
+				_lastScoreCp   = null; // Clear cp when we have mate
+			}
 		}
 		else
 		{
-			if (!_lastScoreMate.HasValue &&
-				newCp.HasValue &&
-				(!_lastScoreCp.HasValue || newCp.Value > _lastScoreCp.Value))
+			// CP score: higher is better
+			if (_lastScoreMate.HasValue)
+		{
+			// Transition from mate to cp: only improve if previous mate was losing (negative) and new cp is positive
+			// A winning cp is better than a losing mate. If both are losing, we don't consider it an improvement.
+			improved = _lastScoreMate.Value < 0 && newCp.HasValue && newCp.Value > 0;
+			if (improved)
 			{
-				_lastScoreCp = newCp;
-				improved     = true;
+				_lastScoreMate = null;
+				_lastScoreCp   = newCp;
 			}
+		}
+		else if (newCp.HasValue)
+		{
+			// Both are cp scores: higher is better
+			improved = !_lastScoreCp.HasValue || newCp.Value > _lastScoreCp.Value;
+			if (improved)
+				_lastScoreCp = newCp;
+		}
 		}
 
 		if (!improved) return;

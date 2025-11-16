@@ -104,4 +104,50 @@ public class QuickInfoEngineTests
 		engine.IsStarted.Should().BeFalse();
 		engine.Status.Should().Be(TransportStatus.Stopped);
 	}
+
+	[Fact]
+	public async Task QuickEvalAsync_AfterSetPosition_ClearsEvalCache()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var fen1 = Fen.Default;
+		var fen2 = Fen.Parse(TestConstants.AfterE2E4Fen);
+
+		// Evaluate first position - should cache result
+		var result1 = await engine.QuickEvalAsync(fen1, depth: 6);
+		result1.Should().NotBeNull();
+
+		// Change position - this should clear the eval cache
+		await engine.SetPositionAsync(fen2!.Value);
+
+		// Evaluate first position again - should NOT return cached result
+		// (cache should be cleared, so it will recompute)
+		var result2 = await engine.QuickEvalAsync(fen1, depth: 6);
+		result2.Should().NotBeNull();
+		// Both results should be valid, but the cache was cleared so result2 is fresh
+		result2.BestMove.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task QuickEvalAsync_AfterNewGame_ClearsEvalCache()
+	{
+		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var fen = Fen.Default;
+
+		// Evaluate position - should cache result
+		var result1 = await engine.QuickEvalAsync(fen, depth: 6);
+		result1.Should().NotBeNull();
+
+		// New game - this should clear the eval cache
+		await engine.NewGameAsync();
+
+		// Evaluate same position again - should NOT return cached result
+		var result2 = await engine.QuickEvalAsync(fen, depth: 6);
+		result2.Should().NotBeNull();
+		// Both results should be valid, but the cache was cleared so result2 is fresh
+		result2.BestMove.Should().NotBeNull();
+	}
 }

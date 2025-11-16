@@ -302,4 +302,59 @@ public class PonderEngineTests
 
 		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
+
+	[Fact]
+	public async Task BestMove_WhenCpScoreImproves_RaisesBestMove()
+	{
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+		await engine.SetOptionAsync("MultiPv", "1");
+
+		var bestMoveCount = 0;
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.BestMove += (best, ponder) =>
+		{
+			bestMoveCount++;
+			// BestMove should be raised when score improves
+			// We expect at least one BestMove event as the engine finds better moves
+			if (bestMoveCount >= 1)
+				tcs.TrySetResult(true);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		await engine.StopSearchAsync();
+
+		bestMoveCount.Should().BeGreaterThan(0, "BestMove should be raised when score improves");
+	}
+
+	[Fact]
+	public async Task BestMove_WhenMateScoreFound_RaisesBestMove()
+	{
+		// Test with a mate-in-one position to verify mate score handling
+		var mateFen = Fen.Parse(TestConstants.WhiteMateInOneFen);
+		if (!mateFen.HasValue)
+			throw new InvalidOperationException("Failed to parse mate FEN");
+
+		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+		await engine.SetOptionAsync("MultiPv", "1");
+
+		var bestMoveRaised = false;
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.BestMove += (best, ponder) =>
+		{
+			bestMoveRaised = true;
+			best.Raw.Should().NotBeNullOrWhiteSpace();
+			tcs.TrySetResult(true);
+		};
+
+		await engine.StartSearchAsync(mateFen.Value, null);
+		await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		await engine.StopSearchAsync();
+
+		bestMoveRaised.Should().BeTrue("BestMove should be raised when mate score is found");
+	}
 }

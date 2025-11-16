@@ -228,5 +228,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	{
 		_currentFenCache = null;
 		_legalMovesCache = null;
+		// Clear eval cache when position changes to avoid returning stale results
+		_evalCache.Clear();
 	}
 }
