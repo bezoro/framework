@@ -151,10 +151,20 @@ public sealed class UciCoordinator : IAsyncDisposable
 		IEnumerable<string>? playedMoves = null,
 		CancellationToken    ct          = default)
 	{
-		var oldCts = _bestCts;
-		_bestCts?.Cancel();
-		_bestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		oldCts?.Dispose();
+		// Atomically cancel and replace the old cancellation token source
+		var oldCts = Interlocked.Exchange(ref _bestCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
+		try
+		{
+			oldCts?.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling old CTS
+		}
+		finally
+		{
+			oldCts?.Dispose();
+		}
 
 		var effectiveFen = fen;
 		if (!effectiveFen.HasValue)
@@ -162,8 +172,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 			effectiveFen = await _quick.GetCurrentFenAsync(_bestCts.Token).ConfigureAwait(false);
 			if (!effectiveFen.HasValue)
 			{
-				var ctsToDispose = _bestCts;
-				_bestCts = null;
+				var ctsToDispose = Interlocked.Exchange(ref _bestCts, null);
 				ctsToDispose?.Dispose();
 				return;
 			}
@@ -201,7 +210,21 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	public async Task StopSearchAsync(CancellationToken ct = default)
 	{
-		_bestCts?.Cancel();
+		// Atomically get and clear the cancellation token source
+		var cts = Interlocked.Exchange(ref _bestCts, null);
+		try
+		{
+			cts?.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling
+		}
+		finally
+		{
+			cts?.Dispose();
+		}
+
 		try
 		{
 			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
@@ -252,13 +275,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 		// Start background classification (events will propagate results)
 		if (effectiveFen.HasValue)
 		{
-			// Cancel previous classification task if it exists
-			var oldClassificationCts = _classificationCts;
-			_classificationCts?.Cancel();
-			oldClassificationCts?.Dispose();
-
 			// Create new cancellation token source for this classification task
-			_classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			// (ClearState() already canceled and disposed the previous one)
+			var oldClassificationCts = Interlocked.Exchange(ref _classificationCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
+			// Dispose any old CTS that might have been set concurrently (should be null after ClearState)
+			oldClassificationCts?.Dispose();
 
 			// Fire-and-forget move classifier (listeners handle events)
 			_ = Task.Run(
@@ -324,13 +345,20 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_classifier.AllMovesClassified -= OnClassifierAllMovesClassified;
 
 		// Dispose cancellation token sources
-		_bestCts?.Cancel();
-		_bestCts?.Dispose();
-		_bestCts = null;
-
-		_classificationCts?.Cancel();
-		_classificationCts?.Dispose();
-		_classificationCts = null;
+		// (ClearState() already handled _classificationCts)
+		var bestCts = Interlocked.Exchange(ref _bestCts, null);
+		try
+		{
+			bestCts?.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling
+		}
+		finally
+		{
+			bestCts?.Dispose();
+		}
 
 		await _classifier.DisposeAsync();
 		await _ponder.DisposeAsync();
@@ -373,10 +401,20 @@ public sealed class UciCoordinator : IAsyncDisposable
 	{
 		_classifier.StopClassification();
 
-		var oldClassificationCts = _classificationCts;
-		_classificationCts?.Cancel();
-		oldClassificationCts?.Dispose();
-		_classificationCts = null;
+		// Atomically get and clear the classification cancellation token source
+		var oldClassificationCts = Interlocked.Exchange(ref _classificationCts, null);
+		try
+		{
+			oldClassificationCts?.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling
+		}
+		finally
+		{
+			oldClassificationCts?.Dispose();
+		}
 
 		lock (_sync)
 		{
