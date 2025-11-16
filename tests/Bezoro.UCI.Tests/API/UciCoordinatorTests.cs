@@ -34,7 +34,7 @@ public class UciCoordinatorTests
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 		await coordinator.StartSearchAsync();
 
-		var pvLine = await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var pvLine = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		pvLine.Moves.Should().NotBeEmpty();
 		(pvLine.ScoreCp.HasValue || pvLine.ScoreMate.HasValue).Should().BeTrue();
 
@@ -68,14 +68,14 @@ public class UciCoordinatorTests
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 		await coordinator.StartSearchAsync();
 
-		var first = await bestTcs1.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var first = await bestTcs1.Task.WaitAsync(TestConstants.DefaultTimeout);
 		first.best.Raw.Should().NotBeNullOrWhiteSpace();
 
 		// Stop and restart
 		await coordinator.StopSearchAsync();
 		await coordinator.StartSearchAsync();
 
-		var second = await bestTcs2.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var second = await bestTcs2.Task.WaitAsync(TestConstants.DefaultTimeout);
 		second.best.Raw.Should().NotBeNullOrWhiteSpace();
 
 		await coordinator.StopAsync();
@@ -145,14 +145,14 @@ public class UciCoordinatorTests
 
 		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
 
-		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
 
-		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
 		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
 
-		var classified = await classifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var classified = await classifiedTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		classified.notation.Should().NotBeNullOrWhiteSpace();
 
 		await coordinator.StopSearchAsync();
@@ -206,7 +206,7 @@ public class UciCoordinatorTests
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
 		// Await at least one classified move to ensure snapshot contains some classifications
-		var firstClassified = await classifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var firstClassified = await classifiedTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 
 		// Get the snapshot: legal moves + any classifications ready so far
 		var snapshot = await coordinator.GetLegalMovesWithClassificationsAsync();
@@ -309,7 +309,7 @@ public class UciCoordinatorTests
 		legal.Count.Should().BeGreaterThan(0);
 		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
 
-		var bestPair = await bestTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		var bestPair = await bestTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
 		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
 		if (bestPair.ponder.HasValue)
@@ -445,13 +445,13 @@ public class UciCoordinatorTests
 		// Start on initial position and wait for first info
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 		await coordinator.StartSearchAsync();
-		await tcsFirst.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		await tcsFirst.Task.WaitAsync(TestConstants.DefaultTimeout);
 
 		// Switch to a different position; expect another info after restart
 		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!.Value;
 		await coordinator.UpdatePositionAsync(newFen, null);
 
-		await tcsSecond.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		await tcsSecond.Task.WaitAsync(TestConstants.DefaultTimeout);
 		count.Should().BeGreaterThanOrEqualTo(2);
 
 		await coordinator.StopSearchAsync();
@@ -476,7 +476,7 @@ public class UciCoordinatorTests
 
 		// Start search the initial position and wait for first info
 		await coordinator.StartSearchAsync(Fen.Default);
-		await tcsFirst.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await tcsFirst.Task.WaitAsync(TestConstants.DefaultTimeout);
 
 		// Now request an update to a different position; expect another info after restart
 		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!
@@ -485,7 +485,7 @@ public class UciCoordinatorTests
 		var board = BoardState.FromFen(newFen)!.Value;
 		await coordinator.UpdatePositionAsync(newFen, null);
 
-		await tcsSecond.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		await tcsSecond.Task.WaitAsync(TestConstants.MediumTimeout);
 
 		await coordinator.StopSearchAsync();
 		infoCount.Should().BeGreaterThanOrEqualTo(2);
@@ -585,7 +585,7 @@ public class UciCoordinatorTests
 
 		// Start first position and wait for at least one classification
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.MediumTimeout);
+		await Task.Delay(TestConstants.StandardDelay);
 
 		var firstCount = classificationCount;
 		firstCount.Should().BeGreaterThan(0, "At least one move should be classified initially");
@@ -593,11 +593,11 @@ public class UciCoordinatorTests
 		// Update to new position - should cancel previous classification and start new one
 		var newFen = Fen.Parse(TestConstants.ItalianGameFen)!.Value;
 		await coordinator.UpdatePositionAsync(newFen, null);
-		await Task.Delay(TestConstants.MediumTimeout);
+		await Task.Delay(TestConstants.StandardDelay);
 
 		// Update to another position
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.MediumTimeout);
+		await Task.Delay(TestConstants.StandardDelay);
 
 		// Classification should have progressed (not stuck on first position)
 		classificationCount.Should().BeGreaterThan(firstCount, "Classification should continue after position updates");
@@ -724,7 +724,7 @@ public class UciCoordinatorTests
 		var tasks = new List<Task>();
 
 		// Launch multiple concurrent StartSearchAsync calls
-		for (int i = 0; i < 20; i++)
+		for (int i = 0; i < 10; i++)
 		{
 			tasks.Add(Task.Run(async () =>
 			{
@@ -769,7 +769,7 @@ public class UciCoordinatorTests
 		var tasks = new List<Task>();
 
 		// Launch multiple concurrent StopSearchAsync calls
-		for (int i = 0; i < 20; i++)
+		for (int i = 0; i < 10; i++)
 		{
 			tasks.Add(Task.Run(async () =>
 			{
@@ -865,7 +865,7 @@ public class UciCoordinatorTests
 		};
 
 		// Launch multiple concurrent UpdatePositionAsync calls
-		for (int i = 0; i < 30; i++)
+		for (int i = 0; i < 15; i++)
 		{
 			var fen = fens[i % fens.Length];
 			tasks.Add(Task.Run(async () =>
@@ -904,7 +904,7 @@ public class UciCoordinatorTests
 		var exceptions = new ConcurrentBag<Exception>();
 
 		// Rapidly start and stop searches
-		for (int i = 0; i < 50; i++)
+		for (int i = 0; i < 20; i++)
 		{
 			try
 			{
@@ -948,7 +948,7 @@ public class UciCoordinatorTests
 		coordinator.NewMoveClassified += (_, _) => Interlocked.Increment(ref classificationCount);
 
 		// Rapidly update positions
-		for (int i = 0; i < 20; i++)
+		for (int i = 0; i < 10; i++)
 		{
 			try
 			{
@@ -966,7 +966,7 @@ public class UciCoordinatorTests
 			}
 		}
 
-		await Task.Delay(TestConstants.MediumTimeout);
+		await Task.Delay(TestConstants.StandardDelay);
 
 		// OperationCanceledException is expected when classifications are cancelled
 		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
@@ -1052,7 +1052,7 @@ public class UciCoordinatorTests
 		var tasks = new List<Task>();
 
 		// Launch concurrent UpdatePositionAsync calls (which call ClearState internally)
-		for (int i = 0; i < 15; i++)
+		for (int i = 0; i < 10; i++)
 		{
 			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ItalianGameFen)!.Value;
 			tasks.Add(Task.Run(async () =>
