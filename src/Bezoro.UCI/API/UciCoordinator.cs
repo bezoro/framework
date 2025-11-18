@@ -255,6 +255,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_classifier.StopClassification();
 		ClearState();
 
+		lock (_sync)
+		{
+			_currentLegalMoves = null;
+		}
+
 		// Set the position and publish legal moves
 		await _quick.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
 		// Keep ponder engine synchronized with the quick engine position
@@ -465,7 +470,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			legal = _currentLegalMoves;
 		}
-		if (legal != null && !legal.Contains(move.Notation))
+
+		if (legal == null || !legal.Contains(move.Notation))
 			return;
 
 		lock (_sync)
