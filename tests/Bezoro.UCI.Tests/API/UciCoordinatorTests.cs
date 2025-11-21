@@ -78,6 +78,312 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task ClearState_WhenCalled_CancelsClassificationTokenSource()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var classificationStarted = false;
+
+		coordinator.NewMoveClassified += (_, _) => { classificationStarted = true; };
+
+		// Start classification
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.MediumDelay);
+
+		// ClearState should cancel classification
+		// This is called internally by UpdatePositionAsync, but we can verify it works
+		await coordinator.UpdatePositionAsync(Fen.Parse(TestConstants.ItalianGameFen)!.Value, null);
+
+		// Wait to see if previous classification continues (it shouldn't)
+		await Task.Delay(TestConstants.MediumDelay);
+
+		// Classification should have started
+		classificationStarted.Should().BeTrue("Classification should have started");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task ClearState_WhenCalledConcurrently_IsThreadSafe()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Set up initial state
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		var exceptions = new ConcurrentBag<Exception>();
+		var tasks      = new List<Task>();
+
+		// Launch concurrent UpdatePositionAsync calls (which call ClearState internally)
+		for (var i = 0; i < 10; i++)
+		{
+			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ItalianGameFen)!.Value;
+			tasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await coordinator.UpdatePositionAsync(fen, null);
+						await Task.Delay(TestConstants.VeryShortDelay);
+					}
+					catch (OperationCanceledException)
+					{
+						// Expected when previous classification is cancelled
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		await Task.WhenAll(tasks);
+
+		// OperationCanceledException is expected when classifications are cancelled
+		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
+		unexpectedExceptions.Should()
+							.BeEmpty(
+								"Concurrent ClearState operations (via UpdatePositionAsync) should be thread-safe");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task CurrentLegalMoves_WhenAccessedConcurrently_IsThreadSafe()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// Concurrent reads and writes
+		var tasks      = new List<Task>();
+		var exceptions = new ConcurrentBag<Exception>();
+
+		for (var i = 0; i < 10; i++)
+		{
+			int taskId = i;
+			tasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						for (var j = 0; j < 10; j++)
+						{
+							var moves = coordinator.CurrentLegalMoves;
+							await Task.Delay(1);
+							// moves can be null during position updates, checking for thread-safety (no exceptions)
+						}
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		// Also update position concurrently
+		tasks.Add(
+			Task.Run(async () =>
+			{
+				try
+				{
+					for (var i = 0; i < 5; i++)
+					{
+						await coordinator.UpdatePositionAsync(Fen.Default, null);
+						await Task.Delay(TestConstants.ShortDelay);
+					}
+				}
+				catch (Exception ex)
+				{
+					exceptions.Add(ex);
+				}
+			}));
+
+		await Task.WhenAll(tasks);
+
+		exceptions.Should().BeEmpty("No exceptions should occur during concurrent access");
+		coordinator.CurrentLegalMoves.Should()
+				   .NotBeNull("CurrentLegalMoves should still be accessible after concurrent operations");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task DisposeAsync_DisposesAllCancellationTokenSources()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start search to create _bestCts
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Update position to create _classificationCts
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Dispose should clean up both token sources
+		await coordinator.DisposeAsync();
+
+		// If we got here without exceptions, disposal worked
+		// This test verifies that DisposeAsync doesn't throw when disposing token sources
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenCalled_UnsubscribesFromEngineEvents()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var ponderInfoCount         = 0;
+		var bestMoveCount           = 0;
+		var moveClassifiedCount     = 0;
+		var allMovesClassifiedCount = 0;
+
+		coordinator.PonderInfo         += _ => ponderInfoCount++;
+		coordinator.PonderBestMove     += (_, _) => bestMoveCount++;
+		coordinator.NewMoveClassified  += (_, _) => moveClassifiedCount++;
+		coordinator.AllMovesClassified += _ => allMovesClassifiedCount++;
+
+		// Start some operations
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Stop operations before disposing to prevent events from firing during disposal
+		await coordinator.StopAsync();
+
+		// Capture counts before dispose
+		int ponderInfoBefore         = ponderInfoCount;
+		int bestMoveBefore           = bestMoveCount;
+		int moveClassifiedBefore     = moveClassifiedCount;
+		int allMovesClassifiedBefore = allMovesClassifiedCount;
+
+		// Dispose should unsubscribe from events
+		await coordinator.DisposeAsync();
+
+		// Wait a bit to see if any events fire after dispose
+		await Task.Delay(TestConstants.MediumDelay);
+
+		// Counts should not have increased after dispose
+		ponderInfoCount.Should().Be(ponderInfoBefore, "PonderInfo should not fire after dispose");
+		bestMoveCount.Should().Be(bestMoveBefore, "PonderBestMove should not fire after dispose");
+		moveClassifiedCount.Should().Be(moveClassifiedBefore, "NewMoveClassified should not fire after dispose");
+		allMovesClassifiedCount.Should().Be(
+			allMovesClassifiedBefore,
+			"AllMovesClassified should not fire after dispose");
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenCalledWithActiveSearches_DisposesAllTokenSourcesSafely()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start search to create _bestCts
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Update position to create _classificationCts
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Start another search concurrently before disposing
+		var searchTask = Task.Run(async () =>
+		{
+			try
+			{
+				await coordinator.StartSearchAsync(Fen.Default);
+			}
+			catch (OperationCanceledException)
+			{
+				// Expected to be cancelled during disposal
+			}
+			catch (ObjectDisposedException)
+			{
+				// Expected during disposal
+			}
+		});
+
+		// Dispose while operations are active
+		await Task.Delay(TestConstants.VeryShortDelay);
+
+		var disposeExceptions = new ConcurrentBag<Exception>();
+		try
+		{
+			await coordinator.DisposeAsync();
+		}
+		catch (Exception ex)
+		{
+			disposeExceptions.Add(ex);
+		}
+
+		// Wait for the search task to complete (should be cancelled or complete)
+		try
+		{
+			await searchTask.WaitAsync(TestConstants.DefaultTimeout);
+		}
+		catch (TimeoutException)
+		{
+			// Task might still be running, which is acceptable
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected if task was cancelled
+		}
+
+		// Dispose should not throw exceptions
+		disposeExceptions.Should().BeEmpty("DisposeAsync should handle concurrent operations without throwing");
+	}
+
+	[Fact]
+	public async Task FullGame_ScholarMate_ValidatesFlow()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Scholar's Mate sequence:
+		// 1. e2e4 e7e5
+		// 2. d1h5 b8c6
+		// 3. f1c4 g8f6
+		// 4. h5f7#
+		string[] moves =
+		[
+			"e2e4",
+			"e7e5",
+			"d1h5",
+			"b8c6",
+			"f1c4",
+			"g8f6",
+			"h5f7"
+		];
+
+		var currentMoves = new List<string>();
+
+		foreach (string move in moves)
+		{
+			// Verify we have legal moves and the move we want to play is in them
+			var legalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
+			legalMoves.Legal.Should().Contain(m => m.Raw == move);
+
+			// Apply the move
+			currentMoves.Add(move);
+			await coordinator.UpdatePositionAsync(Fen.Default, currentMoves);
+		}
+
+		var finalLegalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
+		var finalFen        = await coordinator.GetCurrentFenAsync();
+		finalFen?.ActiveColor.Should().Be('b', "It should be Black's turn now");
+		finalFen?.Checkers.Should().NotBeEmpty();
+		finalLegalMoves.Legal.Should().BeEmpty("Black should be checkmated and have no legal moves");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task FullTurn_WhiteE2E4_ThenBlackResponse_ValidatesApi()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
@@ -397,6 +703,223 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task StartSearchAsync_And_StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var exceptions = new ConcurrentBag<Exception>();
+		var startTasks = new List<Task>();
+		var stopTasks  = new List<Task>();
+
+		// Launch concurrent StartSearchAsync calls
+		for (var i = 0; i < 10; i++)
+		{
+			startTasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await coordinator.StartSearchAsync(Fen.Default);
+						await Task.Delay(TestConstants.VeryShortDelay);
+					}
+					catch (OperationCanceledException)
+					{
+						// Expected when StopSearchAsync cancels the operation
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		// Launch concurrent StopSearchAsync calls
+		for (var i = 0; i < 10; i++)
+		{
+			stopTasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await Task.Delay(TestConstants.VeryShortDelay);
+						await coordinator.StopSearchAsync();
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		await Task.WhenAll(startTasks);
+		await Task.WhenAll(stopTasks);
+
+		// Filter out expected OperationCanceledException - only unexpected exceptions should be present
+		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
+		unexpectedExceptions.Should().BeEmpty(
+			"Concurrent StartSearchAsync and StopSearchAsync should be thread-safe (OperationCanceledException is expected)");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var exceptions = new ConcurrentBag<Exception>();
+		var tasks      = new List<Task>();
+
+		// Launch multiple concurrent StartSearchAsync calls
+		for (var i = 0; i < 10; i++)
+		{
+			tasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await coordinator.StartSearchAsync(Fen.Default);
+						await Task.Delay(TestConstants.VeryShortDelay);
+					}
+					catch (OperationCanceledException)
+					{
+						// Expected when operations are cancelled
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		await Task.WhenAll(tasks);
+
+		// Should not have any ObjectDisposedException or InvalidOperationException
+		// OperationCanceledException is expected and acceptable
+		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
+		unexpectedExceptions.Should().BeEmpty("Concurrent StartSearchAsync calls should not cause disposal errors");
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCalledMultipleTimes_DisposesOldCancellationTokens()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start first search
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Start second search - should dispose old token
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Start third search - should dispose previous token
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// If we got here without exceptions, disposal is working
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCalledMultipleTimesRapidly_ProperlyDisposesOldTokens()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var exceptions = new ConcurrentBag<Exception>();
+
+		// Rapidly start and stop searches
+		for (var i = 0; i < 20; i++)
+		{
+			try
+			{
+				await coordinator.StartSearchAsync(Fen.Default);
+				await Task.Delay(TestConstants.VeryShortDelay);
+				await coordinator.StopSearchAsync();
+				await Task.Delay(TestConstants.VeryShortDelay);
+			}
+			catch (OperationCanceledException)
+			{
+				// Expected when operations are cancelled
+			}
+			catch (Exception ex)
+			{
+				exceptions.Add(ex);
+			}
+		}
+
+		// OperationCanceledException is expected and acceptable
+		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
+		unexpectedExceptions.Should()
+							.BeEmpty("Rapid StartSearchAsync/StopSearchAsync cycles should properly dispose tokens");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenEffectiveFenIsNull_DisposesCancellationToken()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Set an invalid position that will cause GetCurrentFenAsync to return null
+		// This tests the early return path where effectiveFen is null
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// Try to start search without FEN - should handle null FEN gracefully
+		// Note: This may not actually return null in practice, but tests the code path
+		await coordinator.StartSearchAsync();
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start a search first
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		var exceptions = new ConcurrentBag<Exception>();
+		var tasks      = new List<Task>();
+
+		// Launch multiple concurrent StopSearchAsync calls
+		for (var i = 0; i < 10; i++)
+		{
+			tasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await coordinator.StopSearchAsync();
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
+
+		await Task.WhenAll(tasks);
+
+		exceptions.Should().BeEmpty("Concurrent StopSearchAsync calls should be thread-safe");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task UpdatePositionAsync_RaisesLegalMovesUpdated_Immediately()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
@@ -488,86 +1011,51 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenCalledMultipleTimes_DisposesOldCancellationTokens()
+	public async Task UpdatePositionAsync_WhenCalledConcurrently_HandlesClassificationTokenSourceSafely()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		// Start first search
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
+		var exceptions = new ConcurrentBag<Exception>();
+		var tasks      = new List<Task>();
+		var fens = new[]
+		{
+			Fen.Default,
+			Fen.Parse(TestConstants.ItalianGameFen)!.Value,
+			Fen.Parse(TestConstants.AfterE2E4Fen)!.Value
+		};
 
-		// Start second search - should dispose old token
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
+		// Launch multiple concurrent UpdatePositionAsync calls
+		for (var i = 0; i < 15; i++)
+		{
+			var fen = fens[i % fens.Length];
+			tasks.Add(
+				Task.Run(async () =>
+				{
+					try
+					{
+						await coordinator.UpdatePositionAsync(fen, null);
+						await Task.Delay(TestConstants.VeryShortDelay);
+					}
+					catch (OperationCanceledException)
+					{
+						// Expected when previous classification is cancelled
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
+					}
+				}));
+		}
 
-		// Start third search - should dispose previous token
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
+		await Task.WhenAll(tasks);
 
-		// If we got here without exceptions, disposal is working
-		await coordinator.StopSearchAsync();
+		// OperationCanceledException is expected when classifications are cancelled
+		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
+		unexpectedExceptions.Should()
+							.BeEmpty("Concurrent UpdatePositionAsync calls should handle _classificationCts safely");
+
 		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenEffectiveFenIsNull_DisposesCancellationToken()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Set an invalid position that will cause GetCurrentFenAsync to return null
-		// This tests the early return path where effectiveFen is null
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		
-		// Try to start search without FEN - should handle null FEN gracefully
-		// Note: This may not actually return null in practice, but tests the code path
-		await coordinator.StartSearchAsync(null);
-		
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task DisposeAsync_WhenCalled_UnsubscribesFromEngineEvents()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var ponderInfoCount = 0;
-		var bestMoveCount = 0;
-		var moveClassifiedCount = 0;
-		var allMovesClassifiedCount = 0;
-
-		coordinator.PonderInfo += _ => ponderInfoCount++;
-		coordinator.PonderBestMove += (_, _) => bestMoveCount++;
-		coordinator.NewMoveClassified += (_, _) => moveClassifiedCount++;
-		coordinator.AllMovesClassified += _ => allMovesClassifiedCount++;
-
-		// Start some operations
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Stop operations before disposing to prevent events from firing during disposal
-		await coordinator.StopAsync();
-
-		// Capture counts before dispose
-		var ponderInfoBefore = ponderInfoCount;
-		var bestMoveBefore = bestMoveCount;
-		var moveClassifiedBefore = moveClassifiedCount;
-		var allMovesClassifiedBefore = allMovesClassifiedCount;
-
-		// Dispose should unsubscribe from events
-		await coordinator.DisposeAsync();
-
-		// Wait a bit to see if any events fire after dispose
-		await Task.Delay(TestConstants.MediumDelay);
-
-		// Counts should not have increased after dispose
-		ponderInfoCount.Should().Be(ponderInfoBefore, "PonderInfo should not fire after dispose");
-		bestMoveCount.Should().Be(bestMoveBefore, "PonderBestMove should not fire after dispose");
-		moveClassifiedCount.Should().Be(moveClassifiedBefore, "NewMoveClassified should not fire after dispose");
-		allMovesClassifiedCount.Should().Be(allMovesClassifiedBefore, "AllMovesClassified should not fire after dispose");
 	}
 
 	[Fact]
@@ -583,7 +1071,7 @@ public class UciCoordinatorTests
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 		await Task.Delay(TestConstants.StandardDelay);
 
-		var firstCount = classificationCount;
+		int firstCount = classificationCount;
 		firstCount.Should().BeGreaterThan(0, "At least one move should be classified initially");
 
 		// Update to new position - should cancel previous classification and start new one
@@ -597,332 +1085,7 @@ public class UciCoordinatorTests
 
 		// Classification should have progressed (not stuck on first position)
 		classificationCount.Should().BeGreaterThan(firstCount, "Classification should continue after position updates");
-		
-		await coordinator.StopAsync();
-	}
 
-	[Fact]
-	public async Task CurrentLegalMoves_WhenAccessedConcurrently_IsThreadSafe()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		// Concurrent reads and writes
-		var tasks = new List<Task>();
-		var exceptions = new ConcurrentBag<Exception>();
-
-		for (int i = 0; i < 10; i++)
-		{
-			var taskId = i;
-			tasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					for (int j = 0; j < 10; j++)
-					{
-						var moves = coordinator.CurrentLegalMoves;
-						await Task.Delay(1);
-						// moves can be null during position updates, checking for thread-safety (no exceptions)
-					}
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		// Also update position concurrently
-		tasks.Add(Task.Run(async () =>
-		{
-			try
-			{
-				for (int i = 0; i < 5; i++)
-				{
-					await coordinator.UpdatePositionAsync(Fen.Default, null);
-					await Task.Delay(TestConstants.ShortDelay);
-				}
-			}
-			catch (Exception ex)
-			{
-				exceptions.Add(ex);
-			}
-		}));
-
-		await Task.WhenAll(tasks);
-
-		exceptions.Should().BeEmpty("No exceptions should occur during concurrent access");
-		coordinator.CurrentLegalMoves.Should().NotBeNull("CurrentLegalMoves should still be accessible after concurrent operations");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task DisposeAsync_DisposesAllCancellationTokenSources()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start search to create _bestCts
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Update position to create _classificationCts
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Dispose should clean up both token sources
-		await coordinator.DisposeAsync();
-
-		// If we got here without exceptions, disposal worked
-		// This test verifies that DisposeAsync doesn't throw when disposing token sources
-	}
-
-	[Fact]
-	public async Task ClearState_WhenCalled_CancelsClassificationTokenSource()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var classificationStarted = false;
-
-		coordinator.NewMoveClassified += (_, _) =>
-		{
-			classificationStarted = true;
-		};
-
-		// Start classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.MediumDelay);
-
-		// ClearState should cancel classification
-		// This is called internally by UpdatePositionAsync, but we can verify it works
-		await coordinator.UpdatePositionAsync(Fen.Parse(TestConstants.ItalianGameFen)!.Value, null);
-		
-		// Wait to see if previous classification continues (it shouldn't)
-		await Task.Delay(TestConstants.MediumDelay);
-
-		// Classification should have started
-		classificationStarted.Should().BeTrue("Classification should have started");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks = new List<Task>();
-
-		// Launch multiple concurrent StartSearchAsync calls
-		for (int i = 0; i < 10; i++)
-		{
-			tasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await coordinator.StartSearchAsync(Fen.Default);
-					await Task.Delay(TestConstants.VeryShortDelay);
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when operations are cancelled
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		// Should not have any ObjectDisposedException or InvalidOperationException
-		// OperationCanceledException is expected and acceptable
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Concurrent StartSearchAsync calls should not cause disposal errors");
-		
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start a search first
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks = new List<Task>();
-
-		// Launch multiple concurrent StopSearchAsync calls
-		for (int i = 0; i < 10; i++)
-		{
-			tasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await coordinator.StopSearchAsync();
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		exceptions.Should().BeEmpty("Concurrent StopSearchAsync calls should be thread-safe");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_And_StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var startTasks = new List<Task>();
-		var stopTasks = new List<Task>();
-
-		// Launch concurrent StartSearchAsync calls
-		for (int i = 0; i < 10; i++)
-		{
-			startTasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await coordinator.StartSearchAsync(Fen.Default);
-					await Task.Delay(TestConstants.VeryShortDelay);
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when StopSearchAsync cancels the operation
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		// Launch concurrent StopSearchAsync calls
-		for (int i = 0; i < 10; i++)
-		{
-			stopTasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await Task.Delay(TestConstants.VeryShortDelay);
-					await coordinator.StopSearchAsync();
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		await Task.WhenAll(startTasks);
-		await Task.WhenAll(stopTasks);
-
-		// Filter out expected OperationCanceledException - only unexpected exceptions should be present
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Concurrent StartSearchAsync and StopSearchAsync should be thread-safe (OperationCanceledException is expected)");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalledConcurrently_HandlesClassificationTokenSourceSafely()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks = new List<Task>();
-		var fens = new[]
-		{
-			Fen.Default,
-			Fen.Parse(TestConstants.ItalianGameFen)!.Value,
-			Fen.Parse(TestConstants.AfterE2E4Fen)!.Value
-		};
-
-		// Launch multiple concurrent UpdatePositionAsync calls
-		for (int i = 0; i < 15; i++)
-		{
-			var fen = fens[i % fens.Length];
-			tasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await coordinator.UpdatePositionAsync(fen, null);
-					await Task.Delay(TestConstants.VeryShortDelay);
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when previous classification is cancelled
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		// OperationCanceledException is expected when classifications are cancelled
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Concurrent UpdatePositionAsync calls should handle _classificationCts safely");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledMultipleTimesRapidly_ProperlyDisposesOldTokens()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-
-		// Rapidly start and stop searches
-		for (int i = 0; i < 20; i++)
-		{
-			try
-			{
-				await coordinator.StartSearchAsync(Fen.Default);
-				await Task.Delay(TestConstants.VeryShortDelay);
-				await coordinator.StopSearchAsync();
-				await Task.Delay(TestConstants.VeryShortDelay);
-			}
-			catch (OperationCanceledException)
-			{
-				// Expected when operations are cancelled
-			}
-			catch (Exception ex)
-			{
-				exceptions.Add(ex);
-			}
-		}
-
-		// OperationCanceledException is expected and acceptable
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Rapid StartSearchAsync/StopSearchAsync cycles should properly dispose tokens");
-		
 		await coordinator.StopAsync();
 	}
 
@@ -932,7 +1095,7 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		var exceptions = new ConcurrentBag<Exception>();
+		var exceptions          = new ConcurrentBag<Exception>();
 		var classificationCount = 0;
 		var fens = new[]
 		{
@@ -944,7 +1107,7 @@ public class UciCoordinatorTests
 		coordinator.NewMoveClassified += (_, _) => Interlocked.Increment(ref classificationCount);
 
 		// Rapidly update positions
-		for (int i = 0; i < 10; i++)
+		for (var i = 0; i < 10; i++)
 		{
 			try
 			{
@@ -966,196 +1129,10 @@ public class UciCoordinatorTests
 
 		// OperationCanceledException is expected when classifications are cancelled
 		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Rapid UpdatePositionAsync calls should properly cancel previous classifications");
+		unexpectedExceptions.Should()
+							.BeEmpty("Rapid UpdatePositionAsync calls should properly cancel previous classifications");
+
 		classificationCount.Should().BeGreaterThan(0, "At least some classifications should complete");
-		
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task DisposeAsync_WhenCalledWithActiveSearches_DisposesAllTokenSourcesSafely()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start search to create _bestCts
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Update position to create _classificationCts
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Start another search concurrently before disposing
-		var searchTask = Task.Run(async () =>
-		{
-			try
-			{
-				await coordinator.StartSearchAsync(Fen.Default);
-			}
-			catch (OperationCanceledException)
-			{
-				// Expected to be cancelled during disposal
-			}
-			catch (ObjectDisposedException)
-			{
-				// Expected during disposal
-			}
-		});
-
-		// Dispose while operations are active
-		await Task.Delay(TestConstants.VeryShortDelay);
-		
-		var disposeExceptions = new ConcurrentBag<Exception>();
-		try
-		{
-			await coordinator.DisposeAsync();
-		}
-		catch (Exception ex)
-		{
-			disposeExceptions.Add(ex);
-		}
-
-		// Wait for the search task to complete (should be cancelled or complete)
-		try
-		{
-			await searchTask.WaitAsync(TestConstants.DefaultTimeout);
-		}
-		catch (TimeoutException)
-		{
-			// Task might still be running, which is acceptable
-		}
-		catch (OperationCanceledException)
-		{
-			// Expected if task was cancelled
-		}
-
-		// Dispose should not throw exceptions
-		disposeExceptions.Should().BeEmpty("DisposeAsync should handle concurrent operations without throwing");
-	}
-
-	[Fact]
-	public async Task ClearState_WhenCalledConcurrently_IsThreadSafe()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Set up initial state
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks = new List<Task>();
-
-		// Launch concurrent UpdatePositionAsync calls (which call ClearState internally)
-		for (int i = 0; i < 10; i++)
-		{
-			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ItalianGameFen)!.Value;
-			tasks.Add(Task.Run(async () =>
-			{
-				try
-				{
-					await coordinator.UpdatePositionAsync(fen, null);
-					await Task.Delay(TestConstants.VeryShortDelay);
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when previous classification is cancelled
-				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		// OperationCanceledException is expected when classifications are cancelled
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Concurrent ClearState operations (via UpdatePositionAsync) should be thread-safe");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task FullGame_ScholarMate_ValidatesFlow()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Scholar's Mate sequence:
-		// 1. e2e4 e7e5
-		// 2. d1h5 b8c6
-		// 3. f1c4 g8f6
-		// 4. h5f7#
-		string[] moves = new[]
-		{
-			"e2e4",
-			"e7e5",
-			"d1h5",
-			"b8c6",
-			"f1c4",
-			"g8f6",
-			"h5f7"
-		};
-
-		var currentMoves = new List<string>();
-
-		// Initial position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		for (var i = 0; i < moves.Length; i++)
-		{
-			string move        = moves[i];
-			bool   isWhite     = i % 2 == 0;
-			bool   isCheckmate = i == moves.Length - 1;
-
-			// Wait for legal moves to update for the current side
-			var legalTcs =
-				new TaskCompletionSource<IReadOnlyCollection<string>>(
-					TaskCreationOptions.RunContinuationsAsynchronously);
-
-			coordinator.LegalMovesUpdated += m =>
-			{
-				if (m != null && m.Count > 0)
-					legalTcs.TrySetResult(m);
-				else if (m != null && m.Count == 0 && isCheckmate)
-					legalTcs.TrySetResult(m);
-			};
-
-			// If we just made a move, we need to wait for the engine to acknowledge the new position and give us legal moves
-			// But we already called UpdatePositionAsync for the *previous* state (or initial).
-			// So we should already have legal moves for the *current* turn.
-
-			// Actually, let's just verify the move we want to make is legal (unless it's checkmate, then we verify 0 moves)
-			// Note: The coordinator might have already fired LegalMovesUpdated before we subscribed if we are not careful.
-			// But here we are in a loop.
-
-			// Let's do it this way:
-			// 1. We are at a position.
-			// 2. We verify we have legal moves and the move we want to play is in them.
-			// 3. We play the move (UpdatePosition).
-
-			var legalMoves = await coordinator.GetLegalMovesAsync();
-
-			if (isCheckmate)
-				// It's checkmate, so there should be NO legal moves (or empty)
-				// Wait, h5f7 is the move that CAUSES checkmate.
-				// So at this point (before playing h5f7), it is White's turn, and h5f7 MUST be legal.
-				legalMoves.Should().Contain(move);
-			else
-				legalMoves.Should().Contain(move);
-
-			// Apply the move
-			currentMoves.Add(move);
-			await coordinator.UpdatePositionAsync(Fen.Default, currentMoves);
-		}
-
-		// After the last move (h5f7), it is Black's turn and they are checkmated.
-		// So legal moves should be empty.
-		var finalLegal = await coordinator.GetLegalMovesAsync();
-		finalLegal.Should().BeEmpty();
 
 		await coordinator.StopAsync();
 	}
