@@ -113,7 +113,11 @@ internal sealed class UciEngineCommandModule(
 		}
 		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
 		{
+#if NETSTANDARD || NETSTANDARD2_0 || NETSTANDARD2_1
+			checkersCts.Cancel();
+#else
 			await checkersCts.CancelAsync();
+#endif
 			return null;
 		}
 
