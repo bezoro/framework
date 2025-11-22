@@ -363,11 +363,39 @@ public class UciCoordinatorTests
 
 		var currentMoves = new List<string>();
 
+		// Initial position update to start classification
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
 		foreach (string move in moves)
 		{
+			// Wait for the move to be classified
+			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			void OnNewMoveClassified(string notation, Move _)
+			{
+				if (notation == move) tcs.TrySetResult(true);
+			}
+
+			coordinator.NewMoveClassified += OnNewMoveClassified;
+
+			try
+			{
+				// Check if already classified
+				var snapshot = await coordinator.GetLegalMovesWithClassificationsAsync();
+				if (snapshot.Classified.Values.Any(m => m.Notation == move)) tcs.TrySetResult(true);
+
+				// Wait for classification if not yet ready
+				await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+			}
+			finally
+			{
+				coordinator.NewMoveClassified -= OnNewMoveClassified;
+			}
+
 			// Verify we have legal moves and the move we want to play is in them
 			var legalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
 			legalMoves.Legal.Should().Contain(m => m.Raw == move);
+			legalMoves.Classified.Values.Should().Contain(m => m.Notation == move);
 
 			// Apply the move
 			currentMoves.Add(move);
@@ -376,9 +404,11 @@ public class UciCoordinatorTests
 
 		var finalLegalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
 		var finalFen        = await coordinator.GetCurrentFenAsync();
+
 		finalFen?.ActiveColor.Should().Be('b', "It should be Black's turn now");
 		finalFen?.Checkers.Should().NotBeEmpty();
 		finalLegalMoves.Legal.Should().BeEmpty("Black should be checkmated and have no legal moves");
+		finalLegalMoves.Classified.Should().BeEmpty("Black should be checkmated and have no classified moves");
 
 		await coordinator.StopAsync();
 	}
