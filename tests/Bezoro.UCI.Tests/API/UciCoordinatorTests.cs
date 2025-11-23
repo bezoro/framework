@@ -861,6 +861,42 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task MoveCallbacks_WhenActionsPerformed_AreInvoked()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start with default position
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		string? madeMove   = null;
+		string? undoneMove = null;
+
+		coordinator.MoveMade   += m => madeMove   = m;
+		coordinator.MoveUndone += m => undoneMove = m;
+
+		// Make a move
+		await coordinator.MakeMoveAsync("e2e4");
+
+		madeMove.Should().Be("e2e4");
+		undoneMove.Should().BeNull();
+
+		// Undo the move
+		await coordinator.UndoLastMoveAsync();
+
+		undoneMove.Should().Be("e2e4");
+
+		// Reset and try another move
+		madeMove   = null;
+		undoneMove = null;
+
+		await coordinator.MakeMoveAsync("d2d4");
+		madeMove.Should().Be("d2d4");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);

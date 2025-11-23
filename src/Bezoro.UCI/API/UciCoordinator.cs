@@ -46,6 +46,16 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public event Action<string, Move>? NewMoveClassified;
 
 	/// <summary>
+	/// Raised when a move is explicitly made via <see cref="MakeMoveAsync"/>.
+	/// </summary>
+	public event Action<string>? MoveMade;
+
+	/// <summary>
+	///     Raised when a move is explicitly undone via <see cref="UndoLastMoveAsync" />.
+	/// </summary>
+	public event Action<string>? MoveUndone;
+
+	/// <summary>
 	/// Raised when the ponder engine reports a best move (with optional ponder).
 	/// </summary>
 	public event Action<ParsedMove, ParsedMove?>? PonderBestMove;
@@ -334,6 +344,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		moves.Add(move);
 
 		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
+		MoveMade?.Invoke(move);
 	}
 
 	/// <summary>
@@ -355,9 +366,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 			moves = new(_currentMoves);
 		}
 
+		string undoneMove = moves[moves.Count - 1];
 		moves.RemoveAt(moves.Count - 1);
 
 		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
+		MoveUndone?.Invoke(undoneMove);
 		return true;
 	}
 
