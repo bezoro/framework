@@ -794,6 +794,73 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task MakeMoveAsync_WhenCalled_AppendsMoveAndUpdatesPosition()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start with default position
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// Make a move
+		await coordinator.MakeMoveAsync("e2e4");
+
+		// Verify position updated
+		var fen = await coordinator.GetCurrentFenAsync();
+		fen.Should().NotBeNull();
+		// After e2e4, it should be black's turn
+		fen!.Value.ActiveColor.Should().Be('b');
+
+		// Verify legal moves are for black (e.g. e7e5, c7c5)
+		var legalMoves = await coordinator.GetLegalMovesAsync();
+		legalMoves.Should().Contain(new[] { "e7e5", "c7c5" });
+
+		// Make another move
+		await coordinator.MakeMoveAsync("e7e5");
+
+		// Verify position updated again
+		fen = await coordinator.GetCurrentFenAsync();
+		fen!.Value.ActiveColor.Should().Be('w');
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task UndoLastMoveAsync_WhenCalled_RevertsLastMoveAndUpdatesPosition()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start with default position
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// Make a move
+		await coordinator.MakeMoveAsync("e2e4");
+
+		// Verify position updated (Black to move)
+		var fen = await coordinator.GetCurrentFenAsync();
+		fen!.Value.ActiveColor.Should().Be('b');
+
+		// Undo the move
+		bool undone = await coordinator.UndoLastMoveAsync();
+		undone.Should().BeTrue();
+
+		// Verify position reverted (White to move)
+		fen = await coordinator.GetCurrentFenAsync();
+		fen!.Value.ActiveColor.Should().Be('w');
+
+		// Verify legal moves are back to start position
+		var legalMoves = await coordinator.GetLegalMovesAsync();
+		legalMoves.Should().Contain(new[] { "e2e4", "d2d4" });
+
+		// Try to undo again (should fail as no moves left)
+		undone = await coordinator.UndoLastMoveAsync();
+		undone.Should().BeFalse();
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);

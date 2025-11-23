@@ -18,6 +18,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	private readonly Dictionary<string, Move> _classifiedMovesForCurrent = new();
 
+	private Fen           _currentBaseFen = Fen.Default;
+	private List<string>? _currentMoves;
+
 	private readonly MoveClassificationEngine _classifier;
 	private readonly object                   _sync = new();
 
@@ -258,6 +261,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 		lock (_sync)
 		{
 			_currentLegalMoves = null;
+			_currentBaseFen    = fen;
+			// Store a copy of the moves list to avoid external mutation issues
+			_currentMoves = playedMoves?.ToList();
 		}
 
 		// Set the position and publish legal moves
@@ -306,6 +312,53 @@ public sealed class UciCoordinator : IAsyncDisposable
 				},
 				CancellationToken.None);
 		}
+	}
+
+	/// <summary>
+	///     Applies a move to the current position and updates the engines.
+	///     This is a convenience wrapper around <see cref="UpdatePositionAsync" />.
+	/// </summary>
+	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task MakeMoveAsync(string move, CancellationToken ct = default)
+	{
+		Fen           fen;
+		List<string>? moves;
+
+		lock (_sync)
+		{
+			fen   = _currentBaseFen;
+			moves = _currentMoves != null ? new(_currentMoves) : new List<string>();
+		}
+
+		moves.Add(move);
+
+		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Reverts the last move played, if any, and updates the engines.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>True if a move was undone; false if there were no moves to undo.</returns>
+	public async Task<bool> UndoLastMoveAsync(CancellationToken ct = default)
+	{
+		Fen           fen;
+		List<string>? moves;
+
+		lock (_sync)
+		{
+			if (_currentMoves == null || _currentMoves.Count == 0)
+				return false;
+
+			fen   = _currentBaseFen;
+			moves = new(_currentMoves);
+		}
+
+		moves.RemoveAt(moves.Count - 1);
+
+		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
+		return true;
 	}
 
 	/// <summary>
