@@ -897,6 +897,36 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task Events_WhenSyncContextProvided_AreMarshalled()
+	{
+		var             mockContext = new MockSynchronizationContext();
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH, syncContext: mockContext);
+		await coordinator.StartAsync();
+
+		// Subscribe to an event so that Raise() actually attempts to post
+		coordinator.LegalMovesUpdated += _ => { };
+
+		// Trigger an event (e.g. LegalMovesUpdated via UpdatePositionAsync)
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		// We expect at least one event (LegalMovesUpdated) to be marshalled
+		mockContext.PostCount.Should().BeGreaterThan(0);
+
+		await coordinator.StopAsync();
+	}
+
+	private class MockSynchronizationContext : SynchronizationContext
+	{
+		public int PostCount { get; private set; }
+
+		public override void Post(SendOrPostCallback d, object? state)
+		{
+			PostCount++;
+			d(state);
+		}
+	}
+
+	[Fact]
 	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);

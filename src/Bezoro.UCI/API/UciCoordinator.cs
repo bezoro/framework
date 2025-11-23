@@ -22,6 +22,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private List<string>? _currentMoves;
 
 	private readonly MoveClassificationEngine _classifier;
+	private readonly SynchronizationContext?  _syncContext;
 	private readonly object                   _sync = new();
 
 	private readonly PonderEngine    _ponder;
@@ -68,17 +69,19 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// <summary>
 	/// Constructs a new UciCoordinator with engines initialized for the given enginePath, arguments, and working directory.
 	/// </summary>
-	/// <param name="enginePath">Path to the engine executable.</param>
-	/// <param name="args">Optional program arguments.</param>
+
 	/// <param name="workingDirectory">Optional working directory.</param>
+	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
 	public UciCoordinator(
-		string               enginePath,
-		IEnumerable<string>? args             = null,
-		string?              workingDirectory = null)
+		string                  enginePath,
+		IEnumerable<string>?    args             = null,
+		string?                 workingDirectory = null,
+		SynchronizationContext? syncContext      = null)
 	{
-		_quick      = new(enginePath, args, workingDirectory);
-		_ponder     = new(enginePath, args, workingDirectory);
-		_classifier = new(enginePath, args, workingDirectory);
+		_syncContext = syncContext;
+		_quick       = new(enginePath, args, workingDirectory);
+		_ponder      = new(enginePath, args, workingDirectory);
+		_classifier  = new(enginePath, args, workingDirectory);
 
 		_ponder.InfoPv   += OnPonderInfo;
 		_ponder.BestMove += PonderOnBestMove;
@@ -285,7 +288,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			_currentLegalMoves = moves;
 		}
-		LegalMovesUpdated?.Invoke(moves);
+
+
+		Raise(LegalMovesUpdated, moves);
 
 		// Determine effective FEN for completion notification
 		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
@@ -344,7 +349,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		moves.Add(move);
 
 		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
-		MoveMade?.Invoke(move);
+		Raise(MoveMade, move);
 	}
 
 	/// <summary>
@@ -370,7 +375,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		moves.RemoveAt(moves.Count - 1);
 
 		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
-		MoveUndone?.Invoke(undoneMove);
+		Raise(MoveUndone, undoneMove);
 		return true;
 	}
 
@@ -519,7 +524,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 			moves = filtered;
 		}
 
-		AllMovesClassified?.Invoke(moves);
+
+		Raise(AllMovesClassified, moves);
 	}
 
 	/// <summary>
@@ -545,7 +551,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_classifiedMovesForCurrent[move.Notation] = move;
 		}
 
-		NewMoveClassified?.Invoke(move.Notation, move);
+		Raise(NewMoveClassified, move.Notation, move);
 	}
 
 	/// <summary>
@@ -553,7 +559,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	private void OnPonderInfo(PrincipalVariation pv)
 	{
-		PonderInfo?.Invoke(pv);
+		Raise(PonderInfo, pv);
 	}
 
 	/// <summary>
@@ -561,6 +567,26 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder)
 	{
-		PonderBestMove?.Invoke(best, ponder);
+		Raise(PonderBestMove, best, ponder);
+	}
+
+	private void Raise<T>(Action<T>? handler, T args)
+	{
+		if (handler == null) return;
+
+		if (_syncContext != null)
+			_syncContext.Post(_ => handler(args), null);
+		else
+			handler(args);
+	}
+
+	private void Raise<T1, T2>(Action<T1, T2>? handler, T1 arg1, T2 arg2)
+	{
+		if (handler == null) return;
+
+		if (_syncContext != null)
+			_syncContext.Post(_ => handler(arg1, arg2), null);
+		else
+			handler(arg1, arg2);
 	}
 }
