@@ -67,6 +67,31 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public event Action<PrincipalVariation>? PonderInfo;
 
 	/// <summary>
+	/// Raised when the coordinator is fully initialized and ready.
+	/// </summary>
+	public event Action? Ready;
+
+	/// <summary>
+	///     Raised when the coordinator has fully stopped.
+	/// </summary>
+	public event Action? Stopped;
+
+	/// <summary>
+	///     Raised when a new game is started via <see cref="NewGameAsync" />.
+	/// </summary>
+	public event Action? NewGame;
+
+	/// <summary>
+	///     Raised when the starting position is set (i.e. a position with no moves played).
+	/// </summary>
+	public event Action? StartingPositionSet;
+
+	/// <summary>
+	///     Raised whenever the position is updated (including when moves are made).
+	/// </summary>
+	public event Action? PositionUpdated;
+
+	/// <summary>
 	/// Constructs a new UciCoordinator with engines initialized for the given enginePath, arguments, and working directory.
 	/// </summary>
 
@@ -131,6 +156,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			_currentLegalMoves = null;
 		}
+
+		Raise(NewGame);
 	}
 
 	/// <summary>
@@ -154,6 +181,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			_currentLegalMoves = null;
 		}
+
+		Raise(Ready);
 	}
 
 	/// <summary>
@@ -219,6 +248,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			_currentLegalMoves = null;
 		}
+
+		Raise(Stopped);
 	}
 
 	/// <summary>
@@ -291,6 +322,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 
 		Raise(LegalMovesUpdated, moves);
+		Raise(PositionUpdated);
+
+		if (playedMoves == null || !playedMoves.Any()) Raise(StartingPositionSet);
 
 		// Determine effective FEN for completion notification
 		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
@@ -568,6 +602,16 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder)
 	{
 		Raise(PonderBestMove, best, ponder);
+	}
+
+	private void Raise(Action? handler)
+	{
+		if (handler == null) return;
+
+		if (_syncContext != null)
+			_syncContext.Post(_ => handler(), null);
+		else
+			handler();
 	}
 
 	private void Raise<T>(Action<T>? handler, T args)

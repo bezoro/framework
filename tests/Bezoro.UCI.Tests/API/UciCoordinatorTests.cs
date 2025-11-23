@@ -915,6 +915,59 @@ public class UciCoordinatorTests
 		await coordinator.StopAsync();
 	}
 
+	[Fact]
+	public async Task LifecycleEvents_WhenStartedAndStopped_AreRaised()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+
+		var readyRaised   = false;
+		var stoppedRaised = false;
+
+		coordinator.Ready   += () => readyRaised   = true;
+		coordinator.Stopped += () => stoppedRaised = true;
+
+		await coordinator.StartAsync();
+		readyRaised.Should().BeTrue();
+		stoppedRaised.Should().BeFalse();
+
+		await coordinator.StopAsync();
+		stoppedRaised.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task GameEvents_WhenActionsPerformed_AreRaised()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var newGameRaised          = false;
+		var startingPositionRaised = false;
+		var positionUpdatedRaised  = false;
+
+		coordinator.NewGame             += () => newGameRaised          = true;
+		coordinator.StartingPositionSet += () => startingPositionRaised = true;
+		coordinator.PositionUpdated     += () => positionUpdatedRaised  = true;
+
+		// 1. NewGameAsync
+		await coordinator.NewGameAsync();
+		newGameRaised.Should().BeTrue();
+		newGameRaised = false; // Reset
+
+		// 2. UpdatePositionAsync (Root)
+		startingPositionRaised = false;
+		positionUpdatedRaised  = false;
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		startingPositionRaised.Should().BeTrue();
+		positionUpdatedRaised.Should().BeTrue();
+
+		// 3. MakeMoveAsync (Not Root)
+		startingPositionRaised = false;
+		positionUpdatedRaised  = false;
+		await coordinator.MakeMoveAsync("e2e4");
+		startingPositionRaised.Should().BeFalse();
+		positionUpdatedRaised.Should().BeTrue();
+	}
+
 	private class MockSynchronizationContext : SynchronizationContext
 	{
 		public int PostCount { get; private set; }
