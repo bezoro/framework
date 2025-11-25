@@ -568,6 +568,35 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task StreamClassifiedMovesAsync_YieldsMovesAsTheyAreClassified()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Set a standard position and trigger background classification
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		var moves = new List<Move>();
+		await foreach (var move in coordinator.StreamClassifiedMovesAsync())
+		{
+			moves.Add(move);
+			// We can stop early if we have enough moves to verify streaming works
+			if (moves.Count >= 5) break;
+		}
+
+		moves.Should().NotBeEmpty();
+		moves.Count.Should().BeGreaterOrEqualTo(5);
+		foreach (var m in moves)
+		{
+			m.Analysis.Should().NotBeNull();
+			m.Notation.Should().NotBeNullOrWhiteSpace();
+		}
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task NewGameAsync_ResetsState_And_AllowsRestart()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);

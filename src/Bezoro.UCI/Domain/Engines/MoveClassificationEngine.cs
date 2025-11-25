@@ -40,6 +40,7 @@ internal sealed class MoveClassificationEngine(
 	public async IAsyncEnumerable<Move> ClassifyAsync(
 		Fen?                                       fen          = null,
 		uint                                       perMoveDepth = 6,
+		IEnumerable<string>?                       legalMoves   = null,
 		[EnumeratorCancellation] CancellationToken ct           = default)
 	{
 		EnsureStarted();
@@ -65,11 +66,12 @@ internal sealed class MoveClassificationEngine(
 			_clientPositionLock.Release();
 		}
 
-		var legalMoves = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
+		var legalMovesList = legalMoves?.ToList() ??
+							 (await _quick.GetLegalMovesAsync(token).ConfigureAwait(false)).ToList();
 
-		var classifiedMoves = new List<Move>(legalMoves?.Count ?? 0);
+		var classifiedMoves = new List<Move>(legalMovesList?.Count ?? 0);
 
-		if (legalMoves is null || legalMoves.Count == 0)
+		if (legalMovesList is null || legalMovesList.Count == 0)
 		{
 			AllMovesClassified?.Invoke(classifiedMoves);
 			yield break;
@@ -79,7 +81,7 @@ internal sealed class MoveClassificationEngine(
 		string? stalemateFirst = null;
 		try
 		{
-			foreach (string? m in legalMoves)
+			foreach (string? m in legalMovesList)
 			{
 				if (string.IsNullOrWhiteSpace(m)) continue;
 
@@ -110,7 +112,7 @@ internal sealed class MoveClassificationEngine(
 			yield return mv0;
 		}
 
-		foreach (string? move in legalMoves)
+		foreach (string? move in legalMovesList)
 		{
 			if (string.IsNullOrWhiteSpace(move)) continue;
 
@@ -246,12 +248,12 @@ internal sealed class MoveClassificationEngine(
 		Move? fallbackMove = null;
 		try
 		{
-			if (!classifiedMoves.Any(x => x.Analysis.IsStalemate) && legalMoves is { Count: > 0 })
+			if (!classifiedMoves.Any(x => x.Analysis.IsStalemate) && legalMovesList is { Count: > 0 })
 			{
 				await _clientPositionLock.WaitAsync(token).ConfigureAwait(false);
 				try
 				{
-					foreach (string? m in legalMoves)
+					foreach (string? m in legalMovesList)
 					{
 						if (string.IsNullOrWhiteSpace(m)) continue;
 

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Engines;
@@ -374,7 +376,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 					try
 					{
 						await foreach (var _ in _classifier
-												.ClassifyAsync(effectiveFen.Value, 6, _classificationCts.Token)
+												.ClassifyAsync(effectiveFen.Value, 6, moves, _classificationCts.Token)
 												.ConfigureAwait(false))
 						{
 							// No-op; MoveClassificationEngine events will handle updates
@@ -440,6 +442,91 @@ public sealed class UciCoordinator : IAsyncDisposable
 		var legal        = ToParsedMoves(legalStrings);
 		var classified   = SnapshotClassifiedMoves();
 		return new(legal, classified);
+	}
+
+	/// <summary>
+	///     Streams classified moves for the current position.
+	///     Yields already classified moves first, then waits for new ones.
+	///     Completes when all moves for the current position are classified.
+	/// </summary>
+	public async IAsyncEnumerable<Move> StreamClassifiedMovesAsync(
+		[EnumeratorCancellation] CancellationToken ct = default)
+	{
+		// Capture current state
+		IReadOnlyCollection<string>? legal;
+
+		// Actually, let's use a Channel for simplicity and correctness
+		var channel = Channel.CreateUnbounded<Move>();
+
+		void OnMoveClassified(string n, Move m)
+		{
+			channel.Writer.TryWrite(m);
+		}
+
+		void OnAllClassified(IReadOnlyList<Move> _)
+		{
+			channel.Writer.TryComplete();
+		}
+
+		// Subscribe
+		NewMoveClassified  += OnMoveClassified;
+		AllMovesClassified += OnAllClassified;
+
+		try
+		{
+			// Yield already classified moves
+			lock (_sync)
+			{
+				legal = _currentLegalMoves;
+				foreach (var kvp in _classifiedMovesForCurrent) yield return kvp.Value;
+			}
+
+			// If we don't have legal moves yet, we might be too early or too late?
+			// But if we are calling this, we assume position is set.
+
+			// Check if we are already done
+			// This is tricky because AllMovesClassified might have already fired.
+			// But if AllMovesClassified fired, _classifiedMovesForCurrent should contain everything (if we assume it's cumulative).
+			// However, we need to know if "All" has happened.
+			// UciCoordinator doesn't explicitly store "IsFinished" flag for classification.
+			// But we can check if classified count == legal count.
+
+			var isFinished = false;
+			lock (_sync)
+			{
+				if (legal != null && _classifiedMovesForCurrent.Count >= legal.Count) isFinished = true;
+			}
+
+			if (isFinished) yield break;
+
+			// Consume channel
+			// We need to filter duplicates that we might have already yielded from the initial snapshot
+			// or that we receive while iterating.
+			var yielded = new HashSet<string>();
+			lock (_sync)
+			{
+				foreach (string? k in _classifiedMovesForCurrent.Keys) yielded.Add(k);
+			}
+
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			// We also need to stop if the position changes (LegalMovesUpdated or PositionUpdated)
+			// But the channel writer will stop if we unsubscribe? No.
+			// If position changes, the coordinator clears state, so maybe we should watch for that?
+			// But simpler: if AllMovesClassified fires (even with empty list due to cancellation), we complete.
+
+			// Wait for channel data
+			while (await channel.Reader.WaitToReadAsync(linkedCts.Token).ConfigureAwait(false))
+			{
+				while (channel.Reader.TryRead(out var move))
+					if (yielded.Add(move.Notation))
+						yield return move;
+			}
+		}
+		finally
+		{
+			NewMoveClassified  -= OnMoveClassified;
+			AllMovesClassified -= OnAllClassified;
+		}
 	}
 
 	/// <summary>
