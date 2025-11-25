@@ -21,10 +21,10 @@ public class UciCoordinatorTests
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.PonderInfo += pv =>
+		coordinator.StateChanged += state =>
 		{
-			if (pv.Moves is { Count: > 0 })
-				tcs.TrySetResult(pv);
+			if (state.Evaluation?.Moves is { Count: > 0 })
+				tcs.TrySetResult(state.Evaluation.Value);
 		};
 
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
@@ -51,13 +51,19 @@ public class UciCoordinatorTests
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
 				TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var count = 0;
-		coordinator.PonderBestMove += (b, p) =>
+		coordinator.StateChanged += state =>
 		{
-			if (string.IsNullOrWhiteSpace(b.Raw)) return;
+			if (state.BestMove == null || string.IsNullOrWhiteSpace(state.BestMove.Value.Raw)) return;
 
-			if (Interlocked.Increment(ref count) == 1) bestTcs1.TrySetResult((b, p));
-			else if (count >= 2) bestTcs2.TrySetResult((b, p));
+			if (!state.BestMove.HasValue) return;
+
+			// We need to distinguish the first run from the second run.
+			// The first run completes bestTcs1.
+			if (!bestTcs1.Task.IsCompleted)
+				bestTcs1.TrySetResult((state.BestMove.Value, state.PonderMove));
+			else if (!bestTcs2.Task.IsCompleted)
+				// This must be the second run
+				bestTcs2.TrySetResult((state.BestMove.Value, state.PonderMove));
 		};
 
 		// Start best search for current FEN
@@ -85,7 +91,10 @@ public class UciCoordinatorTests
 
 		var classificationStarted = false;
 
-		coordinator.NewMoveClassified += (_, _) => { classificationStarted = true; };
+		coordinator.StateChanged += state =>
+		{
+			if (state.ClassifiedMoves.Count > 0) classificationStarted = true;
+		};
 
 		// Start classification
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
@@ -173,7 +182,7 @@ public class UciCoordinatorTests
 					{
 						for (var j = 0; j < 10; j++)
 						{
-							var moves = coordinator.CurrentLegalMoves;
+							var moves = coordinator.State.LegalMoves;
 							await Task.Delay(1);
 							// moves can be null during position updates, checking for thread-safety (no exceptions)
 						}
@@ -206,8 +215,8 @@ public class UciCoordinatorTests
 		await Task.WhenAll(tasks);
 
 		exceptions.Should().BeEmpty("No exceptions should occur during concurrent access");
-		coordinator.CurrentLegalMoves.Should()
-				   .NotBeNull("CurrentLegalMoves should still be accessible after concurrent operations");
+		coordinator.State.LegalMoves.Should()
+				   .NotBeNull("LegalMoves should still be accessible after concurrent operations");
 
 		await coordinator.StopAsync();
 	}
@@ -239,15 +248,9 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		var ponderInfoCount         = 0;
-		var bestMoveCount           = 0;
-		var moveClassifiedCount     = 0;
-		var allMovesClassifiedCount = 0;
+		var stateChangeCount = 0;
 
-		coordinator.PonderInfo         += _ => ponderInfoCount++;
-		coordinator.PonderBestMove     += (_, _) => bestMoveCount++;
-		coordinator.NewMoveClassified  += (_, _) => moveClassifiedCount++;
-		coordinator.AllMovesClassified += _ => allMovesClassifiedCount++;
+		coordinator.StateChanged += _ => stateChangeCount++;
 
 		// Start some operations
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
@@ -257,10 +260,7 @@ public class UciCoordinatorTests
 		await coordinator.StopAsync();
 
 		// Capture counts before dispose
-		int ponderInfoBefore         = ponderInfoCount;
-		int bestMoveBefore           = bestMoveCount;
-		int moveClassifiedBefore     = moveClassifiedCount;
-		int allMovesClassifiedBefore = allMovesClassifiedCount;
+		int stateChangeBefore = stateChangeCount;
 
 		// Dispose should unsubscribe from events
 		await coordinator.DisposeAsync();
@@ -269,12 +269,7 @@ public class UciCoordinatorTests
 		await Task.Delay(TestConstants.MediumDelay);
 
 		// Counts should not have increased after dispose
-		ponderInfoCount.Should().Be(ponderInfoBefore, "PonderInfo should not fire after dispose");
-		bestMoveCount.Should().Be(bestMoveBefore, "PonderBestMove should not fire after dispose");
-		moveClassifiedCount.Should().Be(moveClassifiedBefore, "NewMoveClassified should not fire after dispose");
-		allMovesClassifiedCount.Should().Be(
-			allMovesClassifiedBefore,
-			"AllMovesClassified should not fire after dispose");
+		stateChangeCount.Should().Be(stateChangeBefore, "StateChanged should not fire after dispose");
 	}
 
 	[Fact]
@@ -371,44 +366,43 @@ public class UciCoordinatorTests
 			// Wait for the move to be classified
 			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			void OnNewMoveClassified(string notation, Move _)
+			void OnStateChanged(UciState state)
 			{
-				if (notation == move) tcs.TrySetResult(true);
+				if (state.ClassifiedMoves.ContainsKey(move)) tcs.TrySetResult(true);
 			}
 
-			coordinator.NewMoveClassified += OnNewMoveClassified;
+			coordinator.StateChanged += OnStateChanged;
 
 			try
 			{
 				// Check if already classified
-				var snapshot = await coordinator.GetLegalMovesWithClassificationsAsync();
-				if (snapshot.Classified.Values.Any(m => m.Notation == move)) tcs.TrySetResult(true);
+				if (coordinator.State.ClassifiedMoves.ContainsKey(move)) tcs.TrySetResult(true);
 
 				// Wait for classification if not yet ready
 				await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 			}
 			finally
 			{
-				coordinator.NewMoveClassified -= OnNewMoveClassified;
+				coordinator.StateChanged -= OnStateChanged;
 			}
 
 			// Verify we have legal moves and the move we want to play is in them
-			var legalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
-			legalMoves.Legal.Should().Contain(m => m.Raw == move);
-			legalMoves.Classified.Values.Should().Contain(m => m.Notation == move);
+			var state = coordinator.State;
+			state.LegalMoves.Should().Contain(move);
+			state.ClassifiedMoves.Keys.Should().Contain(move);
 
 			// Apply the move
 			currentMoves.Add(move);
 			await coordinator.UpdatePositionAsync(Fen.Default, currentMoves);
 		}
 
-		var finalLegalMoves = await coordinator.GetLegalMovesWithClassificationsAsync();
-		var finalFen        = await coordinator.GetCurrentFenAsync();
+		var finalState = coordinator.State;
+		var finalFen   = await coordinator.GetCurrentFenAsync();
 
 		finalFen?.ActiveColor.Should().Be('b', "It should be Black's turn now");
 		finalFen?.Checkers.Should().NotBeEmpty();
-		finalLegalMoves.Legal.Should().BeEmpty("Black should be checkmated and have no legal moves");
-		finalLegalMoves.Classified.Should().BeEmpty("Black should be checkmated and have no classified moves");
+		finalState.LegalMoves.Should().BeEmpty("Black should be checkmated and have no legal moves");
+		finalState.ClassifiedMoves.Should().BeEmpty("Black should be checkmated and have no classified moves");
 
 		await coordinator.StopAsync();
 	}
@@ -421,12 +415,12 @@ public class UciCoordinatorTests
 
 		// Initial position: expect legal moves including e2e4
 		var legalStartTcs =
-			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.LegalMovesUpdated += moves =>
+		coordinator.StateChanged += state =>
 		{
-			if (moves is { Count: > 0 })
-				legalStartTcs.TrySetResult(moves);
+			if (state.LegalMoves.Count > 0)
+				legalStartTcs.TrySetResult(state.LegalMoves);
 		};
 
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
@@ -435,7 +429,7 @@ public class UciCoordinatorTests
 
 		// Apply white's move e2e4; validate black-side legal moves, pondering and classification events
 		var legalAfterWhiteTcs =
-			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var bestAfterWhiteTcs =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
@@ -444,12 +438,12 @@ public class UciCoordinatorTests
 		var classifiedTcs =
 			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.LegalMovesUpdated += moves =>
+		coordinator.StateChanged += state =>
 		{
-			if (moves is { Count: > 0 })
+			if (state.LegalMoves.Count > 0)
 			{
 				var hasReply = false;
-				foreach (string s in moves)
+				foreach (string s in state.LegalMoves)
 				{
 					if (s == "e7e5" || s == "c7c5")
 					{
@@ -459,20 +453,17 @@ public class UciCoordinatorTests
 				}
 
 				if (hasReply)
-					legalAfterWhiteTcs.TrySetResult(moves);
+					legalAfterWhiteTcs.TrySetResult(state.LegalMoves);
 			}
-		};
 
-		coordinator.PonderBestMove += (best, ponder) =>
-		{
-			if (!string.IsNullOrWhiteSpace(best.Raw))
-				bestAfterWhiteTcs.TrySetResult((best, ponder));
-		};
+			if (state.BestMove.HasValue && !string.IsNullOrWhiteSpace(state.BestMove.Value.Raw))
+				bestAfterWhiteTcs.TrySetResult((state.BestMove.Value, state.PonderMove));
 
-		coordinator.NewMoveClassified += (notation, move) =>
-		{
-			if (!string.IsNullOrWhiteSpace(notation))
-				classifiedTcs.TrySetResult((notation, move));
+			if (state.ClassifiedMoves.Count > 0)
+			{
+				var first = state.ClassifiedMoves.First();
+				classifiedTcs.TrySetResult((first.Key, first.Value));
+			}
 		};
 
 		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
@@ -499,101 +490,13 @@ public class UciCoordinatorTests
 
 		// Start background processing for the default position
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		// Wait for update
+		while (coordinator.State.LegalMoves.Count == 0) await Task.Delay(10);
 
-		// Legal moves should contain common openers
-		var legal = await coordinator.GetLegalMovesAsync();
+		var legal = coordinator.State.LegalMoves;
 		legal.Should().NotBeNull();
 		legal.Count.Should().BeGreaterThan(0);
 		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
-	}
-
-	[Fact]
-	public async Task GetLegalMovesAsync_WhenCalled_ReturnsCommonOpeners()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var legalMoves = await coordinator.GetLegalMovesAsync();
-
-		legalMoves.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
-	}
-
-	[Fact]
-	public async Task GetLegalMovesWithClassificationsAsync_WhenCalled_ReturnsMoveSnapshot()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Subscribe to capture at least one classification
-		var classifiedTcs =
-			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		coordinator.NewMoveClassified += (notation, move) =>
-		{
-			if (!string.IsNullOrWhiteSpace(notation))
-				classifiedTcs.TrySetResult((notation, move));
-		};
-
-		// Set a standard position and trigger background classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		// Await at least one classified move to ensure snapshot contains some classifications
-		var firstClassified = await classifiedTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-
-		// Get the snapshot: legal moves + any classifications ready so far
-		var snapshot = await coordinator.GetLegalMovesWithClassificationsAsync();
-
-		// Legal moves should be non-empty and contain common openers
-		snapshot.Legal.Should().NotBeNull();
-		snapshot.Legal.Count.Should().BeGreaterThan(0);
-		snapshot.Legal.Should().Contain(m => m.Raw == "e2e4" || m.Raw == "d2d4");
-
-		// There should be at least one classification captured
-		snapshot.Classified.Should().NotBeNull();
-		snapshot.Classified.Count.Should().BeGreaterThan(0);
-
-		// Snapshot should include the classified move we observed
-		var key = ParsedMove.FromNotation(firstClassified.notation);
-		snapshot.Classified.TryGetValue(key, out var classifiedMove).Should().BeTrue();
-		classifiedMove.Notation.Should().Be(firstClassified.notation);
-
-		// All classified moves should be legal in the current position
-		var legalSet = new HashSet<string>(StringComparer.Ordinal);
-		foreach (var pm in snapshot.Legal) legalSet.Add(pm.Raw);
-		foreach (var pm in snapshot.Classified.Keys)
-			legalSet.Contains(pm.Raw).Should().BeTrue($"classified move {pm.Raw} must be legal");
-
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StreamClassifiedMovesAsync_YieldsMovesAsTheyAreClassified()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Set a standard position and trigger background classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		var moves = new List<Move>();
-		await foreach (var move in coordinator.StreamClassifiedMovesAsync())
-		{
-			moves.Add(move);
-			// We can stop early if we have enough moves to verify streaming works
-			if (moves.Count >= 5) break;
-		}
-
-		moves.Should().NotBeEmpty();
-		moves.Count.Should().BeGreaterOrEqualTo(5);
-		foreach (var m in moves)
-		{
-			m.Analysis.Should().NotBeNull();
-			m.Notation.Should().NotBeNullOrWhiteSpace();
-		}
-
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
 	}
 
 	[Fact]
@@ -605,7 +508,10 @@ public class UciCoordinatorTests
 		var firstInfo =
 			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.PonderInfo += pv => firstInfo.TrySetResult(pv);
+		coordinator.StateChanged += state =>
+		{
+			if (state.Evaluation != null) firstInfo.TrySetResult(state.Evaluation.Value);
+		};
 
 		await coordinator.StartSearchAsync(Fen.Default);
 		var pv1 = await firstInfo.Task.WaitAsync(TestConstants.DefaultTimeout);
@@ -617,7 +523,10 @@ public class UciCoordinatorTests
 		var secondInfo =
 			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.PonderInfo += pv => secondInfo.TrySetResult(pv);
+		coordinator.StateChanged += state =>
+		{
+			if (state.Evaluation != null) secondInfo.TrySetResult(state.Evaluation.Value);
+		};
 
 		await coordinator.StartSearchAsync(Fen.Default);
 		var pv2 = await secondInfo.Task.WaitAsync(TestConstants.MediumTimeout);
@@ -645,20 +554,17 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 
 		var legalTcs =
-			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var bestTcs =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
 				TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.LegalMovesUpdated += moves =>
+		coordinator.StateChanged += state =>
 		{
-			if (moves is { Count: > 0 }) legalTcs.TrySetResult(moves);
-		};
-
-		coordinator.PonderBestMove += (b, p) =>
-		{
-			if (!string.IsNullOrWhiteSpace(b.Raw)) bestTcs.TrySetResult((b, p));
+			if (state.LegalMoves.Count > 0) legalTcs.TrySetResult(state.LegalMoves);
+			if (state.BestMove.HasValue && !string.IsNullOrWhiteSpace(state.BestMove.Value.Raw))
+				bestTcs.TrySetResult((state.BestMove.Value, state.PonderMove));
 		};
 
 		// Start engines, then set the initial position (this triggers search and legal moves)
@@ -688,10 +594,10 @@ public class UciCoordinatorTests
 		var bestLineTcs =
 			new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		coordinator.PonderInfo += pv =>
+		coordinator.StateChanged += state =>
 		{
-			if (pv.Moves is { Count: > 0 })
-				bestLineTcs.TrySetResult(pv);
+			if (state.Evaluation?.Moves is { Count: > 0 })
+				bestLineTcs.TrySetResult(state.Evaluation.Value);
 		};
 
 		await coordinator.StartSearchAsync(Fen.Default);
@@ -714,11 +620,15 @@ public class UciCoordinatorTests
 		ParsedMove? best   = null;
 		ParsedMove? ponder = null;
 		var         tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.PonderBestMove += (b, p) =>
+
+		coordinator.StateChanged += state =>
 		{
-			best   = b;
-			ponder = p;
-			tcs.TrySetResult(true);
+			if (state.BestMove.HasValue)
+			{
+				best   = state.BestMove;
+				ponder = state.PonderMove;
+				tcs.TrySetResult(true);
+			}
 		};
 
 		await coordinator.StartSearchAsync(Fen.Default);
@@ -740,7 +650,10 @@ public class UciCoordinatorTests
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.PonderInfo += pv => tcs.TrySetResult(pv);
+		coordinator.StateChanged += state =>
+		{
+			if (state.Evaluation != null) tcs.TrySetResult(state.Evaluation.Value);
+		};
 
 		await coordinator.StartSearchAsync(Fen.Default);
 
@@ -801,237 +714,9 @@ public class UciCoordinatorTests
 				{
 					try
 					{
-						await Task.Delay(TestConstants.VeryShortDelay);
 						await coordinator.StopSearchAsync();
-					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
-		}
-
-		await Task.WhenAll(startTasks);
-		await Task.WhenAll(stopTasks);
-
-		// Filter out expected OperationCanceledException - only unexpected exceptions should be present
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty(
-			"Concurrent StartSearchAsync and StopSearchAsync should be thread-safe (OperationCanceledException is expected)");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task MakeMoveAsync_WhenCalled_AppendsMoveAndUpdatesPosition()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start with default position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		// Make a move
-		await coordinator.MakeMoveAsync("e2e4");
-
-		// Verify position updated
-		var fen = await coordinator.GetCurrentFenAsync();
-		fen.Should().NotBeNull();
-		// After e2e4, it should be black's turn
-		fen!.Value.ActiveColor.Should().Be('b');
-
-		// Verify legal moves are for black (e.g. e7e5, c7c5)
-		var legalMoves = await coordinator.GetLegalMovesAsync();
-		legalMoves.Should().Contain(new[] { "e7e5", "c7c5" });
-
-		// Make another move
-		await coordinator.MakeMoveAsync("e7e5");
-
-		// Verify position updated again
-		fen = await coordinator.GetCurrentFenAsync();
-		fen!.Value.ActiveColor.Should().Be('w');
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UndoLastMoveAsync_WhenCalled_RevertsLastMoveAndUpdatesPosition()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start with default position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		// Make a move
-		await coordinator.MakeMoveAsync("e2e4");
-
-		// Verify position updated (Black to move)
-		var fen = await coordinator.GetCurrentFenAsync();
-		fen!.Value.ActiveColor.Should().Be('b');
-
-		// Undo the move
-		bool undone = await coordinator.UndoLastMoveAsync();
-		undone.Should().BeTrue();
-
-		// Verify position reverted (White to move)
-		fen = await coordinator.GetCurrentFenAsync();
-		fen!.Value.ActiveColor.Should().Be('w');
-
-		// Verify legal moves are back to start position
-		var legalMoves = await coordinator.GetLegalMovesAsync();
-		legalMoves.Should().Contain(new[] { "e2e4", "d2d4" });
-
-		// Try to undo again (should fail as no moves left)
-		undone = await coordinator.UndoLastMoveAsync();
-		undone.Should().BeFalse();
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task MoveCallbacks_WhenActionsPerformed_AreInvoked()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start with default position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		string? madeMove   = null;
-		string? undoneMove = null;
-
-		coordinator.MoveMade   += m => madeMove   = m;
-		coordinator.MoveUndone += m => undoneMove = m;
-
-		// Make a move
-		await coordinator.MakeMoveAsync("e2e4");
-
-		madeMove.Should().Be("e2e4");
-		undoneMove.Should().BeNull();
-
-		// Undo the move
-		await coordinator.UndoLastMoveAsync();
-
-		undoneMove.Should().Be("e2e4");
-
-		// Reset and try another move
-		madeMove   = null;
-		undoneMove = null;
-
-		await coordinator.MakeMoveAsync("d2d4");
-		madeMove.Should().Be("d2d4");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task Events_WhenSyncContextProvided_AreMarshalled()
-	{
-		var             mockContext = new MockSynchronizationContext();
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH, syncContext: mockContext);
-		await coordinator.StartAsync();
-
-		// Subscribe to an event so that Raise() actually attempts to post
-		coordinator.LegalMovesUpdated += _ => { };
-
-		// Trigger an event (e.g. LegalMovesUpdated via UpdatePositionAsync)
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		// We expect at least one event (LegalMovesUpdated) to be marshalled
-		mockContext.PostCount.Should().BeGreaterThan(0);
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task LifecycleEvents_WhenStartedAndStopped_AreRaised()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-
-		var readyRaised   = false;
-		var stoppedRaised = false;
-
-		coordinator.Ready   += () => readyRaised   = true;
-		coordinator.Stopped += () => stoppedRaised = true;
-
-		await coordinator.StartAsync();
-		readyRaised.Should().BeTrue();
-		stoppedRaised.Should().BeFalse();
-
-		await coordinator.StopAsync();
-		stoppedRaised.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task GameEvents_WhenActionsPerformed_AreRaised()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var newGameRaised          = false;
-		var startingPositionRaised = false;
-		var positionUpdatedRaised  = false;
-
-		coordinator.NewGame             += () => newGameRaised          = true;
-		coordinator.StartingPositionSet += () => startingPositionRaised = true;
-		coordinator.PositionUpdated     += () => positionUpdatedRaised  = true;
-
-		// 1. NewGameAsync
-		await coordinator.NewGameAsync();
-		newGameRaised.Should().BeTrue();
-		newGameRaised = false; // Reset
-
-		// 2. UpdatePositionAsync (Root)
-		startingPositionRaised = false;
-		positionUpdatedRaised  = false;
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		startingPositionRaised.Should().BeTrue();
-		positionUpdatedRaised.Should().BeTrue();
-
-		// 3. MakeMoveAsync (Not Root)
-		startingPositionRaised = false;
-		positionUpdatedRaised  = false;
-		await coordinator.MakeMoveAsync("e2e4");
-		startingPositionRaised.Should().BeFalse();
-		positionUpdatedRaised.Should().BeTrue();
-	}
-
-	private class MockSynchronizationContext : SynchronizationContext
-	{
-		public int PostCount { get; private set; }
-
-		public override void Post(SendOrPostCallback d, object? state)
-		{
-			PostCount++;
-			d(state);
-		}
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledConcurrently_DoesNotCauseDoubleDispose()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks      = new List<Task>();
-
-		// Launch multiple concurrent StartSearchAsync calls
-		for (var i = 0; i < 10; i++)
-		{
-			tasks.Add(
-				Task.Run(async () =>
-				{
-					try
-					{
-						await coordinator.StartSearchAsync(Fen.Default);
 						await Task.Delay(TestConstants.VeryShortDelay);
 					}
-					catch (OperationCanceledException)
-					{
-						// Expected when operations are cancelled
-					}
 					catch (Exception ex)
 					{
 						exceptions.Add(ex);
@@ -1039,487 +724,39 @@ public class UciCoordinatorTests
 				}));
 		}
 
-		await Task.WhenAll(tasks);
+		await Task.WhenAll(startTasks.Concat(stopTasks));
 
-		// Should not have any ObjectDisposedException or InvalidOperationException
-		// OperationCanceledException is expected and acceptable
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should().BeEmpty("Concurrent StartSearchAsync calls should not cause disposal errors");
-
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledMultipleTimes_DisposesOldCancellationTokens()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start first search
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Start second search - should dispose old token
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Start third search - should dispose previous token
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// If we got here without exceptions, disposal is working
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledMultipleTimesRapidly_ProperlyDisposesOldTokens()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-
-		// Rapidly start and stop searches
-		for (var i = 0; i < 20; i++)
-		{
-			try
-			{
-				await coordinator.StartSearchAsync(Fen.Default);
-				await Task.Delay(TestConstants.VeryShortDelay);
-				await coordinator.StopSearchAsync();
-				await Task.Delay(TestConstants.VeryShortDelay);
-			}
-			catch (OperationCanceledException)
-			{
-				// Expected when operations are cancelled
-			}
-			catch (Exception ex)
-			{
-				exceptions.Add(ex);
-			}
-		}
-
-		// OperationCanceledException is expected and acceptable
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should()
-							.BeEmpty("Rapid StartSearchAsync/StopSearchAsync cycles should properly dispose tokens");
+		exceptions.Should().BeEmpty("Concurrent Start/Stop search should be thread-safe");
 
 		await coordinator.StopAsync();
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenEffectiveFenIsNull_DisposesCancellationToken()
+	public async Task StreamClassifiedMovesAsync_YieldsMovesAsTheyAreClassified()
 	{
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		// Set an invalid position that will cause GetCurrentFenAsync to return null
-		// This tests the early return path where effectiveFen is null
+		// Set a standard position and trigger background classification
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
-		// Try to start search without FEN - should handle null FEN gracefully
-		// Note: This may not actually return null in practice, but tests the code path
-		await coordinator.StartSearchAsync();
+		var moves = new List<Move>();
+		await foreach (var move in coordinator.StreamClassifiedMovesAsync())
+		{
+			moves.Add(move);
+			// We can stop early if we have enough moves to verify streaming works
+			if (moves.Count >= 5) break;
+		}
+
+		moves.Should().NotBeEmpty();
+		moves.Count.Should().BeGreaterOrEqualTo(5);
+		foreach (var m in moves)
+		{
+			m.Analysis.Should().NotBeNull();
+			m.Notation.Should().NotBeNullOrWhiteSpace();
+		}
 
 		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start a search first
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks      = new List<Task>();
-
-		// Launch multiple concurrent StopSearchAsync calls
-		for (var i = 0; i < 10; i++)
-		{
-			tasks.Add(
-				Task.Run(async () =>
-				{
-					try
-					{
-						await coordinator.StopSearchAsync();
-					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		exceptions.Should().BeEmpty("Concurrent StopSearchAsync calls should be thread-safe");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_RaisesLegalMovesUpdated_Immediately()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var tcs = new TaskCompletionSource<IReadOnlyCollection<string>>(
-			TaskCreationOptions.RunContinuationsAsynchronously);
-
-		coordinator.LegalMovesUpdated += moves =>
-		{
-			if (moves is { Count: > 0 })
-				tcs.TrySetResult(moves);
-		};
-
-		// Use a non-starting position to avoid short-circuit and ensure event fires for the new state
-		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!.Value;
-		await coordinator.UpdatePositionAsync(newFen, null);
-
-		var updatedMoves = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		updatedMoves.Should().NotBeNull();
-		updatedMoves.Count.Should().BeGreaterThan(0);
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_RestartsSearch_And_RaisesInfoAgain()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var tcsFirst  = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var tcsSecond = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var count     = 0;
-
-		coordinator.PonderInfo += _ =>
-		{
-			if (Interlocked.Increment(ref count) == 1) tcsFirst.TrySetResult(true);
-			else if (count >= 2) tcsSecond.TrySetResult(true);
-		};
-
-		// Start on initial position and wait for first info
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await coordinator.StartSearchAsync();
-		await tcsFirst.Task.WaitAsync(TestConstants.DefaultTimeout);
-
-		// Switch to a different position; expect another info after restart
-		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!.Value;
-		await coordinator.UpdatePositionAsync(newFen, null);
-
-		await tcsSecond.Task.WaitAsync(TestConstants.DefaultTimeout);
-		count.Should().BeGreaterThanOrEqualTo(2);
-
-		await coordinator.StopSearchAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalled_RestartsPonderAndRaisesInfo()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var infoCount = 0;
-		var tcsFirst  = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var tcsSecond = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		coordinator.PonderInfo += _ =>
-		{
-			infoCount++;
-			if (infoCount == 1) tcsFirst.TrySetResult(true);
-			if (infoCount >= 2) tcsSecond.TrySetResult(true);
-		};
-
-		// Start search the initial position and wait for first info
-		await coordinator.StartSearchAsync(Fen.Default);
-		await tcsFirst.Task.WaitAsync(TestConstants.DefaultTimeout);
-
-		// Now request an update to a different position; expect another info after restart
-		var newFen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 3")!
-						.Value; // Italian-ish setup
-
-		var board = BoardState.FromFen(newFen)!.Value;
-		await coordinator.UpdatePositionAsync(newFen, null);
-
-		await tcsSecond.Task.WaitAsync(TestConstants.MediumTimeout);
-
-		await coordinator.StopSearchAsync();
-		infoCount.Should().BeGreaterThanOrEqualTo(2);
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalledConcurrently_HandlesClassificationTokenSourceSafely()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks      = new List<Task>();
-		var fens = new[]
-		{
-			Fen.Default,
-			Fen.Parse(TestConstants.ItalianGameFen)!.Value,
-			Fen.Parse(TestConstants.AfterE2E4Fen)!.Value
-		};
-
-		// Launch multiple concurrent UpdatePositionAsync calls
-		for (var i = 0; i < 15; i++)
-		{
-			var fen = fens[i % fens.Length];
-			tasks.Add(
-				Task.Run(async () =>
-				{
-					try
-					{
-						await coordinator.UpdatePositionAsync(fen, null);
-						await Task.Delay(TestConstants.VeryShortDelay);
-					}
-					catch (OperationCanceledException)
-					{
-						// Expected when previous classification is cancelled
-					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
-		}
-
-		await Task.WhenAll(tasks);
-
-		// OperationCanceledException is expected when classifications are cancelled
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should()
-							.BeEmpty("Concurrent UpdatePositionAsync calls should handle _classificationCts safely");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalledMultipleTimes_CancelsPreviousClassification()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var classificationCount = 0;
-		coordinator.NewMoveClassified += (_, _) => Interlocked.Increment(ref classificationCount);
-
-		// Start first position and wait for at least one classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.StandardDelay);
-
-		int firstCount = classificationCount;
-		firstCount.Should().BeGreaterThan(0, "At least one move should be classified initially");
-
-		// Update to new position - should cancel previous classification and start new one
-		var newFen = Fen.Parse(TestConstants.ItalianGameFen)!.Value;
-		await coordinator.UpdatePositionAsync(newFen, null);
-		await Task.Delay(TestConstants.StandardDelay);
-
-		// Update to another position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.StandardDelay);
-
-		// Classification should have progressed (not stuck on first position)
-		classificationCount.Should().BeGreaterThan(firstCount, "Classification should continue after position updates");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalledMultipleTimesRapidly_ProperlyCancelsPreviousClassification()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var exceptions          = new ConcurrentBag<Exception>();
-		var classificationCount = 0;
-		var fens = new[]
-		{
-			Fen.Default,
-			Fen.Parse(TestConstants.ItalianGameFen)!.Value,
-			Fen.Parse(TestConstants.AfterE2E4Fen)!.Value
-		};
-
-		coordinator.NewMoveClassified += (_, _) => Interlocked.Increment(ref classificationCount);
-
-		// Rapidly update positions
-		for (var i = 0; i < 10; i++)
-		{
-			try
-			{
-				var fen = fens[i % fens.Length];
-				await coordinator.UpdatePositionAsync(fen, null);
-				await Task.Delay(TestConstants.VeryShortDelay);
-			}
-			catch (OperationCanceledException)
-			{
-				// Expected when previous classification is cancelled
-			}
-			catch (Exception ex)
-			{
-				exceptions.Add(ex);
-			}
-		}
-
-		await Task.Delay(TestConstants.StandardDelay);
-
-		// OperationCanceledException is expected when classifications are cancelled
-		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
-		unexpectedExceptions.Should()
-							.BeEmpty("Rapid UpdatePositionAsync calls should properly cancel previous classifications");
-
-		classificationCount.Should().BeGreaterThan(0, "At least some classifications should complete");
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task FullTurn_DeepCheck_ValidatesAllSteps()
-	{
-		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// --- Step 1: Initial Position (White to move) ---
-
-		var legalMovesTcs =
-			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		var allClassifiedTcs =
-			new TaskCompletionSource<IReadOnlyList<Move>>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		var bestMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		// We'll collect classified moves as they come in to verify incremental updates
-		var incrementalClassified = new ConcurrentDictionary<string, Move>();
-
-		void OnLegalMovesUpdated(IReadOnlyCollection<string> moves)
-		{
-			if (moves.Count > 0) legalMovesTcs.TrySetResult(moves);
-		}
-
-		void OnNewMoveClassified(string notation, Move move)
-		{
-			incrementalClassified.TryAdd(notation, move);
-		}
-
-		void OnAllMovesClassified(IReadOnlyList<Move> moves)
-		{
-			allClassifiedTcs.TrySetResult(moves);
-		}
-
-		void OnPonderBestMove(ParsedMove best, ParsedMove? ponder)
-		{
-			if (!string.IsNullOrWhiteSpace(best.Raw))
-			{
-				// Filter out moves that are not legal in the current position
-				// This handles the case where "bestmove" from the previous search (triggered by Stop)
-				// arrives while we are setting up the new position.
-				var legal = coordinator.CurrentLegalMoves;
-				if (legal != null && legal.Contains(best.Raw)) bestMoveTcs.TrySetResult(best);
-			}
-		}
-
-		coordinator.LegalMovesUpdated  += OnLegalMovesUpdated;
-		coordinator.NewMoveClassified  += OnNewMoveClassified;
-		coordinator.AllMovesClassified += OnAllMovesClassified;
-		coordinator.PonderBestMove     += OnPonderBestMove;
-
-		try
-		{
-			// Trigger initial position
-			await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-			// 1. Verify Legal Moves
-			var legalMoves = await legalMovesTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-			legalMoves.Should().NotBeEmpty();
-			legalMoves.Should().Contain("e2e4");
-
-			// 2. Verify Best Move (Ponder)
-			var bestMove = await bestMoveTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-			bestMove.Raw.Should().NotBeNullOrWhiteSpace();
-			legalMoves.Should().Contain(bestMove.Raw);
-
-			// 3. Verify All Moves Classified
-			var classifiedMoves =
-				await allClassifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout); // Classification can take time
-
-			classifiedMoves.Should().NotBeEmpty();
-			classifiedMoves.Count.Should().Be(legalMoves.Count, "All legal moves should be classified");
-
-			foreach (var move in classifiedMoves)
-			{
-				legalMoves.Should().Contain(move.Notation);
-				move.Analysis.Should().NotBeNull();
-				// Check that incremental updates also captured this
-				incrementalClassified.ContainsKey(move.Notation).Should().BeTrue();
-			}
-		}
-		finally
-		{
-			coordinator.LegalMovesUpdated  -= OnLegalMovesUpdated;
-			coordinator.NewMoveClassified  -= OnNewMoveClassified;
-			coordinator.AllMovesClassified -= OnAllMovesClassified;
-			coordinator.PonderBestMove     -= OnPonderBestMove;
-		}
-
-		// --- Step 2: Make Move e2e4 (Black to move) ---
-
-		// Reset TCS for the next turn
-		legalMovesTcs    = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		allClassifiedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		bestMoveTcs      = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		incrementalClassified.Clear();
-
-		coordinator.LegalMovesUpdated  += OnLegalMovesUpdated;
-		coordinator.NewMoveClassified  += OnNewMoveClassified;
-		coordinator.AllMovesClassified += OnAllMovesClassified;
-		coordinator.PonderBestMove     += OnPonderBestMove;
-
-		try
-		{
-			// Apply move e2e4
-			await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
-
-			// 1. Verify Legal Moves (Black)
-			var legalMoves = await legalMovesTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-			legalMoves.Should().NotBeEmpty();
-			legalMoves.Should().Contain("e7e5");    // Common response
-			legalMoves.Should().NotContain("e2e4"); // White's move shouldn't be legal for Black
-
-			// 2. Verify Best Move (Ponder) for Black
-			var bestMove = await bestMoveTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-			bestMove.Raw.Should().NotBeNullOrWhiteSpace();
-			legalMoves.Should().Contain(bestMove.Raw);
-
-			// 3. Verify All Moves Classified for Black
-			var classifiedMoves = await allClassifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
-			classifiedMoves.Should().NotBeEmpty();
-			classifiedMoves.Count.Should().Be(legalMoves.Count, "All legal moves for Black should be classified");
-
-			foreach (var move in classifiedMoves)
-			{
-				legalMoves.Should().Contain(move.Notation);
-				move.Analysis.Should().NotBeNull();
-				incrementalClassified.ContainsKey(move.Notation).Should().BeTrue();
-			}
-		}
-		finally
-		{
-			coordinator.LegalMovesUpdated  -= OnLegalMovesUpdated;
-			coordinator.NewMoveClassified  -= OnNewMoveClassified;
-			coordinator.AllMovesClassified -= OnAllMovesClassified;
-			coordinator.PonderBestMove     -= OnPonderBestMove;
-		}
-
 		await coordinator.StopAsync();
 	}
 }

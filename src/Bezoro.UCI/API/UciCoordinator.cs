@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -16,11 +17,6 @@ namespace Bezoro.UCI.API;
 /// </summary>
 public sealed class UciCoordinator : IAsyncDisposable
 {
-	/// <summary>
-	///     Internal table of per-move classifications for the current position, keyed by move notation.
-	/// </summary>
-	private readonly Dictionary<string, Move> _classifiedMovesForCurrent = new();
-
 	private readonly MoveClassificationEngine _classifier;
 	private readonly object                   _sync = new();
 
@@ -31,55 +27,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private CancellationTokenSource? _bestCts;
 	private CancellationTokenSource? _classificationCts;
 
-	private Fen _currentBaseFen = Fen.Default;
-
-	private IReadOnlyCollection<string>? _currentLegalMoves;
-	private List<string>?                _currentMoves;
-
-	/// <summary>
-	///     Raised when all legal moves for the current position have been classified.
-	/// </summary>
-	public event Action<IReadOnlyList<Move>>? AllMovesClassified;
-
-	/// <summary>
-	///     Raised when the set of legal moves is updated (e.g. on position change).
-	/// </summary>
-	public event Action<IReadOnlyCollection<string>>? LegalMovesUpdated;
-
-	/// <summary>
-	///     Raised when a move is explicitly made via <see cref="MakeMoveAsync" />.
-	/// </summary>
-	public event Action<string>? MoveMade;
-
-	/// <summary>
-	///     Raised when a move is explicitly undone via <see cref="UndoLastMoveAsync" />.
-	/// </summary>
-	public event Action<string>? MoveUndone;
-
-	/// <summary>
-	///     Raised when a new game is started via <see cref="NewGameAsync" />.
-	/// </summary>
-	public event Action? NewGame;
-
-	/// <summary>
-	///     Raised each time a new legal move is classified.
-	/// </summary>
-	public event Action<string, Move>? NewMoveClassified;
-
-	/// <summary>
-	///     Raised when the ponder engine reports a best move (with optional ponder).
-	/// </summary>
-	public event Action<ParsedMove, ParsedMove?>? PonderBestMove;
-
-	/// <summary>
-	///     Raised whenever the ponder engine emits a new principal variation (PV).
-	/// </summary>
-	public event Action<PrincipalVariation>? PonderInfo;
-
-	/// <summary>
-	///     Raised whenever the position is updated (including when moves are made).
-	/// </summary>
-	public event Action? PositionUpdated;
+	private UciState _state = UciState.Default;
 
 	/// <summary>
 	///     Raised when the coordinator is fully initialized and ready.
@@ -87,9 +35,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 	public event Action? Ready;
 
 	/// <summary>
-	///     Raised when the starting position is set (i.e. a position with no moves played).
+	///     Raised when the coordinator state changes.
 	/// </summary>
-	public event Action? StartingPositionSet;
+	public event Action<UciState>? StateChanged;
 
 	/// <summary>
 	///     Raised when the coordinator has fully stopped.
@@ -100,6 +48,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 	///     Constructs a new UciCoordinator with engines initialized for the given enginePath, arguments, and working
 	///     directory.
 	/// </summary>
+	/// <param name="enginePath">Path to the UCI engine executable.</param>
+	/// <param name="args">Optional arguments for the engine.</param>
 	/// <param name="workingDirectory">Optional working directory.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
 	public UciCoordinator(
@@ -121,23 +71,88 @@ public sealed class UciCoordinator : IAsyncDisposable
 	}
 
 	/// <summary>
-	///     The most recently determined legal moves for the current position, if known.
+	///     Gets the current state of the coordinator.
 	/// </summary>
-	public IReadOnlyCollection<string>? CurrentLegalMoves
+	public UciState State
 	{
 		get
 		{
 			lock (_sync)
 			{
-				return _currentLegalMoves;
+				return _state;
 			}
 		}
 		private set
 		{
 			lock (_sync)
 			{
-				_currentLegalMoves = value;
+				_state = value;
 			}
+
+			Raise(StateChanged, value);
+		}
+	}
+
+	/// <summary>
+	///     Streams classified moves for the current position.
+	///     Yields already classified moves first, then waits for new ones.
+	///     Completes when all moves for the current position are classified.
+	/// </summary>
+	public async IAsyncEnumerable<Move> StreamClassifiedMovesAsync(
+		[EnumeratorCancellation] CancellationToken ct = default)
+	{
+		// Capture current state
+		UciState initialState;
+		lock (_sync)
+		{
+			initialState = _state;
+		}
+
+		// Yield already classified moves
+		foreach (var kvp in initialState.ClassifiedMoves) yield return kvp.Value;
+
+		var channel = Channel.CreateUnbounded<Move>();
+
+		void OnStateChanged(UciState newState)
+		{
+			// If the position changed (Fen or PlayedMoves), we stop
+			if (newState.Fen != initialState.Fen || !newState.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
+				channel.Writer.TryComplete();
+		}
+
+		void OnMoveClassified(Move m)
+		{
+			channel.Writer.TryWrite(m);
+		}
+
+		void OnAllClassified(IReadOnlyList<Move> _)
+		{
+			channel.Writer.TryComplete();
+		}
+
+		_classifier.MoveClassified     += OnMoveClassified;
+		_classifier.AllMovesClassified += OnAllClassified;
+		StateChanged                   += OnStateChanged;
+
+		try
+		{
+			// We need to filter duplicates that we already yielded
+			var yielded = new HashSet<string>(initialState.ClassifiedMoves.Keys);
+
+			while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+			{
+				while (channel.Reader.TryRead(out var move))
+				{
+					if (yielded.Add(move.Notation))
+						yield return move;
+				}
+			}
+		}
+		finally
+		{
+			_classifier.MoveClassified     -= OnMoveClassified;
+			_classifier.AllMovesClassified -= OnAllClassified;
+			StateChanged                   -= OnStateChanged;
 		}
 	}
 
@@ -149,21 +164,15 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// <param name="ct">Cancellation token.</param>
 	public async Task MakeMoveAsync(string move, CancellationToken ct = default)
 	{
-		Fen           fen;
-		List<string>? moves;
-
+		UciState currentState;
 		lock (_sync)
 		{
-			fen   = _currentBaseFen;
-			moves = _currentMoves != null ? new(_currentMoves) : new List<string>();
+			currentState = _state;
 		}
 
-		moves.Add(move);
-
-		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
-		Raise(MoveMade, move);
+		var newMoves = new List<string>(currentState.PlayedMoves) { move };
+		await UpdatePositionAsync(currentState.Fen, newMoves, ct).ConfigureAwait(false);
 	}
-
 
 	/// <summary>
 	///     Prepares a new game in all engines. Clears all cached move classifications and legal moves.
@@ -177,13 +186,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		).ConfigureAwait(false);
 
 		ClearState();
-
-		lock (_sync)
-		{
-			_currentLegalMoves = null;
-		}
-
-		Raise(NewGame);
+		State = UciState.Default;
 	}
 
 	/// <summary>
@@ -201,12 +204,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 		await _ponder.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
 		await _ponder.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
 
-		// Clear cached state at the start of a session
 		ClearState();
-		lock (_sync)
-		{
-			_currentLegalMoves = null;
-		}
+		State = UciState.Default;
 
 		Raise(Ready);
 	}
@@ -249,6 +248,13 @@ public sealed class UciCoordinator : IAsyncDisposable
 			}
 		}
 
+		lock (_sync)
+		{
+			_state = _state with { IsSearching = true };
+		}
+
+		Raise(StateChanged, _state);
+
 		await _ponder.StartSearchAsync(effectiveFen.Value, playedMoves, _bestCts.Token).ConfigureAwait(false);
 	}
 
@@ -267,13 +273,8 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_quick.StopAsync(ct)
 		).ConfigureAwait(false);
 
-		// Clear cached state on stop and cancel in-flight classification
 		ClearState();
-
-		lock (_sync)
-		{
-			_currentLegalMoves = null;
-		}
+		State = UciState.Default;
 
 		Raise(Stopped);
 	}
@@ -306,13 +307,20 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			// Best-effort: Swallow any errors on stop.
 		}
+
+		lock (_sync)
+		{
+			_state = _state with { IsSearching = false };
+		}
+
+		Raise(StateChanged, _state);
 	}
 
 	/// <summary>
 	///     Fully updates the engines to reflect a new board position:
 	///     - Stops prior search and cancels in-flight classification.
 	///     - Updates all engines to the new position.
-	///     - Publishes new set of legal moves via LegalMovesUpdated.
+	///     - Publishes new set of legal moves via StateChanged.
 	///     - Kicks off ponder search and background classification.
 	/// </summary>
 	/// <param name="fen">Position FEN</param>
@@ -328,34 +336,36 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_classifier.StopClassification();
 		ClearState();
 
-		lock (_sync)
-		{
-			_currentLegalMoves = null;
-			_currentBaseFen    = fen;
-			// Store a copy of the moves list to avoid external mutation issues
-			_currentMoves = playedMoves?.ToList();
-		}
+		var movesList = playedMoves?.ToList() ?? new List<string>();
 
 		// Set the position and publish legal moves
-		await _quick.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
+		await _quick.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
 		// Keep ponder engine synchronized with the quick engine position
-		await _ponder.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
-		var moves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		await _ponder.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
+
+		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+
 		lock (_sync)
 		{
-			_currentLegalMoves = moves;
+			_state = new(
+				fen,
+				movesList.ToImmutableList(),
+				legalMoves.ToImmutableList(),
+				ImmutableDictionary<string, Move>.Empty,
+				null,
+				null,
+				null,
+				false
+			);
 		}
 
-		Raise(LegalMovesUpdated, moves);
-		Raise(PositionUpdated);
-
-		if (playedMoves == null || !playedMoves.Any()) Raise(StartingPositionSet);
+		Raise(StateChanged, _state);
 
 		// Determine effective FEN for completion notification
 		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
 
 		// Start pondering for the new position
-		_ = StartSearchAsync(fen, playedMoves, ct);
+		_ = StartSearchAsync(fen, movesList, ct);
 
 		// Start background classification (events will propagate results)
 		if (effectiveFen.HasValue)
@@ -376,7 +386,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 					try
 					{
 						await foreach (var _ in _classifier
-												.ClassifyAsync(effectiveFen.Value, 6, moves, _classificationCts.Token)
+												.ClassifyAsync(
+													effectiveFen.Value,
+													6,
+													legalMoves,
+													_classificationCts.Token)
 												.ConfigureAwait(false))
 						{
 							// No-op; MoveClassificationEngine events will handle updates
@@ -398,23 +412,19 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// <returns>True if a move was undone; false if there were no moves to undo.</returns>
 	public async Task<bool> UndoLastMoveAsync(CancellationToken ct = default)
 	{
-		Fen           fen;
-		List<string>? moves;
-
+		UciState currentState;
 		lock (_sync)
 		{
-			if (_currentMoves == null || _currentMoves.Count == 0)
-				return false;
-
-			fen   = _currentBaseFen;
-			moves = new(_currentMoves);
+			currentState = _state;
 		}
 
-		string undoneMove = moves[moves.Count - 1];
-		moves.RemoveAt(moves.Count - 1);
+		if (currentState.PlayedMoves.Count == 0)
+			return false;
 
-		await UpdatePositionAsync(fen, moves, ct).ConfigureAwait(false);
-		Raise(MoveUndone, undoneMove);
+		var newMoves = new List<string>(currentState.PlayedMoves);
+		newMoves.RemoveAt(newMoves.Count - 1);
+
+		await UpdatePositionAsync(currentState.Fen, newMoves, ct).ConfigureAwait(false);
 		return true;
 	}
 
@@ -423,111 +433,6 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
 		_quick.GetCurrentFenAsync(ct);
-
-	/// <summary>
-	///     Gets the set of legal moves for the quick info engine's current position.
-	/// </summary>
-	public Task<IReadOnlyCollection<string>> GetLegalMovesAsync(CancellationToken ct = default) =>
-		_quick.GetLegalMovesAsync(ct);
-
-	/// <summary>
-	///     Returns a snapshot of the fast-path legal moves with any available per-move classifications so far.
-	///     Each move in the legal list is parsed, and matching Move records are returned as a dictionary.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	/// <returns>A MovesSnapshot containing parsed legal moves and associated classified moves.</returns>
-	public async Task<MovesSnapshot> GetLegalMovesWithClassificationsAsync(CancellationToken ct = default)
-	{
-		var legalStrings = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-		var legal        = ToParsedMoves(legalStrings);
-		var classified   = SnapshotClassifiedMoves();
-		return new(legal, classified);
-	}
-
-	/// <summary>
-	///     Streams classified moves for the current position.
-	///     Yields already classified moves first, then waits for new ones.
-	///     Completes when all moves for the current position are classified.
-	/// </summary>
-	public async IAsyncEnumerable<Move> StreamClassifiedMovesAsync(
-		[EnumeratorCancellation] CancellationToken ct = default)
-	{
-		// Capture current state
-		IReadOnlyCollection<string>? legal;
-
-		// Actually, let's use a Channel for simplicity and correctness
-		var channel = Channel.CreateUnbounded<Move>();
-
-		void OnMoveClassified(string n, Move m)
-		{
-			channel.Writer.TryWrite(m);
-		}
-
-		void OnAllClassified(IReadOnlyList<Move> _)
-		{
-			channel.Writer.TryComplete();
-		}
-
-		// Subscribe
-		NewMoveClassified  += OnMoveClassified;
-		AllMovesClassified += OnAllClassified;
-
-		try
-		{
-			// Yield already classified moves
-			lock (_sync)
-			{
-				legal = _currentLegalMoves;
-				foreach (var kvp in _classifiedMovesForCurrent) yield return kvp.Value;
-			}
-
-			// If we don't have legal moves yet, we might be too early or too late?
-			// But if we are calling this, we assume position is set.
-
-			// Check if we are already done
-			// This is tricky because AllMovesClassified might have already fired.
-			// But if AllMovesClassified fired, _classifiedMovesForCurrent should contain everything (if we assume it's cumulative).
-			// However, we need to know if "All" has happened.
-			// UciCoordinator doesn't explicitly store "IsFinished" flag for classification.
-			// But we can check if classified count == legal count.
-
-			var isFinished = false;
-			lock (_sync)
-			{
-				if (legal != null && _classifiedMovesForCurrent.Count >= legal.Count) isFinished = true;
-			}
-
-			if (isFinished) yield break;
-
-			// Consume channel
-			// We need to filter duplicates that we might have already yielded from the initial snapshot
-			// or that we receive while iterating.
-			var yielded = new HashSet<string>();
-			lock (_sync)
-			{
-				foreach (string? k in _classifiedMovesForCurrent.Keys) yielded.Add(k);
-			}
-
-			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-			// We also need to stop if the position changes (LegalMovesUpdated or PositionUpdated)
-			// But the channel writer will stop if we unsubscribe? No.
-			// If position changes, the coordinator clears state, so maybe we should watch for that?
-			// But simpler: if AllMovesClassified fires (even with empty list due to cancellation), we complete.
-
-			// Wait for channel data
-			while (await channel.Reader.WaitToReadAsync(linkedCts.Token).ConfigureAwait(false))
-			{
-				while (channel.Reader.TryRead(out var move))
-					if (yielded.Add(move.Notation))
-						yield return move;
-			}
-		}
-		finally
-		{
-			NewMoveClassified  -= OnMoveClassified;
-			AllMovesClassified -= OnAllClassified;
-		}
-	}
 
 	/// <summary>
 	///     Disposes all underlying engines and cancels outstanding classification.
@@ -566,35 +471,6 @@ public sealed class UciCoordinator : IAsyncDisposable
 	}
 
 	/// <summary>
-	///     Parses UCI move strings into ParsedMove objects.
-	/// </summary>
-	private static List<ParsedMove> ToParsedMoves(IReadOnlyCollection<string> legalStrings)
-	{
-		var legal = new List<ParsedMove>(legalStrings.Count);
-		foreach (string s in legalStrings)
-			legal.Add(ParsedMove.FromNotation(s));
-
-		return legal;
-	}
-
-	/// <summary>
-	///     Returns a snapshot of the current per-move classifications as a dictionary keyed by ParsedMove.
-	///     Thread-safe.
-	/// </summary>
-	private IReadOnlyDictionary<ParsedMove, Move> SnapshotClassifiedMoves()
-	{
-		Dictionary<ParsedMove, Move> dict;
-		lock (_sync)
-		{
-			dict = new(_classifiedMovesForCurrent.Count);
-			foreach (var kvp in _classifiedMovesForCurrent)
-				dict[ParsedMove.FromNotation(kvp.Key)] = kvp.Value;
-		}
-
-		return dict;
-	}
-
-	/// <summary>
 	///     Cancels background move classification and clears all cached per-move results.
 	/// </summary>
 	private void ClearState()
@@ -615,68 +491,36 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			oldClassificationCts?.Dispose();
 		}
-
-		lock (_sync)
-		{
-			_classifiedMovesForCurrent.Clear();
-		}
 	}
 
 	/// <summary>
 	///     Event handler for when all moves are classified for the current position.
 	///     Filters out any moves that are not legal in the current game state.
-	///     Propagates to <see cref="AllMovesClassified" />.
 	/// </summary>
-	/// <param name="moves">The classified moves as reported by the classifier engine.</param>
 	private void OnClassifierAllMovesClassified(IReadOnlyList<Move> moves)
 	{
-		// Filter out any moves that are not legal in the current position
-		IReadOnlyCollection<string>? legal;
-		lock (_sync)
-		{
-			legal = _currentLegalMoves;
-		}
-
-		if (legal != null)
-		{
-			var filtered = new List<Move>(moves.Count);
-			foreach (var m in moves)
-			{
-				if (legal.Contains(m.Notation))
-					filtered.Add(m);
-			}
-
-			moves = filtered;
-		}
-
-
-		Raise(AllMovesClassified, moves);
+		// We don't strictly need to do anything here for the state,
+		// as individual moves are added as they come in.
+		// But we might want to ensure consistency.
 	}
 
 	/// <summary>
 	///     Event handler for when a single move is classified.
 	///     Updates internal cache; only publishes if move is legal in the current position.
-	///     Propagates to <see cref="NewMoveClassified" />.
 	/// </summary>
-	/// <param name="move">The newly classified move.</param>
 	private void OnClassifierMoveClassified(Move move)
 	{
-		// Only accept and publish classifications for legal moves in the current position
-		IReadOnlyCollection<string>? legal;
 		lock (_sync)
 		{
-			legal = _currentLegalMoves;
+			// Verify relevance
+			if (!_state.LegalMoves.Contains(move.Notation)) return;
+
+			var newClassified = _state.ClassifiedMoves.SetItem(move.Notation, move);
+
+			_state = _state with { ClassifiedMoves = newClassified };
 		}
 
-		if (legal == null || !legal.Contains(move.Notation))
-			return;
-
-		lock (_sync)
-		{
-			_classifiedMovesForCurrent[move.Notation] = move;
-		}
-
-		Raise(NewMoveClassified, move.Notation, move);
+		Raise(StateChanged, _state);
 	}
 
 	/// <summary>
@@ -684,7 +528,12 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	private void OnPonderInfo(PrincipalVariation pv)
 	{
-		Raise(PonderInfo, pv);
+		lock (_sync)
+		{
+			_state = _state with { Evaluation = pv };
+		}
+
+		Raise(StateChanged, _state);
 	}
 
 	/// <summary>
@@ -692,7 +541,12 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder)
 	{
-		Raise(PonderBestMove, best, ponder);
+		lock (_sync)
+		{
+			_state = _state with { BestMove = best, PonderMove = ponder };
+		}
+
+		Raise(StateChanged, _state);
 	}
 
 	private void Raise(Action? handler)
@@ -713,15 +567,5 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_syncContext.Post(_ => handler(args), null);
 		else
 			handler(args);
-	}
-
-	private void Raise<T1, T2>(Action<T1, T2>? handler, T1 arg1, T2 arg2)
-	{
-		if (handler == null) return;
-
-		if (_syncContext != null)
-			_syncContext.Post(_ => handler(arg1, arg2), null);
-		else
-			handler(arg1, arg2);
 	}
 }
