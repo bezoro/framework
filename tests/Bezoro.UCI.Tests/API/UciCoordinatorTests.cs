@@ -1381,4 +1381,145 @@ public class UciCoordinatorTests
 
 		await coordinator.StopAsync();
 	}
+
+	[Fact]
+	public async Task FullTurn_DeepCheck_ValidatesAllSteps()
+	{
+		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// --- Step 1: Initial Position (White to move) ---
+
+		var legalMovesTcs =
+			new TaskCompletionSource<IReadOnlyCollection<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var allClassifiedTcs =
+			new TaskCompletionSource<IReadOnlyList<Move>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		// We'll collect classified moves as they come in to verify incremental updates
+		var incrementalClassified = new ConcurrentDictionary<string, Move>();
+
+		void OnLegalMovesUpdated(IReadOnlyCollection<string> moves)
+		{
+			if (moves.Count > 0) legalMovesTcs.TrySetResult(moves);
+		}
+
+		void OnNewMoveClassified(string notation, Move move)
+		{
+			incrementalClassified.TryAdd(notation, move);
+		}
+
+		void OnAllMovesClassified(IReadOnlyList<Move> moves)
+		{
+			allClassifiedTcs.TrySetResult(moves);
+		}
+
+		void OnPonderBestMove(ParsedMove best, ParsedMove? ponder)
+		{
+			if (!string.IsNullOrWhiteSpace(best.Raw))
+			{
+				// Filter out moves that are not legal in the current position
+				// This handles the case where "bestmove" from the previous search (triggered by Stop)
+				// arrives while we are setting up the new position.
+				var legal = coordinator.CurrentLegalMoves;
+				if (legal != null && legal.Contains(best.Raw)) bestMoveTcs.TrySetResult(best);
+			}
+		}
+
+		coordinator.LegalMovesUpdated  += OnLegalMovesUpdated;
+		coordinator.NewMoveClassified  += OnNewMoveClassified;
+		coordinator.AllMovesClassified += OnAllMovesClassified;
+		coordinator.PonderBestMove     += OnPonderBestMove;
+
+		try
+		{
+			// Trigger initial position
+			await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+			// 1. Verify Legal Moves
+			var legalMoves = await legalMovesTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+			legalMoves.Should().NotBeEmpty();
+			legalMoves.Should().Contain("e2e4");
+
+			// 2. Verify Best Move (Ponder)
+			var bestMove = await bestMoveTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+			bestMove.Raw.Should().NotBeNullOrWhiteSpace();
+			legalMoves.Should().Contain(bestMove.Raw);
+
+			// 3. Verify All Moves Classified
+			var classifiedMoves =
+				await allClassifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout); // Classification can take time
+
+			classifiedMoves.Should().NotBeEmpty();
+			classifiedMoves.Count.Should().Be(legalMoves.Count, "All legal moves should be classified");
+
+			foreach (var move in classifiedMoves)
+			{
+				legalMoves.Should().Contain(move.Notation);
+				move.Analysis.Should().NotBeNull();
+				// Check that incremental updates also captured this
+				incrementalClassified.ContainsKey(move.Notation).Should().BeTrue();
+			}
+		}
+		finally
+		{
+			coordinator.LegalMovesUpdated  -= OnLegalMovesUpdated;
+			coordinator.NewMoveClassified  -= OnNewMoveClassified;
+			coordinator.AllMovesClassified -= OnAllMovesClassified;
+			coordinator.PonderBestMove     -= OnPonderBestMove;
+		}
+
+		// --- Step 2: Make Move e2e4 (Black to move) ---
+
+		// Reset TCS for the next turn
+		legalMovesTcs    = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		allClassifiedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		bestMoveTcs      = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		incrementalClassified.Clear();
+
+		coordinator.LegalMovesUpdated  += OnLegalMovesUpdated;
+		coordinator.NewMoveClassified  += OnNewMoveClassified;
+		coordinator.AllMovesClassified += OnAllMovesClassified;
+		coordinator.PonderBestMove     += OnPonderBestMove;
+
+		try
+		{
+			// Apply move e2e4
+			await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+
+			// 1. Verify Legal Moves (Black)
+			var legalMoves = await legalMovesTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+			legalMoves.Should().NotBeEmpty();
+			legalMoves.Should().Contain("e7e5");    // Common response
+			legalMoves.Should().NotContain("e2e4"); // White's move shouldn't be legal for Black
+
+			// 2. Verify Best Move (Ponder) for Black
+			var bestMove = await bestMoveTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+			bestMove.Raw.Should().NotBeNullOrWhiteSpace();
+			legalMoves.Should().Contain(bestMove.Raw);
+
+			// 3. Verify All Moves Classified for Black
+			var classifiedMoves = await allClassifiedTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+			classifiedMoves.Should().NotBeEmpty();
+			classifiedMoves.Count.Should().Be(legalMoves.Count, "All legal moves for Black should be classified");
+
+			foreach (var move in classifiedMoves)
+			{
+				legalMoves.Should().Contain(move.Notation);
+				move.Analysis.Should().NotBeNull();
+				incrementalClassified.ContainsKey(move.Notation).Should().BeTrue();
+			}
+		}
+		finally
+		{
+			coordinator.LegalMovesUpdated  -= OnLegalMovesUpdated;
+			coordinator.NewMoveClassified  -= OnNewMoveClassified;
+			coordinator.AllMovesClassified -= OnAllMovesClassified;
+			coordinator.PonderBestMove     -= OnPonderBestMove;
+		}
+
+		await coordinator.StopAsync();
+	}
 }
