@@ -9,12 +9,10 @@
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+		<ProjectReference Include="..\Bezoro.UCI\Bezoro.UCI.csproj" />
 	</ItemGroup>
 	<ItemGroup>
-		<Folder Include="Domain\Functions\" />
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="System.Collections.Immutable"
-			Version="10.0.0-preview.5.25277.114" />
+		<PackageReference Include="System.Collections.Immutable" Version="10.0.0" />
+		<PackageReference Include="System.Threading.Channels" Version="8.0.0" Condition="'$(TargetFramework)' == 'netstandard2.1'" />
 	</ItemGroup>
 </Project>
