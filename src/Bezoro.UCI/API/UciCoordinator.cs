@@ -15,11 +15,12 @@ namespace Bezoro.UCI.API;
 ///     Orchestrates updating positions, synchronized pondering, background classification, and emits unified events
 ///     updating UI or consumers.
 /// </summary>
-public sealed class UciCoordinator : IAsyncDisposable
+public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 {
 	private readonly MoveClassificationEngine _classifier;
 	private readonly object                   _sync = new();
 
+	private readonly UciCoordinatorOptions   _options;
 	private readonly PonderEngine            _ponder;
 	private readonly QuickInfoEngine         _quick;
 	private readonly SynchronizationContext? _syncContext;
@@ -28,6 +29,11 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private CancellationTokenSource? _classificationCts;
 
 	private UciState _state = UciState.Default;
+
+	/// <summary>
+	///     Raised when an error occurs in any of the underlying engines.
+	/// </summary>
+	public event Action<Exception>? Error;
 
 	/// <summary>
 	///     Raised when the coordinator is fully initialized and ready.
@@ -52,13 +58,16 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// <param name="args">Optional arguments for the engine.</param>
 	/// <param name="workingDirectory">Optional working directory.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
+	/// <param name="options">Optional configuration options for the coordinator.</param>
 	public UciCoordinator(
 		string                  enginePath,
 		IEnumerable<string>?    args             = null,
 		string?                 workingDirectory = null,
-		SynchronizationContext? syncContext      = null)
+		SynchronizationContext? syncContext      = null,
+		UciCoordinatorOptions?  options          = null)
 	{
 		_syncContext = syncContext;
+		_options     = options ?? new UciCoordinatorOptions();
 		_quick       = new(enginePath, args, workingDirectory);
 		_ponder      = new(enginePath, args, workingDirectory);
 		_classifier  = new(enginePath, args, workingDirectory);
@@ -69,6 +78,16 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_classifier.MoveClassified     += OnClassifierMoveClassified;
 		_classifier.AllMovesClassified += OnClassifierAllMovesClassified;
 	}
+
+	/// <summary>
+	///     Gets a value indicating whether all underlying engines are healthy and responsive.
+	/// </summary>
+	public bool IsHealthy => _quick.IsHealthy && _ponder.IsHealthy;
+
+	/// <summary>
+	///     Gets a value indicating whether all underlying engines have been started.
+	/// </summary>
+	public bool IsStarted => _quick.IsStarted && _ponder.IsStarted;
 
 	/// <summary>
 	///     Gets the current state of the coordinator.
@@ -162,6 +181,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
 	/// <param name="ct">Cancellation token.</param>
+	/// <exception cref="ArgumentException">Thrown when the move is not legal in the current position.</exception>
 	public async Task MakeMoveAsync(string move, CancellationToken ct = default)
 	{
 		UciState currentState;
@@ -169,6 +189,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			currentState = _state;
 		}
+
+		if (!currentState.LegalMoves.Contains(move))
+			throw new ArgumentException($"Move '{move}' is not legal in the current position.", nameof(move));
 
 		var newMoves = new List<string>(currentState.PlayedMoves) { move };
 		await UpdatePositionAsync(currentState.Fen, newMoves, ct).ConfigureAwait(false);
@@ -190,7 +213,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	}
 
 	/// <summary>
-	///     Starts all engines and resets state. Sets some recommended UCI options on the ponder engine.
+	///     Starts all engines and resets state. Sets UCI options on the ponder engine based on configuration.
 	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
@@ -200,9 +223,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_classifier.StartAsync(ct)
 		).ConfigureAwait(false);
 
-		// Configure ponder engine for multi-threading and single PV analysis as a default.
-		await _ponder.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
-		await _ponder.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
+		// Configure ponder engine based on options.
+		await _ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
+		await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(), ct).ConfigureAwait(false);
 
 		ClearState();
 		State = UciState.Default;
@@ -222,28 +245,15 @@ public sealed class UciCoordinator : IAsyncDisposable
 		CancellationToken    ct          = default)
 	{
 		// Atomically cancel and replace the old cancellation token source
-		var oldCts = Interlocked.Exchange(ref _bestCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
-		try
-		{
-			oldCts?.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling old CTS
-		}
-		finally
-		{
-			oldCts?.Dispose();
-		}
+		CancelAndDispose(ref _bestCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
 
 		var effectiveFen = fen;
 		if (!effectiveFen.HasValue)
 		{
-			effectiveFen = await _quick.GetCurrentFenAsync(_bestCts.Token).ConfigureAwait(false);
+			effectiveFen = await _quick.GetCurrentFenAsync(_bestCts!.Token).ConfigureAwait(false);
 			if (!effectiveFen.HasValue)
 			{
-				var ctsToDispose = Interlocked.Exchange(ref _bestCts, null);
-				ctsToDispose?.Dispose();
+				CancelAndDispose(ref _bestCts);
 				return;
 			}
 		}
@@ -255,7 +265,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 		Raise(StateChanged, _state);
 
-		await _ponder.StartSearchAsync(effectiveFen.Value, playedMoves, _bestCts.Token).ConfigureAwait(false);
+		await _ponder.StartSearchAsync(effectiveFen.Value, playedMoves, _bestCts!.Token).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -284,20 +294,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	/// </summary>
 	public async Task StopSearchAsync(CancellationToken ct = default)
 	{
-		// Atomically get and clear the cancellation token source
-		var cts = Interlocked.Exchange(ref _bestCts, null);
-		try
-		{
-			cts?.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling
-		}
-		finally
-		{
-			cts?.Dispose();
-		}
+		CancelAndDispose(ref _bestCts);
 
 		try
 		{
@@ -372,12 +369,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 		{
 			// Create new cancellation token source for this classification task
 			// (ClearState() already canceled and disposed the previous one)
-			var oldClassificationCts = Interlocked.Exchange(
-				ref _classificationCts,
-				CancellationTokenSource.CreateLinkedTokenSource(ct));
-
-			// Dispose any old CTS that might have been set concurrently (should be null after ClearState)
-			oldClassificationCts?.Dispose();
+			CancelAndDispose(ref _classificationCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
 
 			// Fire-and-forget move classifier (listeners handle events)
 			_ = Task.Run(
@@ -388,9 +380,9 @@ public sealed class UciCoordinator : IAsyncDisposable
 						await foreach (var _ in _classifier
 												.ClassifyAsync(
 													effectiveFen.Value,
-													6,
+													_options.ClassificationDepth,
 													legalMoves,
-													_classificationCts.Token)
+													_classificationCts!.Token)
 												.ConfigureAwait(false))
 						{
 							// No-op; MoveClassificationEngine events will handle updates
@@ -435,6 +427,15 @@ public sealed class UciCoordinator : IAsyncDisposable
 		_quick.GetCurrentFenAsync(ct);
 
 	/// <summary>
+	///     Sets a UCI option on the ponder engine.
+	/// </summary>
+	/// <param name="name">The option name.</param>
+	/// <param name="value">The option value, or null to use the engine's default.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
+		_ponder.SetOptionAsync(name, value, ct);
+
+	/// <summary>
 	///     Disposes all underlying engines and cancels outstanding classification.
 	/// </summary>
 	public async ValueTask DisposeAsync()
@@ -451,23 +452,20 @@ public sealed class UciCoordinator : IAsyncDisposable
 
 		// Dispose cancellation token sources
 		// (ClearState() already handled _classificationCts)
-		var bestCts = Interlocked.Exchange(ref _bestCts, null);
-		try
-		{
-			bestCts?.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling
-		}
-		finally
-		{
-			bestCts?.Dispose();
-		}
+		CancelAndDispose(ref _bestCts);
 
 		await _classifier.DisposeAsync();
 		await _ponder.DisposeAsync();
 		await _quick.DisposeAsync();
+	}
+
+	/// <summary>
+	///     Synchronously disposes all underlying engines and cancels outstanding classification.
+	/// </summary>
+	public void Dispose()
+	{
+		DisposeAsync().AsTask().GetAwaiter().GetResult();
+		GC.SuppressFinalize(this);
 	}
 
 	/// <summary>
@@ -476,21 +474,7 @@ public sealed class UciCoordinator : IAsyncDisposable
 	private void ClearState()
 	{
 		_classifier.StopClassification();
-
-		// Atomically get and clear the classification cancellation token source
-		var oldClassificationCts = Interlocked.Exchange(ref _classificationCts, null);
-		try
-		{
-			oldClassificationCts?.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling
-		}
-		finally
-		{
-			oldClassificationCts?.Dispose();
-		}
+		CancelAndDispose(ref _classificationCts);
 	}
 
 	/// <summary>
@@ -567,5 +551,30 @@ public sealed class UciCoordinator : IAsyncDisposable
 			_syncContext.Post(_ => handler(args), null);
 		else
 			handler(args);
+	}
+
+	/// <summary>
+	///     Raises the Error event with the specified exception.
+	/// </summary>
+	private void RaiseError(Exception ex) => Raise(Error, ex);
+
+	/// <summary>
+	///     Atomically cancels and disposes a CancellationTokenSource field, optionally replacing it.
+	/// </summary>
+	private static void CancelAndDispose(ref CancellationTokenSource? ctsField, CancellationTokenSource? replacement = null)
+	{
+		var old = Interlocked.Exchange(ref ctsField, replacement);
+		try
+		{
+			old?.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling
+		}
+		finally
+		{
+			old?.Dispose();
+		}
 	}
 }
