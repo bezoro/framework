@@ -397,10 +397,10 @@ public class UciCoordinatorTests
 		}
 
 		var finalState = coordinator.State;
-		var finalFen   = await coordinator.GetCurrentFenAsync();
+		var finalFen   = coordinator.CurrentFen;
 
-		finalFen?.ActiveColor.Should().Be('b', "It should be Black's turn now");
-		finalFen?.Checkers.Should().NotBeEmpty();
+		finalFen.ActiveColor.Should().Be('b', "It should be Black's turn now");
+		finalFen.Checkers.Should().NotBeEmpty();
 		finalState.LegalMoves.Should().BeEmpty("Black should be checkmated and have no legal moves");
 		finalState.ClassifiedMoves.Should().BeEmpty("Black should be checkmated and have no classified moves");
 
@@ -542,10 +542,10 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(TestConsts.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		var fen = await coordinator.GetCurrentFenAsync();
+		var fen = coordinator.CurrentFen;
 
 		fen.Should().NotBeNull();
-		Fen.Validate(fen!.Value.Raw).Should().BeTrue();
+		Fen.Validate(fen.Raw).Should().BeTrue();
 	}
 
 	[Fact]

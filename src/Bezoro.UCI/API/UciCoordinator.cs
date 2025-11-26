@@ -51,6 +51,25 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action? Stopped;
 
 	/// <summary>
+	///     Creates and starts a new UciCoordinator with engines initialized and ready.
+	/// </summary>
+	/// <param name="enginePath">Path to the UCI engine executable.</param>
+	/// <param name="options">Configuration options for the coordinator.</param>
+	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>A fully initialized and started coordinator.</returns>
+	public static async Task<UciCoordinator> CreateAsync(
+		string                  enginePath,
+		UciCoordinatorOptions?  options     = null,
+		SynchronizationContext? syncContext = null,
+		CancellationToken       ct          = default)
+	{
+		var coordinator = new UciCoordinator(enginePath, null, null, syncContext, options);
+		await coordinator.StartAsync(ct).ConfigureAwait(false);
+		return coordinator;
+	}
+
+	/// <summary>
 	///     Constructs a new UciCoordinator with engines initialized for the given enginePath, arguments, and working
 	///     directory.
 	/// </summary>
@@ -67,7 +86,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		UciCoordinatorOptions?  options          = null)
 	{
 		_syncContext = syncContext;
-		_options     = options ?? new UciCoordinatorOptions();
+		_options     = options ?? UciCoordinatorOptions.Default;
 		_quick       = new(enginePath, args, workingDirectory);
 		_ponder      = new(enginePath, args, workingDirectory);
 		_classifier  = new(enginePath, args, workingDirectory);
@@ -80,6 +99,16 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
+	///     Gets the current position FEN (after all played moves).
+	/// </summary>
+	public Fen CurrentFen => State.CurrentFen;
+
+	/// <summary>
+	///     Gets the current evaluation from the ponder engine.
+	/// </summary>
+	public PrincipalVariation? Evaluation => State.Evaluation;
+
+	/// <summary>
 	///     Gets a value indicating whether all underlying engines are healthy and responsive.
 	/// </summary>
 	public bool IsHealthy => _quick.IsHealthy && _ponder.IsHealthy;
@@ -88,6 +117,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	///     Gets a value indicating whether all underlying engines have been started.
 	/// </summary>
 	public bool IsStarted => _quick.IsStarted && _ponder.IsStarted;
+
+	/// <summary>
+	///     Gets the list of legal moves in the current position.
+	/// </summary>
+	public IReadOnlyList<string> LegalMoves => State.LegalMoves;
+
+	/// <summary>
+	///     Gets the configuration options for this coordinator.
+	/// </summary>
+	public UciCoordinatorOptions Options => _options;
+
+	/// <summary>
+	///     Gets the list of moves played from the starting FEN.
+	/// </summary>
+	public IReadOnlyList<string> PlayedMoves => State.PlayedMoves;
 
 	/// <summary>
 	///     Gets the current state of the coordinator.
@@ -109,6 +153,41 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			}
 
 			Raise(StateChanged, value);
+		}
+	}
+
+	/// <summary>
+	///     Streams state changes as an async enumerable.
+	///     Yields the current state immediately, then yields each subsequent state change.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public async IAsyncEnumerable<UciState> StreamStateAsync(
+		[EnumeratorCancellation] CancellationToken ct = default)
+	{
+		var channel = Channel.CreateUnbounded<UciState>();
+
+		void OnStateChanged(UciState state)
+		{
+			channel.Writer.TryWrite(state);
+		}
+
+		StateChanged += OnStateChanged;
+
+		try
+		{
+			// Yield current state first
+			yield return State;
+
+			while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+			{
+				while (channel.Reader.TryRead(out var state))
+					yield return state;
+			}
+		}
+		finally
+		{
+			StateChanged -= OnStateChanged;
+			channel.Writer.TryComplete();
 		}
 	}
 
@@ -135,7 +214,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		void OnStateChanged(UciState newState)
 		{
 			// If the position changed (Fen or PlayedMoves), we stop
-			if (newState.Fen != initialState.Fen || !newState.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
+			if (newState.BaseFen != initialState.BaseFen ||
+				!newState.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
 				channel.Writer.TryComplete();
 		}
 
@@ -181,8 +261,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
 	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The new state after the move is applied.</returns>
 	/// <exception cref="ArgumentException">Thrown when the move is not legal in the current position.</exception>
-	public async Task MakeMoveAsync(string move, CancellationToken ct = default)
+	public async Task<UciState> MakeMoveAsync(string move, CancellationToken ct = default)
 	{
 		UciState currentState;
 		lock (_sync)
@@ -194,7 +275,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			throw new ArgumentException($"Move '{move}' is not legal in the current position.", nameof(move));
 
 		var newMoves = new List<string>(currentState.PlayedMoves) { move };
-		await UpdatePositionAsync(currentState.Fen, newMoves, ct).ConfigureAwait(false);
+		await UpdatePositionAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
+		return State;
 	}
 
 	/// <summary>
@@ -210,6 +292,28 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		ClearState();
 		State = UciState.Default;
+	}
+
+	/// <summary>
+	///     Resets to the starting chess position.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public Task ResetAsync(CancellationToken ct = default) =>
+		UpdatePositionAsync(Fen.Default, null, ct);
+
+	/// <summary>
+	///     Sets the position from a FEN string.
+	/// </summary>
+	/// <param name="fen">The FEN string representing the position.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <exception cref="ArgumentException">Thrown when the FEN string is invalid.</exception>
+	public Task SetPositionAsync(string fen, CancellationToken ct = default)
+	{
+		var parsed = Fen.Parse(fen);
+		if (!parsed.HasValue)
+			throw new ArgumentException($"Invalid FEN string: '{fen}'", nameof(fen));
+
+		return UpdatePositionAsync(parsed.Value, null, ct);
 	}
 
 	/// <summary>
@@ -234,29 +338,25 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Begins an infinite search using the ponder engine at the given or current position. Cancels any previous search.
+	///     Begins an infinite search from the current position. Cancels any previous search.
 	/// </summary>
-	/// <param name="fen">Position to search from; if null, uses the engine's current FEN.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public Task StartSearchAsync(CancellationToken ct = default) =>
+		StartSearchAsync(CurrentFen, null, ct);
+
+	/// <summary>
+	///     Begins an infinite search from the specified position. Cancels any previous search.
+	/// </summary>
+	/// <param name="fen">Position to search from.</param>
 	/// <param name="playedMoves">Optional played moves to append to the FEN.</param>
 	/// <param name="ct">Cancellation token.</param>
 	public async Task StartSearchAsync(
-		Fen?                 fen         = null,
+		Fen                  fen,
 		IEnumerable<string>? playedMoves = null,
 		CancellationToken    ct          = default)
 	{
 		// Atomically cancel and replace the old cancellation token source
 		CancelAndDispose(ref _bestCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
-
-		var effectiveFen = fen;
-		if (!effectiveFen.HasValue)
-		{
-			effectiveFen = await _quick.GetCurrentFenAsync(_bestCts!.Token).ConfigureAwait(false);
-			if (!effectiveFen.HasValue)
-			{
-				CancelAndDispose(ref _bestCts);
-				return;
-			}
-		}
 
 		lock (_sync)
 		{
@@ -265,7 +365,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		Raise(StateChanged, _state);
 
-		await _ponder.StartSearchAsync(effectiveFen.Value, playedMoves, _bestCts!.Token).ConfigureAwait(false);
+		await _ponder.StartSearchAsync(fen, playedMoves, _bestCts!.Token).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -300,9 +400,13 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		{
 			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
 		}
-		catch
+		catch (OperationCanceledException)
 		{
-			// Best-effort: Swallow any errors on stop.
+			// Expected when cancellation is requested
+		}
+		catch (Exception ex)
+		{
+			RaiseError(ex);
 		}
 
 		lock (_sync)
@@ -342,10 +446,14 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
+		// Get the effective FEN (actual position after moves)
+		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+
 		lock (_sync)
 		{
 			_state = new(
 				fen,
+				effectiveFen ?? fen,
 				movesList.ToImmutableList(),
 				legalMoves.ToImmutableList(),
 				ImmutableDictionary<string, Move>.Empty,
@@ -358,14 +466,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		Raise(StateChanged, _state);
 
-		// Determine effective FEN for completion notification
-		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-
 		// Start pondering for the new position
 		_ = StartSearchAsync(fen, movesList, ct);
 
 		// Start background classification (events will propagate results)
-		if (effectiveFen.HasValue)
+		if (effectiveFen is { } currentFen)
 		{
 			// Create new cancellation token source for this classification task
 			// (ClearState() already canceled and disposed the previous one)
@@ -379,7 +484,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 					{
 						await foreach (var _ in _classifier
 												.ClassifyAsync(
-													effectiveFen.Value,
+													currentFen,
 													_options.ClassificationDepth,
 													legalMoves,
 													_classificationCts!.Token)
@@ -388,9 +493,13 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 							// No-op; MoveClassificationEngine events will handle updates
 						}
 					}
-					catch
+					catch (OperationCanceledException)
 					{
-						// Best-effort: ignore cancellation/errors
+						// Expected when position changes or coordinator stops
+					}
+					catch (Exception ex)
+					{
+						RaiseError(ex);
 					}
 				},
 				CancellationToken.None);
@@ -398,12 +507,16 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Reverts the last move played, if any, and updates the engines.
+	///     Reverts one or more moves and updates the engines.
 	/// </summary>
+	/// <param name="count">Number of moves to undo. Defaults to 1.</param>
 	/// <param name="ct">Cancellation token.</param>
-	/// <returns>True if a move was undone; false if there were no moves to undo.</returns>
-	public async Task<bool> UndoLastMoveAsync(CancellationToken ct = default)
+	/// <returns>The new state after undoing moves, or the current state if no moves were undone.</returns>
+	public async Task<UciState> UndoAsync(int count = 1, CancellationToken ct = default)
 	{
+		if (count < 1)
+			throw new ArgumentOutOfRangeException(nameof(count), "Count must be at least 1.");
+
 		UciState currentState;
 		lock (_sync)
 		{
@@ -411,20 +524,31 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		if (currentState.PlayedMoves.Count == 0)
-			return false;
+			return currentState;
 
-		var newMoves = new List<string>(currentState.PlayedMoves);
-		newMoves.RemoveAt(newMoves.Count - 1);
+		int movesToRemove = Math.Min(count, currentState.PlayedMoves.Count);
+		var newMoves      = currentState.PlayedMoves.Take(currentState.PlayedMoves.Count - movesToRemove).ToList();
 
-		await UpdatePositionAsync(currentState.Fen, newMoves, ct).ConfigureAwait(false);
-		return true;
+		await UpdatePositionAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
+		return State;
 	}
 
 	/// <summary>
-	///     Gets the current FEN as seen by the quick info engine.
+	///     Gets the actual current FEN (after all played moves) as seen by the engine.
 	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The current position FEN, or null if not available.</returns>
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
 		_quick.GetCurrentFenAsync(ct);
+
+	/// <summary>
+	///     Performs a blocking search with the specified parameters and returns the result.
+	/// </summary>
+	/// <param name="parameters">Search parameters (depth, time, nodes, etc.).</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The search result containing the best move and evaluation.</returns>
+	public Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default) =>
+		_quick.QuickEvalAsync(CurrentFen, parameters.Depth ?? _options.ClassificationDepth, ct);
 
 	/// <summary>
 	///     Sets a UCI option on the ponder engine.
@@ -434,6 +558,69 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		_ponder.SetOptionAsync(name, value, ct);
+
+	/// <summary>
+	///     Classifies a single move in the current position.
+	/// </summary>
+	/// <param name="move">The move to classify (in UCI notation).</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The classified move with analysis.</returns>
+	/// <exception cref="ArgumentException">Thrown when the move is not legal.</exception>
+	public async Task<Move> ClassifyMoveAsync(string move, CancellationToken ct = default)
+	{
+		var currentState = State;
+
+		if (!currentState.LegalMoves.Contains(move))
+			throw new ArgumentException($"Move '{move}' is not legal in the current position.", nameof(move));
+
+		// Check if already classified
+		if (currentState.ClassifiedMoves.TryGetValue(move, out var existing))
+			return existing;
+
+		// Use the classifier to classify this specific move
+		var result = await _classifier.ClassifyMoveAsync(CurrentFen, move, _options.ClassificationDepth, ct)
+									  .ConfigureAwait(false);
+
+		if (!result.HasValue)
+			throw new InvalidOperationException($"Failed to classify move '{move}'.");
+
+		return result.Value;
+	}
+
+	/// <summary>
+	///     Waits until all legal moves in the current position have been classified.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>Dictionary of all classified moves.</returns>
+	public async Task<IReadOnlyDictionary<string, Move>> WaitForClassificationAsync(CancellationToken ct = default)
+	{
+		var tcs = new TaskCompletionSource<IReadOnlyDictionary<string, Move>>(
+			TaskCreationOptions.RunContinuationsAsynchronously);
+
+		using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+		void OnStateChanged(UciState state)
+		{
+			if (state.IsClassificationComplete)
+				tcs.TrySetResult(state.ClassifiedMoves);
+		}
+
+		StateChanged += OnStateChanged;
+
+		try
+		{
+			// Check if already complete
+			var current = State;
+			if (current.IsClassificationComplete)
+				return current.ClassifiedMoves;
+
+			return await tcs.Task.ConfigureAwait(false);
+		}
+		finally
+		{
+			StateChanged -= OnStateChanged;
+		}
+	}
 
 	/// <summary>
 	///     Disposes all underlying engines and cancels outstanding classification.

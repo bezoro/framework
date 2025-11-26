@@ -6,7 +6,8 @@ namespace Bezoro.UCI.API.Types;
 ///     Represents an immutable snapshot of the UCI Coordinator's state.
 /// </summary>
 public readonly record struct UciState(
-	Fen                               Fen,
+	Fen                               BaseFen,
+	Fen                               CurrentFen,
 	ImmutableList<string>             PlayedMoves,
 	ImmutableList<string>             LegalMoves,
 	ImmutableDictionary<string, Move> ClassifiedMoves,
@@ -20,6 +21,7 @@ public readonly record struct UciState(
 	///     Gets the default initial state.
 	/// </summary>
 	public static UciState Default { get; } = new(
+		Fen.Default,
 		Fen.Default,
 		ImmutableList<string>.Empty,
 		ImmutableList<string>.Empty,
@@ -51,4 +53,26 @@ public readonly record struct UciState(
 	///     Gets a value indicating whether all legal moves have been classified.
 	/// </summary>
 	public bool IsClassificationComplete => ClassifiedMovesCount >= TotalLegalMoves;
+
+	/// <summary>
+	///     Gets a value indicating whether the game is over (no legal moves available).
+	/// </summary>
+	public bool IsGameOver => LegalMoves.Count == 0;
+
+	/// <summary>
+	///     Gets a value indicating whether the current position is checkmate.
+	///     True when there are no legal moves and the king is in check.
+	/// </summary>
+	public bool IsCheckmate => LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers);
+
+	/// <summary>
+	///     Gets a value indicating whether the current position is stalemate.
+	///     True when there are no legal moves but the king is not in check.
+	/// </summary>
+	public bool IsStalemate => LegalMoves.Count == 0 && string.IsNullOrEmpty(CurrentFen.Checkers);
+
+	/// <summary>
+	///     Gets a value indicating whether the side to move is in check.
+	/// </summary>
+	public bool IsCheck => !string.IsNullOrEmpty(CurrentFen.Checkers);
 }
