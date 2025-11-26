@@ -1,3 +1,5 @@
+using Bezoro.UCI.API.Common.Enums;
+
 namespace Bezoro.Chess.API.Types;
 
 /// <summary>
@@ -5,23 +7,26 @@ namespace Bezoro.Chess.API.Types;
 /// </summary>
 public static class PlayerColorExtensions
 {
-    /// <summary>
-    ///     Converts the color to the FEN active color character ('w' or 'b').
-    /// </summary>
-    public static char ToFenChar(this PlayerColor color) =>
-		color == PlayerColor.White ? 'w' : 'b';
+	/// <summary>
+	///     Creates a PlayerColor from a FEN active color character.
+	/// </summary>
+	public static PlayerColor FromFenChar(char c) => c == 'w' ? PlayerColor.White : PlayerColor.Black;
 
-    /// <summary>
-    ///     Creates a PlayerColor from a FEN active color character.
-    /// </summary>
-    public static PlayerColor FromFenChar(char c) =>
-		c == 'w' ? PlayerColor.White : PlayerColor.Black;
+	extension(PlayerColor color)
+	{
+		/// <summary>
+		///     Converts the color to the FEN active color character ('w' or 'b').
+		/// </summary>
+		public char ToFenChar() => color == PlayerColor.White ? 'w' : 'b';
 
-    /// <summary>
-    ///     Gets the opponent's color.
-    /// </summary>
-    public static PlayerColor Opponent(this PlayerColor color) =>
-		color == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
+		/// <summary>
+		///     Gets the opponent's color.
+		/// </summary>
+		public PlayerColor Opponent() =>
+			color == PlayerColor.White ? PlayerColor.Black : PlayerColor.White;
+
+		public PieceColor ToPieceColor() => color == PlayerColor.White ? PieceColor.White : PieceColor.Black;
+	}
 }
 
 /// <summary>
