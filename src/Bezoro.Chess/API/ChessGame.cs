@@ -670,6 +670,10 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 	{
 		StopClock();
 		_history.Clear();
+		lock (_sync)
+		{
+			_promotionChoices.Clear();
+		}
 
 		if (_coordinator != null)
 			await _coordinator.NewGameAsync(ct).ConfigureAwait(false);
@@ -760,7 +764,9 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 		}
 		else
 		{
-			Clock = _options.EffectiveTimeControl;
+			// Back to the initial clock state: white to move.
+			Clock = _options.EffectiveTimeControl.SetActiveColor(PlayerColor.White).Start();
+			StartClock();
 		}
 
 		// Update position in coordinator
@@ -908,6 +914,13 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 
 	private async Task InitializeAsync(CancellationToken ct)
 	{
+		StopClock();
+		lock (_sync)
+		{
+			_promotionChoices.Clear();
+			_isOpponentThinking = false;
+		}
+
 		// Set starting position
 		if (_coordinator != null)
 		{
@@ -918,7 +931,8 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 		}
 
 		// Initialize clock
-		_clock = _options.EffectiveTimeControl.SetActiveColor(PlayerColor.White);
+		Clock = _options.EffectiveTimeControl.SetActiveColor(PlayerColor.White).Start();
+		StartClock();
 
 		// Update state
 		UpdateStateFromCoordinator();
@@ -1033,23 +1047,37 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 	{
 		StopClock();
 
-		lock (_sync)
-		{
-			_state = _state with { Result = result };
-		}
-
-		Raise(StateChanged, _state);
-		Raise(GameOver,     result);
+		State = State with { Result = result };
+		Raise(GameOver, result);
 	}
 
 	private void OnClockTick()
 	{
-		long elapsed = _clockStopwatch.ElapsedMilliseconds;
-		_clockStopwatch.Restart();
+		Timer?    timer;
+		long      elapsed;
+		GameClock updated;
 
-		Clock = _clock.Tick(elapsed);
+		lock (_sync)
+		{
+			timer = _clockTimer;
+			if (timer == null)
+				return;
 
-		if (_clock.IsTimeout) CheckGameEndConditions();
+			elapsed = _clockStopwatch.ElapsedMilliseconds;
+			_clockStopwatch.Restart();
+
+			updated = _clock.Tick(elapsed);
+
+			// If the clock was stopped/disposed while we were ticking, don't apply the update.
+			if (!ReferenceEquals(_clockTimer, timer))
+				return;
+
+			_clock = updated;
+		}
+
+		Raise(ClockTick, updated);
+
+		if (updated.IsTimeout) CheckGameEndConditions();
 	}
 
 	private void OnError(Exception ex)
@@ -1081,13 +1109,7 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 	private void OnUciStateChanged(UciState uciState)
 	{
 		var result = DetermineResult(uciState);
-
-		lock (_sync)
-		{
-			_state = GameState.FromUciState(uciState, _history.MovesImmutable, result);
-		}
-
-		Raise(StateChanged, _state);
+		State = GameState.FromUciState(uciState, _history.MovesImmutable, result);
 
 		// Check for pawns on promotion squares after state update
 		CheckForPromotionSquares();
@@ -1115,29 +1137,59 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 
 	private void StartClock()
 	{
-		if (_clock.IsUnlimited)
-			return;
+		Timer?    existing;
+		GameClock current;
+		lock (_sync)
+		{
+			existing = _clockTimer;
+			current  = _clock;
 
-		_clockStopwatch.Restart();
-		Clock = _clock.Start();
+			if (existing != null || current.IsUnlimited)
+				return;
 
-		_clockTimer = new(
-			_ => OnClockTick(),
-			null,
-			100,
-			100
-		);
+			_clockStopwatch.Restart();
+			_clock = current.Start();
+
+			_clockTimer = new(
+				_ => OnClockTick(),
+				null,
+				100,
+				100
+			);
+		}
 	}
 
 	private void StopClock()
 	{
-		_clockTimer?.Change(Timeout.Infinite, Timeout.Infinite);
-		_clockTimer?.Dispose();
-		_clockTimer = null;
+		Timer?    timerToDispose;
+		GameClock updated;
 
-		_clockStopwatch.Stop();
+		lock (_sync)
+		{
+			timerToDispose = _clockTimer;
+			_clockTimer    = null;
 
-		if (!_clock.IsUnlimited) Clock = _clock.Stop();
+			_clockStopwatch.Stop();
+
+			if (_clock.IsUnlimited)
+				return;
+
+			updated = _clock.Stop();
+			_clock  = updated;
+		}
+
+		try
+		{
+			timerToDispose?.Change(Timeout.Infinite, Timeout.Infinite);
+		}
+		catch
+		{
+			// ignore (timer may already be disposed)
+		}
+
+		timerToDispose?.Dispose();
+
+		Raise(ClockTick, updated);
 	}
 
 	private void UpdateStateFromCoordinator()
@@ -1150,10 +1202,7 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 		var uciState = _coordinator.State;
 		var result   = DetermineResult(uciState);
 
-		lock (_sync)
-		{
-			_state = GameState.FromUciState(uciState, _history.MovesImmutable, result);
-		}
+		State = GameState.FromUciState(uciState, _history.MovesImmutable, result);
 
 		// Check for pawns on promotion squares after state update
 		CheckForPromotionSquares();
