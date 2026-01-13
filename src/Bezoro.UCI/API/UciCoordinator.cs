@@ -356,7 +356,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		CancellationToken    ct          = default)
 	{
 		// Atomically cancel and replace the old cancellation token source
-		CancelAndDispose(ref _bestCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
+		var newCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		var token  = newCts.Token; // Capture token before CancelAndDispose may dispose newCts
+		CancelAndDispose(ref _bestCts, newCts);
 
 		lock (_sync)
 		{
@@ -365,7 +367,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		Raise(StateChanged, _state);
 
-		await _ponder.StartSearchAsync(fen, playedMoves, _bestCts!.Token).ConfigureAwait(false);
+		await _ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
 	}
 
 	/// <summary>
