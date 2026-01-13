@@ -16,11 +16,6 @@ public static class EloCalculator
 	public const int DefaultKFactor = 32;
 
 	/// <summary>
-	///     K-factor for new players (fewer than 30 games).
-	/// </summary>
-	public const int NewPlayerKFactor = 40;
-
-	/// <summary>
 	///     K-factor for established players (30+ games, rating < 2400).
 	/// </summary>
 	public const int EstablishedKFactor = 20;
@@ -31,103 +26,9 @@ public static class EloCalculator
 	public const int MasterKFactor = 10;
 
 	/// <summary>
-	///     Calculates the expected score for a player.
+	///     K-factor for new players (fewer than 30 games).
 	/// </summary>
-	/// <param name="playerRating">The player's current rating.</param>
-	/// <param name="opponentRating">The opponent's current rating.</param>
-	/// <returns>Expected score between 0 and 1.</returns>
-	public static double ExpectedScore(int playerRating, int opponentRating)
-	{
-		double diff = opponentRating - playerRating;
-		return 1.0 / (1.0 + Math.Pow(10, diff / 400.0));
-	}
-
-	/// <summary>
-	///     Calculates the rating change for a player.
-	/// </summary>
-	/// <param name="playerRating">The player's current rating.</param>
-	/// <param name="opponentRating">The opponent's current rating.</param>
-	/// <param name="actualScore">The actual score (1 for win, 0.5 for draw, 0 for loss).</param>
-	/// <param name="kFactor">The K-factor to use.</param>
-	/// <returns>The rating change (can be positive or negative).</returns>
-	public static int Calculate(
-		int    playerRating,
-		int    opponentRating,
-		double actualScore,
-		int    kFactor = DefaultKFactor)
-	{
-		double expected = ExpectedScore(playerRating, opponentRating);
-		return (int)Math.Round(kFactor * (actualScore - expected));
-	}
-
-	/// <summary>
-	///     Calculates the rating change for a win.
-	/// </summary>
-	public static int ForWin(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
-		Calculate(playerRating, opponentRating, 1.0, kFactor);
-
-	/// <summary>
-	///     Calculates the rating change for a loss.
-	/// </summary>
-	public static int ForLoss(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
-		Calculate(playerRating, opponentRating, 0.0, kFactor);
-
-	/// <summary>
-	///     Calculates the rating change for a draw.
-	/// </summary>
-	public static int ForDraw(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
-		Calculate(playerRating, opponentRating, 0.5, kFactor);
-
-	/// <summary>
-	///     Calculates the rating change based on game result.
-	/// </summary>
-	/// <param name="playerRating">The player's current rating.</param>
-	/// <param name="opponentRating">The opponent's current rating.</param>
-	/// <param name="result">The game result.</param>
-	/// <param name="playerColor">The player's color in the game.</param>
-	/// <param name="kFactor">The K-factor to use.</param>
-	/// <returns>The rating change for the player.</returns>
-	public static int ForResult(
-		int         playerRating,
-		int         opponentRating,
-		GameResult  result,
-		PlayerColor playerColor,
-		int         kFactor = DefaultKFactor)
-	{
-		double actualScore;
-
-		if (result.IsDraw)
-		{
-			actualScore = 0.5;
-		}
-		else if (result.Winner.HasValue)
-		{
-			actualScore = result.Winner.Value == playerColor ? 1.0 : 0.0;
-		}
-		else
-		{
-			// Game not finished
-			return 0;
-		}
-
-		return Calculate(playerRating, opponentRating, actualScore, kFactor);
-	}
-
-	/// <summary>
-	///     Gets the appropriate K-factor for a player based on their profile.
-	/// </summary>
-	/// <param name="profile">The player's profile.</param>
-	/// <returns>The K-factor to use for this player.</returns>
-	public static int GetKFactor(PlayerProfile profile)
-	{
-		if (profile.TotalGames < 30)
-			return NewPlayerKFactor;
-
-		if (profile.Elo >= 2400)
-			return MasterKFactor;
-
-		return EstablishedKFactor;
-	}
+	public const int NewPlayerKFactor = 40;
 
 	/// <summary>
 	///     Calculates rating changes for both players after a game.
@@ -145,14 +46,14 @@ public static class EloCalculator
 	{
 		var player2Color = player1Color.Opponent();
 
-		var k1 = GetKFactor(player1);
-		var k2 = GetKFactor(player2);
+		int k1 = GetKFactor(player1);
+		int k2 = GetKFactor(player2);
 
 		// Use average K-factor for fairness
-		var kFactor = (k1 + k2) / 2;
+		int kFactor = (k1 + k2) / 2;
 
-		var player1Change = ForResult(player1.Elo, player2.Elo, result, player1Color, kFactor);
-		var player2Change = ForResult(player2.Elo, player1.Elo, result, player2Color, kFactor);
+		int player1Change = ForResult(player1.Elo, player2.Elo, result, player1Color, kFactor);
+		int player2Change = ForResult(player2.Elo, player1.Elo, result, player2Color, kFactor);
 
 		return (player1Change, player2Change);
 	}
@@ -171,7 +72,7 @@ public static class EloCalculator
 		GameResult    result,
 		PlayerColor   player1Color)
 	{
-		var (change1, change2) = ForBothPlayers(player1, player2, result, player1Color);
+		(int change1, int change2) = ForBothPlayers(player1, player2, result, player1Color);
 		var player2Color = player1Color.Opponent();
 
 		PlayerProfile newProfile1;
@@ -206,14 +107,42 @@ public static class EloCalculator
 	}
 
 	/// <summary>
+	///     Calculates the expected score for a player.
+	/// </summary>
+	/// <param name="playerRating">The player's current rating.</param>
+	/// <param name="opponentRating">The opponent's current rating.</param>
+	/// <returns>Expected score between 0 and 1.</returns>
+	public static double ExpectedScore(int playerRating, int opponentRating)
+	{
+		double diff = opponentRating - playerRating;
+		return 1.0 / (1.0 + Math.Pow(10, diff / 400.0));
+	}
+
+	/// <summary>
 	///     Calculates the win probability for a player.
 	/// </summary>
 	/// <param name="playerRating">The player's rating.</param>
 	/// <param name="opponentRating">The opponent's rating.</param>
 	/// <returns>Win probability as a percentage (0-100).</returns>
-	public static double WinProbability(int playerRating, int opponentRating)
+	public static double WinProbability(int playerRating, int opponentRating) =>
+		ExpectedScore(playerRating, opponentRating) * 100.0;
+
+	/// <summary>
+	///     Calculates the rating change for a player.
+	/// </summary>
+	/// <param name="playerRating">The player's current rating.</param>
+	/// <param name="opponentRating">The opponent's current rating.</param>
+	/// <param name="actualScore">The actual score (1 for win, 0.5 for draw, 0 for loss).</param>
+	/// <param name="kFactor">The K-factor to use.</param>
+	/// <returns>The rating change (can be positive or negative).</returns>
+	public static int Calculate(
+		int    playerRating,
+		int    opponentRating,
+		double actualScore,
+		int    kFactor = DefaultKFactor)
 	{
-		return ExpectedScore(playerRating, opponentRating) * 100.0;
+		double expected = ExpectedScore(playerRating, opponentRating);
+		return (int)Math.Round(kFactor * (actualScore - expected));
 	}
 
 	/// <summary>
@@ -245,5 +174,67 @@ public static class EloCalculator
 
 		return (int)Math.Round(kFactor * (totalScore - expectedTotal));
 	}
-}
 
+	/// <summary>
+	///     Calculates the rating change for a draw.
+	/// </summary>
+	public static int ForDraw(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
+		Calculate(playerRating, opponentRating, 0.5, kFactor);
+
+	/// <summary>
+	///     Calculates the rating change for a loss.
+	/// </summary>
+	public static int ForLoss(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
+		Calculate(playerRating, opponentRating, 0.0, kFactor);
+
+	/// <summary>
+	///     Calculates the rating change based on game result.
+	/// </summary>
+	/// <param name="playerRating">The player's current rating.</param>
+	/// <param name="opponentRating">The opponent's current rating.</param>
+	/// <param name="result">The game result.</param>
+	/// <param name="playerColor">The player's color in the game.</param>
+	/// <param name="kFactor">The K-factor to use.</param>
+	/// <returns>The rating change for the player.</returns>
+	public static int ForResult(
+		int         playerRating,
+		int         opponentRating,
+		GameResult  result,
+		PlayerColor playerColor,
+		int         kFactor = DefaultKFactor)
+	{
+		double actualScore;
+
+		if (result.IsDraw)
+			actualScore = 0.5;
+		else if (result.Winner.HasValue)
+			actualScore = result.Winner.Value == playerColor ? 1.0 : 0.0;
+		else
+			// Game not finished
+			return 0;
+
+		return Calculate(playerRating, opponentRating, actualScore, kFactor);
+	}
+
+	/// <summary>
+	///     Calculates the rating change for a win.
+	/// </summary>
+	public static int ForWin(int playerRating, int opponentRating, int kFactor = DefaultKFactor) =>
+		Calculate(playerRating, opponentRating, 1.0, kFactor);
+
+	/// <summary>
+	///     Gets the appropriate K-factor for a player based on their profile.
+	/// </summary>
+	/// <param name="profile">The player's profile.</param>
+	/// <returns>The K-factor to use for this player.</returns>
+	public static int GetKFactor(PlayerProfile profile)
+	{
+		if (profile.TotalGames < 30)
+			return NewPlayerKFactor;
+
+		if (profile.Elo >= 2400)
+			return MasterKFactor;
+
+		return EstablishedKFactor;
+	}
+}
