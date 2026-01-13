@@ -12,22 +12,6 @@ namespace Bezoro.Chess.API.Abstractions;
 public interface IProfileRepository
 {
 	/// <summary>
-	///     Gets a player profile by ID.
-	/// </summary>
-	/// <param name="id">The profile ID.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <returns>The profile, or null if not found.</returns>
-	Task<PlayerProfile?> GetAsync(string id, CancellationToken ct = default);
-
-	/// <summary>
-	///     Gets or creates the local player profile.
-	///     If no local profile exists, creates one with default values.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	/// <returns>The local player profile.</returns>
-	Task<PlayerProfile> GetOrCreateLocalAsync(CancellationToken ct = default);
-
-	/// <summary>
 	///     Saves a player profile.
 	/// </summary>
 	/// <param name="profile">The profile to save.</param>
@@ -44,13 +28,6 @@ public interface IProfileRepository
 	Task UpdateStatsAsync(string id, GameResult result, int eloChange, CancellationToken ct = default);
 
 	/// <summary>
-	///     Gets all stored profiles.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	/// <returns>All profiles in the repository.</returns>
-	Task<IReadOnlyList<PlayerProfile>> GetAllAsync(CancellationToken ct = default);
-
-	/// <summary>
 	///     Deletes a profile by ID.
 	/// </summary>
 	/// <param name="id">The profile ID to delete.</param>
@@ -65,5 +42,27 @@ public interface IProfileRepository
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>True if the profile exists.</returns>
 	Task<bool> ExistsAsync(string id, CancellationToken ct = default);
-}
 
+	/// <summary>
+	///     Gets all stored profiles.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>All profiles in the repository.</returns>
+	Task<IReadOnlyList<PlayerProfile>> GetAllAsync(CancellationToken ct = default);
+
+	/// <summary>
+	///     Gets a player profile by ID.
+	/// </summary>
+	/// <param name="id">The profile ID.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The profile, or null if not found.</returns>
+	Task<PlayerProfile?> GetAsync(string id, CancellationToken ct = default);
+
+	/// <summary>
+	///     Gets or creates the local player profile.
+	///     If no local profile exists, creates one with default values.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The local player profile.</returns>
+	Task<PlayerProfile> GetOrCreateLocalAsync(CancellationToken ct = default);
+}
