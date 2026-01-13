@@ -225,4 +225,3 @@ public readonly record struct EngineDifficulty(
 		_       => RatingTier.SuperGrandmaster
 	};
 }
-

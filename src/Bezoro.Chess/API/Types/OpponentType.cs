@@ -14,4 +14,3 @@ public enum OpponentType
 	/// <summary>Playing against a human online.</summary>
 	RemoteHuman
 }
-
