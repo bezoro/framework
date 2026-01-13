@@ -311,7 +311,10 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 		switch (options.OpponentType)
 		{
 			case OpponentType.Engine:
-				// Create engine opponent and UCI coordinator
+				// Create engine opponent and UCI coordinator.
+				// IMPORTANT: Use a single UciCoordinator instance for both (a) legal moves/eval/classification
+				// and (b) engine move generation. Spinning up a separate EngineOpponent would start a second
+				// coordinator (and engine processes) which can drift out of sync and wastes resources.
 				if (string.IsNullOrEmpty(options.EnginePath))
 					throw new ArgumentException("EnginePath is required for engine games.", nameof(options));
 
@@ -326,12 +329,7 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 								  ct
 							  ).ConfigureAwait(false);
 
-				opponent = new EngineOpponent(
-					options.EnginePath,
-					options.EngineDifficulty,
-					"Chess Engine"
-				);
-
+				opponent = new CoordinatorEngineOpponent(coordinator, options.EffectiveDifficulty, options);
 				await opponent.InitializeAsync(ct).ConfigureAwait(false);
 				break;
 
@@ -1206,6 +1204,124 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 
 		// Check for pawns on promotion squares after state update
 		CheckForPromotionSquares();
+	}
+
+	/// <summary>
+	///     Engine opponent implementation that reuses the game's single UCI coordinator.
+	///     This avoids starting duplicate engine processes and ensures move generation is in sync with the game state.
+	/// </summary>
+	private sealed class CoordinatorEngineOpponent : IOpponent
+	{
+		private readonly ChessGameOptions _options;
+		private readonly EngineDifficulty _difficulty;
+		private readonly UciCoordinator   _coordinator;
+		public event Action?              Disconnected;
+		public event Action?              DrawOffered;
+		public event Action<Exception>?   Error;
+
+		public event Action<string>? MoveSubmitted;
+		public event Action?         Resigned;
+
+		public CoordinatorEngineOpponent(
+			UciCoordinator   coordinator,
+			EngineDifficulty difficulty,
+			ChessGameOptions options)
+		{
+			_coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+			_difficulty  = difficulty;
+			_options     = options;
+
+			Profile = PlayerProfile.CreateEngine("Chess Engine", difficulty.Elo);
+		}
+
+		public bool IsReady => _coordinator.IsStarted;
+
+		public OpponentType  Type    => OpponentType.Engine;
+		public PlayerProfile Profile { get; }
+
+		public Task InitializeAsync(CancellationToken ct = default) =>
+			// Coordinator is already created/started by ChessGame.
+			// We still attempt to configure difficulty on a best-effort basis.
+			ConfigureDifficultyAsync(ct);
+
+		public Task NotifyMovePlayedAsync(string move, GameState state, CancellationToken ct = default) =>
+			// ChessGame drives coordinator position updates; nothing to do here.
+			Task.CompletedTask;
+
+		public async Task<string?> GetMoveAsync(GameState state, CancellationToken ct = default)
+		{
+			try
+			{
+				var search = BuildSearchParameters();
+				var result = await _coordinator.SearchAsync(search, ct).ConfigureAwait(false);
+
+				if (!string.IsNullOrEmpty(result.BestMove))
+				{
+					MoveSubmitted?.Invoke(result.BestMove);
+					return result.BestMove;
+				}
+
+				return null;
+			}
+			catch (OperationCanceledException)
+			{
+				return null;
+			}
+			catch (Exception ex)
+			{
+				Error?.Invoke(ex);
+				throw;
+			}
+		}
+
+		public ValueTask DisposeAsync() =>
+			// Coordinator lifetime is owned by ChessGame.
+			default;
+
+		private static int MapEloToSkillLevel(int elo)
+		{
+			int level = (elo - 800) * 20 / 2200;
+			return Math.Clamp(level, 0, 20);
+		}
+
+		private SearchParameters BuildSearchParameters()
+		{
+			// Note: UciCoordinator.SearchAsync currently uses depth-based quick eval, so we primarily drive depth.
+			uint depth = _options.EngineDepth ?? _difficulty.MaxDepth ?? _options.ClassificationDepth;
+
+			return new()
+			{
+				Depth      = depth,
+				MoveTimeMs = _difficulty.MaxThinkTimeMs ?? _options.EngineThinkTimeMs
+			};
+		}
+
+		private async Task ConfigureDifficultyAsync(CancellationToken ct)
+		{
+			// Best-effort: not all engines support these options.
+			if (_difficulty.IsFullStrength)
+				return;
+
+			try
+			{
+				await _coordinator.SetOptionAsync("UCI_LimitStrength", "true", ct).ConfigureAwait(false);
+				await _coordinator.SetOptionAsync("UCI_Elo", _difficulty.Elo.ToString(), ct).ConfigureAwait(false);
+			}
+			catch
+			{
+				// ignore
+			}
+
+			try
+			{
+				int skillLevel = MapEloToSkillLevel(_difficulty.Elo);
+				await _coordinator.SetOptionAsync("Skill Level", skillLevel.ToString(), ct).ConfigureAwait(false);
+			}
+			catch
+			{
+				// ignore
+			}
+		}
 	}
 }
 
