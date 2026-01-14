@@ -188,7 +188,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			_stateManager.SetStatus(TransportStatus.Stopping);
 			Logger.LogInfo("Stopping UCI transport.", category: LogCategory.UCI);
 
-			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.", ct)
+			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.")
 				.ConfigureAwait(false);
 
 			stopTcs.TrySetResult(null);
@@ -279,42 +279,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		if (timeout == TimeSpan.Zero) return false;
 
-		if (WriteOperationHelper.ShouldSpinForSmallTimeout(timeout))
-			if (WriteOperationHelper.SpinUntilWriteOrCancel(writer, line, ct, _options.SmallTimeoutSpinIterations))
-				return true;
+		if (TryHandleSmallTimeout(writer, line, ct, timeout)) return true;
 
 		try
 		{
-			if (timeout == Timeout.InfiniteTimeSpan)
-			{
-				await WriteOperationHelper.WriteWithCallerCancellationAsync(writer, line, ct).ConfigureAwait(false);
-				return true;
-			}
-
-			using var timeoutCts = new CancellationTokenSource(timeout);
-			if (!ct.CanBeCanceled)
-			{
-				await writer.WriteAsync(line, timeoutCts.Token).ConfigureAwait(false);
-			}
-			else
-			{
-				using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-				await writer.WriteAsync(line, linked.Token).ConfigureAwait(false);
-			}
-
-			return true;
+			return timeout == Timeout.InfiniteTimeSpan
+					   ? await TryWriteWithInfiniteTimeoutAsync(writer, line, ct).ConfigureAwait(false)
+					   : await TryWriteWithFiniteTimeoutAsync(writer, line, timeout, ct).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (Exception ex)
 		{
-			if (ct.IsCancellationRequested) throw;
-
-			return false;
-		}
-		catch (ChannelClosedException)
-		{
-			throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
+			return InterpretWriteException(ex, ct);
 		}
 	}
+
 
 	public async ValueTask DisposeAsync()
 	{
@@ -364,6 +342,19 @@ internal sealed class ProcessUciTransport : IUciTransport
 	public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool InterpretWriteException(Exception ex, CancellationToken ct)
+	{
+		return ex switch
+		{
+			OperationCanceledException when ct.IsCancellationRequested => throw ex,
+			OperationCanceledException                                 => false,
+			ChannelClosedException => throw new InvalidOperationException(
+										  "Transport is stopping or stopped; cannot write."),
+			_ => throw ex
+		};
+	}
+
 	/// <summary>
 	///     Safely checks if a process has exited, handling race conditions.
 	/// </summary>
@@ -385,7 +376,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <summary>
 	///     Validates and creates an immutable list of arguments, ensuring no null values.
 	/// </summary>
-	private static IReadOnlyList<string>? ValidateAndCreateArgsList(IEnumerable<string> args)
+	private static IReadOnlyList<string>? ValidateAndCreateArgsList(IEnumerable<string>? args)
 	{
 		if (args is null) return null;
 
@@ -402,10 +393,54 @@ internal sealed class ProcessUciTransport : IUciTransport
 		return list;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static async Task<bool> TryWriteWithFiniteTimeoutAsync(
+		ChannelWriter<string> writer,
+		string                line,
+		TimeSpan              timeout,
+		CancellationToken     ct)
+	{
+		using var timeoutCts = new CancellationTokenSource(timeout);
+
+		if (!ct.CanBeCanceled)
+		{
+			await writer.WriteAsync(line, timeoutCts.Token).ConfigureAwait(false);
+		}
+		else
+		{
+			using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+			await writer.WriteAsync(line, linked.Token).ConfigureAwait(false);
+		}
+
+		return true;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static async Task<bool> TryWriteWithInfiniteTimeoutAsync(
+		ChannelWriter<string> writer,
+		string                line,
+		CancellationToken     ct)
+	{
+		await WriteOperationHelper.WriteWithCallerCancellationAsync(writer, line, ct).ConfigureAwait(false);
+		return true;
+	}
+
 	private bool IsStartedAndAlive() =>
 		_stateManager.IsStarted && _process is { HasExited: false };
 
 	private bool ProcessIsAlive() => _process is { HasExited: false };
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryHandleSmallTimeout(
+		ChannelWriter<string> writer,
+		string                line,
+		CancellationToken     ct,
+		TimeSpan              timeout)
+	{
+		if (!WriteOperationHelper.ShouldSpinForSmallTimeout(timeout)) return false;
+
+		return WriteOperationHelper.SpinUntilWriteOrCancel(writer, line, ct, _options.SmallTimeoutSpinIterations);
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ChannelWriter<string> GetOutgoingWriterOrThrow()
@@ -476,61 +511,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			if (killIfNotExited)
-			{
-				try
-				{
-					if (!ProcessHasExitedSafe(process))
-					{
-						Logger.LogInfo(
-							$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
-							category: LogCategory.UCI);
-
-						ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
-					}
-				}
-				catch (Exception ex)
-				{
-					Logger.LogException(
-						$"Failed to kill process during cleanup. ex={ex}",
-						category: LogCategory.UCI);
-				}
-			}
+				await KillProcessImmediatelyAsync(process).ConfigureAwait(false);
 			else
-			{
-				// Wait for graceful exit
-				if (!ProcessHasExitedSafe(process))
-				{
-					try
-					{
-						using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
-						try
-						{
-							await ProcessHelper.WaitForProcessExitAsync(process, timeoutCts.Token)
-											   .ConfigureAwait(false);
-						}
-						catch (OperationCanceledException) { }
-					}
-					catch (Exception ex)
-					{
-						Error?.Invoke(ex);
-					}
-
-					// Re-check after grace period - process may have exited
-					if (!ProcessHasExitedSafe(process))
-						try
-						{
-							Logger.LogInfo(
-								$"Killing UCI engine process after grace period (tree={_options.KillEntireProcessTree}).",
-								category: LogCategory.UCI);
-
-							ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
-						}
-						catch (Exception ex)
-						{
-							Error?.Invoke(ex);
-						}
-				}
-			}
+				await HandleGracefulShutdownAsync(process).ConfigureAwait(false);
 
 			await _loopManager.AwaitExitNotificationAsync(_options.TeardownTimeout).ConfigureAwait(false);
 			ProcessHelper.SafeDisposeProcess(process);
@@ -540,6 +523,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			Error?.Invoke(ex);
 		}
 	}
+
 
 	/// <summary>
 	///     Cleans up write loop and stdin stream.
@@ -621,18 +605,75 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
+	///     Orchestrates graceful shutdown: wait for exit, then force kill if necessary.
+	/// </summary>
+	private async Task HandleGracefulShutdownAsync(Process process)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		await WaitForGracefulExitAsync(process).ConfigureAwait(false);
+
+		if (!ProcessHasExitedSafe(process))
+			await KillProcessAfterGracePeriodAsync(process).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Force kills the process after the grace period has expired.
+	/// </summary>
+	private async Task KillProcessAfterGracePeriodAsync(Process process)
+	{
+		try
+		{
+			Logger.LogInfo(
+				$"Killing UCI engine process after grace period (tree={_options.KillEntireProcessTree}).",
+				category: LogCategory.UCI);
+
+			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+
+		await Task.CompletedTask;
+	}
+
+	/// <summary>
+	///     Immediately kills the process if it hasn't already exited.
+	/// </summary>
+	private async Task KillProcessImmediatelyAsync(Process process)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		try
+		{
+			Logger.LogInfo(
+				$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
+				category: LogCategory.UCI);
+
+			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
+		}
+		catch (Exception ex)
+		{
+			Logger.LogException(
+				$"Failed to kill process during cleanup. ex={ex}",
+				category: LogCategory.UCI);
+		}
+
+		await Task.CompletedTask;
+	}
+
+	/// <summary>
 	///     Core teardown logic for stopping or disposing the transport.
 	///     Cleans up all resources in the proper order: read loops, write loops, streams, and process.
 	/// </summary>
 	/// <param name="sendQuit">Whether to send "quit" command before closing stdin.</param>
 	/// <param name="finalStatus">The final status to set after teardown completes.</param>
 	/// <param name="finalLog">Log message to write after successful teardown.</param>
-	/// <param name="ct">Cancellation token (currently unused but reserved for future use).</param>
 	private async Task TearDownCoreAsync(
-		bool              sendQuit,
-		TransportStatus   finalStatus,
-		string            finalLog,
-		CancellationToken ct = default)
+		bool            sendQuit,
+		TransportStatus finalStatus,
+		string          finalLog)
 	{
 		// Atomically exchange process reference to avoid race conditions
 		var p = Interlocked.Exchange(ref _process, null);
@@ -653,6 +694,30 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_stateManager.SetStatus(finalStatus);
 		Logger.LogInfo(finalLog, category: LogCategory.UCI);
+	}
+
+	/// <summary>
+	///     Waits for the process to exit gracefully within the grace period.
+	/// </summary>
+	private async Task WaitForGracefulExitAsync(Process process)
+	{
+		try
+		{
+			using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
+			try
+			{
+				await ProcessHelper.WaitForProcessExitAsync(process, timeoutCts.Token)
+								   .ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				// Timeout occurred - process didn't exit gracefully
+			}
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
