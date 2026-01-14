@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
@@ -189,7 +188,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			_stateManager.SetStatus(TransportStatus.Stopping);
 			Logger.LogInfo("Stopping UCI transport.", category: LogCategory.UCI);
 
-			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.")
+			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.", ct)
 				.ConfigureAwait(false);
 
 			stopTcs.TrySetResult(null);
@@ -200,7 +199,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				stopTcs.TrySetException(ex);
 			}
-			catch { }
+			catch
+			{
+				// Suppress: TrySetException can throw if TCS is already completed (race condition)
+				// The original exception is being re-thrown, so this is non-critical
+			}
 
 			throw;
 		}
@@ -682,7 +685,12 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			ProcessHelper.SafeDisposeProcess(_process);
 		}
-		catch { }
+		catch (Exception ex)
+		{
+			// Log but suppress disposal errors for already-exited process
+			// This is cleanup of a terminated process, so failures are non-critical
+			Logger.LogException($"Failed to dispose exited process during cleanup. ex={ex}", category: LogCategory.UCI);
+		}
 		finally
 		{
 			_process = null;
@@ -749,13 +757,19 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			Logger.LogException($"{message} ex={ex}", category: LogCategory.UCI);
 		}
-		catch { }
+		catch
+		{
+			// Suppress: Logging itself failed - prevent infinite error loop
+		}
 
 		try
 		{
 			Error?.Invoke(ex);
 		}
-		catch { }
+		catch
+		{
+			// Suppress: User event handler threw - prevent cascading failures
+		}
 	}
 
 	private void SignalStartFailure(TaskCompletionSource<object?> startingSignal, Exception ex, CancellationToken ct)
@@ -765,7 +779,11 @@ internal sealed class ProcessUciTransport : IUciTransport
 			if (ex is OperationCanceledException) startingSignal.TrySetCanceled(ct);
 			else startingSignal.TrySetException(ex);
 		}
-		catch { }
+		catch
+		{
+			// Suppress: TCS operations can throw if already completed (race condition)
+			// Failure to signal is non-critical during error handling
+		}
 	}
 
 	private void StartBackgroundLoops(Process process)
