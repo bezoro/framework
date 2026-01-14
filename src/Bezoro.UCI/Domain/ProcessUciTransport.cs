@@ -66,14 +66,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 	public TransportStatus Status             => _stateManager.Status;
 
 	/// <summary>
-	/// Asynchronously reads lines from the UCI engine's stdout.
+	///     Asynchronously reads lines from the UCI engine's stdout.
 	/// </summary>
 	/// <param name="ct">Cancellation token to stop reading.</param>
 	/// <returns>An async enumerable of lines read from the engine.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if transport is not started or is disposed.</exception>
 	/// <remarks>
-	/// If SingleReader option is true, only one concurrent reader is allowed.
-	/// The enumerable will complete when the transport is stopped or the process exits.
+	///     If SingleReader option is true, only one concurrent reader is allowed.
+	///     The enumerable will complete when the transport is stopped or the process exits.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async IAsyncEnumerable<string> ReadLinesAsync([EnumeratorCancellation] CancellationToken ct = default)
@@ -96,15 +96,15 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Starts the UCI engine process and initializes the transport.
+	///     Starts the UCI engine process and initializes the transport.
 	/// </summary>
 	/// <param name="ct">Cancellation token to cancel the start operation.</param>
 	/// <exception cref="InvalidOperationException">Thrown if the process fails to start or file system validation fails.</exception>
 	/// <exception cref="OperationCanceledException">Thrown if the cancellation token is triggered.</exception>
 	/// <remarks>
-	/// This method is idempotent - calling it multiple times concurrently will result in only one start operation.
-	/// If the transport is already started and alive, this method returns immediately.
-	/// Thread-safe: Multiple concurrent calls are serialized via internal gating.
+	///     This method is idempotent - calling it multiple times concurrently will result in only one start operation.
+	///     If the transport is already started and alive, this method returns immediately.
+	///     Thread-safe: Multiple concurrent calls are serialized via internal gating.
 	/// </remarks>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
@@ -153,15 +153,15 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Gracefully stops the UCI engine process and cleans up resources.
+	///     Gracefully stops the UCI engine process and cleans up resources.
 	/// </summary>
 	/// <param name="ct">Cancellation token to cancel the stop operation.</param>
 	/// <exception cref="OperationCanceledException">Thrown if the cancellation token is triggered.</exception>
 	/// <remarks>
-	/// Sends "quit" command to the engine if SendQuitOnStop option is true.
-	/// Waits for graceful process exit before forcefully terminating if necessary.
-	/// Thread-safe: Multiple concurrent calls are serialized via internal gating.
-	/// If transport is not started, this method completes immediately with no operation.
+	///     Sends "quit" command to the engine if SendQuitOnStop option is true.
+	///     Waits for graceful process exit before forcefully terminating if necessary.
+	///     Thread-safe: Multiple concurrent calls are serialized via internal gating.
+	///     If transport is not started, this method completes immediately with no operation.
 	/// </remarks>
 	public async Task StopAsync(CancellationToken ct = default)
 	{
@@ -214,7 +214,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Asynchronously writes a command line to the UCI engine's stdin.
+	///     Asynchronously writes a command line to the UCI engine's stdin.
 	/// </summary>
 	/// <param name="line">The command line to send to the engine.</param>
 	/// <param name="ct">Cancellation token to cancel the write operation.</param>
@@ -222,9 +222,9 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <exception cref="InvalidOperationException">Thrown if transport is not started, disposed, or process is not alive.</exception>
 	/// <exception cref="OperationCanceledException">Thrown if the cancellation token is triggered.</exception>
 	/// <remarks>
-	/// This method will wait indefinitely if the channel is full (backpressure).
-	/// Use TryWriteLineAsync with a timeout if you need bounded wait time.
-	/// Command validation is performed if ValidateCommands option is true.
+	///     This method will wait indefinitely if the channel is full (backpressure).
+	///     Use TryWriteLineAsync with a timeout if you need bounded wait time.
+	///     Command validation is performed if ValidateCommands option is true.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public async Task WriteLineAsync(string line, CancellationToken ct = default)
@@ -248,10 +248,13 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Attempts to write a command line to the UCI engine's stdin with a timeout.
+	///     Attempts to write a command line to the UCI engine's stdin with a timeout.
 	/// </summary>
 	/// <param name="line">The command line to send to the engine.</param>
-	/// <param name="timeout">Maximum time to wait for the write operation. Use TimeSpan.Zero for immediate return, or Timeout.InfiniteTimeSpan for no timeout.</param>
+	/// <param name="timeout">
+	///     Maximum time to wait for the write operation. Use TimeSpan.Zero for immediate return, or
+	///     Timeout.InfiniteTimeSpan for no timeout.
+	/// </param>
 	/// <param name="ct">Cancellation token to cancel the write operation.</param>
 	/// <returns>True if the line was successfully written within the timeout; false if the timeout expired.</returns>
 	/// <exception cref="ArgumentNullException">Thrown if line is null.</exception>
@@ -259,8 +262,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <exception cref="InvalidOperationException">Thrown if transport is not started, disposed, or process is not alive.</exception>
 	/// <exception cref="OperationCanceledException">Thrown if the cancellation token is triggered (not timeout expiration).</exception>
 	/// <remarks>
-	/// For very small timeouts (≤1ms), uses busy-waiting to reduce context switching overhead.
-	/// Command validation is performed if ValidateCommands option is true.
+	///     For very small timeouts (≤1ms), uses busy-waiting to reduce context switching overhead.
+	///     Command validation is performed if ValidateCommands option is true.
 	/// </remarks>
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
 	{
@@ -349,17 +352,55 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Synchronous dispose implementation. Prefer <see cref="DisposeAsync"/> for async scenarios.
+	///     Synchronous dispose implementation. Prefer <see cref="DisposeAsync" /> for async scenarios.
 	/// </summary>
 	/// <remarks>
-	/// WARNING: This synchronous dispose blocks the calling thread until all async cleanup operations complete.
-	/// This can potentially cause deadlocks if called from a synchronization context (e.g., UI thread).
-	/// Always prefer <see cref="DisposeAsync"/> when possible. This method is provided only for compatibility
-	/// with code that requires synchronous IDisposable (e.g., using statements without await).
+	///     WARNING: This synchronous dispose blocks the calling thread until all async cleanup operations complete.
+	///     This can potentially cause deadlocks if called from a synchronization context (e.g., UI thread).
+	///     Always prefer <see cref="DisposeAsync" /> when possible. This method is provided only for compatibility
+	///     with code that requires synchronous IDisposable (e.g., using statements without await).
 	/// </remarks>
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
 	public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
+
+	/// <summary>
+	///     Safely checks if a process has exited, handling race conditions.
+	/// </summary>
+	private static bool ProcessHasExitedSafe(Process? process)
+	{
+		if (process is null) return true;
+
+		try
+		{
+			return process.HasExited;
+		}
+		catch (InvalidOperationException)
+		{
+			// Process was disposed between null check and property access
+			return true;
+		}
+	}
+
+	/// <summary>
+	///     Validates and creates an immutable list of arguments, ensuring no null values.
+	/// </summary>
+	private static IReadOnlyList<string>? ValidateAndCreateArgsList(IEnumerable<string> args)
+	{
+		if (args is null) return null;
+
+		// Validate and materialize in a single pass to avoid double enumeration
+		var list = new List<string>();
+		foreach (string? arg in args)
+		{
+			if (arg is null)
+				throw new ArgumentException("Argument list cannot contain null values.", nameof(args));
+
+			list.Add(arg);
+		}
+
+		return list;
+	}
 
 	private bool IsStartedAndAlive() =>
 		_stateManager.IsStarted && _process is { HasExited: false };
@@ -378,43 +419,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		string.IsNullOrWhiteSpace(_workingDirectory) ? Environment.CurrentDirectory : _workingDirectory;
 
 	/// <summary>
-	/// Cancels read loop and disposes stdout/stderr streams (but does not await loop completion).
-	/// </summary>
-	private void CancelReadLoopAndDisposeStreams()
-	{
-		try
-		{
-			_loopManager.CancelReadLoop();
-			ChannelFactory.TryComplete(_lines?.Writer);
-		}
-		catch (Exception ex)
-		{
-			ReportError(ex, "Failed to cancel read loop during cleanup.");
-		}
-
-		try
-		{
-			StreamInitializer.SafeDispose(_streams.Stdout);
-			_streams.Stdout = null;
-		}
-		catch (Exception ex)
-		{
-			ReportError(ex, "Failed to dispose stdout during cleanup.");
-		}
-
-		try
-		{
-			StreamInitializer.SafeDispose(_streams.Stderr);
-			_streams.Stderr = null;
-		}
-		catch (Exception ex)
-		{
-			ReportError(ex, "Failed to dispose stderr during cleanup.");
-		}
-	}
-
-	/// <summary>
-	/// Awaits completion of read loops and nulls the lines channel.
+	///     Awaits completion of read loops and nulls the lines channel.
 	/// </summary>
 	private async Task AwaitReadLoopsCompletionAsync()
 	{
@@ -431,54 +436,38 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Cleans up write loop and stdin stream.
+	///     Cleans up resources after a failed start attempt.
+	///     This includes canceling loops, disposing streams, and killing the process if necessary.
 	/// </summary>
-	private async Task CleanupWriteLoopAndStdinAsync(bool sendQuit)
+	private async Task CleanupAfterFailedStartAsync()
 	{
-		// Send quit BEFORE canceling write loop if requested
-		if (sendQuit && _streams.Stdin != null)
-		{
-			try
-			{
-				await _streams.Stdin.WriteLineAsync("quit").ConfigureAwait(false);
-				await _streams.Stdin.FlushAsync().ConfigureAwait(false);
-				_options.OnQuitSent?.Invoke();
-			}
-			catch (Exception ex)
-			{
-				ReportError(ex, "Failed to write quit to stdin during cleanup.");
-			}
-		}
+		_stateManager.MarkProcessAlive(false);
 
+		// For failed start, we can dispose everything immediately - no need to drain output
+		CancelReadLoopAndDisposeStreams();
+		await CleanupWriteLoopAndStdinAsync(false).ConfigureAwait(false);
+		await AwaitReadLoopsCompletionAsync().ConfigureAwait(false);
+
+		var p = Interlocked.Exchange(ref _process, null);
+		await CleanupProcessAsync(p, true).ConfigureAwait(false);
+
+		_stateManager.ResetStatusIfNeeded();
+	}
+
+	private async Task CleanupAfterFailedStartSafeAsync()
+	{
 		try
 		{
-			_loopManager.CancelWriteLoop();
-			ChannelFactory.TryComplete(_outgoing?.Writer);
-			await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
-			_loopManager.DisposeCancellationSources();
-			_outgoing = null;
+			await CleanupAfterFailedStartAsync().ConfigureAwait(false);
 		}
-		catch (Exception ex)
+		catch (Exception cleanupEx)
 		{
-			ReportError(ex, "Failed to cleanup write loop during cleanup.");
-		}
-
-		try
-		{
-			if (_streams.Stdin != null)
-			{
-				await StreamInitializer.SafeDisposeAsync(_streams.Stdin).ConfigureAwait(false);
-				_streams.Stdin = null;
-			}
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
+			ReportError(cleanupEx, "Cleanup after failed start threw.");
 		}
 	}
 
 	/// <summary>
-	/// Cleans up process, killing if necessary and waiting for exit.
+	///     Cleans up process, killing if necessary and waiting for exit.
 	/// </summary>
 	private async Task CleanupProcessAsync(Process? process, bool killIfNotExited)
 	{
@@ -516,7 +505,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 						using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
 						try
 						{
-							await ProcessHelper.WaitForProcessExitAsync(process, timeoutCts.Token).ConfigureAwait(false);
+							await ProcessHelper.WaitForProcessExitAsync(process, timeoutCts.Token)
+											   .ConfigureAwait(false);
 						}
 						catch (OperationCanceledException) { }
 					}
@@ -527,7 +517,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 					// Re-check after grace period - process may have exited
 					if (!ProcessHasExitedSafe(process))
-					{
 						try
 						{
 							Logger.LogInfo(
@@ -540,7 +529,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 						{
 							Error?.Invoke(ex);
 						}
-					}
 				}
 			}
 
@@ -554,51 +542,47 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Safely checks if a process has exited, handling race conditions.
+	///     Cleans up write loop and stdin stream.
 	/// </summary>
-	private static bool ProcessHasExitedSafe(Process? process)
+	private async Task CleanupWriteLoopAndStdinAsync(bool sendQuit)
 	{
-		if (process is null) return true;
+		// Send quit BEFORE canceling write loop if requested
+		if (sendQuit && _streams.Stdin != null)
+			try
+			{
+				await _streams.Stdin.WriteLineAsync("quit").ConfigureAwait(false);
+				await _streams.Stdin.FlushAsync().ConfigureAwait(false);
+				_options.OnQuitSent?.Invoke();
+			}
+			catch (Exception ex)
+			{
+				ReportError(ex, "Failed to write quit to stdin during cleanup.");
+			}
 
 		try
 		{
-			return process.HasExited;
+			_loopManager.CancelWriteLoop();
+			ChannelFactory.TryComplete(_outgoing?.Writer);
+			await _loopManager.AwaitWriteLoopAsync().ConfigureAwait(false);
+			_loopManager.DisposeCancellationSources();
+			_outgoing = null;
 		}
-		catch (InvalidOperationException)
+		catch (Exception ex)
 		{
-			// Process was disposed between null check and property access
-			return true;
+			ReportError(ex, "Failed to cleanup write loop during cleanup.");
 		}
-	}
 
-	/// <summary>
-	/// Cleans up resources after a failed start attempt.
-	/// This includes canceling loops, disposing streams, and killing the process if necessary.
-	/// </summary>
-	private async Task CleanupAfterFailedStartAsync()
-	{
-		_stateManager.MarkProcessAlive(false);
-
-		// For failed start, we can dispose everything immediately - no need to drain output
-		CancelReadLoopAndDisposeStreams();
-		await CleanupWriteLoopAndStdinAsync(sendQuit: false).ConfigureAwait(false);
-		await AwaitReadLoopsCompletionAsync().ConfigureAwait(false);
-
-		var p = Interlocked.Exchange(ref _process, null);
-		await CleanupProcessAsync(p, killIfNotExited: true).ConfigureAwait(false);
-
-		_stateManager.ResetStatusIfNeeded();
-	}
-
-	private async Task CleanupAfterFailedStartSafeAsync()
-	{
 		try
 		{
-			await CleanupAfterFailedStartAsync().ConfigureAwait(false);
+			if (_streams.Stdin != null)
+			{
+				await StreamInitializer.SafeDisposeAsync(_streams.Stdin).ConfigureAwait(false);
+				_streams.Stdin = null;
+			}
 		}
-		catch (Exception cleanupEx)
+		catch (Exception ex)
 		{
-			ReportError(cleanupEx, "Cleanup after failed start threw.");
+			Error?.Invoke(ex);
 		}
 	}
 
@@ -637,8 +621,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Core teardown logic for stopping or disposing the transport.
-	/// Cleans up all resources in the proper order: read loops, write loops, streams, and process.
+	///     Core teardown logic for stopping or disposing the transport.
+	///     Cleans up all resources in the proper order: read loops, write loops, streams, and process.
 	/// </summary>
 	/// <param name="sendQuit">Whether to send "quit" command before closing stdin.</param>
 	/// <param name="finalStatus">The final status to set after teardown completes.</param>
@@ -665,7 +649,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await AwaitReadLoopsCompletionAsync().ConfigureAwait(false);
 
 		// Finally cleanup the process
-		await CleanupProcessAsync(p, killIfNotExited: false).ConfigureAwait(false);
+		await CleanupProcessAsync(p, false).ConfigureAwait(false);
 
 		_stateManager.SetStatus(finalStatus);
 		Logger.LogInfo(finalLog, category: LogCategory.UCI);
@@ -676,6 +660,42 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_options.QuitGracePeriod != TimeSpan.Zero
 			? _options.QuitGracePeriod
 			: TimeSpan.FromMilliseconds(_options.QuitGracePeriodMs);
+
+	/// <summary>
+	///     Cancels read loop and disposes stdout/stderr streams (but does not await loop completion).
+	/// </summary>
+	private void CancelReadLoopAndDisposeStreams()
+	{
+		try
+		{
+			_loopManager.CancelReadLoop();
+			ChannelFactory.TryComplete(_lines?.Writer);
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to cancel read loop during cleanup.");
+		}
+
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stdout);
+			_streams.Stdout = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stdout during cleanup.");
+		}
+
+		try
+		{
+			StreamInitializer.SafeDispose(_streams.Stderr);
+			_streams.Stderr = null;
+		}
+		catch (Exception ex)
+		{
+			ReportError(ex, "Failed to dispose stderr during cleanup.");
+		}
+	}
 
 	private void CleanupExitedProcess()
 	{
@@ -705,8 +725,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	/// <summary>
-	/// Fires the Exited event exactly once, even if called multiple times.
-	/// Handles exceptions from user event handlers to prevent them from propagating.
+	///     Fires the Exited event exactly once, even if called multiple times.
+	///     Handles exceptions from user event handlers to prevent them from propagating.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void FireExitedOnce(int? exitCode, string? error)
@@ -825,25 +845,5 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
 		ct.ThrowIfCancellationRequested();
-	}
-
-	/// <summary>
-	/// Validates and creates an immutable list of arguments, ensuring no null values.
-	/// </summary>
-	private static IReadOnlyList<string>? ValidateAndCreateArgsList(IEnumerable<string> args)
-	{
-		if (args is null) return null;
-
-		// Validate and materialize in a single pass to avoid double enumeration
-		var list = new List<string>();
-		foreach (var arg in args)
-		{
-			if (arg is null)
-				throw new ArgumentException("Argument list cannot contain null values.", nameof(args));
-
-			list.Add(arg);
-		}
-
-		return list;
 	}
 }
