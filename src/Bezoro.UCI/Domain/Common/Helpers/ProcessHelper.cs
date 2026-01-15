@@ -145,7 +145,7 @@ internal static class ProcessHelper
 		catch (Exception ex)
 		{
 			// Log error but don't throw - process may have already exited
-			Logger.Log(ex, LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.UCI);
 		}
 	}
 }

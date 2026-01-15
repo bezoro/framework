@@ -109,6 +109,34 @@ public static class Logger
 	public static event Action<LogPayload>? OnLog;
 
 	/// <summary>
+	///     Minimum log level to process. Logs below this level are ignored.
+	///     Default: <see cref="LogLevel.Info" />.
+	/// </summary>
+	public static LogLevel MinimumLevel { get; set; } = LogLevel.Info;
+
+	/// <summary>
+	///     Begins a performance timer that logs the operation duration when disposed.
+	/// </summary>
+	/// <param name="operationName">The name of the operation being timed.</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object.</param>
+	/// <returns>A disposable timer that logs when disposed (fully compiled away if DEBUG is not defined).</returns>
+	/// <example>
+	///     <code>
+	/// using (Logger.BeginTimer("LoadLevel", LogCategory.Loading))
+	/// {
+	///     // ... operation code ...
+	/// }
+	/// // Logs: [ℹ️] [⏳] LoadLevel completed in 123.45ms
+	/// </code>
+	/// </example>
+	public static PerformanceTimer BeginTimer(
+		string       operationName,
+		LogCategory? category      = null,
+		object?      contextObject = null) =>
+		new(operationName, category, contextObject);
+
+	/// <summary>
 	///     Logs a message with optional complexity.
 	/// </summary>
 	/// <param name="message">The message to log (string, number, object, FormattableString, etc.).</param>
@@ -153,13 +181,15 @@ public static class Logger
 			category,
 			contextObject,
 			null,
-			callerInfo);
+			callerInfo,
+			null);
 	}
 
 	/// <summary>
 	///     Logs an exception with automatic detail extraction.
 	/// </summary>
 	/// <param name="exception">The exception to log.</param>
+	/// <param name="customMessage">Optional custom message to prepend to the exception message for additional context.</param>
 	/// <param name="category">Optional log category.</param>
 	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
 	/// <param name="captureCallerInfo">Whether to automatically capture caller information (default: true).</param>
@@ -174,14 +204,19 @@ public static class Logger
 	[Conditional("DEBUG")]
 	public static void Log(
 		Exception                  exception,
+		string?                    customMessage     = null,
 		LogCategory?               category          = null,
 		object?                    contextObject     = null,
 		bool                       captureCallerInfo = true,
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null)
 	{
-		string message       = exception.Message;
-		string exceptionType = exception.GetType().Name;
+		string message = string.IsNullOrEmpty(customMessage)
+							 ? exception.Message
+							 : $"{customMessage} | {exception.Message}";
+
+		string  exceptionType = exception.GetType().Name;
+		string? stackTrace    = exception.StackTrace;
 
 		// Capture caller info if requested
 		string? callerInfo = null;
@@ -197,7 +232,8 @@ public static class Logger
 			category,
 			contextObject,
 			exceptionType,
-			callerInfo);
+			callerInfo,
+			stackTrace);
 	}
 
 	/// <summary>
@@ -262,8 +298,13 @@ public static class Logger
 		LogCategory? category,
 		object?      contextObject,
 		string?      exceptionType,
-		string?      callerInfo)
+		string?      callerInfo,
+		string?      stackTrace)
 	{
+		// Check minimum level filtering
+		if (level < MinimumLevel)
+			return;
+
 		string severityEmoji = LogLevelEmoji.GetEmoji(level);
 		string? categoryEmoji = category.HasValue
 									? LogCategoryEmoji.GetEmoji(category.Value)
@@ -293,10 +334,56 @@ public static class Logger
 			ExceptionType    = exceptionType,
 			CallerInfo       = callerInfo,
 			FormattedMessage = formattedMessage,
-			ContextObject    = contextObject
+			ContextObject    = contextObject,
+			StackTrace       = stackTrace
 		};
 
 		OnLog?.Invoke(payload);
+	}
+
+	/// <summary>
+	///     Performance timer struct for zero-allocation timing.
+	///     Fully compiled away in release builds for true zero overhead.
+	/// </summary>
+	public readonly struct PerformanceTimer : IDisposable
+	{
+		/// <summary>
+		///     Initializes a new instance of the <see cref="PerformanceTimer" /> struct and starts timing.
+		/// </summary>
+		/// <param name="operationName">The name of the operation being timed.</param>
+		/// <param name="category">Optional log category for the completion message.</param>
+		/// <param name="contextObject">Optional context object to associate with the log entry.</param>
+		public PerformanceTimer(string operationName, LogCategory? category, object? contextObject)
+		{
+#if DEBUG
+			_operationName  = operationName;
+			_category       = category;
+			_contextObject  = contextObject;
+			_startTimestamp = Stopwatch.GetTimestamp();
+#endif
+		}
+
+		/// <summary>
+		///     Stops the timer and logs the elapsed time for the operation.
+		///     Fully compiled away in release builds.
+		/// </summary>
+		public void Dispose()
+		{
+#if DEBUG
+			long   elapsed   = Stopwatch.GetTimestamp() - _startTimestamp;
+			double elapsedMs = elapsed * 1000.0 / Stopwatch.Frequency;
+
+			var message = $"{_operationName} completed in {elapsedMs:F2}ms";
+
+			Log(message, LogLevel.Info, _category, _contextObject);
+#endif
+		}
+#if DEBUG
+		private readonly string       _operationName;
+		private readonly LogCategory? _category;
+		private readonly object?      _contextObject;
+		private readonly long         _startTimestamp;
+#endif
 	}
 }
 
@@ -330,6 +417,11 @@ public static class LogLevelEmoji
 /// </summary>
 public sealed class LogPayload
 {
+	/// <summary>
+	///     UTC timestamp when the log was created.
+	/// </summary>
+	public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+
 	/// <summary>
 	///     Optional category for the log message.
 	/// </summary>
@@ -374,6 +466,11 @@ public sealed class LogPayload
 	///     Exception type name (only for exceptions).
 	/// </summary>
 	public string? ExceptionType { get; init; }
+
+	/// <summary>
+	///     Full stack trace (only for exceptions).
+	/// </summary>
+	public string? StackTrace { get; init; }
 }
 
 /// <summary>

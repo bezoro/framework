@@ -143,7 +143,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			SignalStartFailure(startingSignal, ex, ct);
 			await CleanupAfterFailedStartSafeAsync().ConfigureAwait(false);
 			_stateManager.ResetStatusIfNeeded();
-			Logger.Log(ex, LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.UCI);
 			throw;
 		}
 		finally
@@ -655,7 +655,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Logger.Log(ex, LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.UCI);
 		}
 
 		await Task.CompletedTask;
@@ -772,7 +772,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			// Log but suppress disposal errors for already-exited process
 			// This is cleanup of a terminated process, so failures are non-critical
-			Logger.Log(ex, LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.UCI);
 		}
 		finally
 		{
@@ -839,7 +839,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			var exception = new Exception($"{message}: {ex.Message}", ex);
-			Logger.Log(exception, LogCategory.UCI);
+			Logger.Log(exception, category: LogCategory.UCI);
 		}
 		catch
 		{

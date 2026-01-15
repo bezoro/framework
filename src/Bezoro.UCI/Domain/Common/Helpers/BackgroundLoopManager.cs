@@ -429,7 +429,7 @@ internal sealed class BackgroundLoopManager
 			try
 			{
 				var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
-				Logger.Log(timeoutException, LogCategory.UCI);
+				Logger.Log(timeoutException, category: LogCategory.UCI);
 				throw timeoutException;
 			}
 			catch { }
