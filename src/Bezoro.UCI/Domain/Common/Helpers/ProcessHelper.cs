@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -9,12 +8,46 @@ using System.Threading.Tasks;
 namespace Bezoro.UCI.Domain.Common.Helpers;
 
 /// <summary>
-/// Helper methods for process management operations.
+///     Helper methods for process management operations.
 /// </summary>
 internal static class ProcessHelper
 {
 	/// <summary>
-	/// Waits for a process to exit asynchronously.
+	///     Creates a ProcessStartInfo for a UCI engine process.
+	/// </summary>
+	public static ProcessStartInfo CreateProcessStartInfo(
+		string                 path,
+		IReadOnlyList<string>? args,
+		string                 workingDirectory,
+		bool                   redirectStandardError,
+		Encoding?              stdoutEncoding,
+		Encoding?              stderrEncoding)
+	{
+		var startInfo = new ProcessStartInfo
+		{
+			FileName               = path,
+			UseShellExecute        = false,
+			RedirectStandardInput  = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError  = redirectStandardError,
+			StandardOutputEncoding = stdoutEncoding,
+			StandardErrorEncoding  = stderrEncoding,
+			CreateNoWindow         = true,
+			WorkingDirectory       = workingDirectory
+		};
+
+		if (args is { Count: > 0 })
+			foreach (string? a in args)
+			{
+				if (a is { })
+					startInfo.ArgumentList.Add(a);
+			}
+
+		return startInfo;
+	}
+
+	/// <summary>
+	///     Waits for a process to exit asynchronously.
 	/// </summary>
 	public static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
@@ -76,7 +109,22 @@ internal static class ProcessHelper
 	}
 
 	/// <summary>
-	/// Safely kills a process, optionally killing the entire process tree.
+	///     Safely disposes a process.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static void SafeDisposeProcess(Process? process)
+	{
+		if (process is null) return;
+
+		try
+		{
+			process.Dispose();
+		}
+		catch { }
+	}
+
+	/// <summary>
+	///     Safely kills a process, optionally killing the entire process tree.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void SafeKillProcess(Process? process, bool killEntireProcessTree)
@@ -97,57 +145,7 @@ internal static class ProcessHelper
 		catch (Exception ex)
 		{
 			// Log error but don't throw - process may have already exited
-			Logger.LogException($"Failed to kill process. ex={ex}", category: LogCategory.UCI);
+			Logger.Log(ex, LogCategory.UCI);
 		}
-	}
-
-	/// <summary>
-	/// Safely disposes a process.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static void SafeDisposeProcess(Process? process)
-	{
-		if (process is null) return;
-
-		try
-		{
-			process.Dispose();
-		}
-		catch { }
-	}
-
-	/// <summary>
-	/// Creates a ProcessStartInfo for a UCI engine process.
-	/// </summary>
-	public static ProcessStartInfo CreateProcessStartInfo(
-		string                      path,
-		IReadOnlyList<string>?      args,
-		string                      workingDirectory,
-		bool                        redirectStandardError,
-		Encoding?                   stdoutEncoding,
-		Encoding?                   stderrEncoding)
-	{
-		var startInfo = new ProcessStartInfo
-		{
-			FileName               = path,
-			UseShellExecute        = false,
-			RedirectStandardInput  = true,
-			RedirectStandardOutput = true,
-			RedirectStandardError  = redirectStandardError,
-			StandardOutputEncoding = stdoutEncoding,
-			StandardErrorEncoding  = stderrEncoding,
-			CreateNoWindow         = true,
-			WorkingDirectory       = workingDirectory
-		};
-
-		if (args is { Count: > 0 })
-			foreach (string? a in args)
-			{
-				if (a is { })
-					startInfo.ArgumentList.Add(a);
-			}
-
-		return startInfo;
 	}
 }
-

@@ -143,7 +143,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			SignalStartFailure(startingSignal, ex, ct);
 			await CleanupAfterFailedStartSafeAsync().ConfigureAwait(false);
 			_stateManager.ResetStatusIfNeeded();
-			Logger.LogException($"UCI engine failed to start. ex={ex}", category: LogCategory.UCI);
+			Logger.Log(ex, LogCategory.UCI);
 			throw;
 		}
 		finally
@@ -175,7 +175,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (!_stateManager.IsStarted && _process is null)
 		{
 			_stateManager.SetStatus(TransportStatus.Stopped);
-			Logger.LogInfo("StopAsync: transport not started; no-op.", category: LogCategory.UCI);
+			Logger.Log("StopAsync: transport not started; no-op.", category: LogCategory.UCI);
 			return;
 		}
 
@@ -186,7 +186,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			_stateManager.SetStatus(TransportStatus.Stopping);
-			Logger.LogInfo("Stopping UCI transport.", category: LogCategory.UCI);
+			Logger.Log("Stopping UCI transport.", category: LogCategory.UCI);
 
 			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.")
 				.ConfigureAwait(false);
@@ -305,7 +305,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				// Stop already completed, just update status to Disposed
 				_stateManager.SetStatus(TransportStatus.Disposed);
-				Logger.LogInfo("Disposed UCI transport (after stop).", category: LogCategory.UCI);
+				Logger.Log("Disposed UCI transport (after stop).", category: LogCategory.UCI);
 				_gateManager.ReleaseStopGate();
 				return;
 			}
@@ -316,7 +316,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_stateManager.SetStatus(TransportStatus.Stopping);
-		Logger.LogInfo("Disposing UCI transport.", category: LogCategory.UCI);
+		Logger.Log("Disposing UCI transport.", category: LogCategory.UCI);
 
 		try
 		{
@@ -598,7 +598,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_stateManager.SetStatus(TransportStatus.Started);
 
-		Logger.LogInfo($"UCI engine started. PID={startedProcess.Id}", category: LogCategory.UCI);
+		Logger.Log($"UCI engine started. PID={startedProcess.Id}", category: LogCategory.UCI);
 
 		startingSignal.TrySetResult(null);
 		await Task.CompletedTask;
@@ -624,7 +624,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		try
 		{
-			Logger.LogInfo(
+			Logger.Log(
 				$"Killing UCI engine process after grace period (tree={_options.KillEntireProcessTree}).",
 				category: LogCategory.UCI);
 
@@ -647,7 +647,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		try
 		{
-			Logger.LogInfo(
+			Logger.Log(
 				$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
 				category: LogCategory.UCI);
 
@@ -655,9 +655,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 		catch (Exception ex)
 		{
-			Logger.LogException(
-				$"Failed to kill process during cleanup. ex={ex}",
-				category: LogCategory.UCI);
+			Logger.Log(ex, LogCategory.UCI);
 		}
 
 		await Task.CompletedTask;
@@ -693,7 +691,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await CleanupProcessAsync(p, false).ConfigureAwait(false);
 
 		_stateManager.SetStatus(finalStatus);
-		Logger.LogInfo(finalLog, category: LogCategory.UCI);
+		Logger.Log(finalLog, category: LogCategory.UCI);
 	}
 
 	/// <summary>
@@ -774,7 +772,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			// Log but suppress disposal errors for already-exited process
 			// This is cleanup of a terminated process, so failures are non-critical
-			Logger.LogException($"Failed to dispose exited process during cleanup. ex={ex}", category: LogCategory.UCI);
+			Logger.Log(ex, LogCategory.UCI);
 		}
 		finally
 		{
@@ -832,7 +830,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		_stateManager.ResetExitedRaised();
 		_stateManager.SetStatus(TransportStatus.Starting);
-		Logger.LogInfo("Starting UCI engine process.", category: LogCategory.UCI);
+		Logger.Log("Starting UCI engine process.", category: LogCategory.UCI);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -840,7 +838,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		try
 		{
-			Logger.LogException($"{message} ex={ex}", category: LogCategory.UCI);
+			var exception = new Exception($"{message}: {ex.Message}", ex);
+			Logger.Log(exception, LogCategory.UCI);
 		}
 		catch
 		{

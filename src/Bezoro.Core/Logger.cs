@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Bezoro.Core.Logging;
 
 namespace Bezoro.Core;
@@ -98,169 +99,136 @@ public static class LogCategoryEmoji
 }
 
 /// <summary>
-///     Provides logging utility methods across different log levels and categories.
+///     Provides a clean, flexible logging utility with optional complexity.
 /// </summary>
 public static class Logger
 {
 	/// <summary>
 	///     Event invoked when a log message is processed.
 	/// </summary>
-	public static event Action<LogLevel, LogCategory, string, string?>? OnLog;
+	public static event Action<LogPayload>? OnLog;
 
 	/// <summary>
-	///     Logs an error message.
+	///     Logs a message with optional complexity.
 	/// </summary>
-	/// <param name="message">The log message or data.</param>
-	/// <param name="context">The log context (typically the calling object), or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
+	/// <param name="message">The message to log (string, number, object, FormattableString, etc.).</param>
+	/// <param name="level">The severity level (default: Info).</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information.</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
 	[Conditional("DEBUG")]
-	public static void LogError(object message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Error, message, category, context);
-
-	/// <summary>
-	///     Logs an error message with string interpolation support.
-	/// </summary>
-	/// <param name="message">The log message as a <see cref="FormattableString" />.</param>
-	/// <param name="context">The log context (typically the calling object), or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogError(
-		FormattableString message,
-		object?           context  = null,
-		LogCategory       category = default) =>
-		Log(LogLevel.Error, message, category, context);
-
-	/// <summary>
-	///     Logs an exception message.
-	/// </summary>
-	/// <param name="message">Exception or error message object.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogException(object message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Exception, message, category, context);
-
-	/// <summary>
-	///     Logs an exception message with string interpolation support.
-	/// </summary>
-	/// <param name="message">Exception message as a <see cref="FormattableString" />.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogException(
-		FormattableString message,
-		object?           context  = null,
-		LogCategory       category = default) =>
-		Log(LogLevel.Exception, message, category, context);
-
-	/// <summary>
-	///     Logs an informational message.
-	/// </summary>
-	/// <param name="message">Information message object.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogInfo(object message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Info, message, category, context);
-
-	/// <summary>
-	///     Logs an informational message with formatting.
-	/// </summary>
-	/// <param name="message">Information message as a <see cref="FormattableString" />.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogInfo(FormattableString message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Info, message, category, context);
-
-	/// <summary>
-	///     Logs a successful operation message.
-	/// </summary>
-	/// <param name="message">Success message object.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogSuccess(object message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Success, message, category, context);
-
-	/// <summary>
-	///     Logs a successful operation message with formatting.
-	/// </summary>
-	/// <param name="message">Success message as a <see cref="FormattableString" />.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogSuccess(
-		FormattableString message,
-		object?           context  = null,
-		LogCategory       category = default) =>
-		Log(LogLevel.Success, message, category, context);
-
-	/// <summary>
-	///     Logs a warning message.
-	/// </summary>
-	/// <param name="message">Warning message object.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogWarning(object message, object? context = null, LogCategory category = default) =>
-		Log(LogLevel.Warning, message, category, context);
-
-	/// <summary>
-	///     Logs a warning message with formatting.
-	/// </summary>
-	/// <param name="message">Warning message as a <see cref="FormattableString" />.</param>
-	/// <param name="context">The log context, or <c>null</c>.</param>
-	/// <param name="category">The log category, default is <see cref="LogCategory.Default" />.</param>
-	[Conditional("DEBUG")]
-	public static void LogWarning(
-		FormattableString message,
-		object?           context  = null,
-		LogCategory       category = default) =>
-		Log(LogLevel.Warning, message, category, context);
-
-	/// <summary>
-	///     Core logging method for object-based messages.
-	/// </summary>
-	/// <param name="level">The log level.</param>
-	/// <param name="message">The message object to log.</param>
-	/// <param name="category">The log category.</param>
-	/// <param name="context">The context of the log message, or <c>null</c>.</param>
-	[Conditional("DEBUG")]
-	private static void Log(LogLevel level, object message, LogCategory category, object? context)
+	public static void Log(
+		object                     message,
+		LogLevel                   level             = LogLevel.Info,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = false,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null)
 	{
-		string formattedMessage;
-
-		if (message is IEnumerable collection and not string)
+		// Capture caller info if requested
+		string? callerInfo = null;
+		if (captureCallerInfo && memberName != null)
 		{
-			var collectionAsStrings =
-				collection.Cast<object>().Select(o => o?.ToString() ?? "null");
-
-			formattedMessage = $"[{string.Join(", ", collectionAsStrings)}]";
-		}
-		else
-		{
-			formattedMessage = message?.ToString() ?? string.Empty;
+			string typeName = ExtractTypeNameFromFilePath(filePath);
+			callerInfo = $"{typeName}.{memberName}()";
 		}
 
-		string? logContext    = context?.GetType().Name;
-		var     categoryToLog = category.ToString() == null ? LogCategory.Default : category;
-		OnLog?.Invoke(level, categoryToLog, formattedMessage, logContext);
+		// Format the message based on type
+		string formattedMessage = message is FormattableString formattable
+									  ? FormatMessage(formattable)
+									  : FormatMessage(message);
+
+		BuildAndInvokePayload(
+			formattedMessage,
+			level,
+			category,
+			contextObject,
+			null,
+			callerInfo);
 	}
 
 	/// <summary>
-	///     Core logging method for formattable string messages.
+	///     Logs an exception with automatic detail extraction.
 	/// </summary>
-	/// <param name="level">The log level.</param>
-	/// <param name="formattableMessage">The message as a <see cref="FormattableString" />.</param>
-	/// <param name="category">The log category.</param>
-	/// <param name="context">The context of the log message, or <c>null</c>.</param>
+	/// <param name="exception">The exception to log.</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information (default: true).</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
 	[Conditional("DEBUG")]
-	private static void Log(
-		LogLevel          level,
-		FormattableString formattableMessage,
-		LogCategory       category,
-		object?           context)
+	public static void Log(
+		Exception                  exception,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = true,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null)
+	{
+		string message       = exception.Message;
+		string exceptionType = exception.GetType().Name;
+
+		// Capture caller info if requested
+		string? callerInfo = null;
+		if (captureCallerInfo && memberName != null)
+		{
+			string typeName = ExtractTypeNameFromFilePath(filePath);
+			callerInfo = $"{typeName}.{memberName}()";
+		}
+
+		BuildAndInvokePayload(
+			message,
+			LogLevel.Exception,
+			category,
+			contextObject,
+			exceptionType,
+			callerInfo);
+	}
+
+	/// <summary>
+	///     Extracts the type name from a file path (e.g., "GameManager" from "path/to/GameManager.cs").
+	/// </summary>
+	private static string ExtractTypeNameFromFilePath(string? filePath)
+	{
+		if (string.IsNullOrEmpty(filePath))
+			return "Unknown";
+
+		string? fileName = Path.GetFileNameWithoutExtension(filePath);
+		return fileName ?? "Unknown";
+	}
+
+	/// <summary>
+	///     Formats a message object into a string representation.
+	/// </summary>
+	private static string FormatMessage(object message)
+	{
+		if (message is not (IEnumerable collection and not string)) return message.ToString() ?? string.Empty;
+
+		var collectionAsStrings =
+			collection.Cast<object>().Select(o => o?.ToString() ?? "null");
+
+		return $"[{string.Join(", ", collectionAsStrings)}]";
+	}
+
+	/// <summary>
+	///     Formats a formattable string message with proper collection handling.
+	/// </summary>
+	private static string FormatMessage(FormattableString formattableMessage)
 	{
 		object?[] arguments     = formattableMessage.GetArguments();
 		var       formattedArgs = new object?[arguments.Length];
@@ -282,12 +250,130 @@ public static class Logger
 			}
 		}
 
-		var formattedMessage = string.Format(formattableMessage.Format, formattedArgs);
-
-		string? logContext    = context?.GetType().Name;
-		var     categoryToLog = category.ToString() == null ? LogCategory.Default : category;
-		OnLog?.Invoke(level, categoryToLog, formattedMessage, logContext);
+		return string.Format(formattableMessage.Format, formattedArgs);
 	}
+
+	/// <summary>
+	///     Builds the log payload and invokes the OnLog event.
+	/// </summary>
+	private static void BuildAndInvokePayload(
+		string       message,
+		LogLevel     level,
+		LogCategory? category,
+		object?      contextObject,
+		string?      exceptionType,
+		string?      callerInfo)
+	{
+		string severityEmoji = LogLevelEmoji.GetEmoji(level);
+		string? categoryEmoji = category.HasValue
+									? LogCategoryEmoji.GetEmoji(category.Value)
+									: null;
+
+		// Build formatted message: [severity] [category] [ExceptionType ::] Message [:: Caller]
+		string formattedMessage = severityEmoji;
+
+		if (categoryEmoji != null)
+			formattedMessage += $" [{categoryEmoji}]";
+
+		if (exceptionType != null)
+			formattedMessage += $" {exceptionType} ::";
+
+		formattedMessage += $" {message}";
+
+		if (callerInfo != null)
+			formattedMessage += $" :: {callerInfo}";
+
+		var payload = new LogPayload
+		{
+			Level            = level,
+			Category         = category,
+			Message          = message,
+			SeverityEmoji    = severityEmoji,
+			CategoryEmoji    = categoryEmoji,
+			ExceptionType    = exceptionType,
+			CallerInfo       = callerInfo,
+			FormattedMessage = formattedMessage,
+			ContextObject    = contextObject
+		};
+
+		OnLog?.Invoke(payload);
+	}
+}
+
+/// <summary>
+///     Provides utility methods to get emoji representations for log severity levels.
+/// </summary>
+public static class LogLevelEmoji
+{
+	private static readonly Dictionary<LogLevel, string> LevelToEmoji = new()
+	{
+		{ LogLevel.Info, "ℹ️" },
+		{ LogLevel.Success, "✅" },
+		{ LogLevel.Warning, "⚠️" },
+		{ LogLevel.Error, "❌" },
+		{ LogLevel.Exception, "💥" }
+	};
+
+	/// <summary>
+	///     Gets the emoji representation for a specific log level.
+	/// </summary>
+	/// <param name="level">The log level.</param>
+	/// <returns>
+	///     Emoji string for the specified level, or <c>ℹ️</c> if not recognized.
+	/// </returns>
+	public static string GetEmoji(LogLevel level) =>
+		LevelToEmoji.GetValueOrDefault(level, "ℹ️");
+}
+
+/// <summary>
+///     Contains all data for a single log event.
+/// </summary>
+public sealed class LogPayload
+{
+	/// <summary>
+	///     Optional category for the log message.
+	/// </summary>
+	public LogCategory? Category { get; init; }
+
+	/// <summary>
+	///     The severity level of the log.
+	/// </summary>
+	public required LogLevel Level { get; init; }
+
+	/// <summary>
+	///     Optional context object (e.g., Unity Object for console highlighting).
+	/// </summary>
+	public object? ContextObject { get; init; }
+
+	/// <summary>
+	///     Fully formatted log message ready for output.
+	/// </summary>
+	public required string FormattedMessage { get; init; }
+
+	/// <summary>
+	///     The raw message content.
+	/// </summary>
+	public required string Message { get; init; }
+
+	/// <summary>
+	///     Emoji representing the severity level.
+	/// </summary>
+	public required string SeverityEmoji { get; init; }
+
+	/// <summary>
+	///     Caller information in format "TypeName.MethodName()" (if captured).
+	/// </summary>
+	public string? CallerInfo { get; init; }
+
+	/// <summary>
+	///     Emoji representing the category (if category is specified).
+	/// </summary>
+	public string? CategoryEmoji { get; init; }
+
+	/// <summary>
+	///     Exception type name (only for exceptions).
+	/// </summary>
+	public string? ExceptionType { get; init; }
 }
 
 /// <summary>
