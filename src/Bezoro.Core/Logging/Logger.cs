@@ -1,9 +1,8 @@
 ﻿using System.Collections;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Bezoro.Core.Logging;
 
-namespace Bezoro.Core;
+namespace Bezoro.Core.Logging;
 
 /// <summary>
 ///     Provides utility methods to get emoji representations for log categories.
