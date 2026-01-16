@@ -182,7 +182,10 @@ public static class Logger
 			contextObject,
 			null,
 			callerInfo,
-			null);
+			null,
+			null,
+			null,
+			filePath);
 	}
 
 	/// <summary>
@@ -218,6 +221,10 @@ public static class Logger
 		string  exceptionType = exception.GetType().Name;
 		string? stackTrace    = exception.StackTrace;
 
+		// Capture inner exception details
+		string? innerExceptionType    = exception.InnerException?.GetType().Name;
+		string? innerExceptionMessage = exception.InnerException?.Message;
+
 		// Capture caller info if requested
 		string? callerInfo = null;
 		if (captureCallerInfo && memberName != null)
@@ -233,7 +240,10 @@ public static class Logger
 			contextObject,
 			exceptionType,
 			callerInfo,
-			stackTrace);
+			stackTrace,
+			innerExceptionType,
+			innerExceptionMessage,
+			filePath);
 	}
 
 	/// <summary>
@@ -246,6 +256,34 @@ public static class Logger
 
 		string? fileName = Path.GetFileNameWithoutExtension(filePath);
 		return fileName ?? "Unknown";
+	}
+
+	/// <summary>
+	///     Formats a log message with async context based on the configured format.
+	/// </summary>
+	private static string FormatAsyncContext(IReadOnlyList<string> hierarchy, string message)
+	{
+		int depth = hierarchy.Count;
+
+		return LoggerSettings.AsyncFormat switch
+		{
+			AsyncContextFormat.None => message,
+
+			AsyncContextFormat.Breadcrumb => $"[{string.Join(" > ", hierarchy)}] {message}",
+
+			AsyncContextFormat.Indented => new string(' ', depth * LoggerSettings.IndentSize) + message,
+
+			AsyncContextFormat.TreeBranches =>
+				new string(' ', (depth - 1) * LoggerSettings.IndentSize) + "└─ " + message,
+
+			AsyncContextFormat.Bracketed =>
+				string.Concat(hierarchy.Select(ctx => $"[{ctx}]")) + " " + message,
+
+			AsyncContextFormat.Custom when LoggerSettings.CustomFormatter != null =>
+				LoggerSettings.CustomFormatter(hierarchy, depth, message),
+
+			_ => message
+		};
 	}
 
 	/// <summary>
@@ -290,6 +328,18 @@ public static class Logger
 	}
 
 	/// <summary>
+	///     Calculates a time window group identifier based on the current time and configured window size.
+	/// </summary>
+	private static string GetTimeWindowGroup(DateTime timestamp)
+	{
+		long ticks        = timestamp.Ticks;
+		long windowTicks  = TimeSpan.FromMilliseconds(LoggerSettings.TimeWindowMs).Ticks;
+		long windowNumber = ticks / windowTicks;
+
+		return $"Window-{windowNumber}";
+	}
+
+	/// <summary>
 	///     Builds the log payload and invokes the OnLog event.
 	/// </summary>
 	private static void BuildAndInvokePayload(
@@ -299,10 +349,21 @@ public static class Logger
 		object?      contextObject,
 		string?      exceptionType,
 		string?      callerInfo,
-		string?      stackTrace)
+		string?      stackTrace,
+		string?      innerExceptionType,
+		string?      innerExceptionMessage,
+		string?      filePath)
 	{
+		// Check master switch
+		if (!LoggerSettings.Enabled)
+			return;
+
 		// Check minimum level filtering
 		if (level < MinimumLevel)
+			return;
+
+		// Check category filtering
+		if (category.HasValue && LoggerSettings.MutedCategories.Contains(category.Value))
 			return;
 
 		string severityEmoji = LogLevelEmoji.GetEmoji(level);
@@ -310,32 +371,121 @@ public static class Logger
 									? LogCategoryEmoji.GetEmoji(category.Value)
 									: null;
 
-		// Build formatted message: [severity] [category] [ExceptionType ::] Message [:: Caller]
-		string formattedMessage = severityEmoji;
+		// Get async context info
+		var     asyncHierarchy        = LoggerSettings.CurrentAsyncContextHierarchy;
+		int     asyncDepth            = asyncHierarchy?.Count ?? 0;
+		string? formattedAsyncContext = asyncHierarchy != null ? FormatAsyncContext(asyncHierarchy, message) : null;
+
+		// Determine grouping context
+		var now = DateTime.UtcNow;
+		string? groupingContext = LoggerSettings.GroupBy switch
+		{
+			LoggerSettings.ContextGrouping.CallerType   => ExtractTypeNameFromFilePath(filePath),
+			LoggerSettings.ContextGrouping.CallerMethod => callerInfo,
+			LoggerSettings.ContextGrouping.Category     => category?.ToString(),
+			LoggerSettings.ContextGrouping.Thread       => Environment.CurrentManagedThreadId.ToString(),
+			LoggerSettings.ContextGrouping.Level        => level.ToString(),
+			LoggerSettings.ContextGrouping.TimeWindow   => GetTimeWindowGroup(now),
+			LoggerSettings.ContextGrouping.AsyncContext => asyncHierarchy != null
+															   ? string.Join(" > ", asyncHierarchy)
+															   : null,
+			_ => null
+		};
+
+		// Get style for this log level
+		var style = LoggerSettings.GetStyle(level);
+
+		// Get sequence number
+		long sequenceNumber = LoggerSettings.GetNextSequenceNumber();
+
+		// Get thread ID
+		int threadId = Environment.CurrentManagedThreadId;
+
+		// Get file location
+		string? fileLocation = null;
+		if (LoggerSettings.IncludeFileLocation && filePath != null)
+		{
+			string fileName = Path.GetFileName(filePath);
+			fileLocation = fileName;
+		}
+
+		// Build formatted message using hierarchical structure:
+		// Line 1: [#seq][timestamp][thread] severity [category] Message
+		// Line 2 (optional):   └─ file :: caller
+
+		string mainLine = string.Empty;
+
+		// Metadata section
+		if (LoggerSettings.IncludeSequenceNumber)
+			mainLine = $"[#{sequenceNumber}]";
+
+		if (LoggerSettings.IncludeTimeStamp)
+			mainLine += $"[{now:HH:mm:ss.fff}]";
+
+		if (LoggerSettings.IncludeThreadId)
+			mainLine += $"[T:{threadId}]";
+
+		if (LoggerSettings.IncludeGroupingContext && groupingContext != null)
+			mainLine += $"[{groupingContext}]";
+
+		// Add space after metadata if any exists
+		if (!string.IsNullOrEmpty(mainLine))
+			mainLine += " ";
+
+		// Severity and category
+		mainLine += severityEmoji;
 
 		if (categoryEmoji != null)
-			formattedMessage += $" [{categoryEmoji}]";
+			mainLine += $" [{categoryEmoji}]";
 
+		// Exception type prefix
 		if (exceptionType != null)
-			formattedMessage += $" {exceptionType} ::";
+			mainLine += $" {exceptionType} ::";
 
-		formattedMessage += $" {message}";
+		// Main message
+		mainLine += $" {message}";
 
-		if (callerInfo != null)
-			formattedMessage += $" :: {callerInfo}";
+		// Build details line (file and caller info)
+		string? detailsLine = null;
+		if (LoggerSettings.IncludeFileLocation || callerInfo != null)
+		{
+			var details = new List<string>();
+
+			if (LoggerSettings.IncludeFileLocation && fileLocation != null)
+				details.Add(fileLocation);
+
+			if (callerInfo != null)
+				details.Add(callerInfo);
+
+			if (details.Count > 0)
+				detailsLine = $"  └─ {string.Join(" :: ", details)}";
+		}
+
+		// Combine main line and optional details line
+		string formattedMessage = detailsLine != null
+									  ? $"{mainLine}\n{detailsLine}"
+									  : mainLine;
 
 		var payload = new LogPayload
 		{
-			Level            = level,
-			Category         = category,
-			Message          = message,
-			SeverityEmoji    = severityEmoji,
-			CategoryEmoji    = categoryEmoji,
-			ExceptionType    = exceptionType,
-			CallerInfo       = callerInfo,
-			FormattedMessage = formattedMessage,
-			ContextObject    = contextObject,
-			StackTrace       = stackTrace
+			Timestamp             = now,
+			Level                 = level,
+			Category              = category,
+			Message               = message,
+			SeverityEmoji         = severityEmoji,
+			CategoryEmoji         = categoryEmoji,
+			ExceptionType         = exceptionType,
+			CallerInfo            = callerInfo,
+			FormattedMessage      = formattedAsyncContext ?? formattedMessage,
+			ContextObject         = contextObject,
+			StackTrace            = stackTrace,
+			InnerExceptionType    = innerExceptionType,
+			InnerExceptionMessage = innerExceptionMessage,
+			GroupingContext       = groupingContext,
+			AsyncContextHierarchy = asyncHierarchy,
+			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
+			AsyncContextDepth     = asyncDepth,
+			Style                 = style
 		};
 
 		OnLog?.Invoke(payload);
@@ -388,6 +538,212 @@ public static class Logger
 }
 
 /// <summary>
+///     Configuration settings for the Logger.
+/// </summary>
+public static class LoggerSettings
+{
+	/// <summary>
+	///     AsyncLocal stack that tracks async context hierarchy.
+	///     Automatically flows through async/await boundaries.
+	/// </summary>
+	private static readonly AsyncLocal<Stack<string>?> AsyncContextStack = new();
+
+	/// <summary>
+	///     Log sequence counter for tracking log order.
+	/// </summary>
+	private static long _sequenceNumber;
+
+	/// <summary>
+	///     Categories that should be ignored/muted.
+	/// </summary>
+	/// <remarks>
+	///     <para>
+	///         Use <see cref="HashSet{T}.Add(T)" /> to add a category to the list.
+	///     </para>
+	///     <para>
+	///         Use <see cref="HashSet{T}.Remove(T)" /> to remove a category from the list.
+	///     </para>
+	///     <para>
+	///         Use <see cref="HashSet{T}.Clear" /> to clear the list.
+	///     </para>
+	/// </remarks>
+	public static HashSet<LogCategory> MutedCategories { get; } = [];
+
+	/// <summary>
+	///     How async context should be formatted in log messages.
+	/// </summary>
+	public static AsyncContextFormat AsyncFormat { get; set; } = AsyncContextFormat.Breadcrumb;
+
+	/// <summary>
+	///     Custom formatter for AsyncContextFormat.Custom mode.
+	/// </summary>
+	public static AsyncContextFormatter? CustomFormatter { get; set; }
+
+	/// <summary>
+	///     Master switch to enable/disable all logging at runtime.
+	/// </summary>
+	public static bool Enabled { get; set; } = true;
+
+	/// <summary>
+	///     Whether to include file location in the formatted message.
+	/// </summary>
+	public static bool IncludeFileLocation { get; set; } = false;
+
+	/// <summary>
+	///     Whether to include grouping context in the formatted message.
+	/// </summary>
+	public static bool IncludeGroupingContext { get; set; } = false;
+
+	/// <summary>
+	///     Whether to include sequence number in the formatted message.
+	/// </summary>
+	public static bool IncludeSequenceNumber { get; set; } = false;
+
+	/// <summary>
+	///     Whether to include thread ID in the formatted message.
+	/// </summary>
+	public static bool IncludeThreadId { get; set; } = false;
+
+	/// <summary>
+	///     Whether to include timestamp in the formatted message.
+	/// </summary>
+	public static bool IncludeTimeStamp { get; set; } = false;
+
+	/// <summary>
+	///     Defines how logs should be automatically grouped.
+	/// </summary>
+	public static ContextGrouping GroupBy { get; set; } = ContextGrouping.None;
+
+	/// <summary>
+	///     Number of spaces per indentation level for Indented and TreeBranches formats.
+	/// </summary>
+	public static int IndentSize { get; set; } = 2;
+
+	/// <summary>
+	///     Time window in milliseconds for TimeWindow grouping.
+	///     Logs within this window are grouped together.
+	/// </summary>
+	public static int TimeWindowMs { get; set; } = 100;
+
+	/// <summary>
+	///     Visual style for Error level logs.
+	/// </summary>
+	public static LogStyle ErrorStyle { get; set; } = new(ConsoleColor.Red);
+
+	/// <summary>
+	///     Visual style for Exception level logs.
+	/// </summary>
+	public static LogStyle ExceptionStyle { get; set; } = new(ConsoleColor.DarkRed, true);
+
+	/// <summary>
+	///     Visual style for Info level logs.
+	/// </summary>
+	public static LogStyle InfoStyle { get; set; } = new(ConsoleColor.White);
+
+	/// <summary>
+	///     Visual style for Success level logs.
+	/// </summary>
+	public static LogStyle SuccessStyle { get; set; } = new(ConsoleColor.Green);
+
+	/// <summary>
+	///     Visual style for Warning level logs.
+	/// </summary>
+	public static LogStyle WarningStyle { get; set; } = new(ConsoleColor.Yellow);
+
+	/// <summary>
+	///     Gets the current async context hierarchy.
+	/// </summary>
+	internal static IReadOnlyList<string>? CurrentAsyncContextHierarchy
+	{
+		get
+		{
+			var stack = AsyncContextStack.Value;
+			return stack?.Count > 0 ? stack.Reverse().ToArray() : null;
+		}
+	}
+
+	/// <summary>
+	///     Begins a new async context that automatically flows through async/await.
+	/// </summary>
+	/// <param name="contextName">The name for this async context.</param>
+	/// <returns>A disposable that pops the context when disposed.</returns>
+	public static IDisposable BeginAsyncContext(string contextName) => new AsyncContextScope(contextName);
+
+	/// <summary>
+	///     Gets the style for a specific log level.
+	/// </summary>
+	internal static LogStyle GetStyle(LogLevel level) => level switch
+	{
+		LogLevel.Info      => InfoStyle,
+		LogLevel.Success   => SuccessStyle,
+		LogLevel.Warning   => WarningStyle,
+		LogLevel.Error     => ErrorStyle,
+		LogLevel.Exception => ExceptionStyle,
+		_                  => InfoStyle
+	};
+
+	/// <summary>
+	///     Gets the next sequence number for log ordering.
+	/// </summary>
+	internal static long GetNextSequenceNumber() => Interlocked.Increment(ref _sequenceNumber);
+
+
+	/// <summary>
+	///     Defines how logs should be grouped/contextualized.
+	/// </summary>
+	public enum ContextGrouping
+	{
+		/// <summary>No automatic grouping.</summary>
+		None,
+
+		/// <summary>Group by calling class name.</summary>
+		CallerType,
+
+		/// <summary>Group by calling method name (ClassName.MethodName).</summary>
+		CallerMethod,
+
+		/// <summary>Group by log category.</summary>
+		Category,
+
+		/// <summary>Group by thread ID.</summary>
+		Thread,
+
+		/// <summary>Group by log severity level.</summary>
+		Level,
+
+		/// <summary>Group by time window (logs within TimeWindowMs are grouped together).</summary>
+		TimeWindow,
+
+		/// <summary>Group by async context (automatically flows through async/await).</summary>
+		AsyncContext
+	}
+
+	/// <summary>
+	///     Internal scope for managing async context stack.
+	/// </summary>
+	private sealed class AsyncContextScope : IDisposable
+	{
+		public AsyncContextScope(string contextName)
+		{
+			var stack = AsyncContextStack.Value;
+			if (stack == null)
+			{
+				stack                   = new();
+				AsyncContextStack.Value = stack;
+			}
+
+			stack.Push(contextName);
+		}
+
+		public void Dispose()
+		{
+			var stack = AsyncContextStack.Value;
+			if (stack?.Count > 0) stack.Pop();
+		}
+	}
+}
+
+/// <summary>
 ///     Provides utility methods to get emoji representations for log severity levels.
 /// </summary>
 public static class LogLevelEmoji
@@ -423,6 +779,16 @@ public sealed class LogPayload
 	public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
 	/// <summary>
+	///     Async context nesting depth (0 = no context, 1 = root, 2+ = nested).
+	/// </summary>
+	public int AsyncContextDepth { get; init; }
+
+	/// <summary>
+	///     Async context hierarchy (e.g., ["GameLoop", "Player-123", "AI"]).
+	/// </summary>
+	public IReadOnlyList<string>? AsyncContextHierarchy { get; init; }
+
+	/// <summary>
 	///     Optional category for the log message.
 	/// </summary>
 	public LogCategory? Category { get; init; }
@@ -431,6 +797,11 @@ public sealed class LogPayload
 	///     The severity level of the log.
 	/// </summary>
 	public required LogLevel Level { get; init; }
+
+	/// <summary>
+	///     Visual style hints for rendering (color, bold, etc.).
+	/// </summary>
+	public LogStyle Style { get; init; } = LoggerSettings.InfoStyle;
 
 	/// <summary>
 	///     Optional context object (e.g., Unity Object for console highlighting).
@@ -453,6 +824,11 @@ public sealed class LogPayload
 	public required string SeverityEmoji { get; init; }
 
 	/// <summary>
+	///     Formatted async context string (format depends on LoggerSettings.AsyncFormat).
+	/// </summary>
+	public string? AsyncContext { get; init; }
+
+	/// <summary>
 	///     Caller information in format "TypeName.MethodName()" (if captured).
 	/// </summary>
 	public string? CallerInfo { get; init; }
@@ -468,9 +844,91 @@ public sealed class LogPayload
 	public string? ExceptionType { get; init; }
 
 	/// <summary>
+	///     Automatic grouping context based on LoggerSettings.GroupBy.
+	/// </summary>
+	public string? GroupingContext { get; init; }
+
+	/// <summary>
+	///     Inner exception message (if present).
+	/// </summary>
+	public string? InnerExceptionMessage { get; init; }
+
+	/// <summary>
+	///     Inner exception type name (if present).
+	/// </summary>
+	public string? InnerExceptionType { get; init; }
+
+	/// <summary>
 	///     Full stack trace (only for exceptions).
 	/// </summary>
 	public string? StackTrace { get; init; }
+}
+
+/// <summary>
+///     Defines visual styling for log output.
+/// </summary>
+public sealed class LogStyle
+{
+	/// <summary>
+	///     Initializes a new instance of the <see cref="LogStyle" /> class with the specified visual styling options.
+	/// </summary>
+	/// <param name="color">The console color to use for this log style.</param>
+	/// <param name="bold">Whether to render the text in bold. Default is <c>false</c>.</param>
+	/// <param name="italic">Whether to render the text in italic. Default is <c>false</c>.</param>
+	public LogStyle(ConsoleColor color, bool bold = false, bool italic = false)
+	{
+		Color  = color;
+		Bold   = bold;
+		Italic = italic;
+	}
+
+	/// <summary>
+	///     Whether to render the text in bold.
+	/// </summary>
+	public bool Bold { get; init; }
+
+	/// <summary>
+	///     Whether to render the text in italic.
+	/// </summary>
+	public bool Italic { get; init; }
+
+	/// <summary>
+	///     The color hint for this log style.
+	/// </summary>
+	public ConsoleColor Color { get; init; }
+}
+
+/// <summary>
+///     Delegate for custom async context formatting.
+/// </summary>
+/// <param name="hierarchy">The async context hierarchy (e.g., ["GameLoop", "Player-123"]).</param>
+/// <param name="depth">The nesting depth (0 = root).</param>
+/// <param name="message">The original log message.</param>
+/// <returns>The formatted message with async context applied.</returns>
+public delegate string AsyncContextFormatter(IReadOnlyList<string> hierarchy, int depth, string message);
+
+/// <summary>
+///     Defines how async context hierarchy should be formatted.
+/// </summary>
+public enum AsyncContextFormat
+{
+	/// <summary>No async context formatting.</summary>
+	None,
+
+	/// <summary>Breadcrumb style: "[GameLoop > Player-123] Message"</summary>
+	Breadcrumb,
+
+	/// <summary>Indented with spaces based on depth: "  Message"</summary>
+	Indented,
+
+	/// <summary>Tree branches: "  └─ Message"</summary>
+	TreeBranches,
+
+	/// <summary>Bracketed inline: "[GameLoop][Player-123] Message"</summary>
+	Bracketed,
+
+	/// <summary>Custom format using AsyncContextFormatter delegate.</summary>
+	Custom
 }
 
 /// <summary>
