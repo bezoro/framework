@@ -224,6 +224,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <exception cref="OperationCanceledException">Thrown if the cancellation token is triggered.</exception>
 	/// <remarks>
 	///     This method will wait indefinitely if the channel is full (backpressure).
+	///     A warning is logged if the write is blocked for longer than
+	///     <see cref="ProcessUciTransportOptions.WriteHangWarningThreshold" />.
 	///     Use TryWriteLineAsync with a timeout if you need bounded wait time.
 	///     Command validation is performed if ValidateCommands option is true.
 	/// </remarks>
@@ -238,14 +240,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_metrics.IncrementBackpressureEvents();
 
-		try
-		{
-			await writer.WriteAsync(line, ct).ConfigureAwait(false);
-		}
-		catch (ChannelClosedException)
-		{
-			throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
-		}
+		// Set up warning if write hangs for too long
+		var warningThreshold = _options.WriteHangWarningThreshold;
+		if (warningThreshold != Timeout.InfiniteTimeSpan && warningThreshold > TimeSpan.Zero)
+			await WriteWithHangWarningAsync(writer, line, warningThreshold, ct).ConfigureAwait(false);
+		else
+			// No warning configured - write directly
+			try
+			{
+				await writer.WriteAsync(line, ct).ConfigureAwait(false);
+			}
+			catch (ChannelClosedException)
+			{
+				throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
+			}
 	}
 
 	/// <summary>
@@ -392,6 +400,40 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		return list;
+	}
+
+	/// <summary>
+	///     Writes to the channel with a warning if the operation is blocked for too long.
+	/// </summary>
+	private static async Task WriteWithHangWarningAsync(
+		ChannelWriter<string> writer,
+		string                line,
+		TimeSpan              warningThreshold,
+		CancellationToken     ct)
+	{
+		using var warningCts  = new CancellationTokenSource(warningThreshold);
+		var       warningTask = Task.Delay(warningThreshold, warningCts.Token);
+		var       writeTask   = writer.WriteAsync(line, ct).AsTask();
+
+		var completed = await Task.WhenAny(writeTask, warningTask).ConfigureAwait(false);
+
+		if (completed == warningTask)
+			Logger.Log(
+				$"WARNING: WriteLineAsync has been blocked for {warningThreshold.TotalSeconds:F1}s waiting for channel space. " +
+				"The consumer may not be reading, or the channel is saturated. " +
+				"Consider using TryWriteLineAsync with a timeout for better control.",
+				category: LogCategory.UCI);
+		else
+			warningCts.Cancel();
+
+		try
+		{
+			await writeTask.ConfigureAwait(false);
+		}
+		catch (ChannelClosedException)
+		{
+			throw new InvalidOperationException("Transport is stopping or stopped; cannot write.");
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -890,6 +932,20 @@ internal sealed class ProcessUciTransport : IUciTransport
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ValidateLineLength(string line)
+	{
+		if (line.Length > _options.MaxLineLength)
+			throw new ArgumentException(
+				$"Command line exceeds maximum length of {_options.MaxLineLength} characters. Actual: {line.Length}",
+				nameof(line));
+
+		if (line.Length > _options.WarnLineLength)
+			Logger.Log(
+				$"Warning: Command line length ({line.Length} characters) exceeds warning threshold ({_options.WarnLineLength} characters). This may indicate unusual usage.",
+				category: LogCategory.UCI);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ValidateTryWritePreconditions(string line, TimeSpan timeout)
 	{
 		_stateManager.ThrowIfProcessNotStarted();
@@ -914,19 +970,5 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
 		ct.ThrowIfCancellationRequested();
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void ValidateLineLength(string line)
-	{
-		if (line.Length > _options.MaxLineLength)
-			throw new ArgumentException(
-				$"Command line exceeds maximum length of {_options.MaxLineLength} characters. Actual: {line.Length}",
-				nameof(line));
-
-		if (line.Length > _options.WarnLineLength)
-			Logger.Log(
-				$"Warning: Command line length ({line.Length} characters) exceeds warning threshold ({_options.WarnLineLength} characters). This may indicate unusual usage.",
-				category: LogCategory.UCI);
 	}
 }

@@ -39,4 +39,9 @@ internal static class ProcessUciTransportConstants
 	///     Default line length threshold in characters at which a warning will be logged (1MB).
 	/// </summary>
 	public const int DEFAULT_WARN_LINE_LENGTH = 1024 * 1024;
+
+	/// <summary>
+	///     Default timeout in seconds before logging a warning that WriteLineAsync is blocked waiting for channel space.
+	/// </summary>
+	public const int DEFAULT_WRITE_HANG_WARNING_SECONDS = 5;
 }

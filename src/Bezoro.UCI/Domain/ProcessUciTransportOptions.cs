@@ -108,6 +108,13 @@ internal readonly struct ProcessUciTransportOptions()
 		TimeSpan.FromSeconds(ProcessUciTransportConstants.DEFAULT_TEARDOWN_TIMEOUT_SECONDS);
 
 	/// <summary>
+	///     Time threshold for logging a warning when WriteLineAsync is blocked waiting for channel space.
+	///     Set to <see cref="Timeout.InfiniteTimeSpan" /> to disable hang warnings.
+	/// </summary>
+	public TimeSpan WriteHangWarningThreshold { get; init; } =
+		TimeSpan.FromSeconds(ProcessUciTransportConstants.DEFAULT_WRITE_HANG_WARNING_SECONDS);
+
+	/// <summary>
 	///     Test-only callback invoked when "quit" command is sent to the process. Used for verification in tests.
 	/// </summary>
 	internal Action? OnQuitSent { get; init; } = null;
