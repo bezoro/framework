@@ -18,6 +18,8 @@ internal sealed class BackgroundLoopManager(
 	Action<string>?            stderrReceived = null
 )
 {
+	private const int DEFAULT_FLUSH_BATCH_SIZE = 8;
+
 	private CancellationTokenSource? _readLoopCts;
 	private CancellationTokenSource? _writeLoopCts;
 
@@ -35,13 +37,13 @@ internal sealed class BackgroundLoopManager(
 	/// </summary>
 	public bool AreLoopsHealthy() =>
 		(_readLoopTask is null ||
-		 !_readLoopTask.IsCompleted && !_readLoopTask.IsFaulted && !_readLoopTask.IsCanceled) &&
+		 !(_readLoopTask.IsCompleted || _readLoopTask.IsFaulted || _readLoopTask.IsCanceled)) &&
 		(_writeLoopTask is null ||
-		 !_writeLoopTask.IsCompleted && !_writeLoopTask.IsFaulted && !_writeLoopTask.IsCanceled) &&
+		 !(_writeLoopTask.IsCompleted || _writeLoopTask.IsFaulted || _writeLoopTask.IsCanceled)) &&
 		(_stderrLoopTask is null ||
-		 !_stderrLoopTask.IsCompleted && !_stderrLoopTask.IsFaulted && !_stderrLoopTask.IsCanceled) &&
+		 !(_stderrLoopTask.IsCompleted || _stderrLoopTask.IsFaulted || _stderrLoopTask.IsCanceled)) &&
 		(_exitNotifyTask is null ||
-		 !_exitNotifyTask.IsCompleted && !_exitNotifyTask.IsFaulted && !_exitNotifyTask.IsCanceled);
+		 !(_exitNotifyTask.IsCompleted || _exitNotifyTask.IsFaulted || _exitNotifyTask.IsCanceled));
 
 	/// <summary>
 	///     Awaits exit notification task.
@@ -61,15 +63,7 @@ internal sealed class BackgroundLoopManager(
 	{
 		var task = _readLoopTask;
 		_readLoopTask = null;
-		if (task != null)
-			try
-			{
-				await task.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				reportError(ex, "Failed to join read loop.");
-			}
+		await AwaitLoopTaskAsync(task, "Failed to join read loop.").ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -79,15 +73,7 @@ internal sealed class BackgroundLoopManager(
 	{
 		var task = _stderrLoopTask;
 		_stderrLoopTask = null;
-		if (task != null)
-			try
-			{
-				await task.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				reportError(ex, "Failed to join stderr loop.");
-			}
+		await AwaitLoopTaskAsync(task, "Failed to join stderr loop.").ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -97,15 +83,7 @@ internal sealed class BackgroundLoopManager(
 	{
 		var task = _writeLoopTask;
 		_writeLoopTask = null;
-		if (task != null)
-			try
-			{
-				await task.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				reportError(ex, "Failed to join write loop.");
-			}
+		await AwaitLoopTaskAsync(task, "Failed to join write loop.").ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -120,7 +98,7 @@ internal sealed class BackgroundLoopManager(
 		}
 		catch
 		{
-			// ignored
+			// CancellationTokenSource.Cancel() can throw ObjectDisposedException if already disposed
 		}
 	}
 
@@ -136,7 +114,7 @@ internal sealed class BackgroundLoopManager(
 		}
 		catch
 		{
-			// ignored
+			// CancellationTokenSource.Cancel() can throw ObjectDisposedException if already disposed
 		}
 	}
 
@@ -153,7 +131,7 @@ internal sealed class BackgroundLoopManager(
 		}
 		catch
 		{
-			// ignored
+			// Dispose can throw in rare race conditions; ensure fields are nulled in finally
 		}
 		finally
 		{
@@ -222,6 +200,7 @@ internal sealed class BackgroundLoopManager(
 				}
 				catch (OperationCanceledException)
 				{
+					// Expected when cancellation is requested; complete the channel gracefully
 					ChannelFactory.TryComplete(writer);
 				}
 				catch (Exception ex)
@@ -277,7 +256,7 @@ internal sealed class BackgroundLoopManager(
 				}
 				catch (OperationCanceledException)
 				{
-					// ignored
+					// Expected when cancellation is requested
 				}
 				catch (Exception ex)
 				{
@@ -331,7 +310,7 @@ internal sealed class BackgroundLoopManager(
 		}
 		catch
 		{
-			// ignored
+			// Flush can throw if stream is closed/disposed; safe to ignore
 		}
 	}
 
@@ -401,13 +380,13 @@ internal sealed class BackgroundLoopManager(
 					}
 					catch
 					{
-						// ignored
+						// User-provided handler exceptions must not crash the loop
 					}
-				}).ConfigureAwait(false);
+				});
 		}
 		catch
 		{
-			// ignored
+			// Task.Run rarely throws; safe to ignore outer wrapper exceptions
 		}
 	}
 
@@ -457,7 +436,7 @@ internal sealed class BackgroundLoopManager(
 		StreamWriter          stdin,
 		CancellationToken     writeToken)
 	{
-		int flushBatchSize = options.FlushBatchSize > 0 ? options.FlushBatchSize : 8;
+		int flushBatchSize = options.FlushBatchSize > 0 ? options.FlushBatchSize : DEFAULT_FLUSH_BATCH_SIZE;
 
 		while (true)
 		{
@@ -471,6 +450,22 @@ internal sealed class BackgroundLoopManager(
 			bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
 			if (!hasMore) break;
 		}
+	}
+
+	/// <summary>
+	///     Awaits a loop task and reports any errors.
+	/// </summary>
+	private async Task AwaitLoopTaskAsync(Task? task, string errorDescription)
+	{
+		if (task != null)
+			try
+			{
+				await task.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				reportError(ex, errorDescription);
+			}
 	}
 
 	/// <summary>
@@ -495,15 +490,13 @@ internal sealed class BackgroundLoopManager(
 			return;
 		}
 
-		if (completed == task) await task.ConfigureAwait(false);
+		if (completed == task)
+			await task.ConfigureAwait(false);
 		else
-			try
-			{
-				var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
-				Logger.Log(timeoutException, category: LogCategory.UCI);
-				throw timeoutException;
-			}
-			catch { }
+		{
+			var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
+			Logger.Log(timeoutException, category: LogCategory.UCI);
+		}
 	}
 
 	/// <summary>
@@ -523,7 +516,7 @@ internal sealed class BackgroundLoopManager(
 				}
 				catch
 				{
-					// ignored
+					// reportError itself may throw; prevent crashes during error reporting
 				}
 			},
 			CancellationToken.None,
