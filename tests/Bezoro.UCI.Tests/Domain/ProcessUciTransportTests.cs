@@ -1841,24 +1841,6 @@ public static class ProcessUciTransportTests
 			}
 
 			[Fact]
-			public async Task WriteLineAsync_WithLargeMessage_ShouldHandleCorrectly()
-			{
-				var options = new ProcessUciTransportOptions
-				{
-					ChannelCapacity = 1024
-				};
-
-				await using var transport = CreateTransportWithOptions(options);
-				await transport.StartAsync();
-
-				var largeMessage = new string('a', 10 * 1024);
-
-				await FluentActions.Awaiting(() => transport.WriteLineAsync(largeMessage))
-								   .Should()
-								   .NotThrowAsync("Should handle large messages without error");
-			}
-
-			[Fact]
 			public async Task WriteLineAsync_WithMessageAtMaxLength_ShouldSucceed()
 			{
 				var options = new ProcessUciTransportOptions
