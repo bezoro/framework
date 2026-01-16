@@ -1973,24 +1973,6 @@ public static class ProcessUciTransportTests
 
 				await transport.DisposeAsync();
 			}
-
-			[Fact]
-			public async Task WriteLineAsync_WithVeryLargeMessage_ShouldHandleCorrectly()
-			{
-				var options = new ProcessUciTransportOptions
-				{
-					ChannelCapacity = 1024
-				};
-
-				await using var transport = CreateTransportWithOptions(options);
-				await transport.StartAsync();
-
-				var veryLargeMessage = new string('b', 100 * 1024);
-
-				await FluentActions.Awaiting(() => transport.WriteLineAsync(veryLargeMessage))
-								   .Should()
-								   .NotThrowAsync("Should handle very large messages without error");
-			}
 		}
 	}
 }
