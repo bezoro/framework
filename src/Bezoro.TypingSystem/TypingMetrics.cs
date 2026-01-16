@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace TypingSystem.Core;
+namespace Bezoro.TypingSystem;
 
 public sealed class TypingMetrics
 {
@@ -12,21 +12,21 @@ public sealed class TypingMetrics
 		_stopwatch = Stopwatch.StartNew();
 	}
 
-	public uint TotalInputs { get; private set; }
+	public double Accuracy => TotalEvaluated == 0 ? 0d : (double)CorrectInputs / TotalEvaluated;
 
-	public uint CorrectInputs { get; private set; }
-
-	public uint MistakeInputs { get; private set; }
-
-	public uint FaultedInputs { get; private set; }
+	public double CharactersPerMinute => Elapsed.TotalMinutes <= 0 ? 0d : CorrectInputs / Elapsed.TotalMinutes;
 
 	public TimeSpan Elapsed => _stopwatch.Elapsed;
 
 	public uint TotalEvaluated => TotalInputs - FaultedInputs;
 
-	public double Accuracy => TotalEvaluated == 0 ? 0d : (double)CorrectInputs / TotalEvaluated;
+	public uint CorrectInputs { get; private set; }
 
-	public double CharactersPerMinute => Elapsed.TotalMinutes <= 0 ? 0d : CorrectInputs / Elapsed.TotalMinutes;
+	public uint FaultedInputs { get; private set; }
+
+	public uint MistakeInputs { get; private set; }
+
+	public uint TotalInputs { get; private set; }
 
 	public void Record(TypingResult result)
 	{
@@ -39,18 +39,14 @@ public sealed class TypingMetrics
 		}
 
 		if (result.IsCorrect)
-		{
 			CorrectInputs++;
-		}
 		else
-		{
 			MistakeInputs++;
-		}
 	}
 
 	public void Reset()
 	{
-		TotalInputs = 0;
+		TotalInputs   = 0;
 		CorrectInputs = 0;
 		MistakeInputs = 0;
 		FaultedInputs = 0;

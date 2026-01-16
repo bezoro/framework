@@ -1,8 +1,7 @@
-using System;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace TypingSystem.Core.Tests;
+namespace Bezoro.TypingSystem.Tests;
 
 [TestSubject(typeof(TypingState))]
 public static class TypingStateTests
@@ -14,8 +13,8 @@ public static class TypingStateTests
 			[Fact]
 			public void WhenCorrectCountIsGreaterThanPositionPlus1_ShouldThrow()
 			{
-				const byte POSITION      = 4;
-				const byte CORRECT_COUNT = 6;
+				const byte   POSITION      = 4;
+				const byte   CORRECT_COUNT = 6;
 				const ushort MISTAKE_COUNT = 0;
 
 				var action = () => new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
@@ -26,7 +25,7 @@ public static class TypingStateTests
 			[Fact]
 			public void WhenMistakeCountIsGreaterThanCorrectCount_ShouldWork()
 			{
-				const byte POSITION = 0;
+				const byte   POSITION      = 0;
 				const byte   CORRECT_COUNT = 0;
 				const ushort MISTAKE_COUNT = 1;
 
@@ -54,8 +53,8 @@ public static class TypingStateTests
 			[Fact]
 			public void WhenPositionIsGreaterThanCorrectCount_ShouldThrow()
 			{
-				const byte POSITION      = 3;
-				const byte CORRECT_COUNT = 2;
+				const byte   POSITION      = 3;
+				const byte   CORRECT_COUNT = 2;
 				const ushort MISTAKE_COUNT = 0;
 
 				var action = () => new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
@@ -134,6 +133,45 @@ public static class TypingStateTests
 			}
 		}
 
+		public class WithCorrectTests
+		{
+			[Fact]
+			public void WhenCalled_ShouldAdvancePositionAndCorrectCount()
+			{
+				var state = new TypingState(0, 0, 0);
+
+				var updated = state.WithCorrect();
+
+				updated.Position.Should().Be(1);
+				updated.CorrectCount.Should().Be(1);
+				updated.MistakeCount.Should().Be(state.MistakeCount);
+			}
+
+			[Fact]
+			public void WhenCorrectCountAtMax_ShouldThrow()
+			{
+				var state = new TypingState(byte.MaxValue - 1, byte.MaxValue, 0);
+
+				Action act = () => state.WithCorrect();
+
+				act.Should()
+				   .Throw<InvalidOperationException>()
+				   .WithMessage("Correct count cannot exceed 255.");
+			}
+
+			[Fact]
+			public void WhenPositionAtMax_ShouldThrow()
+			{
+				var state = new TypingState(byte.MaxValue, byte.MaxValue, 0);
+
+				Action act = () => state.WithCorrect();
+
+				act.Should()
+				   .Throw<InvalidOperationException>()
+				   .WithMessage("Position cannot exceed 255.");
+			}
+		}
+
 		public class WithMistakeTests
 		{
 			[Fact]
@@ -143,7 +181,7 @@ public static class TypingStateTests
 
 				var updated = state.WithMistake();
 
-				updated.MistakeCount.Should().Be((ushort)1);
+				updated.MistakeCount.Should().Be(1);
 				updated.Position.Should().Be(state.Position);
 				updated.CorrectCount.Should().Be(state.CorrectCount);
 			}
@@ -156,47 +194,8 @@ public static class TypingStateTests
 				Action act = () => state.WithMistake();
 
 				act.Should()
-					.Throw<InvalidOperationException>()
-					.WithMessage("Mistake count cannot exceed 65535.");
-			}
-		}
-
-		public class WithCorrectTests
-		{
-			[Fact]
-			public void WhenCalled_ShouldAdvancePositionAndCorrectCount()
-			{
-				var state = new TypingState(0, 0, 0);
-
-				var updated = state.WithCorrect();
-
-				updated.Position.Should().Be((byte)1);
-				updated.CorrectCount.Should().Be((byte)1);
-				updated.MistakeCount.Should().Be(state.MistakeCount);
-			}
-
-			[Fact]
-			public void WhenPositionAtMax_ShouldThrow()
-			{
-				var state = new TypingState(byte.MaxValue, byte.MaxValue, 0);
-
-				Action act = () => state.WithCorrect();
-
-				act.Should()
-					.Throw<InvalidOperationException>()
-					.WithMessage("Position cannot exceed 255.");
-			}
-
-			[Fact]
-			public void WhenCorrectCountAtMax_ShouldThrow()
-			{
-				var state = new TypingState((byte)(byte.MaxValue - 1), byte.MaxValue, 0);
-
-				Action act = () => state.WithCorrect();
-
-				act.Should()
-					.Throw<InvalidOperationException>()
-					.WithMessage("Correct count cannot exceed 255.");
+				   .Throw<InvalidOperationException>()
+				   .WithMessage("Mistake count cannot exceed 65535.");
 			}
 		}
 	}

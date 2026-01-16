@@ -4,7 +4,7 @@ using System.IO;
 using Bezoro.Core.Common.Extensions;
 using Bezoro.Core.Common.Primitives;
 
-namespace TypingSystem.Core;
+namespace Bezoro.TypingSystem;
 
 public sealed class ArrayWordProvider : IWordProvider
 {
@@ -14,9 +14,9 @@ public sealed class ArrayWordProvider : IWordProvider
 	public ArrayWordProvider(IEnumerable<string> words)
 	{
 		words.ThrowIfNull(nameof(words));
-		words.ThrowIfEmpty(nameof(words));
+		words.ThrowIfEmpty();
 
-		_words = new SwapbackArray<string>(words);
+		_words = new(words);
 	}
 
 	public bool HasMoreWords => _index < _words.Count;
@@ -35,7 +35,7 @@ public sealed class ArrayWordProvider : IWordProvider
 
 	public void AddWordsFromFile(string filePath)
 	{
-		foreach (var word in File.ReadAllLines(filePath)) _words.Add(word);
+		foreach (string? word in File.ReadAllLines(filePath)) _words.Add(word);
 	}
 
 	public void ClearWords()
@@ -47,7 +47,7 @@ public sealed class ArrayWordProvider : IWordProvider
 	public void RemoveWord(ReadOnlyMemory<char> word)
 	{
 		word.ThrowIfNull(nameof(word));
-		word.ThrowIfEmpty(nameof(word));
+		word.ThrowIfEmpty();
 
 		_words.Remove(word.ToString());
 	}
@@ -56,10 +56,10 @@ public sealed class ArrayWordProvider : IWordProvider
 	{
 		if (!HasMoreWords) throw new InvalidOperationException("No more words available.");
 
-		var index = _index++;
+		uint index = _index++;
 		if (index >= _words.Count) throw new InvalidOperationException("No more words available.");
 
-		var word = _words[index];
+		string word = _words[index];
 		return word.AsMemory();
 	}
 }

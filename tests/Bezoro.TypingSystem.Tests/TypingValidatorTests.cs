@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using FluentAssertions;
+﻿using FluentAssertions;
 using JetBrains.Annotations;
-using TypingSystem.Core;
 
-namespace TypingSystem.Core.Tests;
+namespace Bezoro.TypingSystem.Tests;
 
 [TestSubject(typeof(TypingValidator))]
 public static class TypingValidatorTests
@@ -13,6 +10,84 @@ public static class TypingValidatorTests
 	{
 		public class ValidateInputTests
 		{
+			[Fact]
+			public void ShouldInvokeCallbacksBasedOnResult()
+			{
+				var target = "abc".AsSpan();
+
+				var captured = new List<TypingValidationStatus>();
+
+				var options = new TypingValidatorOptions
+				{
+					OnValidated = r => captured.Add(r.Status),
+					OnMatch     = r => captured.Add(TypingValidationStatus.Match),
+					OnMismatch  = r => captured.Add(TypingValidationStatus.Mismatch),
+					OnCompleted = r => captured.Add(TypingValidationStatus.Completed),
+					OnFault     = r => captured.Add(TypingValidationStatus.PositionOutOfRange)
+				};
+
+				TypingValidator.ValidateInput(target, 0, 'a', options);
+				TypingValidator.ValidateInput(target, 1, 'z', options);
+				TypingValidator.ValidateInput(target, 2, 'c', options);
+				TypingValidator.ValidateInput(target, 4, 'x', options);
+
+				captured.Should().Contain(
+					new[]
+					{
+						TypingValidationStatus.Match,
+						TypingValidationStatus.Completed,
+						TypingValidationStatus.Mismatch,
+						TypingValidationStatus.PositionOutOfRange
+					});
+			}
+
+			[Fact]
+			public void ShouldRecordMetrics()
+			{
+				var metrics = new TypingMetrics();
+				var options = new TypingValidatorOptions { Metrics = metrics };
+				var target  = "abc".AsSpan();
+
+				TypingValidator.ValidateInput(target,                   0, 'a', options);
+				TypingValidator.ValidateInput(target,                   1, 'z', options);
+				TypingValidator.ValidateInput(ReadOnlySpan<char>.Empty, 0, 'x', options);
+
+				metrics.TotalInputs.Should().Be(3);
+				metrics.CorrectInputs.Should().Be(1);
+				metrics.MistakeInputs.Should().Be(1);
+				metrics.FaultedInputs.Should().Be(1);
+				metrics.Accuracy.Should().Be(0.5);
+			}
+
+			[Fact]
+			public void WhenIgnoreCaseDisabled_ShouldRespectCase()
+			{
+				var target = "Abc".AsSpan();
+
+				var result = TypingValidator.ValidateInput(target, 0, 'a');
+
+				result.Status.Should().Be(TypingValidationStatus.Mismatch);
+				result.IsCorrect.Should().BeFalse();
+			}
+
+			[Fact]
+			public void WhenIgnoreCaseEnabled_ShouldTreatDifferentCaseAsMatch()
+			{
+				var target = "Abc".AsSpan();
+
+				var result = TypingValidator.ValidateInput(
+					target,
+					0,
+					'a',
+					new()
+					{
+						IgnoreCase = true
+					});
+
+				result.Status.Should().Be(TypingValidationStatus.Match);
+				result.IsCorrect.Should().BeTrue();
+			}
+
 			[Fact]
 			public void WhenInputCompletesTarget_ShouldReturnCompletedStatus()
 			{
@@ -64,6 +139,14 @@ public static class TypingValidatorTests
 				result.TargetLength.Should().Be(target.Length);
 			}
 
+			[Fact]
+			public void WhenNoAttempts_ShouldReportZeroAccuracy()
+			{
+				var metrics = new TypingMetrics();
+
+				metrics.Accuracy.Should().Be(0d);
+			}
+
 			[Theory]
 			[InlineData(3,   2)]
 			[InlineData(255, 2)]
@@ -83,6 +166,19 @@ public static class TypingValidatorTests
 			}
 
 			[Fact]
+			public void WhenTargetExceedsMaximumLength_ShouldThrow()
+			{
+				string word = new('a', byte.MaxValue + 1);
+
+				Action action = () => TypingValidator.ValidateInput(word.AsSpan(), 0, 'a');
+
+				action.Should()
+					  .Throw<ArgumentOutOfRangeException>()
+					  .WithParameterName("target")
+					  .WithMessage("*Target length cannot exceed 255 characters.*");
+			}
+
+			[Fact]
 			public void WhenTargetIsEmpty_ShouldReturnEmptyTargetStatus()
 			{
 				var        target = ReadOnlySpan<char>.Empty;
@@ -99,91 +195,10 @@ public static class TypingValidatorTests
 			}
 
 			[Fact]
-			public void WhenIgnoreCaseEnabled_ShouldTreatDifferentCaseAsMatch()
-			{
-				var target = "Abc".AsSpan();
-
-				var result = TypingValidator.ValidateInput(target, 0, 'a', new TypingValidatorOptions
-				{
-					IgnoreCase = true
-				});
-
-				result.Status.Should().Be(TypingValidationStatus.Match);
-				result.IsCorrect.Should().BeTrue();
-			}
-
-			[Fact]
-			public void WhenIgnoreCaseDisabled_ShouldRespectCase()
-			{
-				var target = "Abc".AsSpan();
-
-				var result = TypingValidator.ValidateInput(target, 0, 'a');
-
-				result.Status.Should().Be(TypingValidationStatus.Mismatch);
-				result.IsCorrect.Should().BeFalse();
-			}
-
-			[Fact]
-			public void ShouldInvokeCallbacksBasedOnResult()
-			{
-				var target = "abc".AsSpan();
-
-				var captured = new List<TypingValidationStatus>();
-
-				var options = new TypingValidatorOptions
-				{
-					OnValidated = r => captured.Add(r.Status),
-					OnMatch = r => captured.Add(TypingValidationStatus.Match),
-					OnMismatch = r => captured.Add(TypingValidationStatus.Mismatch),
-					OnCompleted = r => captured.Add(TypingValidationStatus.Completed),
-					OnFault = r => captured.Add(TypingValidationStatus.PositionOutOfRange)
-				};
-
-				TypingValidator.ValidateInput(target, 0, 'a', options);
-				TypingValidator.ValidateInput(target, 1, 'z', options);
-				TypingValidator.ValidateInput(target, 2, 'c', options);
-				TypingValidator.ValidateInput(target, 4, 'x', options);
-
-				captured.Should().Contain(new[]
-				{
-					TypingValidationStatus.Match,
-					TypingValidationStatus.Completed,
-					TypingValidationStatus.Mismatch,
-					TypingValidationStatus.PositionOutOfRange
-				});
-			}
-
-			[Fact]
-			public void ShouldRecordMetrics()
-			{
-				var metrics = new TypingMetrics();
-				var options = new TypingValidatorOptions { Metrics = metrics };
-				var target = "abc".AsSpan();
-
-				TypingValidator.ValidateInput(target, 0, 'a', options);
-				TypingValidator.ValidateInput(target, 1, 'z', options);
-				TypingValidator.ValidateInput(ReadOnlySpan<char>.Empty, 0, 'x', options);
-
-				metrics.TotalInputs.Should().Be(3);
-				metrics.CorrectInputs.Should().Be(1);
-				metrics.MistakeInputs.Should().Be(1);
-				metrics.FaultedInputs.Should().Be(1);
-				metrics.Accuracy.Should().Be(0.5);
-			}
-
-			[Fact]
-			public void WhenNoAttempts_ShouldReportZeroAccuracy()
-			{
-				var metrics = new TypingMetrics();
-
-				metrics.Accuracy.Should().Be(0d);
-			}
-
-			[Fact]
 			public void WhenTargetLengthEqualsMaximum_ShouldValidateSuccessfully()
 			{
-				string word = new('a', byte.MaxValue);
-				var    target = word.AsSpan();
+				string     word     = new('a', byte.MaxValue);
+				var        target   = word.AsSpan();
 				const byte POSITION = 0;
 				const char INPUT    = 'a';
 
@@ -192,19 +207,6 @@ public static class TypingValidatorTests
 				result.Status.Should().Be(TypingValidationStatus.Match);
 				result.TargetLength.Should().Be(byte.MaxValue);
 				result.NextPosition.Should().Be(POSITION + 1);
-			}
-
-			[Fact]
-			public void WhenTargetExceedsMaximumLength_ShouldThrow()
-			{
-				string word = new('a', byte.MaxValue + 1);
-
-				Action action = () => TypingValidator.ValidateInput(word.AsSpan(), 0, 'a');
-
-				action.Should()
-					.Throw<ArgumentOutOfRangeException>()
-					.WithParameterName("target")
-					.WithMessage("*Target length cannot exceed 255 characters.*");
 			}
 		}
 	}

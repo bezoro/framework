@@ -1,22 +1,21 @@
 using System;
 
-namespace TypingSystem.Core;
+namespace Bezoro.TypingSystem;
 
 public sealed class TypingValidatorOptions
 {
-	public bool IgnoreCase { get; init; }
+	public Action<TypingResult>? OnCompleted { get; init; }
 
-	public TypingMetrics? Metrics { get; init; }
-
-	public Action<TypingResult>? OnValidated { get; init; }
+	public Action<TypingResult>? OnFault { get; init; }
 
 	public Action<TypingResult>? OnMatch { get; init; }
 
 	public Action<TypingResult>? OnMismatch { get; init; }
 
-	public Action<TypingResult>? OnCompleted { get; init; }
+	public Action<TypingResult>? OnValidated { get; init; }
+	public bool                  IgnoreCase  { get; init; }
 
-	public Action<TypingResult>? OnFault { get; init; }
+	public TypingMetrics? Metrics { get; init; }
 
 	internal void Notify(TypingResult result)
 	{

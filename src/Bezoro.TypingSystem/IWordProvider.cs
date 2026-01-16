@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
 
-namespace TypingSystem.Core;
+namespace Bezoro.TypingSystem;
 
 public interface IWordProvider
 {
 	bool HasMoreWords { get; }
 
+	uint WordCount { get; }
+
 	ReadOnlyMemory<char> GetNextWord();
-
-	void RemoveWord(ReadOnlyMemory<char> word);
-
-	void ClearWords();
 
 	void AddWord(ReadOnlyMemory<char> word);
 
@@ -19,5 +17,7 @@ public interface IWordProvider
 
 	void AddWordsFromFile(string filePath);
 
-	uint WordCount { get; }
+	void ClearWords();
+
+	void RemoveWord(ReadOnlyMemory<char> word);
 }
