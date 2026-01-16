@@ -11,13 +11,13 @@ namespace Bezoro.UCI.Domain.Common.Helpers;
 /// <summary>
 ///     Manages background loops for reading, writing, and monitoring process streams.
 /// </summary>
-internal sealed class BackgroundLoopManager
+internal sealed class BackgroundLoopManager(
+	ProcessUciTransportOptions options,
+	Action<Exception, string>  reportError,
+	BackgroundLoopMetrics      metrics,
+	Action<string>?            stderrReceived = null
+)
 {
-	private readonly Action<Exception, string>  _reportError;
-	private readonly Action<string>?            _stderrReceived;
-	private readonly BackgroundLoopMetrics      _metrics;
-	private readonly ProcessUciTransportOptions _options;
-
 	private CancellationTokenSource? _readLoopCts;
 	private CancellationTokenSource? _writeLoopCts;
 
@@ -26,21 +26,9 @@ internal sealed class BackgroundLoopManager
 	private Task? _stderrLoopTask;
 	private Task? _writeLoopTask;
 
-	public BackgroundLoopManager(
-		ProcessUciTransportOptions options,
-		Action<Exception, string>  reportError,
-		BackgroundLoopMetrics      metrics,
-		Action<string>?            stderrReceived = null)
-	{
-		_options        = options;
-		_reportError    = reportError;
-		_stderrReceived = stderrReceived;
-		_metrics        = metrics;
-	}
-
-	public long BackpressureEvents => _metrics.BackpressureEvents;
-	public long LinesRead          => _metrics.LinesRead;
-	public long LinesWritten       => _metrics.LinesWritten;
+	public long BackpressureEvents => metrics.BackpressureEvents;
+	public long LinesRead          => metrics.LinesRead;
+	public long LinesWritten       => metrics.LinesWritten;
 
 	/// <summary>
 	///     Checks if loops are healthy.
@@ -80,7 +68,7 @@ internal sealed class BackgroundLoopManager
 			}
 			catch (Exception ex)
 			{
-				_reportError(ex, "Failed to join read loop.");
+				reportError(ex, "Failed to join read loop.");
 			}
 	}
 
@@ -98,7 +86,7 @@ internal sealed class BackgroundLoopManager
 			}
 			catch (Exception ex)
 			{
-				_reportError(ex, "Failed to join stderr loop.");
+				reportError(ex, "Failed to join stderr loop.");
 			}
 	}
 
@@ -116,7 +104,7 @@ internal sealed class BackgroundLoopManager
 			}
 			catch (Exception ex)
 			{
-				_reportError(ex, "Failed to join write loop.");
+				reportError(ex, "Failed to join write loop.");
 			}
 	}
 
@@ -130,7 +118,10 @@ internal sealed class BackgroundLoopManager
 		{
 			_readLoopCts?.Cancel();
 		}
-		catch { }
+		catch
+		{
+			// ignored
+		}
 	}
 
 	/// <summary>
@@ -143,7 +134,10 @@ internal sealed class BackgroundLoopManager
 		{
 			_writeLoopCts?.Cancel();
 		}
-		catch { }
+		catch
+		{
+			// ignored
+		}
 	}
 
 	/// <summary>
@@ -157,7 +151,10 @@ internal sealed class BackgroundLoopManager
 			_readLoopCts?.Dispose();
 			_writeLoopCts?.Dispose();
 		}
-		catch { }
+		catch
+		{
+			// ignored
+		}
 		finally
 		{
 			_readLoopCts  = null;
@@ -181,7 +178,7 @@ internal sealed class BackgroundLoopManager
 	public void StartExitNotification(
 		Process               process,
 		Action<int?, string?> onExited,
-		Action<Exception>     reportError,
+		Action<Exception>     reportExitError,
 		TransportStateManager stateManager)
 	{
 		_exitNotifyTask = Task.Run(
@@ -199,7 +196,7 @@ internal sealed class BackgroundLoopManager
 				}
 				catch (Exception ex)
 				{
-					reportError(ex);
+					reportExitError(ex);
 					onExited(null, ex.Message);
 				}
 			},
@@ -220,42 +217,7 @@ internal sealed class BackgroundLoopManager
 			{
 				try
 				{
-					while (true)
-					{
-						if (readToken.IsCancellationRequested) break;
-
-						string? line;
-						try
-						{
-							line = stdout.ReadLine();
-						}
-						catch (ObjectDisposedException)
-						{
-							break;
-						}
-
-						if (line is null) break;
-
-						if (line.Length == 0) continue;
-
-						_metrics.IncrementLinesRead();
-
-						if (!writer.TryWrite(line))
-						{
-							_metrics.IncrementBackpressureEvents();
-							while (true)
-							{
-								if (readToken.IsCancellationRequested)
-									throw new OperationCanceledException(readToken);
-
-								bool canWrite = await writer.WaitToWriteAsync(readToken).ConfigureAwait(false);
-
-								if (!canWrite) break;
-								if (writer.TryWrite(line)) break;
-							}
-						}
-					}
-
+					await RunReadLoopAsync(stdout, writer, readToken).ConfigureAwait(false);
 					ChannelFactory.TryComplete(writer);
 				}
 				catch (OperationCanceledException)
@@ -264,7 +226,7 @@ internal sealed class BackgroundLoopManager
 				}
 				catch (Exception ex)
 				{
-					_reportError(ex, "Read loop faulted.");
+					reportError(ex, "Read loop faulted.");
 					ChannelFactory.TryComplete(writer, ex);
 				}
 			},
@@ -285,43 +247,11 @@ internal sealed class BackgroundLoopManager
 			{
 				try
 				{
-					while (true)
-					{
-						string? line;
-						try
-						{
-							line = stderr.ReadLine();
-						}
-						catch (ObjectDisposedException)
-						{
-							break;
-						}
-
-						if (line is null) break;
-
-						if (line.Length == 0) continue;
-
-						try
-						{
-							var handler = _stderrReceived;
-							if (handler != null)
-								// Invoke handler on thread pool to avoid blocking the stderr loop.
-								// Exceptions are swallowed as per interface contract.
-								await Task.Run(() =>
-								{
-									try
-									{
-										handler(line);
-									}
-									catch { }
-								}).ConfigureAwait(false);
-						}
-						catch { }
-					}
+					await RunStderrLoopAsync(stderr).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					_reportError(ex, "Stderr loop faulted.");
+					reportError(ex, "Stderr loop faulted.");
 				}
 			},
 			CancellationToken.None);
@@ -334,7 +264,7 @@ internal sealed class BackgroundLoopManager
 	/// </summary>
 	public void StartWriteLoop(ChannelReader<string> outgoingReader, StreamWriter stdin)
 	{
-		if (_options.DisableWriteLoop) return;
+		if (options.DisableWriteLoop) return;
 
 		var writeToken = _writeLoopCts!.Token;
 
@@ -343,57 +273,15 @@ internal sealed class BackgroundLoopManager
 			{
 				try
 				{
-					var writesSinceFlush = 0;
-					int flushBatchSize   = _options.FlushBatchSize > 0 ? _options.FlushBatchSize : 8;
-
-					while (true)
-					{
-						while (outgoingReader.TryRead(out string? cmd))
-						{
-							try
-							{
-								stdin.WriteLine(cmd);
-								_metrics.IncrementLinesWritten();
-								if (++writesSinceFlush >= flushBatchSize)
-								{
-									stdin.Flush();
-									writesSinceFlush = 0;
-								}
-							}
-							catch (ObjectDisposedException)
-							{
-								return;
-							}
-						}
-
-						if (writesSinceFlush > 0)
-						{
-							try
-							{
-								stdin.Flush();
-							}
-							catch { }
-
-							writesSinceFlush = 0;
-						}
-
-						if (writeToken.IsCancellationRequested) break;
-
-						bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
-						if (!hasMore) break;
-					}
-
-					if (writesSinceFlush > 0)
-						try
-						{
-							stdin.Flush();
-						}
-						catch { }
+					await RunWriteLoopAsync(outgoingReader, stdin, writeToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException) { }
+				catch (OperationCanceledException)
+				{
+					// ignored
+				}
 				catch (Exception ex)
 				{
-					_reportError(ex, "Write loop faulted.");
+					reportError(ex, "Write loop faulted.");
 				}
 			},
 			CancellationToken.None);
@@ -402,12 +290,194 @@ internal sealed class BackgroundLoopManager
 	}
 
 	/// <summary>
+	///     Attempts to write a line to the stream, returning false if the stream is disposed.
+	/// </summary>
+	private static bool TryWriteLine(StreamWriter writer, string line)
+	{
+		try
+		{
+			writer.WriteLine(line);
+			return true;
+		}
+		catch (ObjectDisposedException)
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
+	///     Attempts to read a line from the stream, returning null if the stream is closed or disposed.
+	/// </summary>
+	private static string? TryReadLine(StreamReader reader)
+	{
+		try
+		{
+			return reader.ReadLine();
+		}
+		catch (ObjectDisposedException)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	///     Attempts to flush the stream, swallowing any exceptions.
+	/// </summary>
+	private static void TryFlush(StreamWriter writer)
+	{
+		try
+		{
+			writer.Flush();
+		}
+		catch
+		{
+			// ignored
+		}
+	}
+
+	/// <summary>
+	///     Processes all available commands from the channel, writing them to stdin with batched flushing.
+	///     Returns the number of writes since the last flush.
+	/// </summary>
+	private int ProcessAvailableCommands(
+		ChannelReader<string> outgoingReader,
+		StreamWriter          stdin,
+		int                   flushBatchSize,
+		CancellationToken     writeToken)
+	{
+		var writesSinceFlush = 0;
+
+		while (outgoingReader.TryRead(out string? cmd))
+		{
+			if (writeToken.IsCancellationRequested || !TryWriteLine(stdin, cmd))
+				return writesSinceFlush;
+
+			metrics.IncrementLinesWritten();
+
+			if (++writesSinceFlush < flushBatchSize) continue;
+
+			TryFlush(stdin);
+			writesSinceFlush = 0;
+		}
+
+		return writesSinceFlush;
+	}
+
+	/// <summary>
+	///     Handles backpressure when the channel is full by waiting for space to become available.
+	/// </summary>
+	private async Task HandleBackpressureAsync(ChannelWriter<string> writer, string line, CancellationToken token)
+	{
+		metrics.IncrementBackpressureEvents();
+
+		while (true)
+		{
+			if (token.IsCancellationRequested)
+				throw new OperationCanceledException(token);
+
+			bool canWrite = await writer.WaitToWriteAsync(token).ConfigureAwait(false);
+
+			if (!canWrite) break;
+			if (writer.TryWrite(line)) break;
+		}
+	}
+
+	/// <summary>
+	///     Invokes the stderr handler on a background thread, swallowing any exceptions.
+	/// </summary>
+	private async Task InvokeStderrHandlerAsync(string line)
+	{
+		try
+		{
+			var handler = stderrReceived;
+			if (handler != null)
+				// Invoke handler on thread pool to avoid blocking the stderr loop.
+				// Exceptions are swallowed as per interface contract.
+				await Task.Run(() =>
+				{
+					try
+					{
+						handler(line);
+					}
+					catch
+					{
+						// ignored
+					}
+				}).ConfigureAwait(false);
+		}
+		catch
+		{
+			// ignored
+		}
+	}
+
+	/// <summary>
+	///     Runs the read loop, reading lines from stdout and writing to the channel.
+	/// </summary>
+	private async Task RunReadLoopAsync(StreamReader stdout, ChannelWriter<string> writer, CancellationToken readToken)
+	{
+		while (true)
+		{
+			if (readToken.IsCancellationRequested) break;
+
+			string? line = TryReadLine(stdout);
+			if (line is null) break;
+
+			if (line.Length == 0) continue;
+
+			metrics.IncrementLinesRead();
+
+			if (writer.TryWrite(line)) continue;
+
+			await HandleBackpressureAsync(writer, line, readToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	///     Runs the stderr loop, reading lines and invoking the handler.
+	/// </summary>
+	private async Task RunStderrLoopAsync(StreamReader stderr)
+	{
+		while (true)
+		{
+			string? line = TryReadLine(stderr);
+			if (line is null) break;
+
+			if (line.Length == 0) continue;
+
+			await InvokeStderrHandlerAsync(line).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	///     Runs the write loop, reading commands from the channel and writing to stdin.
+	/// </summary>
+	private async Task RunWriteLoopAsync(
+		ChannelReader<string> outgoingReader,
+		StreamWriter          stdin,
+		CancellationToken     writeToken)
+	{
+		int flushBatchSize = options.FlushBatchSize > 0 ? options.FlushBatchSize : 8;
+
+		while (true)
+		{
+			int writesSinceFlush = ProcessAvailableCommands(outgoingReader, stdin, flushBatchSize, writeToken);
+
+			if (writesSinceFlush > 0)
+				TryFlush(stdin);
+
+			if (writeToken.IsCancellationRequested) break;
+
+			bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
+			if (!hasMore) break;
+		}
+	}
+
+	/// <summary>
 	///     Tries to await a task with a timeout.
 	/// </summary>
 	private async Task TryAwaitWithTimeout(Task task, string description, TimeSpan timeout)
 	{
-		if (task is null) return;
-
 		if (timeout <= TimeSpan.Zero)
 		{
 			await task.ConfigureAwait(false);
@@ -421,7 +491,7 @@ internal sealed class BackgroundLoopManager
 		}
 		catch (Exception ex)
 		{
-			_reportError(ex, $"Error while awaiting {description}.");
+			reportError(ex, $"Error while awaiting {description}.");
 			return;
 		}
 
@@ -449,9 +519,12 @@ internal sealed class BackgroundLoopManager
 				{
 					var agg = t.Exception!.Flatten();
 					var ex  = agg.InnerExceptions.Count == 1 ? agg.InnerExceptions[0] : agg;
-					_reportError(ex, "Background task faulted.");
+					reportError(ex, "Background task faulted.");
 				}
-				catch { }
+				catch
+				{
+					// ignored
+				}
 			},
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
