@@ -5,22 +5,22 @@ namespace Bezoro.UCI.Domain;
 /// <summary>
 ///     Options for controlling process-based UCI transport behavior and performance.
 /// </summary>
-internal sealed class ProcessUciTransportOptions
+internal readonly struct ProcessUciTransportOptions()
 {
 	/// <summary>
 	///     When true (and supported by the runtime), attempts to kill the entire process tree on forced termination.
 	/// </summary>
-	public bool KillEntireProcessTree { get; init; } = false;
+	public bool KillEntireProcessTree { get; init; } = true;
 
 	/// <summary>
 	///     If only a single producer calls WriteLine/TryWriteLine concurrently, set to true for slightly lower overhead.
 	/// </summary>
-	public bool OutgoingSingleWriter { get; init; } = false;
+	public bool OutgoingSingleWriter { get; init; } = true;
 
 	/// <summary>
 	///     Redirect stderr only when explicitly requested to minimize overhead.
 	/// </summary>
-	public bool RedirectStandardError { get; init; }
+	public bool RedirectStandardError { get; init; } = true;
 
 	/// <summary>
 	///     When disposing, send "quit" to the engine before shutdown.
@@ -45,17 +45,17 @@ internal sealed class ProcessUciTransportOptions
 	/// <summary>
 	///     Custom encoding to use for reading engine stderr output; if null, use platform default.
 	/// </summary>
-	public Encoding? StderrEncoding { get; init; }
+	public Encoding? StderrEncoding { get; init; } = null;
 
 	/// <summary>
 	///     Custom encoding to use for writing to engine stdin; if null, use platform default.
 	/// </summary>
-	public Encoding? StdinEncoding { get; init; }
+	public Encoding? StdinEncoding { get; init; } = null;
 
 	/// <summary>
 	///     Custom encoding to use for reading engine stdout output; if null, use platform default.
 	/// </summary>
-	public Encoding? StdoutEncoding { get; init; }
+	public Encoding? StdoutEncoding { get; init; } = null;
 
 	/// <summary>
 	///     Capacity of the async channel used for outgoing messages to the engine. Tune for high-throughput scenarios.
@@ -110,7 +110,7 @@ internal sealed class ProcessUciTransportOptions
 	/// <summary>
 	///     Test-only callback invoked when "quit" command is sent to the process. Used for verification in tests.
 	/// </summary>
-	internal Action? OnQuitSent { get; init; }
+	internal Action? OnQuitSent { get; init; } = null;
 
 	/// <summary>
 	///     Test-only hook to deterministically exercise backpressure code-paths. Defaults to false; no production impact.
