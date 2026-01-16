@@ -258,33 +258,6 @@ public static class Logger
 		return fileName ?? "Unknown";
 	}
 
-	/// <summary>
-	///     Formats a log message with async context based on the configured format.
-	/// </summary>
-	private static string FormatAsyncContext(IReadOnlyList<string> hierarchy, string message)
-	{
-		int depth = hierarchy.Count;
-
-		return LoggerSettings.AsyncFormat switch
-		{
-			AsyncContextFormat.None => message,
-
-			AsyncContextFormat.Breadcrumb => $"[{string.Join(" > ", hierarchy)}] {message}",
-
-			AsyncContextFormat.Indented => new string(' ', depth * LoggerSettings.IndentSize) + message,
-
-			AsyncContextFormat.TreeBranches =>
-				new string(' ', (depth - 1) * LoggerSettings.IndentSize) + "└─ " + message,
-
-			AsyncContextFormat.Bracketed =>
-				string.Concat(hierarchy.Select(ctx => $"[{ctx}]")) + " " + message,
-
-			AsyncContextFormat.Custom when LoggerSettings.CustomFormatter != null =>
-				LoggerSettings.CustomFormatter(hierarchy, depth, message),
-
-			_ => message
-		};
-	}
 
 	/// <summary>
 	///     Formats a message object into a string representation.
@@ -330,10 +303,10 @@ public static class Logger
 	/// <summary>
 	///     Calculates a time window group identifier based on the current time and configured window size.
 	/// </summary>
-	private static string GetTimeWindowGroup(DateTime timestamp)
+	private static string GetTimeWindowGroup(DateTime timestamp, int timeWindowMs)
 	{
 		long ticks        = timestamp.Ticks;
-		long windowTicks  = TimeSpan.FromMilliseconds(LoggerSettings.TimeWindowMs).Ticks;
+		long windowTicks  = TimeSpan.FromMilliseconds(timeWindowMs).Ticks;
 		long windowNumber = ticks / windowTicks;
 
 		return $"Window-{windowNumber}";
@@ -372,20 +345,19 @@ public static class Logger
 									: null;
 
 		// Get async context info
-		var     asyncHierarchy        = LoggerSettings.CurrentAsyncContextHierarchy;
-		int     asyncDepth            = asyncHierarchy?.Count ?? 0;
-		string? formattedAsyncContext = asyncHierarchy != null ? FormatAsyncContext(asyncHierarchy, message) : null;
+		var asyncHierarchy = LoggerSettings.CurrentAsyncContextHierarchy;
+		int asyncDepth     = asyncHierarchy?.Count ?? 0;
 
 		// Determine grouping context
 		var now = DateTime.UtcNow;
-		string? groupingContext = LoggerSettings.GroupBy switch
+		string? groupingContext = LoggerSettings.Grouping.GroupBy switch
 		{
-			LoggerSettings.ContextGrouping.CallerType   => ExtractTypeNameFromFilePath(filePath),
+			LoggerSettings.ContextGrouping.CallerType => ExtractTypeNameFromFilePath(filePath),
 			LoggerSettings.ContextGrouping.CallerMethod => callerInfo,
-			LoggerSettings.ContextGrouping.Category     => category?.ToString(),
-			LoggerSettings.ContextGrouping.Thread       => Environment.CurrentManagedThreadId.ToString(),
-			LoggerSettings.ContextGrouping.Level        => level.ToString(),
-			LoggerSettings.ContextGrouping.TimeWindow   => GetTimeWindowGroup(now),
+			LoggerSettings.ContextGrouping.Category => category?.ToString(),
+			LoggerSettings.ContextGrouping.Thread => Environment.CurrentManagedThreadId.ToString(),
+			LoggerSettings.ContextGrouping.Level => level.ToString(),
+			LoggerSettings.ContextGrouping.TimeWindow => GetTimeWindowGroup(now, LoggerSettings.Grouping.TimeWindowMs),
 			LoggerSettings.ContextGrouping.AsyncContext => asyncHierarchy != null
 															   ? string.Join(" > ", asyncHierarchy)
 															   : null,
@@ -403,29 +375,45 @@ public static class Logger
 
 		// Get file location
 		string? fileLocation = null;
-		if (LoggerSettings.IncludeFileLocation && filePath != null)
-		{
-			string fileName = Path.GetFileName(filePath);
-			fileLocation = fileName;
-		}
+		if (LoggerSettings.FileLocation.Enabled && filePath != null)
+			fileLocation = LoggerSettings.FileLocation.ShowFullPath
+							   ? filePath
+							   : Path.GetFileName(filePath);
 
 		// Build formatted message using hierarchical structure:
+		// Line 0 (optional): 🔄 [AsyncContext > Hierarchy]
 		// Line 1: [#seq][timestamp][thread] severity [category] Message
 		// Line 2 (optional):   └─ file :: caller
 
+		var lines = new List<string>();
+
+		// Async context line (if present)
+		if (asyncHierarchy != null)
+		{
+			var asyncContextLine = $"🔄 [{string.Join(" > ", asyncHierarchy)}]";
+			lines.Add(asyncContextLine);
+		}
+
+		// Build main line
 		string mainLine = string.Empty;
 
 		// Metadata section
-		if (LoggerSettings.IncludeSequenceNumber)
+		if (LoggerSettings.SequenceNumber.Enabled)
 			mainLine = $"[#{sequenceNumber}]";
 
-		if (LoggerSettings.IncludeTimeStamp)
-			mainLine += $"[{now:HH:mm:ss.fff}]";
+		if (LoggerSettings.Timestamp.Enabled)
+			mainLine += $"[{now.ToString(LoggerSettings.Timestamp.Format)}]";
 
-		if (LoggerSettings.IncludeThreadId)
+		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
+		{
+			int frameCount = LoggerSettings.FrameCount.Provider();
+			mainLine += $"[F:{frameCount}]";
+		}
+
+		if (LoggerSettings.ThreadId.Enabled)
 			mainLine += $"[T:{threadId}]";
 
-		if (LoggerSettings.IncludeGroupingContext && groupingContext != null)
+		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
 			mainLine += $"[{groupingContext}]";
 
 		// Add space after metadata if any exists
@@ -445,26 +433,28 @@ public static class Logger
 		// Main message
 		mainLine += $" {message}";
 
+		lines.Add(mainLine);
+
 		// Build details line (file and caller info)
-		string? detailsLine = null;
-		if (LoggerSettings.IncludeFileLocation || callerInfo != null)
+		if (LoggerSettings.FileLocation.Enabled || callerInfo != null)
 		{
 			var details = new List<string>();
 
-			if (LoggerSettings.IncludeFileLocation && fileLocation != null)
+			if (LoggerSettings.FileLocation.Enabled && fileLocation != null)
 				details.Add(fileLocation);
 
 			if (callerInfo != null)
 				details.Add(callerInfo);
 
 			if (details.Count > 0)
-				detailsLine = $"  └─ {string.Join(" :: ", details)}";
+			{
+				var detailsLine = $"  └─ {string.Join(" :: ", details)}";
+				lines.Add(detailsLine);
+			}
 		}
 
-		// Combine main line and optional details line
-		string formattedMessage = detailsLine != null
-									  ? $"{mainLine}\n{detailsLine}"
-									  : mainLine;
+		// Combine all lines
+		var formattedMessage = string.Join("\n", lines);
 
 		var payload = new LogPayload
 		{
@@ -476,7 +466,7 @@ public static class Logger
 			CategoryEmoji         = categoryEmoji,
 			ExceptionType         = exceptionType,
 			CallerInfo            = callerInfo,
-			FormattedMessage      = formattedAsyncContext ?? formattedMessage,
+			FormattedMessage      = formattedMessage,
 			ContextObject         = contextObject,
 			StackTrace            = stackTrace,
 			InnerExceptionType    = innerExceptionType,
@@ -569,15 +559,6 @@ public static class LoggerSettings
 	/// </remarks>
 	public static HashSet<LogCategory> MutedCategories { get; } = [];
 
-	/// <summary>
-	///     How async context should be formatted in log messages.
-	/// </summary>
-	public static AsyncContextFormat AsyncFormat { get; set; } = AsyncContextFormat.Breadcrumb;
-
-	/// <summary>
-	///     Custom formatter for AsyncContextFormat.Custom mode.
-	/// </summary>
-	public static AsyncContextFormatter? CustomFormatter { get; set; }
 
 	/// <summary>
 	///     Master switch to enable/disable all logging at runtime.
@@ -585,45 +566,19 @@ public static class LoggerSettings
 	public static bool Enabled { get; set; } = true;
 
 	/// <summary>
-	///     Whether to include file location in the formatted message.
+	///     File location metadata configuration.
 	/// </summary>
-	public static bool IncludeFileLocation { get; set; } = false;
+	public static FileLocationConfig FileLocation { get; set; } = FileLocationConfig.FullPath;
 
 	/// <summary>
-	///     Whether to include grouping context in the formatted message.
+	///     Frame count metadata configuration.
 	/// </summary>
-	public static bool IncludeGroupingContext { get; set; } = false;
+	public static FrameCountConfig FrameCount { get; set; } = FrameCountConfig.Disabled;
 
 	/// <summary>
-	///     Whether to include sequence number in the formatted message.
+	///     Grouping configuration.
 	/// </summary>
-	public static bool IncludeSequenceNumber { get; set; } = false;
-
-	/// <summary>
-	///     Whether to include thread ID in the formatted message.
-	/// </summary>
-	public static bool IncludeThreadId { get; set; } = false;
-
-	/// <summary>
-	///     Whether to include timestamp in the formatted message.
-	/// </summary>
-	public static bool IncludeTimeStamp { get; set; } = false;
-
-	/// <summary>
-	///     Defines how logs should be automatically grouped.
-	/// </summary>
-	public static ContextGrouping GroupBy { get; set; } = ContextGrouping.None;
-
-	/// <summary>
-	///     Number of spaces per indentation level for Indented and TreeBranches formats.
-	/// </summary>
-	public static int IndentSize { get; set; } = 2;
-
-	/// <summary>
-	///     Time window in milliseconds for TimeWindow grouping.
-	///     Logs within this window are grouped together.
-	/// </summary>
-	public static int TimeWindowMs { get; set; } = 100;
+	public static GroupingConfig Grouping { get; set; } = GroupingConfig.None;
 
 	/// <summary>
 	///     Visual style for Error level logs.
@@ -649,6 +604,21 @@ public static class LoggerSettings
 	///     Visual style for Warning level logs.
 	/// </summary>
 	public static LogStyle WarningStyle { get; set; } = new(ConsoleColor.Yellow);
+
+	/// <summary>
+	///     Sequence number metadata configuration.
+	/// </summary>
+	public static SequenceNumberConfig SequenceNumber { get; set; } = SequenceNumberConfig.On;
+
+	/// <summary>
+	///     Thread ID metadata configuration.
+	/// </summary>
+	public static ThreadIdConfig ThreadId { get; set; } = ThreadIdConfig.On;
+
+	/// <summary>
+	///     Timestamp metadata configuration.
+	/// </summary>
+	public static TimestampConfig Timestamp { get; set; } = TimestampConfig.Default;
 
 	/// <summary>
 	///     Gets the current async context hierarchy.
@@ -896,39 +866,6 @@ public sealed class LogStyle
 	///     The color hint for this log style.
 	/// </summary>
 	public ConsoleColor Color { get; init; }
-}
-
-/// <summary>
-///     Delegate for custom async context formatting.
-/// </summary>
-/// <param name="hierarchy">The async context hierarchy (e.g., ["GameLoop", "Player-123"]).</param>
-/// <param name="depth">The nesting depth (0 = root).</param>
-/// <param name="message">The original log message.</param>
-/// <returns>The formatted message with async context applied.</returns>
-public delegate string AsyncContextFormatter(IReadOnlyList<string> hierarchy, int depth, string message);
-
-/// <summary>
-///     Defines how async context hierarchy should be formatted.
-/// </summary>
-public enum AsyncContextFormat
-{
-	/// <summary>No async context formatting.</summary>
-	None,
-
-	/// <summary>Breadcrumb style: "[GameLoop > Player-123] Message"</summary>
-	Breadcrumb,
-
-	/// <summary>Indented with spaces based on depth: "  Message"</summary>
-	Indented,
-
-	/// <summary>Tree branches: "  └─ Message"</summary>
-	TreeBranches,
-
-	/// <summary>Bracketed inline: "[GameLoop][Player-123] Message"</summary>
-	Bracketed,
-
-	/// <summary>Custom format using AsyncContextFormatter delegate.</summary>
-	Custom
 }
 
 /// <summary>
@@ -1209,4 +1146,179 @@ public enum LogCategory
 	///     Universal Chess Interface or other application-specific protocols.
 	/// </summary>
 	UCI
+}
+
+/// <summary>
+///     Configuration for file location metadata.
+/// </summary>
+public readonly struct FileLocationConfig
+{
+	/// <summary>
+	///     Disabled file location configuration.
+	/// </summary>
+	public static FileLocationConfig Disabled => new() { Enabled = false, ShowFullPath = false };
+
+	/// <summary>
+	///     Creates an enabled file location configuration (filename only).
+	/// </summary>
+	public static FileLocationConfig FilenameOnly => new() { Enabled = true, ShowFullPath = false };
+
+	/// <summary>
+	///     Creates an enabled file location configuration (full path).
+	/// </summary>
+	public static FileLocationConfig FullPath => new() { Enabled = true, ShowFullPath = true };
+
+	/// <summary>
+	///     Whether file location is enabled.
+	/// </summary>
+	public bool Enabled { get; init; }
+
+	/// <summary>
+	///     Whether to show full path or just filename.
+	/// </summary>
+	public bool ShowFullPath { get; init; }
+}
+
+/// <summary>
+///     Configuration for frame count metadata.
+/// </summary>
+public readonly struct FrameCountConfig
+{
+	/// <summary>
+	///     Creates an enabled frame count configuration with the specified provider.
+	/// </summary>
+	/// <param name="provider">Function that returns the current frame count (e.g., () => Time.frameCount in Unity).</param>
+	public static FrameCountConfig Create(Func<int> provider) => new() { Enabled = true, Provider = provider };
+
+	/// <summary>
+	///     Disabled frame count configuration.
+	/// </summary>
+	public static FrameCountConfig Disabled => new() { Enabled = false, Provider = null };
+
+	/// <summary>
+	///     Whether frame count is enabled.
+	/// </summary>
+	public bool Enabled { get; init; }
+
+	/// <summary>
+	///     Provider function that returns the current frame count.
+	/// </summary>
+	public Func<int>? Provider { get; init; }
+}
+
+/// <summary>
+///     Configuration for log grouping.
+/// </summary>
+public readonly struct GroupingConfig
+{
+	/// <summary>
+	///     Creates a grouping configuration with the specified strategy.
+	/// </summary>
+	/// <param name="groupBy">The grouping strategy.</param>
+	/// <param name="includeInOutput">Whether to include grouping info in the formatted message.</param>
+	/// <param name="timeWindowMs">Time window for TimeWindow grouping.</param>
+	public static GroupingConfig Create(
+		LoggerSettings.ContextGrouping groupBy,
+		bool                           includeInOutput = true,
+		int                            timeWindowMs    = 100) =>
+		new() { GroupBy = groupBy, IncludeInOutput = includeInOutput, TimeWindowMs = timeWindowMs };
+
+	/// <summary>
+	///     No grouping.
+	/// </summary>
+	public static GroupingConfig None => new()
+	{
+		GroupBy         = LoggerSettings.ContextGrouping.None,
+		IncludeInOutput = false,
+		TimeWindowMs    = 100
+	};
+
+	/// <summary>
+	///     Whether to include grouping context in the formatted output.
+	/// </summary>
+	public bool IncludeInOutput { get; init; }
+
+	/// <summary>
+	///     The grouping strategy to use.
+	/// </summary>
+	public LoggerSettings.ContextGrouping GroupBy { get; init; }
+
+	/// <summary>
+	///     Time window in milliseconds for TimeWindow grouping (only used when GroupBy is TimeWindow).
+	/// </summary>
+	public int TimeWindowMs { get; init; }
+}
+
+/// <summary>
+///     Configuration for sequence number metadata.
+/// </summary>
+public readonly struct SequenceNumberConfig
+{
+	/// <summary>
+	///     Disabled sequence number configuration.
+	/// </summary>
+	public static SequenceNumberConfig Off => new() { Enabled = false };
+
+	/// <summary>
+	///     Enabled sequence number configuration.
+	/// </summary>
+	public static SequenceNumberConfig On => new() { Enabled = true };
+
+	/// <summary>
+	///     Whether sequence number is enabled.
+	/// </summary>
+	public bool Enabled { get; init; }
+}
+
+/// <summary>
+///     Configuration for thread ID metadata.
+/// </summary>
+public readonly struct ThreadIdConfig
+{
+	/// <summary>
+	///     Disabled thread ID configuration.
+	/// </summary>
+	public static ThreadIdConfig Off => new() { Enabled = false };
+
+	/// <summary>
+	///     Enabled thread ID configuration.
+	/// </summary>
+	public static ThreadIdConfig On => new() { Enabled = true };
+
+	/// <summary>
+	///     Whether thread ID is enabled.
+	/// </summary>
+	public bool Enabled { get; init; }
+}
+
+/// <summary>
+///     Configuration for timestamp metadata.
+/// </summary>
+public readonly struct TimestampConfig
+{
+	/// <summary>
+	///     Creates an enabled timestamp configuration with custom format.
+	/// </summary>
+	/// <param name="format">Custom DateTime format string.</param>
+	public static TimestampConfig Create(string format) => new() { Enabled = true, Format = format };
+
+	/// <summary>
+	///     Creates an enabled timestamp configuration with default format.
+	/// </summary>
+	public static TimestampConfig Default => new() { Enabled = true, Format = "HH:mm:ss.fff" };
+
+	/// <summary>
+	///     Disabled timestamp configuration.
+	/// </summary>
+	public static TimestampConfig Disabled => new() { Enabled = false, Format = string.Empty };
+
+	/// <summary>
+	///     Whether timestamp is enabled.
+	/// </summary>
+	public bool Enabled { get; init; }
+
+	/// <summary>
+	///     The timestamp format string (default: "HH:mm:ss.fff").
+	/// </summary>
+	public string Format { get; init; }
 }
