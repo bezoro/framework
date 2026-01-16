@@ -28,8 +28,9 @@ internal sealed class MoveClassificationEngine(
 
 	private bool _started;
 
-	private CancellationTokenSource _classificationCts = new();
-	private readonly SemaphoreSlim  _clientPositionLock = new(1, 1);
+	private          CancellationTokenSource _classificationCts  = new();
+	private readonly SemaphoreSlim           _clientPositionLock = new(1, 1);
+	private readonly SemaphoreSlim           _quickPositionLock  = new(1, 1);
 
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;
@@ -464,11 +465,19 @@ internal sealed class MoveClassificationEngine(
 	{
 		EnsureStarted();
 		// Validate that the move is legal in the given position
-		await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
-		if (legalMoves is null || !legalMoves.Contains(move))
-			throw new ArgumentException($"The move {move} is not legal in position {fen}");
+			if (legalMoves is null || !legalMoves.Contains(move))
+				throw new ArgumentException($"The move {move} is not legal in position {fen}");
+		}
+		finally
+		{
+			_quickPositionLock.Release();
+		}
 
 		return await EvaluateMoveAtRootAsync(fen, move, perMoveDepth, ct).ConfigureAwait(false);
 	}
@@ -506,6 +515,7 @@ internal sealed class MoveClassificationEngine(
 
 		_transport = null;
 		_clientPositionLock.Dispose();
+		_quickPositionLock.Dispose();
 		GC.SuppressFinalize(this);
 	}
 
@@ -581,18 +591,26 @@ internal sealed class MoveClassificationEngine(
 		// Fast-path: detect immediate terminal (mate/stalemate) using QuickInfoEngine to avoid heavy search
 		try
 		{
-			await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-			var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-			if (replies is { Count: 0 })
+			await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+			try
 			{
-				var  afterFen    = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-				bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
-				bool isMateFast  = inCheck;
-				bool isStaleFast = !isMateFast;
-				score                    = isMateFast ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
-				_moveEvalCache[cacheKey] = (score, isMateFast, isStaleFast);
-				analysis                 = MoveAnalysis.Analyze(move, boardState, score, isStaleFast);
-				return new Move(move, analysis);
+				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+				var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+				if (replies is { Count: 0 })
+				{
+					var  afterFen    = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+					bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
+					bool isMateFast  = inCheck;
+					bool isStaleFast = !isMateFast;
+					score                    = isMateFast ? MoveScore.FromMate(-1) : MoveScore.FromCp(0);
+					_moveEvalCache[cacheKey] = (score, isMateFast, isStaleFast);
+					analysis                 = MoveAnalysis.Analyze(move, boardState, score, isStaleFast);
+					return new Move(move, analysis);
+				}
+			}
+			finally
+			{
+				_quickPositionLock.Release();
 			}
 		}
 		catch
@@ -603,7 +621,17 @@ internal sealed class MoveClassificationEngine(
 		// Ensure engine is at root position and restrict search to this single move
 		SearchResult result = default;
 		if (_client is null || !_client.IsStarted || !_client.IsHealthy)
-			result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+		{
+			await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+			try
+			{
+				result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+			}
+			finally
+			{
+				_quickPositionLock.Release();
+			}
+		}
 		else
 		{
 			await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
@@ -622,12 +650,28 @@ internal sealed class MoveClassificationEngine(
 			catch (ObjectDisposedException)
 			{
 				// Defensive: fallback to quick eval as well
-				result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+				try
+				{
+					result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+				}
+				finally
+				{
+					_quickPositionLock.Release();
+				}
 			}
 			catch (InvalidOperationException)
 			{
 				// Engine process may have exited unexpectedly; fallback to QuickInfoEngine for a quick eval
-				result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+				try
+				{
+					result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+				}
+				finally
+				{
+					_quickPositionLock.Release();
+				}
 			}
 			finally
 			{
@@ -649,14 +693,22 @@ internal sealed class MoveClassificationEngine(
 			// Fallback to quick method: apply move and inspect replies and checkers
 			try
 			{
-				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-				var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-				if (replies is { Count: 0 })
+				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+				try
 				{
-					var  afterFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-					bool inCheckQuick = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
-					isMate      = inCheckQuick;
-					isStalemate = !inCheckQuick;
+					await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+					var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+					if (replies is { Count: 0 })
+					{
+						var  afterFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+						bool inCheckQuick = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
+						isMate      = inCheckQuick;
+						isStalemate = !inCheckQuick;
+					}
+				}
+				finally
+				{
+					_quickPositionLock.Release();
 				}
 			}
 			catch
@@ -668,17 +720,25 @@ internal sealed class MoveClassificationEngine(
 		// Deterministic final stalemate check using QuickInfoEngine: if no legal replies and not in check, mark stalemate
 		try
 		{
-			await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-			var repliesFinal = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-			if (repliesFinal is { Count: 0 })
+			await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+			try
 			{
-				var  afterFenFinal = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-				bool inCheckFinal  = afterFenFinal.HasValue && !string.IsNullOrEmpty(afterFenFinal.Value.Checkers);
-				if (!inCheckFinal)
+				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
+				var repliesFinal = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+				if (repliesFinal is { Count: 0 })
 				{
-					isStalemate = true;
-					isMate      = false;
+					var  afterFenFinal = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
+					bool inCheckFinal  = afterFenFinal.HasValue && !string.IsNullOrEmpty(afterFenFinal.Value.Checkers);
+					if (!inCheckFinal)
+					{
+						isStalemate = true;
+						isMate      = false;
+					}
 				}
+			}
+			finally
+			{
+				_quickPositionLock.Release();
 			}
 		}
 		catch
