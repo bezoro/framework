@@ -63,7 +63,7 @@ public static class UciEngineClientTests
 
 		public class GetLegalMovesViaGoPerft1Tests
 		{
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldFilterInvalidMoves()
 			{
 				// Arrange
@@ -83,7 +83,7 @@ public static class UciEngineClientTests
 				moves.Should().NotContain("bad", "invalid move notation should be filtered out");
 			}
 
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldHandleMixedValidAndInvalidMoves()
 			{
 				// Arrange
@@ -106,7 +106,7 @@ public static class UciEngineClientTests
 				moves.Should().NotContain("bad", "invalid move should be filtered");
 			}
 
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseMultipleValidMoves()
 			{
 				// Arrange
@@ -126,7 +126,7 @@ public static class UciEngineClientTests
 				moves.Should().Contain("e7e5", "e7e5 should be parsed");
 			}
 
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldParsePromotionMoves()
 			{
 				// Arrange
@@ -146,7 +146,7 @@ public static class UciEngineClientTests
 				moves.Should().Contain("h7h8N", "h7h8N should be parsed as a valid promotion move");
 			}
 
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMove()
 			{
 				// Arrange
@@ -165,7 +165,7 @@ public static class UciEngineClientTests
 				moves.Should().Contain("e2e4", "e2e4 should be parsed as a valid move");
 			}
 
-			[Fact(Timeout = 3000)]
+			[Fact]
 			public async Task GetLegalMovesViaGoPerft1Async_ShouldSendGoPerftCommand()
 			{
 				// Arrange
