@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Bezoro.Core.Common.Extensions.Collections.Search;
 
 /// <summary>

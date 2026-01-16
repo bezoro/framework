@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -8,8 +7,8 @@ using System.Runtime.InteropServices;
 namespace Bezoro.Core.Common.Primitives;
 
 /// <summary>
-/// Represents an immutable RGBA color with 8-bit components. Includes conversion utilities,
-/// parsing, formatting, alpha blending (including linear sRGB), and common color operations.
+///     Represents an immutable RGBA color with 8-bit components. Includes conversion utilities,
+///     parsing, formatting, alpha blending (including linear sRGB), and common color operations.
 /// </summary>
 [Serializable]
 [StructLayout(LayoutKind.Sequential)]
@@ -18,7 +17,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	: IFormattable
 {
 	/// <summary>
-	/// Constructs a color from floating-point [0,1] values for each channel.
+	///     Constructs a color from floating-point [0,1] values for each channel.
 	/// </summary>
 	/// <param name="R">Red channel in [0, 1]</param>
 	/// <param name="G">Green channel in [0, 1]</param>
@@ -33,34 +32,43 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// White opaque color (default).
+	///     White opaque color (default).
 	/// </summary>
 	public Color() : this(255, 255, 255, 255) { }
 
 	/// <summary>Creates a color from 8-bit RGB, alpha=255</summary>
-	public static Color FromRgb(byte   r, byte  g, byte  b)          => new(r, g, b, 255);
+	public static Color FromRgb(byte r, byte g, byte b) => new(r, g, b, 255);
+
 	/// <summary>Creates a color from float RGB, alpha=1.0</summary>
-	public static Color FromRgb(float  r, float g, float b)          => new(r, g, b, 1f);
+	public static Color FromRgb(float r, float g, float b) => new(r, g, b, 1f);
+
 	/// <summary>Creates a color from 8-bit ARGB (common .NET order)</summary>
-	public static Color FromArgb(byte  a, byte  r, byte  g, byte  b) => new(r, g, b, a);
+	public static Color FromArgb(byte a, byte r, byte g, byte b) => new(r, g, b, a);
+
 	/// <summary>Creates a color from float ARGB (Alpha in [0,1])</summary>
 	public static Color FromArgb(float a, float r, float g, float b) => new(r, g, b, a);
 
 	/// <summary>Transparent black (all channels 0)</summary>
 	public static Color Transparent => new(0, 0, 0, 0);
+
 	/// <summary>Opaque white</summary>
-	public static Color White       => new(255, 255, 255, 255);
+	public static Color White => new(255, 255, 255, 255);
+
 	/// <summary>Opaque 50% gray</summary>
-	public static Color Gray        => new(128, 128, 128, 255);
+	public static Color Gray => new(128, 128, 128, 255);
+
 	/// <summary>Opaque black</summary>
-	public static Color Black       => new(0, 0, 0, 255);
+	public static Color Black => new(0, 0, 0, 255);
 
 	/// <summary>Alpha as normalized float [0,1]</summary>
 	public float Af => A / 255f;
+
 	/// <summary>Blue as normalized float [0,1]</summary>
 	public float Bf => B / 255f;
+
 	/// <summary>Green as normalized float [0,1]</summary>
 	public float Gf => G / 255f;
+
 	/// <summary>Red as normalized float [0,1]</summary>
 	public float Rf => R / 255f;
 
@@ -90,53 +98,54 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 
 	/// <summary>Implicit cast to Vector4 (RGBA in [0,1])</summary>
 	public static implicit operator Vector4(Color c) => new(c.Rf, c.Gf, c.Bf, c.Af);
+
 	/// <summary>Explicit cast from Vector4 (X=R, Y=G, Z=B, W=A, all in [0,1])</summary>
 	public static explicit operator Color(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
 
 	// --- Packed 32-bit helpers ---
 
 	/// <summary>
-	/// Packs color to 0xRRGGBBAA (big-endian).
+	///     Packs color to 0xRRGGBBAA (big-endian).
 	/// </summary>
 	public uint ToRgba32() => (uint)R << 24 | (uint)G << 16 | (uint)B << 8 | A;
 
 	/// <summary>
-	/// Unpacks color from 0xRRGGBBAA (big-endian).
+	///     Unpacks color from 0xRRGGBBAA (big-endian).
 	/// </summary>
 	public static Color FromRgba32(uint rgba) =>
 		new((byte)(rgba >> 24), (byte)(rgba >> 16), (byte)(rgba >> 8), (byte)rgba);
 
 	/// <summary>
-	/// Packs color to 0xAARRGGBB (used by .NET System.Drawing).
+	///     Packs color to 0xAARRGGBB (used by .NET System.Drawing).
 	/// </summary>
 	public uint ToArgb32() => (uint)A << 24 | (uint)R << 16 | (uint)G << 8 | B;
 
 	/// <summary>
-	/// Unpacks color from 0xAARRGGBB.
+	///     Unpacks color from 0xAARRGGBB.
 	/// </summary>
 	public static Color FromArgb32(uint argb) =>
 		new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
 
 	/// <summary>
-	/// Packs color to 0xAABBGGRR (little-endian; memory BGRA).
+	///     Packs color to 0xAABBGGRR (little-endian; memory BGRA).
 	/// </summary>
 	public uint ToAbgr32() => (uint)A << 24 | (uint)B << 16 | (uint)G << 8 | R;
 
 	/// <summary>
-	/// Unpacks color from 0xAABBGGRR (BGRA).
+	///     Unpacks color from 0xAABBGGRR (BGRA).
 	/// </summary>
 	public static Color FromAbgr32(uint abgr) =>
 		new((byte)abgr, (byte)(abgr >> 8), (byte)(abgr >> 16), (byte)(abgr >> 24));
 
 	/// <summary>
-	/// Calculates approximate relative luminance using sRGB coefficients.
-	/// Note: best used with linearized color channels.
+	///     Calculates approximate relative luminance using sRGB coefficients.
+	///     Note: best used with linearized color channels.
 	/// </summary>
 	public float Luminance =>
 		0.2126f * ToLinear(Rf) + 0.7152f * ToLinear(Gf) + 0.0722f * ToLinear(Bf);
 
 	/// <summary>
-	/// Composites <paramref name="src"/> over <paramref name="dst"/> using sRGB alpha blending.
+	///     Composites <paramref name="src" /> over <paramref name="dst" /> using sRGB alpha blending.
 	/// </summary>
 	/// <param name="dst">Destination color under the source.</param>
 	/// <param name="src">Source color to blend on top.</param>
@@ -154,8 +163,8 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// Composites <paramref name="src"/> over <paramref name="dst"/> using linear light color space.
-	/// Converts to linear, blends, and converts back to sRGB.
+	///     Composites <paramref name="src" /> over <paramref name="dst" /> using linear light color space.
+	///     Converts to linear, blends, and converts back to sRGB.
 	/// </summary>
 	/// <param name="dst">Destination color under the source.</param>
 	/// <param name="src">Source color to blend on top.</param>
@@ -178,18 +187,18 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// Returns color as #RRGGBB string.
+	///     Returns color as #RRGGBB string.
 	/// </summary>
 	public override string ToString() => ToString("RGB", CultureInfo.InvariantCulture);
 
 	/// <summary>
-	/// Formats color using format:
-	/// <list type="bullet">
-	/// <item>"RGB" – "#RRGGBB"</item>
-	/// <item>"RGBA" – "#RRGGBBAA"</item>
-	/// <item>"ARGB" – "#AARRGGBB"</item>
-	/// <item>"CSS" – "rgba(r, g, b, a)"</item>
-	/// </list>
+	///     Formats color using format:
+	///     <list type="bullet">
+	///         <item>"RGB" – "#RRGGBB"</item>
+	///         <item>"RGBA" – "#RRGGBBAA"</item>
+	///         <item>"ARGB" – "#AARRGGBB"</item>
+	///         <item>"CSS" – "rgba(r, g, b, a)"</item>
+	///     </list>
 	/// </summary>
 	public string ToString(string? format, IFormatProvider? formatProvider)
 	{
@@ -201,8 +210,8 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// Formats color into a provided span using the given format.
-	/// Supported: "RGB", "RGBA", "ARGB", "CSS".
+	///     Formats color into a provided span using the given format.
+	///     Supported: "RGB", "RGBA", "ARGB", "CSS".
 	/// </summary>
 	/// <param name="destination">Output buffer.</param>
 	/// <param name="charsWritten">Characters written.</param>
@@ -287,9 +296,9 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// Attempts to parse a color from common hex and CSS formats.
-	/// Accepts "#RRGGBB", "#RRGGBBAA", "#RGB", "#RGBA", "rgba(r, g, b, a)" (CSS), 
-	/// or without the leading #. Parsing is case-insensitive.
+	///     Attempts to parse a color from common hex and CSS formats.
+	///     Accepts "#RRGGBB", "#RRGGBBAA", "#RGB", "#RGBA", "rgba(r, g, b, a)" (CSS),
+	///     or without the leading #. Parsing is case-insensitive.
 	/// </summary>
 	/// <param name="s">Input span</param>
 	/// <param name="provider">Format provider for parsing (not used)</param>
@@ -384,7 +393,6 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 				}
 
 				if (idx == 3 || idx == 4)
-				{
 					if (int.TryParse(
 							inner[parts[0]].Trim(),
 							NumberStyles.Integer,
@@ -422,7 +430,6 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 
 						return true;
 					}
-				}
 			}
 		}
 
@@ -463,7 +470,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	{
 		const string hex = "0123456789ABCDEF";
 		dest[0] = hex[value >> 4 & 0xF];
-		dest[1] = hex[value      & 0xF];
+		dest[1] = hex[value & 0xF];
 	}
 
 	/// <summary>Tries to parse a single hex nibble from character.</summary>
@@ -493,14 +500,14 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>
-	/// Converts sRGB [0,1] to linear [0,1] for more perceptually accurate blending.
+	///     Converts sRGB [0,1] to linear [0,1] for more perceptually accurate blending.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static float ToLinear(float srgb)
 		=> srgb <= 0.04045f ? srgb / 12.92f : MathF.Pow((srgb + 0.055f) / 1.055f, 2.4f);
 
 	/// <summary>
-	/// Converts linear RGB [0,1] to sRGB [0,1].
+	///     Converts linear RGB [0,1] to sRGB [0,1].
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static float FromLinear(float linear)

@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-
-namespace Bezoro.Core.Common.Extensions.Collections.Check;
+﻿namespace Bezoro.Core.Common.Extensions.Collections.Check;
 
 /// <summary>
 ///     Contains methods for checking array state, properties and performing equality comparisons between arrays.

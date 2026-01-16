@@ -1,19 +1,20 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Common.Primitives;
 
 /// <summary>
-///     Represents a dynamic array supporting fast O(1) removal by swapping the last element into the position of the removed item. 
-///     This array does not preserve element order but offers efficient add and remove operations. Capacity expands automatically.
+///     Represents a dynamic array supporting fast O(1) removal by swapping the last element into the position of the
+///     removed item.
+///     This array does not preserve element order but offers efficient add and remove operations. Capacity expands
+///     automatically.
 /// </summary>
 /// <typeparam name="T">The element type.</typeparam>
 /// <remarks>
-///     The array is ideal for scenarios where element order is unimportant and high-performance removals are desired. 
-///     Implements <see cref="IReadOnlyList{T}"/> for enumeration. Use <see cref="Add(T)"/>, <see cref="Remove(T)"/>, <see cref="Clear"/>, etc. for mutation.
+///     The array is ideal for scenarios where element order is unimportant and high-performance removals are desired.
+///     Implements <see cref="IReadOnlyList{T}" /> for enumeration. Use <see cref="Add(T)" />, <see cref="Remove(T)" />,
+///     <see cref="Clear" />, etc. for mutation.
 /// </remarks>
 [DebuggerDisplay("Count = {Count}, Capacity = {Capacity}")]
 public sealed class SwapbackArray<T> : IReadOnlyList<T>
@@ -22,17 +23,17 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	private const uint MINIMUM_ARRAY_SIZE = 4u;
 
 	/// <summary>
-	/// Internal data storage for elements, automatically resized as needed.
+	///     Internal data storage for elements, automatically resized as needed.
 	/// </summary>
 	private T[] _items;
 
 	/// <summary>
-	/// The number of active elements in the array.
+	///     The number of active elements in the array.
 	/// </summary>
 	private uint _count;
 
 	/// <summary>
-	/// Initializes a new empty instance, optionally with a specified initial capacity.
+	///     Initializes a new empty instance, optionally with a specified initial capacity.
 	/// </summary>
 	/// <param name="initialCapacity">Initial number of reserved slots (minimum 4).</param>
 	public SwapbackArray(uint initialCapacity = MINIMUM_ARRAY_SIZE)
@@ -44,10 +45,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Initializes from an <see cref="ICollection{T}"/>, copying its elements.
+	///     Initializes from an <see cref="ICollection{T}" />, copying its elements.
 	/// </summary>
 	/// <param name="collection">Source collection. Cannot be null.</param>
-	/// <exception cref="ArgumentNullException">If <paramref name="collection"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">If <paramref name="collection" /> is null.</exception>
 	public SwapbackArray(ICollection<T> collection)
 	{
 		if (collection is null) throw new ArgumentNullException(nameof(collection));
@@ -63,10 +64,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Initializes the array from any enumerable, copying its contents.
+	///     Initializes the array from any enumerable, copying its contents.
 	/// </summary>
 	/// <param name="collection">Source sequence. Cannot be null.</param>
-	/// <exception cref="ArgumentNullException">If <paramref name="collection"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">If <paramref name="collection" /> is null.</exception>
 	public SwapbackArray(IEnumerable<T> collection)
 	{
 		switch (collection)
@@ -99,83 +100,86 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Returns true if the array is empty.
+	///     Returns true if the array is empty.
 	/// </summary>
 	public bool IsEmpty => _count == 0;
 
 	/// <summary>
-	/// Returns true if the array is full (all capacity in use).
+	///     Returns true if the array is full (all capacity in use).
 	/// </summary>
 	public bool IsFull => _count == Capacity;
 
 	/// <summary>
-	/// Gets the internal array's total capacity.
+	///     Gets the internal array's total capacity.
 	/// </summary>
 	public uint Capacity => (uint)_items.Length;
 
 	/// <summary>
-	/// Gets the current number of elements.
+	///     Gets the current number of elements.
 	/// </summary>
 	public uint Count => _count;
 
 	/// <summary>
-	/// The absolute maximum supported array size.
+	///     The absolute maximum supported array size.
 	/// </summary>
 	public uint MaxArrayLength => MAX_ARRAY_LENGTH;
 
 	/// <summary>
-	/// The minimum allowed capacity for an internal array.
+	///     The minimum allowed capacity for an internal array.
 	/// </summary>
 	public uint MinimumArraySize => MINIMUM_ARRAY_SIZE;
 
-	/// <inheritdoc/>
+	/// <inheritdoc />
 	int IReadOnlyCollection<T>.Count => (int)_count;
 
 	/// <summary>
-	/// Gets or sets the low-utilization threshold percentage for automatic shrinking after removals.
+	///     Gets or sets the low-utilization threshold percentage for automatic shrinking after removals.
 	/// </summary>
 	public Percent ShrinkThresholdPercent { get; set; } = Percent.Quarter;
 
 	/// <summary>
-	/// Modified on each mutating operation; used to detect changes during enumeration.
+	///     Modified on each mutating operation; used to detect changes during enumeration.
 	/// </summary>
 	public uint Version { get; private set; }
 
 	/// <summary>
-	/// Accesses the element at the given zero-based <paramref name="index"/>.
+	///     Accesses the element at the given zero-based <paramref name="index" />.
 	/// </summary>
-	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index"/> is not valid.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index" /> is not valid.</exception>
 	public T this[uint index]
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get
 		{
 			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
+
 			return _items[index];
 		}
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		set
 		{
 			if (index >= _count) throw new ArgumentOutOfRangeException(nameof(index));
+
 			_items[index] = value;
 			Version++;
 		}
 	}
 
-	/// <inheritdoc/>
+	/// <inheritdoc />
 	T IReadOnlyList<T>.this[int index]
 	{
 		get
 		{
 			if (index < 0 || index >= (int)_count)
 				throw new ArgumentOutOfRangeException(nameof(index));
+
 			return this[(uint)index];
 		}
 	}
 
 	/// <summary>
-	/// Returns true if the array contains the given <paramref name="item"/>.
-	/// Uses the default equality comparer.
+	///     Returns true if the array contains the given <paramref name="item" />.
+	///     Uses the default equality comparer.
 	/// </summary>
 	public bool Contains(T item)
 	{
@@ -188,11 +192,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			if (comparer.Equals(_items[i], item))
 				return true;
 		}
+
 		return false;
 	}
 
 	/// <summary>
-	/// Attempts to get the value at <paramref name="index"/>. Returns success and the value if found.
+	///     Attempts to get the value at <paramref name="index" />. Returns success and the value if found.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryGet(uint index, out T? value)
@@ -208,8 +213,8 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Attempts to find <paramref name="item"/>; returns true/false and its index if found.
-	/// Uses the default equality comparer.
+	///     Attempts to find <paramref name="item" />; returns true/false and its index if found.
+	///     Uses the default equality comparer.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryIndexOf(T item, out uint? index)
@@ -219,6 +224,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		{
 			int foundIndex = Array.IndexOf(_items, item, 0, (int)_count);
 			if (foundIndex < 0) return false;
+
 			index = (uint)foundIndex;
 			return true;
 		}
@@ -227,6 +233,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		for (uint i = 0; i < _count; i++)
 		{
 			if (!comparer.Equals(_items[i], item)) continue;
+
 			index = i;
 			return true;
 		}
@@ -235,7 +242,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Attempts to retrieve the last item in the array without removing it.
+	///     Attempts to retrieve the last item in the array without removing it.
 	/// </summary>
 	/// <param name="value">Receives the last value, or default(T) if empty.</param>
 	/// <returns>True if there is at least one element; otherwise false.</returns>
@@ -253,7 +260,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Attempts to remove and return the last element.
+	///     Attempts to remove and return the last element.
 	/// </summary>
 	/// <param name="value">Receives the removed value if present.</param>
 	/// <returns>True if successful.</returns>
@@ -277,8 +284,8 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Removes the first matching occurrence of <paramref name="item"/>. Uses the default equality comparer.
-	/// This is an O(n) search, but actual removal is O(1).
+	///     Removes the first matching occurrence of <paramref name="item" />. Uses the default equality comparer.
+	///     This is an O(n) search, but actual removal is O(1).
 	/// </summary>
 	/// <returns>True if removal succeeded, false if not found.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -303,21 +310,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Removes the first matching occurrence of <paramref name="item"/>.
+	///     Removes the item at the specified <paramref name="index">index</paramref> by swapping the last element into its
+	///     place.
 	/// </summary>
-	/// <param name="item">The item to remove.</param>
-	/// <exception cref="InvalidOperationException">If the item is not found.</exception>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void Remove(T item)
-	{
-		if (!TryRemove(item))
-			throw new InvalidOperationException("The specified item was not found in the SwapbackArray.");
-	}
-
-	/// <summary>
-	/// Removes the item at the specified <paramref name="index">index</paramref> by swapping the last element into its place.
-	/// </summary>
-	/// <returns>True if successful; false if <paramref name="index"/> is invalid.</returns>
+	/// <returns>True if successful; false if <paramref name="index" /> is invalid.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryRemoveAt(uint index)
 	{
@@ -337,27 +333,27 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Returns a read-only collection view over this dynamic array.
+	///     Returns a read-only collection view over this dynamic array.
 	/// </summary>
 	public IReadOnlyCollection<T> AsReadOnlyCollection() => this;
 
 	/// <summary>
-	/// Returns a read-only span over the active elements.
+	///     Returns a read-only span over the active elements.
 	/// </summary>
 	public ReadOnlySpan<T> AsSpan() => new(_items, 0, (int)_count);
 
 	/// <summary>
-	/// Returns a mutable span over the active elements. Changes do not affect the logical version or enumeration.
+	///     Returns a mutable span over the active elements. Changes do not affect the logical version or enumeration.
 	/// </summary>
 	public Span<T> AsMutableSpanUnsafe() => new(_items, 0, (int)_count);
 
 	/// <summary>
-	/// Gets a struct enumerator for fast array iteration.
+	///     Gets a struct enumerator for fast array iteration.
 	/// </summary>
 	public SwapbackArrayEnumerator GetEnumerator() => new(this);
 
 	/// <summary>
-	/// Copies elements into a new array of exact length and returns it.
+	///     Copies elements into a new array of exact length and returns it.
 	/// </summary>
 	public T[] ToArray()
 	{
@@ -367,7 +363,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Returns the zero-based index of <paramref name="item"/>, or throws if not found.
+	///     Returns the zero-based index of <paramref name="item" />, or throws if not found.
 	/// </summary>
 	/// <param name="item">The value to find.</param>
 	/// <returns>The zero-based index.</returns>
@@ -403,11 +399,11 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Removes all elements matching <paramref name="match"/> using swapback logic.
-	/// Returns the number of elements removed.
+	///     Removes all elements matching <paramref name="match" /> using swapback logic.
+	///     Returns the number of elements removed.
 	/// </summary>
 	/// <param name="match">Predicate to select elements for removal.</param>
-	/// <exception cref="ArgumentNullException">If <paramref name="match"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">If <paramref name="match" /> is null.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint RemoveAll(Predicate<T> match)
 	{
@@ -426,7 +422,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Adds a single item to the end. Increases capacity if needed.
+	///     Adds a single item to the end. Increases capacity if needed.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Add(T item)
@@ -437,7 +433,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Adds a range of items from a <see cref="ReadOnlySpan{T}"/>.
+	///     Adds a range of items from a <see cref="ReadOnlySpan{T}" />.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(ReadOnlySpan<T> span)
@@ -451,10 +447,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Adds a range of items from an enumerable collection.
+	///     Adds a range of items from an enumerable collection.
 	/// </summary>
 	/// <param name="collection">Source items to append.</param>
-	/// <exception cref="ArgumentNullException">If <paramref name="collection"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">If <paramref name="collection" /> is null.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddRange(IEnumerable<T> collection)
 	{
@@ -473,7 +469,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Adds an item without checking or resizing capacity. Caller must guarantee room.
+	///     Adds an item without checking or resizing capacity. Caller must guarantee room.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddUnchecked(T item)
@@ -483,9 +479,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Removes all elements, optionally shrinking to minimum capacity.
+	///     Removes all elements, optionally shrinking to minimum capacity.
 	/// </summary>
-	/// <param name="trim">If true, resets internal array to <see cref="MinimumArraySize"/>.</param>
+	/// <param name="trim">If true, resets internal array to <see cref="MinimumArraySize" />.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Clear(bool trim = true)
 	{
@@ -499,10 +495,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Copies all elements into the provided <see cref="Span{T}"/>. The span must have sufficient capacity.
+	///     Copies all elements into the provided <see cref="Span{T}" />. The span must have sufficient capacity.
 	/// </summary>
 	/// <param name="destination">Destination span to receive elements.</param>
-	/// <exception cref="ArgumentException">If <paramref name="destination"/> is not large enough.</exception>
+	/// <exception cref="ArgumentException">If <paramref name="destination" /> is not large enough.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void CopyTo(Span<T> destination)
 	{
@@ -513,11 +509,11 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Copies elements into a target array, starting at the specified index of the destination.
+	///     Copies elements into a target array, starting at the specified index of the destination.
 	/// </summary>
 	/// <param name="destination">Target array (not null).</param>
 	/// <param name="destinationIndex">Start index in target array.</param>
-	/// <exception cref="ArgumentNullException">If <paramref name="destination"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">If <paramref name="destination" /> is null.</exception>
 	/// <exception cref="ArgumentException">If destination does not have enough space.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void CopyTo(T[] destination, uint destinationIndex = 0)
@@ -531,10 +527,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Ensures the internal array is at least <paramref name="min"/> elements large.
+	///     Ensures the internal array is at least <paramref name="min" /> elements large.
 	/// </summary>
 	/// <param name="min">Minimum required capacity.</param>
-	/// <exception cref="OutOfMemoryException">If <paramref name="min"/> is too large.</exception>
+	/// <exception cref="OutOfMemoryException">If <paramref name="min" /> is too large.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void EnsureCapacity(uint min)
 	{
@@ -563,12 +559,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Inserts an item at <paramref name="index"/> by moving the existing value to the end.
-	/// If inserting at <see cref="Count"/>, this simply appends the item.
+	///     Inserts an item at <paramref name="index" /> by moving the existing value to the end.
+	///     If inserting at <see cref="Count" />, this simply appends the item.
 	/// </summary>
 	/// <param name="index">Insertion point.</param>
 	/// <param name="item">Value to insert.</param>
-	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index"/> is out of bounds.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index" /> is out of bounds.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void InsertAt(uint index, T item)
 	{
@@ -592,11 +588,23 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Replaces the element at <paramref name="index"/>.
+	///     Removes the first matching occurrence of <paramref name="item" />.
+	/// </summary>
+	/// <param name="item">The item to remove.</param>
+	/// <exception cref="InvalidOperationException">If the item is not found.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void Remove(T item)
+	{
+		if (!TryRemove(item))
+			throw new InvalidOperationException("The specified item was not found in the SwapbackArray.");
+	}
+
+	/// <summary>
+	///     Replaces the element at <paramref name="index" />.
 	/// </summary>
 	/// <param name="index">Target index. Must be within range.</param>
 	/// <param name="item">Replacement value.</param>
-	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index"/> is out of range.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index" /> is out of range.</exception>
 	public void ReplaceAt(uint index, T item)
 	{
 		if (index > _count)
@@ -607,11 +615,11 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Trims capacity if usage falls below the supplied utilization percentage.
-	/// This will never shrink below <see cref="MinimumArraySize"/>.
+	///     Trims capacity if usage falls below the supplied utilization percentage.
+	///     This will never shrink below <see cref="MinimumArraySize" />.
 	/// </summary>
 	/// <param name="minimumUtilizationThreshold">
-	/// Minimum allowed utilization as a <see cref="Percent"/>. If omitted, defaults to <see cref="Percent.Ninety"/>.
+	///     Minimum allowed utilization as a <see cref="Percent" />. If omitted, defaults to <see cref="Percent.Ninety" />.
 	/// </param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void TrimExcess(Percent minimumUtilizationThreshold = default)
@@ -631,7 +639,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Helper to add all items from an arbitrary enumerable.
+	///     Helper to add all items from an arbitrary enumerable.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool AddEnumerable(IEnumerable<T> collection)
@@ -642,11 +650,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			EnsureCapacity(_count + 1);
 			_items[_count++] = item;
 		}
+
 		return _count != startCount;
 	}
 
 	/// <summary>
-	/// Helper to add all items from an <see cref="ICollection{T}"/> in one operation.
+	///     Helper to add all items from an <see cref="ICollection{T}" /> in one operation.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryAddCollection(ICollection<T> collection)
@@ -661,7 +670,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Helper to add items from an <see cref="IReadOnlyCollection{T}"/>.
+	///     Helper to add items from an <see cref="IReadOnlyCollection{T}" />.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryAddReadOnlyCollection(IReadOnlyCollection<T> collection)
@@ -676,13 +685,15 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		return true;
 	}
 
-	/// <inheritdoc/>
-	IEnumerator IEnumerable.      GetEnumerator() => new SwapbackArrayEnumerator(this);
-	/// <inheritdoc/>
+	/// <inheritdoc />
+	IEnumerator IEnumerable.GetEnumerator() => new SwapbackArrayEnumerator(this);
+
+	/// <inheritdoc />
 	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SwapbackArrayEnumerator(this);
 
 	/// <summary>
-	/// Helper for <see cref="RemoveAll"/>: Compacts the array by skipping/removing elements for which <paramref name="match"/> returns true.
+	///     Helper for <see cref="RemoveAll" />: Compacts the array by skipping/removing elements for which
+	///     <paramref name="match" /> returns true.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private uint CompactArray(Predicate<T> match, uint originalCount)
@@ -707,7 +718,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Clears a range of array slots by setting to default(T), if appropriate for type.
+	///     Clears a range of array slots by setting to default(T), if appropriate for type.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ClearRemovedSlots(uint startIndex, uint endIndex)
@@ -720,7 +731,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Finalizes removal - clears old slots, adjusts count, version, and shrinks if warranted.
+	///     Finalizes removal - clears old slots, adjusts count, version, and shrinks if warranted.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void FinalizeRemoval(uint newCount, uint originalCount)
@@ -732,7 +743,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Shrinks the array if utilization is below <see cref="ShrinkThresholdPercent"/>.
+	///     Shrinks the array if utilization is below <see cref="ShrinkThresholdPercent" />.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void MaybeShrink()
@@ -750,9 +761,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// Internal reallocation; sets capacity to <paramref name="newSize"/>.
+	///     Internal reallocation; sets capacity to <paramref name="newSize" />.
 	/// </summary>
-	/// <param name="newSize">New array size. Must not exceed <see cref="MaxArrayLength"/>.</param>
+	/// <param name="newSize">New array size. Must not exceed <see cref="MaxArrayLength" />.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void Resize(uint newSize)
 	{
@@ -767,7 +778,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	/// An enumerator for <see cref="SwapbackArray{T}"/> that checks for concurrent modification.
+	///     An enumerator for <see cref="SwapbackArray{T}" /> that checks for concurrent modification.
 	/// </summary>
 	public struct SwapbackArrayEnumerator : IEnumerator<T>
 	{
@@ -784,16 +795,16 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			Current  = default!;
 		}
 
-		/// <inheritdoc/>
+		/// <inheritdoc />
 		object IEnumerator.Current => Current!;
 
 		/// <summary>
-		/// The element at the iterator's current position.
+		///     The element at the iterator's current position.
 		/// </summary>
 		public T Current { get; private set; }
 
 		/// <summary>
-		/// Advances to the next element; throws if the collection was modified during enumeration.
+		///     Advances to the next element; throws if the collection was modified during enumeration.
 		/// </summary>
 		/// <returns>True if successfully moved to the next element; false if at end.</returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -812,10 +823,10 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			return false;
 		}
 
-		/// <inheritdoc/>
+		/// <inheritdoc />
 		public void Dispose() { }
 
-		/// <inheritdoc/>
+		/// <inheritdoc />
 		public void Reset() => throw new NotSupportedException();
 	}
 }

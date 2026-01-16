@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading;
-
-namespace Bezoro.Core;
+﻿namespace Bezoro.Core;
 
 /// <summary>
 ///     A robust, thread-safe, and highly flexible Singleton base class.
@@ -16,11 +13,12 @@ namespace Bezoro.Core;
 /// <typeparam name="T">The singleton's concrete type. Must be a reference type.</typeparam>
 public abstract class Singleton<T> where T : class
 {
-	private static readonly object _sync = new();
+	private static readonly object  _sync = new();
+	private static          int     _initializing;
+	private static          Func<T> _factory = DefaultFactory;
 
 	// The current creation factory; defaults to reflective parameterless-ctor creation
-	private static int     _initializing;
-	private static Func<T> _factory = DefaultFactory;
+
 
 	// Guards construction so derived types can only be instantiated through controlled factory paths
 
@@ -254,7 +252,7 @@ public abstract class Singleton<T> where T : class
 				t.FullName ?? t.Name,
 				new InvalidOperationException($"Cannot create a singleton for open generic type {t.FullName}."));
 
-		var instance = Activator.CreateInstance(t, true);
+		object? instance = Activator.CreateInstance(t, true);
 		if (instance is null)
 			throw new TypeInitializationException(
 				t.FullName ?? t.Name,

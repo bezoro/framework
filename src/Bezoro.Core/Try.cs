@@ -14,19 +14,19 @@ namespace Bezoro.Core;
 ///     // Result-based (no exceptions thrown)
 ///     var (success, value) = Try.TryGet(() => ParseData());
 ///     if (success) { /* use value */ }
-///
+/// 
 ///     // Exception-based (throws on error)
 ///     var result = Try.Get(() => ParseData());
-///
+/// 
 ///     // With fallback value
 ///     var result = Try.GetOrDefault(() => ParseData(), defaultValue);
-///
+/// 
 ///     // With exception transformation
 ///     var result = Try.Get(() => ParseData(), ex => new DataException("Parse failed", ex));
-///
+/// 
 ///     // With logging callback
 ///     var result = Try.Get(() => ParseData(), onException: ex => _logger.LogError(ex, "Parse failed"));
-///
+/// 
 ///     // Async with cancellation
 ///     var result = await Try.GetAsync(ct => FetchDataAsync(ct), cancellationToken: cts.Token);
 ///     </code>

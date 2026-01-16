@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Bezoro.Core.Common.Primitives;
+﻿namespace Bezoro.Core.Common.Primitives;
 
 /// <summary>
 ///     Encapsulates the outcome of searching for an element in an array.

@@ -3,7 +3,8 @@
 namespace Bezoro.Core;
 
 /// <summary>
-/// Provides methods for generating structured, indented code with automatic "using" header collection and scope management.
+///     Provides methods for generating structured, indented code with automatic "using" header collection and scope
+///     management.
 /// </summary>
 public class CodeWriter
 {
@@ -16,7 +17,7 @@ public class CodeWriter
 	private int _indentLevel;
 
 	/// <summary>
-	/// Returns the generated code as a string, including using statements and a file header.
+	///     Returns the generated code as a string, including using statements and a file header.
 	/// </summary>
 	public override string ToString()
 	{
@@ -37,10 +38,10 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Adds a using directive for the specified namespace.
+	///     Adds a using directive for the specified namespace.
 	/// </summary>
 	/// <param name="nameSpace">The namespace to add as a using directive.</param>
-	/// <returns>This <see cref="CodeWriter"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CodeWriter" /> instance for chaining.</returns>
 	public CodeWriter AddUsing(string nameSpace)
 	{
 		_usings.Add(nameSpace);
@@ -48,10 +49,10 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Adds multiple using directives for the specified namespaces.
+	///     Adds multiple using directives for the specified namespaces.
 	/// </summary>
 	/// <param name="namespaces">The collection of namespaces to add as using directives.</param>
-	/// <returns>This <see cref="CodeWriter"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CodeWriter" /> instance for chaining.</returns>
 	public CodeWriter AddUsingRange(IEnumerable<string> namespaces)
 	{
 		foreach (string? @namespace in namespaces) AddUsing(@namespace);
@@ -59,10 +60,10 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Writes the specified text, applying indentation if it is the beginning of a new line.
+	///     Writes the specified text, applying indentation if it is the beginning of a new line.
 	/// </summary>
 	/// <param name="text">The text to write.</param>
-	/// <returns>This <see cref="CodeWriter"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CodeWriter" /> instance for chaining.</returns>
 	public CodeWriter Write(string text)
 	{
 		if (_isNewLine)
@@ -76,10 +77,10 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Writes a line of text with the current indentation, or a blank line if the input is empty.
+	///     Writes a line of text with the current indentation, or a blank line if the input is empty.
 	/// </summary>
 	/// <param name="line">The line to write.</param>
-	/// <returns>This <see cref="CodeWriter"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CodeWriter" /> instance for chaining.</returns>
 	public CodeWriter WriteLine(string line = "")
 	{
 		if (!string.IsNullOrEmpty(line))
@@ -97,10 +98,10 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Begins a new code scope, optionally starting with a declaration (e.g., an if/for/class signature).
+	///     Begins a new code scope, optionally starting with a declaration (e.g., an if/for/class signature).
 	/// </summary>
 	/// <param name="declaration">The declaration line to write before the opening brace, or null.</param>
-	/// <returns>An <see cref="IDisposable"/> that will end the scope upon disposal.</returns>
+	/// <returns>An <see cref="IDisposable" /> that will end the scope upon disposal.</returns>
 	public IDisposable BeginScope(string? declaration = null)
 	{
 		if (declaration != null) WriteLine(declaration);
@@ -111,7 +112,7 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Ends the current code scope, writing the closing brace or specified closer.
+	///     Ends the current code scope, writing the closing brace or specified closer.
 	/// </summary>
 	/// <param name="closer">The string to write as the closer, typically "}".</param>
 	public void EndScope(string closer = "}")
@@ -121,7 +122,7 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Appends indentation to the output according to the current scope level.
+	///     Appends indentation to the output according to the current scope level.
 	/// </summary>
 	private void WriteIndent()
 	{
@@ -129,14 +130,14 @@ public class CodeWriter
 	}
 
 	/// <summary>
-	/// Helper type for automatically closing scopes (writes ending '}' when disposed).
+	///     Helper type for automatically closing scopes (writes ending '}' when disposed).
 	/// </summary>
 	private class ScopeGuard : IDisposable
 	{
 		private readonly CodeWriter _writer;
 
 		/// <summary>
-		/// Constructs a new <see cref="ScopeGuard"/> for the specified writer.
+		///     Constructs a new <see cref="ScopeGuard" /> for the specified writer.
 		/// </summary>
 		/// <param name="writer">The writer for which to manage the scope.</param>
 		public ScopeGuard(CodeWriter writer)
@@ -145,7 +146,7 @@ public class CodeWriter
 		}
 
 		/// <summary>
-		/// Ends the current scope on the writer when disposed.
+		///     Ends the current scope on the writer when disposed.
 		/// </summary>
 		public void Dispose() =>
 			_writer.EndScope();
@@ -153,7 +154,8 @@ public class CodeWriter
 }
 
 /// <summary>
-/// Provides higher-level programmatic construction and composition of C# code constructs, using <see cref="CodeWriter"/> underneath.
+///     Provides higher-level programmatic construction and composition of C# code constructs, using
+///     <see cref="CodeWriter" /> underneath.
 /// </summary>
 public class CSharpCodeBuilder
 {
@@ -162,14 +164,14 @@ public class CSharpCodeBuilder
 	private          bool          _isInClass;
 
 	/// <summary>
-	/// Adds a field declaration to the current class.
+	///     Adds a field declaration to the current class.
 	/// </summary>
 	/// <param name="name">The name of the field.</param>
 	/// <param name="type">The type of the field.</param>
 	/// <param name="accessibility">The accessibility modifier (e.g., private/protected/public).</param>
 	/// <param name="isReadonly">Whether the field is readonly.</param>
 	/// <param name="initialValue">Optional initializer value as code.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if not in a class definition.</exception>
 	public CSharpCodeBuilder AddField(
 		string  name,
@@ -197,7 +199,7 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Adds a method declaration to the current class.
+	///     Adds a method declaration to the current class.
 	/// </summary>
 	/// <param name="name">The method name.</param>
 	/// <param name="returnType">The return type.</param>
@@ -206,7 +208,7 @@ public class CSharpCodeBuilder
 	/// <param name="parameters">Parameter list as code fragments.</param>
 	/// <param name="bodyWriter">Callback that writes the method body.</param>
 	/// <param name="attributes">Optional attributes for the method.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if not in a class definition.</exception>
 	public CSharpCodeBuilder AddMethod(
 		string              name,
@@ -246,7 +248,7 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Adds a property declaration to the current class.
+	///     Adds a property declaration to the current class.
 	/// </summary>
 	/// <param name="name">The property name.</param>
 	/// <param name="type">The type of the property.</param>
@@ -254,7 +256,7 @@ public class CSharpCodeBuilder
 	/// <param name="hasGetter">Whether to include a getter.</param>
 	/// <param name="hasSetter">Whether to include a setter.</param>
 	/// <param name="setterAccessibility">Optionally specify accessor modifier for setter.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if not in a class definition.</exception>
 	/// <exception cref="ArgumentException">Thrown if neither accessor is present.</exception>
 	public CSharpCodeBuilder AddProperty(
@@ -285,10 +287,10 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Adds a using directive for the specified namespace.
+	///     Adds a using directive for the specified namespace.
 	/// </summary>
 	/// <param name="nameSpace">The namespace to add as a using directive.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	public CSharpCodeBuilder AddUsing(string nameSpace)
 	{
 		_writer.AddUsing(nameSpace);
@@ -296,14 +298,14 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Begins a class definition, writing its declaration and opening brace.
+	///     Begins a class definition, writing its declaration and opening brace.
 	/// </summary>
 	/// <param name="className">The class name.</param>
 	/// <param name="accessibility">The accessibility of the class.</param>
 	/// <param name="isStatic">Whether the class is static.</param>
 	/// <param name="baseClass">Optional base class name.</param>
 	/// <param name="interfaces">List of implemented interfaces.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if already in a class definition.</exception>
 	public CSharpCodeBuilder BeginClass(
 		string    className,
@@ -335,10 +337,10 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Begins a namespace block.
+	///     Begins a namespace block.
 	/// </summary>
 	/// <param name="nameSpace">The name of the namespace.</param>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	public CSharpCodeBuilder BeginNamespace(string nameSpace)
 	{
 		_namespaceStack.Push(nameSpace);
@@ -348,9 +350,9 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Ends the current class definition.
+	///     Ends the current class definition.
 	/// </summary>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if not in a class definition.</exception>
 	public CSharpCodeBuilder EndClass()
 	{
@@ -362,9 +364,9 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Ends the most recent namespace block.
+	///     Ends the most recent namespace block.
 	/// </summary>
-	/// <returns>This <see cref="CSharpCodeBuilder"/> instance for chaining.</returns>
+	/// <returns>This <see cref="CSharpCodeBuilder" /> instance for chaining.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if no namespace is being defined.</exception>
 	public CSharpCodeBuilder EndNamespace()
 	{
@@ -376,7 +378,7 @@ public class CSharpCodeBuilder
 	}
 
 	/// <summary>
-	/// Generates the code accumulated in the builder as a string.
+	///     Generates the code accumulated in the builder as a string.
 	/// </summary>
 	/// <returns>The generated code as a string.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if there are unclosed namespaces or classes.</exception>
@@ -391,7 +393,7 @@ public class CSharpCodeBuilder
 }
 
 /// <summary>
-/// Handles file output for generated C# code using the <see cref="CSharpCodeBuilder"/>.
+///     Handles file output for generated C# code using the <see cref="CSharpCodeBuilder" />.
 /// </summary>
 public class CSharpFileGenerator
 {
@@ -399,7 +401,7 @@ public class CSharpFileGenerator
 	private readonly string            _outputPath;
 
 	/// <summary>
-	/// Constructs a new file generator for an output path.
+	///     Constructs a new file generator for an output path.
 	/// </summary>
 	/// <param name="outputPath">The file path where generated code will be written.</param>
 	public CSharpFileGenerator(string outputPath)
@@ -409,13 +411,13 @@ public class CSharpFileGenerator
 	}
 
 	/// <summary>
-	/// Returns the underlying <see cref="CSharpCodeBuilder"/> to be used for code construction.
+	///     Returns the underlying <see cref="CSharpCodeBuilder" /> to be used for code construction.
 	/// </summary>
 	public CSharpCodeBuilder GetBuilder() =>
 		_builder;
 
 	/// <summary>
-	/// Generates the C# file and writes it to disk at the output path.
+	///     Generates the C# file and writes it to disk at the output path.
 	/// </summary>
 	public void Generate()
 	{

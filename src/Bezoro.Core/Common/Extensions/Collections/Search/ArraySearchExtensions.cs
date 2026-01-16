@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Bezoro.Core.Common.Extensions.Collections.Search;
+﻿namespace Bezoro.Core.Common.Extensions.Collections.Search;
 
 /// <summary>
 ///     Contains methods for searching and counting elements in arrays.
