@@ -68,6 +68,12 @@ internal sealed class ProcessUciTransportOptions
 	public int FlushBatchSize { get; init; } = ProcessUciTransportConstants.DEFAULT_FLUSH_BATCH_SIZE;
 
 	/// <summary>
+	///     Maximum allowed length for a command line in characters. Commands exceeding this limit will be rejected.
+	///     Default is 10MB (10,485,760 characters) - a generous safety ceiling for pathological cases.
+	/// </summary>
+	public int MaxLineLength { get; init; } = ProcessUciTransportConstants.DEFAULT_MAX_LINE_LENGTH;
+
+	/// <summary>
 	///     Grace period in milliseconds to wait after sending "quit" before forcing termination, when
 	///     <see cref="QuitGracePeriod" /> is not set.
 	/// </summary>
@@ -78,6 +84,12 @@ internal sealed class ProcessUciTransportOptions
 	/// </summary>
 	public int SmallTimeoutSpinIterations { get; init; } =
 		ProcessUciTransportConstants.DEFAULT_SMALL_TIMEOUT_SPIN_ITERATIONS;
+
+	/// <summary>
+	///     Line length threshold in characters at which a warning will be logged. This helps identify unusual usage patterns.
+	///     Default is 1MB (1,048,576 characters) - typical UCI commands should be much smaller.
+	/// </summary>
+	public int WarnLineLength { get; init; } = ProcessUciTransportConstants.DEFAULT_WARN_LINE_LENGTH;
 
 	/// <summary>
 	///     Newline sequence used when writing engine commands; defaults to <see cref="Environment.NewLine" />.

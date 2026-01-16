@@ -16,6 +16,11 @@ internal static class ProcessUciTransportConstants
 	public const int DEFAULT_FLUSH_BATCH_SIZE = 8;
 
 	/// <summary>
+	///     Default maximum allowed length for a command line in characters (10MB).
+	/// </summary>
+	public const int DEFAULT_MAX_LINE_LENGTH = 10 * 1024 * 1024;
+
+	/// <summary>
 	///     Default grace period in milliseconds to wait after sending "quit" before forcing termination.
 	/// </summary>
 	public const int DEFAULT_QUIT_GRACE_PERIOD_MS = 500;
@@ -29,4 +34,9 @@ internal static class ProcessUciTransportConstants
 	///     Default timeout in seconds for teardown and wait operations.
 	/// </summary>
 	public const int DEFAULT_TEARDOWN_TIMEOUT_SECONDS = 5;
+
+	/// <summary>
+	///     Default line length threshold in characters at which a warning will be logged (1MB).
+	/// </summary>
+	public const int DEFAULT_WARN_LINE_LENGTH = 1024 * 1024;
 }

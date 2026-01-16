@@ -898,6 +898,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (line is null) throw new ArgumentNullException(nameof(line));
 		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
 			throw new ArgumentOutOfRangeException(nameof(timeout));
+
+		ValidateLineLength(line);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -908,7 +910,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 		_stateManager.ThrowIfProcessNotAlive(_process);
 		if (line is null) throw new ArgumentNullException(nameof(line));
 
+		ValidateLineLength(line);
+
 		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
 		ct.ThrowIfCancellationRequested();
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ValidateLineLength(string line)
+	{
+		if (line.Length > _options.MaxLineLength)
+			throw new ArgumentException(
+				$"Command line exceeds maximum length of {_options.MaxLineLength} characters. Actual: {line.Length}",
+				nameof(line));
+
+		if (line.Length > _options.WarnLineLength)
+			Logger.Log(
+				$"Warning: Command line length ({line.Length} characters) exceeds warning threshold ({_options.WarnLineLength} characters). This may indicate unusual usage.",
+				category: LogCategory.UCI);
 	}
 }
