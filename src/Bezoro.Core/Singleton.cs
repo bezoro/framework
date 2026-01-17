@@ -17,6 +17,7 @@ public abstract class Singleton<T> where T : class
 	private static          int     _initializing;
 	private static          Func<T> _factory = DefaultFactory;
 
+
 	// The current creation factory; defaults to reflective parameterless-ctor creation
 
 

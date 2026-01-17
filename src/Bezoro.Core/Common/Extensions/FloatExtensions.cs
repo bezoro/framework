@@ -6,18 +6,18 @@ namespace Bezoro.Core.Common.Extensions;
 /// </summary>
 public static class FloatExtensions
 {
-    /// <summary>
+	/// <summary>
 	///     Ensures the floating point value is greater than the specified minimum.
 	///     Throws if the value is less than or equal to <paramref name="min" />.
-    /// </summary>
-    /// <param name="f">The float value to test.</param>
-    /// <param name="min">The minimum exclusive lower bound.</param>
-    /// <returns>The float value if it is valid.</returns>
+	/// </summary>
+	/// <param name="f">The float value to test.</param>
+	/// <param name="min">The minimum exclusive lower bound.</param>
+	/// <returns>The float value if it is valid.</returns>
 	/// <exception cref="ValueTooSmallException">
 	///     Thrown if <paramref name="f" /> is less than or equal to
 	///     <paramref name="min" />.
 	/// </exception>
-    public static float ThrowIfLessOrEqualThan(this float f, float min)
+	public static float ThrowIfLessOrEqualThan(this float f, float min)
 	{
 		if (f <= min)
 			throw new ValueTooSmallException(f, min);
@@ -25,15 +25,15 @@ public static class FloatExtensions
 		return f;
 	}
 
-    /// <summary>
+	/// <summary>
 	///     Ensures the floating point value is greater than or equal to the specified minimum.
 	///     Throws if the value is less than <paramref name="min" />.
-    /// </summary>
-    /// <param name="f">The float value to test.</param>
-    /// <param name="min">The minimum inclusive lower bound.</param>
-    /// <returns>The float value if it is valid.</returns>
+	/// </summary>
+	/// <param name="f">The float value to test.</param>
+	/// <param name="min">The minimum inclusive lower bound.</param>
+	/// <returns>The float value if it is valid.</returns>
 	/// <exception cref="ValueTooSmallException">Thrown if <paramref name="f" /> is less than <paramref name="min" />.</exception>
-    public static float ThrowIfLessThan(this float f, float min)
+	public static float ThrowIfLessThan(this float f, float min)
 	{
 		if (f < min)
 			throw new ValueTooSmallException(f, min);
@@ -41,18 +41,18 @@ public static class FloatExtensions
 		return f;
 	}
 
-    /// <summary>
+	/// <summary>
 	///     Ensures the floating point value is less than the specified maximum.
 	///     Throws if the value is greater than or equal to <paramref name="max" />.
-    /// </summary>
-    /// <param name="f">The float value to test.</param>
-    /// <param name="max">The maximum exclusive upper bound.</param>
-    /// <returns>The float value if it is valid.</returns>
+	/// </summary>
+	/// <param name="f">The float value to test.</param>
+	/// <param name="max">The maximum exclusive upper bound.</param>
+	/// <returns>The float value if it is valid.</returns>
 	/// <exception cref="ValueTooLargeException">
 	///     Thrown if <paramref name="f" /> is greater than or equal to
 	///     <paramref name="max" />.
 	/// </exception>
-    public static float ThrowIfOverOrEqualThan(this float f, float max)
+	public static float ThrowIfOverOrEqualThan(this float f, float max)
 	{
 		if (f >= max)
 			throw new ValueTooLargeException(f, max);
@@ -60,15 +60,15 @@ public static class FloatExtensions
 		return f;
 	}
 
-    /// <summary>
+	/// <summary>
 	///     Ensures the floating point value is less than or equal to the specified maximum.
 	///     Throws if the value is greater than <paramref name="max" />.
-    /// </summary>
-    /// <param name="f">The float value to test.</param>
-    /// <param name="max">The maximum inclusive upper bound.</param>
-    /// <returns>The float value if it is valid.</returns>
+	/// </summary>
+	/// <param name="f">The float value to test.</param>
+	/// <param name="max">The maximum inclusive upper bound.</param>
+	/// <returns>The float value if it is valid.</returns>
 	/// <exception cref="ValueTooLargeException">Thrown if <paramref name="f" /> is greater than <paramref name="max" />.</exception>
-    public static float ThrowIfOverThan(this float f, float max)
+	public static float ThrowIfOverThan(this float f, float max)
 	{
 		if (f > max)
 			throw new ValueTooLargeException(f, max);
@@ -85,12 +85,12 @@ public static class FloatExtensions
 /// </remarks>
 public class ValueTooLargeException : Exception
 {
-    /// <summary>
+	/// <summary>
 	///     Initializes a new instance of the <see cref="ValueTooLargeException" /> class.
-    /// </summary>
-    /// <param name="value">The value that exceeded the maximum limit.</param>
-    /// <param name="max">The maximum allowed value.</param>
-    public ValueTooLargeException(float value, float max)
+	/// </summary>
+	/// <param name="value">The value that exceeded the maximum limit.</param>
+	/// <param name="max">The maximum allowed value.</param>
+	public ValueTooLargeException(float value, float max)
 		: base($"Value '{value}' is greater than the maximum allowed value '{max}'.") { }
 }
 
@@ -102,11 +102,11 @@ public class ValueTooLargeException : Exception
 /// </remarks>
 public class ValueTooSmallException : Exception
 {
-    /// <summary>
+	/// <summary>
 	///     Initializes a new instance of the <see cref="ValueTooSmallException" /> class.
-    /// </summary>
-    /// <param name="value">The value that was too small.</param>
-    /// <param name="min">The minimum permitted value.</param>
-    public ValueTooSmallException(float value, float min)
+	/// </summary>
+	/// <param name="value">The value that was too small.</param>
+	/// <param name="min">The minimum permitted value.</param>
+	public ValueTooSmallException(float value, float min)
 		: base($"Value '{value}' is smaller than the minimum allowed value '{min}'.") { }
 }
