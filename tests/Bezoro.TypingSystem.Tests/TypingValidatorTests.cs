@@ -1,5 +1,7 @@
 ﻿using FluentAssertions;
 using JetBrains.Annotations;
+using Bezoro.TypingSystem.Types;
+using Bezoro.TypingSystem.Utilities;
 
 namespace Bezoro.TypingSystem.Tests;
 

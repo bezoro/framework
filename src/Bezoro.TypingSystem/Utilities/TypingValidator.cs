@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Bezoro.TypingSystem.Types;
 
-namespace Bezoro.TypingSystem;
+namespace Bezoro.TypingSystem.Utilities;
 
+/// <summary>
+///     Provides core logic for validating typing input against target sequences.
+/// </summary>
 public static class TypingValidator
 {
 	/// <summary>
@@ -12,6 +16,7 @@ public static class TypingValidator
 	/// <param name="target">The target sequence to validate against.</param>
 	/// <param name="position">The position in the target sequence to validate against.</param>
 	/// <param name="inputChar">The input character to validate.</param>
+	/// <param name="options">Optional validation options.</param>
 	/// <returns>The result of the validation.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static TypingResult ValidateInput(
