@@ -567,7 +567,6 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-
 	/// <summary>
 	///     Cleans up write loop and stdin stream.
 	/// </summary>
