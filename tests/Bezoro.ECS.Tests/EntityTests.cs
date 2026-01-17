@@ -1,7 +1,6 @@
-using Bezoro.Core.ECS;
 using Xunit;
 
-namespace Bezoro.Core.Tests.ECS;
+namespace Bezoro.ECS.Tests;
 
 public class EntityTests
 {

@@ -1,4 +1,4 @@
-namespace Bezoro.Core.ECS;
+namespace Bezoro.ECS;
 
 /// <summary>
 ///     Represents a unique entity within the Entity Component System (ECS).

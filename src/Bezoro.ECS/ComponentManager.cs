@@ -1,4 +1,4 @@
-namespace Bezoro.Core.ECS;
+namespace Bezoro.ECS;
 
 /// <summary>
 ///     Manages the storage, retrieval, and lifecycle of components attached to entities inside the ECS architecture.

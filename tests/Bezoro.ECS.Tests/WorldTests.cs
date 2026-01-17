@@ -1,7 +1,6 @@
-using Bezoro.Core.ECS;
 using Xunit;
 
-namespace Bezoro.Core.Tests.ECS;
+namespace Bezoro.ECS.Tests;
 
 public class WorldTests
 {
@@ -9,9 +8,9 @@ public class WorldTests
 	public void AddAndGetComponent_Should_Correctly_Manage_Components()
 	{
 		// Arrange
-		var    world     = new World();
-		Entity entity    = world.CreateEntity();
-		var    component = new TestComponent { Value = 123 };
+		var world     = new World();
+		var entity    = world.CreateEntity();
+		var component = new TestComponent { Value = 123 };
 
 		// Act
 		world.AddComponent(entity, component);
@@ -29,8 +28,8 @@ public class WorldTests
 		var world = new World();
 
 		// Act
-		Entity entity1 = world.CreateEntity();
-		Entity entity2 = world.CreateEntity();
+		var entity1 = world.CreateEntity();
+		var entity2 = world.CreateEntity();
 
 		// Assert
 		Assert.NotEqual(entity1, entity2);
@@ -40,8 +39,8 @@ public class WorldTests
 	public void DestroyEntity_Should_Remove_Entity_And_Its_Components()
 	{
 		// Arrange
-		var    world  = new World();
-		Entity entity = world.CreateEntity();
+		var world  = new World();
+		var entity = world.CreateEntity();
 		world.AddComponent(entity, new TestComponent { Value = 42 });
 
 		// Act

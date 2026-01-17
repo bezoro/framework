@@ -12,6 +12,7 @@
 		<TargetFrameworks>net9.0;netstandard2.1</TargetFrameworks>
 	</PropertyGroup>
 	<ItemGroup>
+		<None Include="README.md" />
 		<InternalsVisibleTo Include="Bezoro.Core.Tests" />
 	</ItemGroup>
 </Project>

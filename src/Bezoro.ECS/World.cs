@@ -1,4 +1,4 @@
-namespace Bezoro.Core.ECS;
+namespace Bezoro.ECS;
 
 /// <summary>
 ///     Provides the main interface to the Entity Component System (ECS), allowing for management of entities,

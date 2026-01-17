@@ -1,8 +1,7 @@
 using System.Collections.Generic;
-using Bezoro.Core.ECS;
 using Xunit;
 
-namespace Bezoro.Core.Tests.ECS;
+namespace Bezoro.ECS.Tests;
 
 public class SystemManagerTests
 {
@@ -38,8 +37,8 @@ public class SystemManagerTests
 
 		// Assert
 		Assert.Equal(
-			new List<string>
-				{ "System1", "System2" }, executionOrder);
+			new() { "System1", "System2" },
+			executionOrder);
 	}
 
 	private class OrderTestSystem : ISystem

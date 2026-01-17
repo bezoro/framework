@@ -1,4 +1,4 @@
-namespace Bezoro.Core.ECS;
+namespace Bezoro.ECS;
 
 /// <summary>
 ///     Defines the contract for a system within the Entity Component System (ECS) framework.
@@ -6,9 +6,9 @@ namespace Bezoro.Core.ECS;
 /// </summary>
 public interface ISystem
 {
-    /// <summary>
-    ///     Performs the update logic for this system.
-    ///     This is typically called once per frame or tick of the simulation.
-    /// </summary>
-    void Update();
+	/// <summary>
+	///     Performs the update logic for this system.
+	///     This is typically called once per frame or tick of the simulation.
+	/// </summary>
+	void Update();
 }
