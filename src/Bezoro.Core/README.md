@@ -4,28 +4,25 @@ Bezoro.Core is the foundational library of the Bezoro Framework, providing core 
 
 ## Key Features
 
-- **Common Utilities**:
+- **Core Utilities**:
   - `Try`: Safe execution patterns for functions and actions.
   - `Singleton`: A robust, thread-safe, and flexible Singleton base class with support for runtime overrides and scoped testing.
   - `ResultFactory`: Utilities for creating operation results.
   - `Grid2D`: Generic 2D grid structure.
+  - `StringTags`: Thread-safe manager for global string tag registration and substitution.
   - `CodeWriter` & `CSharpCodeBuilder`: Powerful utilities for generating structured, indented C# code with scope management.
-- **Primitives**: Specialized types like `UIntVector2`, `Percent`, `Color`, and `SwapbackArray`.
+- **Specialized Types**: High-performance and utility types like `UIntVector2`, `Percent`, `Color`, and `SwapbackArray`.
 - **Modern C# Compatibility**: Includes polyfills for modern C# features (e.g., `RequiredMemberAttribute`, `IsExternalInit`, `CallerArgumentExpressionAttribute`) to support multiple target frameworks.
 
 ## Project Structure
 
-- `CodeGen`: Code generation utilities.
-
-
-- `Common/`: Base interfaces, helpers, and extension methods.
-  - `/Extensions/`: Extension methods for common types.
-  - `/Helpers/`: Helper classes and utilities.
-  - `/Interfaces/`: Base interfaces.
-  - `/Primitives/`: Basic data structures and specialized types.
-
-
-- `Grid/`: Generic 2D and 3D grid structure and related utilities.
+- `Abstractions/`: Base interfaces and abstract definitions.
+- `CodeGen/`: Specialized utilities for C# code generation.
+- `Compatibility/`: Polyfills for modern C# features to support older target frameworks.
+- `Extensions/`: Extensive collection of extension methods for built-in and custom types.
+- `Helpers/`: Utility classes for validation, comparison, and common operations.
+- `Types/`: Core framework types, primitives, and advanced data structures.
+- `Utilities/`: General-purpose utilities, constants, and string management.
 
 ## Target Frameworks
 
