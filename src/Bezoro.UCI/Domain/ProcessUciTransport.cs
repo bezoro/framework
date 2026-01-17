@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Logging;
+using Bezoro.Logging.Types;
 using Bezoro.UCI.Domain.Common.Helpers;
 
 namespace Bezoro.UCI.Domain;

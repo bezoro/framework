@@ -1,4 +1,4 @@
-﻿namespace Bezoro.Logging;
+﻿namespace Bezoro.Logging.Types;
 
 /// <summary>
 ///     Defines the severity level for a log message.

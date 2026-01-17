@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Bezoro.Logging;
+using Bezoro.Logging.Types;
 
 namespace Bezoro.UCI.Domain.Common.Helpers;
 
@@ -343,6 +344,22 @@ internal sealed class BackgroundLoopManager(
 	}
 
 	/// <summary>
+	///     Awaits a loop task and reports any errors.
+	/// </summary>
+	private async Task AwaitLoopTaskAsync(Task? task, string errorDescription)
+	{
+		if (task != null)
+			try
+			{
+				await task.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				reportError(ex, errorDescription);
+			}
+	}
+
+	/// <summary>
 	///     Handles backpressure when the channel is full by waiting for space to become available.
 	/// </summary>
 	private async Task HandleBackpressureAsync(ChannelWriter<string> writer, string line, CancellationToken token)
@@ -453,22 +470,6 @@ internal sealed class BackgroundLoopManager(
 	}
 
 	/// <summary>
-	///     Awaits a loop task and reports any errors.
-	/// </summary>
-	private async Task AwaitLoopTaskAsync(Task? task, string errorDescription)
-	{
-		if (task != null)
-			try
-			{
-				await task.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				reportError(ex, errorDescription);
-			}
-	}
-
-	/// <summary>
 	///     Tries to await a task with a timeout.
 	/// </summary>
 	private async Task TryAwaitWithTimeout(Task task, string description, TimeSpan timeout)
@@ -491,7 +492,9 @@ internal sealed class BackgroundLoopManager(
 		}
 
 		if (completed == task)
+		{
 			await task.ConfigureAwait(false);
+		}
 		else
 		{
 			var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
