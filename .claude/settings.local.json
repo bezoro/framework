@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"V:\\\\Repos\\\\Rider\\\\Bezoro.Framework\" status)"
+    ]
+  }
+}
