@@ -1,4 +1,4 @@
-namespace Bezoro.ECS;
+namespace Bezoro.ECS.Abstractions;
 
 /// <summary>
 ///     Defines the contract for a system within the Entity Component System (ECS) framework.

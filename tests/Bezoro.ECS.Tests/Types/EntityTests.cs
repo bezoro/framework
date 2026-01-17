@@ -1,6 +1,7 @@
+using Bezoro.ECS.Types;
 using Xunit;
 
-namespace Bezoro.ECS.Tests;
+namespace Bezoro.ECS.Tests.Types;
 
 public class EntityTests
 {

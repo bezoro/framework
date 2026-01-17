@@ -16,7 +16,9 @@ The ECS implementation is built around the `World` class, which coordinates enti
 ### Example Usage
 
 ```csharp
-using Bezoro.ECS;
+using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 
 // Create a new world
 var world = new World();

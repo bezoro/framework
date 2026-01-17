@@ -1,4 +1,4 @@
-namespace Bezoro.ECS;
+namespace Bezoro.ECS.Abstractions;
 
 /// <summary>
 ///     Marker interface for all data components used in the ECS model.

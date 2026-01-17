@@ -1,4 +1,4 @@
-namespace Bezoro.ECS;
+namespace Bezoro.ECS.Abstractions;
 
 /// <summary>
 ///     Abstraction for any identifiable entity within the ECS model.

@@ -1,4 +1,6 @@
-namespace Bezoro.ECS;
+using Bezoro.ECS.Types;
+
+namespace Bezoro.ECS.Services;
 
 /// <summary>
 ///     Manages the lifecycle of entities within the Entity Component System (ECS).

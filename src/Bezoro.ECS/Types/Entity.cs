@@ -1,4 +1,6 @@
-namespace Bezoro.ECS;
+using Bezoro.ECS.Abstractions;
+
+namespace Bezoro.ECS.Types;
 
 /// <summary>
 ///     Represents a unique entity within the Entity Component System (ECS).

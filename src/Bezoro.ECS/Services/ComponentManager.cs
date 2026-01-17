@@ -1,4 +1,7 @@
-namespace Bezoro.ECS;
+using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Types;
+
+namespace Bezoro.ECS.Services;
 
 /// <summary>
 ///     Manages the storage, retrieval, and lifecycle of components attached to entities inside the ECS architecture.

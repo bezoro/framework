@@ -1,4 +1,6 @@
-namespace Bezoro.ECS;
+using Bezoro.ECS.Abstractions;
+
+namespace Bezoro.ECS.Services;
 
 /// <summary>
 ///     Manages the registration and update cycle of systems within the Entity Component System (ECS) framework.

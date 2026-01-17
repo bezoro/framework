@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Services;
 using Xunit;
 
-namespace Bezoro.ECS.Tests;
+namespace Bezoro.ECS.Tests.Services;
 
 public class SystemManagerTests
 {
