@@ -1,5 +1,6 @@
 using System;
 using Xunit;
+using Bezoro.Core.Types;
 
 namespace Bezoro.Core.Tests;
 

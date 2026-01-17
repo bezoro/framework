@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Bezoro.Core.Common.Extensions.String;
+using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Common.Enums;
 
 namespace Bezoro.UCI.API.Types;

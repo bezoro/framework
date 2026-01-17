@@ -1,4 +1,3 @@
-using System;
 using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.Domain;

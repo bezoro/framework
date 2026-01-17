@@ -1,5 +1,5 @@
 using System.Linq;
-using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Common.Enums;
 using Bezoro.UCI.API.Common.Extensions;
 

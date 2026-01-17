@@ -2,6 +2,7 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using NSubstitute;
 using Xunit;
+using Bezoro.Core.Types;
 
 namespace Bezoro.Core.Tests;
 

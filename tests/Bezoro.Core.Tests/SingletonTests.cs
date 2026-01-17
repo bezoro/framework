@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
+using Bezoro.Core.Types;
 
 namespace Bezoro.Core.Tests;
 

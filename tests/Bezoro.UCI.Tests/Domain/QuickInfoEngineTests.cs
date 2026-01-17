@@ -1,11 +1,8 @@
-using System.Collections.Generic;
-using System.Linq;
-using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests._Resources;
-using Bezoro.UCI.Tests.Attributes;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;

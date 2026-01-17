@@ -1,5 +1,3 @@
-using System;
-
 namespace Bezoro.UCI.Domain;
 
 /// <summary>

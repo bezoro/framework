@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Bezoro.UCI.Tests.Attributes;
 
 /// <summary>

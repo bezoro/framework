@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Bezoro.Core.Common.Extensions;
-using Bezoro.Core.Common.Primitives;
+using Bezoro.Core.Extensions;
+using Bezoro.Core.Types;
 
 namespace Bezoro.TypingSystem;
 

@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using BenchmarkDotNet.Attributes;
-using Bezoro.Core.Common.Primitives;
+using Bezoro.Core.Types;
 
 namespace Bezoro.Core.Benchmarks;
 
