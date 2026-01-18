@@ -19,6 +19,5 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
 	  <ProjectReference Include="..\Bezoro.Logging\Bezoro.Logging.csproj" />
-	  <ProjectReference Include="..\Core\Core.csproj" />
 	</ItemGroup>
 </Project>
