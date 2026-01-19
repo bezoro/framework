@@ -1,3 +1,5 @@
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using Bezoro.Core.Extensions;
 
 namespace Bezoro.Core.Helpers;
@@ -32,6 +34,22 @@ public static class ArrayHelper
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	///     Calculates the squared Euclidean distance between two 3D points.
+	///     This method is optimized for performance and avoids the square root operation.
+	/// </summary>
+	/// <param name="a">The first 3D point.</param>
+	/// <param name="b">The second 3D point.</param>
+	/// <returns>The squared distance between the two points.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static float DistanceSquared(Vector3 a, Vector3 b)
+	{
+		float dx = a.X - b.X;
+		float dy = a.Y - b.Y;
+		float dz = a.Z - b.Z;
+		return dx * dx + dy * dy + dz * dz;
 	}
 
 	/// <summary>
