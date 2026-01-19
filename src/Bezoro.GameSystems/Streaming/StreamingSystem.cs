@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Core.Helpers;
 
 namespace Bezoro.GameSystems.Streaming;
 
@@ -13,28 +14,17 @@ namespace Bezoro.GameSystems.Streaming;
 /// </summary>
 public sealed class StreamingSystem : IDisposable
 {
-	private static readonly Lazy<StreamingSystem> LazyInstance = new(
-		() => new StreamingSystem(),
-		LazyThreadSafetyMode.ExecutionAndPublication);
+	private readonly ConcurrentDictionary<int, IStreamableEntity> _entities     = new();
+	private readonly ConcurrentQueue<StreamingResult>             _resultsQueue = new();
+	private          CancellationTokenSource?                     _cts;
+	private          float                                        _inDistanceSquared;
+	private          float                                        _outDistanceSquared;
+	private          int                                          _currentIndex;
+	private          int                                          _disposed;
 
-	private readonly ConcurrentDictionary<int, IStreamableEntity> _entities = new();
-	private readonly ConcurrentQueue<StreamingResult> _resultsQueue = new();
-
-	private StreamingConfig _config;
-	private CancellationTokenSource? _cts;
-	private int _currentIndex;
-	private int _disposed;
-	private float _inDistanceSquared;
-	private float _outDistanceSquared;
-	private Task? _processingTask;
+	private StreamingConfig         _config;
 	private SynchronizationContext? _syncContext;
-
-	private StreamingSystem() { }
-
-	/// <summary>
-	///     Gets the singleton instance of the streaming system.
-	/// </summary>
-	public static StreamingSystem Instance => LazyInstance.Value;
+	private Task?                   _processingTask;
 
 	/// <summary>
 	///     Gets whether the streaming system is currently running.
@@ -59,6 +49,22 @@ public sealed class StreamingSystem : IDisposable
 	}
 
 	/// <summary>
+	///     Registers an entity with the streaming system.
+	/// </summary>
+	/// <param name="entity">The entity to register.</param>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="entity" /> is null.</exception>
+	/// <exception cref="ObjectDisposedException">Thrown when the system has been disposed.</exception>
+	public void Register(IStreamableEntity entity)
+	{
+		ThrowIfDisposed();
+
+		if (entity is null)
+			throw new ArgumentNullException(nameof(entity));
+
+		_entities.TryAdd(entity.EntityId, entity);
+	}
+
+	/// <summary>
 	///     Starts the streaming system with the specified configuration.
 	/// </summary>
 	/// <param name="config">The streaming configuration.</param>
@@ -70,19 +76,18 @@ public sealed class StreamingSystem : IDisposable
 	{
 		ThrowIfDisposed();
 
-		if (IsRunning)
-			return;
+		if (IsRunning) return;
 
 		if (config.GetReferencePosition is null)
 			throw new ArgumentNullException(nameof(config), "GetReferencePosition delegate cannot be null.");
 
-		_config = config;
-		_inDistanceSquared = config.StreamInDistance * config.StreamInDistance;
+		_config             = config;
+		_inDistanceSquared  = config.StreamInDistance * config.StreamInDistance;
 		_outDistanceSquared = config.StreamOutDistance * config.StreamOutDistance;
-		_syncContext = SynchronizationContext.Current;
-		_currentIndex = 0;
+		_syncContext        = SynchronizationContext.Current;
+		_currentIndex       = 0;
 
-		_cts = new CancellationTokenSource();
+		_cts = new();
 		var token = _cts.Token;
 
 		_processingTask = Task.Run(() => ProcessingLoopAsync(token), token);
@@ -103,7 +108,7 @@ public sealed class StreamingSystem : IDisposable
 			_processingTask?.Wait(TimeSpan.FromSeconds(5));
 		}
 		catch (AggregateException ex) when (ex.InnerExceptions.Count == 1 &&
-		                                    ex.InnerExceptions[0] is TaskCanceledException)
+											ex.InnerExceptions[0] is TaskCanceledException)
 		{
 			// Expected during cancellation
 		}
@@ -113,27 +118,11 @@ public sealed class StreamingSystem : IDisposable
 		}
 
 		_cts?.Dispose();
-		_cts = null;
+		_cts            = null;
 		_processingTask = null;
 
 		// Clear any pending results
 		while (_resultsQueue.TryDequeue(out _)) { }
-	}
-
-	/// <summary>
-	///     Registers an entity with the streaming system.
-	/// </summary>
-	/// <param name="entity">The entity to register.</param>
-	/// <exception cref="ArgumentNullException">Thrown when <paramref name="entity" /> is null.</exception>
-	/// <exception cref="ObjectDisposedException">Thrown when the system has been disposed.</exception>
-	public void Register(IStreamableEntity entity)
-	{
-		ThrowIfDisposed();
-
-		if (entity is null)
-			throw new ArgumentNullException(nameof(entity));
-
-		_entities.TryAdd(entity.EntityId, entity);
 	}
 
 	/// <summary>
@@ -172,90 +161,6 @@ public sealed class StreamingSystem : IDisposable
 		}
 	}
 
-	private void ProcessEntities(CancellationToken ct)
-	{
-		var entityCount = _entities.Count;
-		if (entityCount == 0)
-			return;
-
-		// Get reference position once per iteration
-		Vector3 referencePos;
-		try
-		{
-			referencePos = _config.GetReferencePosition();
-		}
-		catch
-		{
-			// If getting reference position fails, skip this iteration
-			return;
-		}
-
-		// Get snapshot of entity IDs for round-robin processing
-		var keys = new int[entityCount];
-		var index = 0;
-		foreach (var kvp in _entities)
-		{
-			if (index >= entityCount)
-				break;
-			keys[index++] = kvp.Key;
-		}
-
-		var actualCount = index;
-		if (actualCount == 0)
-			return;
-
-		// Ensure current index is within bounds
-		if (_currentIndex >= actualCount)
-			_currentIndex = 0;
-
-		var processed = 0;
-		var maxPerFrame = _config.MaxPerFrame > 0 ? _config.MaxPerFrame : actualCount;
-
-		while (processed < maxPerFrame && !ct.IsCancellationRequested)
-		{
-			var entityId = keys[_currentIndex];
-
-			if (_entities.TryGetValue(entityId, out var entity))
-			{
-				var distSq = DistanceSquared(referencePos, entity.StreamingPosition);
-				var isStreamedIn = entity.IsStreamedIn;
-
-				// Apply hysteresis: stream in if close enough and not already in
-				// stream out if far enough and currently streamed in
-				if (!isStreamedIn && distSq <= _inDistanceSquared)
-				{
-					_resultsQueue.Enqueue(new StreamingResult(entityId, shouldStreamIn: true));
-				}
-				else if (isStreamedIn && distSq > _outDistanceSquared)
-				{
-					_resultsQueue.Enqueue(new StreamingResult(entityId, shouldStreamIn: false));
-				}
-			}
-
-			_currentIndex = (_currentIndex + 1) % actualCount;
-			processed++;
-
-			// If we've processed all entities, break early
-			if (processed >= actualCount)
-				break;
-		}
-	}
-
-	private void FlushResults()
-	{
-		if (_resultsQueue.IsEmpty)
-			return;
-
-		if (_syncContext is null)
-		{
-			// No sync context - apply directly (warning should be logged in production)
-			ApplyResultsDirect();
-			return;
-		}
-
-		_syncContext.Post(_ => ApplyResultsDirect(), null);
-	}
-
 	private void ApplyResultsDirect()
 	{
 		while (_resultsQueue.TryDequeue(out var result))
@@ -279,13 +184,90 @@ public sealed class StreamingSystem : IDisposable
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static float DistanceSquared(Vector3 a, Vector3 b)
+	private void FlushResults()
 	{
-		var dx = a.X - b.X;
-		var dy = a.Y - b.Y;
-		var dz = a.Z - b.Z;
-		return dx * dx + dy * dy + dz * dz;
+		if (_resultsQueue.IsEmpty)
+			return;
+
+		if (_syncContext is null)
+		{
+			// No sync context - apply directly (warning should be logged in production)
+			ApplyResultsDirect();
+			return;
+		}
+
+		_syncContext.Post(_ => ApplyResultsDirect(), null);
+	}
+
+	private void ProcessEntities(CancellationToken ct)
+	{
+		int entityCount = _entities.Count;
+		if (entityCount == 0)
+			return;
+
+		// Get the reference position once per iteration
+		Vector3 referencePos;
+		try
+		{
+			referencePos = _config.GetReferencePosition();
+		}
+		catch
+		{
+			// If getting reference position fails, skip this iteration
+			return;
+		}
+
+		// Get a snapshot of entity IDs for round-robin processing
+		var keys  = new int[entityCount];
+		var index = 0;
+		foreach (var kvp in _entities)
+		{
+			if (index >= entityCount)
+				break;
+
+			keys[index++] = kvp.Key;
+		}
+
+		int actualCount = index;
+		if (actualCount == 0)
+			return;
+
+		// Ensure the current index is within bounds
+		if (_currentIndex >= actualCount)
+			_currentIndex = 0;
+
+		var processed   = 0;
+		int maxPerFrame = _config.MaxPerFrame > 0 ? _config.MaxPerFrame : actualCount;
+
+		while (processed < maxPerFrame && !ct.IsCancellationRequested)
+		{
+			int entityId = keys[_currentIndex];
+
+			if (_entities.TryGetValue(entityId, out var entity))
+			{
+				float distSq       = ArrayHelper.DistanceSquared(referencePos, entity.StreamingPosition);
+				bool  isStreamedIn = entity.IsStreamedIn;
+
+				switch (isStreamedIn)
+				{
+					// Apply hysteresis: stream in if close enough and not already in
+					// stream out if far enough and currently streamed in
+					case false when distSq <= _inDistanceSquared:
+						_resultsQueue.Enqueue(new(entityId, true));
+						break;
+					case true when distSq > _outDistanceSquared:
+						_resultsQueue.Enqueue(new(entityId, false));
+						break;
+				}
+			}
+
+			_currentIndex = (_currentIndex + 1) % actualCount;
+			processed++;
+
+			// If we've processed all entities, break early
+			if (processed >= actualCount)
+				break;
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -298,15 +280,9 @@ public sealed class StreamingSystem : IDisposable
 	/// <summary>
 	///     Internal struct to hold streaming operation results.
 	/// </summary>
-	private readonly struct StreamingResult
+	private readonly struct StreamingResult(int entityId, bool shouldStreamIn)
 	{
-		public readonly int EntityId;
-		public readonly bool ShouldStreamIn;
-
-		public StreamingResult(int entityId, bool shouldStreamIn)
-		{
-			EntityId = entityId;
-			ShouldStreamIn = shouldStreamIn;
-		}
+		public readonly bool ShouldStreamIn = shouldStreamIn;
+		public readonly int  EntityId       = entityId;
 	}
 }
