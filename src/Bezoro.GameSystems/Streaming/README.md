@@ -48,17 +48,45 @@ foreach (var entity in entities)
     streamingSystem.Register(entity);
 
 // 4. Start with configuration
-streamingSystem.Start(new StreamingConfig
-{
-    GetReferencePosition = () => player.Position,
-    StreamInDistance = 100f,
-    StreamOutDistance = 120f,  // Hysteresis buffer
-    MaxPerFrame = 50,
-    FrameDelayMs = 16
-});
+streamingSystem.Start(new StreamingConfig(
+    getReferencePosition: () => player.Position,
+    streamInDistance: 100f,
+    streamOutDistance: 120f  // Hysteresis buffer
+));
 
 // 5. Stop when done (or dispose)
 streamingSystem.Stop();
+```
+
+### Unity Usage
+
+For Unity, capture the main thread context during initialization and pass it to the config:
+
+```csharp
+public class StreamingManager : MonoBehaviour
+{
+    private StreamingSystem _streamingSystem;
+    private SynchronizationContext _mainThreadContext;
+
+    void Awake()
+    {
+        // Capture main thread context (must be called from main thread)
+        _mainThreadContext = SynchronizationContext.Current;
+        _streamingSystem = new StreamingSystem();
+    }
+
+    void Start()
+    {
+        _streamingSystem.Start(new StreamingConfig(
+            getReferencePosition: () => Camera.main.transform.position,
+            streamInDistance: 100f,
+            streamOutDistance: 120f,
+            callbackContext: _mainThreadContext  // Callbacks on main thread
+        ));
+    }
+
+    void OnDestroy() => _streamingSystem?.Dispose();
+}
 ```
 
 ## API Reference
@@ -77,15 +105,16 @@ Interface that entities must implement to participate in streaming.
 
 ### StreamingConfig
 
-Configuration struct for the streaming system.
+Readonly configuration struct with primary constructor. Only `getReferencePosition` is required; other parameters have sensible defaults.
 
-| Field                  | Type            | Description                                                    |
-|------------------------|-----------------|----------------------------------------------------------------|
-| `GetReferencePosition` | `Func<Vector3>` | Delegate returning the reference point (e.g., player position) |
-| `StreamInDistance`     | `float`         | Distance threshold for streaming in                            |
-| `StreamOutDistance`    | `float`         | Distance threshold for streaming out                           |
-| `MaxPerFrame`          | `int`           | Maximum entities to process per iteration                      |
-| `FrameDelayMs`         | `int`           | Delay between processing iterations                            |
+| Parameter                | Type                      | Default | Description                                                   |
+|--------------------------|---------------------------|---------|---------------------------------------------------------------|
+| `getReferencePosition`   | `Func<Vector3>`           | —       | Delegate returning the reference point (required)             |
+| `streamInDistance`       | `float`                   | `100`   | Distance threshold for streaming in                           |
+| `streamOutDistance`      | `float`                   | `120`   | Distance threshold for streaming out                          |
+| `frameDelayMs`           | `int`                     | `16`    | Delay between processing iterations                           |
+| `maxPerFrame`            | `int`                     | `50`    | Maximum entities to process per iteration                     |
+| `callbackContext`        | `SynchronizationContext?` | `null`  | Context for marshalling callbacks; null = direct execution    |
 
 ### StreamingSystem
 
@@ -103,12 +132,13 @@ Main class that coordinates entity streaming.
 
 ## Configuration
 
-| Option              | Recommended Value                 | Notes                                                                 |
-|---------------------|-----------------------------------|-----------------------------------------------------------------------|
-| `StreamInDistance`  | Game-dependent                    | Set based on your entity visibility requirements                      |
-| `StreamOutDistance` | `StreamInDistance * 1.1` to `1.3` | Should be greater than `StreamInDistance` to create hysteresis buffer |
-| `MaxPerFrame`       | 50-200                            | Balance between responsiveness and CPU usage                          |
-| `FrameDelayMs`      | 16-33                             | Roughly 30-60 updates per second; increase for lower CPU usage        |
+| Option                         | Recommended Value                 | Notes                                                                 |
+|--------------------------------|-----------------------------------|-----------------------------------------------------------------------|
+| `StreamInDistance`             | Game-dependent                    | Set based on your entity visibility requirements                      |
+| `StreamOutDistance`            | `StreamInDistance * 1.1` to `1.3` | Should be greater than `StreamInDistance` to create hysteresis buffer |
+| `MaxPerFrame`                  | 50-200                            | Balance between responsiveness and CPU usage                          |
+| `FrameDelayMs`                 | 16-33                             | Roughly 30-60 updates per second; increase for lower CPU usage        |
+| `CallbackContext`              | `null` (default)                  | Provide main thread context for Unity; null for direct execution      |
 
 ### Hysteresis Explained
 
@@ -156,7 +186,7 @@ Without hysteresis, an entity exactly at the threshold would rapidly toggle betw
 
 - **Registration/Unregistration**: Safe to call from any thread
 - **Start/Stop**: Should be called from the main thread
-- **Callbacks**: Always invoked on the main thread (via `SynchronizationContext`)
+- **Callbacks**: Invoked directly on background thread by default; provide `CallbackContext` to marshal to a specific thread
 - **Entity access**: Uses `ConcurrentDictionary` for thread-safe entity storage
 
 ## Implementation Notes

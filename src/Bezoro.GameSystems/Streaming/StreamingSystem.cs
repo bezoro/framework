@@ -71,6 +71,9 @@ public sealed class StreamingSystem : IDisposable
 	/// <exception cref="ArgumentNullException">
 	///     Thrown when <paramref name="config" />.GetReferencePosition is null.
 	/// </exception>
+	/// <exception cref="ArgumentException">
+	///     Thrown when StreamOutDistance is less than StreamInDistance.
+	/// </exception>
 	/// <exception cref="ObjectDisposedException">Thrown when the system has been disposed.</exception>
 	public void Start(StreamingConfig config)
 	{
@@ -81,10 +84,15 @@ public sealed class StreamingSystem : IDisposable
 		if (config.GetReferencePosition is null)
 			throw new ArgumentNullException(nameof(config), "GetReferencePosition delegate cannot be null.");
 
+		if (config.StreamOutDistance < config.StreamInDistance)
+			throw new ArgumentException(
+				$"StreamOutDistance ({config.StreamOutDistance}) must be >= StreamInDistance ({config.StreamInDistance}) to prevent flickering.",
+				nameof(config));
+
 		_config             = config;
 		_inDistanceSquared  = config.StreamInDistance * config.StreamInDistance;
 		_outDistanceSquared = config.StreamOutDistance * config.StreamOutDistance;
-		_syncContext        = SynchronizationContext.Current;
+		_syncContext        = config.CallbackContext;
 		_currentIndex       = 0;
 
 		_cts = new();

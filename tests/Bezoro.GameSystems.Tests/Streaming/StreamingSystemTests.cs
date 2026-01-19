@@ -19,14 +19,7 @@ public static class StreamingSystemTests
 		public async Task WhenConcurrentRegistrationAndUnregistration_ShouldNotThrow()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => Vector3.Zero,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 5
-			};
+			var config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
 
@@ -63,14 +56,13 @@ public static class StreamingSystemTests
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			system.Register(entity);
 			system.Start(config);
@@ -99,14 +91,13 @@ public static class StreamingSystemTests
 			// Position between stream in (10) and stream out (15) distances
 			var entity = new TestEntity(1, new(12, 0, 0));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			system.Register(entity);
 			system.Start(config);
@@ -126,14 +117,13 @@ public static class StreamingSystemTests
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			system.Register(entity);
 			system.Start(config);
@@ -159,14 +149,13 @@ public static class StreamingSystemTests
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			system.Register(entity);
 			system.Start(config);
@@ -189,14 +178,13 @@ public static class StreamingSystemTests
 			for (var i = 0; i < 50; i++)
 				entities.Add(new(i, new(i * 0.2f, 0, 0)));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 10, // Process only 10 per frame
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				10 // Process only 10 per frame
+			);
 
 			foreach (var entity in entities)
 				system.Register(entity);
@@ -223,14 +211,13 @@ public static class StreamingSystemTests
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			system.Register(entity);
 
@@ -261,14 +248,13 @@ public static class StreamingSystemTests
 			for (var i = 0; i < 100; i++)
 				entities.Add(new(i, new(i * 0.1f, 0, 0)));
 
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => referencePosition,
-				StreamInDistance     = 100f,
-				StreamOutDistance    = 150f,
-				MaxPerFrame          = 10,
-				FrameDelayMs         = 5
-			};
+			var config = new StreamingConfig(
+				() => referencePosition,
+				100f,
+				150f,
+				5,
+				10
+			);
 
 			foreach (var entity in entities)
 				system.Register(entity);
@@ -292,14 +278,13 @@ public static class StreamingSystemTests
 		public void WhenEmptyEntityCollection_ShouldNotThrow()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => Vector3.Zero,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 10
-			};
+			var config = new StreamingConfig(
+				() => Vector3.Zero,
+				10f,
+				15f,
+				10,
+				100
+			);
 
 			var act = () =>
 			{
@@ -355,14 +340,7 @@ public static class StreamingSystemTests
 		public void WhenAlreadyRunning_ShouldBeNoOp()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => Vector3.Zero,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 16
-			};
+			var config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
 			var act = () => system.Start(config);
@@ -375,14 +353,7 @@ public static class StreamingSystemTests
 		public void WhenConfigHasNullReferencePosition_ShouldThrow()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = null!,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 16
-			};
+			var config = new StreamingConfig(null!);
 
 			var act = () => system.Start(config);
 
@@ -390,17 +361,26 @@ public static class StreamingSystemTests
 		}
 
 		[Fact]
+		public void WhenStreamOutDistanceLessThanStreamInDistance_ShouldThrow()
+		{
+			using var system = new StreamingSystem();
+			var config = new StreamingConfig(
+				() => Vector3.Zero,
+				streamInDistance: 100f,
+				streamOutDistance: 50f  // Invalid: less than stream in
+			);
+
+			var act = () => system.Start(config);
+
+			act.Should().Throw<ArgumentException>()
+				.WithMessage("*StreamOutDistance*StreamInDistance*");
+		}
+
+		[Fact]
 		public void WhenValidConfig_ShouldSetIsRunningTrue()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => Vector3.Zero,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 16
-			};
+			var config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
 
@@ -424,14 +404,7 @@ public static class StreamingSystemTests
 		public void WhenRunning_ShouldSetIsRunningFalse()
 		{
 			using var system = new StreamingSystem();
-			var config = new StreamingConfig
-			{
-				GetReferencePosition = () => Vector3.Zero,
-				StreamInDistance     = 10f,
-				StreamOutDistance    = 15f,
-				MaxPerFrame          = 100,
-				FrameDelayMs         = 16
-			};
+			var config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
 			system.Stop();

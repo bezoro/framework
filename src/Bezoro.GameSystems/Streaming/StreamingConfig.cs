@@ -1,39 +1,59 @@
 using System;
 using System.Numerics;
+using System.Threading;
 
 namespace Bezoro.GameSystems.Streaming;
 
 /// <summary>
 ///     Configuration for the streaming system.
 /// </summary>
-public struct StreamingConfig
+public readonly struct StreamingConfig(
+	Func<Vector3>           getReferencePosition,
+	float                   streamInDistance  = 100,
+	float                   streamOutDistance = 120,
+	int                     frameDelayMs      = 16,
+	int                     maxPerFrame       = 50,
+	SynchronizationContext? callbackContext   = null
+)
 {
-	/// <summary>
-	///     Delegate that returns the current reference position for distance calculations.
-	///     Typically the player/camera position.
-	/// </summary>
-	public Func<Vector3> GetReferencePosition;
-
 	/// <summary>
 	///     Distance at which entities should stream in.
 	///     Entities closer than this distance will be streamed in.
 	/// </summary>
-	public float StreamInDistance;
+	public readonly float StreamInDistance = streamInDistance;
 
 	/// <summary>
 	///     Distance at which entities should stream out.
 	///     Should be greater than <see cref="StreamInDistance" /> for hysteresis to prevent flickering.
 	/// </summary>
-	public float StreamOutDistance;
+	public readonly float StreamOutDistance = streamOutDistance;
+
+	/// <summary>
+	///     Delay in milliseconds between processing iterations.
+	/// </summary>
+	public readonly int FrameDelayMs = frameDelayMs;
 
 	/// <summary>
 	///     Maximum number of entities to process per iteration.
 	///     Helps spread processing load across multiple frames.
 	/// </summary>
-	public int MaxPerFrame;
+	public readonly int MaxPerFrame = maxPerFrame;
 
 	/// <summary>
-	///     Delay in milliseconds between processing iterations.
+	///     Optional synchronization context for marshalling callbacks.
+	///     When set, <see cref="IStreamableEntity.OnStreamIn" /> and <see cref="IStreamableEntity.OnStreamOut" />
+	///     are posted to this context. When null (default), callbacks execute directly on the background thread.
 	/// </summary>
-	public int FrameDelayMs;
+	/// <example>
+	///     // In Unity, capture on main thread during initialization:
+	///     var mainThreadContext = SynchronizationContext.Current;
+	///     // Then use in config:
+	///     config.CallbackContext = mainThreadContext;
+	/// </example>
+	public readonly SynchronizationContext? CallbackContext = callbackContext;
+	/// <summary>
+	///     Delegate that returns the current reference position for distance calculations.
+	///     Called each processing iteration. Typically returns player/camera position.
+	/// </summary>
+	public readonly Func<Vector3> GetReferencePosition = getReferencePosition;
 }
