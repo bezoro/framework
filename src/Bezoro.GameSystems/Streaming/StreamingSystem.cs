@@ -1,10 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Core.Helpers;
 
 namespace Bezoro.GameSystems.Streaming;
 
@@ -21,6 +21,11 @@ public sealed class StreamingSystem : IDisposable
 	private          float                                        _outDistanceSquared;
 	private          int                                          _currentIndex;
 	private          int                                          _disposed;
+
+	// Cached entity snapshot for iteration (avoids per-frame allocation)
+	private int[]? _cachedKeys;
+	private int    _cachedKeyCount;
+	private int    _lastKnownEntityCount;
 
 	private StreamingConfig         _config;
 	private SynchronizationContext? _syncContext;
@@ -46,6 +51,15 @@ public sealed class StreamingSystem : IDisposable
 
 		Stop();
 		_entities.Clear();
+		ReturnCachedKeys();
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ReturnCachedKeys()
+	{
+		var keys = Interlocked.Exchange(ref _cachedKeys, null);
+		if (keys is not null)
+			ArrayPool<int>.Shared.Return(keys);
 	}
 
 	/// <summary>
@@ -131,6 +145,10 @@ public sealed class StreamingSystem : IDisposable
 
 		// Clear any pending results
 		while (_resultsQueue.TryDequeue(out _)) { }
+
+		// Return cached keys to pool
+		ReturnCachedKeys();
+		_lastKnownEntityCount = 0;
 	}
 
 	/// <summary>
@@ -225,20 +243,12 @@ public sealed class StreamingSystem : IDisposable
 			return;
 		}
 
-		// Get a snapshot of entity IDs for round-robin processing
-		var keys  = new int[entityCount];
-		var index = 0;
-		foreach (var kvp in _entities)
-		{
-			if (index >= entityCount)
-				break;
-
-			keys[index++] = kvp.Key;
-		}
-
-		int actualCount = index;
+		// Rebuild cached keys only when entity count changes (dirty tracking)
+		int actualCount = RebuildCacheIfNeeded(entityCount);
 		if (actualCount == 0)
 			return;
+
+		var keys = _cachedKeys!;
 
 		// Ensure the current index is within bounds
 		if (_currentIndex >= actualCount)
@@ -246,36 +256,63 @@ public sealed class StreamingSystem : IDisposable
 
 		var processed   = 0;
 		int maxPerFrame = _config.MaxPerFrame > 0 ? _config.MaxPerFrame : actualCount;
+		int endIndex    = Math.Min(maxPerFrame, actualCount);
 
-		while (processed < maxPerFrame && !ct.IsCancellationRequested)
+		// Cache squared distances locally for faster access
+		float inDistSq  = _inDistanceSquared;
+		float outDistSq = _outDistanceSquared;
+
+		while (processed < endIndex && !ct.IsCancellationRequested)
 		{
 			int entityId = keys[_currentIndex];
 
 			if (_entities.TryGetValue(entityId, out var entity))
 			{
-				float distSq       = ArrayHelper.DistanceSquared(referencePos, entity.StreamingPosition);
-				bool  isStreamedIn = entity.IsStreamedIn;
+				// Inline distance squared calculation (SIMD-optimized in System.Numerics)
+				Vector3 diff   = referencePos - entity.StreamingPosition;
+				float   distSq = Vector3.Dot(diff, diff);
+				bool    isIn   = entity.IsStreamedIn;
 
-				switch (isStreamedIn)
-				{
-					// Apply hysteresis: stream in if close enough and not already in
-					// stream out if far enough and currently streamed in
-					case false when distSq <= _inDistanceSquared:
-						_resultsQueue.Enqueue(new(entityId, true));
-						break;
-					case true when distSq > _outDistanceSquared:
-						_resultsQueue.Enqueue(new(entityId, false));
-						break;
-				}
+				// Apply hysteresis: stream in if close enough and not already in
+				// stream out if far enough and currently streamed in
+				if (!isIn && distSq <= inDistSq)
+					_resultsQueue.Enqueue(new(entityId, true));
+				else if (isIn && distSq > outDistSq)
+					_resultsQueue.Enqueue(new(entityId, false));
 			}
 
-			_currentIndex = (_currentIndex + 1) % actualCount;
+			// Avoid modulo: use branch instead (branch prediction friendly)
+			_currentIndex++;
+			if (_currentIndex >= actualCount)
+				_currentIndex = 0;
 			processed++;
-
-			// If we've processed all entities, break early
-			if (processed >= actualCount)
-				break;
 		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private int RebuildCacheIfNeeded(int entityCount)
+	{
+		// Only rebuild when collection has changed
+		if (_cachedKeys is not null && _lastKnownEntityCount == entityCount)
+			return _cachedKeyCount;
+
+		// Return old buffer if exists
+		ReturnCachedKeys();
+
+		// Rent new buffer from pool (may be larger than needed)
+		var keys  = ArrayPool<int>.Shared.Rent(entityCount);
+		var index = 0;
+		foreach (var kvp in _entities)
+		{
+			if (index >= entityCount)
+				break;
+			keys[index++] = kvp.Key;
+		}
+
+		_cachedKeys           = keys;
+		_cachedKeyCount       = index;
+		_lastKnownEntityCount = entityCount;
+		return index;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
