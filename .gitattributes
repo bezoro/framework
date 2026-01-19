@@ -1,203 +1,149 @@
 ###############################################################################
-# Unity Project .gitattributes
-# Optimised for performance, collaboration, and cross-platform development
+# .NET Project .gitattributes
+# Optimized for cross-platform .NET development
 
-# 0. Prerequisites
-# If this repository is freshly cloned, run once:
-#   git lfs install
-# to ensure Git LFS objects are fetched correctly.
 # 1. Core defaults
-# Let Git detect text/binary automatically and normalise to LF by default
-*                     text=auto eol=lf
-# 2. Platform-specific line-ending overrides
-# Windows scripts
-*.bat                 text eol=crlf
-*.cmd                 text eol=crlf
-*.ps1                 text eol=crlf
-# Unix / macOS scripts
-*.sh                  text eol=lf
-*.bash                text eol=lf
-*.zsh                 text eol=lf
-# 2.1 Additional platform / IDE text files
-# Visual Studio / Rider / VS Code project & solution definitions
-*.sln                 text eol=lf
-*.csproj              text eol=lf
-*.unityproj           text eol=lf
-*.vcxproj             text eol=lf
-*.filters             text eol=lf
-# 3. Source files (text, diff-friendly)
-# C# / Unity
-*.cs                  text diff=csharp
-*.csx                 text diff=csharp
-*.shader              text linguist-language=ShaderLab diff=shader
-*.cginc               text
-*.hlsl                text linguist-language=HLSL diff=shader
-*.compute             text linguist-language=HLSL diff=shader
-# Web / markup
-*.cshtml              text diff=html
-*.xml                 text
-*.uxml                text
-*.uss                 text
-*.html                text
-*.json                text
-*.md                  text
-*.txt                 text
-# Objective-C / Swift (iOS & macOS plugins)
-*.mm                  text diff=objc
-*.m                   text diff=objc
-*.h                   text diff=objc
-*.swift               text diff=swift
-# Java / Android plugins
-*.java                text diff=java
-*.gradle              text diff=java
-*.pro                 text
-*.properties          text
-# 3.1 Additional source & config formats
-# Generic config / markup not yet covered
-*.yml                 text
-*.yaml                text
-*.jsonc               text
-*.ini                 text
-*.template            text
-*.tmpl                text
-# Tabular data (design spreadsheets, balancing tables)
-*.csv                 text diff=csv
-*.tsv                 text diff=csv
-# 4. Unity YAML-based files (text, mergeable)
-*.meta                text
-*.asmdef              text
-*.asmref              text
-*.preset              text
-*.asset               text
-*.prefab              text merge=unityyamlmerge
-*.unity               text merge=unityyamlmerge
-*.scene               text merge=unityyamlmerge
-*.anim                text merge=unityyamlmerge
-*.controller          text merge=unityyamlmerge
-*.mask                text merge=unityyamlmerge
-*.signal              text merge=unityyamlmerge
-*.playable            text merge=unityyamlmerge
-*.timeline            text merge=unityyamlmerge
-# 4.1 New Unity YAML-based asset types (mergeable)
-*.blendtree           text merge=unityyamlmerge
-*.prefabvariant       text merge=unityyamlmerge
-*.lightingdata        text merge=unityyamlmerge
-*.reorderablelist     text merge=unityyamlmerge
-*.signalasset         text merge=unityyamlmerge
-# 4.2 Addressables
-# Binary content-state file that can grow large
-addressables_content_state.bin binary filter=lfs diff=lfs merge=lfs
-# 5. Miscellaneous Unity text assets
-*.mat                 text
-*.shadergraph         text
-*.shadersubgraph      text
-*.spriteatlas         text
-*.lighting            text
-*.renderTexture       text
-*.terrain             text
-*.terrainlayer        text
-*.mixer               text
-*.inputactions        text
-*.physicMaterial      text
-*.physicsMaterial2D   text
-*.brush               text
-*.flare               text
-*.fontsettings        text
-*.guiskin             text
-*.overrideController  text merge=unityyamlmerge
-*.tss                 text
-*.wlt                 text
-*.vfx                 text
-*.vfxgraph            text
-*.vfxblock            text
-# 6. Package / build configuration
-manifest.json         text
-package.json          text
-package-lock.json     text -diff
-*.lock                text -diff
-.yarn.lock            text -diff
-.gitignore            text eol=lf
-.gitattributes        text eol=lf
-.editorconfig         text eol=lf
-*.rsp                 text
-*.props               text
-*.targets             text
-*.ruleset             text
-*.dll.config          text
-# 7. CI / Docker
-.gitlab-ci.yml        text eol=lf
-.travis.yml           text eol=lf
-.github/**            text eol=lf
-Dockerfile            text eol=lf
-.dockerignore         text eol=lf
-docker-compose.yml    text eol=lf
-# 8. Large binary assets (stored via Git LFS)
-# High-resolution images & textures
-*.psd                 binary filter=lfs diff=lfs merge=lfs
-*.ai                  binary filter=lfs diff=lfs merge=lfs
-*.exr                 binary filter=lfs diff=lfs merge=lfs
-*.hdr                 binary filter=lfs diff=lfs merge=lfs
-*.tga                 binary filter=lfs diff=lfs merge=lfs
-*.tiff                binary filter=lfs diff=lfs merge=lfs
-*.ktx                 binary filter=lfs diff=lfs merge=lfs
-*.ktx2                binary filter=lfs diff=lfs merge=lfs
-*.dds                 binary filter=lfs diff=lfs merge=lfs
-*.basis               binary filter=lfs diff=lfs merge=lfs
-*.astc                binary filter=lfs diff=lfs merge=lfs
-*.png                 binary filter=lfs diff=lfs merge=lfs
-*.jpg                 binary filter=lfs diff=lfs merge=lfs
-# Audio
-*.wav                 binary filter=lfs diff=lfs merge=lfs
-*.aiff                binary filter=lfs diff=lfs merge=lfs
-*.aif                 binary filter=lfs diff=lfs merge=lfs
-*.mp3                 binary filter=lfs diff=lfs merge=lfs
-*.ogg                 binary filter=lfs diff=lfs merge=lfs
-*.mod                 binary filter=lfs diff=lfs merge=lfs
-*.it                  binary filter=lfs diff=lfs merge=lfs
-*.s3m                 binary filter=lfs diff=lfs merge=lfs
-*.xm                  binary filter=lfs diff=lfs merge=lfs
-# Video
-*.mp4                 binary filter=lfs diff=lfs merge=lfs
-*.mov                 binary filter=lfs diff=lfs merge=lfs
-*.avi                 binary filter=lfs diff=lfs merge=lfs
-*.webm                binary filter=lfs diff=lfs merge=lfs
-*.mpg                 binary filter=lfs diff=lfs merge=lfs
-*.mpeg                binary filter=lfs diff=lfs merge=lfs
-# 3D models
-*.fbx                 binary filter=lfs diff=lfs merge=lfs
-*.blend               binary filter=lfs diff=lfs merge=lfs
-*.max                 binary filter=lfs diff=lfs merge=lfs
-*.mb                  binary filter=lfs diff=lfs merge=lfs
-*.ma                  binary filter=lfs diff=lfs merge=lfs
-*.c4d                 binary filter=lfs diff=lfs merge=lfs
-*.3ds                 binary filter=lfs diff=lfs merge=lfs
-*.obj                 binary filter=lfs diff=lfs merge=lfs
-*.dae                 binary filter=lfs diff=lfs merge=lfs
-*.gltf                binary filter=lfs diff=lfs merge=lfs
-*.mtl                 binary filter=lfs diff=lfs merge=lfs
-*.lwo*                binary filter=lfs diff=lfs merge=lfs
-*.abc                 binary filter=lfs diff=lfs merge=lfs
-*.usd*                binary filter=lfs diff=lfs merge=lfs
-# Archives / libraries / binaries
-*.zip                 binary filter=lfs diff=lfs merge=lfs
-*.gz                  binary filter=lfs diff=lfs merge=lfs
-*.rar                 binary filter=lfs diff=lfs merge=lfs
-*.7z                  binary filter=lfs diff=lfs merge=lfs
-*.unitypackage        binary filter=lfs diff=lfs merge=lfs
-*.exe                 binary filter=lfs diff=lfs merge=lfs
-# Misc.
-*.leo                binary filter=lfs diff=lfs merge=lfs
-# 9. Binary executables (not via LFS; just mark binary)
-*.dll                 binary -diff -merge
-*.so                  binary -diff -merge
-*.dylib               binary -diff -merge
-*.a                   binary -diff -merge
-*.lib                 binary -diff -merge
-*.pdb                 binary -diff -merge
-*.mdb                 binary -diff -merge
-# 10. Temporary / system files (never commit)
-*.tmp                 binary export-ignore
-*.temp                binary export-ignore
-.DS_Store             binary export-ignore
-Thumbs.db             binary export-ignore
+# Auto-detect text files and normalize line endings to LF
+* text=auto eol=lf
+# 2. Source code
+# C# source files
+*.cs           text diff=csharp
+*.csx          text diff=csharp
+# F# source files
+*.fs           text diff=fsharp
+*.fsi          text diff=fsharp
+*.fsx          text diff=fsharp
+# Visual Basic
+*.vb           text diff=vb
+# ASP.NET / Blazor
+*.cshtml       text diff=html
+*.razor        text diff=html
+*.aspx         text diff=html
+*.ascx         text diff=html
+*.master       text diff=html
+# 3. Project and solution files
+*.sln          text eol=lf
+*.csproj       text eol=lf
+*.fsproj       text eol=lf
+*.vbproj       text eol=lf
+*.vcxproj      text eol=lf
+*.props        text eol=lf
+*.targets      text eol=lf
+*.ruleset      text eol=lf
+*.filters      text eol=lf
+# NuGet
+*.nuspec       text
+packages.lock.json text -diff
+# 4. Configuration and data files
+# XML-based config
+*.xml          text
+*.config       text
+*.resx         text
+*.settings     text
+*.manifest     text
+*.xaml         text diff=xml
+# JSON / YAML
+*.json         text
+*.jsonc        text
+*.yml          text
+*.yaml         text
+# Other config
+*.ini          text
+*.editorconfig text eol=lf
+.globalconfig  text eol=lf
+*.DotSettings  text
+# 5. Documentation and text files
+*.md           text diff=markdown
+*.txt          text
+*.rst          text
+LICENSE        text
+AUTHORS        text
+CHANGELOG      text
+CONTRIBUTING   text
+# 6. Web assets
+*.html         text diff=html
+*.htm          text diff=html
+*.css          text diff=css
+*.scss         text diff=css
+*.sass         text diff=css
+*.less         text diff=css
+*.js           text
+*.ts           text
+*.jsx          text
+*.tsx          text
+*.vue          text
+*.svg          text
+# 7. Scripts
+# Windows scripts (keep CRLF)
+*.bat          text eol=crlf
+*.cmd          text eol=crlf
+*.ps1          text eol=crlf
+*.psm1         text eol=crlf
+*.psd1         text eol=crlf
+# Unix scripts (keep LF)
+*.sh           text eol=lf
+*.bash         text eol=lf
+# 8. CI/CD and DevOps
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+.github/**     text eol=lf
+Dockerfile     text eol=lf
+.dockerignore  text eol=lf
+docker-compose.yml text eol=lf
+docker-compose.*.yml text eol=lf
+*.dockerfile   text eol=lf
+Makefile       text eol=lf
+# 9. Database and SQL
+*.sql          text
+*.dacpac       binary
+# 10. Binary files (no diff/merge)
+# .NET assemblies and debug symbols
+*.dll          binary
+*.exe          binary
+*.pdb          binary
+*.mdb          binary
+# Native libraries
+*.so           binary
+*.dylib        binary
+*.a            binary
+*.lib          binary
+# NuGet packages
+*.nupkg        binary
+*.snupkg       binary
+# Archives
+*.zip          binary
+*.tar          binary
+*.gz           binary
+*.7z           binary
+*.rar          binary
+# Images (common formats, not using LFS for a code-focused repo)
+*.png          binary
+*.jpg          binary
+*.jpeg         binary
+*.gif          binary
+*.ico          binary
+*.bmp          binary
+*.webp         binary
+# Fonts
+*.ttf          binary
+*.otf          binary
+*.woff         binary
+*.woff2        binary
+*.eot          binary
+# Documents
+*.pdf          binary
+*.docx         binary
+*.xlsx         binary
+*.pptx         binary
+# 11. Generated / lock files (text but no diff noise)
+*.Designer.cs  text diff=csharp -merge
+*.generated.cs text diff=csharp -merge
+**/obj/**      binary -diff linguist-generated
+# 12. Export ignore (excluded from archives)
+.git*          export-ignore
+.vs/           export-ignore
+.vscode/       export-ignore
+.idea/         export-ignore
+*.user         export-ignore
+*.suo          export-ignore
 tests/Bezoro.UCI.Tests/_Resources/Engine/stockfish/*.exe filter=lfs diff=lfs merge=lfs -text
