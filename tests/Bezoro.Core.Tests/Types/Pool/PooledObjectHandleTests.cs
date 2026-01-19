@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -40,6 +41,18 @@ public static class PooledObjectHandleTests
 
 				value1.Should().BeSameAs(value2);
 			}
+
+			[Fact]
+			public void WhenDisposed_ShouldThrowObjectDisposedException()
+			{
+				var pool = new ObjectPool<object>(() => new object());
+				var handle = pool.RentHandle();
+
+				handle.Dispose();
+				var act = () => _ = handle.Value;
+
+				act.Should().Throw<ObjectDisposedException>();
+			}
 		}
 
 		public class ImplicitConversion
@@ -79,11 +92,21 @@ public static class PooledObjectHandleTests
 			}
 
 			[Fact]
+			public void WhenCalledMultipleTimes_ShouldOnlyReturnOnce()
+			{
+				var pool = new ObjectPool<object>(() => new object());
+				var handle = pool.RentHandle();
+
+				handle.Dispose();
+				handle.Dispose();
+				handle.Dispose();
+
+				pool.AvailableCount.Should().Be(1, "item should only be returned once despite multiple Dispose calls");
+			}
+
+			[Fact]
 			public void WhenCalledMultipleTimes_ShouldNotThrow()
 			{
-				// Note: Since PooledObjectHandle is a struct with readonly fields,
-				// calling Dispose multiple times will return the item multiple times.
-				// This is a known limitation of struct-based handles.
 				var pool = new ObjectPool<object>(() => new object());
 				var handle = pool.RentHandle();
 
@@ -91,6 +114,17 @@ public static class PooledObjectHandleTests
 				var act = () => handle.Dispose();
 
 				act.Should().NotThrow();
+			}
+
+			[Fact]
+			public void ShouldSetIsDisposedToTrue()
+			{
+				var pool = new ObjectPool<object>(() => new object());
+				var handle = pool.RentHandle();
+
+				handle.IsDisposed.Should().BeFalse();
+				handle.Dispose();
+				handle.IsDisposed.Should().BeTrue();
 			}
 		}
 
