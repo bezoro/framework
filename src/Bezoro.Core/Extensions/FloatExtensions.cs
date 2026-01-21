@@ -24,6 +24,34 @@ public static class FloatExtensions
 	public static bool IsBetween(this float value, float min, float max) => value >= min && value <= max;
 
 	/// <summary>
+	///     Maps a value from one range to another, preserving proportional distance.
+	/// </summary>
+	/// <param name="value">The float value to map.</param>
+	/// <param name="fromMin">The minimum bound of the source range.</param>
+	/// <param name="fromMax">The maximum bound of the source range.</param>
+	/// <param name="toMin">The minimum bound of the target range.</param>
+	/// <param name="toMax">The maximum bound of the target range.</param>
+	/// <returns>
+	///     The corresponding value in [<paramref name="toMin" />, <paramref name="toMax" />] that maps linearly from
+	///     <paramref name="value" /> in [<paramref name="fromMin" />, <paramref name="fromMax" />].
+	/// </returns>
+	/// <remarks>
+	///     The output is not clamped. If <paramref name="value" /> is outside the source range,
+	///     the result will be proportionally outside the target range.
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	///     Thrown when <paramref name="fromMin" /> equals <paramref name="fromMax" /> (zero-width source range).
+	/// </exception>
+	public static float Map(this float value, float fromMin, float fromMax, float toMin, float toMax)
+	{
+		var range = fromMax - fromMin;
+		if (range == 0f)
+			throw new ArgumentException("Source range cannot be zero (fromMin equals fromMax).", nameof(fromMax));
+
+		return (value - fromMin) / range * (toMax - toMin) + toMin;
+	}
+
+	/// <summary>
 	///     Ensures the floating point value is greater than the specified minimum.
 	///     Throws if the value is less than or equal to <paramref name="min" />.
 	/// </summary>

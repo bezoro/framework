@@ -1,3 +1,4 @@
+using System;
 using Bezoro.Core.Extensions;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -102,6 +103,59 @@ public static class FloatExtensionsTests
 		[InlineData(0.1f, 0f)]
 		public void ThrowIfOverThan_ShouldThrow_WhenValueIsOverThanMax(float value, float max) =>
 			value.Invoking(v => v.ThrowIfOverThan(max)).Should().Throw<ValueTooLargeException>();
+
+		#region IsBetween
+
+		[Theory]
+		[InlineData(-0.1f, 0f, 1f)]
+		[InlineData(1.1f,  0f, 1f)]
+		public void IsBetween_ShouldReturnFalse_WhenOutsideBounds(float value, float min, float max) =>
+			value.IsBetween(min, max).Should().BeFalse();
+
+		[Theory]
+		[InlineData(0f,   0f, 1f)]
+		[InlineData(1f,   0f, 1f)]
+		[InlineData(0.5f, 0f, 1f)]
+		public void IsBetween_ShouldReturnTrue_WhenWithinInclusiveBounds(float value, float min, float max) =>
+			value.IsBetween(min, max).Should().BeTrue();
+
+		#endregion
+
+		#region Map
+
+		[Fact]
+		public void Map_ShouldMapLinearly_FromZeroToTen_IntoZeroToHundred()
+		{
+			5f.Map(0f, 10f, 0f, 100f).Should().Be(50f);
+		}
+
+		[Fact]
+		public void Map_ShouldHandleNegativeSourceRange()
+		{
+			0f.Map(-1f, 1f, 0f, 10f).Should().Be(5f);
+		}
+
+		[Fact]
+		public void Map_ShouldHandleReversedTargetRange()
+		{
+			0.25f.Map(0f, 1f, 10f, 0f).Should().Be(7.5f);
+		}
+
+		[Fact]
+		public void Map_ShouldReturnConstant_WhenTargetRangeIsConstant()
+		{
+			7f.Map(0f, 10f, 5f, 5f).Should().Be(5f);
+		}
+
+		[Fact]
+		public void Map_ShouldThrowArgumentException_WhenSourceRangeIsZero()
+		{
+			2f.Invoking(v => v.Map(2f, 2f, 0f, 10f))
+				.Should().Throw<ArgumentException>()
+				.WithMessage("*Source range cannot be zero*");
+		}
+
+		#endregion
 	}
 }
 
