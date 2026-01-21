@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Types;
 
@@ -9,6 +10,9 @@ namespace Bezoro.Core.Types;
 /// </summary>
 [DebuggerDisplay("({X}, {Y})")]
 public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
+#if NET6_0_OR_GREATER
+	, ISpanFormattable
+#endif
 {
 	private const float WHOLE_TOLERANCE = 1e-6f;
 
@@ -23,6 +27,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	/// <exception cref="ArgumentOutOfRangeException">
 	///     Thrown if <paramref name="v" /> cannot be represented as <see cref="UIntVector2" />.
 	/// </exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static explicit operator UIntVector2(Vector2 v) => FromVector2(v);
 
 	/// <summary>
@@ -32,6 +37,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	/// <returns>
 	///     A new <see cref="Vector2" /> with the same X and Y values as <paramref name="v" />.
 	/// </returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static implicit operator Vector2(UIntVector2 v) => v.ToVector2();
 
 	/// <summary>
@@ -46,6 +52,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	/// <returns>
 	///     <c>true</c> if the conversion was successful; <c>false</c> otherwise.
 	/// </returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool TryFromVector2(Vector2 v, out UIntVector2? result)
 	{
 		if (IsValidComponent(v.X) && IsValidComponent(v.Y))
@@ -71,15 +78,20 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	///     Thrown if any component of <paramref name="v" /> is not finite, is negative,
 	///     is not a whole number, or exceeds <see cref="UInt32.MaxValue" />.
 	/// </exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static UIntVector2 FromVector2(Vector2 v)
 	{
 		if (!IsValidComponent(v.X) || !IsValidComponent(v.Y))
-			throw new ArgumentOutOfRangeException(
-				nameof(v),
-				"Vector2 must contain finite, non-negative whole values within the range of UInt32.");
+			ThrowInvalidVector2();
 
 		return new((uint)MathF.Round(v.X), (uint)MathF.Round(v.Y));
 	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowInvalidVector2() =>
+		throw new ArgumentOutOfRangeException(
+			"v",
+			"Vector2 must contain finite, non-negative whole values within the range of UInt32.");
 
 	/// <summary>
 	///     Returns a string that represents the current vector in the format "(X, Y)".
@@ -129,7 +141,115 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	/// <returns>
 	///     A <see cref="Vector2" /> where X and Y correspond to this instance's X and Y.
 	/// </returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Vector2 ToVector2() => new(X, Y);
+
+#if NET6_0_OR_GREATER
+	/// <summary>
+	///     Tries to format the value into the provided span of characters.
+	/// </summary>
+	/// <param name="destination">The span in which to write the formatted value.</param>
+	/// <param name="charsWritten">When this method returns, contains the number of characters written.</param>
+	/// <param name="format">A span containing the characters that represent a standard or custom format string.</param>
+	/// <param name="provider">An object that supplies culture-specific formatting information.</param>
+	/// <returns><c>true</c> if the formatting was successful; otherwise, <c>false</c>.</returns>
+	public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+	{
+		provider ??= CultureInfo.InvariantCulture;
+		string fmt = format.Length == 0 ? "G" : new string(format).ToUpperInvariant();
+
+		switch (fmt)
+		{
+			case "N":
+			{
+				// "X=value, Y=value" format
+				Span<char> temp = stackalloc char[64];
+				int pos = 0;
+				"X=".AsSpan().CopyTo(temp[pos..]);
+				pos += 2;
+				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += xLen;
+				", Y=".AsSpan().CopyTo(temp[pos..]);
+				pos += 4;
+				if (!Y.TryFormat(temp[pos..], out int yLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += yLen;
+				if (destination.Length < pos)
+				{
+					charsWritten = 0;
+					return false;
+				}
+				temp[..pos].CopyTo(destination);
+				charsWritten = pos;
+				return true;
+			}
+			case "X":
+			{
+				// "value,value" format (CSV)
+				Span<char> temp = stackalloc char[32];
+				int pos = 0;
+				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += xLen;
+				temp[pos++] = ',';
+				if (!Y.TryFormat(temp[pos..], out int yLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += yLen;
+				if (destination.Length < pos)
+				{
+					charsWritten = 0;
+					return false;
+				}
+				temp[..pos].CopyTo(destination);
+				charsWritten = pos;
+				return true;
+			}
+			default:
+			{
+				// "(value, value)" format
+				Span<char> temp = stackalloc char[32];
+				int pos = 0;
+				temp[pos++] = '(';
+				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += xLen;
+				", ".AsSpan().CopyTo(temp[pos..]);
+				pos += 2;
+				if (!Y.TryFormat(temp[pos..], out int yLen, default, provider))
+				{
+					charsWritten = 0;
+					return false;
+				}
+				pos += yLen;
+				temp[pos++] = ')';
+				if (destination.Length < pos)
+				{
+					charsWritten = 0;
+					return false;
+				}
+				temp[..pos].CopyTo(destination);
+				charsWritten = pos;
+				return true;
+			}
+		}
+	}
+#endif
 
 	/// <summary>
 	///     Determines whether a float value can be used as a valid component
@@ -140,6 +260,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	/// <returns>
 	///     <c>true</c> if <paramref name="f" /> can be safely converted to uint; otherwise, <c>false</c>.
 	/// </returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsValidComponent(float f)
 	{
 		if (float.IsNaN(f) || float.IsInfinity(f)) return false;

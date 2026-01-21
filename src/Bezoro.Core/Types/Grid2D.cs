@@ -1,4 +1,6 @@
-﻿namespace Bezoro.Core.Types;
+﻿using System.Runtime.CompilerServices;
+
+namespace Bezoro.Core.Types;
 
 /// <summary>
 ///     Represents a two-dimensional grid of elements of type <typeparamref name="T" />.
@@ -57,7 +59,9 @@ public class Grid2D<T> : Grid2D
 	/// </exception>
 	public T this[int x, int y]
 	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get => _data[x, y];
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		set => _data[x, y] = value;
 	}
 }
@@ -78,14 +82,19 @@ public class Grid2D
 	///     Thrown if <paramref name="width" /> or <paramref name="height" /> are not greater
 	///     than zero.
 	/// </exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Grid2D(int width, int height)
 	{
 		if (width <= 0 || height <= 0)
-			throw new ArgumentException("Grid dimensions must be greater than zero.");
+			ThrowInvalidDimensions();
 
 		Width  = width;
 		Height = height;
 	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowInvalidDimensions() =>
+		throw new ArgumentException("Grid dimensions must be greater than zero.");
 
 	/// <summary>
 	///     Gets the height (number of rows) of the grid.

@@ -15,6 +15,9 @@ namespace Bezoro.Core.Types;
 [DebuggerDisplay("Color(R={R}, G={G}, B={B}, A={A})")]
 public readonly record struct Color(byte R, byte G, byte B, byte A)
 	: IFormattable
+#if NET6_0_OR_GREATER
+	, ISpanFormattable
+#endif
 {
 	/// <summary>
 	///     Constructs a color from floating-point [0,1] values for each channel.
@@ -37,15 +40,19 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	public Color() : this(255, 255, 255, 255) { }
 
 	/// <summary>Creates a color from 8-bit RGB, alpha=255</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromRgb(byte r, byte g, byte b) => new(r, g, b, 255);
 
 	/// <summary>Creates a color from float RGB, alpha=1.0</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromRgb(float r, float g, float b) => new(r, g, b, 1f);
 
 	/// <summary>Creates a color from 8-bit ARGB (common .NET order)</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromArgb(byte a, byte r, byte g, byte b) => new(r, g, b, a);
 
 	/// <summary>Creates a color from float ARGB (Alpha in [0,1])</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromArgb(float a, float r, float g, float b) => new(r, g, b, a);
 
 	/// <summary>Transparent black (all channels 0)</summary>
@@ -61,16 +68,32 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	public static Color Black => new(0, 0, 0, 255);
 
 	/// <summary>Alpha as normalized float [0,1]</summary>
-	public float Af => A / 255f;
+	public float Af
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => A / 255f;
+	}
 
 	/// <summary>Blue as normalized float [0,1]</summary>
-	public float Bf => B / 255f;
+	public float Bf
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => B / 255f;
+	}
 
 	/// <summary>Green as normalized float [0,1]</summary>
-	public float Gf => G / 255f;
+	public float Gf
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => G / 255f;
+	}
 
 	/// <summary>Red as normalized float [0,1]</summary>
-	public float Rf => R / 255f;
+	public float Rf
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => R / 255f;
+	}
 
 	/// <summary>Returns a new color with a replaced red component.</summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -93,13 +116,16 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	public Color WithA(float a) => new(Rf, Gf, Bf, a);
 
 	/// <summary>Implicit conversion to System.Drawing.Color.</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static implicit operator System.Drawing.Color(Color color) =>
 		System.Drawing.Color.FromArgb(color.A, color.R, color.G, color.B);
 
 	/// <summary>Implicit cast to Vector4 (RGBA in [0,1])</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static implicit operator Vector4(Color c) => new(c.Rf, c.Gf, c.Bf, c.Af);
 
 	/// <summary>Explicit cast from Vector4 (X=R, Y=G, Z=B, W=A, all in [0,1])</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static explicit operator Color(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
 
 	// --- Packed 32-bit helpers ---
@@ -107,33 +133,39 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	/// <summary>
 	///     Packs color to 0xRRGGBBAA (big-endian).
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToRgba32() => (uint)R << 24 | (uint)G << 16 | (uint)B << 8 | A;
 
 	/// <summary>
 	///     Unpacks color from 0xRRGGBBAA (big-endian).
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromRgba32(uint rgba) =>
 		new((byte)(rgba >> 24), (byte)(rgba >> 16), (byte)(rgba >> 8), (byte)rgba);
 
 	/// <summary>
 	///     Packs color to 0xAARRGGBB (used by .NET System.Drawing).
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToArgb32() => (uint)A << 24 | (uint)R << 16 | (uint)G << 8 | B;
 
 	/// <summary>
 	///     Unpacks color from 0xAARRGGBB.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromArgb32(uint argb) =>
 		new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
 
 	/// <summary>
 	///     Packs color to 0xAABBGGRR (little-endian; memory BGRA).
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToAbgr32() => (uint)A << 24 | (uint)B << 16 | (uint)G << 8 | R;
 
 	/// <summary>
 	///     Unpacks color from 0xAABBGGRR (BGRA).
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Color FromAbgr32(uint abgr) =>
 		new((byte)abgr, (byte)(abgr >> 8), (byte)(abgr >> 16), (byte)(abgr >> 24));
 
@@ -141,8 +173,11 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	///     Calculates approximate relative luminance using sRGB coefficients.
 	///     Note: best used with linearized color channels.
 	/// </summary>
-	public float Luminance =>
-		0.2126f * ToLinear(Rf) + 0.7152f * ToLinear(Gf) + 0.0722f * ToLinear(Bf);
+	public float Luminance
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => 0.2126f * ToLinear(Rf) + 0.7152f * ToLinear(Gf) + 0.0722f * ToLinear(Bf);
+	}
 
 	/// <summary>
 	///     Composites <paramref name="src" /> over <paramref name="dst" /> using sRGB alpha blending.
@@ -438,6 +473,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>Deconstruct as (byte r, byte g, byte b, byte a)</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Deconstruct(out byte r, out byte g, out byte b, out byte a)
 	{
 		r = R;
@@ -447,6 +483,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	}
 
 	/// <summary>Deconstruct as (float r, float g, float b, float a) in [0,1]</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Deconstruct(out float r, out float g, out float b, out float a)
 	{
 		r = Rf;
