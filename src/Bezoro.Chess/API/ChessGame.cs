@@ -9,6 +9,7 @@ using Bezoro.Chess.API.Abstractions;
 using Bezoro.Chess.API.Opponents;
 using Bezoro.Chess.API.Types;
 using Bezoro.Chess.Internal;
+using Bezoro.Core.Types;
 using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
 
@@ -564,8 +565,8 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Gets the 8x8 board representation for Unity rendering.
 	/// </summary>
-	/// <returns>A 2D array of piece characters (uppercase=white, lowercase=black, null=empty).</returns>
-	public char?[,] GetBoardView() => BoardViewBuilder.Build(State.CurrentFen);
+	/// <returns>A 2D grid of piece characters (uppercase=white, lowercase=black, null=empty).</returns>
+	public Grid2D<char?> GetBoardView() => BoardViewBuilder.Build(State.CurrentFen);
 
 	/// <summary>
 	///     Streams moves as they are played.
@@ -894,8 +895,8 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 			if (isPromotionSquare)
 			{
 				// Check if there's a pawn on the from square
-				char?[,] board = BoardViewBuilder.Build(State.CurrentFen);
-				char?    piece = BoardViewBuilder.GetPieceAt(board, fromSquare);
+				var   board = BoardViewBuilder.Build(State.CurrentFen);
+				char? piece = BoardViewBuilder.GetPieceAt(board, fromSquare);
 
 				if (piece.HasValue && char.ToLowerInvariant(piece.Value) == 'p')
 				{
@@ -991,7 +992,7 @@ public sealed class ChessGame : IAsyncDisposable, IDisposable
 		if (IsGameOver)
 			return;
 
-		char?[,] board = BoardViewBuilder.Build(State.CurrentFen);
+		var board = BoardViewBuilder.Build(State.CurrentFen);
 
 		// Check rank 7 for white pawns (white can promote from rank 7 to rank 8)
 		for (var file = 0; file < 8; file++)
