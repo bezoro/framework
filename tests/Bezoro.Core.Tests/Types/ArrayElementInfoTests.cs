@@ -187,5 +187,225 @@ public static class ArrayElementInfoTests
 				info.ToString().Should().Be("ArrayElementInfo<String> { Index = 1, Element = foo, ArrayLength = 5 }");
 			}
 		}
+
+		public class FoundTests
+		{
+			[Fact]
+			public void WhenFound_ShouldCreateFoundInstance()
+			{
+				var info = ArrayElementInfo<string>.Found(2, "hello", 10);
+
+				info.Index.Should().Be(2);
+				info.IsFound.Should().BeTrue();
+				info.Element.Should().Be("hello");
+				info.ArrayLength.Should().Be(10);
+			}
+
+			[Fact]
+			public void WhenIndexOutOfRange_ShouldThrow()
+			{
+				var act = () => ArrayElementInfo<string>.Found(10, "test", 5);
+
+				act.Should().Throw<ArgumentOutOfRangeException>()
+				   .WithParameterName("index");
+			}
+		}
+
+		public class ImplicitBoolConversionTests
+		{
+			[Fact]
+			public void WhenFound_ShouldReturnTrue()
+			{
+				var info = ArrayElementInfo<int>.Found(0, 42, 5);
+
+				bool result = info;
+
+				result.Should().BeTrue();
+			}
+
+			[Fact]
+			public void WhenNotFound_ShouldReturnFalse()
+			{
+				var info = ArrayElementInfo<int>.NotFound(42, 5);
+
+				bool result = info;
+
+				result.Should().BeFalse();
+			}
+
+			[Fact]
+			public void WhenUsedInIfStatement_ShouldWork()
+			{
+				var found = ArrayElementInfo<string>.Found(0, "test", 1);
+				var notFound = ArrayElementInfo<string>.NotFound("missing", 5);
+
+				var foundResult = false;
+				var notFoundResult = true;
+
+				if (found)
+					foundResult = true;
+
+				if (notFound)
+					notFoundResult = false;
+
+				foundResult.Should().BeTrue();
+				notFoundResult.Should().BeTrue();
+			}
+		}
+
+		public class ExplicitUintConversionTests
+		{
+			[Fact]
+			public void WhenFound_ShouldReturnIndex()
+			{
+				var info = ArrayElementInfo<string>.Found(3, "hello", 10);
+
+				uint? index = (uint?)info;
+
+				index.Should().Be(3);
+			}
+
+			[Fact]
+			public void WhenNotFound_ShouldReturnNull()
+			{
+				var info = ArrayElementInfo<string>.NotFound("missing", 10);
+
+				uint? index = (uint?)info;
+
+				index.Should().BeNull();
+			}
+		}
+
+		public class GetElementOrDefaultTests
+		{
+			[Fact]
+			public void WhenFound_ShouldReturnElement()
+			{
+				var info = ArrayElementInfo<string>.Found(0, "hello", 5);
+
+				info.GetElementOrDefault().Should().Be("hello");
+			}
+
+			[Fact]
+			public void WhenNotFound_ShouldReturnSearchedElement()
+			{
+				var info = ArrayElementInfo<int>.NotFound(42, 5);
+
+				info.GetElementOrDefault().Should().Be(42);
+			}
+
+			[Fact]
+			public void WithDefaultValue_WhenFound_ShouldReturnElement()
+			{
+				var info = ArrayElementInfo<string>.Found(0, "hello", 5);
+
+				info.GetElementOrDefault("fallback").Should().Be("hello");
+			}
+
+			[Fact]
+			public void WithDefaultValue_WhenNotFound_ShouldReturnDefaultValue()
+			{
+				var info = ArrayElementInfo<string>.NotFound(null, 5);
+
+				info.GetElementOrDefault("fallback").Should().Be("fallback");
+			}
+
+			[Fact]
+			public void WithDefaultValue_WhenFoundButElementIsNull_ShouldReturnDefaultValue()
+			{
+				var info = ArrayElementInfo<string>.Found(0, null!, 5);
+
+				info.GetElementOrDefault("fallback").Should().Be("fallback");
+			}
+		}
+
+		public class TryGetElementTests
+		{
+			[Fact]
+			public void WhenFound_ShouldReturnTrueAndSetOutParams()
+			{
+				var info = ArrayElementInfo<string>.Found(2, "hello", 10);
+
+				var result = info.TryGetElement(out var element, out var index);
+
+				result.Should().BeTrue();
+				element.Should().Be("hello");
+				index.Should().Be(2u);
+			}
+
+			[Fact]
+			public void WhenNotFound_ShouldReturnFalseAndSetDefaults()
+			{
+				var info = ArrayElementInfo<string>.NotFound("missing", 10);
+
+				var result = info.TryGetElement(out var element, out var index);
+
+				result.Should().BeFalse();
+				element.Should().BeNull();
+				index.Should().Be(0u);
+			}
+
+			[Fact]
+			public void WhenFoundWithValueType_ShouldReturnTrueAndSetOutParams()
+			{
+				var info = ArrayElementInfo<int>.Found(5, 42, 10);
+
+				var result = info.TryGetElement(out var element, out var index);
+
+				result.Should().BeTrue();
+				element.Should().Be(42);
+				index.Should().Be(5u);
+			}
+		}
+
+#if NET6_0_OR_GREATER
+		public class TryFormatTests
+		{
+			[Fact]
+			public void WhenFound_ShouldFormatCorrectly()
+			{
+				var info = ArrayElementInfo<string>.Found(1, "foo", 5);
+				Span<char> buffer = stackalloc char[256];
+
+				var result = info.TryFormat(buffer, out var charsWritten, default, null);
+
+				result.Should().BeTrue();
+				buffer[..charsWritten].ToString().Should().Be("ArrayElementInfo<String> { Index = 1, Element = foo, ArrayLength = 5 }");
+			}
+
+			[Fact]
+			public void WhenNotFound_ShouldFormatCorrectly()
+			{
+				var info = ArrayElementInfo<string>.NotFound(null, 5);
+				Span<char> buffer = stackalloc char[256];
+
+				var result = info.TryFormat(buffer, out var charsWritten, default, null);
+
+				result.Should().BeTrue();
+				buffer[..charsWritten].ToString().Should().Be("ArrayElementInfo<String> { NotFound, Element = <null>, ArrayLength = 5 }");
+			}
+
+			[Fact]
+			public void WhenBufferTooSmall_ShouldReturnFalse()
+			{
+				var info = ArrayElementInfo<string>.Found(1, "foo", 5);
+				Span<char> buffer = stackalloc char[10];
+
+				var result = info.TryFormat(buffer, out var charsWritten, default, null);
+
+				result.Should().BeFalse();
+			}
+
+			[Fact]
+			public void ToStringWithFormat_ShouldReturnSameAsToString()
+			{
+				var info = ArrayElementInfo<string>.Found(1, "foo", 5);
+
+				var result = info.ToString(null, null);
+
+				result.Should().Be(info.ToString());
+			}
+		}
+#endif
 	}
 }
