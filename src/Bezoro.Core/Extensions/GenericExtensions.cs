@@ -1,7 +1,9 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
+using Bezoro.Core.Types;
 using Bezoro.Core.Types.Exceptions;
 
 namespace Bezoro.Core.Extensions;
@@ -13,6 +15,8 @@ namespace Bezoro.Core.Extensions;
 /// </summary>
 public static class GenericExtensions
 {
+	private static readonly ConcurrentDictionary<ExpressionCacheKey, Delegate> ExpressionCache = new();
+
 	/// <summary>
 	///     Determines whether <paramref name="value" /> is within the inclusive range defined by <paramref name="min" /> and
 	///     <paramref name="max" />.
@@ -91,6 +95,40 @@ public static class GenericExtensions
 		return candidates.Contains(value);
 	}
 
+#if NET9_0_OR_GREATER
+	/// <summary>
+	///     Determines whether <paramref name="value" /> is equal to any element in <paramref name="candidates" />.
+	///     This overload avoids array allocation by using <see cref="ReadOnlySpan{T}" />.
+	/// </summary>
+	/// <typeparam name="T">The type being compared, must implement <see cref="IEquatable{T}" />.</typeparam>
+	/// <param name="value">The source value to test.</param>
+	/// <param name="candidates">One or more values to compare against.</param>
+	/// <returns>
+	///     <c>true</c> if <paramref name="value" /> equals any element in <paramref name="candidates" />; otherwise,
+	///     <c>false</c>.
+	/// </returns>
+	/// <exception cref="ArgumentException">Thrown if <paramref name="candidates" /> is empty.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsOneOf<T>(this T value, params ReadOnlySpan<T> candidates) where T : IEquatable<T>?
+	{
+		if (candidates.IsEmpty)
+			ThrowEmptyCandidates();
+
+		foreach (var candidate in candidates)
+		{
+			if (EqualityComparer<T>.Default.Equals(value, candidate))
+				return true;
+		}
+
+		return false;
+	}
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowEmptyCandidates() =>
+		throw new ArgumentException("Candidates cannot be empty.", "candidates");
+#endif
+
 	/// <summary>
 	///     Wraps a single item into an <see cref="IEnumerable{T}" /> containing that item.
 	///     Handy for providing single elements to APIs expecting an enumerable.
@@ -99,12 +137,15 @@ public static class GenericExtensions
 	/// <param name="item">The item to yield.</param>
 	/// <returns><see cref="IEnumerable{T}" /> containing the specified <paramref name="item" />.</returns>
 	/// <exception cref="ArgumentNullException">Thrown if <paramref name="item" /> is <c>null</c>.</exception>
+	/// <remarks>
+	///     Returns a zero-allocation struct enumerable instead of using iterator state machine.
+	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static IEnumerable<T> Yield<T>(this T item)
+	public static SingleItemEnumerable<T> Yield<T>(this T item)
 	{
 		item.ThrowIfNull();
 
-		yield return item;
+		return new SingleItemEnumerable<T>(item);
 	}
 
 	/// <summary>
@@ -118,6 +159,9 @@ public static class GenericExtensions
 	/// <returns>The validated value if the condition is not satisfied.</returns>
 	/// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate" /> is <c>null</c>.</exception>
 	/// <exception cref="ArgumentException">Thrown if the predicate evaluates to true for <paramref name="value" />.</exception>
+	/// <remarks>
+	///     Compiled expressions are cached for repeated invocations with the same predicate structure.
+	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                    value,
@@ -127,7 +171,8 @@ public static class GenericExtensions
 	{
 		predicate.ThrowIfNull();
 
-		var compiled = predicate.Compile();
+		var key      = new ExpressionCacheKey(typeof(T), predicate.ToString());
+		var compiled = (Func<T, bool>)ExpressionCache.GetOrAdd(key, _ => predicate.Compile());
 
 		if (!compiled(value)) return value;
 
@@ -239,4 +284,6 @@ public static class GenericExtensions
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static void ThrowEmptySequence(string? paramName) =>
 		throw new ArgumentException("Sequence cannot be empty.", paramName);
+
+	private readonly record struct ExpressionCacheKey(Type Type, string ExpressionString);
 }
