@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -9,6 +8,7 @@
 		<OutputType>Library</OutputType>
 		<AssemblyName>Bezoro.Core.Tests</AssemblyName>
 		<RootNamespace>Bezoro.Core.Tests</RootNamespace>
+		<TargetFramework>net9.0</TargetFramework>
 	</PropertyGroup>
 
 	<ItemGroup>

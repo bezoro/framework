@@ -102,7 +102,7 @@ public class UciCoordinatorTests
 
 		// ClearState should cancel classification
 		// This is called internally by UpdatePositionAsync, but we can verify it works
-		await coordinator.UpdatePositionAsync(Fen.Parse(TestConstants.ItalianGameFen)!.Value, null);
+		await coordinator.UpdatePositionAsync(Fen.Parse(TestConstants.ITALIAN_GAME_FEN)!.Value, null);
 
 		// Wait to see if previous classification continues (it shouldn't)
 		await Task.Delay(TestConstants.MediumDelay);
@@ -129,7 +129,7 @@ public class UciCoordinatorTests
 		// Launch concurrent UpdatePositionAsync calls (which call ClearState internally)
 		for (var i = 0; i < 10; i++)
 		{
-			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ItalianGameFen)!.Value;
+			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ITALIAN_GAME_FEN)!.Value;
 			tasks.Add(
 				Task.Run(async () =>
 				{
@@ -174,18 +174,13 @@ public class UciCoordinatorTests
 
 		for (var i = 0; i < 10; i++)
 		{
-			int taskId = i;
 			tasks.Add(
 				Task.Run(async () =>
 				{
 					try
 					{
-						for (var j = 0; j < 10; j++)
-						{
-							var moves = coordinator.State.LegalMoves;
-							await Task.Delay(1);
-							// moves can be null during position updates, checking for thread-safety (no exceptions)
-						}
+						for (var j = 0; j < 10; j++) await Task.Delay(1);
+						// moves can be null during position updates, checking for thread-safety (no exceptions)
 					}
 					catch (Exception ex)
 					{
@@ -425,7 +420,7 @@ public class UciCoordinatorTests
 
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 		var legalStart = await legalStartTcs.Task.WaitAsync(TestConstants.MediumTimeout);
-		legalStart.Should().Contain(new[] { "e2e4", "d2d4" });
+		legalStart.Should().Contain(["e2e4", "d2d4"]);
 
 		// Apply white's move e2e4; validate black-side legal moves, pondering and classification events
 		var legalAfterWhiteTcs =
@@ -496,7 +491,7 @@ public class UciCoordinatorTests
 		var legal = coordinator.State.LegalMoves;
 		legal.Should().NotBeNull();
 		legal.Count.Should().BeGreaterThan(0);
-		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
+		legal.Should().Contain(["e2e4", "d2d4", "g1f3", "c2c4"]);
 	}
 
 	[Fact]
@@ -574,7 +569,7 @@ public class UciCoordinatorTests
 		var legal = await legalTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		legal.Should().NotBeNull();
 		legal.Count.Should().BeGreaterThan(0);
-		legal.Should().Contain(new[] { "e2e4", "d2d4", "g1f3", "c2c4" });
+		legal.Should().Contain(["e2e4", "d2d4", "g1f3", "c2c4"]);
 
 		var bestPair = await bestTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();

@@ -1,5 +1,5 @@
 <Project>
-    <Target Name="CopyToUnity" AfterTargets="Build">
+    <Target Name="CopyToUnity" AfterTargets="Build" Condition="'$(TargetFramework)' == 'netstandard2.1'">
         <PropertyGroup>
             <UnityPluginDir>V:\Repos\Unity\URP\chess-crush-saga-6.1\Assets\_Bezoro\Framework\$(AssemblyName)\</UnityPluginDir>
         </PropertyGroup>
