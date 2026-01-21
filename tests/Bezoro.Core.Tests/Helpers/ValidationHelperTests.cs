@@ -190,8 +190,8 @@ public static class ValidationHelperTests
 			object obj = null!;
 			var    act = () => ValidationHelper.ThrowIfObjectIsNull(obj);
 			var    ex  = act.Should().Throw<ArgumentNullException>().Which;
-			// GenericExtensions.ThrowIfNull uses typeof(T).Name when paramName is null -> "Object"
-			ex.ParamName.Should().Be("Object");
+			// CallerArgumentExpression captures the expression at the call site inside ValidationHelper
+			ex.ParamName.Should().Be("objectToValidate");
 		}
 
 		[Fact]

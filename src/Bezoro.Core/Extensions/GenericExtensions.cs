@@ -188,15 +188,14 @@ public static class GenericExtensions
 	{
 		sequence.ThrowIfNull(paramName);
 
-		if (!sequence.HasAny())
-		{
-			if (sequence is ICollection)
-				throw new EmptyCollectionException(paramName ?? "collection");
+		if (sequence.HasAny()) return sequence;
 
-			throw new ArgumentException("Sequence cannot be empty.", paramName);
-		}
+		if (sequence is ICollection)
+			ThrowEmptyCollection(paramName);
+		else
+			ThrowEmptySequence(paramName);
 
-		return sequence;
+		return default!; // Unreachable
 	}
 
 	/// <summary>
@@ -205,7 +204,9 @@ public static class GenericExtensions
 	/// </summary>
 	/// <typeparam name="T">The type of <paramref name="value" />.</typeparam>
 	/// <param name="value">The value to check for null.</param>
-	/// <param name="paramName">The name of the parameter (optional).</param>
+	/// <param name="paramName">
+	///     The name of the parameter. Automatically captured via <see cref="CallerArgumentExpressionAttribute" />.
+	/// </param>
 	/// <returns>The non-null value.</returns>
 	/// <exception cref="ArgumentNullException">Thrown if <paramref name="value" /> is <c>null</c>.</exception>
 	/// <example>
@@ -214,6 +215,28 @@ public static class GenericExtensions
 	/// </code>
 	/// </example>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static T ThrowIfNull<T>([NotNull] this T? value, string? paramName = null) =>
-		value ?? throw new ArgumentNullException(paramName ?? typeof(T).Name);
+	public static T ThrowIfNull<T>(
+		[NotNull] this T? value,
+		[CallerArgumentExpression(nameof(value))] string? paramName = null)
+	{
+		if (value is not null) return value;
+
+		ThrowArgumentNull(paramName);
+		return default!; // Unreachable
+	}
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowArgumentNull(string? paramName) =>
+		throw new ArgumentNullException(paramName);
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowEmptyCollection(string? paramName) =>
+		throw new EmptyCollectionException(paramName ?? "collection");
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowEmptySequence(string? paramName) =>
+		throw new ArgumentException("Sequence cannot be empty.", paramName);
 }
