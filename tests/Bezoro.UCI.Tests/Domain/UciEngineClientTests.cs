@@ -14,6 +14,91 @@ public static class UciEngineClientTests
 {
 	public static class IntegrationTests
 	{
+		private static (IUciTransport transport, Channel<string> channel) CreateMockTransport()
+		{
+			var transport = Substitute.For<IUciTransport>();
+			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+			var channel = Channel.CreateUnbounded<string>();
+			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
+					 .Returns(ci => StreamFromChannel(channel.Reader, (CancellationToken)ci[0]));
+
+			return (transport, channel);
+		}
+
+		private static async IAsyncEnumerable<string> StreamFromChannel(
+			ChannelReader<string>                      reader,
+			[EnumeratorCancellation] CancellationToken ct = default)
+		{
+			while (!ct.IsCancellationRequested)
+			{
+				while (reader.TryRead(out string? item))
+					yield return item;
+
+				bool canRead = await reader.WaitToReadAsync(ct).ConfigureAwait(false);
+				if (!canRead) yield break;
+			}
+		}
+
+		private static async Task<UciEngineClient> StartClientWithConcurrentHandshakeAsync(
+			IUciTransport   transport,
+			Channel<string> channel)
+		{
+			var client = new UciEngineClient(transport);
+
+			using var pumpCts = new CancellationTokenSource();
+			var pump = Task.Run(
+				async () =>
+				{
+					for (var i = 0;
+						 i < TestConstants.HANDSHAKE_PUMP_ITERATIONS && !pumpCts.IsCancellationRequested;
+						 i++)
+					{
+						await channel.Writer.WriteAsync("uciok");
+						await Task.Delay(TestConstants.ShortDelay);
+						await channel.Writer.WriteAsync("readyok");
+						await Task.Delay(TestConstants.ShortDelay);
+					}
+				},
+				pumpCts.Token);
+
+			await client.StartAsync(CancellationToken.None);
+			pumpCts.Cancel();
+			await pump;
+
+			return client;
+		}
+
+		private static async Task<UciEngineClient> StartClientWithHandshakeAsync(
+			IUciTransport   transport,
+			Channel<string> channel,
+			int             pumpIterations = TestConstants.EXTENDED_HANDSHAKE_PUMP_ITERATIONS)
+		{
+			var client = new UciEngineClient(transport);
+
+			using var pumpCts = new CancellationTokenSource();
+			var pump = Task.Run(
+				async () =>
+				{
+					for (var i = 0; i < pumpIterations && !pumpCts.IsCancellationRequested; i++)
+					{
+						await channel.Writer.WriteAsync("uciok");
+						await Task.Delay(TestConstants.VeryShortDelay);
+						await channel.Writer.WriteAsync("readyok");
+						await Task.Delay(TestConstants.VeryShortDelay);
+					}
+				},
+				pumpCts.Token);
+
+			await client.StartAsync(CancellationToken.None);
+			pumpCts.Cancel();
+			await pump;
+
+			return client;
+		}
+
 		public class GetFenViaDTests
 		{
 			[Fact(Timeout = 4000)]
@@ -221,7 +306,7 @@ public static class UciEngineClientTests
 				var (transport, channel) = CreateMockTransport();
 
 				// Act
-				var client = await StartClientWithConcurrentHandshakeAsync(transport, channel);
+				await StartClientWithConcurrentHandshakeAsync(transport, channel);
 
 				// Assert
 				await transport.Received().WriteLineAsync("isready", Arg.Any<CancellationToken>());
@@ -234,99 +319,12 @@ public static class UciEngineClientTests
 				var (transport, channel) = CreateMockTransport();
 
 				// Act
-				var client = await StartClientWithConcurrentHandshakeAsync(transport, channel);
+				await StartClientWithConcurrentHandshakeAsync(transport, channel);
 
 				// Assert
 				await transport.Received().WriteLineAsync("uci", Arg.Any<CancellationToken>());
 			}
 		}
-
-		#region Helper Methods
-
-		private static (IUciTransport transport, Channel<string> channel) CreateMockTransport()
-		{
-			var transport = Substitute.For<IUciTransport>();
-			transport.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-			transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-
-			var channel = Channel.CreateUnbounded<string>();
-			transport.ReadLinesAsync(Arg.Any<CancellationToken>())
-					 .Returns(ci => StreamFromChannel(channel.Reader, (CancellationToken)ci[0]));
-
-			return (transport, channel);
-		}
-
-		private static async Task<UciEngineClient> StartClientWithHandshakeAsync(
-			IUciTransport   transport,
-			Channel<string> channel,
-			int             pumpIterations = TestConstants.ExtendedHandshakePumpIterations)
-		{
-			var client = new UciEngineClient(transport);
-
-			using var pumpCts = new CancellationTokenSource();
-			var pump = Task.Run(
-				async () =>
-				{
-					for (var i = 0; i < pumpIterations && !pumpCts.IsCancellationRequested; i++)
-					{
-						await channel.Writer.WriteAsync("uciok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-						await channel.Writer.WriteAsync("readyok");
-						await Task.Delay(TestConstants.VeryShortDelay);
-					}
-				},
-				pumpCts.Token);
-
-			await client.StartAsync(CancellationToken.None);
-			pumpCts.Cancel();
-			await pump;
-
-			return client;
-		}
-
-		private static async Task<UciEngineClient> StartClientWithConcurrentHandshakeAsync(
-			IUciTransport   transport,
-			Channel<string> channel)
-		{
-			var client = new UciEngineClient(transport);
-
-			using var pumpCts = new CancellationTokenSource();
-			var pump = Task.Run(
-				async () =>
-				{
-					for (var i = 0; i < TestConstants.HandshakePumpIterations && !pumpCts.IsCancellationRequested; i++)
-					{
-						await channel.Writer.WriteAsync("uciok");
-						await Task.Delay(TestConstants.ShortDelay);
-						await channel.Writer.WriteAsync("readyok");
-						await Task.Delay(TestConstants.ShortDelay);
-					}
-				},
-				pumpCts.Token);
-
-			await client.StartAsync(CancellationToken.None);
-			pumpCts.Cancel();
-			await pump;
-
-			return client;
-		}
-
-		private static async IAsyncEnumerable<string> StreamFromChannel(
-			ChannelReader<string>                      reader,
-			[EnumeratorCancellation] CancellationToken ct = default)
-		{
-			while (!ct.IsCancellationRequested)
-			{
-				while (reader.TryRead(out string? item))
-					yield return item;
-
-				bool canRead = await reader.WaitToReadAsync(ct).ConfigureAwait(false);
-				if (!canRead) yield break;
-			}
-		}
-
-		#endregion
 	}
 
 	public static class UnitTests
@@ -351,7 +349,7 @@ public static class UciEngineClientTests
 			public void ShouldFilterAndLowercaseSearchmoves()
 			{
 				string cmd = UciEngineClient.BuildGoCommand(
-					new() { SearchMoves = new[] { "E2E4", "bad", "a7a8Q", "" } });
+					new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] });
 
 				cmd.Should().Be("go depth 6 searchmoves e2e4 a7a8q", "searchmoves should be filtered and lowercased");
 			}
@@ -494,14 +492,14 @@ public static class UciEngineClientTests
 			{
 				// Arrange
 				var (transport, client) = CreateClientWithTransport();
-				var          ct              = CancellationToken.None;
-				const string valueWithSpaces = @"C:\Chess\Table Bases\wdl345";
+				var          ct                = CancellationToken.None;
+				const string VALUE_WITH_SPACES = @"C:\Chess\Table Bases\wdl345";
 
 				// Act
-				await client.SetOptionAsync("SyzygyPath", valueWithSpaces, ct);
+				await client.SetOptionAsync("SyzygyPath", VALUE_WITH_SPACES, ct);
 
 				// Assert
-				await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {valueWithSpaces}", ct);
+				await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {VALUE_WITH_SPACES}", ct);
 			}
 
 			[Fact]
@@ -552,7 +550,7 @@ public static class UciEngineClientTests
 				var fen = Fen.Default;
 
 				// Act
-				await client.SetPositionAsync(fen, new[] { "e2e4", "e7e5" }, ct);
+				await client.SetPositionAsync(fen, ["e2e4", "e7e5"], ct);
 
 				// Assert
 				await transport.Received().WriteLineAsync(Arg.Is<string>(s => s.Contains("moves e2e4 e7e5")), ct);

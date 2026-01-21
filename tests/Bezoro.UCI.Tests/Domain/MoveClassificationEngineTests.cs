@@ -89,7 +89,18 @@ public class MoveClassificationEngineTests
 			moveCount++;
 		}
 
-		moveCount.Should().Be(TestConstants.ExpectedStartingPositionMoves);
+		moveCount.Should().Be(TestConstants.EXPECTED_STARTING_POSITION_MOVES);
+	}
+
+	[Fact]
+	public async Task ClassifyAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	{
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await using var enumerator = engine.ClassifyAsync(Fen.Empty()).GetAsyncEnumerator();
+
+		await Assert.ThrowsAsync<ArgumentException>(async () => await enumerator.MoveNextAsync());
 	}
 
 	[Fact]
@@ -138,6 +149,84 @@ public class MoveClassificationEngineTests
 		}
 
 		found.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task ClassifyAsync_WhileIsCheckmateAsyncRunning_NoInterference()
+	{
+		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		fen.Should().NotBeNull();
+
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Start classification stream and concurrently check for mate
+		var classificationTask = Task.Run(async () =>
+		{
+			var count = 0;
+			await foreach (var move in engine.ClassifyAsync(fen!.Value))
+			{
+				count++;
+				if (count >= 5) break; // Limit to avoid long test
+			}
+
+			return count;
+		});
+
+		// Start checkmate check concurrently - it should work correctly even with classification running
+		var checkmateTask = engine.IsCheckmateAsync(fen.Value, "f7g7");
+
+		await Task.WhenAll(classificationTask, checkmateTask);
+
+		// Assert: Both operations should complete successfully
+		classificationTask.IsCompletedSuccessfully.Should().BeTrue();
+		checkmateTask.IsCompletedSuccessfully.Should().BeTrue();
+
+		// Verify checkmate result is correct (position lock ensures no interference)
+		bool isMate = await checkmateTask;
+		isMate.Should().BeTrue("Checkmate check should work correctly even with concurrent classification");
+
+		// Verify we can still check mate after classification completes (position should be restored)
+		bool isMateAfter = await engine.IsCheckmateAsync(fen.Value, "f7g7");
+		isMateAfter.Should().BeTrue("Checkmate check should still work after classification completes");
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		var fen = Fen.Default;
+
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Call ClassifyMoveAsync concurrently with different moves
+		var tasks = new[]
+		{
+			engine.ClassifyMoveAsync(fen, "e2e4"),
+			engine.ClassifyMoveAsync(fen, "d2d4"),
+			engine.ClassifyMoveAsync(fen, "g1f3"),
+			engine.ClassifyMoveAsync(fen, "c2c4"),
+			engine.ClassifyMoveAsync(fen, "b1c3")
+		};
+
+		var results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return valid results
+		foreach (var result in results)
+		{
+			result.HasValue.Should().BeTrue();
+			result!.Value.Notation.Should().NotBeNullOrWhiteSpace();
+			result.Value.Analysis.Should().NotBeNull();
+		}
+	}
+
+	[Fact]
+	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	{
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(Fen.Empty(), "e2e4"));
 	}
 
 	[Fact]
@@ -208,6 +297,64 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
+	public async Task IsCheckmateAsync_AfterConcurrentOperations_PositionRestored()
+	{
+		var fen1 = Fen.Default;
+		var fen2 = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		fen2.Should().NotBeNull();
+
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Perform concurrent operations that modify position
+		var tasks = new Task[]
+		{
+			engine.IsCheckmateAsync(fen1,        "e2e4"), // Not mate
+			engine.IsCheckmateAsync(fen2!.Value, "f7g7"), // Mate
+			engine.IsStalemateAsync(fen1, "e2e4"),        // Not stalemate
+			engine.ClassifyMoveAsync(fen1, "d2d4")
+		};
+
+		await Task.WhenAll(tasks);
+
+		// Assert: After concurrent operations, verify position state is consistent
+		// by checking that we can still perform operations correctly
+		bool result1 = await engine.IsCheckmateAsync(fen1, "e2e4");
+		result1.Should().BeFalse("Position should be correctly restored");
+
+		bool result2 = await engine.IsCheckmateAsync(fen2.Value, "f7g7");
+		result2.Should().BeTrue("Position should be correctly restored");
+	}
+
+	[Fact]
+	public async Task IsCheckmateAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		fen.Should().NotBeNull();
+
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Call IsCheckmateAsync concurrently with different moves
+		var tasks = new[]
+		{
+			engine.IsCheckmateAsync(fen!.Value, "f7g7"), // Mate move
+			engine.IsCheckmateAsync(fen.Value,  "f7g7"),
+			engine.IsCheckmateAsync(fen.Value,  "f7g7"),
+			engine.IsCheckmateAsync(fen.Value,  "f7g7"),
+			engine.IsCheckmateAsync(fen.Value,  "f7g7")
+		};
+
+		bool[] results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return consistent results
+		foreach (bool isMate in results) isMate.Should().BeTrue();
+
+		// All should return the same result (cached)
+		results.Distinct().Should().HaveCount(1);
+	}
+
+	[Fact]
 	public async Task IsCheckmateAsync_WhenMateInOne_ReturnsTrue()
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
@@ -236,6 +383,34 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
+	public async Task IsStalemateAsync_WhenCalledConcurrently_ThreadSafe()
+	{
+		var fen = Fen.Parse(TestConstants.STALEMATE_FEN);
+		fen.Should().NotBeNull();
+
+		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Act: Call IsStalemateAsync concurrently
+		var tasks = new[]
+		{
+			engine.IsStalemateAsync(fen!.Value, "b7b6"), // Stalemate move
+			engine.IsStalemateAsync(fen.Value,  "b7b6"),
+			engine.IsStalemateAsync(fen.Value,  "b7b6"),
+			engine.IsStalemateAsync(fen.Value,  "b7b6"),
+			engine.IsStalemateAsync(fen.Value,  "b7b6")
+		};
+
+		bool[] results = await Task.WhenAll(tasks);
+
+		// Assert: All should succeed and return consistent results
+		foreach (bool isStalemate in results) isStalemate.Should().BeTrue();
+
+		// All should return the same result (cached)
+		results.Distinct().Should().HaveCount(1);
+	}
+
+	[Fact]
 	public async Task IsStalemateAsync_WhenNotStalemate_ReturnsFalse()
 	{
 		var fen = Fen.Default;
@@ -261,186 +436,5 @@ public class MoveClassificationEngineTests
 		bool isStalemate = await engine.IsStalemateAsync(fen!.Value, "b7b6");
 
 		isStalemate.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task ClassifyAsync_WhenFenIsInvalid_ThrowsArgumentException()
-	{
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await using var enumerator = engine.ClassifyAsync(Fen.Empty()).GetAsyncEnumerator();
-
-		await Assert.ThrowsAsync<ArgumentException>(async () => await enumerator.MoveNextAsync());
-	}
-
-	[Fact]
-	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ThrowsArgumentException()
-	{
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(Fen.Empty(), "e2e4"));
-	}
-
-	[Fact]
-	public async Task IsCheckmateAsync_WhenCalledConcurrently_ThreadSafe()
-	{
-		var fen = Fen.Parse(TestConstants.WhiteMateInOneFen);
-		fen.Should().NotBeNull();
-
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Act: Call IsCheckmateAsync concurrently with different moves
-		var tasks = new[]
-		{
-			engine.IsCheckmateAsync(fen!.Value, "f7g7"), // Mate move
-			engine.IsCheckmateAsync(fen.Value, "f7g7"),
-			engine.IsCheckmateAsync(fen.Value, "f7g7"),
-			engine.IsCheckmateAsync(fen.Value, "f7g7"),
-			engine.IsCheckmateAsync(fen.Value, "f7g7")
-		};
-
-		var results = await Task.WhenAll(tasks);
-
-		// Assert: All should succeed and return consistent results
-		foreach (var isMate in results)
-		{
-			isMate.Should().BeTrue();
-		}
-
-		// All should return the same result (cached)
-		results.Distinct().Should().HaveCount(1);
-	}
-
-	[Fact]
-	public async Task IsStalemateAsync_WhenCalledConcurrently_ThreadSafe()
-	{
-		var fen = Fen.Parse(TestConstants.StalemateFen);
-		fen.Should().NotBeNull();
-
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Act: Call IsStalemateAsync concurrently
-		var tasks = new[]
-		{
-			engine.IsStalemateAsync(fen!.Value, "b7b6"), // Stalemate move
-			engine.IsStalemateAsync(fen.Value, "b7b6"),
-			engine.IsStalemateAsync(fen.Value, "b7b6"),
-			engine.IsStalemateAsync(fen.Value, "b7b6"),
-			engine.IsStalemateAsync(fen.Value, "b7b6")
-		};
-
-		var results = await Task.WhenAll(tasks);
-
-		// Assert: All should succeed and return consistent results
-		foreach (var isStalemate in results)
-		{
-			isStalemate.Should().BeTrue();
-		}
-
-		// All should return the same result (cached)
-		results.Distinct().Should().HaveCount(1);
-	}
-
-	[Fact]
-	public async Task ClassifyMoveAsync_WhenCalledConcurrently_ThreadSafe()
-	{
-		var fen = Fen.Default;
-
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Act: Call ClassifyMoveAsync concurrently with different moves
-		var tasks = new[]
-		{
-			engine.ClassifyMoveAsync(fen, "e2e4"),
-			engine.ClassifyMoveAsync(fen, "d2d4"),
-			engine.ClassifyMoveAsync(fen, "g1f3"),
-			engine.ClassifyMoveAsync(fen, "c2c4"),
-			engine.ClassifyMoveAsync(fen, "b1c3")
-		};
-
-		var results = await Task.WhenAll(tasks);
-
-		// Assert: All should succeed and return valid results
-		foreach (var result in results)
-		{
-			result.HasValue.Should().BeTrue();
-			result!.Value.Notation.Should().NotBeNullOrWhiteSpace();
-			result.Value.Analysis.Should().NotBeNull();
-		}
-	}
-
-	[Fact]
-	public async Task IsCheckmateAsync_AfterConcurrentOperations_PositionRestored()
-	{
-		var fen1 = Fen.Default;
-		var fen2 = Fen.Parse(TestConstants.WhiteMateInOneFen);
-		fen2.Should().NotBeNull();
-
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Act: Perform concurrent operations that modify position
-		var tasks = new Task[]
-		{
-			engine.IsCheckmateAsync(fen1, "e2e4"), // Not mate
-			engine.IsCheckmateAsync(fen2!.Value, "f7g7"), // Mate
-			engine.IsStalemateAsync(fen1, "e2e4"), // Not stalemate
-			engine.ClassifyMoveAsync(fen1, "d2d4")
-		};
-
-		await Task.WhenAll(tasks);
-
-		// Assert: After concurrent operations, verify position state is consistent
-		// by checking that we can still perform operations correctly
-		var result1 = await engine.IsCheckmateAsync(fen1, "e2e4");
-		result1.Should().BeFalse("Position should be correctly restored");
-
-		var result2 = await engine.IsCheckmateAsync(fen2.Value, "f7g7");
-		result2.Should().BeTrue("Position should be correctly restored");
-	}
-
-	[Fact]
-	public async Task ClassifyAsync_WhileIsCheckmateAsyncRunning_NoInterference()
-	{
-		var fen = Fen.Parse(TestConstants.WhiteMateInOneFen);
-		fen.Should().NotBeNull();
-
-		await using var engine = new MoveClassificationEngine(TestConsts.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Act: Start classification stream and concurrently check for mate
-		var classificationTask = Task.Run(async () =>
-		{
-			var count = 0;
-			await foreach (var move in engine.ClassifyAsync(fen!.Value))
-			{
-				count++;
-				if (count >= 5) break; // Limit to avoid long test
-			}
-
-			return count;
-		});
-
-		// Start checkmate check concurrently - it should work correctly even with classification running
-		var checkmateTask = engine.IsCheckmateAsync(fen.Value, "f7g7");
-
-		await Task.WhenAll(classificationTask, checkmateTask);
-
-		// Assert: Both operations should complete successfully
-		classificationTask.IsCompletedSuccessfully.Should().BeTrue();
-		checkmateTask.IsCompletedSuccessfully.Should().BeTrue();
-		
-		// Verify checkmate result is correct (position lock ensures no interference)
-		var isMate = await checkmateTask;
-		isMate.Should().BeTrue("Checkmate check should work correctly even with concurrent classification");
-		
-		// Verify we can still check mate after classification completes (position should be restored)
-		var isMateAfter = await engine.IsCheckmateAsync(fen.Value, "f7g7");
-		isMateAfter.Should().BeTrue("Checkmate check should still work after classification completes");
 	}
 }

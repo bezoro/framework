@@ -10,10 +10,10 @@ public class PrincipalVariationTests
 	[Fact]
 	public void TryParse_WithCpScore_ParsesFieldsAndMoves()
 	{
-		const string line =
+		const string LINE =
 			"info depth 12 seldepth 20 multipv 1 score cp 34 nodes 123456 nps 2500000 tbhits 0 time 123 pv e2e4 e7e5 g1f3";
 
-		bool ok = PrincipalVariation.TryParse(line, out var pv);
+		bool ok = PrincipalVariation.TryParse(LINE, out var pv);
 
 		ok.Should().BeTrue();
 		pv.Depth.Should().Be(12u);
@@ -32,10 +32,10 @@ public class PrincipalVariationTests
 	[Fact]
 	public void TryParse_WithMateScore_ParsesMateAndNoCp()
 	{
-		const string line =
+		const string LINE =
 			"info depth 8 seldepth 12 multipv 2 score mate -3 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5";
 
-		bool ok = PrincipalVariation.TryParse(line, out var pv);
+		bool ok = PrincipalVariation.TryParse(LINE, out var pv);
 
 		ok.Should().BeTrue();
 		pv.ScoreMate.Should().Be(-3);
@@ -46,9 +46,9 @@ public class PrincipalVariationTests
 	[Fact]
 	public void TryParse_WithoutPv_ReturnsFalse()
 	{
-		const string line = "info depth 10 seldepth 10 multipv 1 score cp 10 nodes 1";
+		const string LINE = "info depth 10 seldepth 10 multipv 1 score cp 10 nodes 1";
 
-		bool ok = PrincipalVariation.TryParse(line, out var pv);
+		bool ok = PrincipalVariation.TryParse(LINE, out var pv);
 
 		ok.Should().BeFalse();
 		pv.Moves.Should().BeNullOrEmpty();

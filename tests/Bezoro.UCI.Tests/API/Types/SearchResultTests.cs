@@ -20,7 +20,7 @@ public class SearchResultTests
 			100_000,
 			0,
 			50,
-			new[] { "e2e4", "e7e5", "g1f3" },
+			["e2e4", "e7e5", "g1f3"],
 			"e2e4 e7e5 g1f3");
 
 		var pv2 = new PrincipalVariation(
@@ -33,7 +33,7 @@ public class SearchResultTests
 			120_000,
 			0,
 			70,
-			new[] { "d2d4", "d7d5" },
+			["d2d4", "d7d5"],
 			"d2d4 d7d5");
 
 		var result = new SearchResult(
@@ -43,7 +43,7 @@ public class SearchResultTests
 			2500,
 			0,
 			120,
-			new[] { pv1, pv2 },
+			[pv1, pv2],
 			"e2e4",
 			"e7e5");
 
@@ -65,7 +65,7 @@ public class SearchResultTests
 			1,
 			0,
 			1,
-			new[] { "e2e4" },
+			["e2e4"],
 			"e2e4");
 
 		var pv2 = new PrincipalVariation(
@@ -78,7 +78,7 @@ public class SearchResultTests
 			1,
 			0,
 			2,
-			new[] { "d2d4" },
+			["d2d4"],
 			"d2d4");
 
 		var pv3 = new PrincipalVariation(
@@ -91,7 +91,7 @@ public class SearchResultTests
 			1,
 			0,
 			3,
-			new[] { "c2c4" },
+			["c2c4"],
 			"c2c4");
 
 		var result = new SearchResult(
@@ -101,7 +101,7 @@ public class SearchResultTests
 			6,
 			0,
 			6,
-			new[] { pv1, pv2, pv3 },
+			[pv1, pv2, pv3],
 			"e2e4",
 			"e7e5");
 
@@ -112,10 +112,10 @@ public class SearchResultTests
 	[Fact]
 	public void TryParse_WhenLineWithScoreMate_ReturnsTrueAndValidObject()
 	{
-		const string line =
+		const string LINE =
 			"info depth 8 seldepth 12 multipv 1 score mate 5 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
 
-		string[] lines = [line, "bestmove e2e4 ponder e7e5"];
+		string[] lines = [LINE, "bestmove e2e4 ponder e7e5"];
 
 		bool success = SearchResult.TryParse(lines, out var resultWithMate);
 
@@ -136,10 +136,10 @@ public class SearchResultTests
 	[Fact]
 	public void TryParse_WhenValidLine_ReturnsTrueAndValidObject()
 	{
-		const string line =
+		const string LINE =
 			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
 
-		string[] lines = [line, "bestmove e2e4 ponder e7e5"];
+		string[] lines = [LINE, "bestmove e2e4 ponder e7e5"];
 
 		bool success = SearchResult.TryParse(lines, out var resultWithScoreCp);
 
