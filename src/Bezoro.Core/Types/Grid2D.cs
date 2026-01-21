@@ -1,31 +1,46 @@
-﻿using System.Runtime.CompilerServices;
+using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.Core.Types;
 
 /// <summary>
 ///     Represents a two-dimensional grid of elements of type <typeparamref name="T" />.
+///     Uses a flat array for optimal performance and supports array pooling to minimize allocations.
 /// </summary>
 /// <typeparam name="T">The type of elements stored in the grid.</typeparam>
 [Serializable]
-public class Grid2D<T> : Grid2D
+public sealed class Grid2D<T> : IDisposable
 {
 	/// <summary>
-	///     Backing storage for the grid elements.
+	///     Backing storage for the grid elements (flat array for performance).
 	/// </summary>
-	private readonly T[,] _data;
+	private T[]? _data;
+
+	/// <summary>
+	///     Whether this instance owns the array (from pool) and should return it on dispose.
+	/// </summary>
+	private readonly bool _fromPool;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Grid2D{T}" /> class with the specified dimensions.
 	/// </summary>
 	/// <param name="width">The width (number of columns) of the grid. Must be greater than zero.</param>
 	/// <param name="height">The height (number of rows) of the grid. Must be greater than zero.</param>
+	/// <param name="usePooling">Whether to rent the backing array from <see cref="ArrayPool{T}" />.</param>
 	/// <exception cref="ArgumentException">
 	///     Thrown if <paramref name="width" /> or <paramref name="height" /> are not greater
 	///     than zero.
 	/// </exception>
-	public Grid2D(int width, int height) : base(width, height)
+	public Grid2D(int width, int height, bool usePooling = false)
 	{
-		_data = new T[width, height];
+		if (width <= 0 || height <= 0)
+			ThrowInvalidDimensions();
+
+		Width     = width;
+		Height    = height;
+		Length    = width * height;
+		_fromPool = usePooling;
+		_data     = usePooling ? ArrayPool<T>.Shared.Rent(Length) : new T[Length];
 	}
 
 	/// <summary>
@@ -35,66 +50,15 @@ public class Grid2D<T> : Grid2D
 	/// <param name="width">The width (number of columns) of the grid. Must be greater than zero.</param>
 	/// <param name="height">The height (number of rows) of the grid. Must be greater than zero.</param>
 	/// <param name="defaultValue">The default value to assign to all elements in the grid.</param>
+	/// <param name="usePooling">Whether to rent the backing array from <see cref="ArrayPool{T}" />.</param>
 	/// <exception cref="ArgumentException">
 	///     Thrown if <paramref name="width" /> or <paramref name="height" /> are not greater
 	///     than zero.
 	/// </exception>
-	public Grid2D(int width, int height, T defaultValue) : this(width, height)
+	public Grid2D(int width, int height, T defaultValue, bool usePooling = false) : this(width, height, usePooling)
 	{
-		for (var x = 0; x < width; x++)
-		{
-			for (var y = 0; y < height; y++) _data[x, y] = defaultValue;
-		}
+		AsSpan().Fill(defaultValue);
 	}
-
-	/// <summary>
-	///     Gets or sets the element at the specified <paramref name="x" /> and <paramref name="y" /> coordinates.
-	/// </summary>
-	/// <param name="x">The column index (zero-based).</param>
-	/// <param name="y">The row index (zero-based).</param>
-	/// <returns>The element located at the given coordinates.</returns>
-	/// <exception cref="IndexOutOfRangeException">
-	///     Thrown if the specified coordinates are outside the valid bounds of the
-	///     grid.
-	/// </exception>
-	public T this[int x, int y]
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => _data[x, y];
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		set => _data[x, y] = value;
-	}
-}
-
-/// <summary>
-///     Represents the non-generic base class for two-dimensional grids.
-///     Provides grid dimensions and basic validation logic.
-/// </summary>
-[Serializable]
-public class Grid2D
-{
-	/// <summary>
-	///     Initializes a new instance of the <see cref="Grid2D" /> class with the specified dimensions.
-	/// </summary>
-	/// <param name="width">The width (number of columns) of the grid. Must be greater than zero.</param>
-	/// <param name="height">The height (number of rows) of the grid. Must be greater than zero.</param>
-	/// <exception cref="ArgumentException">
-	///     Thrown if <paramref name="width" /> or <paramref name="height" /> are not greater
-	///     than zero.
-	/// </exception>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public Grid2D(int width, int height)
-	{
-		if (width <= 0 || height <= 0)
-			ThrowInvalidDimensions();
-
-		Width  = width;
-		Height = height;
-	}
-
-	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static void ThrowInvalidDimensions() =>
-		throw new ArgumentException("Grid dimensions must be greater than zero.");
 
 	/// <summary>
 	///     Gets the height (number of rows) of the grid.
@@ -105,4 +69,175 @@ public class Grid2D
 	///     Gets the width (number of columns) of the grid.
 	/// </summary>
 	public int Width { get; }
+
+	/// <summary>
+	///     Gets the total number of elements in the grid (Width * Height).
+	/// </summary>
+	public int Length { get; }
+
+	/// <summary>
+	///     Gets a reference to the element at the specified <paramref name="x" /> and <paramref name="y" /> coordinates.
+	/// </summary>
+	/// <param name="x">The column index (zero-based).</param>
+	/// <param name="y">The row index (zero-based).</param>
+	/// <returns>A reference to the element located at the given coordinates.</returns>
+	/// <exception cref="IndexOutOfRangeException">
+	///     Thrown if the specified coordinates are outside the valid bounds of the
+	///     grid.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">Thrown if the grid has been disposed.</exception>
+	public ref T this[int x, int y]
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get
+		{
+			if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+				ThrowIndexOutOfRange();
+
+			return ref _data![y * Width + x];
+		}
+	}
+
+	/// <summary>
+	///     Gets a <see cref="Span{T}" /> over the entire grid data in row-major order.
+	/// </summary>
+	/// <returns>A span over all grid elements.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public Span<T> AsSpan() => _data.AsSpan(0, Length);
+
+	/// <summary>
+	///     Gets a <see cref="ReadOnlySpan{T}" /> over the entire grid data in row-major order.
+	/// </summary>
+	/// <returns>A read-only span over all grid elements.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public ReadOnlySpan<T> AsReadOnlySpan() => _data.AsSpan(0, Length);
+
+	/// <summary>
+	///     Gets a <see cref="Span{T}" /> over a single row of the grid.
+	/// </summary>
+	/// <param name="y">The row index (zero-based).</param>
+	/// <returns>A span over the specified row.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="y" /> is out of bounds.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public Span<T> GetRow(int y)
+	{
+		if ((uint)y >= (uint)Height)
+			ThrowRowOutOfRange();
+
+		return _data.AsSpan(y * Width, Width);
+	}
+
+	/// <summary>
+	///     Gets a <see cref="ReadOnlySpan{T}" /> over a single row of the grid.
+	/// </summary>
+	/// <param name="y">The row index (zero-based).</param>
+	/// <returns>A read-only span over the specified row.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="y" /> is out of bounds.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public ReadOnlySpan<T> GetRowReadOnly(int y)
+	{
+		if ((uint)y >= (uint)Height)
+			ThrowRowOutOfRange();
+
+		return _data.AsSpan(y * Width, Width);
+	}
+
+	/// <summary>
+	///     Clears all elements in the grid to their default value.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void Clear() => AsSpan().Clear();
+
+	/// <summary>
+	///     Fills all elements in the grid with the specified value.
+	/// </summary>
+	/// <param name="value">The value to fill the grid with.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void Fill(T value) => AsSpan().Fill(value);
+
+	/// <summary>
+	///     Checks if the specified coordinates are within the bounds of the grid.
+	/// </summary>
+	/// <param name="x">The column index.</param>
+	/// <param name="y">The row index.</param>
+	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool IsInBounds(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height;
+
+	/// <summary>
+	///     Tries to get the element at the specified coordinates without throwing.
+	/// </summary>
+	/// <param name="x">The column index.</param>
+	/// <param name="y">The row index.</param>
+	/// <param name="value">The value at the coordinates, if valid.</param>
+	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryGet(int x, int y, out T value)
+	{
+		if (IsInBounds(x, y))
+		{
+			value = _data![y * Width + x];
+			return true;
+		}
+
+		value = default!;
+		return false;
+	}
+
+	/// <summary>
+	///     Tries to set the element at the specified coordinates without throwing.
+	/// </summary>
+	/// <param name="x">The column index.</param>
+	/// <param name="y">The row index.</param>
+	/// <param name="value">The value to set.</param>
+	/// <returns><c>true</c> if the coordinates are valid and value was set; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TrySet(int x, int y, T value)
+	{
+		if (IsInBounds(x, y))
+		{
+			_data![y * Width + x] = value;
+			return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Creates a <see cref="GridSpan2D{T}" /> view over this grid.
+	/// </summary>
+	/// <returns>A span-based view of the grid.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public GridSpan2D<T> AsGridSpan() => new(AsSpan(), Width, Height);
+
+	/// <summary>
+	///     Creates a <see cref="ReadOnlyGridSpan2D{T}" /> view over this grid.
+	/// </summary>
+	/// <returns>A read-only span-based view of the grid.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public ReadOnlyGridSpan2D<T> AsReadOnlyGridSpan() => new(AsReadOnlySpan(), Width, Height);
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (_data is null)
+			return;
+
+		if (_fromPool)
+			ArrayPool<T>.Shared.Return(_data, clearArray: RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+
+		_data = null;
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowInvalidDimensions() =>
+		throw new ArgumentException("Grid dimensions must be greater than zero.");
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowIndexOutOfRange() =>
+		throw new IndexOutOfRangeException("Grid index out of range.");
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowRowOutOfRange() =>
+		throw new ArgumentOutOfRangeException(nameof(ThrowRowOutOfRange), "Row index out of range.");
 }
