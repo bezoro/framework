@@ -1,5 +1,5 @@
 using System.Linq;
-using Bezoro.Core.Common.Extensions;
+using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Common.Enums;
 using Bezoro.UCI.API.Common.Extensions;
 
@@ -43,11 +43,13 @@ public readonly record struct ParsedMove
 		}
 
 		char pieceChar = moveNotation.First();
-		if (pieceChar.IsValidPieceChar())
-		{
-			movingPiece  = Piece.FromChar(pieceChar);
-			moveNotation = moveNotation[1..];
-		}
+
+		if (moveNotation.Length > 4)
+			if (pieceChar.IsValidPieceChar())
+			{
+				movingPiece  = Piece.FromChar(pieceChar);
+				moveNotation = moveNotation[1..];
+			}
 
 		from = moveNotation[..2];
 		to   = moveNotation[2..];
@@ -70,9 +72,23 @@ public readonly record struct Promotion
 	public static Promotion FromNotation(string moveNotation)
 	{
 		moveNotation.ThrowIfNull().Length.ThrowIfLessThan(4).ThrowIfMoreThan(5);
-		var parsedMove  = ParsedMove.FromNotation(moveNotation);
-		var position    = Position.Create(parsedMove.To, parsedMove.MovingPiece);
-		var chosenPiece = moveNotation.Last().ToPieceType();
+		var  parsedMove  = ParsedMove.FromNotation(moveNotation);
+		var  color       = DetermineColor(parsedMove);
+		char pawnChar    = color == PieceColor.White ? 'P' : 'p';
+		var  position    = Position.Create(parsedMove.To, Piece.FromChar(pawnChar));
+		var  chosenPiece = moveNotation.Last().ToPieceType();
 		return new(chosenPiece, position);
+	}
+
+	private static PieceColor DetermineColor(ParsedMove move)
+	{
+		if (move.From.Length < 2 || move.To.Length < 2)
+			return PieceColor.White;
+
+		char fromRank = move.From[1];
+		char toRank   = move.To[1];
+
+		// Promotions always occur on the last rank for the mover.
+		return toRank > fromRank ? PieceColor.White : PieceColor.Black;
 	}
 }

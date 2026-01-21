@@ -3,7 +3,7 @@ namespace Bezoro.UCI.API.Common.Enums;
 /// <summary>
 ///     Chess piece type.
 /// </summary>
-public enum PieceType
+public enum PieceType : byte
 {
 	/// <summary>No piece (empty square).</summary>
 	Empty,

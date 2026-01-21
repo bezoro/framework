@@ -65,4 +65,32 @@ public readonly record struct MoveScore()
 
 	public static MoveScore FromCp(int   cp)   => new(cp, null);
 	public static MoveScore FromMate(int mate) => new(null, mate);
+
+	/// <summary>
+	///     Builds a MoveScore from a SearchResult returned by the engine.
+	///     Prefers mate scores when present, otherwise falls back to centipawns.
+	/// </summary>
+	public static MoveScore FromSearchResult(SearchResult result)
+	{
+		if (result.HasMate && result.MateScore.HasValue)
+			return FromMate(result.MateScore.Value);
+
+		int? cp = result.BestCpScore;
+		if (!cp.HasValue)
+		{
+			var variations = result.PrincipalVariations;
+			if (variations is { Count: > 0 })
+				// Prefer the first available centipawn score
+				foreach (var pv in variations)
+				{
+					if (pv.ScoreCp.HasValue)
+					{
+						cp = pv.ScoreCp;
+						break;
+					}
+				}
+		}
+
+		return cp.HasValue ? FromCp(cp.Value) : default;
+	}
 }

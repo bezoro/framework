@@ -1,195 +1,176 @@
 # =======================================================
-# Unity Project .gitignore
-# Comprehensive version for professional development
+# .NET Project .gitignore
 # =======================================================
 
 # ============================
-# Unity Generated Files
+# Build Outputs
 # ============================
 
-# Core Unity folders
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-/[Ll]ogs/
-/[Uu]ser[Ss]ettings/
-/[Mm]emoryCaptures/
-/[Rr]ecordings/
-/[Cc]ode[Cc]overage/
+**/bin/
+**/obj/
+[Oo]ut/
+[Bb]uild/
+[Bb]uildLogs/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
 
-# Build folders (platform-specific)
-/[Bb]uild/
-/[Bb]uilds/
-/[Ww]eb[Gg][Ll]/
-/[Ii][Oo][Ss]/
-/[Aa]ndroid/
-/[Ss]tand[Aa]lone/
-/[Ww]indows[Ii][Ll]/
-/[Ww]indows/
-/[Mm]ac[Oo][Ss][Xx]/
-/[Ll]inux/
-
-# Unity3D Assets
-/[Aa]ssets/AssetStoreTools*
-/[Aa]ssets/[Ss]treamingAssets/aa.meta
-**/TextMesh Pro/Examples & Extras/**
-
-/[Aa]ssets/[Pp]lugins/Editor/JetBrains*
-
-# Addressables
-/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
-/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*.bin*
-/[Aa]ssets/[Aa]ssetBundles/
-/ServerData/
-/[Aa]ssets/[Ss]treamingAssets/aa/*
-
-# Shader compilation
-/[Aa]ssets/**/*.meta.shader
-*.shadergraph.meta
-*.shadervariants
-/[Aa]ssets/**/ShaderCache/
-/[Aa]ssets/ShaderCache/
-*.shadercompiled
-
-# Lightmapping
-/[Aa]ssets/[Ss]cenes/**/[Ll]ightingData.asset
-/[Aa]ssets/[Ss]cenes/**/[Ll]ightmap-*.exr
-/[Aa]ssets/[Ss]cenes/**/[Ll]ightmap-*.exr.meta
-/[Aa]ssets/[Ss]cenes/**/[Rr]eflection[Pp]robe-*.exr
-/[Aa]ssets/[Ss]cenes/**/[Rr]eflection[Pp]robe-*.exr.meta
+# NuGet packages
+*.nupkg
+*.snupkg
+**/packages/
+!**/packages/build/
 
 # ============================
-# Package Management
+# IDE - Visual Studio
 # ============================
 
-# Package cache and logs
-/[Pp]ackages/packages-lock.json
-/[Pp]ackages/manifest.backup.json
-/[Pp]rojectSettings/PackageManagerSettings.asset
-
-# Package artifacts
-node_modules/
-package-lock.json
-yarn.lock
-
-# HotReload
-**/HotReload/**
-HotReload.meta
-HotReload_BuildInfo.json*
-
-# Infinity Code
-/[Aa]ssets/**/Infinity Code/
-
-# ============================
-# Build Artifacts
-# ============================
-
-# Builds and distributions
-*.apk
-*.aab
-*.unitypackage
-*.app
-*.dll
-*.so
-*.dylib
-*.bundle
-*.framework
-*.ipa
-*.xcode*
-*.xcarchive
-*.dSYM.zip
-*.dSYM
-*.symbols.zip
-*.pdb
-*.mdb
-*.opendb
-*.VC.db
-
-# NuGet Packages
-/packages/
-
-# Generated crash reports
-sysinfo.txt
-*.stackdump
-crash-*
-
-# WebGL specific
-*.symbols.json
-*.data
-*.framework.js
-*.loader.js
-*.wasm
-
-# ============================
-# Development Environment
-# ============================
-
-# IDE - Visual Studio / VS Code
 .vs/
-.vscode/
-*.csproj
-*.unityproj
-*.sln
 *.suo
-*.tmp
 *.user
-*.userprefs
-*.pidb
-*.booproj
-*.svd
-*.vsconfig
+*.userosscache
+*.sln.docstates
+*.ncb
+*.aps
+*.cachefile
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.e2e
 
+# User-specific files (MonoDevelop/Xamarin Studio)
+*.userprefs
+
+# ============================
 # IDE - JetBrains Rider
+# ============================
+
 .idea/
 *.sln.iml
-/_ReSharper.Caches/
-riderModule.iml
-
-Assets/Plugins/Editor/JetBrains*
-
-# IDE - Visual Studio Code Remote Containers
-.devcontainer/
+_ReSharper.Caches/
 
 # ============================
-# Testing and Profiling
+# IDE - Visual Studio Code
+# ============================
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.code-workspace
+
+# ============================
+# Testing
 # ============================
 
 # Test results
 [Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
 TestResults/
-coverage/
-coverage.xml
+*.trx
 *.coverage
 *.coveragexml
+
+# Coverage reports
+coverage/
+coverage*.json
+coverage*.xml
 *.lcov
-
-# Unity profiling data
-*.prof
-*.raw
-*.memraw
-*.data.raw
-*.trace
-profiling/
+lcov.info
 
 # ============================
-# Version Control
+# Benchmarks
 # ============================
 
-# Git
-.git/
-.gitmodules
+BenchmarkDotNet.Artifacts/
 
-# Plastic SCM
-.plastic/
-ignore.conf
-.plasticignore
+# ============================
+# .NET Specific
+# ============================
 
-# Mercurial
-.hg/
-.hgignore
-.hgsubs
-.hgignore.global
+# StyleCop
+StyleCopReport.xml
+
+# Files built by Visual Studio
+*_h.h
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.tlog
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# MSBuild
+*.msbuild
+
+# NuGet restore files
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET scaffolding
+ScaffoldingReadMe.txt
+
+# Fakes assemblies
+FakesAssemblies/
+
+# .NET publish profiles
+*.pubxml
+*.publishproj
+!**/PublishProfiles/*.pubxml
+
+# ============================
+# Tool-specific
+# ============================
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Coverlet
+coverage.cobertura.xml
+
+# DocFX
+_site/
+docfx.json.meta
+
+# MiniCover
+.minicoverreport/
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# SpecFlow
+*.feature.cs
+*.feature.xlsx.*
+
+# Stryker
+StrykerOutput/
 
 # ============================
 # Operating System
@@ -198,7 +179,6 @@ ignore.conf
 # Windows
 Thumbs.db
 ehthumbs.db
-ehthumbs_vista.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 
@@ -207,85 +187,37 @@ $RECYCLE.BIN/
 .AppleDouble
 .LSOverride
 ._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
 
 # Linux
 *~
-.fuse_hidden*
 .directory
-.Trash-*
-.nfs*
 
 # ============================
-# Security and Configuration
+# Secrets and Configuration
 # ============================
 
-# Secrets and credentials
-*.key
-*.pem
-*.pfx
-*.p12
-*.cer
-*.der
-*.crt
-*.keystore
-*.jks
-*.properties
+# User secrets
 secrets.json
 secrets.*.json
-appsettings.*.json
+appsettings.Development.json
+appsettings.Local.json
+*.local.json
 
-# Unity Cloud Build
-/[Cc]loud[Bb]uild/
-timed_build.json
-
-# ============================
-# Documentation
-# ============================
-
-# Generated documentation
-/[Dd]ocs/[Aa]pi/
-/[Dd]ocs/[Hh]tml/
-/[Dd]ocs/[Xx]ml/
-*.xml.meta
-Documentation.*.md
-
-# Keep specific documentation
-!README.md
-!CHANGELOG.md
-!LICENSE.md
-!CONTRIBUTING.md
-!Documentation~/
+# Certificates
+*.pfx
+*.key
+*.pem
 
 # ============================
 # Project Specific
 # ============================
 
-# Asset backup files
-*.asset.backup
-*.unity.backup
-*.prefab.backup
+# Claude Code settings
+.claude/
 
-# Editor tool cache
-/[Ee]ditor[Tt]ools[Cc]ache/
-.EditorTools/
-
-# Custom tool configurations
-*.config.json
-!package.json
-
-# Scene backups
-*_backup.unity
-*_backup.unity.meta
+# Logs
+[Ll]ogs/
 
 # ============================
-# End of Unity .gitignore
+# End of .NET .gitignore
 # ============================
-**/bin
-**/obj
