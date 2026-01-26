@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Holds shared data for a search session for the duration of an active "go ..." command.

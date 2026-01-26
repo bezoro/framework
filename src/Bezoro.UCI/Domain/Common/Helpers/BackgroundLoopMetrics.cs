@@ -3,7 +3,7 @@ using System.Threading;
 namespace Bezoro.UCI.Domain.Common.Helpers;
 
 /// <summary>
-/// Thread-safe metrics tracker for background loops.
+///     Thread-safe metrics tracker for background loops.
 /// </summary>
 internal sealed class BackgroundLoopMetrics
 {
@@ -19,4 +19,3 @@ internal sealed class BackgroundLoopMetrics
 	public void IncrementLinesRead()          => Interlocked.Increment(ref _linesRead);
 	public void IncrementLinesWritten()       => Interlocked.Increment(ref _linesWritten);
 }
-

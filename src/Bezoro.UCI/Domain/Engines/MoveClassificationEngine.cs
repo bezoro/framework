@@ -21,16 +21,16 @@ internal sealed class MoveClassificationEngine(
 	private readonly ConcurrentDictionary<(string Fen, string Move), bool> _isStalemateCache = new();
 	private readonly IEnumerable<string>?                                  _args             = args;
 
-	private readonly QuickInfoEngine _quick = new(enginePath, args, workingDirectory);
+	private readonly QuickInfoEngine _quick              = new(enginePath, args, workingDirectory);
+	private readonly SemaphoreSlim   _clientPositionLock = new(1, 1);
+	private readonly SemaphoreSlim   _quickPositionLock  = new(1, 1);
 
 	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
 	private          bool   _disposed;
 
 	private bool _started;
 
-	private          CancellationTokenSource _classificationCts  = new();
-	private readonly SemaphoreSlim           _clientPositionLock = new(1, 1);
-	private readonly SemaphoreSlim           _quickPositionLock  = new(1, 1);
+	private CancellationTokenSource _classificationCts = new();
 
 	private ProcessUciTransport? _transport;
 	private UciEngineClient?     _client;

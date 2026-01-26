@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Maintains a registry of asynchronous waiters that complete when an engine output line satisfies a predicate.

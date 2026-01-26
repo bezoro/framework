@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Coordinates UCI search sessions, handling lifecycle, captured output lines, and bestmove completion.
@@ -190,4 +190,3 @@ internal sealed class UciSearchCoordinator
 		}
 	}
 }
-

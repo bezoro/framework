@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Provides helpers for constructing UCI command lines and validating move strings.

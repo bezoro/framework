@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Common.Constants;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Provides reusable command helpers for interacting with a UCI engine transport.

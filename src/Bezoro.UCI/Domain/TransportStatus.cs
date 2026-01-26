@@ -1,7 +1,7 @@
 namespace Bezoro.UCI.Domain;
 
 /// <summary>
-/// Represents the current status of a UCI transport.
+///     Represents the current status of a UCI transport.
 /// </summary>
 internal enum TransportStatus
 {
@@ -15,4 +15,3 @@ internal enum TransportStatus
 	Failed    = 7,
 	Canceled  = 8
 }
-

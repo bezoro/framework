@@ -1,6 +1,6 @@
 using System.Threading;
 
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Tracks engine activity transitions and publishes notifications.
@@ -9,15 +9,15 @@ internal sealed class EngineActivityTracker
 {
 	private int _activity;
 
-	public EngineActivityTracker(EngineActivity initial = EngineActivity.Idle)
-	{
-		_activity = (int)initial;
-	}
-
 	/// <summary>
 	///     Occurs when the activity state changes.
 	/// </summary>
 	public event Action<EngineActivity, EngineActivity>? ActivityChanged;
+
+	public EngineActivityTracker(EngineActivity initial = EngineActivity.Idle)
+	{
+		_activity = (int)initial;
+	}
 
 	/// <summary>
 	///     Current activity state.
@@ -42,4 +42,3 @@ internal sealed class EngineActivityTracker
 		}
 	}
 }
-

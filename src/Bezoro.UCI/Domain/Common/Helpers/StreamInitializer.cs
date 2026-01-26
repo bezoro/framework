@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 namespace Bezoro.UCI.Domain.Common.Helpers;
 
 /// <summary>
-/// Helper for initializing process streams.
+///     Helper for initializing process streams.
 /// </summary>
 internal static class StreamInitializer
 {
 	/// <summary>
-	/// Initializes streams for a process with the given encodings and options.
+	///     Initializes streams for a process with the given encodings and options.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static ProcessStreams InitializeStreams(
@@ -38,10 +38,10 @@ internal static class StreamInitializer
 		var stdout = new StreamReader(process.StandardOutput.BaseStream, stdoutEnc, false, 64 * 1024, true);
 
 		var stderr = redirectStandardError
-						? new StreamReader(process.StandardError.BaseStream, stderrEnc, false, 32 * 1024, true)
-						: null;
+						 ? new StreamReader(process.StandardError.BaseStream, stderrEnc, false, 32 * 1024, true)
+						 : null;
 
-		return new ProcessStreams
+		return new()
 		{
 			Stdin  = stdin,
 			Stdout = stdout,
@@ -50,7 +50,7 @@ internal static class StreamInitializer
 	}
 
 	/// <summary>
-	/// Safely disposes a stream writer.
+	///     Safely disposes a stream writer.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static async Task SafeDisposeAsync(IAsyncDisposable? disposable)
@@ -65,7 +65,7 @@ internal static class StreamInitializer
 	}
 
 	/// <summary>
-	/// Safely disposes a stream reader or writer.
+	///     Safely disposes a stream reader or writer.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static void SafeDispose(IDisposable? disposable)
@@ -79,4 +79,3 @@ internal static class StreamInitializer
 		catch { }
 	}
 }
-

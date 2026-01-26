@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
+using Bezoro.UCI.Domain.EngineClient;
 
 namespace Bezoro.UCI.Domain;
 
@@ -12,10 +13,13 @@ namespace Bezoro.UCI.Domain;
 /// </summary>
 internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 {
+	private readonly EngineActivityTracker _activityTracker = new();
 	/// <summary>
 	///     Underlying transport abstraction for communicating with the engine.
 	/// </summary>
 	private readonly IUciTransport _transport;
+	private readonly object                 _lifecycleLock = new();
+	private readonly UciEngineCommandModule _commandModule;
 
 	/// <summary>
 	///     Registry for awaiting specific engine output lines.
@@ -23,9 +27,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private readonly UciLineWaiterRegistry _lineWaiters = new();
 	private readonly UciOutputDispatcher _outputDispatcher;
 
-	private readonly UciSearchCoordinator    _searchCoordinator;
-	private readonly UciEngineCommandModule  _commandModule;
-	private readonly EngineActivityTracker   _activityTracker = new();
+	private readonly UciSearchCoordinator _searchCoordinator;
 
 	/// <summary>
 	///     Cancellation source for the read loop and engine lifetime.
@@ -33,7 +35,6 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private CancellationTokenSource? _cts;
 
 	private Task? _readerTask;
-	private readonly object _lifecycleLock = new();
 
 	/// <summary>
 	///     Occurs when the engine transitions between <see cref="EngineActivity" /> states.
@@ -137,7 +138,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	{
 		lock (_lifecycleLock)
 		{
-			if (_cts is not null)
+			if (_cts is { })
 				throw new InvalidOperationException("Engine client is already started.");
 
 			_cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -177,7 +178,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			lock (_lifecycleLock)
 			{
 				_cts?.Dispose();
-				_cts = null;
+				_cts        = null;
 				_readerTask = null;
 			}
 
@@ -190,17 +191,17 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public async Task StopAsync(CancellationToken ct = default)
 	{
-		CancellationTokenSource? ctsToCancel = null;
-		Task? readerTaskToAwait = null;
+		CancellationTokenSource? ctsToCancel       = null;
+		Task?                    readerTaskToAwait = null;
 
 		lock (_lifecycleLock)
 		{
 			if (_cts is null) return; // Already stopped
 
-			ctsToCancel = _cts;
+			ctsToCancel       = _cts;
 			readerTaskToAwait = _readerTask;
-			_cts = null;
-			_readerTask = null;
+			_cts              = null;
+			_readerTask       = null;
 		}
 
 		try
@@ -277,6 +278,14 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		await _transport.DisposeAsync();
 	}
 
+	IDisposable IUciLineSource.Subscribe(Action<string> handler)
+	{
+		if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+		LineReceived += handler;
+		return new EventSubscription(() => LineReceived -= handler);
+	}
+
 	/// <summary>
 	///     Main receive/read loop. Reads transport output lines, dispatches output events, parses known output, and
 	///     manages generic waiters and search session events.
@@ -323,14 +332,6 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		}
 	}
 
-	IDisposable IUciLineSource.Subscribe(Action<string> handler)
-	{
-		if (handler is null) throw new ArgumentNullException(nameof(handler));
-
-		LineReceived += handler;
-		return new EventSubscription(() => LineReceived -= handler);
-	}
-
 	/// <summary>
 	///     Atomically sets the engine activity state and publishes activity change notifications, if the state changed.
 	/// </summary>
@@ -342,7 +343,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private sealed class EventSubscription : IDisposable
 	{
 		private readonly Action _unsubscribe;
-		private int _disposed;
+		private          int    _disposed;
 
 		public EventSubscription(Action unsubscribe)
 		{

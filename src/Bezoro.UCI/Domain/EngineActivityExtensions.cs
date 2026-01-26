@@ -17,13 +17,12 @@ public static class EngineActivityExtensions
 	public static bool IsIdle(this EngineActivity activity) => activity == EngineActivity.Idle;
 
 	/// <summary>
-	///     Returns true if the engine is currently searching (not pondering or idle).
-	/// </summary>
-	public static bool IsSearching(this EngineActivity activity) => activity == EngineActivity.Searching;
-
-	/// <summary>
 	///     Returns true if the engine is currently pondering (not searching or idle).
 	/// </summary>
 	public static bool IsPondering(this EngineActivity activity) => activity == EngineActivity.Pondering;
-}
 
+	/// <summary>
+	///     Returns true if the engine is currently searching (not pondering or idle).
+	/// </summary>
+	public static bool IsSearching(this EngineActivity activity) => activity == EngineActivity.Searching;
+}

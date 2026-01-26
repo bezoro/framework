@@ -1,4 +1,4 @@
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Represents a parsed "bestmove" line emitted by a UCI engine.

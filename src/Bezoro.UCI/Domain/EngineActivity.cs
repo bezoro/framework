@@ -14,4 +14,3 @@ public enum EngineActivity
 	/// <summary>Engine is pondering (analyzing at opponent's turn).</summary>
 	Pondering = 2
 }
-

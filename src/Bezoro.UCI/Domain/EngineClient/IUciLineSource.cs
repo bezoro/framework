@@ -1,4 +1,4 @@
-namespace Bezoro.UCI.Domain;
+namespace Bezoro.UCI.Domain.EngineClient;
 
 /// <summary>
 ///     Abstraction for tapping into UCI output line streams.
@@ -10,4 +10,3 @@ internal interface IUciLineSource
 	/// </summary>
 	IDisposable Subscribe(Action<string> handler);
 }
-

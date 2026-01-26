@@ -4,9 +4,9 @@ namespace Bezoro.UCI.API.Types;
 ///     Configuration options for the UCI Coordinator.
 /// </summary>
 public readonly record struct UciCoordinatorOptions(
-    int PonderThreads = 2,
-    int MultiPv = 1,
-    uint ClassificationDepth = 6
+	int  PonderThreads       = 2,
+	int  MultiPv             = 1,
+	uint ClassificationDepth = 6
 )
 {
 	/// <summary>

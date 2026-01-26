@@ -33,21 +33,15 @@ public readonly record struct UciState(
 	);
 
 	/// <summary>
-	///     Gets the total number of legal moves available for classification.
+	///     Gets a value indicating whether the side to move is in check.
 	/// </summary>
-	public int TotalLegalMoves => LegalMoves.Count;
+	public bool IsCheck => !string.IsNullOrEmpty(CurrentFen.Checkers);
 
 	/// <summary>
-	///     Gets the number of moves that have been classified.
+	///     Gets a value indicating whether the current position is checkmate.
+	///     True when there are no legal moves and the king is in check.
 	/// </summary>
-	public int ClassifiedMovesCount => ClassifiedMoves.Count;
-
-	/// <summary>
-	///     Gets the classification progress as a value between 0.0 and 1.0.
-	///     Returns 1.0 if there are no legal moves.
-	/// </summary>
-	public double ClassificationProgress =>
-		TotalLegalMoves == 0 ? 1.0 : (double)ClassifiedMovesCount / TotalLegalMoves;
+	public bool IsCheckmate => LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers);
 
 	/// <summary>
 	///     Gets a value indicating whether all legal moves have been classified.
@@ -60,19 +54,25 @@ public readonly record struct UciState(
 	public bool IsGameOver => LegalMoves.Count == 0;
 
 	/// <summary>
-	///     Gets a value indicating whether the current position is checkmate.
-	///     True when there are no legal moves and the king is in check.
-	/// </summary>
-	public bool IsCheckmate => LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers);
-
-	/// <summary>
 	///     Gets a value indicating whether the current position is stalemate.
 	///     True when there are no legal moves but the king is not in check.
 	/// </summary>
 	public bool IsStalemate => LegalMoves.Count == 0 && string.IsNullOrEmpty(CurrentFen.Checkers);
 
 	/// <summary>
-	///     Gets a value indicating whether the side to move is in check.
+	///     Gets the classification progress as a value between 0.0 and 1.0.
+	///     Returns 1.0 if there are no legal moves.
 	/// </summary>
-	public bool IsCheck => !string.IsNullOrEmpty(CurrentFen.Checkers);
+	public double ClassificationProgress =>
+		TotalLegalMoves == 0 ? 1.0 : (double)ClassifiedMovesCount / TotalLegalMoves;
+
+	/// <summary>
+	///     Gets the number of moves that have been classified.
+	/// </summary>
+	public int ClassifiedMovesCount => ClassifiedMoves.Count;
+
+	/// <summary>
+	///     Gets the total number of legal moves available for classification.
+	/// </summary>
+	public int TotalLegalMoves => LegalMoves.Count;
 }

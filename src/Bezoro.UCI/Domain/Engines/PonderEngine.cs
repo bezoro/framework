@@ -7,8 +7,8 @@ namespace Bezoro.UCI.Domain.Engines;
 
 internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 {
+	private readonly object          _scoreLock = new();
 	private readonly UciEngineClient _client;
-	private readonly object _scoreLock = new();
 
 	private int? _lastScoreCp;
 	private int? _lastScoreMate;
@@ -26,7 +26,7 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public bool IsHealthy => _client.IsHealthy;
 	public bool IsStarted => _client.IsStarted;
 
-	public EngineActivity                      Activity => _client.Activity;
+	public EngineActivity  Activity => _client.Activity;
 	public TransportStatus Status   => _client.Status;
 
 	public async Task NewGameAsync(CancellationToken ct = default)
@@ -100,13 +100,58 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
 	}
 
-	private void ClearLastScores()
+	/// <summary>
+	///     Determines if the new score represents an improvement over the last score.
+	///     For mate scores: positive = winning (lower is better), negative = losing (higher/less negative is better).
+	///     For cp scores: higher is better.
+	///     Mate scores are always preferred over cp scores when both are winning or both are losing.
+	/// </summary>
+	internal static bool IsScoreImproved(int? newMate, int? newCp, int? lastMate, int? lastCp)
 	{
-		lock (_scoreLock)
+		if (newMate.HasValue)
 		{
-			_lastScoreMate = null;
-			_lastScoreCp   = null;
+			// New score is a mate score
+			if (lastMate.HasValue)
+			{
+				// Both are mate scores: compare correctly based on sign
+				// Positive (winning): lower is better (mate in 1 < mate in 5)
+				// Negative (losing): higher/less negative is better (mate in -1 > mate in -5)
+				if (newMate.Value > 0 && lastMate.Value > 0)
+					return newMate.Value < lastMate.Value; // Both winning: lower is better
+
+				if (newMate.Value < 0 && lastMate.Value < 0)
+					return newMate.Value > lastMate.Value; // Both losing: higher (less negative) is better
+
+				// Different signs: positive is always better
+				return newMate.Value > lastMate.Value;
+			}
+
+			// Transition from cp to mate: mate is always better than cp
+			return true;
 		}
+
+		// New score is a cp score
+		if (!newCp.HasValue) return false; // No valid score
+
+		if (lastMate.HasValue)
+		{
+			// Transition from mate to cp
+			// Positive mate (winning) is always better than any cp
+			if (lastMate.Value > 0) return false;
+
+			// Negative mate (losing) vs cp:
+			// - If cp is positive (winning), it's better than losing mate
+			// - If cp is negative (losing), compare: higher cp is better
+			if (newCp.Value > 0) return true; // Winning cp is better than losing mate
+
+			// Both losing: compare cp values (higher is better)
+			// Note: We can't directly compare mate distance to cp, but if we're transitioning
+			// from mate to cp and both are losing, we prefer the higher cp score
+			return !lastCp.HasValue || newCp.Value > lastCp.Value;
+		}
+
+		// Both are cp scores: higher is better
+		return !lastCp.HasValue || newCp.Value > lastCp.Value;
 	}
 
 	internal void OnClientInfoPvReceived(PrincipalVariation pv)
@@ -146,55 +191,12 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		BestMove?.Invoke(bestParsed, ponderParsed);
 	}
 
-	/// <summary>
-	///     Determines if the new score represents an improvement over the last score.
-	///     For mate scores: positive = winning (lower is better), negative = losing (higher/less negative is better).
-	///     For cp scores: higher is better.
-	///     Mate scores are always preferred over cp scores when both are winning or both are losing.
-	/// </summary>
-	internal static bool IsScoreImproved(int? newMate, int? newCp, int? lastMate, int? lastCp)
+	private void ClearLastScores()
 	{
-		if (newMate.HasValue)
+		lock (_scoreLock)
 		{
-			// New score is a mate score
-			if (lastMate.HasValue)
-			{
-				// Both are mate scores: compare correctly based on sign
-				// Positive (winning): lower is better (mate in 1 < mate in 5)
-				// Negative (losing): higher/less negative is better (mate in -1 > mate in -5)
-				if (newMate.Value > 0 && lastMate.Value > 0)
-					return newMate.Value < lastMate.Value; // Both winning: lower is better
-				if (newMate.Value < 0 && lastMate.Value < 0)
-					return newMate.Value > lastMate.Value; // Both losing: higher (less negative) is better
-				// Different signs: positive is always better
-				return newMate.Value > lastMate.Value;
-			}
-
-			// Transition from cp to mate: mate is always better than cp
-			return true;
+			_lastScoreMate = null;
+			_lastScoreCp   = null;
 		}
-
-		// New score is a cp score
-		if (!newCp.HasValue) return false; // No valid score
-
-		if (lastMate.HasValue)
-		{
-			// Transition from mate to cp
-			// Positive mate (winning) is always better than any cp
-			if (lastMate.Value > 0) return false;
-
-			// Negative mate (losing) vs cp:
-			// - If cp is positive (winning), it's better than losing mate
-			// - If cp is negative (losing), compare: higher cp is better
-			if (newCp.Value > 0) return true; // Winning cp is better than losing mate
-
-			// Both losing: compare cp values (higher is better)
-			// Note: We can't directly compare mate distance to cp, but if we're transitioning
-			// from mate to cp and both are losing, we prefer the higher cp score
-			return !lastCp.HasValue || newCp.Value > lastCp.Value;
-		}
-
-		// Both are cp scores: higher is better
-		return !lastCp.HasValue || newCp.Value > lastCp.Value;
 	}
 }
