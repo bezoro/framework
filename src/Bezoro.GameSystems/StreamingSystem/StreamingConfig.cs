@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using System.Threading;
 
-namespace Bezoro.GameSystems.Streaming;
+namespace Bezoro.GameSystems.StreamingSystem;
 
 /// <summary>
 ///     Configuration for the streaming system.
@@ -27,6 +27,11 @@ public readonly struct StreamingConfig(
 	///     Should be greater than <see cref="StreamInDistance" /> for hysteresis to prevent flickering.
 	/// </summary>
 	public readonly float StreamOutDistance = streamOutDistance;
+	/// <summary>
+	///     Delegate that returns the current reference position for distance calculations.
+	///     Called each processing iteration. Typically returns player/camera position.
+	/// </summary>
+	public readonly Func<Vector3> GetReferencePosition = getReferencePosition;
 
 	/// <summary>
 	///     Delay in milliseconds between processing iterations.
@@ -51,9 +56,4 @@ public readonly struct StreamingConfig(
 	///     config.CallbackContext = mainThreadContext;
 	/// </example>
 	public readonly SynchronizationContext? CallbackContext = callbackContext;
-	/// <summary>
-	///     Delegate that returns the current reference position for distance calculations.
-	///     Called each processing iteration. Typically returns player/camera position.
-	/// </summary>
-	public readonly Func<Vector3> GetReferencePosition = getReferencePosition;
 }

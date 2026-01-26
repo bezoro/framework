@@ -6,26 +6,26 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Bezoro.GameSystems.Streaming;
+namespace Bezoro.GameSystems.StreamingSystem;
 
 /// <summary>
 ///     A thread-safe streaming system that evaluates entity distances in a background thread
 ///     and invokes streaming callbacks on the main thread.
 /// </summary>
-public sealed class StreamingSystem : IDisposable
+public sealed class Streaming : IDisposable
 {
 	private readonly ConcurrentDictionary<int, IStreamableEntity> _entities     = new();
 	private readonly ConcurrentQueue<StreamingResult>             _resultsQueue = new();
 	private          CancellationTokenSource?                     _cts;
 	private          float                                        _inDistanceSquared;
 	private          float                                        _outDistanceSquared;
+	private          int                                          _cachedKeyCount;
 	private          int                                          _currentIndex;
 	private          int                                          _disposed;
+	private          int                                          _lastKnownEntityCount;
 
 	// Cached entity snapshot for iteration (avoids per-frame allocation)
 	private int[]? _cachedKeys;
-	private int    _cachedKeyCount;
-	private int    _lastKnownEntityCount;
 
 	private StreamingConfig         _config;
 	private SynchronizationContext? _syncContext;
@@ -52,14 +52,6 @@ public sealed class StreamingSystem : IDisposable
 		Stop();
 		_entities.Clear();
 		ReturnCachedKeys();
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void ReturnCachedKeys()
-	{
-		var keys = Interlocked.Exchange(ref _cachedKeys, null);
-		if (keys is not null)
-			ArrayPool<int>.Shared.Return(keys);
 	}
 
 	/// <summary>
@@ -164,6 +156,33 @@ public sealed class StreamingSystem : IDisposable
 		_entities.TryRemove(entity.EntityId, out _);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private int RebuildCacheIfNeeded(int entityCount)
+	{
+		// Only rebuild when collection has changed
+		if (_cachedKeys is { } && _lastKnownEntityCount == entityCount)
+			return _cachedKeyCount;
+
+		// Return old buffer if exists
+		ReturnCachedKeys();
+
+		// Rent new buffer from pool (may be larger than needed)
+		int[]? keys  = ArrayPool<int>.Shared.Rent(entityCount);
+		var    index = 0;
+		foreach (var kvp in _entities)
+		{
+			if (index >= entityCount)
+				break;
+
+			keys[index++] = kvp.Key;
+		}
+
+		_cachedKeys           = keys;
+		_cachedKeyCount       = index;
+		_lastKnownEntityCount = entityCount;
+		return index;
+	}
+
 	private async Task ProcessingLoopAsync(CancellationToken ct)
 	{
 		while (!ct.IsCancellationRequested)
@@ -248,7 +267,7 @@ public sealed class StreamingSystem : IDisposable
 		if (actualCount == 0)
 			return;
 
-		var keys = _cachedKeys!;
+		int[] keys = _cachedKeys!;
 
 		// Ensure the current index is within bounds
 		if (_currentIndex >= actualCount)
@@ -269,9 +288,9 @@ public sealed class StreamingSystem : IDisposable
 			if (_entities.TryGetValue(entityId, out var entity))
 			{
 				// Inline distance squared calculation (SIMD-optimized in System.Numerics)
-				Vector3 diff   = referencePos - entity.StreamingPosition;
-				float   distSq = Vector3.Dot(diff, diff);
-				bool    isIn   = entity.IsStreamedIn;
+				var   diff   = referencePos - entity.StreamingPosition;
+				float distSq = Vector3.Dot(diff, diff);
+				bool  isIn   = entity.IsStreamedIn;
 
 				// Apply hysteresis: stream in if close enough and not already in
 				// stream out if far enough and currently streamed in
@@ -285,41 +304,24 @@ public sealed class StreamingSystem : IDisposable
 			_currentIndex++;
 			if (_currentIndex >= actualCount)
 				_currentIndex = 0;
+
 			processed++;
 		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private int RebuildCacheIfNeeded(int entityCount)
+	private void ReturnCachedKeys()
 	{
-		// Only rebuild when collection has changed
-		if (_cachedKeys is not null && _lastKnownEntityCount == entityCount)
-			return _cachedKeyCount;
-
-		// Return old buffer if exists
-		ReturnCachedKeys();
-
-		// Rent new buffer from pool (may be larger than needed)
-		var keys  = ArrayPool<int>.Shared.Rent(entityCount);
-		var index = 0;
-		foreach (var kvp in _entities)
-		{
-			if (index >= entityCount)
-				break;
-			keys[index++] = kvp.Key;
-		}
-
-		_cachedKeys           = keys;
-		_cachedKeyCount       = index;
-		_lastKnownEntityCount = entityCount;
-		return index;
+		int[]? keys = Interlocked.Exchange(ref _cachedKeys, null);
+		if (keys is { })
+			ArrayPool<int>.Shared.Return(keys);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ThrowIfDisposed()
 	{
 		if (Volatile.Read(ref _disposed) != 0)
-			throw new ObjectDisposedException(nameof(StreamingSystem));
+			throw new ObjectDisposedException(nameof(Streaming));
 	}
 
 	/// <summary>
