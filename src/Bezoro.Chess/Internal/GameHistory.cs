@@ -14,61 +14,61 @@ internal sealed class GameHistory
 	private readonly Stack<HistoryEntry> _redoStack   = new();
 	private readonly Stack<HistoryEntry> _undoStack   = new();
 
-    /// <summary>
-    ///     Gets whether redo is available.
-    /// </summary>
-    public bool CanRedo => _redoStack.Count > 0;
+	/// <summary>
+	///     Gets whether redo is available.
+	/// </summary>
+	public bool CanRedo => _redoStack.Count > 0;
 
-    /// <summary>
-    ///     Gets whether undo is available.
-    /// </summary>
-    public bool CanUndo => _undoStack.Count > 0;
+	/// <summary>
+	///     Gets whether undo is available.
+	/// </summary>
+	public bool CanUndo => _undoStack.Count > 0;
 
-    /// <summary>
-    ///     Gets the last move played, or null if no moves have been played.
-    /// </summary>
-    public ChessMove? LastMove => _moves.Count > 0 ? _moves[^1] : null;
+	/// <summary>
+	///     Gets the last move played, or null if no moves have been played.
+	/// </summary>
+	public ChessMove? LastMove => _moves.Count > 0 ? _moves[^1] : null;
 
-    /// <summary>
-    ///     Gets an immutable list of moves for state snapshots.
-    /// </summary>
-    public ImmutableList<ChessMove> MovesImmutable => _moves.ToImmutableList();
+	/// <summary>
+	///     Gets an immutable list of moves for state snapshots.
+	/// </summary>
+	public ImmutableList<ChessMove> MovesImmutable => _moves.ToImmutableList();
 
-    /// <summary>
-    ///     Gets the number of moves played.
-    /// </summary>
-    public int Count => _moves.Count;
+	/// <summary>
+	///     Gets the number of moves played.
+	/// </summary>
+	public int Count => _moves.Count;
 
-    /// <summary>
-    ///     Gets the number of moves that can be redone.
-    /// </summary>
-    public int RedoCount => _redoStack.Count;
+	/// <summary>
+	///     Gets the number of moves that can be redone.
+	/// </summary>
+	public int RedoCount => _redoStack.Count;
 
-    /// <summary>
-    ///     Gets the number of moves that can be undone.
-    /// </summary>
-    public int UndoCount => _undoStack.Count;
+	/// <summary>
+	///     Gets the number of moves that can be undone.
+	/// </summary>
+	public int UndoCount => _undoStack.Count;
 
-    /// <summary>
-    ///     Gets the list of moves played so far.
-    /// </summary>
-    public IReadOnlyList<ChessMove> Moves => _moves;
+	/// <summary>
+	///     Gets the list of moves played so far.
+	/// </summary>
+	public IReadOnlyList<ChessMove> Moves => _moves;
 
-    /// <summary>
-    ///     Gets the move at the specified index.
-    /// </summary>
-    public ChessMove GetMove(int index) => _moves[index];
+	/// <summary>
+	///     Gets the move at the specified index.
+	/// </summary>
+	public ChessMove GetMove(int index) => _moves[index];
 
-    /// <summary>
-    ///     Gets the clock state before the specified move index.
-    /// </summary>
-    public GameClock GetClockBefore(int moveIndex) => _clockStates[moveIndex];
+	/// <summary>
+	///     Gets the clock state before the specified move index.
+	/// </summary>
+	public GameClock GetClockBefore(int moveIndex) => _clockStates[moveIndex];
 
-    /// <summary>
-    ///     Redoes the last undone move.
-    /// </summary>
-    /// <returns>The entry that was redone, or null if nothing to redo.</returns>
-    public HistoryEntry? Redo()
+	/// <summary>
+	///     Redoes the last undone move.
+	/// </summary>
+	/// <returns>The entry that was redone, or null if nothing to redo.</returns>
+	public HistoryEntry? Redo()
 	{
 		if (_redoStack.Count == 0)
 			return null;
@@ -82,11 +82,11 @@ internal sealed class GameHistory
 		return entry;
 	}
 
-    /// <summary>
-    ///     Undoes the last move.
-    /// </summary>
-    /// <returns>The entry that was undone, or null if nothing to undo.</returns>
-    public HistoryEntry? Undo()
+	/// <summary>
+	///     Undoes the last move.
+	/// </summary>
+	/// <returns>The entry that was undone, or null if nothing to undo.</returns>
+	public HistoryEntry? Undo()
 	{
 		if (_undoStack.Count == 0)
 			return null;
@@ -100,12 +100,12 @@ internal sealed class GameHistory
 		return entry;
 	}
 
-    /// <summary>
-    ///     Redoes multiple moves.
-    /// </summary>
-    /// <param name="count">Number of moves to redo.</param>
-    /// <returns>List of redone entries.</returns>
-    public IReadOnlyList<HistoryEntry> Redo(int count)
+	/// <summary>
+	///     Redoes multiple moves.
+	/// </summary>
+	/// <param name="count">Number of moves to redo.</param>
+	/// <returns>List of redone entries.</returns>
+	public IReadOnlyList<HistoryEntry> Redo(int count)
 	{
 		var results = new List<HistoryEntry>();
 		for (var i = 0; i < count && _redoStack.Count > 0; i++)
@@ -118,12 +118,12 @@ internal sealed class GameHistory
 		return results;
 	}
 
-    /// <summary>
-    ///     Undoes multiple moves.
-    /// </summary>
-    /// <param name="count">Number of moves to undo.</param>
-    /// <returns>List of undone entries.</returns>
-    public IReadOnlyList<HistoryEntry> Undo(int count)
+	/// <summary>
+	///     Undoes multiple moves.
+	/// </summary>
+	/// <param name="count">Number of moves to undo.</param>
+	/// <returns>List of undone entries.</returns>
+	public IReadOnlyList<HistoryEntry> Undo(int count)
 	{
 		var results = new List<HistoryEntry>();
 		for (var i = 0; i < count && _undoStack.Count > 0; i++)
@@ -136,10 +136,10 @@ internal sealed class GameHistory
 		return results;
 	}
 
-    /// <summary>
-    ///     Gets the UCI move notation strings.
-    /// </summary>
-    public IReadOnlyList<string> GetUciMoves()
+	/// <summary>
+	///     Gets the UCI move notation strings.
+	/// </summary>
+	public IReadOnlyList<string> GetUciMoves()
 	{
 		var result = new List<string>(_moves.Count);
 		foreach (var move in _moves)
@@ -148,12 +148,12 @@ internal sealed class GameHistory
 		return result;
 	}
 
-    /// <summary>
-    ///     Adds a move to the history, clearing any redo stack.
-    /// </summary>
-    /// <param name="move">The move that was played.</param>
-    /// <param name="clockBefore">The clock state before the move.</param>
-    public void AddMove(ChessMove move, GameClock clockBefore)
+	/// <summary>
+	///     Adds a move to the history, clearing any redo stack.
+	/// </summary>
+	/// <param name="move">The move that was played.</param>
+	/// <param name="clockBefore">The clock state before the move.</param>
+	public void AddMove(ChessMove move, GameClock clockBefore)
 	{
 		// Clear redo stack when a new move is made
 		_redoStack.Clear();
@@ -166,10 +166,10 @@ internal sealed class GameHistory
 		_clockStates.Add(clockBefore);
 	}
 
-    /// <summary>
-    ///     Clears all history.
-    /// </summary>
-    public void Clear()
+	/// <summary>
+	///     Clears all history.
+	/// </summary>
+	public void Clear()
 	{
 		_undoStack.Clear();
 		_redoStack.Clear();

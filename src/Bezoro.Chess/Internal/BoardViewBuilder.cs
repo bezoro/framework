@@ -67,7 +67,7 @@ internal static class BoardViewBuilder
 		int file = square[0] - 'a';
 		int rank = square[1] - '1';
 
-		return board.TryGet(file, rank, out var piece) ? piece : null;
+		return board.TryGet(file, rank, out char? piece) ? piece : null;
 	}
 
 	/// <summary>

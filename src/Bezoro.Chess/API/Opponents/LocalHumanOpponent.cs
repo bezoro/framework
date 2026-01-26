@@ -12,9 +12,24 @@ namespace Bezoro.Chess.API.Opponents;
 /// </summary>
 public sealed class LocalHumanOpponent : IOpponent
 {
-	private TaskCompletionSource<string>? _pendingMove;
-	private readonly object               _sync = new();
-	private bool                          _isDisposed;
+	private readonly object                        _sync = new();
+	private          bool                          _isDisposed;
+	private          TaskCompletionSource<string>? _pendingMove;
+
+	/// <inheritdoc />
+	public event Action? Disconnected;
+
+	/// <inheritdoc />
+	public event Action? DrawOffered;
+
+	/// <inheritdoc />
+	public event Action<Exception>? Error;
+
+	/// <inheritdoc />
+	public event Action<string>? MoveSubmitted;
+
+	/// <inheritdoc />
+	public event Action? Resigned;
 
 	/// <summary>
 	///     Creates a new local human opponent.
@@ -35,35 +50,63 @@ public sealed class LocalHumanOpponent : IOpponent
 	}
 
 	/// <inheritdoc />
+	public bool IsReady => true;
+
+	/// <summary>
+	///     Gets whether a move is currently expected from this opponent.
+	/// </summary>
+	public bool IsWaitingForMove
+	{
+		get
+		{
+			lock (_sync)
+			{
+				return _pendingMove != null && !_pendingMove.Task.IsCompleted;
+			}
+		}
+	}
+
+	/// <inheritdoc />
 	public OpponentType Type => OpponentType.LocalHuman;
 
 	/// <inheritdoc />
 	public PlayerProfile Profile { get; }
 
-	/// <inheritdoc />
-	public bool IsReady => true;
-
-	/// <inheritdoc />
-	public event Action<string>? MoveSubmitted;
-
-	/// <inheritdoc />
-	public event Action? Resigned;
-
-	/// <inheritdoc />
-	public event Action? DrawOffered;
-
-	/// <inheritdoc />
-	public event Action? Disconnected;
-
-	/// <inheritdoc />
-	public event Action<Exception>? Error;
-
-	/// <inheritdoc />
-	public Task InitializeAsync(CancellationToken ct = default)
+	/// <summary>
+	///     Submits a move for this opponent.
+	///     Call this when the human player makes their move.
+	/// </summary>
+	/// <param name="move">The move in UCI notation (e.g., "e2e4").</param>
+	/// <returns>True if the move was accepted, false if no move was pending.</returns>
+	public bool SubmitMove(string move)
 	{
-		// Local human opponent needs no initialization
-		return Task.CompletedTask;
+		TaskCompletionSource<string>? tcs;
+		lock (_sync)
+		{
+			tcs = _pendingMove;
+		}
+
+		if (tcs == null)
+			return false;
+
+		if (tcs.TrySetResult(move))
+		{
+			MoveSubmitted?.Invoke(move);
+			return true;
+		}
+
+		return false;
 	}
+
+	/// <inheritdoc />
+	public Task InitializeAsync(CancellationToken ct = default) =>
+		// Local human opponent needs no initialization
+		Task.CompletedTask;
+
+	/// <inheritdoc />
+	public Task NotifyMovePlayedAsync(string move, GameState state, CancellationToken ct = default) =>
+		// Local human doesn't need to be notified of moves
+		Task.CompletedTask;
 
 	/// <inheritdoc />
 	public async Task<string?> GetMoveAsync(GameState state, CancellationToken ct = default)
@@ -96,78 +139,6 @@ public sealed class LocalHumanOpponent : IOpponent
 	}
 
 	/// <inheritdoc />
-	public Task NotifyMovePlayedAsync(string move, GameState state, CancellationToken ct = default)
-	{
-		// Local human doesn't need to be notified of moves
-		return Task.CompletedTask;
-	}
-
-	/// <summary>
-	///     Submits a move for this opponent.
-	///     Call this when the human player makes their move.
-	/// </summary>
-	/// <param name="move">The move in UCI notation (e.g., "e2e4").</param>
-	/// <returns>True if the move was accepted, false if no move was pending.</returns>
-	public bool SubmitMove(string move)
-	{
-		TaskCompletionSource<string>? tcs;
-		lock (_sync)
-		{
-			tcs = _pendingMove;
-		}
-
-		if (tcs == null)
-			return false;
-
-		if (tcs.TrySetResult(move))
-		{
-			MoveSubmitted?.Invoke(move);
-			return true;
-		}
-
-		return false;
-	}
-
-	/// <summary>
-	///     Resigns the game for this opponent.
-	/// </summary>
-	public void Resign()
-	{
-		// Cancel any pending move
-		TaskCompletionSource<string>? tcs;
-		lock (_sync)
-		{
-			tcs = _pendingMove;
-			_pendingMove = null;
-		}
-
-		tcs?.TrySetCanceled();
-		Resigned?.Invoke();
-	}
-
-	/// <summary>
-	///     Offers a draw.
-	/// </summary>
-	public void OfferDraw()
-	{
-		DrawOffered?.Invoke();
-	}
-
-	/// <summary>
-	///     Gets whether a move is currently expected from this opponent.
-	/// </summary>
-	public bool IsWaitingForMove
-	{
-		get
-		{
-			lock (_sync)
-			{
-				return _pendingMove != null && !_pendingMove.Task.IsCompleted;
-			}
-		}
-	}
-
-	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
 		if (_isDisposed)
@@ -179,7 +150,7 @@ public sealed class LocalHumanOpponent : IOpponent
 		TaskCompletionSource<string>? tcs;
 		lock (_sync)
 		{
-			tcs = _pendingMove;
+			tcs          = _pendingMove;
 			_pendingMove = null;
 		}
 
@@ -187,5 +158,29 @@ public sealed class LocalHumanOpponent : IOpponent
 
 		return default;
 	}
-}
 
+	/// <summary>
+	///     Offers a draw.
+	/// </summary>
+	public void OfferDraw()
+	{
+		DrawOffered?.Invoke();
+	}
+
+	/// <summary>
+	///     Resigns the game for this opponent.
+	/// </summary>
+	public void Resign()
+	{
+		// Cancel any pending move
+		TaskCompletionSource<string>? tcs;
+		lock (_sync)
+		{
+			tcs          = _pendingMove;
+			_pendingMove = null;
+		}
+
+		tcs?.TrySetCanceled();
+		Resigned?.Invoke();
+	}
+}

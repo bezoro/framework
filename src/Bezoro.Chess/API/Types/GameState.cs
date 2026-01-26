@@ -35,10 +35,10 @@ public readonly record struct GameState(
 	string?                                         CheckSquare
 )
 {
-    /// <summary>
-    ///     Gets the default initial game state (standard starting position).
-    /// </summary>
-    public static GameState Default { get; } = new(
+	/// <summary>
+	///     Gets the default initial game state (standard starting position).
+	/// </summary>
+	public static GameState Default { get; } = new(
 		Fen.Default,
 		PlayerColor.White,
 		1,
@@ -53,53 +53,53 @@ public readonly record struct GameState(
 		null
 	);
 
-    /// <summary>
-    ///     Gets whether it is black's turn to move.
-    /// </summary>
-    public bool IsBlackToMove => SideToMove == PlayerColor.Black;
+	/// <summary>
+	///     Gets whether it is black's turn to move.
+	/// </summary>
+	public bool IsBlackToMove => SideToMove == PlayerColor.Black;
 
-    /// <summary>
-    ///     Gets whether the position is checkmate.
-    /// </summary>
-    public bool IsCheckmate => Result.Reason == TerminationReason.Checkmate;
+	/// <summary>
+	///     Gets whether the position is checkmate.
+	/// </summary>
+	public bool IsCheckmate => Result.Reason == TerminationReason.Checkmate;
 
-    /// <summary>
-    ///     Gets whether all legal moves have been classified.
-    /// </summary>
-    public bool IsClassificationComplete => ClassifiedMoveCount >= LegalMoveCount;
+	/// <summary>
+	///     Gets whether all legal moves have been classified.
+	/// </summary>
+	public bool IsClassificationComplete => ClassifiedMoveCount >= LegalMoveCount;
 
-    /// <summary>
-    ///     Gets whether the game is over.
-    /// </summary>
-    public bool IsGameOver => Result.IsGameOver;
+	/// <summary>
+	///     Gets whether the game is over.
+	/// </summary>
+	public bool IsGameOver => Result.IsGameOver;
 
-    /// <summary>
-    ///     Gets whether the position is stalemate.
-    /// </summary>
-    public bool IsStalemate => Result.Reason == TerminationReason.Stalemate;
+	/// <summary>
+	///     Gets whether the position is stalemate.
+	/// </summary>
+	public bool IsStalemate => Result.Reason == TerminationReason.Stalemate;
 
-    /// <summary>
-    ///     Gets whether it is white's turn to move.
-    /// </summary>
-    public bool IsWhiteToMove => SideToMove == PlayerColor.White;
+	/// <summary>
+	///     Gets whether it is white's turn to move.
+	/// </summary>
+	public bool IsWhiteToMove => SideToMove == PlayerColor.White;
 
-    /// <summary>
-    ///     Gets the classification progress (0.0 to 1.0).
-    /// </summary>
-    public double ClassificationProgress =>
+	/// <summary>
+	///     Gets the classification progress (0.0 to 1.0).
+	/// </summary>
+	public double ClassificationProgress =>
 		LegalMoveCount == 0 ? 1.0 : (double)ClassifiedMoveCount / LegalMoveCount;
 
-    /// <summary>
-    ///     Gets the evaluation bar percentage (0-100) for UI display.
-    ///     50 means equal, higher values favor white.
-    /// </summary>
-    public double EvaluationBarPercent => (NormalizedEvaluation + 1.0) / 2.0 * 100.0;
+	/// <summary>
+	///     Gets the evaluation bar percentage (0-100) for UI display.
+	///     50 means equal, higher values favor white.
+	/// </summary>
+	public double EvaluationBarPercent => (NormalizedEvaluation + 1.0) / 2.0 * 100.0;
 
-    /// <summary>
-    ///     Gets the normalized evaluation as a value between -1.0 and 1.0 for UI display.
-    ///     Uses a sigmoid-like function to normalize centipawn scores.
-    /// </summary>
-    public double NormalizedEvaluation
+	/// <summary>
+	///     Gets the normalized evaluation as a value between -1.0 and 1.0 for UI display.
+	///     Uses a sigmoid-like function to normalize centipawn scores.
+	/// </summary>
+	public double NormalizedEvaluation
 	{
 		get
 		{
@@ -112,31 +112,31 @@ public readonly record struct GameState(
 		}
 	}
 
-    /// <summary>
-    ///     Gets the number of classified moves.
-    /// </summary>
-    public int ClassifiedMoveCount => ClassifiedMoves.Count;
+	/// <summary>
+	///     Gets the number of classified moves.
+	/// </summary>
+	public int ClassifiedMoveCount => ClassifiedMoves.Count;
 
-    /// <summary>
-    ///     Gets the evaluation in centipawns from white's perspective.
-    ///     Positive values favor white, negative values favor black.
-    /// </summary>
-    public int EvaluationCentipawns => Evaluation ?? 0;
+	/// <summary>
+	///     Gets the evaluation in centipawns from white's perspective.
+	///     Positive values favor white, negative values favor black.
+	/// </summary>
+	public int EvaluationCentipawns => Evaluation ?? 0;
 
-    /// <summary>
-    ///     Gets the number of legal moves available.
-    /// </summary>
-    public int LegalMoveCount => LegalMoves.Count;
+	/// <summary>
+	///     Gets the number of legal moves available.
+	/// </summary>
+	public int LegalMoveCount => LegalMoves.Count;
 
-    /// <summary>
-    ///     Gets the total number of half-moves (plies) played.
-    /// </summary>
-    public int PlyCount => PlayedMoves.Count;
+	/// <summary>
+	///     Gets the total number of half-moves (plies) played.
+	/// </summary>
+	public int PlyCount => PlayedMoves.Count;
 
-    /// <summary>
-    ///     Creates a new state from a UCI state.
-    /// </summary>
-    public static GameState FromUciState(
+	/// <summary>
+	///     Creates a new state from a UCI state.
+	/// </summary>
+	public static GameState FromUciState(
 		UciState                 uciState,
 		ImmutableList<ChessMove> playedMoves,
 		GameResult               result)
@@ -172,10 +172,10 @@ public readonly record struct GameState(
 		);
 	}
 
-    /// <summary>
-    ///     Gets the classification for a specific move notation, or Normal if not classified.
-    /// </summary>
-    public MoveClassification GetMoveClassification(string moveNotation) =>
+	/// <summary>
+	///     Gets the classification for a specific move notation, or Normal if not classified.
+	/// </summary>
+	public MoveClassification GetMoveClassification(string moveNotation) =>
 		ClassifiedMoves.TryGetValue(moveNotation, out var classification)
 			? classification
 			: MoveClassification.Normal;

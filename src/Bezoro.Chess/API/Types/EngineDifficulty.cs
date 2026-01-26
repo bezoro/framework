@@ -17,14 +17,25 @@ public readonly record struct EngineDifficulty(
 )
 {
 	/// <summary>
+	///     Advanced difficulty (~1800 ELO).
+	///     Very strong play.
+	/// </summary>
+	public static EngineDifficulty Advanced { get; } = new(
+		"Advanced",
+		1800,
+		12,
+		1500
+	);
+
+	/// <summary>
 	///     Beginner difficulty (~800 ELO).
 	///     Makes frequent mistakes, very short thinking time.
 	/// </summary>
 	public static EngineDifficulty Beginner { get; } = new(
 		"Beginner",
 		800,
-		MaxDepth: 2,
-		MaxThinkTimeMs: 100
+		2,
+		100
 	);
 
 	/// <summary>
@@ -34,52 +45,8 @@ public readonly record struct EngineDifficulty(
 	public static EngineDifficulty Easy { get; } = new(
 		"Easy",
 		1000,
-		MaxDepth: 4,
-		MaxThinkTimeMs: 200
-	);
-
-	/// <summary>
-	///     Medium difficulty (~1200 ELO).
-	///     Club player level, moderate thinking.
-	/// </summary>
-	public static EngineDifficulty Medium { get; } = new(
-		"Medium",
-		1200,
-		MaxDepth: 6,
-		MaxThinkTimeMs: 500
-	);
-
-	/// <summary>
-	///     Intermediate difficulty (~1400 ELO).
-	///     Strong club player level.
-	/// </summary>
-	public static EngineDifficulty Intermediate { get; } = new(
-		"Intermediate",
-		1400,
-		MaxDepth: 8,
-		MaxThinkTimeMs: 750
-	);
-
-	/// <summary>
-	///     Hard difficulty (~1600 ELO).
-	///     Expert level, few mistakes.
-	/// </summary>
-	public static EngineDifficulty Hard { get; } = new(
-		"Hard",
-		1600,
-		MaxDepth: 10,
-		MaxThinkTimeMs: 1000
-	);
-
-	/// <summary>
-	///     Advanced difficulty (~1800 ELO).
-	///     Very strong play.
-	/// </summary>
-	public static EngineDifficulty Advanced { get; } = new(
-		"Advanced",
-		1800,
-		MaxDepth: 12,
-		MaxThinkTimeMs: 1500
+		4,
+		200
 	);
 
 	/// <summary>
@@ -89,19 +56,8 @@ public readonly record struct EngineDifficulty(
 	public static EngineDifficulty Expert { get; } = new(
 		"Expert",
 		2000,
-		MaxDepth: 14,
-		MaxThinkTimeMs: 2000
-	);
-
-	/// <summary>
-	///     Master difficulty (~2200 ELO).
-	///     National master level.
-	/// </summary>
-	public static EngineDifficulty Master { get; } = new(
-		"Master",
-		2200,
-		MaxDepth: 16,
-		MaxThinkTimeMs: 3000
+		14,
+		2000
 	);
 
 	/// <summary>
@@ -111,8 +67,41 @@ public readonly record struct EngineDifficulty(
 	public static EngineDifficulty Grandmaster { get; } = new(
 		"Grandmaster",
 		2400,
-		MaxDepth: 18,
-		MaxThinkTimeMs: 4000
+		18,
+		4000
+	);
+
+	/// <summary>
+	///     Hard difficulty (~1600 ELO).
+	///     Expert level, few mistakes.
+	/// </summary>
+	public static EngineDifficulty Hard { get; } = new(
+		"Hard",
+		1600,
+		10,
+		1000
+	);
+
+	/// <summary>
+	///     Intermediate difficulty (~1400 ELO).
+	///     Strong club player level.
+	/// </summary>
+	public static EngineDifficulty Intermediate { get; } = new(
+		"Intermediate",
+		1400,
+		8,
+		750
+	);
+
+	/// <summary>
+	///     Master difficulty (~2200 ELO).
+	///     National master level.
+	/// </summary>
+	public static EngineDifficulty Master { get; } = new(
+		"Master",
+		2200,
+		16,
+		3000
 	);
 
 	/// <summary>
@@ -122,8 +111,19 @@ public readonly record struct EngineDifficulty(
 	public static EngineDifficulty Maximum { get; } = new(
 		"Maximum",
 		3000,
-		MaxDepth: null,
-		MaxThinkTimeMs: null
+		null,
+		null
+	);
+
+	/// <summary>
+	///     Medium difficulty (~1200 ELO).
+	///     Club player level, moderate thinking.
+	/// </summary>
+	public static EngineDifficulty Medium { get; } = new(
+		"Medium",
+		1200,
+		6,
+		500
 	);
 
 	/// <summary>
@@ -144,6 +144,29 @@ public readonly record struct EngineDifficulty(
 	];
 
 	/// <summary>
+	///     Gets whether this difficulty uses full engine strength (no limits).
+	/// </summary>
+	public bool IsFullStrength => MaxDepth is null && MaxThinkTimeMs is null;
+
+	/// <summary>
+	///     Gets the rating tier corresponding to this difficulty's ELO.
+	/// </summary>
+	public RatingTier Tier => Elo switch
+	{
+		< 800  => RatingTier.Beginner,
+		< 1000 => RatingTier.Novice,
+		< 1200 => RatingTier.Intermediate,
+		< 1400 => RatingTier.Amateur,
+		< 1600 => RatingTier.Advanced,
+		< 1800 => RatingTier.Expert,
+		< 2000 => RatingTier.Master,
+		< 2200 => RatingTier.NationalMaster,
+		< 2400 => RatingTier.InternationalMaster,
+		< 2700 => RatingTier.Grandmaster,
+		_      => RatingTier.SuperGrandmaster
+	};
+
+	/// <summary>
 	///     Creates a custom difficulty with the specified ELO.
 	///     Automatically calculates appropriate depth/time limits.
 	/// </summary>
@@ -153,32 +176,32 @@ public readonly record struct EngineDifficulty(
 	{
 		// Calculate fallback limits based on ELO
 		// Higher ELO = deeper search and more time
-		var depth = elo switch
+		uint? depth = elo switch
 		{
-			< 900   => 2u,
-			< 1100  => 4u,
-			< 1300  => 6u,
-			< 1500  => 8u,
-			< 1700  => 10u,
-			< 1900  => 12u,
-			< 2100  => 14u,
-			< 2300  => 16u,
-			< 2500  => 18u,
-			_       => (uint?)null
+			< 900  => 2u,
+			< 1100 => 4u,
+			< 1300 => 6u,
+			< 1500 => 8u,
+			< 1700 => 10u,
+			< 1900 => 12u,
+			< 2100 => 14u,
+			< 2300 => 16u,
+			< 2500 => 18u,
+			_      => null
 		};
 
-		var thinkTime = elo switch
+		int? thinkTime = elo switch
 		{
-			< 900   => 100,
-			< 1100  => 200,
-			< 1300  => 500,
-			< 1500  => 750,
-			< 1700  => 1000,
-			< 1900  => 1500,
-			< 2100  => 2000,
-			< 2300  => 3000,
-			< 2500  => 4000,
-			_       => (int?)null
+			< 900  => 100,
+			< 1100 => 200,
+			< 1300 => 500,
+			< 1500 => 750,
+			< 1700 => 1000,
+			< 1900 => 1500,
+			< 2100 => 2000,
+			< 2300 => 3000,
+			< 2500 => 4000,
+			_      => null
 		};
 
 		return new(
@@ -199,29 +222,7 @@ public readonly record struct EngineDifficulty(
 			if (elo <= level.Elo + 100)
 				return level;
 		}
+
 		return Maximum;
 	}
-
-	/// <summary>
-	///     Gets whether this difficulty uses full engine strength (no limits).
-	/// </summary>
-	public bool IsFullStrength => MaxDepth is null && MaxThinkTimeMs is null;
-
-	/// <summary>
-	///     Gets the rating tier corresponding to this difficulty's ELO.
-	/// </summary>
-	public RatingTier Tier => Elo switch
-	{
-		< 800   => RatingTier.Beginner,
-		< 1000  => RatingTier.Novice,
-		< 1200  => RatingTier.Intermediate,
-		< 1400  => RatingTier.Amateur,
-		< 1600  => RatingTier.Advanced,
-		< 1800  => RatingTier.Expert,
-		< 2000  => RatingTier.Master,
-		< 2200  => RatingTier.NationalMaster,
-		< 2400  => RatingTier.InternationalMaster,
-		< 2700  => RatingTier.Grandmaster,
-		_       => RatingTier.SuperGrandmaster
-	};
 }

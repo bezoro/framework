@@ -52,45 +52,45 @@ public readonly record struct ChessMove(
 	string?            SanNotation     = null
 )
 {
-    /// <summary>
-    ///     Gets whether this move is a capture.
-    /// </summary>
-    public bool IsCapture => Classification is MoveClassification.Capture or MoveClassification.EnPassant;
+	/// <summary>
+	///     Gets whether this move is a capture.
+	/// </summary>
+	public bool IsCapture => Classification is MoveClassification.Capture or MoveClassification.EnPassant;
 
-    /// <summary>
-    ///     Gets whether this move gives check.
-    /// </summary>
-    public bool IsCheck => Classification == MoveClassification.Check;
+	/// <summary>
+	///     Gets whether this move gives check.
+	/// </summary>
+	public bool IsCheck => Classification == MoveClassification.Check;
 
-    /// <summary>
-    ///     Gets whether this move delivers checkmate.
-    /// </summary>
-    public bool IsCheckmate => Classification == MoveClassification.Checkmate;
+	/// <summary>
+	///     Gets whether this move delivers checkmate.
+	/// </summary>
+	public bool IsCheckmate => Classification == MoveClassification.Checkmate;
 
-    /// <summary>
-    ///     Gets the file index (0-7) of the source square.
-    /// </summary>
-    public int FromFile => FromSquare.Length > 0 ? FromSquare[0] - 'a' : 0;
+	/// <summary>
+	///     Gets the file index (0-7) of the source square.
+	/// </summary>
+	public int FromFile => FromSquare.Length > 0 ? FromSquare[0] - 'a' : 0;
 
-    /// <summary>
-    ///     Gets the rank index (0-7) of the source square.
-    /// </summary>
-    public int FromRank => FromSquare.Length > 1 ? FromSquare[1] - '1' : 0;
+	/// <summary>
+	///     Gets the rank index (0-7) of the source square.
+	/// </summary>
+	public int FromRank => FromSquare.Length > 1 ? FromSquare[1] - '1' : 0;
 
-    /// <summary>
-    ///     Gets the file index (0-7) of the destination square.
-    /// </summary>
-    public int ToFile => ToSquare.Length > 0 ? ToSquare[0] - 'a' : 0;
+	/// <summary>
+	///     Gets the file index (0-7) of the destination square.
+	/// </summary>
+	public int ToFile => ToSquare.Length > 0 ? ToSquare[0] - 'a' : 0;
 
-    /// <summary>
-    ///     Gets the rank index (0-7) of the destination square.
-    /// </summary>
-    public int ToRank => ToSquare.Length > 1 ? ToSquare[1] - '1' : 0;
+	/// <summary>
+	///     Gets the rank index (0-7) of the destination square.
+	/// </summary>
+	public int ToRank => ToSquare.Length > 1 ? ToSquare[1] - '1' : 0;
 
-    /// <summary>
-    ///     Creates a ChessMove from move notation and optional classification.
-    /// </summary>
-    public static ChessMove FromNotation(
+	/// <summary>
+	///     Creates a ChessMove from move notation and optional classification.
+	/// </summary>
+	public static ChessMove FromNotation(
 		string              notation,
 		PlayerColor         movingColor,
 		MoveClassification? classification = null)
@@ -105,10 +105,10 @@ public readonly record struct ChessMove(
 		);
 	}
 
-    /// <summary>
-    ///     Creates a ChessMove from a UCI Move and side to move.
-    /// </summary>
-    public static ChessMove FromUciMove(Move uciMove, PlayerColor movingColor) => new(
+	/// <summary>
+	///     Creates a ChessMove from a UCI Move and side to move.
+	/// </summary>
+	public static ChessMove FromUciMove(Move uciMove, PlayerColor movingColor) => new(
 		uciMove.Notation,
 		uciMove.From,
 		uciMove.To,

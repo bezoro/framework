@@ -45,12 +45,12 @@ public readonly record struct GameClock(
 	PlayerColor     ActiveColor
 )
 {
-    /// <summary>
-    ///     Creates a time control with the specified initial time and increment.
-    /// </summary>
-    /// <param name="initialTime">Initial time for each player.</param>
-    /// <param name="increment">Time increment per move.</param>
-    public static GameClock Create(TimeSpan initialTime, TimeSpan increment)
+	/// <summary>
+	///     Creates a time control with the specified initial time and increment.
+	/// </summary>
+	/// <param name="initialTime">Initial time for each player.</param>
+	/// <param name="increment">Time increment per move.</param>
+	public static GameClock Create(TimeSpan initialTime, TimeSpan increment)
 	{
 		var type = ClassifyTimeControl(initialTime, increment);
 		return new(
@@ -63,50 +63,50 @@ public readonly record struct GameClock(
 		);
 	}
 
-    /// <summary>
-    ///     Creates a blitz time control (3 minutes per side).
-    /// </summary>
-    public static GameClock Blitz3Min { get; } = Create(TimeSpan.FromMinutes(3), TimeSpan.Zero);
+	/// <summary>
+	///     Creates a blitz time control (3 minutes per side).
+	/// </summary>
+	public static GameClock Blitz3Min { get; } = Create(TimeSpan.FromMinutes(3), TimeSpan.Zero);
 
-    /// <summary>
-    ///     Creates a blitz time control (5 minutes per side).
-    /// </summary>
-    public static GameClock Blitz5Min { get; } = Create(TimeSpan.FromMinutes(5), TimeSpan.Zero);
+	/// <summary>
+	///     Creates a blitz time control (5 minutes per side).
+	/// </summary>
+	public static GameClock Blitz5Min { get; } = Create(TimeSpan.FromMinutes(5), TimeSpan.Zero);
 
-    /// <summary>
-    ///     Creates a blitz time control (5 minutes per side, 3 second increment).
-    /// </summary>
-    public static GameClock Blitz5Plus3 { get; } = Create(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(3));
+	/// <summary>
+	///     Creates a blitz time control (5 minutes per side, 3 second increment).
+	/// </summary>
+	public static GameClock Blitz5Plus3 { get; } = Create(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(3));
 
-    /// <summary>
-    ///     Creates a bullet time control (1 minute per side).
-    /// </summary>
-    public static GameClock Bullet1Min { get; } = Create(TimeSpan.FromMinutes(1), TimeSpan.Zero);
+	/// <summary>
+	///     Creates a bullet time control (1 minute per side).
+	/// </summary>
+	public static GameClock Bullet1Min { get; } = Create(TimeSpan.FromMinutes(1), TimeSpan.Zero);
 
-    /// <summary>
-    ///     Creates a bullet time control (2 minutes per side, 1 second increment).
-    /// </summary>
-    public static GameClock Bullet2Plus1 { get; } = Create(TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(1));
+	/// <summary>
+	///     Creates a bullet time control (2 minutes per side, 1 second increment).
+	/// </summary>
+	public static GameClock Bullet2Plus1 { get; } = Create(TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(1));
 
-    /// <summary>
-    ///     Creates a classical time control (30 minutes per side).
-    /// </summary>
-    public static GameClock Classical30Min { get; } = Create(TimeSpan.FromMinutes(30), TimeSpan.Zero);
+	/// <summary>
+	///     Creates a classical time control (30 minutes per side).
+	/// </summary>
+	public static GameClock Classical30Min { get; } = Create(TimeSpan.FromMinutes(30), TimeSpan.Zero);
 
-    /// <summary>
-    ///     Creates a rapid time control (10 minutes per side).
-    /// </summary>
-    public static GameClock Rapid10Min { get; } = Create(TimeSpan.FromMinutes(10), TimeSpan.Zero);
+	/// <summary>
+	///     Creates a rapid time control (10 minutes per side).
+	/// </summary>
+	public static GameClock Rapid10Min { get; } = Create(TimeSpan.FromMinutes(10), TimeSpan.Zero);
 
-    /// <summary>
-    ///     Creates a rapid time control (15 minutes per side, 10 second increment).
-    /// </summary>
-    public static GameClock Rapid15Plus10 { get; } = Create(TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(10));
+	/// <summary>
+	///     Creates a rapid time control (15 minutes per side, 10 second increment).
+	/// </summary>
+	public static GameClock Rapid15Plus10 { get; } = Create(TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(10));
 
-    /// <summary>
-    ///     Gets an unlimited time control clock (no time limit).
-    /// </summary>
-    public static GameClock Unlimited { get; } = new(
+	/// <summary>
+	///     Gets an unlimited time control clock (no time limit).
+	/// </summary>
+	public static GameClock Unlimited { get; } = new(
 		long.MaxValue,
 		long.MaxValue,
 		0,
@@ -115,77 +115,77 @@ public readonly record struct GameClock(
 		PlayerColor.White
 	);
 
-    /// <summary>
-    ///     Gets whether black's time has run out.
-    /// </summary>
-    public bool IsBlackTimeout => BlackTimeMs <= 0 && Type != TimeControlType.Unlimited;
+	/// <summary>
+	///     Gets whether black's time has run out.
+	/// </summary>
+	public bool IsBlackTimeout => BlackTimeMs <= 0 && Type != TimeControlType.Unlimited;
 
-    /// <summary>
-    ///     Gets whether any player has run out of time.
-    /// </summary>
-    public bool IsTimeout => IsWhiteTimeout || IsBlackTimeout;
+	/// <summary>
+	///     Gets whether any player has run out of time.
+	/// </summary>
+	public bool IsTimeout => IsWhiteTimeout || IsBlackTimeout;
 
-    /// <summary>
-    ///     Gets whether this is an unlimited time control.
-    /// </summary>
-    public bool IsUnlimited => Type == TimeControlType.Unlimited;
+	/// <summary>
+	///     Gets whether this is an unlimited time control.
+	/// </summary>
+	public bool IsUnlimited => Type == TimeControlType.Unlimited;
 
-    /// <summary>
-    ///     Gets whether white's time has run out.
-    /// </summary>
-    public bool IsWhiteTimeout => WhiteTimeMs <= 0 && Type != TimeControlType.Unlimited;
+	/// <summary>
+	///     Gets whether white's time has run out.
+	/// </summary>
+	public bool IsWhiteTimeout => WhiteTimeMs <= 0 && Type != TimeControlType.Unlimited;
 
-    /// <summary>
-    ///     Gets the player who ran out of time, or null if no timeout.
-    /// </summary>
-    public PlayerColor? TimedOutPlayer =>
+	/// <summary>
+	///     Gets the player who ran out of time, or null if no timeout.
+	/// </summary>
+	public PlayerColor? TimedOutPlayer =>
 		IsWhiteTimeout ? PlayerColor.White : IsBlackTimeout ? PlayerColor.Black : null;
 
-    /// <summary>
-    ///     Gets a formatted display string for black's time (MM:SS or M:SS.s).
-    /// </summary>
-    public string BlackTimeDisplay => FormatTime(BlackTimeMs);
+	/// <summary>
+	///     Gets a formatted display string for black's time (MM:SS or M:SS.s).
+	/// </summary>
+	public string BlackTimeDisplay => FormatTime(BlackTimeMs);
 
-    /// <summary>
-    ///     Gets a formatted display string for white's time (MM:SS or M:SS.s).
-    /// </summary>
-    public string WhiteTimeDisplay => FormatTime(WhiteTimeMs);
+	/// <summary>
+	///     Gets a formatted display string for white's time (MM:SS or M:SS.s).
+	/// </summary>
+	public string WhiteTimeDisplay => FormatTime(WhiteTimeMs);
 
-    /// <summary>
-    ///     Gets black's remaining time as a TimeSpan.
-    /// </summary>
-    public TimeSpan BlackTime => TimeSpan.FromMilliseconds(BlackTimeMs);
+	/// <summary>
+	///     Gets black's remaining time as a TimeSpan.
+	/// </summary>
+	public TimeSpan BlackTime => TimeSpan.FromMilliseconds(BlackTimeMs);
 
-    /// <summary>
-    ///     Gets the increment as a TimeSpan.
-    /// </summary>
-    public TimeSpan Increment => TimeSpan.FromMilliseconds(IncrementMs);
+	/// <summary>
+	///     Gets the increment as a TimeSpan.
+	/// </summary>
+	public TimeSpan Increment => TimeSpan.FromMilliseconds(IncrementMs);
 
-    /// <summary>
-    ///     Gets white's remaining time as a TimeSpan.
-    /// </summary>
-    public TimeSpan WhiteTime => TimeSpan.FromMilliseconds(WhiteTimeMs);
+	/// <summary>
+	///     Gets white's remaining time as a TimeSpan.
+	/// </summary>
+	public TimeSpan WhiteTime => TimeSpan.FromMilliseconds(WhiteTimeMs);
 
-    /// <summary>
-    ///     Sets the active color's clock.
-    /// </summary>
-    public GameClock SetActiveColor(PlayerColor color) => this with { ActiveColor = color };
+	/// <summary>
+	///     Sets the active color's clock.
+	/// </summary>
+	public GameClock SetActiveColor(PlayerColor color) => this with { ActiveColor = color };
 
-    /// <summary>
-    ///     Starts the clock.
-    /// </summary>
-    public GameClock Start() => this with { IsRunning = true };
+	/// <summary>
+	///     Starts the clock.
+	/// </summary>
+	public GameClock Start() => this with { IsRunning = true };
 
-    /// <summary>
-    ///     Stops the clock.
-    /// </summary>
-    public GameClock Stop() => this with { IsRunning = false };
+	/// <summary>
+	///     Stops the clock.
+	/// </summary>
+	public GameClock Stop() => this with { IsRunning = false };
 
-    /// <summary>
-    ///     Switches the active clock and adds increment to the player who just moved.
-    /// </summary>
-    /// <param name="movedColor">The color that just completed their move.</param>
-    public GameClock SwitchTurn(PlayerColor movedColor)
+	/// <summary>
+	///     Switches the active clock and adds increment to the player who just moved.
+	/// </summary>
+	/// <param name="movedColor">The color that just completed their move.</param>
+	public GameClock SwitchTurn(PlayerColor movedColor)
 	{
 		if (Type == TimeControlType.Unlimited)
 			return this with { ActiveColor = movedColor.Opponent() };
@@ -203,11 +203,11 @@ public readonly record struct GameClock(
 				   };
 	}
 
-    /// <summary>
-    ///     Subtracts elapsed time from the active player's clock.
-    /// </summary>
-    /// <param name="elapsedMs">Elapsed time in milliseconds.</param>
-    public GameClock Tick(long elapsedMs)
+	/// <summary>
+	///     Subtracts elapsed time from the active player's clock.
+	/// </summary>
+	/// <param name="elapsedMs">Elapsed time in milliseconds.</param>
+	public GameClock Tick(long elapsedMs)
 	{
 		if (!IsRunning || Type == TimeControlType.Unlimited)
 			return this;
@@ -217,16 +217,16 @@ public readonly record struct GameClock(
 				   : this with { BlackTimeMs = Math.Max(0, BlackTimeMs - elapsedMs) };
 	}
 
-    /// <summary>
-    ///     Gets the remaining time in milliseconds for the specified player.
-    /// </summary>
-    public long GetTimeRemainingMs(PlayerColor color) =>
+	/// <summary>
+	///     Gets the remaining time in milliseconds for the specified player.
+	/// </summary>
+	public long GetTimeRemainingMs(PlayerColor color) =>
 		color == PlayerColor.White ? WhiteTimeMs : BlackTimeMs;
 
-    /// <summary>
-    ///     Gets the remaining time for the specified player.
-    /// </summary>
-    public TimeSpan GetTimeRemaining(PlayerColor color) =>
+	/// <summary>
+	///     Gets the remaining time for the specified player.
+	/// </summary>
+	public TimeSpan GetTimeRemaining(PlayerColor color) =>
 		color == PlayerColor.White ? WhiteTime : BlackTime;
 
 	private static string FormatTime(long ms)

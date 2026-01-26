@@ -13,11 +13,25 @@ namespace Bezoro.Chess.API.Opponents;
 public sealed class RemoteOpponent : IOpponent
 {
 	private readonly IRemoteGameService _remoteService;
-	private readonly string             _matchId;
 	private readonly object             _sync = new();
+	private          bool               _isDisposed;
 
 	private TaskCompletionSource<string>? _pendingMove;
-	private bool                          _isDisposed;
+
+	/// <inheritdoc />
+	public event Action? Disconnected;
+
+	/// <inheritdoc />
+	public event Action? DrawOffered;
+
+	/// <inheritdoc />
+	public event Action<Exception>? Error;
+
+	/// <inheritdoc />
+	public event Action<string>? MoveSubmitted;
+
+	/// <inheritdoc />
+	public event Action? Resigned;
 
 	/// <summary>
 	///     Creates a new remote opponent from a matched game.
@@ -27,7 +41,7 @@ public sealed class RemoteOpponent : IOpponent
 	public RemoteOpponent(IRemoteGameService remoteService, RemoteMatch match)
 	{
 		_remoteService = remoteService;
-		_matchId       = match.MatchId;
+		MatchId        = match.MatchId;
 		Profile        = match.Opponent;
 
 		// Subscribe to remote service events
@@ -39,40 +53,102 @@ public sealed class RemoteOpponent : IOpponent
 	}
 
 	/// <inheritdoc />
+	public bool IsReady => _remoteService.IsConnected;
+
+	/// <inheritdoc />
 	public OpponentType Type => OpponentType.RemoteHuman;
 
 	/// <inheritdoc />
 	public PlayerProfile Profile { get; }
 
-	/// <inheritdoc />
-	public bool IsReady => _remoteService.IsConnected;
-
 	/// <summary>
 	///     Gets the match ID for this remote game.
 	/// </summary>
-	public string MatchId => _matchId;
+	public string MatchId { get; }
 
-	/// <inheritdoc />
-	public event Action<string>? MoveSubmitted;
-
-	/// <inheritdoc />
-	public event Action? Resigned;
-
-	/// <inheritdoc />
-	public event Action? DrawOffered;
-
-	/// <inheritdoc />
-	public event Action? Disconnected;
-
-	/// <inheritdoc />
-	public event Action<Exception>? Error;
-
-	/// <inheritdoc />
-	public Task InitializeAsync(CancellationToken ct = default)
+	/// <summary>
+	///     Accepts a draw offer from the opponent.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task AcceptDrawAsync(CancellationToken ct = default)
 	{
+		try
+		{
+			await _remoteService.AcceptDrawAsync(MatchId, ct).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+	}
+
+	/// <summary>
+	///     Declines a draw offer from the opponent.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task DeclineDrawAsync(CancellationToken ct = default)
+	{
+		try
+		{
+			await _remoteService.DeclineDrawAsync(MatchId, ct).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+	}
+
+	/// <inheritdoc />
+	public Task InitializeAsync(CancellationToken ct = default) =>
 		// Remote opponent is already initialized through the match
 		// Connection should already be established
-		return Task.CompletedTask;
+		Task.CompletedTask;
+
+	/// <inheritdoc />
+	public async Task NotifyMovePlayedAsync(string move, GameState state, CancellationToken ct = default)
+	{
+		// Send our move to the opponent
+		try
+		{
+			await _remoteService.SendMoveAsync(MatchId, move, ct).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+			throw;
+		}
+	}
+
+	/// <summary>
+	///     Offers a draw to the opponent.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task OfferDrawAsync(CancellationToken ct = default)
+	{
+		try
+		{
+			await _remoteService.OfferDrawAsync(MatchId, ct).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
+	}
+
+	/// <summary>
+	///     Resigns the game.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task ResignAsync(CancellationToken ct = default)
+	{
+		try
+		{
+			await _remoteService.ResignAsync(MatchId, ct).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			Error?.Invoke(ex);
+		}
 	}
 
 	/// <inheritdoc />
@@ -106,85 +182,6 @@ public sealed class RemoteOpponent : IOpponent
 	}
 
 	/// <inheritdoc />
-	public async Task NotifyMovePlayedAsync(string move, GameState state, CancellationToken ct = default)
-	{
-		// Send our move to the opponent
-		try
-		{
-			await _remoteService.SendMoveAsync(_matchId, move, ct).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-			throw;
-		}
-	}
-
-	/// <summary>
-	///     Resigns the game.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	public async Task ResignAsync(CancellationToken ct = default)
-	{
-		try
-		{
-			await _remoteService.ResignAsync(_matchId, ct).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-	}
-
-	/// <summary>
-	///     Offers a draw to the opponent.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	public async Task OfferDrawAsync(CancellationToken ct = default)
-	{
-		try
-		{
-			await _remoteService.OfferDrawAsync(_matchId, ct).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-	}
-
-	/// <summary>
-	///     Accepts a draw offer from the opponent.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	public async Task AcceptDrawAsync(CancellationToken ct = default)
-	{
-		try
-		{
-			await _remoteService.AcceptDrawAsync(_matchId, ct).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-	}
-
-	/// <summary>
-	///     Declines a draw offer from the opponent.
-	/// </summary>
-	/// <param name="ct">Cancellation token.</param>
-	public async Task DeclineDrawAsync(CancellationToken ct = default)
-	{
-		try
-		{
-			await _remoteService.DeclineDrawAsync(_matchId, ct).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
-	}
-
-	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
 		if (_isDisposed)
@@ -203,41 +200,13 @@ public sealed class RemoteOpponent : IOpponent
 		TaskCompletionSource<string>? tcs;
 		lock (_sync)
 		{
-			tcs = _pendingMove;
+			tcs          = _pendingMove;
 			_pendingMove = null;
 		}
 
 		tcs?.TrySetCanceled();
 
 		return default;
-	}
-
-	private void OnOpponentMoved(string move)
-	{
-		TaskCompletionSource<string>? tcs;
-		lock (_sync)
-		{
-			tcs = _pendingMove;
-		}
-
-		if (tcs != null && tcs.TrySetResult(move))
-		{
-			MoveSubmitted?.Invoke(move);
-		}
-	}
-
-	private void OnOpponentResigned()
-	{
-		// Cancel any pending move
-		TaskCompletionSource<string>? tcs;
-		lock (_sync)
-		{
-			tcs = _pendingMove;
-			_pendingMove = null;
-		}
-
-		tcs?.TrySetCanceled();
-		Resigned?.Invoke();
 	}
 
 	private void OnDrawOffered()
@@ -251,7 +220,7 @@ public sealed class RemoteOpponent : IOpponent
 		TaskCompletionSource<string>? tcs;
 		lock (_sync)
 		{
-			tcs = _pendingMove;
+			tcs          = _pendingMove;
 			_pendingMove = null;
 		}
 
@@ -259,9 +228,33 @@ public sealed class RemoteOpponent : IOpponent
 		Disconnected?.Invoke();
 	}
 
+	private void OnOpponentMoved(string move)
+	{
+		TaskCompletionSource<string>? tcs;
+		lock (_sync)
+		{
+			tcs = _pendingMove;
+		}
+
+		if (tcs != null && tcs.TrySetResult(move)) MoveSubmitted?.Invoke(move);
+	}
+
+	private void OnOpponentResigned()
+	{
+		// Cancel any pending move
+		TaskCompletionSource<string>? tcs;
+		lock (_sync)
+		{
+			tcs          = _pendingMove;
+			_pendingMove = null;
+		}
+
+		tcs?.TrySetCanceled();
+		Resigned?.Invoke();
+	}
+
 	private void OnRemoteError(Exception ex)
 	{
 		Error?.Invoke(ex);
 	}
 }
-

@@ -10,10 +10,10 @@ namespace Bezoro.Chess.Internal;
 /// </summary>
 internal static class PgnExporter
 {
-    /// <summary>
-    ///     Exports a chess game to PGN format.
-    /// </summary>
-    public static string Export(ChessGame game)
+	/// <summary>
+	///     Exports a chess game to PGN format.
+	/// </summary>
+	public static string Export(ChessGame game)
 	{
 		var sb = new StringBuilder();
 
@@ -89,10 +89,10 @@ internal static class PgnExporter
 		return sb.ToString();
 	}
 
-    /// <summary>
-    ///     Exports just the move list (without headers) in coordinate notation.
-    /// </summary>
-    public static string ExportMoveList(ChessGame game)
+	/// <summary>
+	///     Exports just the move list (without headers) in coordinate notation.
+	/// </summary>
+	public static string ExportMoveList(ChessGame game)
 	{
 		var sb         = new StringBuilder();
 		var moves      = game.History;

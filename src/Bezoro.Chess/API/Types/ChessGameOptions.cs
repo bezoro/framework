@@ -6,7 +6,10 @@ namespace Bezoro.Chess.API.Types;
 /// <summary>
 ///     Configuration options for creating a chess game.
 /// </summary>
-/// <param name="EnginePath">Path to the UCI chess engine executable (required for all game types - needed for legal moves, classification, and evaluation).</param>
+/// <param name="EnginePath">
+///     Path to the UCI chess engine executable (required for all game types - needed for legal moves,
+///     classification, and evaluation).
+/// </param>
 /// <param name="PlayerColor">The color the local player will play as.</param>
 /// <param name="OpponentType">The type of opponent (Engine, LocalHuman, RemoteHuman).</param>
 /// <param name="EngineDifficulty">Engine difficulty settings (for engine opponent).</param>
@@ -20,41 +23,21 @@ namespace Bezoro.Chess.API.Types;
 /// <param name="StartingFen">Custom starting position FEN (null for standard).</param>
 /// <param name="ClassificationDepth">Depth for move classification analysis.</param>
 public readonly record struct ChessGameOptions(
-	string?              EnginePath           = null,
-	PlayerColor          PlayerColor          = PlayerColor.White,
-	OpponentType         OpponentType         = OpponentType.Engine,
-	EngineDifficulty?    EngineDifficulty     = null,
-	PlayerProfile?       LocalPlayer          = null,
-	PlayerProfile?       LocalOpponent        = null,
-	IRemoteGameService?  RemoteService        = null,
-	GameClock?           TimeControl          = null,
-	int                  EngineThinkTimeMs    = 1000,
-	uint?                EngineDepth          = null,
-	bool                 AutoPlayOpponentMove = true,
-	string?              StartingFen          = null,
-	uint                 ClassificationDepth  = 6
+	string?             EnginePath           = null,
+	PlayerColor         PlayerColor          = PlayerColor.White,
+	OpponentType        OpponentType         = OpponentType.Engine,
+	EngineDifficulty?   EngineDifficulty     = null,
+	PlayerProfile?      LocalPlayer          = null,
+	PlayerProfile?      LocalOpponent        = null,
+	IRemoteGameService? RemoteService        = null,
+	GameClock?          TimeControl          = null,
+	int                 EngineThinkTimeMs    = 1000,
+	uint?               EngineDepth          = null,
+	bool                AutoPlayOpponentMove = true,
+	string?             StartingFen          = null,
+	uint                ClassificationDepth  = 6
 )
 {
-	/// <summary>
-	///     Gets whether this is an unlimited time game.
-	/// </summary>
-	public bool IsUnlimitedTime => EffectiveTimeControl.IsUnlimited;
-
-	/// <summary>
-	///     Gets the effective time control (defaults to Unlimited if not specified).
-	/// </summary>
-	public GameClock EffectiveTimeControl => TimeControl ?? GameClock.Unlimited;
-
-	/// <summary>
-	///     Gets the opponent's color (opposite of player color).
-	/// </summary>
-	public PlayerColor OpponentColor => PlayerColor.Opponent();
-
-	/// <summary>
-	///     Gets the effective engine difficulty (defaults to Medium if not specified).
-	/// </summary>
-	public EngineDifficulty EffectiveDifficulty => EngineDifficulty ?? Types.EngineDifficulty.Medium;
-
 	/// <summary>
 	///     Gets whether this is an engine game.
 	/// </summary>
@@ -70,65 +53,61 @@ public readonly record struct ChessGameOptions(
 	/// </summary>
 	public bool IsOnlineMultiplayer => OpponentType == OpponentType.RemoteHuman;
 
-	// ============ Factory Methods for Engine Games ============
+	/// <summary>
+	///     Gets whether this is an unlimited time game.
+	/// </summary>
+	public bool IsUnlimitedTime => EffectiveTimeControl.IsUnlimited;
 
 	/// <summary>
-	///     Creates options for playing against the engine.
+	///     Gets the effective engine difficulty (defaults to Medium if not specified).
 	/// </summary>
-	/// <param name="enginePath">Path to the UCI engine executable.</param>
-	/// <param name="difficulty">Engine difficulty level.</param>
-	/// <param name="playerColor">The color you want to play as.</param>
-	/// <param name="localPlayer">Optional player profile.</param>
-	public static ChessGameOptions VsEngine(
-		string            enginePath,
-		EngineDifficulty? difficulty  = null,
-		PlayerColor       playerColor = PlayerColor.White,
-		PlayerProfile?    localPlayer = null) => new(
+	public EngineDifficulty EffectiveDifficulty => EngineDifficulty ?? Types.EngineDifficulty.Medium;
+
+	/// <summary>
+	///     Gets the effective time control (defaults to Unlimited if not specified).
+	/// </summary>
+	public GameClock EffectiveTimeControl => TimeControl ?? GameClock.Unlimited;
+
+	/// <summary>
+	///     Gets the opponent's color (opposite of player color).
+	/// </summary>
+	public PlayerColor OpponentColor => PlayerColor.Opponent();
+
+	/// <summary>
+	///     Creates options for an analysis game (unlimited time, no auto-play).
+	/// </summary>
+	public static ChessGameOptions Analysis(string enginePath) => new(
 		enginePath,
-		playerColor,
+		PlayerColor.White,
 		OpponentType.Engine,
-		difficulty,
-		localPlayer
-	);
-
-	/// <summary>
-	///     Creates options for playing against the engine at beginner difficulty.
-	/// </summary>
-	public static ChessGameOptions VsEngineBeginner(
-		string         enginePath,
-		PlayerColor    playerColor = PlayerColor.White,
-		PlayerProfile? localPlayer = null) => VsEngine(
-		enginePath,
-		Types.EngineDifficulty.Beginner,
-		playerColor,
-		localPlayer
-	);
-
-	/// <summary>
-	///     Creates options for playing against the engine at medium difficulty.
-	/// </summary>
-	public static ChessGameOptions VsEngineMedium(
-		string         enginePath,
-		PlayerColor    playerColor = PlayerColor.White,
-		PlayerProfile? localPlayer = null) => VsEngine(
-		enginePath,
-		Types.EngineDifficulty.Medium,
-		playerColor,
-		localPlayer
-	);
-
-	/// <summary>
-	///     Creates options for playing against the engine at maximum difficulty.
-	/// </summary>
-	public static ChessGameOptions VsEngineMaximum(
-		string         enginePath,
-		PlayerColor    playerColor = PlayerColor.White,
-		PlayerProfile? localPlayer = null) => VsEngine(
-		enginePath,
 		Types.EngineDifficulty.Maximum,
-		playerColor,
-		localPlayer
+		AutoPlayOpponentMove: false
 	);
+
+	/// <summary>
+	///     Creates options for a blitz game (5 minutes) against engine.
+	/// </summary>
+	public static ChessGameOptions Blitz(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
+		enginePath,
+		playerColor,
+		TimeControl: GameClock.Blitz5Min
+	);
+
+	/// <summary>
+	///     Creates options for a bullet game (1 minute) against engine.
+	/// </summary>
+	public static ChessGameOptions Bullet(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
+		enginePath,
+		playerColor,
+		TimeControl: GameClock.Bullet1Min
+	);
+
+	// ============ Legacy Factory Methods (for backward compatibility) ============
+
+	/// <summary>
+	///     Gets the default options with just the engine path required.
+	/// </summary>
+	public static ChessGameOptions Default(string enginePath) => VsEngine(enginePath);
 
 	// ============ Factory Methods for Local Two-Player ============
 
@@ -141,18 +120,18 @@ public readonly record struct ChessGameOptions(
 	/// <param name="player2">Second player's profile (plays as black).</param>
 	/// <param name="timeControl">Optional time control.</param>
 	public static ChessGameOptions LocalTwoPlayer(
-		string         enginePath,
-		PlayerProfile  player1,
-		PlayerProfile  player2,
-		GameClock?     timeControl = null) => new(
+		string        enginePath,
+		PlayerProfile player1,
+		PlayerProfile player2,
+		GameClock?    timeControl = null) => new(
 		enginePath,
-		PlayerColor: PlayerColor.White,
-		OpponentType: OpponentType.LocalHuman,
-		EngineDifficulty: null,
-		LocalPlayer: player1,
-		LocalOpponent: player2,
-		RemoteService: null,
-		TimeControl: timeControl,
+		PlayerColor.White,
+		OpponentType.LocalHuman,
+		null,
+		player1,
+		player2,
+		null,
+		timeControl,
 		AutoPlayOpponentMove: false
 	);
 
@@ -195,72 +174,14 @@ public readonly record struct ChessGameOptions(
 		PlayerProfile      opponentProfile,
 		GameClock?         timeControl = null) => new(
 		enginePath,
-		PlayerColor: yourColor,
-		OpponentType: OpponentType.RemoteHuman,
-		EngineDifficulty: null,
-		LocalPlayer: localPlayer,
-		LocalOpponent: opponentProfile,
-		RemoteService: remoteService,
-		TimeControl: timeControl,
+		yourColor,
+		OpponentType.RemoteHuman,
+		null,
+		localPlayer,
+		opponentProfile,
+		remoteService,
+		timeControl,
 		AutoPlayOpponentMove: false
-	);
-
-	// ============ Legacy Factory Methods (for backward compatibility) ============
-
-	/// <summary>
-	///     Gets the default options with just the engine path required.
-	/// </summary>
-	public static ChessGameOptions Default(string enginePath) => VsEngine(enginePath);
-
-	/// <summary>
-	///     Creates options for an analysis game (unlimited time, no auto-play).
-	/// </summary>
-	public static ChessGameOptions Analysis(string enginePath) => new(
-		enginePath,
-		PlayerColor.White,
-		OpponentType.Engine,
-		Types.EngineDifficulty.Maximum,
-		AutoPlayOpponentMove: false
-	);
-
-	/// <summary>
-	///     Creates options for a blitz game (5 minutes) against engine.
-	/// </summary>
-	public static ChessGameOptions Blitz(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
-		enginePath,
-		playerColor,
-		OpponentType.Engine,
-		TimeControl: GameClock.Blitz5Min
-	);
-
-	/// <summary>
-	///     Creates options for a bullet game (1 minute) against engine.
-	/// </summary>
-	public static ChessGameOptions Bullet(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
-		enginePath,
-		playerColor,
-		OpponentType.Engine,
-		TimeControl: GameClock.Bullet1Min
-	);
-
-	/// <summary>
-	///     Creates options for a rapid game (10 minutes) against engine.
-	/// </summary>
-	public static ChessGameOptions Rapid(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
-		enginePath,
-		playerColor,
-		OpponentType.Engine,
-		TimeControl: GameClock.Rapid10Min
-	);
-
-	/// <summary>
-	///     Creates options for a game where the player plays as white.
-	/// </summary>
-	public static ChessGameOptions PlayAsWhite(string enginePath, GameClock? timeControl = null) => new(
-		enginePath,
-		PlayerColor.White,
-		OpponentType.Engine,
-		TimeControl: timeControl ?? GameClock.Unlimited
 	);
 
 	/// <summary>
@@ -269,36 +190,95 @@ public readonly record struct ChessGameOptions(
 	public static ChessGameOptions PlayAsBlack(string enginePath, GameClock? timeControl = null) => new(
 		enginePath,
 		PlayerColor.Black,
-		OpponentType.Engine,
 		TimeControl: timeControl ?? GameClock.Unlimited
 	);
 
-	// ============ With Methods ============
+	/// <summary>
+	///     Creates options for a game where the player plays as white.
+	/// </summary>
+	public static ChessGameOptions PlayAsWhite(string enginePath, GameClock? timeControl = null) => new(
+		enginePath,
+		TimeControl: timeControl ?? GameClock.Unlimited
+	);
 
 	/// <summary>
-	///     Creates a copy with a different opponent type.
+	///     Creates options for a rapid game (10 minutes) against engine.
 	/// </summary>
-	public ChessGameOptions WithOpponentType(OpponentType type) => this with { OpponentType = type };
+	public static ChessGameOptions Rapid(string enginePath, PlayerColor playerColor = PlayerColor.White) => new(
+		enginePath,
+		playerColor,
+		TimeControl: GameClock.Rapid10Min
+	);
+
+	// ============ Factory Methods for Engine Games ============
 
 	/// <summary>
-	///     Creates a copy with a different engine difficulty.
+	///     Creates options for playing against the engine.
 	/// </summary>
-	public ChessGameOptions WithDifficulty(EngineDifficulty difficulty) => this with { EngineDifficulty = difficulty };
+	/// <param name="enginePath">Path to the UCI engine executable.</param>
+	/// <param name="difficulty">Engine difficulty level.</param>
+	/// <param name="playerColor">The color you want to play as.</param>
+	/// <param name="localPlayer">Optional player profile.</param>
+	public static ChessGameOptions VsEngine(
+		string            enginePath,
+		EngineDifficulty? difficulty  = null,
+		PlayerColor       playerColor = PlayerColor.White,
+		PlayerProfile?    localPlayer = null) => new(
+		enginePath,
+		playerColor,
+		OpponentType.Engine,
+		difficulty,
+		localPlayer
+	);
 
 	/// <summary>
-	///     Creates a copy with a different player profile.
+	///     Creates options for playing against the engine at beginner difficulty.
 	/// </summary>
-	public ChessGameOptions WithLocalPlayer(PlayerProfile player) => this with { LocalPlayer = player };
+	public static ChessGameOptions VsEngineBeginner(
+		string         enginePath,
+		PlayerColor    playerColor = PlayerColor.White,
+		PlayerProfile? localPlayer = null) => VsEngine(
+		enginePath,
+		Types.EngineDifficulty.Beginner,
+		playerColor,
+		localPlayer
+	);
 
 	/// <summary>
-	///     Creates a copy with a different opponent profile.
+	///     Creates options for playing against the engine at maximum difficulty.
 	/// </summary>
-	public ChessGameOptions WithLocalOpponent(PlayerProfile opponent) => this with { LocalOpponent = opponent };
+	public static ChessGameOptions VsEngineMaximum(
+		string         enginePath,
+		PlayerColor    playerColor = PlayerColor.White,
+		PlayerProfile? localPlayer = null) => VsEngine(
+		enginePath,
+		Types.EngineDifficulty.Maximum,
+		playerColor,
+		localPlayer
+	);
+
+	/// <summary>
+	///     Creates options for playing against the engine at medium difficulty.
+	/// </summary>
+	public static ChessGameOptions VsEngineMedium(
+		string         enginePath,
+		PlayerColor    playerColor = PlayerColor.White,
+		PlayerProfile? localPlayer = null) => VsEngine(
+		enginePath,
+		Types.EngineDifficulty.Medium,
+		playerColor,
+		localPlayer
+	);
 
 	/// <summary>
 	///     Creates a copy with auto-play enabled or disabled.
 	/// </summary>
 	public ChessGameOptions WithAutoPlay(bool autoPlay) => this with { AutoPlayOpponentMove = autoPlay };
+
+	/// <summary>
+	///     Creates a copy with a different engine difficulty.
+	/// </summary>
+	public ChessGameOptions WithDifficulty(EngineDifficulty difficulty) => this with { EngineDifficulty = difficulty };
 
 	/// <summary>
 	///     Creates a copy with a different engine depth.
@@ -312,9 +292,31 @@ public readonly record struct ChessGameOptions(
 		this with { EngineThinkTimeMs = (int)thinkTime.TotalMilliseconds };
 
 	/// <summary>
+	///     Creates a copy with a different opponent profile.
+	/// </summary>
+	public ChessGameOptions WithLocalOpponent(PlayerProfile opponent) => this with { LocalOpponent = opponent };
+
+	/// <summary>
+	///     Creates a copy with a different player profile.
+	/// </summary>
+	public ChessGameOptions WithLocalPlayer(PlayerProfile player) => this with { LocalPlayer = player };
+
+	// ============ With Methods ============
+
+	/// <summary>
+	///     Creates a copy with a different opponent type.
+	/// </summary>
+	public ChessGameOptions WithOpponentType(OpponentType type) => this with { OpponentType = type };
+
+	/// <summary>
 	///     Creates a copy with a different player color.
 	/// </summary>
 	public ChessGameOptions WithPlayerColor(PlayerColor color) => this with { PlayerColor = color };
+
+	/// <summary>
+	///     Creates a copy with a remote game service.
+	/// </summary>
+	public ChessGameOptions WithRemoteService(IRemoteGameService service) => this with { RemoteService = service };
 
 	/// <summary>
 	///     Creates a copy with a custom starting position.
@@ -325,9 +327,4 @@ public readonly record struct ChessGameOptions(
 	///     Creates a copy with a different time control.
 	/// </summary>
 	public ChessGameOptions WithTimeControl(GameClock clock) => this with { TimeControl = clock };
-
-	/// <summary>
-	///     Creates a copy with a remote game service.
-	/// </summary>
-	public ChessGameOptions WithRemoteService(IRemoteGameService service) => this with { RemoteService = service };
 }

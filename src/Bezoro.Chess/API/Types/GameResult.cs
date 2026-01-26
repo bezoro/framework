@@ -61,95 +61,95 @@ public enum TerminationReason
 /// <param name="Reason">The reason the game ended.</param>
 public readonly record struct GameResult(GameOutcome Outcome, TerminationReason Reason)
 {
-    /// <summary>
-    ///     Creates a result for black winning by checkmate.
-    /// </summary>
-    public static GameResult BlackCheckmates { get; } = new(GameOutcome.BlackWins, TerminationReason.Checkmate);
+	/// <summary>
+	///     Creates a result for black winning by checkmate.
+	/// </summary>
+	public static GameResult BlackCheckmates { get; } = new(GameOutcome.BlackWins, TerminationReason.Checkmate);
 
-    /// <summary>
-    ///     Creates a draw result by agreement.
-    /// </summary>
-    public static GameResult DrawByAgreement { get; } = new(GameOutcome.Draw, TerminationReason.Agreement);
+	/// <summary>
+	///     Creates a draw result by agreement.
+	/// </summary>
+	public static GameResult DrawByAgreement { get; } = new(GameOutcome.Draw, TerminationReason.Agreement);
 
-    /// <summary>
-    ///     Creates a draw result by fifty move rule.
-    /// </summary>
-    public static GameResult FiftyMoveRule { get; } = new(GameOutcome.Draw, TerminationReason.FiftyMoveRule);
+	/// <summary>
+	///     Creates a draw result by fifty move rule.
+	/// </summary>
+	public static GameResult FiftyMoveRule { get; } = new(GameOutcome.Draw, TerminationReason.FiftyMoveRule);
 
-    /// <summary>
-    ///     Creates a draw result by insufficient material.
-    /// </summary>
-    public static GameResult InsufficientMaterial { get; } =
+	/// <summary>
+	///     Creates a draw result by insufficient material.
+	/// </summary>
+	public static GameResult InsufficientMaterial { get; } =
 		new(GameOutcome.Draw, TerminationReason.InsufficientMaterial);
 
-    /// <summary>
-    ///     Gets a result representing an ongoing game.
-    /// </summary>
-    public static GameResult Ongoing { get; } = new(GameOutcome.Ongoing, TerminationReason.None);
+	/// <summary>
+	///     Gets a result representing an ongoing game.
+	/// </summary>
+	public static GameResult Ongoing { get; } = new(GameOutcome.Ongoing, TerminationReason.None);
 
-    /// <summary>
-    ///     Creates a result for a stalemate draw.
-    /// </summary>
-    public static GameResult Stalemate { get; } = new(GameOutcome.Draw, TerminationReason.Stalemate);
+	/// <summary>
+	///     Creates a result for a stalemate draw.
+	/// </summary>
+	public static GameResult Stalemate { get; } = new(GameOutcome.Draw, TerminationReason.Stalemate);
 
-    /// <summary>
-    ///     Creates a draw result by threefold repetition.
-    /// </summary>
-    public static GameResult ThreefoldRepetition { get; } =
+	/// <summary>
+	///     Creates a draw result by threefold repetition.
+	/// </summary>
+	public static GameResult ThreefoldRepetition { get; } =
 		new(GameOutcome.Draw, TerminationReason.ThreefoldRepetition);
 
-    /// <summary>
-    ///     Creates a result for white winning by checkmate.
-    /// </summary>
-    public static GameResult WhiteCheckmates { get; } = new(GameOutcome.WhiteWins, TerminationReason.Checkmate);
+	/// <summary>
+	///     Creates a result for white winning by checkmate.
+	/// </summary>
+	public static GameResult WhiteCheckmates { get; } = new(GameOutcome.WhiteWins, TerminationReason.Checkmate);
 
-    /// <summary>
-    ///     Gets a value indicating whether the result is a draw.
-    /// </summary>
-    public bool IsDraw => Outcome == GameOutcome.Draw;
+	/// <summary>
+	///     Gets a value indicating whether the result is a draw.
+	/// </summary>
+	public bool IsDraw => Outcome == GameOutcome.Draw;
 
-    /// <summary>
-    ///     Gets a value indicating whether the game has ended.
-    /// </summary>
-    public bool IsGameOver => Outcome != GameOutcome.Ongoing;
+	/// <summary>
+	///     Gets a value indicating whether the game has ended.
+	/// </summary>
+	public bool IsGameOver => Outcome != GameOutcome.Ongoing;
 
-    /// <summary>
-    ///     Gets a value indicating whether the game is still in progress.
-    /// </summary>
-    public bool IsOngoing => Outcome == GameOutcome.Ongoing;
+	/// <summary>
+	///     Gets a value indicating whether the game is still in progress.
+	/// </summary>
+	public bool IsOngoing => Outcome == GameOutcome.Ongoing;
 
-    /// <summary>
-    ///     Gets the winning player color, or null if the game is ongoing or a draw.
-    /// </summary>
-    public PlayerColor? Winner => Outcome switch
+	/// <summary>
+	///     Gets the winning player color, or null if the game is ongoing or a draw.
+	/// </summary>
+	public PlayerColor? Winner => Outcome switch
 	{
 		GameOutcome.WhiteWins => PlayerColor.White,
 		GameOutcome.BlackWins => PlayerColor.Black,
 		_                     => null
 	};
 
-    /// <summary>
-    ///     Creates a checkmate result for the specified winner.
-    /// </summary>
-    public static GameResult Checkmate(PlayerColor winner) =>
+	/// <summary>
+	///     Creates a checkmate result for the specified winner.
+	/// </summary>
+	public static GameResult Checkmate(PlayerColor winner) =>
 		new(winner == PlayerColor.White ? GameOutcome.WhiteWins : GameOutcome.BlackWins, TerminationReason.Checkmate);
 
-    /// <summary>
-    ///     Creates a resignation result for the specified winner.
-    /// </summary>
-    public static GameResult Resignation(PlayerColor winner) =>
+	/// <summary>
+	///     Creates a resignation result for the specified winner.
+	/// </summary>
+	public static GameResult Resignation(PlayerColor winner) =>
 		new(winner == PlayerColor.White ? GameOutcome.WhiteWins : GameOutcome.BlackWins, TerminationReason.Resignation);
 
-    /// <summary>
-    ///     Creates a timeout result for the specified winner.
-    /// </summary>
-    public static GameResult Timeout(PlayerColor winner) =>
+	/// <summary>
+	///     Creates a timeout result for the specified winner.
+	/// </summary>
+	public static GameResult Timeout(PlayerColor winner) =>
 		new(winner == PlayerColor.White ? GameOutcome.WhiteWins : GameOutcome.BlackWins, TerminationReason.Timeout);
 
-    /// <summary>
-    ///     Returns the PGN result string (1-0, 0-1, 1/2-1/2, or *).
-    /// </summary>
-    public string ToPgnResult() => Outcome switch
+	/// <summary>
+	///     Returns the PGN result string (1-0, 0-1, 1/2-1/2, or *).
+	/// </summary>
+	public string ToPgnResult() => Outcome switch
 	{
 		GameOutcome.WhiteWins => "1-0",
 		GameOutcome.BlackWins => "0-1",
