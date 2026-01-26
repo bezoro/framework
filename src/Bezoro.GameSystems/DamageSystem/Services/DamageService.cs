@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
 using Bezoro.GameSystems.DamageSystem.Types;
 
-namespace Bezoro.GameSystems.DamageSystem.Core;
+namespace Bezoro.GameSystems.DamageSystem.Services;
 
 /// <summary>
 ///     Convenience entry point for applying damage to a damageable target.
 /// </summary>
-public static class DamageSystem
+public static class DamageService
 {
 	/// <summary>
 	///     Gets the default resolver used when no resolver is supplied.

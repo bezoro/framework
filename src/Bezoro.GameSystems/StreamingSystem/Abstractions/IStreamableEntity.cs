@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Bezoro.GameSystems.StreamingSystem;
+namespace Bezoro.GameSystems.StreamingSystem.Abstractions;
 
 /// <summary>
 ///     Interface for entities that can be streamed in and out based on distance from a reference point.

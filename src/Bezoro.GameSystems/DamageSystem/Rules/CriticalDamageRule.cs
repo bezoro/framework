@@ -1,6 +1,5 @@
 using System;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
-using Bezoro.GameSystems.DamageSystem.Core;
 using Bezoro.GameSystems.DamageSystem.Types;
 
 namespace Bezoro.GameSystems.DamageSystem.Rules;

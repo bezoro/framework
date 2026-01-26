@@ -1,4 +1,4 @@
-using Bezoro.GameSystems.DamageSystem.Core;
+using Bezoro.GameSystems.DamageSystem.Types;
 
 namespace Bezoro.GameSystems.DamageSystem.Abstractions;
 

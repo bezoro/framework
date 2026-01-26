@@ -2,7 +2,7 @@ using System;
 using Bezoro.Core.Types;
 using Bezoro.GameSystems.HealthSystem.Abstractions;
 
-namespace Bezoro.GameSystems.HealthSystem;
+namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
 ///     Default health implementation with optional excess health support.

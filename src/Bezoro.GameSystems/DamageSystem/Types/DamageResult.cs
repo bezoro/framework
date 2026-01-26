@@ -1,7 +1,6 @@
 using System.Collections.Generic;
-using Bezoro.GameSystems.DamageSystem.Types;
 
-namespace Bezoro.GameSystems.DamageSystem.Core;
+namespace Bezoro.GameSystems.DamageSystem.Types;
 
 /// <summary>
 ///     Result of applying a damage request.

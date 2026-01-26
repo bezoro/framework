@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
-using Bezoro.GameSystems.DamageSystem.Types;
 
-namespace Bezoro.GameSystems.DamageSystem.Core;
+namespace Bezoro.GameSystems.DamageSystem.Types;
 
 /// <summary>
 ///     Configuration options for the damage resolver.

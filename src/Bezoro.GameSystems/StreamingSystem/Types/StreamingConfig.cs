@@ -1,8 +1,9 @@
 using System;
 using System.Numerics;
 using System.Threading;
+using Bezoro.GameSystems.StreamingSystem.Abstractions;
 
-namespace Bezoro.GameSystems.StreamingSystem;
+namespace Bezoro.GameSystems.StreamingSystem.Types;
 
 /// <summary>
 ///     Configuration for the streaming system.

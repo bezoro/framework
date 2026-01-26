@@ -1,4 +1,4 @@
-using Bezoro.GameSystems.HealthSystem;
+using Bezoro.GameSystems.HealthSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;

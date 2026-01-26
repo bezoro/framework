@@ -5,14 +5,16 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.GameSystems.StreamingSystem.Abstractions;
+using Bezoro.GameSystems.StreamingSystem.Types;
 
-namespace Bezoro.GameSystems.StreamingSystem;
+namespace Bezoro.GameSystems.StreamingSystem.Services;
 
 /// <summary>
 ///     A thread-safe streaming system that evaluates entity distances in a background thread
 ///     and invokes streaming callbacks on the main thread.
 /// </summary>
-public sealed class Streaming : IDisposable
+public sealed class StreamingService : IDisposable
 {
 	private readonly ConcurrentDictionary<int, IStreamableEntity> _entities     = new();
 	private readonly ConcurrentQueue<StreamingResult>             _resultsQueue = new();
@@ -321,7 +323,7 @@ public sealed class Streaming : IDisposable
 	private void ThrowIfDisposed()
 	{
 		if (Volatile.Read(ref _disposed) != 0)
-			throw new ObjectDisposedException(nameof(Streaming));
+			throw new ObjectDisposedException(nameof(StreamingService));
 	}
 
 	/// <summary>

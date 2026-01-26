@@ -3,22 +3,24 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.GameSystems.StreamingSystem;
+using Bezoro.GameSystems.StreamingSystem.Abstractions;
+using Bezoro.GameSystems.StreamingSystem.Services;
+using Bezoro.GameSystems.StreamingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.GameSystems.Tests.StreamingSystem;
 
-[TestSubject(typeof(Streaming))]
-public static class StreamingTests
+[TestSubject(typeof(StreamingService))]
+public static class StreamingServiceTests
 {
 	public class ConcurrencyTests
 	{
 		[Fact]
 		public async Task WhenConcurrentRegistrationAndUnregistration_ShouldNotThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
@@ -52,7 +54,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenEntityAlreadyStreamedIn_HysteresisZone_ShouldRemainStreamedIn()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
@@ -86,7 +88,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenEntityInHysteresisZone_ShouldNotFlicker()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			// Position between stream in (10) and stream out (15) distances
 			var entity = new TestEntity(1, new(12, 0, 0));
@@ -113,7 +115,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenEntityMovesBeyondStreamOutDistance_ShouldStreamOut()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
@@ -145,7 +147,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenEntityMovesWithinStreamInDistance_ShouldStreamIn()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
@@ -170,7 +172,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenManyEntitiesRegistered_ShouldProcessInRoundRobin()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entities          = new List<TestEntity>();
 
@@ -207,7 +209,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenStoppingAndRestarting_ShouldWorkCorrectly()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entity            = new TestEntity(1, new(5, 0, 0));
 
@@ -241,7 +243,7 @@ public static class StreamingTests
 		[Fact]
 		public async Task WhenUnregisteringDuringProcessing_ShouldNotThrow()
 		{
-			using var system            = new Streaming();
+			using var system            = new StreamingService();
 			var       referencePosition = Vector3.Zero;
 			var       entities          = new List<TestEntity>();
 
@@ -277,7 +279,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenEmptyEntityCollection_ShouldNotThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var config = new StreamingConfig(
 				() => Vector3.Zero,
 				10f,
@@ -302,7 +304,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenDuplicateEntityId_ShouldNotDuplicate()
 		{
-			using var system  = new Streaming();
+			using var system  = new StreamingService();
 			var       entity1 = new TestEntity(1, Vector3.Zero);
 			var       entity2 = new TestEntity(1, Vector3.One);
 
@@ -315,7 +317,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenEntityIsNull_ShouldThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 
 			var act = () => system.Register(null!);
 
@@ -325,7 +327,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenValidEntity_ShouldIncrementEntityCount()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       entity = new TestEntity(1, Vector3.Zero);
 
 			system.Register(entity);
@@ -339,7 +341,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenAlreadyRunning_ShouldBeNoOp()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
@@ -352,7 +354,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenConfigHasNullReferencePosition_ShouldThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       config = new StreamingConfig(null!);
 
 			var act = () => system.Start(config);
@@ -363,7 +365,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenStreamOutDistanceLessThanStreamInDistance_ShouldThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var config = new StreamingConfig(
 				() => Vector3.Zero,
 				100f,
@@ -379,7 +381,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenValidConfig_ShouldSetIsRunningTrue()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
@@ -393,7 +395,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenNotRunning_ShouldBeNoOp()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 
 			var act = () => system.Stop();
 
@@ -403,7 +405,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenRunning_ShouldSetIsRunningFalse()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       config = new StreamingConfig(() => Vector3.Zero);
 
 			system.Start(config);
@@ -418,7 +420,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenEntityDoesNotExist_ShouldNotThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       entity = new TestEntity(1, Vector3.Zero);
 
 			var act = () => system.Unregister(entity);
@@ -429,7 +431,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenEntityExists_ShouldDecrementEntityCount()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 			var       entity = new TestEntity(1, Vector3.Zero);
 			system.Register(entity);
 
@@ -441,7 +443,7 @@ public static class StreamingTests
 		[Fact]
 		public void WhenEntityIsNull_ShouldThrow()
 		{
-			using var system = new Streaming();
+			using var system = new StreamingService();
 
 			var act = () => system.Unregister(null!);
 
