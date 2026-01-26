@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types;
 using Bezoro.TypingSystem.Abstractions;
@@ -8,7 +5,7 @@ using Bezoro.TypingSystem.Abstractions;
 namespace Bezoro.TypingSystem.Types;
 
 /// <summary>
-///     A word provider that uses an internal array (via <see cref="SwapbackArray{T}"/>) to store words.
+///     A word provider that uses an internal array (via <see cref="SwapbackArray{T}" />) to store words.
 /// </summary>
 public sealed class ArrayWordProvider : IWordProvider
 {
@@ -16,12 +13,12 @@ public sealed class ArrayWordProvider : IWordProvider
 	private          uint                  _index;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="ArrayWordProvider"/> class with the specified words.
+	///     Initializes a new instance of the <see cref="ArrayWordProvider" /> class with the specified words.
 	/// </summary>
 	/// <param name="words">The collection of words to initialize the provider with.</param>
 	public ArrayWordProvider(IEnumerable<string> words)
 	{
-		words.ThrowIfNull(nameof(words));
+		words.ThrowIfNull();
 		words.ThrowIfEmpty();
 
 		_words = new(words);
@@ -61,7 +58,7 @@ public sealed class ArrayWordProvider : IWordProvider
 	/// <inheritdoc />
 	public void RemoveWord(ReadOnlyMemory<char> word)
 	{
-		word.ThrowIfNull(nameof(word));
+		word.ThrowIfNull();
 		word.ThrowIfEmpty();
 
 		_words.Remove(word.ToString());

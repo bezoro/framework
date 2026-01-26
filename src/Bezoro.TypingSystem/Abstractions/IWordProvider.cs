@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Bezoro.TypingSystem.Abstractions;
 
 /// <summary>
@@ -21,7 +18,7 @@ public interface IWordProvider
 	/// <summary>
 	///     Gets the next word from the provider.
 	/// </summary>
-	/// <returns>A <see cref="ReadOnlyMemory{T}"/> containing the next word.</returns>
+	/// <returns>A <see cref="ReadOnlyMemory{T}" /> containing the next word.</returns>
 	ReadOnlyMemory<char> GetNextWord();
 
 	/// <summary>

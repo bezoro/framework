@@ -1,5 +1,3 @@
-using System;
-
 namespace Bezoro.TypingSystem.Types;
 
 /// <summary>
@@ -10,12 +8,12 @@ public readonly struct TypingState
 	/// <summary>
 	///     The number of correctly typed characters.
 	/// </summary>
-	public readonly byte   CorrectCount;
+	public readonly byte CorrectCount;
 
 	/// <summary>
 	///     The current position in the target sequence.
 	/// </summary>
-	public readonly byte   Position;
+	public readonly byte Position;
 
 	/// <summary>
 	///     The number of mistakes made during typing.
@@ -23,7 +21,7 @@ public readonly struct TypingState
 	public readonly ushort MistakeCount;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="TypingState"/> struct.
+	///     Initializes a new instance of the <see cref="TypingState" /> struct.
 	/// </summary>
 	public TypingState(byte position, byte correctCount, ushort mistakeCount)
 	{
@@ -53,7 +51,7 @@ public readonly struct TypingState
 	///     Checks if the typing operation is complete for the given target length.
 	/// </summary>
 	/// <param name="targetLength">The length of the target sequence.</param>
-	/// <returns><see langword="true"/> if complete; otherwise, <see langword="false"/>.</returns>
+	/// <returns><see langword="true" /> if complete; otherwise, <see langword="false" />.</returns>
 	public bool IsComplete(byte targetLength)
 	{
 		if (targetLength < Position)
@@ -74,7 +72,7 @@ public readonly struct TypingState
 	/// <summary>
 	///     Creates a new state reflecting a correct input.
 	/// </summary>
-	/// <returns>A new <see cref="TypingState"/> instance.</returns>
+	/// <returns>A new <see cref="TypingState" /> instance.</returns>
 	public TypingState WithCorrect()
 	{
 		if (Position >= byte.MaxValue) throw new InvalidOperationException("Position cannot exceed 255.");
@@ -90,7 +88,7 @@ public readonly struct TypingState
 	/// <summary>
 	///     Creates a new state reflecting a mistake input.
 	/// </summary>
-	/// <returns>A new <see cref="TypingState"/> instance.</returns>
+	/// <returns>A new <see cref="TypingState" /> instance.</returns>
 	public TypingState WithMistake()
 	{
 		if (MistakeCount >= ushort.MaxValue) throw new InvalidOperationException("Mistake count cannot exceed 65535.");

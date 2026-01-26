@@ -1,5 +1,3 @@
-using System;
-
 namespace Bezoro.TypingSystem.Types;
 
 /// <summary>
@@ -35,7 +33,7 @@ public sealed class TypingValidatorOptions
 	/// <summary>
 	///     Gets or sets a value indicating whether to ignore case during validation.
 	/// </summary>
-	public bool                  IgnoreCase  { get; init; }
+	public bool IgnoreCase { get; init; }
 
 	/// <summary>
 	///     Gets or sets the metrics collector to use during validation.

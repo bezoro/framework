@@ -42,7 +42,7 @@ public enum TypingValidationStatus : byte
 public readonly struct TypingResult
 {
 	/// <summary>
-	///     Initializes a new instance of the <see cref="TypingResult"/> struct.
+	///     Initializes a new instance of the <see cref="TypingResult" /> struct.
 	/// </summary>
 	public TypingResult(
 		TypingValidationStatus status,

@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 
 namespace Bezoro.TypingSystem.Types;
@@ -11,7 +10,7 @@ public sealed class TypingMetrics
 	private readonly Stopwatch _stopwatch;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="TypingMetrics"/> class.
+	///     Initializes a new instance of the <see cref="TypingMetrics" /> class.
 	/// </summary>
 	public TypingMetrics()
 	{
