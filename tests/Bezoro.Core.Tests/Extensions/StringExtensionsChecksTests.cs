@@ -8,7 +8,7 @@ using Xunit;
 namespace Bezoro.Core.Tests.Extensions;
 
 [TestSubject(typeof(StringExtensions))]
-public class StringExtensionsStringExtensionsStringExtensionsStringExtensionsStringExtensionsChecksTests
+public class StringExtensionsChecksTests
 {
 	[Fact]
 	public void Bold_WhenEmpty_Throws()
