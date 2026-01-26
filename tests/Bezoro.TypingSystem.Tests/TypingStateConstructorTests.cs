@@ -1,0 +1,75 @@
+using Bezoro.TypingSystem.Types;
+using FluentAssertions;
+using JetBrains.Annotations;
+
+namespace Bezoro.TypingSystem.Tests;
+
+[TestSubject(typeof(TypingState))]
+public class TypingStateConstructorTests
+{
+	[Fact]
+	public void WhenCorrectCountIsGreaterThanPositionPlus1_ShouldThrow()
+	{
+		const byte   POSITION      = 4;
+		const byte   CORRECT_COUNT = 6;
+		const ushort MISTAKE_COUNT = 0;
+
+		var action = () => new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
+
+		action.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
+	public void WhenMistakeCountIsGreaterThanCorrectCount_ShouldWork()
+	{
+		const byte   POSITION      = 0;
+		const byte   CORRECT_COUNT = 0;
+		const ushort MISTAKE_COUNT = 1;
+
+		var state = new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
+
+		state.Position.Should().Be(POSITION);
+		state.CorrectCount.Should().Be(CORRECT_COUNT);
+		state.MistakeCount.Should().Be(MISTAKE_COUNT);
+	}
+
+	[Fact]
+	public void WhenMistakeCountIsGreaterThanPosition_ShouldWork()
+	{
+		const byte   POSITION      = 0;
+		const byte   CORRECT_COUNT = 0;
+		const ushort MISTAKE_COUNT = 1;
+
+		var state = new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
+
+		state.Position.Should().Be(POSITION);
+		state.CorrectCount.Should().Be(CORRECT_COUNT);
+		state.MistakeCount.Should().Be(MISTAKE_COUNT);
+	}
+
+	[Fact]
+	public void WhenPositionIsGreaterThanCorrectCount_ShouldThrow()
+	{
+		const byte   POSITION      = 3;
+		const byte   CORRECT_COUNT = 2;
+		const ushort MISTAKE_COUNT = 0;
+
+		var action = () => new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
+
+		action.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
+	public void WhenValidInputs_ShouldPopulateFields()
+	{
+		const byte   POSITION      = 0;
+		const byte   CORRECT_COUNT = 0;
+		const ushort MISTAKE_COUNT = 0;
+
+		var state = new TypingState(POSITION, CORRECT_COUNT, MISTAKE_COUNT);
+
+		state.Position.Should().Be(POSITION);
+		state.CorrectCount.Should().Be(CORRECT_COUNT);
+		state.MistakeCount.Should().Be(MISTAKE_COUNT);
+	}
+}
