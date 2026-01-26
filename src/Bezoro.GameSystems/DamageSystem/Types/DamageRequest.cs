@@ -43,13 +43,13 @@ public readonly struct DamageRequest(
 
 	/// <summary>
 	///     Gets the optional target of the damage (defender, hitbox).
-	///     Use <see cref="IDamageable.DamageContext" /> for extra metadata.
+	///     Use <see cref="DamageContext" /> for extra metadata.
 	/// </summary>
 	public readonly IDamageable? Target = target;
 
 	/// <summary>
 	///     Gets the optional source of the damage (attacker, skill, projectile).
-	///     Use <see cref="IDamageSource.DamageContext" /> for extra metadata.
+	///     Use <see cref="DamageContext" /> for extra metadata.
 	/// </summary>
 	public readonly IDamageSource? Source = source;
 
