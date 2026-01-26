@@ -1,89 +1,84 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.Core.Extensions;
-using CollectionExtensions = Bezoro.Core.Extensions.CollectionExtensions;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
+using CollectionExtensions = Bezoro.Core.Extensions.CollectionExtensions;
 
-namespace Bezoro.Core.Tests.Common.Extensions.Collections.Modify;
+namespace Bezoro.Core.Tests.Extensions;
 
 [TestSubject(typeof(CollectionExtensions))]
-public static class CollectionExtensionsModifyTests
+public class CollectionExtensionsModifyTests
 {
-	public class Unit
+	[Fact]
+	public void AddRange_WhenCollectionNull_ShouldThrow()
 	{
-		[Fact]
-		public void AddRange_WhenValidCollection_ShouldAddItemsToCollection()
-		{
-			// Arrange
-			ICollection<int> sourceCollection = new List<int> { 1, 2, 3 };
-			ICollection<int> itemsToAdd       = new List<int> { 4, 5, 6 };
+		// Arrange
+		ICollection<int>? target = null;
+		ICollection<int>  items  = new List<int> { 1 };
 
-			// Act
-			sourceCollection.AddRange(itemsToAdd);
+		// Act
+		var act = () => target!.AddRange(items);
 
-			// Assert
-			sourceCollection.Should().HaveCount(6);
-			sourceCollection.Should().ContainInOrder(1, 2, 3, 4, 5, 6);
-		}
+		// Assert
+		act.Should().Throw<ArgumentNullException>();
+	}
 
-		[Fact]
-		public void AddRange_WhenTargetCollectionEmpty_ShouldPopulateWithItems()
-		{
-			// Arrange
-			ICollection<string> target = new List<string>();
-			ICollection<string> items  = new List<string> { "foo", "bar" };
+	[Fact]
+	public void AddRange_WhenItemsCollectionEmpty_ShouldDoNothing()
+	{
+		// Arrange
+		ICollection<int> target = new List<int> { 42 };
+		ICollection<int> items  = new List<int>();
 
-			// Act
-			target.AddRange(items);
+		// Act
+		target.AddRange(items);
 
-			// Assert
-			target.Should().ContainInOrder("foo", "bar");
-		}
+		// Assert
+		target.Should().Equal(42);
+	}
 
-		[Fact]
-		public void AddRange_WhenItemsCollectionEmpty_ShouldDoNothing()
-		{
-			// Arrange
-			ICollection<int> target = new List<int> { 42 };
-			ICollection<int> items  = new List<int>();
+	[Fact]
+	public void AddRange_WhenItemsNull_ShouldThrow()
+	{
+		// Arrange
+		ICollection<int>  target = new List<int> { 1 };
+		ICollection<int>? items  = null;
 
-			// Act
-			target.AddRange(items);
+		// Act
+		var act = () => target.AddRange(items!);
 
-			// Assert
-			target.Should().Equal(42);
-		}
+		// Assert
+		act.Should().Throw<ArgumentNullException>();
+	}
 
-		[Fact]
-		public void AddRange_WhenCollectionNull_ShouldThrow()
-		{
-			// Arrange
-			ICollection<int>? target = null;
-			ICollection<int>  items  = new List<int> { 1 };
+	[Fact]
+	public void AddRange_WhenTargetCollectionEmpty_ShouldPopulateWithItems()
+	{
+		// Arrange
+		ICollection<string> target = new List<string>();
+		ICollection<string> items  = new List<string> { "foo", "bar" };
 
-			// Act
-			var act = () => target!.AddRange(items);
+		// Act
+		target.AddRange(items);
 
-			// Assert
-			act.Should().Throw<ArgumentNullException>();
-		}
+		// Assert
+		target.Should().ContainInOrder("foo", "bar");
+	}
 
-		[Fact]
-		public void AddRange_WhenItemsNull_ShouldThrow()
-		{
-			// Arrange
-			ICollection<int> target = new List<int> { 1 };
-			ICollection<int>? items = null;
+	[Fact]
+	public void AddRange_WhenValidCollection_ShouldAddItemsToCollection()
+	{
+		// Arrange
+		ICollection<int> sourceCollection = new List<int> { 1, 2, 3 };
+		ICollection<int> itemsToAdd       = new List<int> { 4, 5, 6 };
 
-			// Act
-			var act = () => target.AddRange(items!);
+		// Act
+		sourceCollection.AddRange(itemsToAdd);
 
-			// Assert
-			act.Should().Throw<ArgumentNullException>();
-		}
+		// Assert
+		sourceCollection.Should().HaveCount(6);
+		sourceCollection.Should().ContainInOrder(1, 2, 3, 4, 5, 6);
 	}
 }
-
-

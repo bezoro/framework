@@ -1,123 +1,118 @@
 using System.Collections.Generic;
 using Bezoro.Core.Extensions;
-using CollectionExtensions = Bezoro.Core.Extensions.CollectionExtensions;
+using Bezoro.Core.Types.Exceptions;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
+using CollectionExtensions = Bezoro.Core.Extensions.CollectionExtensions;
 
-using Bezoro.Core.Types.Exceptions;
-namespace Bezoro.Core.Tests.Common.Extensions.Collections.Check;
+namespace Bezoro.Core.Tests.Extensions;
 
 [TestSubject(typeof(CollectionExtensions))]
-public static class CollectionExtensionsCheckTests
+public class CollectionExtensionsCheckTests
 {
-	public class Unit
+	[Fact]
+	public void IsEmpty_WhenEmpty_ShouldReturnTrue()
 	{
-		[Fact]
-		public void IsEmpty_WhenEmpty_ShouldReturnTrue()
-		{
-			// Arrange
-			var collection = new List<int>();
+		// Arrange
+		var collection = new List<int>();
 
-			// Act
-			bool result = collection.IsEmpty();
+		// Act
+		bool result = collection.IsEmpty();
 
-			// Assert
-			result.Should().BeTrue();
-		}
+		// Assert
+		result.Should().BeTrue();
+	}
 
-		[Fact]
-		public void IsEmpty_WhenNotEmpty_ShouldReturnFalse()
-		{
-			// Arrange
-			var collection = new List<int> { 1 };
+	[Fact]
+	public void IsEmpty_WhenNotEmpty_ShouldReturnFalse()
+	{
+		// Arrange
+		var collection = new List<int> { 1 };
 
-			// Act
-			bool result = collection.IsEmpty();
+		// Act
+		bool result = collection.IsEmpty();
 
-			// Assert
-			result.Should().BeFalse();
-		}
+		// Assert
+		result.Should().BeFalse();
+	}
 
-		[Fact]
-		public void IsNull_WhenNotNull_ShouldReturnFalse()
-		{
-			// Arrange
-			var collection = new List<int>();
+	[Fact]
+	public void IsNull_WhenNotNull_ShouldReturnFalse()
+	{
+		// Arrange
+		var collection = new List<int>();
 
-			// Act
-			bool result = collection.IsNull();
+		// Act
+		bool result = collection.IsNull();
 
-			// Assert
-			result.Should().BeFalse();
-		}
+		// Assert
+		result.Should().BeFalse();
+	}
 
-		[Fact]
-		public void IsNull_WhenNull_ShouldReturnTrue()
-		{
-			// Arrange
-			List<int>? collection = null;
+	[Fact]
+	public void IsNull_WhenNull_ShouldReturnTrue()
+	{
+		// Arrange
+		List<int>? collection = null;
 
-			// Act
-			bool result = collection.IsNull();
+		// Act
+		bool result = collection.IsNull();
 
-			// Assert
-			result.Should().BeTrue();
-		}
+		// Assert
+		result.Should().BeTrue();
+	}
 
-		[Fact]
-		public void IsNullOrEmpty_WhenNotNullOrEmpty_ShouldReturnFalse()
-		{
-			// Arrange
-			var collection = new List<int> { 1 };
+	[Fact]
+	public void IsNullOrEmpty_WhenNotNullOrEmpty_ShouldReturnFalse()
+	{
+		// Arrange
+		var collection = new List<int> { 1 };
 
-			// Act
-			bool result = collection.IsNullOrEmpty();
+		// Act
+		bool result = collection.IsNullOrEmpty();
 
-			// Assert
-			result.Should().BeFalse();
-		}
+		// Assert
+		result.Should().BeFalse();
+	}
 
-		[Fact]
-		public void IsNullOrEmpty_WhenNullOrEmpty_ShouldReturnTrue()
-		{
-			// Arrange
-			var        emptyCollection = new List<int>();
-			List<int>? nullCollection  = null;
+	[Fact]
+	public void IsNullOrEmpty_WhenNullOrEmpty_ShouldReturnTrue()
+	{
+		// Arrange
+		var        emptyCollection = new List<int>();
+		List<int>? nullCollection  = null;
 
-			// Act
-			bool result = emptyCollection.IsNullOrEmpty() && nullCollection.IsNullOrEmpty();
+		// Act
+		bool result = emptyCollection.IsNullOrEmpty() && nullCollection.IsNullOrEmpty();
 
-			// Assert
-			result.Should().BeTrue();
-		}
+		// Assert
+		result.Should().BeTrue();
+	}
 
-		[Fact]
-		public void ThrowIfEmpty_WhenEmpty_ShouldThrowEmptyCollectionException()
-		{
-			// Arrange
-			var collection = new List<int>();
+	[Fact]
+	public void ThrowIfEmpty_WhenEmpty_ShouldThrowEmptyCollectionException()
+	{
+		// Arrange
+		var collection = new List<int>();
 
-			// Act
-			var act = () => collection.ThrowIfEmpty();
+		// Act
+		var act = () => collection.ThrowIfEmpty();
 
-			// Assert
-			act.Should().Throw<EmptyCollectionException>();
-		}
+		// Assert
+		act.Should().Throw<EmptyCollectionException>();
+	}
 
-		[Fact]
-		public void ThrowIfEmpty_WhenNotEmpty_ShouldNotThrow()
-		{
-			// Arrange
-			var collection = new List<int> { 1 };
+	[Fact]
+	public void ThrowIfEmpty_WhenNotEmpty_ShouldNotThrow()
+	{
+		// Arrange
+		var collection = new List<int> { 1 };
 
-			// Act
-			var act = () => collection.ThrowIfEmpty();
+		// Act
+		var act = () => collection.ThrowIfEmpty();
 
-			// Assert
-			act.Should().NotThrow();
-		}
+		// Assert
+		act.Should().NotThrow();
 	}
 }
-
-

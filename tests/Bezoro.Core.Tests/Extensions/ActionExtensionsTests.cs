@@ -4,34 +4,29 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests.Common.Extensions;
+namespace Bezoro.Core.Tests.Extensions;
 
 [TestSubject(typeof(ActionExtensions))]
-public static class ActionExtensionsTests
+public class ActionExtensionsTests
 {
-	public class Unit
+	[Fact]
+	public void SafeInvoke_WhenActionIsNull_ShouldThrow()
 	{
-		[Fact]
-		public void SafeInvoke_WhenActionIsNull_ShouldThrow()
-		{
-			Action? action = null;
+		Action? action = null;
 
-			var act = () => action!.SafeInvoke();
+		var act = () => action!.SafeInvoke();
 
-			act.Should().Throw<ArgumentNullException>();
-		}
+		act.Should().Throw<ArgumentNullException>();
+	}
 
-		[Fact]
-		public void SafeInvoke_WhenActionSucceeds_ShouldExecuteAction()
-		{
-			var    executed = false;
-			Action action   = () => executed = true;
+	[Fact]
+	public void SafeInvoke_WhenActionSucceeds_ShouldExecuteAction()
+	{
+		var    executed = false;
+		Action action   = () => executed = true;
 
-			action.SafeInvoke();
+		action.SafeInvoke();
 
-			executed.Should().BeTrue();
-		}
+		executed.Should().BeTrue();
 	}
 }
-
-

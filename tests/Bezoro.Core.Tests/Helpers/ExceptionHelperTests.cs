@@ -5,64 +5,61 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests.Common.Helpers;
+namespace Bezoro.Core.Tests.Helpers;
 
 [TestSubject(typeof(ExceptionHelper))]
-public static class ExceptionHelperTests
+public class ExceptionHelperTests
 {
-	private sealed class Dummy;
-
-	public class Unit
+	[Fact]
+	public void FormatExceptionMessage_ShouldIncludeParamTypes_WhenProvided_ViaReflection()
 	{
-		[Fact]
-		public void ThrowException_ShouldComposeMessage_WithAllDetails()
+		var method = typeof(ExceptionHelper).GetMethod(
+			"FormatExceptionMessage",
+			BindingFlags.NonPublic | BindingFlags.Static);
+
+		method.Should().NotBeNull();
+
+		object? instance = new Dummy();
+		object[] parameters = new[]
 		{
-			var instance = new Dummy();
+			"CustomException",                                   // exceptionType
+			instance,                                            // objectInstance
+			"Run",                                               // methodName
+			"Oops",                                              // message
+			new object?[] { 1, "abc", null, DateTime.UnixEpoch } // paramNames (params object[])
+		};
 
-			var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
-				instance,
-				"DoWork",
-				"Something broke");
+		// Invoke and assert
+		var result = (string)method!.Invoke(null, parameters)!;
 
-			var ex = act.Should().Throw<InvalidOperationException>().Which;
-			ex.Message.Should().Be("InvalidOperationException occurred in Dummy.DoWork: Something broke");
-		}
+		result.Should().Be(
+			"CustomException occurred in Dummy.Run for parameters [Int32, String, Unknown, DateTime]: Oops");
+	}
 
-		[Fact]
-		public void ThrowException_ShouldComposeMessage_WithDefaults_WhenArgsAreNullOrWhitespace()
-		{
-			var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
-				null,
-				"   ");
+	[Fact]
+	public void ThrowException_ShouldComposeMessage_WithAllDetails()
+	{
+		var instance = new Dummy();
 
-			var ex = act.Should().Throw<InvalidOperationException>().Which;
-			ex.Message.Should().Be("InvalidOperationException occurred in Unknown");
-		}
+		var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
+			instance,
+			"DoWork",
+			"Something broke");
 
-		[Fact]
-		public void FormatExceptionMessage_ShouldIncludeParamTypes_WhenProvided_ViaReflection()
-		{
-			var method = typeof(ExceptionHelper).GetMethod(
-				"FormatExceptionMessage",
-				BindingFlags.NonPublic | BindingFlags.Static);
+		var ex = act.Should().Throw<InvalidOperationException>().Which;
+		ex.Message.Should().Be("InvalidOperationException occurred in Dummy.DoWork: Something broke");
+	}
 
-			method.Should().NotBeNull();
+	[Fact]
+	public void ThrowException_ShouldComposeMessage_WithDefaults_WhenArgsAreNullOrWhitespace()
+	{
+		var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
+			null,
+			"   ");
 
-			object? instance = new Dummy();
-			var parameters = new[]
-			{
-				"CustomException",                                   // exceptionType
-				instance,                                            // objectInstance
-				"Run",                                               // methodName
-				"Oops",                                              // message
-				new object?[] { 1, "abc", null, DateTime.UnixEpoch } // paramNames (params object[])
-			};
-
-			// Invoke and assert
-			var result = (string)method!.Invoke(null, parameters)!;
-
-			result.Should().Be(
-				"CustomException occurred in Dummy.Run for parameters [Int32, String, Unknown, DateTime]: Oops");
-		}
+		var ex = act.Should().Throw<InvalidOperationException>().Which;
+		ex.Message.Should().Be("InvalidOperationException occurred in Unknown");
 	}
 }
+
+internal sealed class Dummy;
