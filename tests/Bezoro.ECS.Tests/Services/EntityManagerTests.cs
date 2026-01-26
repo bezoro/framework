@@ -1,5 +1,4 @@
 using Bezoro.ECS.Services;
-using Bezoro.ECS.Types;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
