@@ -121,14 +121,14 @@ public class QuickInfoEngineTests
 		var fen = Fen.Default;
 
 		// Evaluate position - should cache result
-		var result1 = await engine.QuickEvalAsync(fen, 6);
+		var result1 = await engine.QuickEvalAsync(fen);
 		result1.Should().NotBeNull();
 
 		// New game - this should clear the eval cache
 		await engine.NewGameAsync();
 
 		// Evaluate same position again - should NOT return cached result
-		var result2 = await engine.QuickEvalAsync(fen, 6);
+		var result2 = await engine.QuickEvalAsync(fen);
 		result2.Should().NotBeNull();
 		// Both results should be valid, but the cache was cleared so result2 is fresh
 		result2.BestMove.Should().NotBeNull();
@@ -144,7 +144,7 @@ public class QuickInfoEngineTests
 		var fen2 = Fen.Parse(TestConstants.AFTER_E2_E4_FEN);
 
 		// Evaluate first position - should cache result
-		var result1 = await engine.QuickEvalAsync(fen1, 6);
+		var result1 = await engine.QuickEvalAsync(fen1);
 		result1.Should().NotBeNull();
 
 		// Change position - this should clear the eval cache
@@ -152,7 +152,7 @@ public class QuickInfoEngineTests
 
 		// Evaluate first position again - should NOT return cached result
 		// (cache should be cleared, so it will recompute)
-		var result2 = await engine.QuickEvalAsync(fen1, 6);
+		var result2 = await engine.QuickEvalAsync(fen1);
 		result2.Should().NotBeNull();
 		// Both results should be valid, but the cache was cleared so result2 is fresh
 		result2.BestMove.Should().NotBeNull();

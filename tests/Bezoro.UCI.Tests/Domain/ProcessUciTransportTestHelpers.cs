@@ -1,12 +1,12 @@
 namespace Bezoro.UCI.Tests.Domain;
 
 /// <summary>
-/// Shared test helpers for ProcessUciTransport tests.
+///     Shared test helpers for ProcessUciTransport tests.
 /// </summary>
 internal static class ProcessUciTransportTestHelpers
 {
 	/// <summary>
-	/// Resolves the path to cmd.exe on Windows for integration tests.
+	///     Resolves the path to cmd.exe on Windows for integration tests.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when cmd.exe cannot be found.</exception>
 	public static string TryResolveCmdPath()
