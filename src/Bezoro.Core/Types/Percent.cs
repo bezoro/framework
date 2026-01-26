@@ -76,6 +76,29 @@ public readonly struct Percent : IEquatable<Percent>, IComparable<Percent>
 		Value = value;
 	}
 
+	/// <summary>
+	///     Initializes a new instance of <see cref="Percent" /> from a current and maximum value.
+	/// </summary>
+	/// <param name="current">The current value.</param>
+	/// <param name="max">The maximum value.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public Percent(uint current, uint max)
+	{
+		if (max == 0)
+		{
+			Value = 0;
+			return;
+		}
+
+		ulong numerator = (ulong)current * 100;
+		ulong rounded   = numerator + max / 2;
+		var   value     = (uint)(rounded / max);
+		if (value > 100)
+			value = 100;
+
+		Value = (byte)value;
+	}
+
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static void ThrowArgumentOutOfRange(byte value) =>
 		throw new ArgumentOutOfRangeException(nameof(value), value, "Percentage must be between 0 and 100.");
