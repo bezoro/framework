@@ -14,17 +14,17 @@ public class PoolExhaustedException : Exception
 	public PoolExhaustedException(Type pooledType, int maxCapacity)
 		: base($"Pool of '{pooledType.Name}' is exhausted. Maximum capacity: {maxCapacity}.")
 	{
-		PooledType = pooledType;
+		PooledType  = pooledType;
 		MaxCapacity = maxCapacity;
 	}
-
-	/// <summary>
-	///     Gets the type of object that the pool manages.
-	/// </summary>
-	public Type PooledType { get; }
 
 	/// <summary>
 	///     Gets the maximum capacity of the pool.
 	/// </summary>
 	public int MaxCapacity { get; }
+
+	/// <summary>
+	///     Gets the type of object that the pool manages.
+	/// </summary>
+	public Type PooledType { get; }
 }

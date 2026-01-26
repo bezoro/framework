@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace Bezoro.Core;
+namespace Bezoro.Core.CodeGen;
 
 /// <summary>
 ///     Provides methods for generating structured, indented code with automatic "using" header collection and scope

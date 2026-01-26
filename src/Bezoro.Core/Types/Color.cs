@@ -16,7 +16,8 @@ namespace Bezoro.Core.Types;
 public readonly record struct Color(byte R, byte G, byte B, byte A)
 	: IFormattable
 #if NET6_0_OR_GREATER
-	, ISpanFormattable
+		,
+		ISpanFormattable
 #endif
 {
 	/// <summary>

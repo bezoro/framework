@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Bezoro.Core;
+namespace Bezoro.Core.CodeGen;
 
 /// <summary>
 ///     Provides higher-level programmatic construction and composition of C# code constructs, using

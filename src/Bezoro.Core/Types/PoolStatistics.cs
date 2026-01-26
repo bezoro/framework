@@ -9,14 +9,9 @@ namespace Bezoro.Core.Types;
 public readonly record struct PoolStatistics
 {
 	/// <summary>
-	///     Total number of objects rented since pool creation.
+	///     Total number of async wait operations performed.
 	/// </summary>
-	public long TotalRented { get; init; }
-
-	/// <summary>
-	///     Total number of objects returned since pool creation.
-	/// </summary>
-	public long TotalReturned { get; init; }
+	public long TotalAsyncWaits { get; init; }
 
 	/// <summary>
 	///     Total number of objects created (factory invocations).
@@ -29,9 +24,14 @@ public readonly record struct PoolStatistics
 	public long TotalDiscarded { get; init; }
 
 	/// <summary>
-	///     Total number of async wait operations performed.
+	///     Total number of objects rented since pool creation.
 	/// </summary>
-	public long TotalAsyncWaits { get; init; }
+	public long TotalRented { get; init; }
+
+	/// <summary>
+	///     Total number of objects returned since pool creation.
+	/// </summary>
+	public long TotalReturned { get; init; }
 
 	/// <summary>
 	///     Total number of async wait timeouts.

@@ -21,7 +21,10 @@ public readonly struct SingleItemEnumerable<T> : IEnumerable<T>, IReadOnlyList<T
 	/// </summary>
 	/// <param name="item">The single item to enumerate.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public SingleItemEnumerable(T item) => _item = item;
+	public SingleItemEnumerable(T item)
+	{
+		_item = item;
+	}
 
 	/// <summary>
 	///     Gets the number of elements in the collection (always 1).
@@ -51,10 +54,10 @@ public readonly struct SingleItemEnumerable<T> : IEnumerable<T>, IReadOnlyList<T
 	public Enumerator GetEnumerator() => new(_item);
 
 	/// <inheritdoc />
-	IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 	/// <inheritdoc />
-	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+	IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
 
 	/// <summary>
 	///     A struct enumerator for <see cref="SingleItemEnumerable{T}" />.
@@ -90,15 +93,16 @@ public readonly struct SingleItemEnumerable<T> : IEnumerable<T>, IReadOnlyList<T
 		public bool MoveNext()
 		{
 			if (_moved) return false;
+
 			_moved = true;
 			return true;
 		}
 
 		/// <inheritdoc />
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Reset() => _moved = false;
+		public void Dispose() { }
 
 		/// <inheritdoc />
-		public void Dispose() { }
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Reset() => _moved = false;
 	}
 }

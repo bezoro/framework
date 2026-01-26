@@ -9,7 +9,8 @@ namespace Bezoro.Core.Types;
 [DebuggerDisplay("{Value}%")]
 public readonly struct Percent : IEquatable<Percent>, IComparable<Percent>
 #if NET6_0_OR_GREATER
-	, ISpanFormattable
+	,
+	ISpanFormattable
 #endif
 {
 	/// <summary>

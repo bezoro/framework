@@ -43,11 +43,6 @@ public interface IFailureReason;
 public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 {
 	/// <summary>
-	///     The data contained in the result when successful.
-	/// </summary>
-	private readonly T _data;
-
-	/// <summary>
 	///     Explicit flag to track whether this result was properly initialized as a success.
 	/// </summary>
 	private readonly bool _isSuccess;
@@ -56,6 +51,10 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	///     The failure reason if this result is a failure.
 	/// </summary>
 	private readonly IFailureReason? _failure;
+	/// <summary>
+	///     The data contained in the result when successful.
+	/// </summary>
+	private readonly T _data;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Result{T}" /> struct with successful result.
@@ -105,6 +104,45 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	}
 
 	/// <summary>
+	///     Equality operator.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool operator ==(Result<T> left, Result<T> right) => left.Equals(right);
+
+	/// <summary>
+	///     Implicitly converts a value to a successful Result.
+	/// </summary>
+	/// <param name="data">The data to wrap in a successful result.</param>
+	/// <returns>A successful Result containing the data.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static implicit operator Result<T>(T data) => new(in data);
+
+	/// <summary>
+	///     Inequality operator.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool operator !=(Result<T> left, Result<T> right) => !left.Equals(right);
+
+	#region Equality
+
+	/// <inheritdoc />
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool Equals(Result<T> other) =>
+		_isSuccess == other._isSuccess &&
+		EqualityComparer<T>.Default.Equals(_data, other._data) &&
+		Equals(_failure, other._failure);
+
+	/// <inheritdoc />
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public override bool Equals(object? obj) => obj is Result<T> other && Equals(other);
+
+	/// <inheritdoc />
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public override int GetHashCode() => HashCode.Combine(_isSuccess, _data, _failure);
+
+	#endregion
+
+	/// <summary>
 	///     Creates a failed result with the specified reason.
 	/// </summary>
 	/// <param name="reason">The reason for the failure.</param>
@@ -121,14 +159,6 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	public static Result<T> Succeeded(in T data) => new(in data);
 
 	/// <summary>
-	///     Implicitly converts a value to a successful Result.
-	/// </summary>
-	/// <param name="data">The data to wrap in a successful result.</param>
-	/// <returns>A successful Result containing the data.</returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static implicit operator Result<T>(T data) => new(in data);
-
-	/// <summary>
 	///     Attempts to retrieve the payload without throwing.
 	/// </summary>
 	/// <param name="data">The data if successful; otherwise, the default value.</param>
@@ -141,20 +171,44 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	}
 
 	/// <summary>
-	///     Gets the value if successful, otherwise returns the specified default value.
-	///     Zero allocation alternative to Match when you only need the value.
+	///     Chains result-producing operations (flatMap/selectMany).
 	/// </summary>
-	/// <param name="defaultValue">The value to return if the result is a failure.</param>
-	/// <returns>The success value or the default value.</returns>
+	/// <typeparam name="TNew">The target type.</typeparam>
+	/// <param name="bind">The binding function that returns a new Result.</param>
+	/// <returns>The result of the binding function, or the original failure.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public T GetValueOrDefault(T defaultValue) => _isSuccess ? _data : defaultValue;
+	public Result<TNew> Bind<TNew>(Func<T, Result<TNew>> bind) where TNew : notnull
+	{
+		bind.ThrowIfNull();
+
+		if (!_isSuccess)
+			return _failure is { }
+					   ? Result<TNew>.Failed(_failure)
+					   : default;
+
+		return bind(_data);
+	}
 
 	/// <summary>
-	///     Gets the value if successful, otherwise returns default(T).
+	///     Chains result-producing operations with state to avoid closure allocations.
 	/// </summary>
-	/// <returns>The success value or default(T).</returns>
+	/// <typeparam name="TState">The type of the state parameter.</typeparam>
+	/// <typeparam name="TNew">The target type.</typeparam>
+	/// <param name="state">The state to pass to the bind function.</param>
+	/// <param name="bind">The binding function that returns a new Result.</param>
+	/// <returns>The result of the binding function, or the original failure.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public T? GetValueOrDefault() => _isSuccess ? _data : default;
+	public Result<TNew> Bind<TState, TNew>(TState state, Func<T, TState, Result<TNew>> bind) where TNew : notnull
+	{
+		bind.ThrowIfNull();
+
+		if (!_isSuccess)
+			return _failure is { }
+					   ? Result<TNew>.Failed(_failure)
+					   : default;
+
+		return bind(_data, state);
+	}
 
 	/// <summary>
 	///     Transforms the successful value using the specified function.
@@ -168,11 +222,9 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 		transform.ThrowIfNull();
 
 		if (!_isSuccess)
-		{
-			return _failure is not null
-				? Result<TNew>.Failed(_failure)
-				: default;
-		}
+			return _failure is { }
+					   ? Result<TNew>.Failed(_failure)
+					   : default;
 
 		return Result<TNew>.Succeeded(transform(_data));
 	}
@@ -192,58 +244,28 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 		transform.ThrowIfNull();
 
 		if (!_isSuccess)
-		{
-			return _failure is not null
-				? Result<TNew>.Failed(_failure)
-				: default;
-		}
+			return _failure is { }
+					   ? Result<TNew>.Failed(_failure)
+					   : default;
 
 		return Result<TNew>.Succeeded(transform(_data, state));
 	}
 
 	/// <summary>
-	///     Chains result-producing operations (flatMap/selectMany).
+	///     Gets the value if successful, otherwise returns the specified default value.
+	///     Zero allocation alternative to Match when you only need the value.
 	/// </summary>
-	/// <typeparam name="TNew">The target type.</typeparam>
-	/// <param name="bind">The binding function that returns a new Result.</param>
-	/// <returns>The result of the binding function, or the original failure.</returns>
+	/// <param name="defaultValue">The value to return if the result is a failure.</param>
+	/// <returns>The success value or the default value.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public Result<TNew> Bind<TNew>(Func<T, Result<TNew>> bind) where TNew : notnull
-	{
-		bind.ThrowIfNull();
-
-		if (!_isSuccess)
-		{
-			return _failure is not null
-				? Result<TNew>.Failed(_failure)
-				: default;
-		}
-
-		return bind(_data);
-	}
+	public T GetValueOrDefault(T defaultValue) => _isSuccess ? _data : defaultValue;
 
 	/// <summary>
-	///     Chains result-producing operations with state to avoid closure allocations.
+	///     Gets the value if successful, otherwise returns default(T).
 	/// </summary>
-	/// <typeparam name="TState">The type of the state parameter.</typeparam>
-	/// <typeparam name="TNew">The target type.</typeparam>
-	/// <param name="state">The state to pass to the bind function.</param>
-	/// <param name="bind">The binding function that returns a new Result.</param>
-	/// <returns>The result of the binding function, or the original failure.</returns>
+	/// <returns>The success value or default(T).</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public Result<TNew> Bind<TState, TNew>(TState state, Func<T, TState, Result<TNew>> bind) where TNew : notnull
-	{
-		bind.ThrowIfNull();
-
-		if (!_isSuccess)
-		{
-			return _failure is not null
-				? Result<TNew>.Failed(_failure)
-				: default;
-		}
-
-		return bind(_data, state);
-	}
+	public T? GetValueOrDefault() => _isSuccess ? _data : default;
 
 	/// <summary>
 	///     Pattern matches on the result, executing the appropriate function.
@@ -258,15 +280,9 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 		onSuccess.ThrowIfNull();
 		onFailure.ThrowIfNull();
 
-		if (_isSuccess)
-		{
-			return onSuccess(_data);
-		}
+		if (_isSuccess) return onSuccess(_data);
 
-		if (_failure is null)
-		{
-			ThrowInvalidOperationDefaultResult();
-		}
+		if (_failure is null) ThrowInvalidOperationDefaultResult();
 
 		return onFailure(_failure);
 	}
@@ -282,22 +298,16 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	/// <returns>The result of the executed function.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public TResult Match<TState, TResult>(
-		TState state,
-		Func<T, TState, TResult> onSuccess,
+		TState                                state,
+		Func<T, TState, TResult>              onSuccess,
 		Func<IFailureReason, TState, TResult> onFailure)
 	{
 		onSuccess.ThrowIfNull();
 		onFailure.ThrowIfNull();
 
-		if (_isSuccess)
-		{
-			return onSuccess(_data, state);
-		}
+		if (_isSuccess) return onSuccess(_data, state);
 
-		if (_failure is null)
-		{
-			ThrowInvalidOperationDefaultResult();
-		}
+		if (_failure is null) ThrowInvalidOperationDefaultResult();
 
 		return onFailure(_failure, state);
 	}
@@ -319,10 +329,7 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 			return;
 		}
 
-		if (_failure is null)
-		{
-			ThrowInvalidOperationDefaultResult();
-		}
+		if (_failure is null) ThrowInvalidOperationDefaultResult();
 
 		onFailure(_failure);
 	}
@@ -336,8 +343,8 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	/// <param name="onFailure">Action to execute when the result is a failure.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Match<TState>(
-		TState state,
-		Action<T, TState> onSuccess,
+		TState                         state,
+		Action<T, TState>              onSuccess,
 		Action<IFailureReason, TState> onFailure)
 	{
 		onSuccess.ThrowIfNull();
@@ -349,40 +356,10 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 			return;
 		}
 
-		if (_failure is null)
-		{
-			ThrowInvalidOperationDefaultResult();
-		}
+		if (_failure is null) ThrowInvalidOperationDefaultResult();
 
 		onFailure(_failure, state);
 	}
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool Equals(Result<T> other) =>
-		_isSuccess == other._isSuccess &&
-		EqualityComparer<T>.Default.Equals(_data, other._data) &&
-		Equals(_failure, other._failure);
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public override bool Equals(object? obj) => obj is Result<T> other && Equals(other);
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public override int GetHashCode() => HashCode.Combine(_isSuccess, _data, _failure);
-
-	/// <summary>
-	///     Equality operator.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool operator ==(Result<T> left, Result<T> right) => left.Equals(right);
-
-	/// <summary>
-	///     Inequality operator.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool operator !=(Result<T> left, Result<T> right) => !left.Equals(right);
 
 	[DoesNotReturn]
 	[MethodImpl(MethodImplOptions.NoInlining)]

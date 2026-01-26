@@ -10,6 +10,15 @@ namespace Bezoro.Core.Types;
 public ref struct GridSpan2D<T>
 {
 	/// <summary>
+	///     Gets the height (number of rows) of the grid.
+	/// </summary>
+	public readonly int Height;
+
+	/// <summary>
+	///     Gets the width (number of columns) of the grid.
+	/// </summary>
+	public readonly int Width;
+	/// <summary>
 	///     The underlying span of data in row-major order.
 	/// </summary>
 	private readonly Span<T> _data;
@@ -17,7 +26,10 @@ public ref struct GridSpan2D<T>
 	/// <summary>
 	///     Initializes a new instance of the <see cref="GridSpan2D{T}" /> struct.
 	/// </summary>
-	/// <param name="data">The span of data to wrap. Must have at least <paramref name="width" /> * <paramref name="height" /> elements.</param>
+	/// <param name="data">
+	///     The span of data to wrap. Must have at least <paramref name="width" /> * <paramref name="height" />
+	///     elements.
+	/// </param>
 	/// <param name="width">The width (number of columns) of the grid.</param>
 	/// <param name="height">The height (number of rows) of the grid.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -27,16 +39,6 @@ public ref struct GridSpan2D<T>
 		Width  = width;
 		Height = height;
 	}
-
-	/// <summary>
-	///     Gets the width (number of columns) of the grid.
-	/// </summary>
-	public readonly int Width;
-
-	/// <summary>
-	///     Gets the height (number of rows) of the grid.
-	/// </summary>
-	public readonly int Height;
 
 	/// <summary>
 	///     Gets the total number of elements in the grid.
@@ -60,6 +62,22 @@ public ref struct GridSpan2D<T>
 	}
 
 	/// <summary>
+	///     Checks if the specified coordinates are within bounds.
+	/// </summary>
+	/// <param name="x">The column index.</param>
+	/// <param name="y">The row index.</param>
+	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public readonly bool IsInBounds(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height;
+
+	/// <summary>
+	///     Creates a read-only view of this grid span.
+	/// </summary>
+	/// <returns>A read-only grid span.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public readonly ReadOnlyGridSpan2D<T> AsReadOnly() => new(_data, Width, Height);
+
+	/// <summary>
 	///     Gets a <see cref="Span{T}" /> over the entire grid data.
 	/// </summary>
 	/// <returns>A span over all grid elements.</returns>
@@ -75,15 +93,6 @@ public ref struct GridSpan2D<T>
 	public readonly Span<T> GetRow(int y) => _data.Slice(y * Width, Width);
 
 	/// <summary>
-	///     Checks if the specified coordinates are within bounds.
-	/// </summary>
-	/// <param name="x">The column index.</param>
-	/// <param name="y">The row index.</param>
-	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public readonly bool IsInBounds(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height;
-
-	/// <summary>
 	///     Clears all elements to their default value.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -95,13 +104,6 @@ public ref struct GridSpan2D<T>
 	/// <param name="value">The value to fill with.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public readonly void Fill(T value) => AsSpan().Fill(value);
-
-	/// <summary>
-	///     Creates a read-only view of this grid span.
-	/// </summary>
-	/// <returns>A read-only grid span.</returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public readonly ReadOnlyGridSpan2D<T> AsReadOnly() => new(_data, Width, Height);
 }
 
 /// <summary>
@@ -111,6 +113,15 @@ public ref struct GridSpan2D<T>
 /// <typeparam name="T">The type of elements in the grid.</typeparam>
 public readonly ref struct ReadOnlyGridSpan2D<T>
 {
+	/// <summary>
+	///     Gets the height (number of rows) of the grid.
+	/// </summary>
+	public readonly int Height;
+
+	/// <summary>
+	///     Gets the width (number of columns) of the grid.
+	/// </summary>
+	public readonly int Width;
 	/// <summary>
 	///     The underlying span of data in row-major order.
 	/// </summary>
@@ -129,16 +140,6 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 		Width  = width;
 		Height = height;
 	}
-
-	/// <summary>
-	///     Gets the width (number of columns) of the grid.
-	/// </summary>
-	public readonly int Width;
-
-	/// <summary>
-	///     Gets the height (number of rows) of the grid.
-	/// </summary>
-	public readonly int Height;
 
 	/// <summary>
 	///     Gets the total number of elements in the grid.
@@ -162,6 +163,15 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 	}
 
 	/// <summary>
+	///     Checks if the specified coordinates are within bounds.
+	/// </summary>
+	/// <param name="x">The column index.</param>
+	/// <param name="y">The row index.</param>
+	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool IsInBounds(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height;
+
+	/// <summary>
 	///     Gets a <see cref="ReadOnlySpan{T}" /> over the entire grid data.
 	/// </summary>
 	/// <returns>A read-only span over all grid elements.</returns>
@@ -175,13 +185,4 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 	/// <returns>A read-only span over the specified row.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ReadOnlySpan<T> GetRow(int y) => _data.Slice(y * Width, Width);
-
-	/// <summary>
-	///     Checks if the specified coordinates are within bounds.
-	/// </summary>
-	/// <param name="x">The column index.</param>
-	/// <param name="y">The row index.</param>
-	/// <returns><c>true</c> if the coordinates are valid; otherwise, <c>false</c>.</returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool IsInBounds(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height;
 }

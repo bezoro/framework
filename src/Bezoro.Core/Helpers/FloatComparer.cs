@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.Core;
+namespace Bezoro.Core.Helpers;
 
 /// <summary>
 ///     Helper class for robust floating-point number comparisons.

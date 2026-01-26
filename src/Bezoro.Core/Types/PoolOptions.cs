@@ -11,13 +11,14 @@ namespace Bezoro.Core.Types;
 /// <param name="ValidateOnRent">Whether to call Validate before returning rented objects. Default is <c>true</c>.</param>
 /// <param name="TrackStatistics">Whether to enable detailed statistics collection. Default is <c>false</c>.</param>
 public readonly record struct PoolOptions(
-	int InitialCapacity = 0,
-	int MaxCapacity = -1,
-	Percent ShrinkThreshold = default,
-	bool EnableAsyncWait = true,
+	int      InitialCapacity  = 0,
+	int      MaxCapacity      = -1,
+	Percent  ShrinkThreshold  = default,
+	bool     EnableAsyncWait  = true,
 	TimeSpan AsyncWaitTimeout = default,
-	bool ValidateOnRent = true,
-	bool TrackStatistics = false)
+	bool     ValidateOnRent   = true,
+	bool     TrackStatistics  = false
+)
 {
 	/// <summary>
 	///     Default options with sensible production defaults.
@@ -33,8 +34,8 @@ public readonly record struct PoolOptions(
 	///     Options optimized for high-throughput scenarios.
 	/// </summary>
 	public static PoolOptions HighThroughput => new(
-		InitialCapacity: Environment.ProcessorCount * 2,
-		MaxCapacity: Environment.ProcessorCount * 8,
+		Environment.ProcessorCount * 2,
+		Environment.ProcessorCount * 8,
 		ValidateOnRent: false,
 		TrackStatistics: false);
 }

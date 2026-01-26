@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
-
 using Bezoro.Core.Abstractions;
 
 namespace Bezoro.Core.Types.Pool;
@@ -19,7 +17,7 @@ namespace Bezoro.Core.Types.Pool;
 public struct PooledObjectHandle<T> : IDisposable where T : class
 {
 	private IPool<T>? _pool;
-	private T? _value;
+	private T?        _value;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="PooledObjectHandle{T}" /> struct.
@@ -29,8 +27,13 @@ public struct PooledObjectHandle<T> : IDisposable where T : class
 	internal PooledObjectHandle(T value, IPool<T> pool)
 	{
 		_value = value;
-		_pool = pool;
+		_pool  = pool;
 	}
+
+	/// <summary>
+	///     Gets whether this handle has been disposed.
+	/// </summary>
+	public readonly bool IsDisposed => _value is null;
 
 	/// <summary>
 	///     Gets the pooled object.
@@ -41,11 +44,6 @@ public struct PooledObjectHandle<T> : IDisposable where T : class
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get => _value ?? throw new ObjectDisposedException(nameof(PooledObjectHandle<T>));
 	}
-
-	/// <summary>
-	///     Gets whether this handle has been disposed.
-	/// </summary>
-	public readonly bool IsDisposed => _value is null;
 
 	/// <summary>
 	///     Implicitly converts the handle to the underlying value.

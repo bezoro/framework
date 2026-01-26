@@ -7,14 +7,14 @@ namespace Bezoro.Core.Abstractions;
 public interface IPooledObject
 {
 	/// <summary>
-	///     Called when the object is rented from the pool.
-	/// </summary>
-	void OnRent();
-
-	/// <summary>
 	///     Called when the object is about to be returned to the pool.
 	///     Implementations should reset their state here.
 	/// </summary>
 	/// <returns><c>true</c> if the object is valid for reuse; <c>false</c> to discard.</returns>
 	bool OnReturn();
+
+	/// <summary>
+	///     Called when the object is rented from the pool.
+	/// </summary>
+	void OnRent();
 }

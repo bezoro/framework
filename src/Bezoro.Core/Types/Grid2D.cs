@@ -224,7 +224,7 @@ public sealed class Grid2D<T> : IDisposable
 			return;
 
 		if (_fromPool)
-			ArrayPool<T>.Shared.Return(_data, clearArray: RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+			ArrayPool<T>.Shared.Return(_data, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
 
 		_data = null;
 	}

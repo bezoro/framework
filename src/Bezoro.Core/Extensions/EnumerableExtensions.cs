@@ -21,7 +21,7 @@ public static class EnumerableExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool HasAny(this IEnumerable source)
 	{
-		source.ThrowIfNull(nameof(source));
+		source.ThrowIfNull();
 
 		if (source.TryGetCount(out int count)) return count != 0;
 		if (source is ICollection c) return c.Count != 0;

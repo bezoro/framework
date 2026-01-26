@@ -44,7 +44,7 @@ public static class FloatExtensions
 	/// </exception>
 	public static float Map(this float value, float fromMin, float fromMax, float toMin, float toMax)
 	{
-		var range = fromMax - fromMin;
+		float range = fromMax - fromMin;
 		if (range == 0f)
 			throw new ArgumentException("Source range cannot be zero (fromMin equals fromMax).", nameof(fromMax));
 

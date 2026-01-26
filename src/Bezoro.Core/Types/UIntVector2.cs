@@ -11,7 +11,8 @@ namespace Bezoro.Core.Types;
 [DebuggerDisplay("({X}, {Y})")]
 public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 #if NET6_0_OR_GREATER
-	, ISpanFormattable
+	,
+	ISpanFormattable
 #endif
 {
 	private const float WHOLE_TOLERANCE = 1e-6f;
@@ -164,7 +165,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 			{
 				// "X=value, Y=value" format
 				Span<char> temp = stackalloc char[64];
-				int pos = 0;
+				int        pos  = 0;
 				"X=".AsSpan().CopyTo(temp[pos..]);
 				pos += 2;
 				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
@@ -172,6 +173,7 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 					charsWritten = 0;
 					return false;
 				}
+
 				pos += xLen;
 				", Y=".AsSpan().CopyTo(temp[pos..]);
 				pos += 4;
@@ -180,12 +182,14 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 					charsWritten = 0;
 					return false;
 				}
+
 				pos += yLen;
 				if (destination.Length < pos)
 				{
 					charsWritten = 0;
 					return false;
 				}
+
 				temp[..pos].CopyTo(destination);
 				charsWritten = pos;
 				return true;
@@ -194,25 +198,28 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 			{
 				// "value,value" format (CSV)
 				Span<char> temp = stackalloc char[32];
-				int pos = 0;
+				int        pos  = 0;
 				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
 				{
 					charsWritten = 0;
 					return false;
 				}
-				pos += xLen;
-				temp[pos++] = ',';
+
+				pos         += xLen;
+				temp[pos++] =  ',';
 				if (!Y.TryFormat(temp[pos..], out int yLen, default, provider))
 				{
 					charsWritten = 0;
 					return false;
 				}
+
 				pos += yLen;
 				if (destination.Length < pos)
 				{
 					charsWritten = 0;
 					return false;
 				}
+
 				temp[..pos].CopyTo(destination);
 				charsWritten = pos;
 				return true;
@@ -221,13 +228,14 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 			{
 				// "(value, value)" format
 				Span<char> temp = stackalloc char[32];
-				int pos = 0;
+				int        pos  = 0;
 				temp[pos++] = '(';
 				if (!X.TryFormat(temp[pos..], out int xLen, default, provider))
 				{
 					charsWritten = 0;
 					return false;
 				}
+
 				pos += xLen;
 				", ".AsSpan().CopyTo(temp[pos..]);
 				pos += 2;
@@ -236,13 +244,15 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 					charsWritten = 0;
 					return false;
 				}
-				pos += yLen;
-				temp[pos++] = ')';
+
+				pos         += yLen;
+				temp[pos++] =  ')';
 				if (destination.Length < pos)
 				{
 					charsWritten = 0;
 					return false;
 				}
+
 				temp[..pos].CopyTo(destination);
 				charsWritten = pos;
 				return true;

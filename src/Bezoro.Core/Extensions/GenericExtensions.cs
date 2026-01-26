@@ -145,7 +145,7 @@ public static class GenericExtensions
 	{
 		item.ThrowIfNull();
 
-		return new SingleItemEnumerable<T>(item);
+		return new(item);
 	}
 
 	/// <summary>
@@ -262,9 +262,10 @@ public static class GenericExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIfNull<T>(
 		[NotNull] this T? value,
-		[CallerArgumentExpression(nameof(value))] string? paramName = null)
+		[CallerArgumentExpression(nameof(value))]
+		string? paramName = null)
 	{
-		if (value is not null) return value;
+		if (value is { }) return value;
 
 		ThrowArgumentNull(paramName);
 		return default!; // Unreachable
