@@ -122,37 +122,128 @@ public static class Logger
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null)
 	{
-		string message = string.IsNullOrEmpty(customMessage)
-							 ? exception.Message
-							 : $"{customMessage} | {exception.Message}";
-
-		string  exceptionType = exception.GetType().Name;
-		string? stackTrace    = exception.StackTrace;
-
-		// Capture inner exception details
-		string? innerExceptionType    = exception.InnerException?.GetType().Name;
-		string? innerExceptionMessage = exception.InnerException?.Message;
-
-		// Capture caller info if requested
-		string? callerInfo = null;
-		if (captureCallerInfo && memberName != null)
-		{
-			string typeName = ExtractTypeNameFromFilePath(filePath);
-			callerInfo = $"{typeName}.{memberName}()";
-		}
-
-		BuildAndInvokePayload(
-			message,
+		LogExceptionInternal(
+			exception,
 			LogLevel.Exception,
+			customMessage,
 			category,
 			contextObject,
-			exceptionType,
-			callerInfo,
-			stackTrace,
-			innerExceptionType,
-			innerExceptionMessage,
+			captureCallerInfo,
+			memberName,
 			filePath);
 	}
+
+
+	/// <summary>
+	///     Logs an error message with optional complexity.
+	/// </summary>
+	/// <param name="message">The message to log (string, number, object, FormattableString, etc.).</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information.</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	[Conditional("DEBUG")]
+	public static void LogError(
+		object                     message,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = false,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null) =>
+		Log(message, LogLevel.Error, category, contextObject, captureCallerInfo, memberName, filePath);
+
+	/// <summary>
+	///     Logs an exception with automatic detail extraction.
+	/// </summary>
+	/// <param name="exception">The exception to log.</param>
+	/// <param name="customMessage">Optional custom message to prepend to the exception message for additional context.</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information (default: true).</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	[Conditional("DEBUG")]
+	public static void LogException(
+		Exception                  exception,
+		string?                    customMessage     = null,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = true,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null) =>
+		LogExceptionInternal(
+			exception,
+			LogLevel.Exception,
+			customMessage,
+			category,
+			contextObject,
+			captureCallerInfo,
+			memberName,
+			filePath);
+
+
+	/// <summary>
+	///     Logs a success message with optional complexity.
+	/// </summary>
+	/// <param name="message">The message to log (string, number, object, FormattableString, etc.).</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information.</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	[Conditional("DEBUG")]
+	public static void LogSuccess(
+		object                     message,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = false,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null) =>
+		Log(message, LogLevel.Success, category, contextObject, captureCallerInfo, memberName, filePath);
+
+	/// <summary>
+	///     Logs a warning message with optional complexity.
+	/// </summary>
+	/// <param name="message">The message to log (string, number, object, FormattableString, etc.).</param>
+	/// <param name="category">Optional log category.</param>
+	/// <param name="contextObject">Optional context object (e.g., Unity Object for console highlighting).</param>
+	/// <param name="captureCallerInfo">Whether to automatically capture caller information.</param>
+	/// <param name="memberName">
+	///     Automatically populated with the calling member name via <see cref="CallerMemberNameAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	/// <param name="filePath">
+	///     Automatically populated with the source file path via <see cref="CallerFilePathAttribute" />.
+	///     Do not provide this parameter manually.
+	/// </param>
+	[Conditional("DEBUG")]
+	public static void LogWarning(
+		object                     message,
+		LogCategory?               category          = null,
+		object?                    contextObject     = null,
+		bool                       captureCallerInfo = false,
+		[CallerMemberName] string? memberName        = null,
+		[CallerFilePath]   string? filePath          = null) =>
+		Log(message, LogLevel.Warning, category, contextObject, captureCallerInfo, memberName, filePath);
 
 	/// <summary>
 	///     Extracts the type name from a file path (e.g., "GameManager" from "path/to/GameManager.cs").
@@ -165,7 +256,6 @@ public static class Logger
 		string? fileName = Path.GetFileNameWithoutExtension(filePath);
 		return fileName ?? "Unknown";
 	}
-
 
 	/// <summary>
 	///     Formats a message object into a string representation.
@@ -235,17 +325,7 @@ public static class Logger
 		string?      innerExceptionMessage,
 		string?      filePath)
 	{
-		// Check master switch
-		if (!LoggerSettings.Enabled)
-			return;
-
-		// Check minimum level filtering
-		if (level < MinimumLevel)
-			return;
-
-		// Check category filtering
-		if (category.HasValue && LoggerSettings.MutedCategories.Contains(category.Value))
-			return;
+		if (ShouldSkipLog(level, category)) return;
 
 		string severityEmoji = LogLevelEmoji.GetEmoji(level);
 		string? categoryEmoji = category.HasValue
@@ -258,19 +338,14 @@ public static class Logger
 
 		// Determine grouping context
 		var now = DateTime.UtcNow;
-		string? groupingContext = LoggerSettings.Grouping.GroupBy switch
-		{
-			LoggerSettings.ContextGrouping.CallerType => ExtractTypeNameFromFilePath(filePath),
-			LoggerSettings.ContextGrouping.CallerMethod => callerInfo,
-			LoggerSettings.ContextGrouping.Category => category?.ToString(),
-			LoggerSettings.ContextGrouping.Thread => Environment.CurrentManagedThreadId.ToString(),
-			LoggerSettings.ContextGrouping.Level => level.ToString(),
-			LoggerSettings.ContextGrouping.TimeWindow => GetTimeWindowGroup(now, LoggerSettings.Grouping.TimeWindowMs),
-			LoggerSettings.ContextGrouping.AsyncContext => asyncHierarchy != null
-															   ? string.Join(" > ", asyncHierarchy)
-															   : null,
-			_ => null
-		};
+		string? groupingContext = BuildGroupingContext(
+			LoggerSettings.Grouping.GroupBy,
+			now,
+			filePath,
+			callerInfo,
+			category,
+			level,
+			asyncHierarchy);
 
 		// Get style for this log level
 		var style = LoggerSettings.GetStyle(level);
@@ -281,88 +356,20 @@ public static class Logger
 		// Get thread ID
 		int threadId = Environment.CurrentManagedThreadId;
 
-		// Get file location
-		string? fileLocation = null;
-		if (LoggerSettings.FileLocation.Enabled && filePath != null)
-			fileLocation = LoggerSettings.FileLocation.ShowFullPath
-							   ? filePath
-							   : Path.GetFileName(filePath);
+		string? fileLocation = GetFileLocation(filePath);
 
-		// Build formatted message using hierarchical structure:
-		// Line 0 (optional): 🔄 [AsyncContext > Hierarchy]
-		// Line 1: [#seq][timestamp][thread] severity [category] Message
-		// Line 2 (optional):   └─ file :: caller
-
-		var lines = new List<string>();
-
-		// Async context line (if present)
-		if (asyncHierarchy != null)
-		{
-			var asyncContextLine = $"🔄 [{string.Join(" > ", asyncHierarchy)}]";
-			lines.Add(asyncContextLine);
-		}
-
-		// Build main line
-		string mainLine = string.Empty;
-
-		// Metadata section
-		if (LoggerSettings.SequenceNumber.Enabled)
-			mainLine = $"[#{sequenceNumber}]";
-
-		if (LoggerSettings.Timestamp.Enabled)
-			mainLine += $"[{now.ToString(LoggerSettings.Timestamp.Format)}]";
-
-		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
-		{
-			int frameCount = LoggerSettings.FrameCount.Provider();
-			mainLine += $"[F:{frameCount}]";
-		}
-
-		if (LoggerSettings.ThreadId.Enabled)
-			mainLine += $"[T:{threadId}]";
-
-		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
-			mainLine += $"[{groupingContext}]";
-
-		// Add space after metadata if any exists
-		if (!string.IsNullOrEmpty(mainLine))
-			mainLine += " ";
-
-		// Severity and category
-		mainLine += severityEmoji;
-
-		if (categoryEmoji != null)
-			mainLine += $" [{categoryEmoji}]";
-
-		// Exception type prefix
-		if (exceptionType != null)
-			mainLine += $" {exceptionType} ::";
-
-		// Main message
-		mainLine += $" {message}";
-
-		lines.Add(mainLine);
-
-		// Build details line (file and caller info)
-		if (LoggerSettings.FileLocation.Enabled || callerInfo != null)
-		{
-			var details = new List<string>();
-
-			if (LoggerSettings.FileLocation.Enabled && fileLocation != null)
-				details.Add(fileLocation);
-
-			if (callerInfo != null)
-				details.Add(callerInfo);
-
-			if (details.Count > 0)
-			{
-				var detailsLine = $"  └─ {string.Join(" :: ", details)}";
-				lines.Add(detailsLine);
-			}
-		}
-
-		// Combine all lines
-		var formattedMessage = string.Join("\n", lines);
+		var formattedMessage = BuildFormattedMessage(
+			message,
+			severityEmoji,
+			categoryEmoji,
+			exceptionType,
+			now,
+			sequenceNumber,
+			threadId,
+			groupingContext,
+			asyncHierarchy,
+			fileLocation,
+			callerInfo);
 
 		var payload = new LogPayload
 		{
@@ -387,5 +394,209 @@ public static class Logger
 		};
 
 		OnLog?.Invoke(payload);
+	}
+
+	private static bool ShouldSkipLog(LogLevel level, LogCategory? category)
+	{
+		if (!LoggerSettings.Enabled)
+			return true;
+
+		if (level < MinimumLevel)
+			return true;
+
+		return category.HasValue && LoggerSettings.MutedCategories.Contains(category.Value);
+	}
+
+	private static string? BuildGroupingContext(
+		LoggerSettings.ContextGrouping grouping,
+		DateTime                       now,
+		string?                        filePath,
+		string?                        callerInfo,
+		LogCategory?                   category,
+		LogLevel                       level,
+		IReadOnlyList<string>?         asyncHierarchy) =>
+		grouping switch
+		{
+			LoggerSettings.ContextGrouping.CallerType => ExtractTypeNameFromFilePath(filePath),
+			LoggerSettings.ContextGrouping.CallerMethod => callerInfo,
+			LoggerSettings.ContextGrouping.Category => category?.ToString(),
+			LoggerSettings.ContextGrouping.Thread => Environment.CurrentManagedThreadId.ToString(),
+			LoggerSettings.ContextGrouping.Level => level.ToString(),
+			LoggerSettings.ContextGrouping.TimeWindow => GetTimeWindowGroup(now, LoggerSettings.Grouping.TimeWindowMs),
+			LoggerSettings.ContextGrouping.AsyncContext => asyncHierarchy != null
+															   ? string.Join(" > ", asyncHierarchy)
+															   : null,
+			_ => null
+		};
+
+	private static string? GetFileLocation(string? filePath)
+	{
+		if (!LoggerSettings.FileLocation.Enabled || filePath == null)
+			return null;
+
+		return LoggerSettings.FileLocation.ShowFullPath
+				   ? filePath
+				   : Path.GetFileName(filePath);
+	}
+
+	private static string BuildFormattedMessage(
+		string                   message,
+		string                   severityEmoji,
+		string?                  categoryEmoji,
+		string?                  exceptionType,
+		DateTime                 timestamp,
+		long                     sequenceNumber,
+		int                      threadId,
+		string?                  groupingContext,
+		IReadOnlyList<string>?   asyncHierarchy,
+		string?                  fileLocation,
+		string?                  callerInfo)
+	{
+		// Build formatted message using hierarchical structure:
+		// Line 0 (optional): 🔄 [AsyncContext > Hierarchy]
+		// Line 1: [#seq][timestamp][thread] severity [category] Message
+		// Line 2 (optional):   └─ file :: caller
+
+		var lines = new List<string>();
+
+		AddAsyncContextLine(lines, asyncHierarchy);
+		lines.Add(BuildMainLine(
+			message,
+			severityEmoji,
+			categoryEmoji,
+			exceptionType,
+			timestamp,
+			sequenceNumber,
+			threadId,
+			groupingContext));
+		AddDetailsLine(lines, fileLocation, callerInfo);
+
+		return string.Join("\n", lines);
+	}
+
+	private static void AddAsyncContextLine(List<string> lines, IReadOnlyList<string>? asyncHierarchy)
+	{
+		if (asyncHierarchy == null)
+			return;
+
+		var asyncContextLine = $"🔄 [{string.Join(" > ", asyncHierarchy)}]";
+		lines.Add(asyncContextLine);
+	}
+
+	private static string BuildMainLine(
+		string  message,
+		string  severityEmoji,
+		string? categoryEmoji,
+		string? exceptionType,
+		DateTime timestamp,
+		long    sequenceNumber,
+		int     threadId,
+		string? groupingContext)
+	{
+		string metadata = BuildMetadataSection(timestamp, sequenceNumber, threadId, groupingContext);
+		string mainLine = string.IsNullOrEmpty(metadata) ? string.Empty : $"{metadata} ";
+
+		mainLine += severityEmoji;
+
+		if (categoryEmoji != null)
+			mainLine += $" [{categoryEmoji}]";
+
+		if (exceptionType != null)
+			mainLine += $" {exceptionType} ::";
+
+		mainLine += $" {message}";
+
+		return mainLine;
+	}
+
+	private static string BuildMetadataSection(
+		DateTime timestamp,
+		long     sequenceNumber,
+		int      threadId,
+		string?  groupingContext)
+	{
+		string metadata = string.Empty;
+
+		if (LoggerSettings.SequenceNumber.Enabled)
+			metadata = $"[{sequenceNumber}]";
+
+		if (LoggerSettings.Timestamp.Enabled)
+			metadata += $"[{timestamp.ToString(LoggerSettings.Timestamp.Format)}]";
+
+		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
+		{
+			int frameCount = LoggerSettings.FrameCount.Provider();
+			metadata += $"[F:{frameCount}]";
+		}
+
+		if (LoggerSettings.ThreadId.Enabled)
+			metadata += $"[T:{threadId}]";
+
+		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
+			metadata += $"[{groupingContext}]";
+
+		return metadata;
+	}
+
+	private static void AddDetailsLine(List<string> lines, string? fileLocation, string? callerInfo)
+	{
+		if (!LoggerSettings.FileLocation.Enabled && callerInfo == null)
+			return;
+
+		var details = new List<string>();
+
+		if (LoggerSettings.FileLocation.Enabled && fileLocation != null)
+			details.Add(fileLocation);
+
+		if (callerInfo != null)
+			details.Add(callerInfo);
+
+		if (details.Count == 0)
+			return;
+
+		var detailsLine = $"  └─ {string.Join(" :: ", details)}";
+		lines.Add(detailsLine);
+	}
+
+	private static void LogExceptionInternal(
+		Exception    exception,
+		LogLevel     level,
+		string?      customMessage,
+		LogCategory? category,
+		object?      contextObject,
+		bool         captureCallerInfo,
+		string?      memberName,
+		string?      filePath)
+	{
+		string message = string.IsNullOrEmpty(customMessage)
+							 ? exception.Message
+							 : $"{customMessage} | {exception.Message}";
+
+		string  exceptionType = exception.GetType().Name;
+		string? stackTrace    = exception.StackTrace;
+
+		// Capture inner exception details
+		string? innerExceptionType    = exception.InnerException?.GetType().Name;
+		string? innerExceptionMessage = exception.InnerException?.Message;
+
+		// Capture caller info if requested
+		string? callerInfo = null;
+		if (captureCallerInfo && memberName != null)
+		{
+			string typeName = ExtractTypeNameFromFilePath(filePath);
+			callerInfo = $"{typeName}.{memberName}()";
+		}
+
+		BuildAndInvokePayload(
+			message,
+			level,
+			category,
+			contextObject,
+			exceptionType,
+			callerInfo,
+			stackTrace,
+			innerExceptionType,
+			innerExceptionMessage,
+			filePath);
 	}
 }
