@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Bezoro.Logging.Types;
 using Bezoro.Logging.Utilities;
 
@@ -12,6 +11,8 @@ namespace Bezoro.Logging;
 /// </summary>
 public static class Logger
 {
+	private static string? _lastStage;
+
 	/// <summary>
 	///     Event invoked when a log message is processed.
 	/// </summary>
@@ -22,8 +23,6 @@ public static class Logger
 	///     Default: <see cref="LogLevel.Info" />.
 	/// </summary>
 	public static LogLevel MinimumLevel { get; set; } = LogLevel.Info;
-
-	private static string? _lastStage;
 
 	/// <summary>
 	///     Begins a performance timer that logs the operation duration when disposed.
@@ -92,11 +91,13 @@ public static class Logger
 			category,
 			contextObject,
 			null,
+			null,
 			callerInfo,
 			null,
 			null,
 			null,
-			filePath);
+			filePath
+		);
 	}
 
 	/// <summary>
@@ -133,7 +134,8 @@ public static class Logger
 			contextObject,
 			captureCallerInfo,
 			memberName,
-			filePath);
+			filePath
+		);
 	}
 
 
@@ -195,7 +197,8 @@ public static class Logger
 			contextObject,
 			captureCallerInfo,
 			memberName,
-			filePath);
+			filePath
+		);
 
 
 	/// <summary>
@@ -247,6 +250,130 @@ public static class Logger
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null) =>
 		Log(message, LogLevel.Warning, category, contextObject, captureCallerInfo, memberName, filePath);
+
+	private static bool ShouldSkipLog(LogLevel level, LogCategory? category)
+	{
+		if (!LoggerSettings.Enabled)
+			return true;
+
+		if (level < MinimumLevel)
+			return true;
+
+		return category.HasValue && LoggerSettings.MutedCategories.Contains(category.Value);
+	}
+
+	private static bool TryUpdateStage(string? stage, out string? previousStage)
+	{
+		previousStage = null;
+
+		if (stage == null)
+			return false;
+
+		string? currentStage = Volatile.Read(ref _lastStage);
+		if (string.Equals(currentStage, stage, StringComparison.Ordinal))
+			return false;
+
+		Volatile.Write(ref _lastStage, stage);
+		previousStage = currentStage;
+		return previousStage != null;
+	}
+
+	private static string BuildFormattedMessage(
+		string                 message,
+		string                 severityEmoji,
+		string?                categoryEmoji,
+		string?                exceptionType,
+		DateTime               timestamp,
+		long                   sequenceNumber,
+		int                    threadId,
+		string?                groupingContext,
+		IReadOnlyList<string>? asyncHierarchy,
+		string?                stage,
+		string?                fileLocation,
+		string?                callerInfo)
+	{
+		// Build formatted message using hierarchical structure:
+		// Line 0 (optional): Stage: <stage>
+		// Line 1 (optional): 🔄 [AsyncContext > Hierarchy]
+		// Line 2: [#seq][timestamp][thread] severity [category] Message
+		// Line 3 (optional):   └─ file :: caller
+
+		var lines = new List<string>();
+
+		AddStageLine(lines, stage);
+		AddAsyncContextLine(lines, asyncHierarchy);
+		lines.Add(
+			BuildMainLine(
+				message,
+				severityEmoji,
+				categoryEmoji,
+				exceptionType,
+				timestamp,
+				sequenceNumber,
+				threadId,
+				groupingContext
+			)
+		);
+
+		AddDetailsLine(lines, fileLocation, callerInfo);
+
+		return string.Join("\n", lines);
+	}
+
+	private static string BuildMainLine(
+		string   message,
+		string   severityEmoji,
+		string?  categoryEmoji,
+		string?  exceptionType,
+		DateTime timestamp,
+		long     sequenceNumber,
+		int      threadId,
+		string?  groupingContext)
+	{
+		string metadata = BuildMetadataSection(timestamp, sequenceNumber, threadId, groupingContext);
+		string mainLine = string.IsNullOrEmpty(metadata) ? string.Empty : $"{metadata} ";
+
+		mainLine += severityEmoji;
+
+		if (categoryEmoji != null)
+			mainLine += $" [{categoryEmoji}]";
+
+		if (exceptionType != null)
+			mainLine += $" {exceptionType} ::";
+
+		mainLine += $" {message}";
+
+		return mainLine;
+	}
+
+	private static string BuildMetadataSection(
+		DateTime timestamp,
+		long     sequenceNumber,
+		int      threadId,
+		string?  groupingContext)
+	{
+		string metadata = string.Empty;
+
+		if (LoggerSettings.SequenceNumber.Enabled)
+			metadata = $"[{sequenceNumber}]";
+
+		if (LoggerSettings.Timestamp.Enabled)
+			metadata += $"[{timestamp.ToString(LoggerSettings.Timestamp.Format)}]";
+
+		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
+		{
+			int frameCount = LoggerSettings.FrameCount.Provider();
+			metadata += $"[F:{frameCount}]";
+		}
+
+		if (LoggerSettings.ThreadId.Enabled)
+			metadata += $"[T:{threadId}]";
+
+		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
+			metadata += $"[{groupingContext}]";
+
+		return metadata;
+	}
 
 	/// <summary>
 	///     Extracts the type name from a file path (e.g., "GameManager" from "path/to/GameManager.cs").
@@ -313,118 +440,6 @@ public static class Logger
 		return $"Window-{windowNumber}";
 	}
 
-	/// <summary>
-	///     Builds the log payload and invokes the OnLog event.
-	/// </summary>
-	private static void BuildAndInvokePayload(
-		string       message,
-		LogLevel     level,
-		LogCategory? category,
-		object?      contextObject,
-		string?      exceptionType,
-		string?      callerInfo,
-		string?      stackTrace,
-		string?      innerExceptionType,
-		string?      innerExceptionMessage,
-		string?      filePath)
-	{
-		if (ShouldSkipLog(level, category)) return;
-
-		string? stage           = GetStage();
-		string? normalizedStage = NormalizeStage(stage);
-		bool    stageChanged    = TryUpdateStage(normalizedStage, out string? previousStage);
-
-		string severityEmoji = LogLevelEmoji.GetEmoji(level);
-		string? categoryEmoji = category.HasValue
-									? LogCategoryEmoji.GetEmoji(category.Value)
-									: null;
-
-		// Get async context info
-		var asyncHierarchy = LoggerSettings.CurrentAsyncContextHierarchy;
-		int asyncDepth     = asyncHierarchy?.Count ?? 0;
-
-		TryEmitStageDividerPayload(
-			level,
-			category,
-			contextObject,
-			previousStage,
-			normalizedStage,
-			stageChanged,
-			asyncHierarchy);
-
-		// Determine grouping context
-		var now = DateTime.UtcNow;
-		string? groupingContext = BuildGroupingContext(
-			LoggerSettings.Grouping.GroupBy,
-			now,
-			filePath,
-			callerInfo,
-			category,
-			level,
-			asyncHierarchy);
-
-		// Get style for this log level
-		var style = LoggerSettings.GetStyle(level);
-
-		// Get sequence number
-		long sequenceNumber = LoggerSettings.GetNextSequenceNumber();
-
-		// Get thread ID
-		int threadId = Environment.CurrentManagedThreadId;
-
-		string? fileLocation = GetFileLocation(filePath);
-
-		var formattedMessage = BuildFormattedMessage(
-			message,
-			severityEmoji,
-			categoryEmoji,
-			exceptionType,
-			now,
-			sequenceNumber,
-			threadId,
-			groupingContext,
-			asyncHierarchy,
-			normalizedStage,
-			fileLocation,
-			callerInfo);
-
-		var payload = new LogPayload
-		{
-			Timestamp             = now,
-			Level                 = level,
-			Category              = category,
-			Message               = message,
-			SeverityEmoji         = severityEmoji,
-			CategoryEmoji         = categoryEmoji,
-			ExceptionType         = exceptionType,
-			CallerInfo            = callerInfo,
-			Stage                 = normalizedStage,
-			FormattedMessage      = formattedMessage,
-			ContextObject         = contextObject,
-			StackTrace            = stackTrace,
-			InnerExceptionType    = innerExceptionType,
-			InnerExceptionMessage = innerExceptionMessage,
-			GroupingContext       = groupingContext,
-			AsyncContextHierarchy = asyncHierarchy,
-			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
-			AsyncContextDepth     = asyncDepth,
-			Style                 = style
-		};
-
-		OnLog?.Invoke(payload);
-	}
-
-	private static bool ShouldSkipLog(LogLevel level, LogCategory? category)
-	{
-		if (!LoggerSettings.Enabled)
-			return true;
-
-		if (level < MinimumLevel)
-			return true;
-
-		return category.HasValue && LoggerSettings.MutedCategories.Contains(category.Value);
-	}
-
 	private static string? BuildGroupingContext(
 		LoggerSettings.ContextGrouping grouping,
 		DateTime                       now,
@@ -475,127 +490,12 @@ public static class Logger
 		return string.IsNullOrWhiteSpace(dividerLine) ? null : dividerLine;
 	}
 
-	private static void TryEmitStageDividerPayload(
-		LogLevel                 level,
-		LogCategory?             category,
-		object?                  contextObject,
-		string?                  previousStage,
-		string?                  stage,
-		bool                     stageChanged,
-		IReadOnlyList<string>?   asyncHierarchy)
-	{
-		if (!stageChanged)
-			return;
-
-		string? dividerLine = GetStageDividerLine(previousStage, stage);
-		if (dividerLine == null)
-			return;
-
-		EmitStageDividerPayload(dividerLine, level, category, contextObject, stage, asyncHierarchy);
-	}
-
-	private static void EmitStageDividerPayload(
-		string                 dividerLine,
-		LogLevel               level,
-		LogCategory?           category,
-		object?                contextObject,
-		string?                stage,
-		IReadOnlyList<string>? asyncHierarchy)
-	{
-		var payload = new LogPayload
-		{
-			Timestamp             = DateTime.UtcNow,
-			Level                 = level,
-			Category              = category,
-			Message               = dividerLine,
-			SeverityEmoji         = LogLevelEmoji.GetEmoji(level),
-			CategoryEmoji         = category.HasValue ? LogCategoryEmoji.GetEmoji(category.Value) : null,
-			ExceptionType         = null,
-			CallerInfo            = null,
-			Stage                 = stage,
-			FormattedMessage      = dividerLine,
-			ContextObject         = contextObject,
-			StackTrace            = null,
-			InnerExceptionType    = null,
-			InnerExceptionMessage = null,
-			GroupingContext       = null,
-			AsyncContextHierarchy = asyncHierarchy,
-			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
-			AsyncContextDepth     = asyncHierarchy?.Count ?? 0,
-			Style                 = LoggerSettings.GetStyle(level)
-		};
-
-		OnLog?.Invoke(payload);
-	}
-
 	private static string? NormalizeStage(string? stage)
 	{
 		if (string.IsNullOrWhiteSpace(stage))
 			return null;
 
 		return stage.Trim();
-	}
-
-	private static bool TryUpdateStage(string? stage, out string? previousStage)
-	{
-		previousStage = null;
-
-		if (stage == null)
-			return false;
-
-		string? currentStage = Volatile.Read(ref _lastStage);
-		if (string.Equals(currentStage, stage, StringComparison.Ordinal))
-			return false;
-
-		Volatile.Write(ref _lastStage, stage);
-		previousStage = currentStage;
-		return previousStage != null;
-	}
-
-	private static string BuildFormattedMessage(
-		string                   message,
-		string                   severityEmoji,
-		string?                  categoryEmoji,
-		string?                  exceptionType,
-		DateTime                 timestamp,
-		long                     sequenceNumber,
-		int                      threadId,
-		string?                  groupingContext,
-		IReadOnlyList<string>?   asyncHierarchy,
-		string?                  stage,
-		string?                  fileLocation,
-		string?                  callerInfo)
-	{
-		// Build formatted message using hierarchical structure:
-		// Line 0 (optional): Stage: <stage>
-		// Line 1 (optional): 🔄 [AsyncContext > Hierarchy]
-		// Line 2: [#seq][timestamp][thread] severity [category] Message
-		// Line 3 (optional):   └─ file :: caller
-
-		var lines = new List<string>();
-
-		AddStageLine(lines, stage);
-		AddAsyncContextLine(lines, asyncHierarchy);
-		lines.Add(BuildMainLine(
-			message,
-			severityEmoji,
-			categoryEmoji,
-			exceptionType,
-			timestamp,
-			sequenceNumber,
-			threadId,
-			groupingContext));
-		AddDetailsLine(lines, fileLocation, callerInfo);
-
-		return string.Join("\n", lines);
-	}
-
-	private static void AddStageLine(List<string> lines, string? stage)
-	{
-		if (stage == null)
-			return;
-
-		lines.Add($"Stage: {stage}");
 	}
 
 	private static void AddAsyncContextLine(List<string> lines, IReadOnlyList<string>? asyncHierarchy)
@@ -605,61 +505,6 @@ public static class Logger
 
 		var asyncContextLine = $"🔄 [{string.Join(" > ", asyncHierarchy)}]";
 		lines.Add(asyncContextLine);
-	}
-
-	private static string BuildMainLine(
-		string  message,
-		string  severityEmoji,
-		string? categoryEmoji,
-		string? exceptionType,
-		DateTime timestamp,
-		long    sequenceNumber,
-		int     threadId,
-		string? groupingContext)
-	{
-		string metadata = BuildMetadataSection(timestamp, sequenceNumber, threadId, groupingContext);
-		string mainLine = string.IsNullOrEmpty(metadata) ? string.Empty : $"{metadata} ";
-
-		mainLine += severityEmoji;
-
-		if (categoryEmoji != null)
-			mainLine += $" [{categoryEmoji}]";
-
-		if (exceptionType != null)
-			mainLine += $" {exceptionType} ::";
-
-		mainLine += $" {message}";
-
-		return mainLine;
-	}
-
-	private static string BuildMetadataSection(
-		DateTime timestamp,
-		long     sequenceNumber,
-		int      threadId,
-		string?  groupingContext)
-	{
-		string metadata = string.Empty;
-
-		if (LoggerSettings.SequenceNumber.Enabled)
-			metadata = $"[{sequenceNumber}]";
-
-		if (LoggerSettings.Timestamp.Enabled)
-			metadata += $"[{timestamp.ToString(LoggerSettings.Timestamp.Format)}]";
-
-		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
-		{
-			int frameCount = LoggerSettings.FrameCount.Provider();
-			metadata += $"[F:{frameCount}]";
-		}
-
-		if (LoggerSettings.ThreadId.Enabled)
-			metadata += $"[T:{threadId}]";
-
-		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
-			metadata += $"[{groupingContext}]";
-
-		return metadata;
 	}
 
 	private static void AddDetailsLine(List<string> lines, string? fileLocation, string? callerInfo)
@@ -680,6 +525,155 @@ public static class Logger
 
 		var detailsLine = $"  └─ {string.Join(" :: ", details)}";
 		lines.Add(detailsLine);
+	}
+
+	private static void AddStageLine(List<string> lines, string? stage)
+	{
+		if (stage == null)
+			return;
+
+		lines.Add($"Stage: {stage}");
+	}
+
+	/// <summary>
+	///     Builds the log payload and invokes the OnLog event.
+	/// </summary>
+	private static void BuildAndInvokePayload(
+		string       message,
+		LogLevel     level,
+		LogCategory? category,
+		object?      contextObject,
+		Exception?   exception,
+		string?      exceptionType,
+		string?      callerInfo,
+		string?      stackTrace,
+		string?      innerExceptionType,
+		string?      innerExceptionMessage,
+		string?      filePath)
+	{
+		if (ShouldSkipLog(level, category)) return;
+
+		string? stage           = GetStage();
+		string? normalizedStage = NormalizeStage(stage);
+		bool    stageChanged    = TryUpdateStage(normalizedStage, out string? previousStage);
+
+		string severityEmoji = LogLevelEmoji.GetEmoji(level);
+		string? categoryEmoji = category.HasValue
+									? LogCategoryEmoji.GetEmoji(category.Value)
+									: null;
+
+		// Get async context info
+		var asyncHierarchy = LoggerSettings.CurrentAsyncContextHierarchy;
+		int asyncDepth     = asyncHierarchy?.Count ?? 0;
+
+		TryEmitStageDividerPayload(
+			level,
+			category,
+			contextObject,
+			previousStage,
+			normalizedStage,
+			stageChanged,
+			asyncHierarchy
+		);
+
+		// Determine grouping context
+		var now = DateTime.UtcNow;
+		string? groupingContext = BuildGroupingContext(
+			LoggerSettings.Grouping.GroupBy,
+			now,
+			filePath,
+			callerInfo,
+			category,
+			level,
+			asyncHierarchy
+		);
+
+		// Get style for this log level
+		var style = LoggerSettings.GetStyle(level);
+
+		// Get sequence number
+		long sequenceNumber = LoggerSettings.GetNextSequenceNumber();
+
+		// Get thread ID
+		int threadId = Environment.CurrentManagedThreadId;
+
+		string? fileLocation = GetFileLocation(filePath);
+
+		string formattedMessage = BuildFormattedMessage(
+			message,
+			severityEmoji,
+			categoryEmoji,
+			exceptionType,
+			now,
+			sequenceNumber,
+			threadId,
+			groupingContext,
+			asyncHierarchy,
+			normalizedStage,
+			fileLocation,
+			callerInfo
+		);
+
+		var payload = new LogPayload
+		{
+			Timestamp             = now,
+			Level                 = level,
+			Category              = category,
+			Message               = message,
+			SeverityEmoji         = severityEmoji,
+			CategoryEmoji         = categoryEmoji,
+			Exception             = exception,
+			ExceptionType         = exceptionType,
+			CallerInfo            = callerInfo,
+			Stage                 = normalizedStage,
+			FormattedMessage      = formattedMessage,
+			ContextObject         = contextObject,
+			StackTrace            = stackTrace,
+			InnerExceptionType    = innerExceptionType,
+			InnerExceptionMessage = innerExceptionMessage,
+			GroupingContext       = groupingContext,
+			AsyncContextHierarchy = asyncHierarchy,
+			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
+			AsyncContextDepth     = asyncDepth,
+			Style                 = style
+		};
+
+		OnLog?.Invoke(payload);
+	}
+
+	private static void EmitStageDividerPayload(
+		string                 dividerLine,
+		LogLevel               level,
+		LogCategory?           category,
+		object?                contextObject,
+		string?                stage,
+		IReadOnlyList<string>? asyncHierarchy)
+	{
+		var payload = new LogPayload
+		{
+			Timestamp             = DateTime.UtcNow,
+			Level                 = LogLevel.None,
+			Category              = LogCategory.None,
+			Message               = dividerLine,
+			SeverityEmoji         = LogLevelEmoji.GetEmoji(level),
+			CategoryEmoji         = category.HasValue ? LogCategoryEmoji.GetEmoji(category.Value) : null,
+			Exception             = null,
+			ExceptionType         = null,
+			CallerInfo            = null,
+			Stage                 = stage,
+			FormattedMessage      = dividerLine,
+			ContextObject         = contextObject,
+			StackTrace            = null,
+			InnerExceptionType    = null,
+			InnerExceptionMessage = null,
+			GroupingContext       = null,
+			AsyncContextHierarchy = asyncHierarchy,
+			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
+			AsyncContextDepth     = asyncHierarchy?.Count ?? 0,
+			Style                 = LoggerSettings.GetStyle(level)
+		};
+
+		OnLog?.Invoke(payload);
 	}
 
 	private static void LogExceptionInternal(
@@ -716,11 +710,32 @@ public static class Logger
 			level,
 			category,
 			contextObject,
+			exception,
 			exceptionType,
 			callerInfo,
 			stackTrace,
 			innerExceptionType,
 			innerExceptionMessage,
-			filePath);
+			filePath
+		);
+	}
+
+	private static void TryEmitStageDividerPayload(
+		LogLevel               level,
+		LogCategory?           category,
+		object?                contextObject,
+		string?                previousStage,
+		string?                stage,
+		bool                   stageChanged,
+		IReadOnlyList<string>? asyncHierarchy)
+	{
+		if (!stageChanged)
+			return;
+
+		string? dividerLine = GetStageDividerLine(previousStage, stage);
+		if (dividerLine == null)
+			return;
+
+		EmitStageDividerPayload(dividerLine, level, category, contextObject, stage, asyncHierarchy);
 	}
 }

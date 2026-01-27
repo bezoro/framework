@@ -11,6 +11,11 @@ public sealed class LogPayload
 	public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
 	/// <summary>
+	///     Exception instance (only for exceptions).
+	/// </summary>
+	public Exception? Exception { get; init; }
+
+	/// <summary>
 	///     Async context nesting depth (0 = no context, 1 = root, 2+ = nested).
 	/// </summary>
 	public int AsyncContextDepth { get; init; }
@@ -24,11 +29,6 @@ public sealed class LogPayload
 	///     Optional category for the log message.
 	/// </summary>
 	public LogCategory? Category { get; init; }
-
-	/// <summary>
-	///     Optional stage label included in the formatted output.
-	/// </summary>
-	public string? Stage { get; init; }
 
 	/// <summary>
 	///     The severity level of the log.
@@ -99,4 +99,9 @@ public sealed class LogPayload
 	///     Full stack trace (only for exceptions).
 	/// </summary>
 	public string? StackTrace { get; init; }
+
+	/// <summary>
+	///     Optional stage label included in the formatted output.
+	/// </summary>
+	public string? Stage { get; init; }
 }

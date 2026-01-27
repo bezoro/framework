@@ -8,6 +8,11 @@ public enum LogCategory
 	// Core
 
 	/// <summary>
+	///     No specific category assigned.
+	/// </summary>
+	None,
+
+	/// <summary>
 	///     Default/general log category.
 	/// </summary>
 	Default,
