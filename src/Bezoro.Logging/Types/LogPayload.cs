@@ -26,6 +26,11 @@ public sealed class LogPayload
 	public LogCategory? Category { get; init; }
 
 	/// <summary>
+	///     Optional stage label included in the formatted output.
+	/// </summary>
+	public string? Stage { get; init; }
+
+	/// <summary>
 	///     The severity level of the log.
 	/// </summary>
 	public required LogLevel Level { get; init; }

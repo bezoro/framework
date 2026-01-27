@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Bezoro.Logging.Types;
 using Bezoro.Logging.Utilities;
 
@@ -21,6 +22,8 @@ public static class Logger
 	///     Default: <see cref="LogLevel.Info" />.
 	/// </summary>
 	public static LogLevel MinimumLevel { get; set; } = LogLevel.Info;
+
+	private static string? _lastStage;
 
 	/// <summary>
 	///     Begins a performance timer that logs the operation duration when disposed.
@@ -327,6 +330,10 @@ public static class Logger
 	{
 		if (ShouldSkipLog(level, category)) return;
 
+		string? stage           = GetStage();
+		string? normalizedStage = NormalizeStage(stage);
+		bool    stageChanged    = TryUpdateStage(normalizedStage, out string? previousStage);
+
 		string severityEmoji = LogLevelEmoji.GetEmoji(level);
 		string? categoryEmoji = category.HasValue
 									? LogCategoryEmoji.GetEmoji(category.Value)
@@ -335,6 +342,15 @@ public static class Logger
 		// Get async context info
 		var asyncHierarchy = LoggerSettings.CurrentAsyncContextHierarchy;
 		int asyncDepth     = asyncHierarchy?.Count ?? 0;
+
+		TryEmitStageDividerPayload(
+			level,
+			category,
+			contextObject,
+			previousStage,
+			normalizedStage,
+			stageChanged,
+			asyncHierarchy);
 
 		// Determine grouping context
 		var now = DateTime.UtcNow;
@@ -368,6 +384,7 @@ public static class Logger
 			threadId,
 			groupingContext,
 			asyncHierarchy,
+			normalizedStage,
 			fileLocation,
 			callerInfo);
 
@@ -381,6 +398,7 @@ public static class Logger
 			CategoryEmoji         = categoryEmoji,
 			ExceptionType         = exceptionType,
 			CallerInfo            = callerInfo,
+			Stage                 = normalizedStage,
 			FormattedMessage      = formattedMessage,
 			ContextObject         = contextObject,
 			StackTrace            = stackTrace,
@@ -439,6 +457,101 @@ public static class Logger
 				   : Path.GetFileName(filePath);
 	}
 
+	private static string? GetStage()
+	{
+		if (!LoggerSettings.Stage.Enabled || LoggerSettings.Stage.Provider == null)
+			return null;
+
+		return LoggerSettings.Stage.Provider();
+	}
+
+	private static string? GetStageDividerLine(string? fromStage, string? toStage)
+	{
+		var dividerProvider = LoggerSettings.Stage.DividerProvider;
+		if (dividerProvider == null)
+			return null;
+
+		string? dividerLine = dividerProvider(fromStage, toStage);
+		return string.IsNullOrWhiteSpace(dividerLine) ? null : dividerLine;
+	}
+
+	private static void TryEmitStageDividerPayload(
+		LogLevel                 level,
+		LogCategory?             category,
+		object?                  contextObject,
+		string?                  previousStage,
+		string?                  stage,
+		bool                     stageChanged,
+		IReadOnlyList<string>?   asyncHierarchy)
+	{
+		if (!stageChanged)
+			return;
+
+		string? dividerLine = GetStageDividerLine(previousStage, stage);
+		if (dividerLine == null)
+			return;
+
+		EmitStageDividerPayload(dividerLine, level, category, contextObject, stage, asyncHierarchy);
+	}
+
+	private static void EmitStageDividerPayload(
+		string                 dividerLine,
+		LogLevel               level,
+		LogCategory?           category,
+		object?                contextObject,
+		string?                stage,
+		IReadOnlyList<string>? asyncHierarchy)
+	{
+		var payload = new LogPayload
+		{
+			Timestamp             = DateTime.UtcNow,
+			Level                 = level,
+			Category              = category,
+			Message               = dividerLine,
+			SeverityEmoji         = LogLevelEmoji.GetEmoji(level),
+			CategoryEmoji         = category.HasValue ? LogCategoryEmoji.GetEmoji(category.Value) : null,
+			ExceptionType         = null,
+			CallerInfo            = null,
+			Stage                 = stage,
+			FormattedMessage      = dividerLine,
+			ContextObject         = contextObject,
+			StackTrace            = null,
+			InnerExceptionType    = null,
+			InnerExceptionMessage = null,
+			GroupingContext       = null,
+			AsyncContextHierarchy = asyncHierarchy,
+			AsyncContext          = asyncHierarchy != null ? string.Join(" > ", asyncHierarchy) : null,
+			AsyncContextDepth     = asyncHierarchy?.Count ?? 0,
+			Style                 = LoggerSettings.GetStyle(level)
+		};
+
+		OnLog?.Invoke(payload);
+	}
+
+	private static string? NormalizeStage(string? stage)
+	{
+		if (string.IsNullOrWhiteSpace(stage))
+			return null;
+
+		return stage.Trim();
+	}
+
+	private static bool TryUpdateStage(string? stage, out string? previousStage)
+	{
+		previousStage = null;
+
+		if (stage == null)
+			return false;
+
+		string? currentStage = Volatile.Read(ref _lastStage);
+		if (string.Equals(currentStage, stage, StringComparison.Ordinal))
+			return false;
+
+		Volatile.Write(ref _lastStage, stage);
+		previousStage = currentStage;
+		return previousStage != null;
+	}
+
 	private static string BuildFormattedMessage(
 		string                   message,
 		string                   severityEmoji,
@@ -449,16 +562,19 @@ public static class Logger
 		int                      threadId,
 		string?                  groupingContext,
 		IReadOnlyList<string>?   asyncHierarchy,
+		string?                  stage,
 		string?                  fileLocation,
 		string?                  callerInfo)
 	{
 		// Build formatted message using hierarchical structure:
-		// Line 0 (optional): 🔄 [AsyncContext > Hierarchy]
-		// Line 1: [#seq][timestamp][thread] severity [category] Message
-		// Line 2 (optional):   └─ file :: caller
+		// Line 0 (optional): Stage: <stage>
+		// Line 1 (optional): 🔄 [AsyncContext > Hierarchy]
+		// Line 2: [#seq][timestamp][thread] severity [category] Message
+		// Line 3 (optional):   └─ file :: caller
 
 		var lines = new List<string>();
 
+		AddStageLine(lines, stage);
 		AddAsyncContextLine(lines, asyncHierarchy);
 		lines.Add(BuildMainLine(
 			message,
@@ -472,6 +588,14 @@ public static class Logger
 		AddDetailsLine(lines, fileLocation, callerInfo);
 
 		return string.Join("\n", lines);
+	}
+
+	private static void AddStageLine(List<string> lines, string? stage)
+	{
+		if (stage == null)
+			return;
+
+		lines.Add($"Stage: {stage}");
 	}
 
 	private static void AddAsyncContextLine(List<string> lines, IReadOnlyList<string>? asyncHierarchy)
