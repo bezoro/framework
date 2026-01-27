@@ -33,5 +33,10 @@ public enum LogLevel
 	/// <summary>
 	///     Success notifications, used to indicate successful operations.
 	/// </summary>
-	Success
+	Success,
+
+	/// <summary>
+	///     Divider
+	/// </summary>
+	Divider
 }

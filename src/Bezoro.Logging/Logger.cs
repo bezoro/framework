@@ -251,6 +251,9 @@ public static class Logger
 		[CallerFilePath]   string? filePath          = null) =>
 		Log(message, LogLevel.Warning, category, contextObject, captureCallerInfo, memberName, filePath);
 
+	private static bool ShouldIncludeDetails(LogLevel level, string? callerInfo) =>
+		callerInfo != null || level is LogLevel.Warning or LogLevel.Error or LogLevel.Exception;
+
 	private static bool ShouldSkipLog(LogLevel level, LogCategory? category)
 	{
 		if (!LoggerSettings.Enabled)
@@ -506,10 +509,11 @@ public static class Logger
 		lines.Add(asyncContextLine);
 	}
 
-	private static bool ShouldIncludeDetails(LogLevel level, string? callerInfo) =>
-		callerInfo != null || level is LogLevel.Warning or LogLevel.Error or LogLevel.Exception;
-
-	private static void AddDetailsLine(List<string> lines, string? fileLocation, string? callerInfo, bool includeDetails)
+	private static void AddDetailsLine(
+		List<string> lines,
+		string?      fileLocation,
+		string?      callerInfo,
+		bool         includeDetails)
 	{
 		if (!includeDetails)
 			return;
@@ -649,7 +653,7 @@ public static class Logger
 		var payload = new LogPayload
 		{
 			Timestamp             = DateTime.UtcNow,
-			Level                 = LogLevel.None,
+			Level                 = LogLevel.Divider,
 			Category              = LogCategory.None,
 			Message               = dividerLine,
 			SeverityEmoji         = LogLevelEmoji.GetEmoji(level),
