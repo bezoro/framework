@@ -1,10 +1,13 @@
 using System.Collections.Generic;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
+using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
+[TestSubject(typeof(SystemManager))]
 public class SystemManagerTests
 {
 	[Fact]
@@ -19,7 +22,7 @@ public class SystemManagerTests
 		systemManager.UpdateAll();
 
 		// Assert
-		Assert.True(testSystem.WasUpdated);
+		testSystem.WasUpdated.Should().BeTrue();
 	}
 
 	[Fact]
@@ -38,9 +41,7 @@ public class SystemManagerTests
 		systemManager.UpdateAll();
 
 		// Assert
-		Assert.Equal(
-			new() { "System1", "System2" },
-			executionOrder);
+		executionOrder.Should().Equal("System1", "System2");
 	}
 
 	private class OrderTestSystem : ISystem

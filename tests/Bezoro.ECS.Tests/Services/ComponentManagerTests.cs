@@ -1,10 +1,13 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
+using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
+[TestSubject(typeof(ComponentManager))]
 public class ComponentManagerTests
 {
 	[Fact]
@@ -19,7 +22,7 @@ public class ComponentManagerTests
 		componentManager.AddComponent(entity, component);
 
 		// Assert
-		Assert.True(componentManager.HasComponent<TestComponent>(entity));
+		componentManager.HasComponent<TestComponent>(entity).Should().BeTrue();
 	}
 
 	[Fact]
@@ -35,7 +38,7 @@ public class ComponentManagerTests
 		var actualComponent = componentManager.GetComponent<TestComponent>(entity);
 
 		// Assert
-		Assert.Equal(expectedComponent, actualComponent);
+		actualComponent.Should().Be(expectedComponent);
 	}
 
 	[Fact]
@@ -51,7 +54,7 @@ public class ComponentManagerTests
 		componentManager.RemoveComponent<TestComponent>(entity);
 
 		// Assert
-		Assert.False(componentManager.HasComponent<TestComponent>(entity));
+		componentManager.HasComponent<TestComponent>(entity).Should().BeFalse();
 	}
 }
 

@@ -1,9 +1,12 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
+using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
+[TestSubject(typeof(World))]
 public class WorldTests
 {
 	[Fact]
@@ -19,8 +22,8 @@ public class WorldTests
 		var retrievedComponent = world.GetComponent<TestComponent>(entity);
 
 		// Assert
-		Assert.True(world.HasComponent<TestComponent>(entity));
-		Assert.Equal(component.Value, retrievedComponent.Value);
+		world.HasComponent<TestComponent>(entity).Should().BeTrue();
+		retrievedComponent.Value.Should().Be(component.Value);
 	}
 
 	[Fact]
@@ -34,7 +37,7 @@ public class WorldTests
 		var entity2 = world.CreateEntity();
 
 		// Assert
-		Assert.NotEqual(entity1, entity2);
+		entity1.Should().NotBe(entity2);
 	}
 
 	[Fact]
@@ -49,7 +52,7 @@ public class WorldTests
 		world.DestroyEntity(entity);
 
 		// Assert
-		Assert.False(world.HasComponent<TestComponent>(entity));
+		world.HasComponent<TestComponent>(entity).Should().BeFalse();
 	}
 
 	[Fact]
@@ -64,7 +67,7 @@ public class WorldTests
 		world.Update();
 
 		// Assert
-		Assert.True(testSystem.WasUpdated);
+		testSystem.WasUpdated.Should().BeTrue();
 	}
 
 	private struct TestComponent : IComponent

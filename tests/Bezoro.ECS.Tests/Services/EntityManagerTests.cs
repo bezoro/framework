@@ -1,8 +1,11 @@
 using Bezoro.ECS.Services;
+using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
+[TestSubject(typeof(EntityManager))]
 public class EntityManagerTests
 {
 	[Fact]
@@ -17,7 +20,7 @@ public class EntityManagerTests
 		var entity3 = entityManager.CreateEntity();
 
 		// Assert
-		Assert.Equal(2, entity3.Id);
+		entity3.Id.Should().Be(2);
 	}
 
 	[Fact]
@@ -31,7 +34,7 @@ public class EntityManagerTests
 		var entity2 = entityManager.CreateEntity();
 
 		// Assert
-		Assert.NotEqual(entity1.Id, entity2.Id);
+		entity1.Id.Should().NotBe(entity2.Id);
 	}
 
 	[Fact]
@@ -47,6 +50,6 @@ public class EntityManagerTests
 		var newEntity = entityManager.CreateEntity();
 
 		// Assert
-		Assert.Equal(originalId, newEntity.Id);
+		newEntity.Id.Should().Be(originalId);
 	}
 }

@@ -1,8 +1,11 @@
 using Bezoro.ECS.Types;
+using FluentAssertions;
+using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Types;
 
+[TestSubject(typeof(Entity))]
 public class EntityTests
 {
 	[Fact]
@@ -15,6 +18,6 @@ public class EntityTests
 		var entity = new Entity(expectedId);
 
 		// Assert
-		Assert.Equal(expectedId, entity.Id);
+		entity.Id.Should().Be(expectedId);
 	}
 }
