@@ -41,7 +41,7 @@ public static class LoggerSettings
 	/// <summary>
 	///     File location metadata configuration.
 	/// </summary>
-	public static FileLocationConfig FileLocation { get; set; } = FileLocationConfig.FullPath;
+	public static FileLocationConfig FileLocation { get; set; } = FileLocationConfig.FilenameOnly;
 
 	/// <summary>
 	///     Frame count metadata configuration.
