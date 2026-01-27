@@ -280,6 +280,7 @@ public static class Logger
 
 	private static string BuildFormattedMessage(
 		string                 message,
+		LogLevel               level,
 		string                 severityEmoji,
 		string?                categoryEmoji,
 		string?                exceptionType,
@@ -288,19 +289,16 @@ public static class Logger
 		int                    threadId,
 		string?                groupingContext,
 		IReadOnlyList<string>? asyncHierarchy,
-		string?                stage,
 		string?                fileLocation,
 		string?                callerInfo)
 	{
 		// Build formatted message using hierarchical structure:
-		// Line 0 (optional): Stage: <stage>
-		// Line 1 (optional): 🔄 [AsyncContext > Hierarchy]
-		// Line 2: [#seq][timestamp][thread] severity [category] Message
-		// Line 3 (optional):   └─ file :: caller
+		// Line 0 (optional): 🔄 [AsyncContext > Hierarchy]
+		// Line 1: [#seq timestamp F# T#] severity [category] Message
+		// Line 2 (optional):   └─ file :: caller
 
 		var lines = new List<string>();
 
-		AddStageLine(lines, stage);
 		AddAsyncContextLine(lines, asyncHierarchy);
 		lines.Add(
 			BuildMainLine(
@@ -315,7 +313,8 @@ public static class Logger
 			)
 		);
 
-		AddDetailsLine(lines, fileLocation, callerInfo);
+		bool includeDetails = ShouldIncludeDetails(level, callerInfo);
+		AddDetailsLine(lines, fileLocation, callerInfo, includeDetails);
 
 		return string.Join("\n", lines);
 	}
@@ -352,27 +351,27 @@ public static class Logger
 		int      threadId,
 		string?  groupingContext)
 	{
-		string metadata = string.Empty;
+		var parts = new List<string>();
 
 		if (LoggerSettings.SequenceNumber.Enabled)
-			metadata = $"[{sequenceNumber}]";
+			parts.Add($"#{sequenceNumber}");
 
 		if (LoggerSettings.Timestamp.Enabled)
-			metadata += $"[{timestamp.ToString(LoggerSettings.Timestamp.Format)}]";
+			parts.Add(timestamp.ToString(LoggerSettings.Timestamp.Format));
 
 		if (LoggerSettings.FrameCount.Enabled && LoggerSettings.FrameCount.Provider != null)
 		{
 			int frameCount = LoggerSettings.FrameCount.Provider();
-			metadata += $"[F:{frameCount}]";
+			parts.Add($"F{frameCount}");
 		}
 
 		if (LoggerSettings.ThreadId.Enabled)
-			metadata += $"[T:{threadId}]";
+			parts.Add($"T{threadId}");
 
 		if (LoggerSettings.Grouping.IncludeInOutput && groupingContext != null)
-			metadata += $"[{groupingContext}]";
+			parts.Add($"G:{groupingContext}");
 
-		return metadata;
+		return parts.Count == 0 ? string.Empty : $"[{string.Join(" ", parts)}]";
 	}
 
 	/// <summary>
@@ -507,8 +506,14 @@ public static class Logger
 		lines.Add(asyncContextLine);
 	}
 
-	private static void AddDetailsLine(List<string> lines, string? fileLocation, string? callerInfo)
+	private static bool ShouldIncludeDetails(LogLevel level, string? callerInfo) =>
+		callerInfo != null || level is LogLevel.Warning or LogLevel.Error or LogLevel.Exception;
+
+	private static void AddDetailsLine(List<string> lines, string? fileLocation, string? callerInfo, bool includeDetails)
 	{
+		if (!includeDetails)
+			return;
+
 		if (!LoggerSettings.FileLocation.Enabled && callerInfo == null)
 			return;
 
@@ -525,14 +530,6 @@ public static class Logger
 
 		var detailsLine = $"  └─ {string.Join(" :: ", details)}";
 		lines.Add(detailsLine);
-	}
-
-	private static void AddStageLine(List<string> lines, string? stage)
-	{
-		if (stage == null)
-			return;
-
-		lines.Add($"Stage: {stage}");
 	}
 
 	/// <summary>
@@ -601,6 +598,7 @@ public static class Logger
 
 		string formattedMessage = BuildFormattedMessage(
 			message,
+			level,
 			severityEmoji,
 			categoryEmoji,
 			exceptionType,
@@ -609,7 +607,6 @@ public static class Logger
 			threadId,
 			groupingContext,
 			asyncHierarchy,
-			normalizedStage,
 			fileLocation,
 			callerInfo
 		);
