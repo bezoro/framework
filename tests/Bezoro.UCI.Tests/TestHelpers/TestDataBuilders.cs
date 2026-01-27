@@ -1,7 +1,6 @@
-using System.Text;
+﻿using System.Text;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
-using Bezoro.UCI.Tests._Resources;
 
 namespace Bezoro.UCI.Tests.TestHelpers;
 
@@ -328,7 +327,7 @@ public static class TestDataBuilders
 	internal class ProcessUciTransportBuilder
 	{
 		private ProcessUciTransportOptions _options = new();
-		private string                     _path    = TestConsts.STOCKFISH_PATH;
+		private string                     _path    = TestResourcePaths.StockfishPath;
 		private string?                    _workingDirectory;
 		private string[]?                  _arguments;
 

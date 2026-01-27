@@ -1,8 +1,7 @@
-using Bezoro.Core.Extensions;
+﻿using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
-using Bezoro.UCI.Tests._Resources;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -15,7 +14,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task Dispose_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// ReSharper disable once MethodHasAsyncOverload
@@ -29,7 +28,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await engine.DisposeAsync();
@@ -43,7 +42,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task GetCurrentFenAsync_WhenCalled_GetsCurrentFen()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var fen = await engine.GetCurrentFenAsync();
@@ -55,7 +54,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task GetCurrentFenAsync_WhenCalledConcurrently_ThreadSafe()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// Act: Call GetCurrentFenAsync concurrently
@@ -79,7 +78,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task GetLegalMovesAsync_WhenCalled_GetsLegalMoves()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var moves = await engine.GetLegalMovesAsync();
@@ -91,7 +90,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task GetLegalMovesAsync_WhenCalledConcurrently_ThreadSafe()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// Act: Call GetLegalMovesAsync concurrently
@@ -115,7 +114,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task QuickEvalAsync_AfterNewGame_ClearsEvalCache()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var fen = Fen.Default;
@@ -137,7 +136,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task QuickEvalAsync_AfterSetPosition_ClearsEvalCache()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var fen1 = Fen.Default;
@@ -162,7 +161,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task QuickEvalAsync_WhenCalled_ReturnsValidSearchResult()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 		var fen = await engine.GetCurrentFenAsync();
 		fen.ThrowIfNull();
@@ -177,7 +176,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task QuickEvalAsync_WhenCalledConcurrently_ThreadSafe()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var fen = Fen.Default;
@@ -203,7 +202,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task SetPositionAsync_WhenCalledConcurrently_ThreadSafe()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var fen1 = Fen.Default;
@@ -235,7 +234,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task StartAsync_WhenCalled_StartsEngine()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 
 		await engine.StartAsync();
 
@@ -247,7 +246,7 @@ public class QuickInfoEngineTests
 	[Fact]
 	public async Task StopAsync_WhenCalled_StopsEngine()
 	{
-		await using var engine = new QuickInfoEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new QuickInfoEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await engine.StopAsync();

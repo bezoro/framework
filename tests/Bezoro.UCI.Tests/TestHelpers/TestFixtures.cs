@@ -1,6 +1,4 @@
-using Bezoro.UCI.Tests._Resources;
-
-namespace Bezoro.UCI.Tests.TestHelpers;
+﻿namespace Bezoro.UCI.Tests.TestHelpers;
 
 /// <summary>
 ///     Collection definition for tests that require Stockfish.
@@ -17,7 +15,7 @@ public class StockfishFixture : IAsyncLifetime
 	/// <summary>
 	///     Gets the path to the Stockfish executable.
 	/// </summary>
-	public string StockfishPath { get; } = TestConsts.STOCKFISH_PATH;
+	public string StockfishPath { get; } = TestResourcePaths.StockfishPath;
 
 	public Task InitializeAsync()
 	{

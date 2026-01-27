@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="Engine\stockfish\stockfish-windows-x86-64-avx2.exe">
+      <None Update="TestResources\Engine\stockfish\stockfish-windows-x86-64-avx2.exe">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>

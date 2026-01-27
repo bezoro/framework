@@ -1,7 +1,6 @@
-using Bezoro.UCI.API.Types;
+﻿using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
-using Bezoro.UCI.Tests._Resources;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -14,7 +13,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task BestMove_EmitsParsedBestAndPonderMatchingPv()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// Ensure a single PV stream
@@ -80,7 +79,7 @@ public class PonderEngineTests
 	public async Task BestMove_WhenConcurrentInfoPvReceived_ThreadSafe()
 	{
 		// Arrange
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var bestMoveCount = 0;
 		var lockObj       = new object();
@@ -116,7 +115,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task BestMove_WhenCpScoreImproves_RaisesBestMove()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 		await engine.SetOptionAsync("MultiPv", "1");
 
@@ -147,7 +146,7 @@ public class PonderEngineTests
 		if (!mateFen.HasValue)
 			throw new InvalidOperationException("Failed to parse mate FEN");
 
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 		await engine.SetOptionAsync("MultiPv", "1");
 
@@ -171,7 +170,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task Dispose_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// ReSharper disable once MethodHasAsyncOverload
@@ -185,7 +184,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalled_DisposesTheEngine()
 	{
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await engine.DisposeAsync();
@@ -198,7 +197,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task NewGameAsync_WhilePondering_StopsSearch_And_AllowsRestart()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var firstInfo =
@@ -230,7 +229,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task SetOptionAsync_MultiPv2_EmitsMultipv2InInfoStream()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// Request multiple PVs
@@ -255,7 +254,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartAsync_WhenCalled_StartsEngine()
 	{
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		await engine.StartAsync();
 
@@ -267,7 +266,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_RaisesInfo_And_ActivityTransitions()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -285,7 +284,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_ThenStopAsync_RaisesBestMove()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		ParsedMove? best   = null;
@@ -311,7 +310,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_Twice_RemainsSearching()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -331,7 +330,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_WhenCalled_RaisesInfoPv()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		engine.InfoPv += pv => tcs.TrySetResult(pv);
@@ -347,7 +346,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StartSearchAsync_WithInvalidFen_ThrowsArgumentException()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartSearchAsync(Fen.Empty(), null));
@@ -356,7 +355,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopAsync_WhenCalled_StopsEngine()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await engine.StopAsync();
@@ -368,7 +367,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopSearchAsync_StopsSearch_Twice()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		// First run
@@ -385,7 +384,7 @@ public class PonderEngineTests
 	[Fact]
 	public async Task StopSearchAsync_WhenCalled_StopsTheSearch()
 	{
-		await using var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		await using var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 		await engine.StartAsync();
 
 		await engine.StartSearchAsync(Fen.Default, null);
@@ -398,7 +397,7 @@ public class PonderEngineTests
 	public void BestMove_WhenNegativeMateScoreImproves_RaisesBestMove()
 	{
 		// Arrange: mate in -1 (better) vs mate in -5 (worse)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var         bestMoveRaised = false;
 		ParsedMove? receivedBest   = null;
@@ -435,7 +434,7 @@ public class PonderEngineTests
 	public void BestMove_WhenPositiveMateScoreImproves_RaisesBestMove()
 	{
 		// Arrange: mate in 1 (better) vs mate in 5 (worse)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var         bestMoveRaised = false;
 		ParsedMove? receivedBest   = null;
@@ -472,7 +471,7 @@ public class PonderEngineTests
 	public void BestMove_WhenTransitioningFromCpToMate_RaisesBestMove()
 	{
 		// Arrange: cp score → mate score (mate is always better)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var bestMoveRaised = false;
 		engine.BestMove += (best, ponder) => { bestMoveRaised = true; };
@@ -502,7 +501,7 @@ public class PonderEngineTests
 	public void BestMove_WhenTransitioningFromNegativeMateToNegativeCp_ComparesCorrectly()
 	{
 		// Arrange: negative mate → negative cp (both losing, compare cp values)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
@@ -545,7 +544,7 @@ public class PonderEngineTests
 	public void BestMove_WhenTransitioningFromNegativeMateToPositiveCp_RaisesBestMove()
 	{
 		// Arrange: negative mate (losing) → positive cp (winning cp is better)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
@@ -574,7 +573,7 @@ public class PonderEngineTests
 	public void BestMove_WhenTransitioningFromPositiveMateToCp_DoesNotRaiseBestMove()
 	{
 		// Arrange: positive mate (winning) → cp (mate is always better)
-		var engine = new PonderEngine(TestConsts.STOCKFISH_PATH);
+		var engine = new PonderEngine(TestResourcePaths.StockfishPath);
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
