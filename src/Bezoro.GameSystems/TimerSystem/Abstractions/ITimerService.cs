@@ -66,8 +66,13 @@ public interface ITimerService : IDisposable
 	/// </summary>
 	/// <param name="duration">The timer duration. Must be positive.</param>
 	/// <param name="onCompleted">Optional callback invoked when the timer completes.</param>
+	/// <param name="mode">
+	///     The timer lifecycle mode. <see cref="TimerMode.OneShot" /> timers are auto-removed after
+	///     the completion callback fires. <see cref="TimerMode.Persistent" /> timers stay in storage
+	///     for reuse via <see cref="Restart" />. Defaults to <see cref="TimerMode.OneShot" />.
+	/// </param>
 	/// <returns>A handle to the created timer.</returns>
-	TimerHandle Create(TimeSpan duration, Action<TimerHandle>? onCompleted = null);
+	TimerHandle Create(TimeSpan duration, Action<TimerHandle>? onCompleted = null, TimerMode mode = TimerMode.OneShot);
 
 	/// <summary>
 	///     Starts the background processing loop with the specified configuration.

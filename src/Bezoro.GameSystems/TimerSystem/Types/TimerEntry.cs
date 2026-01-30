@@ -15,6 +15,9 @@ internal record struct TimerEntry
 	/// <summary>The total duration in Stopwatch ticks.</summary>
 	public readonly long DurationTicks;
 
+	/// <summary>The lifecycle mode of this timer.</summary>
+	public readonly TimerMode Mode;
+
 	/// <summary>Accumulated ticks from previous running periods (used for pause/resume).</summary>
 	public long AccumulatedTicks;
 	/// <summary>The Stopwatch timestamp when the timer was last started or resumed.</summary>
@@ -23,10 +26,11 @@ internal record struct TimerEntry
 	/// <summary>Current state of the timer.</summary>
 	public TimerState State;
 
-	public TimerEntry(long durationTicks, Action<TimerHandle>? onCompleted)
+	public TimerEntry(long durationTicks, Action<TimerHandle>? onCompleted, TimerMode mode = TimerMode.OneShot)
 	{
 		DurationTicks    = durationTicks;
 		OnCompleted      = onCompleted;
+		Mode             = mode;
 		StartTimestamp   = Stopwatch.GetTimestamp();
 		AccumulatedTicks = 0;
 		State            = TimerState.Running;

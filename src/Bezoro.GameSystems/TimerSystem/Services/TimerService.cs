@@ -29,7 +29,7 @@ public sealed class TimerService : ITimerService
 	public event Action<TimerCompletedEventArgs>? TimerCompleted;
 
 	/// <inheritdoc />
-	public TimerHandle Create(TimeSpan duration, Action<TimerHandle>? onCompleted = null)
+	public TimerHandle Create(TimeSpan duration, Action<TimerHandle>? onCompleted = null, TimerMode mode = TimerMode.OneShot)
 	{
 		ThrowIfDisposed();
 
@@ -40,7 +40,7 @@ public sealed class TimerService : ITimerService
 		var handle = new TimerHandle(id);
 
 		var durationTicks = (long)(duration.TotalSeconds * Stopwatch.Frequency);
-		var entry         = new TimerEntry(durationTicks, onCompleted);
+		var entry         = new TimerEntry(durationTicks, onCompleted, mode);
 
 		_timers.TryAdd(id, entry);
 
@@ -163,7 +163,7 @@ public sealed class TimerService : ITimerService
 		long now          = Stopwatch.GetTimestamp();
 		long elapsedTicks = entry.GetElapsedTicks(now);
 
-		info = new(handle, entry.State, entry.DurationTicks, elapsedTicks);
+		info = new(handle, entry.State, entry.Mode, entry.DurationTicks, elapsedTicks);
 		return true;
 	}
 
@@ -245,6 +245,7 @@ public sealed class TimerService : ITimerService
 			{
 				Tick();
 				FlushCallbacks();
+				CleanupOneShots();
 				await Task.Delay(_config.TickRateMs, ct).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
@@ -336,6 +337,15 @@ public sealed class TimerService : ITimerService
 					return existing;
 				}
 			);
+		}
+	}
+
+	private void CleanupOneShots()
+	{
+		foreach (var kvp in _timers)
+		{
+			if (kvp.Value.State == TimerState.Completed && kvp.Value.Mode == TimerMode.OneShot)
+				_timers.TryRemove(kvp.Key, out _);
 		}
 	}
 

@@ -16,7 +16,7 @@ public class TimerServiceTickTests
 	public async Task WhenTimerExpires_ShouldTransitionToCompleted()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
 
@@ -74,8 +74,8 @@ public class TimerServiceTickTests
 	public async Task WhenMultipleTimers_ShouldCompleteIndependently()
 	{
 		using var service = new TimerService();
-		var       fast    = service.Create(TimeSpan.FromMilliseconds(50));
-		var       slow    = service.Create(TimeSpan.FromMilliseconds(500));
+		var       fast    = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
+		var       slow    = service.Create(TimeSpan.FromMilliseconds(500), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
 		await Task.Delay(200);
@@ -110,7 +110,7 @@ public class TimerServiceTickTests
 	public async Task WhenTimerCompleted_ProgressShouldBeOne()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
 		await Task.Delay(200);

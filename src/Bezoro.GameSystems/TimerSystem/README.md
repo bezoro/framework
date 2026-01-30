@@ -22,10 +22,16 @@ using Bezoro.GameSystems.TimerSystem.Types;
 using var timers = new TimerService();
 timers.Start();
 
-// Create a 3-second timer with a completion callback
-TimerHandle handle = timers.Create(
+// Create a one-shot timer (auto-removed after completion — the default)
+TimerHandle oneShot = timers.Create(
     TimeSpan.FromSeconds(3),
-    () => Console.WriteLine("Timer finished!"));
+    _ => Console.WriteLine("One-shot done!"));
+
+// Create a persistent timer (stays in storage for reuse via Restart)
+TimerHandle cooldown = timers.Create(
+    TimeSpan.FromSeconds(3),
+    _ => Console.WriteLine("Cooldown ready!"),
+    TimerMode.Persistent);
 
 // Query progress at any time
 if (timers.TryGetInfo(handle, out TimerInfo info))
@@ -62,7 +68,7 @@ timers.Stop();
 | `TimerCompleted`                         | Event raised when any timer reaches its duration.          |
 | `Start()`                                | Starts the background processing loop.                     |
 | `Stop()`                                 | Stops the background loop.                                 |
-| `Create(TimeSpan, Action?)`              | Creates a new timer. Returns a `TimerHandle`.              |
+| `Create(TimeSpan, Action?, TimerMode)`   | Creates a new timer. Returns a `TimerHandle`.              |
 | `Pause(TimerHandle)`                     | Pauses a running timer, preserving elapsed time.           |
 | `Resume(TimerHandle)`                    | Resumes a paused timer.                                    |
 | `Restart(TimerHandle)`                   | Resets and restarts a timer from zero.                     |
@@ -82,6 +88,7 @@ Read-only snapshot returned by `TryGetInfo`:
 |-------------|---------------|-------------------------------------------------|
 | `Handle`    | `TimerHandle` | The timer's handle.                             |
 | `State`     | `TimerState`  | `Running`, `Paused`, `Stopped`, or `Completed`. |
+| `Mode`      | `TimerMode`   | `OneShot` or `Persistent`.                      |
 | `Duration`  | `TimeSpan`    | Total configured duration.                      |
 | `Elapsed`   | `TimeSpan`    | Time elapsed so far.                            |
 | `Remaining` | `TimeSpan`    | Time left (clamped to zero).                    |
@@ -93,6 +100,15 @@ Read-only snapshot returned by `TryGetInfo`:
 |-------------------|---------|-----------------------------------------------------|
 | `TickRateMs`      | `16`    | Milliseconds between tick iterations (~60 Hz).      |
 | `CallbackContext` | `null`  | `SynchronizationContext` for marshalling callbacks. |
+
+### `TimerMode`
+
+| Value        | Description                                                                                     |
+|--------------|-------------------------------------------------------------------------------------------------|
+| `OneShot`    | Default. Automatically removed from storage after the completion callback fires.                |
+| `Persistent` | Stays in storage after completion, allowing reuse via `Restart()` (e.g. skill cooldowns).       |
+
+> **Note:** `Cleanup()` removes all `Completed` and `Stopped` timers regardless of mode.
 
 ### `TimerState`
 

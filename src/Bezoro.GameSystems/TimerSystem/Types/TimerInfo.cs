@@ -18,6 +18,9 @@ public readonly struct TimerInfo
 	/// <summary>The current state of the timer.</summary>
 	public readonly TimerState State;
 
+	/// <summary>The lifecycle mode of the timer.</summary>
+	public readonly TimerMode Mode;
+
 	/// <summary>The total duration of the timer.</summary>
 	public readonly TimeSpan Duration;
 
@@ -27,10 +30,11 @@ public readonly struct TimerInfo
 	/// <summary>The time remaining before completion.</summary>
 	public readonly TimeSpan Remaining;
 
-	internal TimerInfo(TimerHandle handle, TimerState state, long durationTicks, long elapsedTicks)
+	internal TimerInfo(TimerHandle handle, TimerState state, TimerMode mode, long durationTicks, long elapsedTicks)
 	{
 		Handle   = handle;
 		State    = state;
+		Mode     = mode;
 		Duration = TicksToTimeSpan(durationTicks);
 		Elapsed  = TicksToTimeSpan(Math.Min(elapsedTicks, durationTicks));
 

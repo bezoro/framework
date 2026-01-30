@@ -91,7 +91,7 @@ public class TimerServiceRestartTests
 	public async Task WhenCompletedTimer_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
 		await Task.Delay(200);
@@ -108,7 +108,7 @@ public class TimerServiceRestartTests
 	public async Task WhenCompletedTimer_ShouldTransitionToRunningAndResetProgress()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
 		await Task.Delay(200);
@@ -159,7 +159,7 @@ public class TimerServiceRestartTests
 		using var service = new TimerService();
 		int       count   = 0;
 
-		var handle = service.Create(TimeSpan.FromMilliseconds(50), _ => Interlocked.Increment(ref count));
+		var handle = service.Create(TimeSpan.FromMilliseconds(50), _ => Interlocked.Increment(ref count), TimerMode.Persistent);
 		service.Start(new TimerConfig(tickRateMs: 10));
 
 		await Task.Delay(200);
