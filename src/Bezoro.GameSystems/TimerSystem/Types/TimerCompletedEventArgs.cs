@@ -12,5 +12,8 @@ public readonly struct TimerCompletedEventArgs
 	///     Creates event arguments for a completed timer.
 	/// </summary>
 	/// <param name="handle">The handle of the completed timer.</param>
-	public TimerCompletedEventArgs(TimerHandle handle) => Handle = handle;
+	public TimerCompletedEventArgs(TimerHandle handle)
+	{
+		Handle = handle;
+	}
 }

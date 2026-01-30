@@ -8,6 +8,10 @@ namespace Bezoro.GameSystems.TimerSystem.Types;
 /// </summary>
 public readonly struct TimerInfo
 {
+	/// <summary>
+	///     The completion progress from 0.0 (just started) to 1.0 (completed).
+	/// </summary>
+	public readonly double Progress;
 	/// <summary>The handle identifying this timer.</summary>
 	public readonly TimerHandle Handle;
 
@@ -23,11 +27,6 @@ public readonly struct TimerInfo
 	/// <summary>The time remaining before completion.</summary>
 	public readonly TimeSpan Remaining;
 
-	/// <summary>
-	///     The completion progress from 0.0 (just started) to 1.0 (completed).
-	/// </summary>
-	public readonly double Progress;
-
 	internal TimerInfo(TimerHandle handle, TimerState state, long durationTicks, long elapsedTicks)
 	{
 		Handle   = handle;
@@ -39,8 +38,8 @@ public readonly struct TimerInfo
 		Remaining = TicksToTimeSpan(remainingTicks);
 
 		Progress = durationTicks > 0
-			? Math.Min(1.0, (double)elapsedTicks / durationTicks)
-			: 1.0;
+					   ? Math.Min(1.0, (double)elapsedTicks / durationTicks)
+					   : 1.0;
 	}
 
 	private static TimeSpan TicksToTimeSpan(long stopwatchTicks)
