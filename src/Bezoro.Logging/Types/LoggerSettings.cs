@@ -49,11 +49,6 @@ public static class LoggerSettings
 	public static FrameCountConfig FrameCount { get; set; } = FrameCountConfig.Disabled;
 
 	/// <summary>
-	///     Stage metadata configuration.
-	/// </summary>
-	public static StageConfig Stage { get; set; } = StageConfig.Disabled;
-
-	/// <summary>
 	///     Grouping configuration.
 	/// </summary>
 	public static GroupingConfig Grouping { get; set; } = GroupingConfig.None;
@@ -87,6 +82,11 @@ public static class LoggerSettings
 	///     Sequence number metadata configuration.
 	/// </summary>
 	public static SequenceNumberConfig SequenceNumber { get; set; } = SequenceNumberConfig.On;
+
+	/// <summary>
+	///     Stage metadata configuration.
+	/// </summary>
+	public static StageConfig Stage { get; set; } = StageConfig.Disabled;
 
 	/// <summary>
 	///     Thread ID metadata configuration.
