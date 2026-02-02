@@ -14,7 +14,8 @@ public class ObjectPoolIntegrationTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1, EnableAsyncWait = true });
+			new() { MaxCapacity = 1, EnableAsyncWait = true }
+		);
 
 		object item1    = pool.Rent();
 		var    rentTask = pool.RentAsync();
@@ -32,21 +33,23 @@ public class ObjectPoolIntegrationTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 10, EnableAsyncWait = true });
+			new() { MaxCapacity = 10, EnableAsyncWait = true }
+		);
 
 		var tasks = new Task[20];
 
 		for (var i = 0; i < tasks.Length; i++)
 		{
 			tasks[i] = Task.Run(async () =>
-			{
-				for (var j = 0; j < 10; j++)
 				{
-					object item = await pool.RentAsync();
-					await Task.Delay(1);
-					pool.Return(item);
+					for (var j = 0; j < 10; j++)
+					{
+						object item = await pool.RentAsync();
+						await Task.Delay(1);
+						pool.Return(item);
+					}
 				}
-			});
+			);
 		}
 
 		await Task.WhenAll(tasks);

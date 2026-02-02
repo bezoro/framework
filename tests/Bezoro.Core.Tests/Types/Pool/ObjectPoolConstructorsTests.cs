@@ -25,7 +25,8 @@ public class ObjectPoolConstructorsTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 5, InitialCapacity = 3 });
+			new() { MaxCapacity = 5, InitialCapacity = 3 }
+		);
 
 		pool.AvailableCount.Should().Be(3);
 		pool.TotalCount.Should().Be(3);
@@ -42,7 +43,8 @@ public class ObjectPoolConstructorsTests
 				createCount++;
 				return new();
 			},
-			new() { InitialCapacity = 5 });
+			new() { InitialCapacity = 5 }
+		);
 
 		createCount.Should().Be(5);
 		pool.AvailableCount.Should().Be(5);

@@ -16,7 +16,8 @@ public class PoolPolicyConstructorsTests
 			() => new(),
 			_ => true,
 			_ => true,
-			_ => { });
+			_ => { }
+		);
 
 		policy.Should().NotBeNull();
 	}

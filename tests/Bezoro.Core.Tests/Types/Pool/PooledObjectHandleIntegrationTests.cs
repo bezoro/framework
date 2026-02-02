@@ -15,10 +15,11 @@ public class PooledObjectHandleIntegrationTests
 		var pool = new ObjectPool<object>(() => new());
 
 		await Task.Run(() =>
-		{
-			using var handle = pool.RentHandle();
-			_ = handle.Value;
-		});
+			{
+				using var handle = pool.RentHandle();
+				_ = handle.Value;
+			}
+		);
 
 		pool.AvailableCount.Should().Be(1);
 	}

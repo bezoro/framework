@@ -29,7 +29,8 @@ public class ArrayExtensionsSearchTests
 				await Task.Delay(1, ct);
 				processedElements.Add(element);
 			},
-			cts.Token);
+			cts.Token
+		);
 
 		// Assert
 		processedElements.Should().BeEquivalentTo([1, 2]);
@@ -49,7 +50,8 @@ public class ArrayExtensionsSearchTests
 				processedElements.Add(element);
 				return Task.CompletedTask;
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		// Assert
 		processedElements.Should().BeEquivalentTo([1, 2, 3, 4]);
@@ -69,7 +71,8 @@ public class ArrayExtensionsSearchTests
 				processedElements.Add(element!);
 				return Task.CompletedTask;
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		// Assert
 		processedElements.Should().BeEquivalentTo("1", "3", "4");
@@ -84,10 +87,11 @@ public class ArrayExtensionsSearchTests
 
 		// Act
 		await array.ProcessArrayAsync(element =>
-		{
-			processedElements.Add(element);
-			return Task.CompletedTask;
-		});
+			{
+				processedElements.Add(element);
+				return Task.CompletedTask;
+			}
+		);
 
 		// Assert
 		processedElements.Should().BeEquivalentTo("1", "3", "4");

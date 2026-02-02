@@ -16,7 +16,8 @@ public class ObjectPoolRentAsyncTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1, EnableAsyncWait = true });
+			new() { MaxCapacity = 1, EnableAsyncWait = true }
+		);
 
 		pool.Rent();
 		var cts = new CancellationTokenSource();
@@ -44,16 +45,18 @@ public class ObjectPoolRentAsyncTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1, EnableAsyncWait = true });
+			new() { MaxCapacity = 1, EnableAsyncWait = true }
+		);
 
 		object item1 = pool.Rent();
 
 		var rentTask = pool.RentAsync(TimeSpan.FromSeconds(5));
 		_ = Task.Run(async () =>
-		{
-			await Task.Delay(50);
-			pool.Return(item1);
-		});
+			{
+				await Task.Delay(50);
+				pool.Return(item1);
+			}
+		);
 
 		object? item2 = await rentTask;
 		item2.Should().NotBeNull();
@@ -64,7 +67,8 @@ public class ObjectPoolRentAsyncTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1, EnableAsyncWait = true });
+			new() { MaxCapacity = 1, EnableAsyncWait = true }
+		);
 
 		pool.Rent();
 

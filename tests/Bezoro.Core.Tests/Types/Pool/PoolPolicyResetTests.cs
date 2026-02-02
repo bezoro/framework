@@ -29,7 +29,8 @@ public class PoolPolicyResetTests
 			{
 				delegateCalled = true;
 				return true;
-			});
+			}
+		);
 
 		var item = new TestPooledObject();
 
@@ -71,7 +72,8 @@ public class PoolPolicyResetTests
 			{
 				resetCalled = true;
 				return true;
-			});
+			}
+		);
 
 		var item = new object();
 

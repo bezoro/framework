@@ -96,11 +96,11 @@ public class SwapbackArrayBenchmarks
 		}
 	}
 
-	[Benchmark(Description = "TryRemoveAt cost (1,000 items, 500 removals)")]
-	public void RemovalComplexitySmall()
+	[Benchmark(Description = "TryRemoveAt cost (100,000 items, 500 removals)")]
+	public void RemovalComplexityLarge()
 	{
 		var arr = new SwapbackArray<int>();
-		for (var i = 0; i < 1_000; i++)
+		for (var i = 0; i < 100_000; i++)
 			arr.Add(i);
 
 		var random = new Random(42);
@@ -108,11 +108,11 @@ public class SwapbackArrayBenchmarks
 			arr.TryRemoveAt((uint)random.Next((int)arr.Count));
 	}
 
-	[Benchmark(Description = "TryRemoveAt cost (100,000 items, 500 removals)")]
-	public void RemovalComplexityLarge()
+	[Benchmark(Description = "TryRemoveAt cost (1,000 items, 500 removals)")]
+	public void RemovalComplexitySmall()
 	{
 		var arr = new SwapbackArray<int>();
-		for (var i = 0; i < 100_000; i++)
+		for (var i = 0; i < 1_000; i++)
 			arr.Add(i);
 
 		var random = new Random(42);

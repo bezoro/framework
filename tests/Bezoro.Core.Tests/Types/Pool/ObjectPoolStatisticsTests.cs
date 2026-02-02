@@ -13,7 +13,8 @@ public class ObjectPoolStatisticsTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new(MaxCapacity: -1, TrackStatistics: false));
+			new(MaxCapacity: -1, TrackStatistics: false)
+		);
 
 		pool.Rent();
 		pool.Return(pool.Rent());
@@ -28,7 +29,8 @@ public class ObjectPoolStatisticsTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new(MaxCapacity: -1, TrackStatistics: true));
+			new(MaxCapacity: -1, TrackStatistics: true)
+		);
 
 		object item1 = pool.Rent();
 		object item2 = pool.Rent();

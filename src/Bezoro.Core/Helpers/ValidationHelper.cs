@@ -42,7 +42,8 @@ public static class ValidationHelper
 	public static void IsFalse(bool condition, string errorMessage = "") =>
 		IsFalse<InvalidOperationException>(
 			condition,
-			errorMessage);
+			errorMessage
+		);
 
 	/// <summary>
 	///     Validates that the specified condition is <c>false</c>.
@@ -133,7 +134,8 @@ public static class ValidationHelper
 	{
 		if (file < min || file > max || rank < min || rank > max)
 			throw new ArgumentOutOfRangeException(
-				$"Coordinates must be between {min} and {max}. Received: file={file}, rank={rank}");
+				$"Coordinates must be between {min} and {max}. Received: file={file}, rank={rank}"
+			);
 	}
 
 	/// <summary>

@@ -14,7 +14,8 @@ public class ObjectPoolClearTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { InitialCapacity = 5 });
+			new() { InitialCapacity = 5 }
+		);
 
 		pool.Clear();
 
@@ -27,7 +28,8 @@ public class ObjectPoolClearTests
 	{
 		var pool = new ObjectPool<DisposableObject>(
 			() => new(),
-			new() { InitialCapacity = 3 });
+			new() { InitialCapacity = 3 }
+		);
 
 		var items = new List<DisposableObject>();
 		for (var i = 0; i < 3; i++)

@@ -28,7 +28,8 @@ public class ObjectPoolReturnTests
 		// Pool starts with 1 item and max is 1
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1, InitialCapacity = 1 });
+			new() { MaxCapacity = 1, InitialCapacity = 1 }
+		);
 
 		// Don't rent - pool is already full
 		var extra = new object();

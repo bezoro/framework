@@ -61,7 +61,8 @@ public class SingletonTests
 		Singleton<PublicCtorSingleton>.Instance.Marker.Should().Be(42);
 		PublicCtorSingleton.DisposeCount.Should().Be(
 			1,
-			"previous default instance should be disposed on recreation");
+			"previous default instance should be disposed on recreation"
+		);
 	}
 
 	[Fact]

@@ -371,7 +371,8 @@ public class TryTests
 	{
 		int result = await Try.GetOrDefaultAsync(
 						 () => Task.FromException<int>(new InvalidOperationException()),
-						 99);
+						 99
+					 );
 
 		result.Should().Be(99);
 	}
@@ -468,10 +469,11 @@ public class TryTests
 	{
 		var executed = false;
 		bool result = await Try.TryDoAsync(() =>
-		{
-			executed = true;
-			return Task.CompletedTask;
-		});
+						  {
+							  executed = true;
+							  return Task.CompletedTask;
+						  }
+					  );
 
 		result.Should().BeTrue();
 		executed.Should().BeTrue();

@@ -36,7 +36,8 @@ public static class ExceptionHelper
 			exceptionType,
 			objectInstance,
 			methodName,
-			message);
+			message
+		);
 
 		var exception = Activator.CreateInstance(typeof(T), exceptionMessage) as Exception;
 		if (exception is null)

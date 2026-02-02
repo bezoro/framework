@@ -433,17 +433,20 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 							inner[parts[0]].Trim(),
 							NumberStyles.Integer,
 							CultureInfo.InvariantCulture,
-							out int rr) &&
+							out int rr
+						) &&
 						int.TryParse(
 							inner[parts[1]].Trim(),
 							NumberStyles.Integer,
 							CultureInfo.InvariantCulture,
-							out int gg) &&
+							out int gg
+						) &&
 						int.TryParse(
 							inner[parts[2]].Trim(),
 							NumberStyles.Integer,
 							CultureInfo.InvariantCulture,
-							out int bb))
+							out int bb
+						))
 					{
 						var aa = 1f;
 
@@ -452,7 +455,8 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 								inner[parts[3]].Trim(),
 								NumberStyles.Float,
 								CultureInfo.InvariantCulture,
-								out aa))
+								out aa
+							))
 						{
 							result = default;
 							return false;
@@ -462,7 +466,8 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 							(byte)Math.Clamp(rr, 0, 255),
 							(byte)Math.Clamp(gg, 0, 255),
 							(byte)Math.Clamp(bb, 0, 255),
-							FloatToByte(aa));
+							FloatToByte(aa)
+						);
 
 						return true;
 					}

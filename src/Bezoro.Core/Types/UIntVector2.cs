@@ -92,7 +92,8 @@ public readonly record struct UIntVector2(uint X, uint Y) : IFormattable
 	private static void ThrowInvalidVector2() =>
 		throw new ArgumentOutOfRangeException(
 			"v",
-			"Vector2 must contain finite, non-negative whole values within the range of UInt32.");
+			"Vector2 must contain finite, non-negative whole values within the range of UInt32."
+		);
 
 	/// <summary>
 	///     Returns a string that represents the current vector in the format "(X, Y)".

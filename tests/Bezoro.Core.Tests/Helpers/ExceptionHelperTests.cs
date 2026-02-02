@@ -15,7 +15,8 @@ public class ExceptionHelperTests
 	{
 		var method = typeof(ExceptionHelper).GetMethod(
 			"FormatExceptionMessage",
-			BindingFlags.NonPublic | BindingFlags.Static);
+			BindingFlags.NonPublic | BindingFlags.Static
+		);
 
 		method.Should().NotBeNull();
 
@@ -33,7 +34,8 @@ public class ExceptionHelperTests
 		var result = (string)method!.Invoke(null, parameters)!;
 
 		result.Should().Be(
-			"CustomException occurred in Dummy.Run for parameters [Int32, String, Unknown, DateTime]: Oops");
+			"CustomException occurred in Dummy.Run for parameters [Int32, String, Unknown, DateTime]: Oops"
+		);
 	}
 
 	[Fact]
@@ -44,7 +46,8 @@ public class ExceptionHelperTests
 		var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
 			instance,
 			"DoWork",
-			"Something broke");
+			"Something broke"
+		);
 
 		var ex = act.Should().Throw<InvalidOperationException>().Which;
 		ex.Message.Should().Be("InvalidOperationException occurred in Dummy.DoWork: Something broke");
@@ -55,7 +58,8 @@ public class ExceptionHelperTests
 	{
 		var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
 			null,
-			"   ");
+			"   "
+		);
 
 		var ex = act.Should().Throw<InvalidOperationException>().Which;
 		ex.Message.Should().Be("InvalidOperationException occurred in Unknown");

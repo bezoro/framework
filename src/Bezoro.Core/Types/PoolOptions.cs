@@ -28,7 +28,8 @@ public readonly record struct PoolOptions(
 		ShrinkThreshold: Percent.Quarter,
 		EnableAsyncWait: true,
 		AsyncWaitTimeout: TimeSpan.FromSeconds(30),
-		ValidateOnRent: true);
+		ValidateOnRent: true
+	);
 
 	/// <summary>
 	///     Options optimized for high-throughput scenarios.
@@ -37,5 +38,6 @@ public readonly record struct PoolOptions(
 		Environment.ProcessorCount * 2,
 		Environment.ProcessorCount * 8,
 		ValidateOnRent: false,
-		TrackStatistics: false);
+		TrackStatistics: false
+	);
 }

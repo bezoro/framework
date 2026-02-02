@@ -638,6 +638,12 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		Resize(newSize);
 	}
 
+	/// <inheritdoc />
+	IEnumerator IEnumerable.GetEnumerator() => new SwapbackArrayEnumerator(this);
+
+	/// <inheritdoc />
+	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SwapbackArrayEnumerator(this);
+
 	/// <summary>
 	///     Helper to add all items from an arbitrary enumerable.
 	/// </summary>
@@ -684,12 +690,6 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 
 		return true;
 	}
-
-	/// <inheritdoc />
-	IEnumerator IEnumerable.GetEnumerator() => new SwapbackArrayEnumerator(this);
-
-	/// <inheritdoc />
-	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new SwapbackArrayEnumerator(this);
 
 	/// <summary>
 	///     Helper for <see cref="RemoveAll" />: Compacts the array by skipping/removing elements for which

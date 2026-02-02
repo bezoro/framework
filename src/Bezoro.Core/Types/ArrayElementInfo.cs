@@ -71,7 +71,8 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 		throw new ArgumentOutOfRangeException(
 			nameof(index),
 			index,
-			$"Index must be less than array length: {arrayLength}.");
+			$"Index must be less than array length: {arrayLength}."
+		);
 
 	/// <summary>The compile-time element type (<c>typeof(T)</c>).</summary>
 	public static Type ElementType

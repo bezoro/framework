@@ -90,7 +90,8 @@ public static partial class StringExtensions
 			throw new ArgumentOutOfRangeException(
 				nameof(count),
 				count,
-				"Count cannot be zero.");
+				"Count cannot be zero."
+			);
 
 		if (count == 1) return str;
 

@@ -15,7 +15,8 @@ public class ObjectPoolRentTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { MaxCapacity = 1 });
+			new() { MaxCapacity = 1 }
+		);
 
 		pool.Rent();
 
@@ -41,10 +42,11 @@ public class ObjectPoolRentTests
 	{
 		var createCount = 0;
 		var pool = new ObjectPool<object>(() =>
-		{
-			createCount++;
-			return new();
-		});
+			{
+				createCount++;
+				return new();
+			}
+		);
 
 		object item = pool.Rent();
 
@@ -59,10 +61,11 @@ public class ObjectPoolRentTests
 	{
 		var createCount = 0;
 		var pool = new ObjectPool<object>(() =>
-		{
-			createCount++;
-			return new();
-		});
+			{
+				createCount++;
+				return new();
+			}
+		);
 
 		object original = pool.Rent();
 		pool.Return(original);
@@ -94,8 +97,10 @@ public class ObjectPoolRentTests
 					createCount++;
 					return new();
 				},
-				validate: _ => createCount > 1),
-			new() { ValidateOnRent = true });
+				validate: _ => createCount > 1
+			),
+			new() { ValidateOnRent = true }
+		);
 
 		object item1 = pool.Rent();
 		pool.Return(item1);

@@ -365,5 +365,6 @@ public readonly struct Result<T> : IEquatable<Result<T>> where T : notnull
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static void ThrowInvalidOperationDefaultResult() =>
 		throw new InvalidOperationException(
-			"Cannot operate on a default-constructed Result<T>. Use ResultFactory.Succeeded() or ResultFactory.Failed() to create valid instances.");
+			"Cannot operate on a default-constructed Result<T>. Use ResultFactory.Succeeded() or ResultFactory.Failed() to create valid instances."
+		);
 }

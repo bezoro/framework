@@ -25,7 +25,8 @@ public static class StringTags
 	/// </summary>
 	private static readonly Regex TagPattern = new(
 		@"(?<!\\)\{(\w+)\}",
-		RegexOptions.Compiled | RegexOptions.CultureInvariant);
+		RegexOptions.Compiled | RegexOptions.CultureInvariant
+	);
 
 	/// <summary>
 	///     Gets an enumerable containing all registered tag names.
@@ -64,7 +65,8 @@ public static class StringTags
 					// If a provider throws an exception, the tag is left untouched.
 					return match.Value;
 				}
-			});
+			}
+		);
 
 		// Unescape any escaped braces
 		return result.Replace("\\{", "{").Replace("\\}", "}");
@@ -115,7 +117,8 @@ public static class StringTags
 		{
 			if (!Tags.TryAdd(tagName, valueProvider))
 				throw new InvalidOperationException(
-					$"Tag '{tagName}' is already registered. Use allowOverwrite parameter to replace it.");
+					$"Tag '{tagName}' is already registered. Use allowOverwrite parameter to replace it."
+				);
 		}
 		else
 		{

@@ -29,7 +29,8 @@ public class PoolPolicyValidateTests
 			{
 				validateCalled = true;
 				return true;
-			});
+			}
+		);
 
 		var item = new object();
 
@@ -43,7 +44,8 @@ public class PoolPolicyValidateTests
 	{
 		var policy = new PoolPolicy<object>(
 			() => new(),
-			validate: _ => false);
+			validate: _ => false
+		);
 
 		var item = new object();
 

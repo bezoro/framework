@@ -14,7 +14,8 @@ public class PoolPolicyOnDiscardTests
 		var discardCalled = false;
 		var policy = new PoolPolicy<DisposableTestObject>(
 			() => new(),
-			onDiscard: _ => discardCalled = true);
+			onDiscard: _ => discardCalled = true
+		);
 
 		var item = new DisposableTestObject();
 
@@ -41,7 +42,8 @@ public class PoolPolicyOnDiscardTests
 		var discardCalled = false;
 		var policy = new PoolPolicy<object>(
 			() => new(),
-			onDiscard: _ => discardCalled = true);
+			onDiscard: _ => discardCalled = true
+		);
 
 		var item = new object();
 

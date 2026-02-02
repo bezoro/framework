@@ -12,5 +12,6 @@ public class EmptyCollectionException : Exception
 	public EmptyCollectionException(string collectionName) : base(
 		string.IsNullOrWhiteSpace(collectionName)
 			? "The collection is empty."
-			: $"The collection '{collectionName}' is empty.") { }
+			: $"The collection '{collectionName}' is empty."
+	) { }
 }

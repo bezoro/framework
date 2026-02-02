@@ -43,7 +43,8 @@ public abstract class Singleton<T> where T : class
 
 		throw new InvalidOperationException(
 			$"Direct construction of {typeof(T).FullName} is not allowed. " +
-			$"Use {typeof(T).FullName}.{nameof(Instance)} or configure a custom factory.");
+			$"Use {typeof(T).FullName}.{nameof(Instance)} or configure a custom factory."
+		);
 	}
 
 	/// <summary>
@@ -213,7 +214,8 @@ public abstract class Singleton<T> where T : class
 			if (instance is null)
 				throw new TypeInitializationException(
 					typeof(T).FullName ?? typeof(T).Name,
-					new InvalidOperationException("Singleton factory returned null."));
+					new InvalidOperationException("Singleton factory returned null.")
+				);
 
 			return instance;
 		}
@@ -224,7 +226,9 @@ public abstract class Singleton<T> where T : class
 				new InvalidOperationException(
 					$"The type {typeof(T).FullName} must have a private or protected parameterless constructor " +
 					$"or a configured factory to be used with {nameof(Singleton<T>)}.",
-					ex));
+					ex
+				)
+			);
 		}
 		finally
 		{
@@ -240,24 +244,30 @@ public abstract class Singleton<T> where T : class
 			throw new TypeInitializationException(
 				t.FullName ?? t.Name,
 				new InvalidOperationException(
-					$"Cannot create a singleton for interface type {t.FullName}. Configure a factory."));
+					$"Cannot create a singleton for interface type {t.FullName}. Configure a factory."
+				)
+			);
 
 		if (t.IsAbstract)
 			throw new TypeInitializationException(
 				t.FullName ?? t.Name,
 				new InvalidOperationException(
-					$"Cannot create a singleton for abstract type {t.FullName}. Configure a factory."));
+					$"Cannot create a singleton for abstract type {t.FullName}. Configure a factory."
+				)
+			);
 
 		if (t.ContainsGenericParameters)
 			throw new TypeInitializationException(
 				t.FullName ?? t.Name,
-				new InvalidOperationException($"Cannot create a singleton for open generic type {t.FullName}."));
+				new InvalidOperationException($"Cannot create a singleton for open generic type {t.FullName}.")
+			);
 
 		object? instance = Activator.CreateInstance(t, true);
 		if (instance is null)
 			throw new TypeInitializationException(
 				t.FullName ?? t.Name,
-				new InvalidOperationException($"Could not create an instance of type {t.FullName}."));
+				new InvalidOperationException($"Could not create an instance of type {t.FullName}.")
+			);
 
 		return (T)instance;
 	}

@@ -14,7 +14,8 @@ public class ObjectPoolTrimExcessTests
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
-			new() { InitialCapacity = 10 });
+			new() { InitialCapacity = 10 }
+		);
 
 		int removed = pool.TrimExcess(Percent.Ninety);
 

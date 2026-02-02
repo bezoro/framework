@@ -13,10 +13,11 @@ public class PoolPolicyCreateTests
 	{
 		var invoked = false;
 		var policy = new PoolPolicy<object>(() =>
-		{
-			invoked = true;
-			return new();
-		});
+			{
+				invoked = true;
+				return new();
+			}
+		);
 
 		object item = policy.Create();
 
