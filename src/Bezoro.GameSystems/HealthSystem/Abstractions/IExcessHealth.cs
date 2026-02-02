@@ -11,9 +11,9 @@ public interface IExcessHealth
 	uint Excess { get; }
 
 	/// <summary>
-	///     Clears all excess health.
+	///     Depletes all excess health.
 	/// </summary>
-	void ClearExcessHealth();
+	void DepleteExcessHealth();
 
 	/// <summary>
 	///     Decreases excess health by the given value.

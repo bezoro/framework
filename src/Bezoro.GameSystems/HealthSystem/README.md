@@ -64,7 +64,7 @@ health.DecreaseCurrentHealthBy(25u); // Excess=0, Current=95
 | `IncreaseExcessHealthBy(uint)` | Add excess health              |
 | `DecreaseExcessHealthBy(uint)` | Remove excess health           |
 | `SetExcessHealthTo(uint)`      | Set excess to specific value   |
-| `ClearExcessHealth()`          | Remove all excess health       |
+| `DepleteExcessHealth()`        | Remove all excess health       |
 
 ## Observable Health
 

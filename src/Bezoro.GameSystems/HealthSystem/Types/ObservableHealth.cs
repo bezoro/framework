@@ -114,12 +114,12 @@ public sealed class ObservableHealth : IHealth, IExcessHealth
 		Enqueue(HealthChangeKind.SetMax, value, MaxHealthUpdateMode.ClampCurrent, before, after);
 	}
 
-	public void ClearExcessHealth()
+	public void DepleteExcessHealth()
 	{
 		var before = Capture();
-		GetExcessHealth().ClearExcessHealth();
+		GetExcessHealth().DepleteExcessHealth();
 		var after = Capture();
-		Enqueue(HealthChangeKind.ClearExcess, 0u, MaxHealthUpdateMode.ClampCurrent, before, after);
+		Enqueue(HealthChangeKind.DepleteExcess, 0u, MaxHealthUpdateMode.ClampCurrent, before, after);
 	}
 
 	public void DecreaseExcessHealthBy(uint value)

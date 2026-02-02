@@ -9,11 +9,11 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthExcessHealthTests
 {
 	[Fact]
-	public void WhenClearingAndSetting_ShouldMatchExpectedValues()
+	public void WhenDepletingAndSetting_ShouldMatchExpectedValues()
 	{
 		var health = new Health(100u, 0u, 50u);
 
-		health.ClearExcessHealth();
+		health.DepleteExcessHealth();
 		health.Excess.Should().Be(0u);
 
 		health.SetExcessHealthTo(15u);

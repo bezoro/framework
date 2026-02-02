@@ -5,17 +5,20 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 /// </summary>
 public enum HealthChangeKind
 {
+	// Current
 	DecreaseCurrent,
 	IncreaseCurrent,
 	RestoreCurrent,
 	DepleteCurrent,
 	FullyRestoreCurrent,
+	SetCurrent,
+	// Max
 	DecreaseMax,
 	IncreaseMax,
-	SetCurrent,
 	SetMax,
-	ClearExcess,
+	// Excess
+	DepleteExcess,
 	DecreaseExcess,
 	IncreaseExcess,
-	SetExcess,
+	SetExcess
 }

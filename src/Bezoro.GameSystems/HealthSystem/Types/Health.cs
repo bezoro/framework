@@ -41,7 +41,7 @@ public sealed class Health : IHealth, IExcessHealth
 	public uint Excess  { get; private set; }
 	public uint Max     { get; private set; }
 
-	public void ClearExcessHealth()
+	public void DepleteExcessHealth()
 	{
 		ExecuteOrdered(() => Excess = 0);
 	}
