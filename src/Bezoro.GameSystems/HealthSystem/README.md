@@ -4,15 +4,18 @@ A health management system with overflow/shield (excess health) support and safe
 
 ## Types
 
-| Type                   | Description                                                  |
-|------------------------|--------------------------------------------------------------|
-| `IHealth`              | Core health contract (current, max, percentage, damage/heal) |
-| `IExcessHealth`        | Optional interface for overflow/shield mechanics             |
-| `Health`               | Default sealed implementation of both interfaces             |
-| `MaxHealthUpdateMode`  | Controls how current health adjusts when max changes         |
-| `IHealthRegenService`  | Health-over-time regeneration service contract               |
-| `HealthRegenService`   | Timer-based batch regen with zero per-tick allocations       |
-| `RegenHandle`          | Lightweight handle to a regen effect                         |
+| Type                  | Description                                                  |
+|-----------------------|--------------------------------------------------------------|
+| `IHealth`             | Core health contract (current, max, percentage, damage/heal) |
+| `IExcessHealth`       | Optional interface for overflow/shield mechanics             |
+| `Health`              | Default sealed implementation of both interfaces             |
+| `MaxHealthUpdateMode` | Controls how current health adjusts when max changes         |
+| `IHealthRegenService` | Health-over-time regeneration service contract               |
+| `HealthRegenService`  | Timer-based batch regen with zero per-tick allocations       |
+| `RegenHandle`         | Lightweight handle to a regen effect                         |
+| `ObservableHealth`    | Decorator that enqueues `HealthChangedEvent` via `IEventBus` |
+| `HealthChangedEvent`  | Event payload with before/after health values                |
+| `HealthChangeKind`    | Enum describing the operation that caused the change         |
 
 ## Quick Start
 
@@ -62,6 +65,30 @@ health.DecreaseCurrentHealthBy(25u); // Excess=0, Current=95
 | `DecreaseExcessHealthBy(uint)` | Remove excess health           |
 | `SetExcessHealthTo(uint)`      | Set excess to specific value   |
 | `ClearExcessHealth()`          | Remove all excess health       |
+
+## Observable Health
+
+`ObservableHealth` wraps an `IHealth` and enqueues a `HealthChangedEvent` after each delegated call.
+This makes it safe to publish on background threads and flush on the Unity main thread.
+
+```csharp
+using Bezoro.Events.Services;
+using Bezoro.GameSystems.HealthSystem.Types;
+
+var bus        = new EventBus();
+var health     = new Health(100u, 50u);
+var observable = new ObservableHealth(health, bus);
+
+bus.Subscribe<HealthChangedEvent>(ctx =>
+{
+    // Read old/new values from ctx.Data
+});
+
+observable.DecreaseCurrentHealthBy(10u);
+
+// Unity main thread (e.g., Update)
+bus.FlushQueued();
+```
 
 ### MaxHealthUpdateMode
 
@@ -159,3 +186,4 @@ service.StopAll(health);
 - **Restore vs Increase**: `RestoreCurrentHealthBy` never creates excess; `IncreaseCurrentHealthBy` overflows into excess.
 - **Overflow-safe arithmetic**: All operations use `ulong` intermediates and saturate at `uint.MaxValue`.
 - **Constructor overflow**: If `current > max` during construction, the overflow is moved to excess.
+- **Deterministic ordering**: Health mutations are ordered FIFO via an internal ticket lock under concurrency.

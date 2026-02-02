@@ -7,6 +7,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+		<ProjectReference Include="..\Bezoro.Events\Bezoro.Events.csproj" />
 	</ItemGroup>
 
 	<Target Name="CopyToUnity" AfterTargets="Build">
