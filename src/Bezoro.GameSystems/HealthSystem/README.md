@@ -11,7 +11,7 @@ A health management system with overflow/shield (excess health) support and safe
 | `Health`               | Default sealed implementation of both interfaces             |
 | `MaxHealthUpdateMode`  | Controls how current health adjusts when max changes         |
 | `IHealthRegenService`  | Health-over-time regeneration service contract               |
-| `HealthRegenService`   | Async-loop regen implementation with configurable tick rate  |
+| `HealthRegenService`   | Timer-based batch regen with zero per-tick allocations       |
 | `RegenHandle`          | Lightweight handle to a regen effect                         |
 
 ## Quick Start
@@ -83,14 +83,14 @@ health.SetMaxHealthTo(200u, MaxHealthUpdateMode.PreservePercentage);
 
 ## Health Regeneration
 
-`HealthRegenService` provides timed health-over-time regeneration using async loops with a configurable tick frequency (default 20ms = 50 ticks/second).
+`HealthRegenService` provides timed health-over-time regeneration using a single background timer with batch processing and zero per-tick allocations. Default tick frequency is 20ms (50 ticks/second).
 
 ### Types
 
 | Type                  | Description                                                  |
 |-----------------------|--------------------------------------------------------------|
 | `IHealthRegenService` | Regen service contract                                       |
-| `HealthRegenService`  | Async-loop implementation with precision-guaranteed delivery |
+| `HealthRegenService`  | Timer-based batch implementation with precision delivery     |
 | `RegenHandle`         | Lightweight handle to a regen effect (mirrors `TimerHandle`) |
 
 ### Quick Start
@@ -136,6 +136,9 @@ service.StopAll(health);
 | `RegenHandle AddRepeatingRegen(IHealth, float amountPerSec, uint tickFreqMs=20)`             | Stack an infinite regen alongside existing ones     |
 | `bool Stop(RegenHandle)`                                                                     | Cancel a specific regen                             |
 | `void StopAll(IHealth)`                                                                      | Cancel all regens on a target                       |
+| `void Update(float deltaTime)`                                                               | Advance all regens by delta time (seconds)          |
+| `void Dispose()`                                                                             | Dispose the internal timer                          |
+| `static CreateManual()`                                                                      | Create a service with no timer (caller-driven)      |
 
 ### Finite vs Repeating
 

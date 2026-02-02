@@ -6,7 +6,7 @@ namespace Bezoro.GameSystems.HealthSystem.Abstractions;
 /// <summary>
 ///     Provides timed health-over-time regeneration effects by composing timer and health services.
 /// </summary>
-public interface IHealthRegenService
+public interface IHealthRegenService : IDisposable
 {
 	/// <summary>
 	///     Gets the number of currently active regeneration effects.
@@ -74,4 +74,12 @@ public interface IHealthRegenService
 	/// </summary>
 	/// <param name="target">The health instance to stop all regens on.</param>
 	void StopAll(IHealth target);
+
+	/// <summary>
+	///     Advances all active regens by the given delta time.
+	///     In production, this is called automatically by the internal timer.
+	///     Exposed for deterministic testing.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed time in seconds.</param>
+	void Update(float deltaTime);
 }

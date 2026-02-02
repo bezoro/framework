@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Bezoro.GameSystems.HealthSystem.Services;
 using Bezoro.GameSystems.HealthSystem.Types;
 using FluentAssertions;
@@ -11,16 +10,12 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 [TestSubject(typeof(HealthRegenService))]
 public class HealthRegenServiceTests
 {
-	private static HealthRegenService CreateService() => new();
+	private static HealthRegenService CreateService() => HealthRegenService.CreateManual();
 
-	private static async Task WaitUntilIdle(HealthRegenService service, int timeoutMs = 10000)
+	private static void Simulate(HealthRegenService service, float seconds, float dt = 0.02f)
 	{
-		int elapsed = 0;
-		while (service.ActiveCount > 0 && elapsed < timeoutMs)
-		{
-			await Task.Delay(50);
-			elapsed += 50;
-		}
+		for (float t = 0f; t < seconds; t += dt)
+			service.Update(dt);
 	}
 
 	public class StartRegenTests
@@ -95,20 +90,20 @@ public class HealthRegenServiceTests
 	public class HealthRestorationTests
 	{
 		[Fact]
-		public async Task WhenTimerTicks_ShouldRestoreHealth()
+		public void WhenTimerTicks_ShouldRestoreHealth()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
 			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(2));
 
-			await Task.Delay(600);
+			Simulate(service, 0.6f);
 
 			health.Current.Should().BeGreaterThan(0u, "health should increase as the regen loop ticks");
 		}
 
 		[Fact]
-		public async Task WhenDurationExpires_ShouldStopAndRestoreTotalAmount()
+		public void WhenDurationExpires_ShouldStopAndRestoreTotalAmount()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -116,14 +111,14 @@ public class HealthRegenServiceTests
 			// 50 HP/s for 1s at default 20ms ticks = 50 total ticks, 1 HP/tick
 			service.StartRegen(health, amountPerSec: 50f, TimeSpan.FromSeconds(1));
 
-			await WaitUntilIdle(service);
+			Simulate(service, 1.1f);
 
 			service.ActiveCount.Should().Be(0, "regen should have finished");
 			health.Current.Should().Be(50u, "total restored should equal amountPerSec * durationSeconds");
 		}
 
 		[Fact]
-		public async Task WithCustomTickFrequency_ShouldRestoreCorrectTotal()
+		public void WithCustomTickFrequency_ShouldRestoreCorrectTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -131,35 +126,35 @@ public class HealthRegenServiceTests
 			// 100 HP/s for 1s at 1000ms ticks = 1 tick of 100 HP
 			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(1), tickFrequencyMs: 1000);
 
-			await WaitUntilIdle(service);
+			Simulate(service, 1.1f);
 
 			service.ActiveCount.Should().Be(0);
 			health.Current.Should().Be(100u, "1 tick * 100 HP/tick = 100 HP total");
 		}
 
 		[Fact]
-		public async Task WhenHealthAtMax_ShouldStillTickUntilDurationExpires()
+		public void WhenHealthAtMax_ShouldStillTickUntilDurationExpires()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 95u);
 
 			var handle = service.StartRegen(health, amountPerSec: 50f, TimeSpan.FromSeconds(1));
 
-			await Task.Delay(500);
+			Simulate(service, 0.5f);
 
 			health.Current.Should().Be(100u);
 			service.IsActive(handle).Should().BeTrue();
 		}
 
 		[Fact]
-		public async Task SmoothTicking_ShouldHealGradually()
+		public void SmoothTicking_ShouldHealGradually()
 		{
 			var service = CreateService();
 			var health  = new Health(10000u, 0u);
 
 			service.StartRegen(health, amountPerSec: 1000f, TimeSpan.FromSeconds(2));
 
-			await Task.Delay(300);
+			Simulate(service, 0.3f);
 			uint earlyHealth = health.Current;
 			earlyHealth.Should().BeGreaterThan(0u);
 			earlyHealth.Should().BeLessThan(1000u, "should not have restored a full second's worth yet");
@@ -169,7 +164,7 @@ public class HealthRegenServiceTests
 	public class StopTests
 	{
 		[Fact]
-		public async Task Stop_WithValidHandle_ShouldCancelRegen()
+		public void Stop_WithValidHandle_ShouldCancelRegen()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -179,13 +174,11 @@ public class HealthRegenServiceTests
 
 			service.Stop(handle).Should().BeTrue();
 
-			await Task.Delay(100);
-
 			service.IsActive(handle).Should().BeFalse();
 			service.ActiveCount.Should().Be(0);
 
 			uint healthAtStop = health.Current;
-			await Task.Delay(300);
+			Simulate(service, 0.3f);
 			health.Current.Should().Be(healthAtStop, "health should not change after stopping regen");
 		}
 
@@ -198,7 +191,7 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public async Task StopAll_ShouldCancelAllRegensOnTarget()
+		public void StopAll_ShouldCancelAllRegensOnTarget()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -210,15 +203,13 @@ public class HealthRegenServiceTests
 
 			service.StopAll(health);
 
-			await Task.Delay(100);
-
 			service.IsActive(h1).Should().BeFalse();
 			service.IsActive(h2).Should().BeFalse();
 			service.ActiveCount.Should().Be(0);
 		}
 
 		[Fact]
-		public async Task StopAll_ShouldNotAffectOtherTargets()
+		public void StopAll_ShouldNotAffectOtherTargets()
 		{
 			var service = CreateService();
 			var health1 = new Health(1000u, 0u);
@@ -228,8 +219,6 @@ public class HealthRegenServiceTests
 			var h2 = service.AddRegen(health2, amountPerSec: 20f, TimeSpan.FromSeconds(5));
 
 			service.StopAll(health1);
-
-			await Task.Delay(100);
 
 			service.IsActive(h2).Should().BeTrue();
 			service.ActiveCount.Should().Be(1);
@@ -251,34 +240,33 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public async Task StartRepeatingRegen_ShouldHealOverTime()
+		public void StartRepeatingRegen_ShouldHealOverTime()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
 			service.StartRepeatingRegen(health, amountPerSec: 100f);
 
-			await Task.Delay(300);
+			Simulate(service, 0.3f);
 
 			health.Current.Should().BeGreaterThan(0u, "repeating regen should restore health over time");
 		}
 
 		[Fact]
-		public async Task StartRepeatingRegen_ShouldStopWhenHandleStopped()
+		public void StartRepeatingRegen_ShouldStopWhenHandleStopped()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
 			var handle = service.StartRepeatingRegen(health, amountPerSec: 100f);
 
-			await Task.Delay(200);
+			Simulate(service, 0.2f);
 			service.Stop(handle).Should().BeTrue();
 
-			await Task.Delay(50);
 			service.IsActive(handle).Should().BeFalse();
 
 			uint healthAtStop = health.Current;
-			await Task.Delay(200);
+			Simulate(service, 0.2f);
 			health.Current.Should().Be(healthAtStop, "health should not change after stopping repeating regen");
 		}
 
@@ -312,14 +300,14 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public async Task AddRepeatingRegen_WithCustomTickFrequency_ShouldHeal()
+		public void AddRepeatingRegen_WithCustomTickFrequency_ShouldHeal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
 			service.AddRepeatingRegen(health, amountPerSec: 10f, tickFrequencyMs: 100);
 
-			await Task.Delay(350);
+			Simulate(service, 0.35f);
 
 			health.Current.Should().BeGreaterThan(0u, "repeating regen with custom tick frequency should heal");
 		}
@@ -328,7 +316,7 @@ public class HealthRegenServiceTests
 	public class PrecisionTests
 	{
 		[Fact]
-		public async Task FiniteRegen_ShouldDeliverExactTotal()
+		public void FiniteRegen_ShouldDeliverExactTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -336,13 +324,13 @@ public class HealthRegenServiceTests
 			// 7 HP/s for 1s — old float bug would deliver 6 instead of 7
 			service.StartRegen(health, amountPerSec: 7f, TimeSpan.FromSeconds(1));
 
-			await WaitUntilIdle(service);
+			Simulate(service, 1.1f);
 
 			health.Current.Should().Be(7u, "finite regen must deliver exactly Round(7 * 1) = 7 HP");
 		}
 
 		[Fact]
-		public async Task FiniteRegen_WithFractionalRate_ShouldDeliverExactTotal()
+		public void FiniteRegen_WithFractionalRate_ShouldDeliverExactTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -350,13 +338,13 @@ public class HealthRegenServiceTests
 			// 3.5 HP/s for 2s = 7 HP total
 			service.StartRegen(health, amountPerSec: 3.5f, TimeSpan.FromSeconds(2));
 
-			await WaitUntilIdle(service);
+			Simulate(service, 2.1f);
 
 			health.Current.Should().Be(7u, "finite regen must deliver exactly Round(3.5 * 2) = 7 HP");
 		}
 
 		[Fact]
-		public async Task FiniteRegen_WithSmallRate_ShouldDeliverExactTotal()
+		public void FiniteRegen_WithSmallRate_ShouldDeliverExactTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -364,13 +352,13 @@ public class HealthRegenServiceTests
 			// 0.5 HP/s for 4s = 2 HP total
 			service.StartRegen(health, amountPerSec: 0.5f, TimeSpan.FromSeconds(4));
 
-			await WaitUntilIdle(service);
+			Simulate(service, 4.1f);
 
 			health.Current.Should().Be(2u, "finite regen must deliver exactly Round(0.5 * 4) = 2 HP");
 		}
 
 		[Fact]
-		public async Task FiniteRegen_WithCustomTickFrequency_ShouldDeliverExactTotal()
+		public void FiniteRegen_WithCustomTickFrequency_ShouldDeliverExactTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -378,13 +366,13 @@ public class HealthRegenServiceTests
 			// 100 HP/s for 1s at 1000ms ticks = 1 tick delivering 100 HP
 			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(1), tickFrequencyMs: 1000);
 
-			await WaitUntilIdle(service);
+			Simulate(service, 1.1f);
 
 			health.Current.Should().Be(100u, "finite regen must deliver exactly Round(100 * 1) = 100 HP");
 		}
 
 		[Fact]
-		public async Task FractionalRate_ShouldAccumulateAndHeal()
+		public void FractionalRate_ShouldAccumulateAndHeal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
@@ -392,7 +380,7 @@ public class HealthRegenServiceTests
 			// 0.5 HP/s at 1000ms ticks — accumulator reaches 1.0 after 2 ticks
 			service.AddRepeatingRegen(health, amountPerSec: 0.5f, tickFrequencyMs: 1000);
 
-			await Task.Delay(2500);
+			Simulate(service, 2.5f);
 
 			health.Current.Should().BeGreaterThanOrEqualTo(1u, "accumulator should have reached 1.0 after two ticks");
 		}

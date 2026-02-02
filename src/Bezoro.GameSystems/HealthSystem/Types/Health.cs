@@ -6,9 +6,12 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
 ///     Default health implementation with optional excess health support.
+///     All mutations are thread-safe via internal lock.
 /// </summary>
 public sealed class Health : IHealth, IExcessHealth
 {
+	private readonly object _sync = new();
+
 	public Health(uint max) : this(max, max) { }
 
 	public Health(uint max, uint current, uint excess = 0u)
@@ -22,91 +25,141 @@ public sealed class Health : IHealth, IExcessHealth
 		Excess  = Saturate((ulong)excess + overflow);
 	}
 
-	public Percent Percentage => new(Current, Max);
+	public Percent Percentage
+	{
+		get
+		{
+			lock (_sync)
+				return new Percent(Current, Max);
+		}
+	}
 
 	public uint Current { get; private set; }
 	public uint Excess  { get; private set; }
 	public uint Max     { get; private set; }
 
-	public void ClearExcessHealth() => Excess = 0;
+	public void ClearExcessHealth()
+	{
+		lock (_sync) Excess = 0;
+	}
 
 	public void DecreaseCurrentHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		uint remaining = value;
-		if (Excess > 0)
+		lock (_sync)
 		{
-			uint absorbed = Excess >= remaining ? remaining : Excess;
-			Excess    -= absorbed;
-			remaining -= absorbed;
-		}
+			uint remaining = value;
+			if (Excess > 0)
+			{
+				uint absorbed = Excess >= remaining ? remaining : Excess;
+				Excess    -= absorbed;
+				remaining -= absorbed;
+			}
 
-		if (remaining > 0)
-			Current = remaining >= Current ? 0u : Current - remaining;
+			if (remaining > 0)
+				Current = remaining >= Current ? 0u : Current - remaining;
+		}
 	}
 
 	public void DecreaseExcessHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		Excess = value >= Excess ? 0u : Excess - value;
+		lock (_sync)
+			Excess = value >= Excess ? 0u : Excess - value;
 	}
 
 	public void DecreaseMaxHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		uint newMax = value >= Max ? 0u : Max - value;
-		SetMaxHealthTo(newMax, MaxHealthUpdateMode.ClampCurrent);
+		lock (_sync)
+		{
+			uint newMax = value >= Max ? 0u : Max - value;
+			SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
+		}
 	}
 
-	public void DepleteCurrentHealth()      => Current = 0;
-	public void FullyRestoreCurrentHealth() => Current = Max;
+	public void DepleteCurrentHealth()
+	{
+		lock (_sync) Current = 0;
+	}
+
+	public void FullyRestoreCurrentHealth()
+	{
+		lock (_sync) Current = Max;
+	}
 
 	public void IncreaseCurrentHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		ulong sum = (ulong)Current + value;
-		if (sum <= Max)
+		lock (_sync)
 		{
-			Current = (uint)sum;
-			return;
-		}
+			ulong sum = (ulong)Current + value;
+			if (sum <= Max)
+			{
+				Current = (uint)sum;
+				return;
+			}
 
-		Current = Max;
-		AddExcessInternal(sum - Max);
+			Current = Max;
+			AddExcessInternal(sum - Max);
+		}
 	}
 
 	public void IncreaseExcessHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		AddExcessInternal(value);
+		lock (_sync)
+			AddExcessInternal(value);
 	}
 
 	public void IncreaseMaxHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		uint newMax = Saturate((ulong)Max + value);
-		SetMaxHealthTo(newMax, MaxHealthUpdateMode.ClampCurrent);
+		lock (_sync)
+		{
+			uint newMax = Saturate((ulong)Max + value);
+			SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
+		}
 	}
 
 	public void RestoreCurrentHealthBy(uint value)
 	{
 		if (value == 0) return;
 
-		ulong newCurrent = (ulong)Current + value;
-		Current = newCurrent >= Max ? Max : (uint)newCurrent;
+		lock (_sync)
+		{
+			ulong newCurrent = (ulong)Current + value;
+			Current = newCurrent >= Max ? Max : (uint)newCurrent;
+		}
 	}
 
-	public void SetCurrentHealthTo(uint value) => Current = value > Max ? Max : value;
-	public void SetExcessHealthTo(uint  value) => Excess = value;
-	public void SetMaxHealthTo(uint     value) => SetMaxHealthTo(value, MaxHealthUpdateMode.ClampCurrent);
+	public void SetCurrentHealthTo(uint value)
+	{
+		lock (_sync) Current = value > Max ? Max : value;
+	}
+
+	public void SetExcessHealthTo(uint value)
+	{
+		lock (_sync) Excess = value;
+	}
+
+	public void SetMaxHealthTo(uint value)
+	{
+		lock (_sync) SetMaxHealthToInternal(value, MaxHealthUpdateMode.ClampCurrent);
+	}
 
 	public void SetMaxHealthTo(uint value, MaxHealthUpdateMode mode)
+	{
+		lock (_sync) SetMaxHealthToInternal(value, mode);
+	}
+
+	private void SetMaxHealthToInternal(uint value, MaxHealthUpdateMode mode)
 	{
 		uint oldMax = Max;
 		uint newMax = value;
