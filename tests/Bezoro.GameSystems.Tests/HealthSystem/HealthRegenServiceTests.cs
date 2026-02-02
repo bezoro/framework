@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Bezoro.GameSystems.HealthSystem.Services;
 using Bezoro.GameSystems.HealthSystem.Types;
@@ -238,6 +239,178 @@ public class HealthRegenServiceTests
 
 			service.IsActive(h2).Should().BeTrue();
 			service.ActiveCount.Should().Be(1);
+		}
+	}
+
+	public class StartRepeatingRegenTests
+	{
+		[Fact]
+		public void ShouldReturnValidHandle()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var handle = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+
+			handle.IsValid.Should().BeTrue();
+		}
+
+		[Fact]
+		public void ShouldReportIsActive()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var handle = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+
+			service.IsActive(handle).Should().BeTrue();
+		}
+
+		[Fact]
+		public async Task ShouldHealOverTime()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			service.StartRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+
+			await Task.Delay(300);
+
+			health.Current.Should().BeGreaterThan(0u, "repeating regen should restore health over time");
+		}
+
+		[Fact]
+		public async Task ShouldStopWhenHandleStopped()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			var handle = service.StartRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+
+			await Task.Delay(200);
+			service.Stop(handle).Should().BeTrue();
+
+			await Task.Delay(50);
+			service.IsActive(handle).Should().BeFalse();
+
+			uint healthAtStop = health.Current;
+			await Task.Delay(200);
+			health.Current.Should().Be(healthAtStop, "health should not change after stopping repeating regen");
+		}
+
+		[Fact]
+		public void ShouldClearExistingRegens()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			var first = service.AddRegen(health, amountPerSecond: 100u, durationSeconds: 5f);
+			service.IsActive(first).Should().BeTrue();
+
+			var second = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+
+			service.IsActive(first).Should().BeFalse();
+			service.IsActive(second).Should().BeTrue();
+		}
+
+		[Fact]
+		public void WithZeroAmount_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.StartRepeatingRegen(health, amount: 0u, TimeSpan.FromMilliseconds(100));
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithZeroInterval_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.StartRepeatingRegen(health, amount: 5u, TimeSpan.Zero);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+	}
+
+	public class AddRepeatingRegenTests
+	{
+		[Fact]
+		public void ShouldReturnValidHandle()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var handle = service.AddRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+
+			handle.IsValid.Should().BeTrue();
+		}
+
+		[Fact]
+		public void ShouldStackWithExistingRegens()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			var first  = service.AddRegen(health, amountPerSecond: 10u, durationSeconds: 5f);
+			var second = service.AddRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+
+			service.IsActive(first).Should().BeTrue();
+			service.IsActive(second).Should().BeTrue();
+			service.ActiveCount.Should().Be(2);
+		}
+
+		[Fact]
+		public async Task ShouldHealOverTime()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			service.AddRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+
+			await Task.Delay(300);
+
+			health.Current.Should().BeGreaterThan(0u, "repeating regen should restore health over time");
+		}
+
+		[Fact]
+		public async Task ShouldStopWhenHandleStopped()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			var handle = service.AddRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+
+			await Task.Delay(200);
+			service.Stop(handle).Should().BeTrue();
+
+			await Task.Delay(50);
+			service.IsActive(handle).Should().BeFalse();
+		}
+
+		[Fact]
+		public void WithZeroAmount_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRepeatingRegen(health, amount: 0u, TimeSpan.FromMilliseconds(100));
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithZeroInterval_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRepeatingRegen(health, amount: 5u, TimeSpan.Zero);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
 		}
 	}
 }

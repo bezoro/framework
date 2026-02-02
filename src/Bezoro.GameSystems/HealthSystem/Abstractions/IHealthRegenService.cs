@@ -1,3 +1,4 @@
+using System;
 using Bezoro.GameSystems.HealthSystem.Types;
 
 namespace Bezoro.GameSystems.HealthSystem.Abstractions;
@@ -58,6 +59,26 @@ public interface IHealthRegenService
 	/// <param name="ticks">Number of discrete heal applications.</param>
 	/// <returns>A handle to the new regen effect.</returns>
 	RegenHandle AddRegen(IHealth target, uint totalAmount, uint ticks);
+
+	/// <summary>
+	///     Clears all existing regens on the target, then starts a new repeating regen
+	///     that ticks indefinitely at the specified interval until explicitly stopped.
+	/// </summary>
+	/// <param name="target">The health instance to regenerate.</param>
+	/// <param name="amount">HP restored per tick.</param>
+	/// <param name="interval">Time between ticks.</param>
+	/// <returns>A handle to the new regen effect.</returns>
+	RegenHandle StartRepeatingRegen(IHealth target, uint amount, TimeSpan interval);
+
+	/// <summary>
+	///     Stacks a new repeating regen alongside any existing ones on the target.
+	///     Ticks indefinitely at the specified interval until explicitly stopped.
+	/// </summary>
+	/// <param name="target">The health instance to regenerate.</param>
+	/// <param name="amount">HP restored per tick.</param>
+	/// <param name="interval">Time between ticks.</param>
+	/// <returns>A handle to the new regen effect.</returns>
+	RegenHandle AddRepeatingRegen(IHealth target, uint amount, TimeSpan interval);
 
 	/// <summary>
 	///     Cancels a specific regen effect.

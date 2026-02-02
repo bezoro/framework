@@ -68,6 +68,17 @@ public sealed class HealthRegenService : IHealthRegenService
 	}
 
 	/// <inheritdoc />
+	public RegenHandle StartRepeatingRegen(IHealth target, uint amount, TimeSpan interval)
+	{
+		StopAll(target);
+		return AddRepeatingRegenInternal(target, amount, interval);
+	}
+
+	/// <inheritdoc />
+	public RegenHandle AddRepeatingRegen(IHealth target, uint amount, TimeSpan interval) =>
+		AddRepeatingRegenInternal(target, amount, interval);
+
+	/// <inheritdoc />
 	public void StopAll(IHealth target)
 	{
 		if (!_targetRegens.TryRemove(target, out var regenIds))
@@ -183,6 +194,61 @@ public sealed class HealthRegenService : IHealthRegenService
 		lock (list)
 		{
 			list.Add(regenId);
+		}
+	}
+
+	private RegenHandle AddRepeatingRegenInternal(IHealth target, uint amount, TimeSpan interval)
+	{
+		if (amount == 0u)
+			throw new ArgumentOutOfRangeException(nameof(amount), "Amount must be positive.");
+
+		if (interval <= TimeSpan.Zero)
+			throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be positive.");
+
+		return StartRepeatingLoop(target, amount, interval);
+	}
+
+	private RegenHandle StartRepeatingLoop(IHealth target, uint amount, TimeSpan interval)
+	{
+		int regenId = Interlocked.Increment(ref _nextId);
+		var handle  = new RegenHandle(regenId);
+		var cts     = new CancellationTokenSource();
+
+		var entry = new RegenEntry(target, cts);
+		_regens.TryAdd(regenId, entry);
+		TrackTarget(target, regenId);
+
+		_ = RunRepeatingLoopAsync(target, regenId, amount, interval, cts.Token);
+
+		return handle;
+	}
+
+	private async Task RunRepeatingLoopAsync(
+		IHealth           target,
+		int               regenId,
+		uint              amount,
+		TimeSpan          interval,
+		CancellationToken ct)
+	{
+		try
+		{
+			while (!ct.IsCancellationRequested)
+			{
+				await Task.Delay(interval, ct).ConfigureAwait(false);
+				target.RestoreCurrentHealthBy(amount);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Regen was stopped — expected
+		}
+		finally
+		{
+			if (_regens.TryRemove(regenId, out var entry))
+			{
+				RemoveFromTargetTracking(entry.Target, regenId);
+				entry.Cts.Dispose();
+			}
 		}
 	}
 
