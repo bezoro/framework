@@ -13,6 +13,16 @@ public class HealthRegenServiceTests
 {
 	private static HealthRegenService CreateService() => new();
 
+	private static async Task WaitUntilIdle(HealthRegenService service, int timeoutMs = 10000)
+	{
+		int elapsed = 0;
+		while (service.ActiveCount > 0 && elapsed < timeoutMs)
+		{
+			await Task.Delay(50);
+			elapsed += 50;
+		}
+	}
+
 	public class StartRegenTests
 	{
 		[Fact]
@@ -116,11 +126,10 @@ public class HealthRegenServiceTests
 
 			service.StartRegen(health, amountPerSecond: 50u, durationSeconds: 1f);
 
-			// Wait well past the full duration
-			await Task.Delay(1500);
+			await WaitUntilIdle(service);
 
-			health.Current.Should().Be(50u, "total restored should equal amountPerSecond * durationSeconds");
 			service.ActiveCount.Should().Be(0, "regen should have finished");
+			health.Current.Should().Be(50u, "total restored should equal amountPerSecond * durationSeconds");
 		}
 
 		[Fact]
@@ -131,11 +140,10 @@ public class HealthRegenServiceTests
 
 			service.StartRegen(health, totalAmount: 100u, ticks: 5u);
 
-			// Wait for all ticks to fire (5 ticks at 1s intervals = 5s, give generous buffer)
-			await Task.Delay(6000);
+			await WaitUntilIdle(service);
 
-			health.Current.Should().Be(100u, "total restored should equal totalAmount");
 			service.ActiveCount.Should().Be(0);
+			health.Current.Should().Be(100u, "total restored should equal totalAmount");
 		}
 
 		[Fact]

@@ -84,20 +84,18 @@ public sealed class HealthRegenService : IHealthRegenService
 		if (!_targetRegens.TryRemove(target, out var regenIds))
 			return;
 
-		int[] ids;
 		lock (regenIds)
 		{
-			ids = regenIds.ToArray();
-			regenIds.Clear();
-		}
-
-		foreach (int id in ids)
-		{
-			if (_regens.TryRemove(id, out var entry))
+			foreach (int id in regenIds)
 			{
-				entry.Cts.Cancel();
-				entry.Cts.Dispose();
+				if (_regens.TryRemove(id, out var entry))
+				{
+					entry.Cts.Cancel();
+					entry.Cts.Dispose();
+				}
 			}
+
+			regenIds.Clear();
 		}
 	}
 
@@ -109,7 +107,10 @@ public sealed class HealthRegenService : IHealthRegenService
 		if (totalAmount == 0u)
 			throw new ArgumentOutOfRangeException(nameof(totalAmount), "Amount must be positive.");
 
-		return StartRegenLoop(target, totalAmount, (int)ticks, TimeSpan.FromSeconds(1));
+		uint perTick   = totalAmount / ticks;
+		uint remainder = totalAmount % ticks;
+
+		return StartLoop(target, perTick, remainder, (int)ticks, TimeSpan.FromSeconds(1));
 	}
 
 	private RegenHandle AddRegenInternal(IHealth target, uint amountPerSecond, float durationSeconds)
@@ -122,11 +123,13 @@ public sealed class HealthRegenService : IHealthRegenService
 
 		var totalAmount = (uint)(amountPerSecond * durationSeconds);
 		int totalTicks  = Math.Max(1, (int)(durationSeconds / TickInterval.TotalSeconds));
+		uint perTick    = totalAmount / (uint)totalTicks;
+		uint remainder  = totalAmount % (uint)totalTicks;
 
-		return StartRegenLoop(target, totalAmount, totalTicks, TickInterval);
+		return StartLoop(target, perTick, remainder, totalTicks, TickInterval);
 	}
 
-	private RegenHandle StartRegenLoop(IHealth target, uint totalAmount, int totalTicks, TimeSpan interval)
+	private RegenHandle StartLoop(IHealth target, uint perTick, uint remainder, int totalTicks, TimeSpan interval)
 	{
 		int regenId = Interlocked.Increment(ref _nextId);
 		var handle  = new RegenHandle(regenId);
@@ -136,26 +139,23 @@ public sealed class HealthRegenService : IHealthRegenService
 		_regens.TryAdd(regenId, entry);
 		TrackTarget(target, regenId);
 
-		uint perTick   = totalAmount / (uint)totalTicks;
-		uint remainder = totalAmount % (uint)totalTicks;
-
-		_ = RunRegenLoopAsync(target, regenId, totalTicks, perTick, remainder, interval, cts.Token);
+		_ = RunLoopAsync(target, regenId, perTick, remainder, totalTicks, interval, cts.Token);
 
 		return handle;
 	}
 
-	private async Task RunRegenLoopAsync(
+	private async Task RunLoopAsync(
 		IHealth           target,
 		int               regenId,
-		int               totalTicks,
 		uint              perTick,
 		uint              remainder,
+		int               totalTicks,
 		TimeSpan          interval,
 		CancellationToken ct)
 	{
 		try
 		{
-			for (var i = 0; i < totalTicks; i++)
+			for (var i = 0; totalTicks < 0 || i < totalTicks; i++)
 			{
 				await Task.Delay(interval, ct).ConfigureAwait(false);
 
@@ -190,7 +190,7 @@ public sealed class HealthRegenService : IHealthRegenService
 
 	private void TrackTarget(IHealth target, int regenId)
 	{
-		var list = _targetRegens.GetOrAdd(target, _ => new());
+		var list = _targetRegens.GetOrAdd(target, static _ => new());
 		lock (list)
 		{
 			list.Add(regenId);
@@ -205,51 +205,7 @@ public sealed class HealthRegenService : IHealthRegenService
 		if (interval <= TimeSpan.Zero)
 			throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be positive.");
 
-		return StartRepeatingLoop(target, amount, interval);
-	}
-
-	private RegenHandle StartRepeatingLoop(IHealth target, uint amount, TimeSpan interval)
-	{
-		int regenId = Interlocked.Increment(ref _nextId);
-		var handle  = new RegenHandle(regenId);
-		var cts     = new CancellationTokenSource();
-
-		var entry = new RegenEntry(target, cts);
-		_regens.TryAdd(regenId, entry);
-		TrackTarget(target, regenId);
-
-		_ = RunRepeatingLoopAsync(target, regenId, amount, interval, cts.Token);
-
-		return handle;
-	}
-
-	private async Task RunRepeatingLoopAsync(
-		IHealth           target,
-		int               regenId,
-		uint              amount,
-		TimeSpan          interval,
-		CancellationToken ct)
-	{
-		try
-		{
-			while (!ct.IsCancellationRequested)
-			{
-				await Task.Delay(interval, ct).ConfigureAwait(false);
-				target.RestoreCurrentHealthBy(amount);
-			}
-		}
-		catch (OperationCanceledException)
-		{
-			// Regen was stopped — expected
-		}
-		finally
-		{
-			if (_regens.TryRemove(regenId, out var entry))
-			{
-				RemoveFromTargetTracking(entry.Target, regenId);
-				entry.Cts.Dispose();
-			}
-		}
+		return StartLoop(target, amount, 0u, -1, interval);
 	}
 
 	private readonly struct RegenEntry(IHealth target, CancellationTokenSource cts)
