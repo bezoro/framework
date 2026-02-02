@@ -119,7 +119,8 @@ public readonly struct TypingResult
 			true,
 			true,
 			targetLength,
-			targetLength);
+			targetLength
+		);
 
 	internal static TypingResult EmptyTarget(byte position, char input) =>
 		new(
@@ -130,7 +131,8 @@ public readonly struct TypingResult
 			false,
 			false,
 			0,
-			0);
+			0
+		);
 
 	internal static TypingResult Match(char expected, byte position, char input, byte targetLength) =>
 		new(
@@ -141,7 +143,8 @@ public readonly struct TypingResult
 			true,
 			false,
 			(byte)(position + 1),
-			targetLength);
+			targetLength
+		);
 
 	internal static TypingResult Mismatch(char expected, byte position, char input, byte targetLength) =>
 		new(
@@ -152,7 +155,8 @@ public readonly struct TypingResult
 			false,
 			false,
 			position,
-			targetLength);
+			targetLength
+		);
 
 	internal static TypingResult PositionOutOfRange(byte position, byte targetLength, char input)
 	{
@@ -166,7 +170,8 @@ public readonly struct TypingResult
 			false,
 			false,
 			nextPosition,
-			targetLength);
+			targetLength
+		);
 	}
 
 	private static byte CalculateNextPositionForOutOfRange(byte position, byte targetLength)

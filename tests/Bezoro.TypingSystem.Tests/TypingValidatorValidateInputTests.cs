@@ -36,7 +36,8 @@ public class TypingValidatorValidateInputTests
 				TypingValidationStatus.Completed,
 				TypingValidationStatus.Mismatch,
 				TypingValidationStatus.PositionOutOfRange
-			});
+			}
+		);
 	}
 
 	[Fact]
@@ -80,7 +81,8 @@ public class TypingValidatorValidateInputTests
 			new()
 			{
 				IgnoreCase = true
-			});
+			}
+		);
 
 		result.Status.Should().Be(TypingValidationStatus.Match);
 		result.IsCorrect.Should().BeTrue();

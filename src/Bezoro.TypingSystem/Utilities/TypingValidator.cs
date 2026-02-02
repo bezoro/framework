@@ -29,7 +29,8 @@ public static class TypingValidator
 			throw new ArgumentOutOfRangeException(
 				nameof(target),
 				targetLength,
-				"Target length cannot exceed 255 characters.");
+				"Target length cannot exceed 255 characters."
+			);
 
 		var length = (byte)targetLength;
 
@@ -51,7 +52,8 @@ public static class TypingValidator
 			options,
 			completes
 				? TypingResult.Completed(expectedChar, position, inputChar, length)
-				: TypingResult.Match(expectedChar, position, inputChar, length));
+				: TypingResult.Match(expectedChar, position, inputChar, length)
+		);
 
 		static TypingResult Dispatch(TypingValidatorOptions? opts, TypingResult result)
 		{

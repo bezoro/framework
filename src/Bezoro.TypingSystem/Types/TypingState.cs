@@ -29,13 +29,15 @@ public readonly struct TypingState
 			throw new ArgumentOutOfRangeException(
 				nameof(position),
 				position,
-				"Position cannot be greater than correct count.");
+				"Position cannot be greater than correct count."
+			);
 
 		if (correctCount > position + 1)
 			throw new ArgumentOutOfRangeException(
 				nameof(correctCount),
 				correctCount,
-				"Correct count cannot be greater than position + 1.");
+				"Correct count cannot be greater than position + 1."
+			);
 
 		Position     = position;
 		CorrectCount = correctCount;
@@ -58,13 +60,15 @@ public readonly struct TypingState
 			throw new ArgumentOutOfRangeException(
 				nameof(targetLength),
 				targetLength,
-				"Target length cannot be less than position.");
+				"Target length cannot be less than position."
+			);
 
 		if (targetLength < CorrectCount)
 			throw new ArgumentOutOfRangeException(
 				nameof(targetLength),
 				targetLength,
-				"Target length cannot be less than correct count.");
+				"Target length cannot be less than correct count."
+			);
 
 		return Position == targetLength - 1 && CorrectCount == targetLength;
 	}
@@ -82,7 +86,8 @@ public readonly struct TypingState
 		return new(
 			(byte)(Position + 1),
 			(byte)(CorrectCount + 1),
-			MistakeCount);
+			MistakeCount
+		);
 	}
 
 	/// <summary>
