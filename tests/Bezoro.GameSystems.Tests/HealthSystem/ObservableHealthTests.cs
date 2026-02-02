@@ -12,17 +12,18 @@ public class ObservableHealthTests
 	[Fact]
 	public void ShouldEnqueueEventWithBeforeAfterValues()
 	{
-		using var bus = new EventBus();
-		var health     = new Health(100u, 50u);
-		var observable = new ObservableHealth(health, bus);
+		using var bus        = new EventBus();
+		var       health     = new Health(100u, 50u);
+		var       observable = new ObservableHealth(health, bus);
 
 		HealthChangedEvent received = default;
 		var                called   = false;
 		bus.Subscribe<HealthChangedEvent>(ctx =>
-		{
-			received = ctx.Data;
-			called   = true;
-		});
+			{
+				received = ctx.Data;
+				called   = true;
+			}
+		);
 
 		observable.DecreaseCurrentHealthBy(10u);
 
@@ -45,9 +46,9 @@ public class ObservableHealthTests
 	[Fact]
 	public void ShouldIncludeExcessChanges()
 	{
-		using var bus = new EventBus();
-		var health     = new Health(100u, 100u);
-		var observable = new ObservableHealth(health, bus);
+		using var bus        = new EventBus();
+		var       health     = new Health(100u, 100u);
+		var       observable = new ObservableHealth(health, bus);
 
 		HealthChangedEvent received = default;
 		bus.Subscribe<HealthChangedEvent>(ctx => received = ctx.Data);

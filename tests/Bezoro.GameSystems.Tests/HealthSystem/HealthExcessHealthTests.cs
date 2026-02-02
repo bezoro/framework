@@ -9,6 +9,16 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthExcessHealthTests
 {
 	[Fact]
+	public void WhenDecreasingBeyondExcess_ShouldClampToZero()
+	{
+		var health = new Health(100u, 50u, 10u);
+
+		health.DecreaseExcessHealthBy(25u);
+
+		health.Excess.Should().Be(0u);
+	}
+
+	[Fact]
 	public void WhenDepletingAndSetting_ShouldMatchExpectedValues()
 	{
 		var health = new Health(100u, 0u, 50u);
@@ -18,16 +28,6 @@ public class HealthExcessHealthTests
 
 		health.SetExcessHealthTo(15u);
 		health.Excess.Should().Be(15u);
-	}
-
-	[Fact]
-	public void WhenDecreasingBeyondExcess_ShouldClampToZero()
-	{
-		var health = new Health(100u, 50u, 10u);
-
-		health.DecreaseExcessHealthBy(25u);
-
-		health.Excess.Should().Be(0u);
 	}
 
 	[Fact]

@@ -15,11 +15,11 @@ public readonly struct TimerInfo
 	/// <summary>The handle identifying this timer.</summary>
 	public readonly TimerHandle Handle;
 
-	/// <summary>The current state of the timer.</summary>
-	public readonly TimerState State;
-
 	/// <summary>The lifecycle mode of the timer.</summary>
 	public readonly TimerMode Mode;
+
+	/// <summary>The current state of the timer.</summary>
+	public readonly TimerState State;
 
 	/// <summary>The total duration of the timer.</summary>
 	public readonly TimeSpan Duration;

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.GameSystems.ActivationSystem.Services;
-using Bezoro.GameSystems.ActivationSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -13,51 +12,43 @@ namespace Bezoro.GameSystems.Tests.ActivationSystem;
 public class ActivationServiceBudgetTests
 {
 	[Fact]
-	public async Task WhenMinBatchSize_ShouldActivateAtLeastMinPerIteration()
+	public async Task WhenLargeBudget_ShouldActivateAllQuickly()
 	{
-		using var service = new ActivationService();
-		var activated = 0;
+		using var service   = new ActivationService();
+		var       activated = 0;
 
-		for (var i = 0; i < 10; i++)
-		{
-			service.Register(() =>
-			{
-				// Simulate slow callback registration
-				Interlocked.Increment(ref activated);
-			});
-		}
+		for (var i = 0; i < 50; i++)
+			service.Register(() => Interlocked.Increment(ref activated));
 
-		// Very tiny budget but minBatchSize = 3
-		service.Start(new ActivationConfig(
-			timeBudgetMs: 0.0001,
-			iterationDelayMs: 10,
-			minBatchSize: 3,
-			maxBatchSize: 3
-		));
+		service.Start(
+			new(
+				100,
+				10
+			)
+		);
 
-		// Wait for one iteration to complete
-		await Task.Delay(100);
-		service.Stop();
+		await Task.Delay(200);
 
-		// Should have activated at least minBatchSize items
-		Volatile.Read(ref activated).Should().BeGreaterThanOrEqualTo(3);
+		Volatile.Read(ref activated).Should().Be(50);
 	}
 
 	[Fact]
 	public async Task WhenMaxBatchSize_ShouldNotExceedMax()
 	{
-		using var service = new ActivationService();
-		var activated = 0;
+		using var service   = new ActivationService();
+		var       activated = 0;
 
 		for (var i = 0; i < 100; i++)
 			service.Register(() => Interlocked.Increment(ref activated));
 
 		// Large budget but maxBatchSize = 5
-		service.Start(new ActivationConfig(
-			timeBudgetMs: 1000,
-			iterationDelayMs: 1000,
-			maxBatchSize: 5
-		));
+		service.Start(
+			new(
+				1000,
+				1000,
+				maxBatchSize: 5
+			)
+		);
 
 		// Wait for the first activation, with a long delay between iterations to avoid racey counts.
 		var sw = Stopwatch.StartNew();
@@ -72,21 +63,36 @@ public class ActivationServiceBudgetTests
 	}
 
 	[Fact]
-	public async Task WhenLargeBudget_ShouldActivateAllQuickly()
+	public async Task WhenMinBatchSize_ShouldActivateAtLeastMinPerIteration()
 	{
-		using var service = new ActivationService();
-		var activated = 0;
+		using var service   = new ActivationService();
+		var       activated = 0;
 
-		for (var i = 0; i < 50; i++)
-			service.Register(() => Interlocked.Increment(ref activated));
+		for (var i = 0; i < 10; i++)
+		{
+			service.Register(() =>
+				{
+					// Simulate slow callback registration
+					Interlocked.Increment(ref activated);
+				}
+			);
+		}
 
-		service.Start(new ActivationConfig(
-			timeBudgetMs: 100,
-			iterationDelayMs: 10
-		));
+		// Very tiny budget but minBatchSize = 3
+		service.Start(
+			new(
+				0.0001,
+				10,
+				3,
+				3
+			)
+		);
 
-		await Task.Delay(200);
+		// Wait for one iteration to complete
+		await Task.Delay(100);
+		service.Stop();
 
-		Volatile.Read(ref activated).Should().Be(50);
+		// Should have activated at least minBatchSize items
+		Volatile.Read(ref activated).Should().BeGreaterThanOrEqualTo(3);
 	}
 }

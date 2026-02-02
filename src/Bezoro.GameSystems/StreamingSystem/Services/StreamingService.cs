@@ -95,7 +95,8 @@ public sealed class StreamingService : IDisposable
 		if (config.StreamOutDistance < config.StreamInDistance)
 			throw new ArgumentException(
 				$"StreamOutDistance ({config.StreamOutDistance}) must be >= StreamInDistance ({config.StreamInDistance}) to prevent flickering.",
-				nameof(config));
+				nameof(config)
+			);
 
 		_config             = config;
 		_inDistanceSquared  = config.StreamInDistance * config.StreamInDistance;

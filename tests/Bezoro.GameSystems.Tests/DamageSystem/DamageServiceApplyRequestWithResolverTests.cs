@@ -22,7 +22,8 @@ public class DamageServiceApplyRequestWithResolverTests
 			DamageType.Magic,
 			2f,
 			1f,
-			DamageFlags.Critical);
+			DamageFlags.Critical
+		);
 
 		var resolver = Substitute.For<IDamageResolver>();
 		var expected = new DamageResult(
@@ -32,16 +33,18 @@ public class DamageServiceApplyRequestWithResolverTests
 			0u,
 			0f,
 			Array.Empty<DamageComponent>(),
-			false);
+			false
+		);
 
 		DamageRequest? forwarded = null;
 
 		resolver.Resolve(Arg.Any<DamageRequest>(), Arg.Any<IDamageable>())
 				.Returns(callInfo =>
-				{
-					forwarded = callInfo.ArgAt<DamageRequest>(0);
-					return expected;
-				});
+					{
+						forwarded = callInfo.ArgAt<DamageRequest>(0);
+						return expected;
+					}
+				);
 
 		var result = DamageService.Apply(target, request, resolver);
 

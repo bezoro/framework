@@ -20,31 +20,31 @@ public sealed class ActivationService : IActivationService
 {
 	private readonly ConcurrentDictionary<int, ActivationEntry> _entries       = new();
 	private readonly ConcurrentQueue<Action>                    _callbackQueue = new();
+	private          ActivationConfig                           _config;
 	private          CancellationTokenSource?                   _cts;
 	private          int                                        _disposed;
+	private          int                                        _lastSnapshotCount;
 	private          int                                        _nextId;
-	private          SynchronizationContext?                     _syncContext;
-	private          Task?                                      _processingTask;
-	private          ActivationConfig                           _config;
 
 	// Sorted snapshot for priority ordering
-	private int[]? _sortedKeys;
-	private int    _lastSnapshotCount;
+	private int[]?                  _sortedKeys;
+	private SynchronizationContext? _syncContext;
+	private Task?                   _processingTask;
 
 	/// <inheritdoc />
 	public event Action? Completed;
 
 	/// <inheritdoc />
-	public bool IsRunning => _processingTask is { IsCompleted: false };
-
-	/// <inheritdoc />
 	public bool IsComplete => PendingCount == 0;
 
 	/// <inheritdoc />
-	public int PendingCount => _entries.Count(kvp => kvp.Value.State == ActivationState.Pending);
+	public bool IsRunning => _processingTask is { IsCompleted: false };
 
 	/// <inheritdoc />
 	public int ActivatedCount => _entries.Count(kvp => kvp.Value.State == ActivationState.Activated);
+
+	/// <inheritdoc />
+	public int PendingCount => _entries.Count(kvp => kvp.Value.State == ActivationState.Pending);
 
 	/// <inheritdoc />
 	public ActivationHandle Register(Action callback, int priority = 0)
@@ -85,6 +85,16 @@ public sealed class ActivationService : IActivationService
 		);
 
 		return transitioned;
+	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
+			return;
+
+		Stop();
+		_entries.Clear();
 	}
 
 	/// <inheritdoc />
@@ -134,16 +144,6 @@ public sealed class ActivationService : IActivationService
 		ReturnSortedKeys();
 	}
 
-	/// <inheritdoc />
-	public void Dispose()
-	{
-		if (Interlocked.Exchange(ref _disposed, 1) != 0)
-			return;
-
-		Stop();
-		_entries.Clear();
-	}
-
 	private async Task ProcessingLoopAsync(CancellationToken ct)
 	{
 		while (!ct.IsCancellationRequested)
@@ -166,11 +166,59 @@ public sealed class ActivationService : IActivationService
 		}
 	}
 
+	private void CheckCompletion()
+	{
+		if (PendingCount != 0)
+			return;
+
+		// Only fire if there are activated entries (meaning work was done)
+		if (ActivatedCount == 0)
+			return;
+
+		try
+		{
+			Completed?.Invoke();
+		}
+		catch
+		{
+			// Don't let event handler exceptions crash the system
+		}
+	}
+
+	private void FlushCallbacks()
+	{
+		if (_callbackQueue.IsEmpty)
+			return;
+
+		if (_syncContext is null)
+		{
+			InvokeCallbacksDirect();
+			return;
+		}
+
+		_syncContext.Post(_ => InvokeCallbacksDirect(), null);
+	}
+
+	private void InvokeCallbacksDirect()
+	{
+		while (_callbackQueue.TryDequeue(out var callback))
+		{
+			try
+			{
+				callback.Invoke();
+			}
+			catch
+			{
+				// Don't let callback exceptions crash the system
+			}
+		}
+	}
+
 	private void ProcessBatch()
 	{
 		RebuildSnapshotIfNeeded();
 
-		var keys = _sortedKeys;
+		int[]? keys = _sortedKeys;
 		if (keys is null) return;
 
 		var sw          = Stopwatch.StartNew();
@@ -219,7 +267,7 @@ public sealed class ActivationService : IActivationService
 		int currentCount = _entries.Count;
 
 		// Only rebuild when the dictionary count changes
-		if (_sortedKeys is not null && currentCount == _lastSnapshotCount)
+		if (_sortedKeys is { } && currentCount == _lastSnapshotCount)
 			return;
 
 		ReturnSortedKeys();
@@ -230,12 +278,12 @@ public sealed class ActivationService : IActivationService
 			return;
 		}
 
-		var pendingEntries = _entries
-			.Where(kvp => kvp.Value.State == ActivationState.Pending)
-			.OrderByDescending(kvp => kvp.Value.Priority)
-			.ThenBy(kvp => kvp.Key)
-			.Select(kvp => kvp.Key)
-			.ToArray();
+		int[] pendingEntries = _entries
+							   .Where(kvp => kvp.Value.State == ActivationState.Pending)
+							   .OrderByDescending(kvp => kvp.Value.Priority)
+							   .ThenBy(kvp => kvp.Key)
+							   .Select(kvp => kvp.Key)
+							   .ToArray();
 
 		if (pendingEntries.Length > 0)
 		{
@@ -252,58 +300,10 @@ public sealed class ActivationService : IActivationService
 
 	private void ReturnSortedKeys()
 	{
-		if (_sortedKeys is not null)
+		if (_sortedKeys is { })
 		{
 			ArrayPool<int>.Shared.Return(_sortedKeys);
 			_sortedKeys = null;
-		}
-	}
-
-	private void FlushCallbacks()
-	{
-		if (_callbackQueue.IsEmpty)
-			return;
-
-		if (_syncContext is null)
-		{
-			InvokeCallbacksDirect();
-			return;
-		}
-
-		_syncContext.Post(_ => InvokeCallbacksDirect(), null);
-	}
-
-	private void InvokeCallbacksDirect()
-	{
-		while (_callbackQueue.TryDequeue(out var callback))
-		{
-			try
-			{
-				callback.Invoke();
-			}
-			catch
-			{
-				// Don't let callback exceptions crash the system
-			}
-		}
-	}
-
-	private void CheckCompletion()
-	{
-		if (PendingCount != 0)
-			return;
-
-		// Only fire if there are activated entries (meaning work was done)
-		if (ActivatedCount == 0)
-			return;
-
-		try
-		{
-			Completed?.Invoke();
-		}
-		catch
-		{
-			// Don't let event handler exceptions crash the system
 		}
 	}
 

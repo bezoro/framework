@@ -1,6 +1,5 @@
 using System;
 using Bezoro.GameSystems.ActivationSystem.Services;
-using Bezoro.GameSystems.ActivationSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -27,7 +26,7 @@ public class ActivationServiceDisposeTests
 		var service = new ActivationService();
 		service.Dispose();
 
-		var act = () => service.Start(new ActivationConfig());
+		var act = () => service.Start(new());
 
 		act.Should().Throw<ObjectDisposedException>();
 	}
@@ -50,7 +49,7 @@ public class ActivationServiceDisposeTests
 	public void WhenDisposedWhileRunning_ShouldStopLoop()
 	{
 		var service = new ActivationService();
-		service.Start(new ActivationConfig(iterationDelayMs: 10));
+		service.Start(new(iterationDelayMs: 10));
 
 		service.Dispose();
 

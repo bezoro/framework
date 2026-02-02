@@ -14,16 +14,6 @@ namespace Bezoro.GameSystems.Tests.StreamingSystem;
 [TestSubject(typeof(StreamingService))]
 public class StreamingServiceIntegrationTests
 {
-	private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 5000)
-	{
-		int elapsed = 0;
-		while (!condition() && elapsed < timeoutMs)
-		{
-			await Task.Delay(25);
-			elapsed += 25;
-		}
-	}
-
 	[Fact]
 	public async Task WhenEntityAlreadyStreamedIn_HysteresisZone_ShouldRemainStreamedIn()
 	{
@@ -167,15 +157,16 @@ public class StreamingServiceIntegrationTests
 
 		// Wait for all nearby entities to stream in
 		await WaitUntil(() =>
-		{
-			foreach (var entity in entities)
 			{
-				if (entity.StreamingPosition.X <= 10f && !entity.IsStreamedIn)
-					return false;
-			}
+				foreach (var entity in entities)
+				{
+					if (entity.StreamingPosition.X <= 10f && !entity.IsStreamedIn)
+						return false;
+				}
 
-			return true;
-		});
+				return true;
+			}
+		);
 
 		// Entities within stream in distance (0-10 units, roughly 50 entities at 0.2 per unit = 50 entities up to index 50)
 		// At 0.2 distance per entity, entities 0-49 are at distances 0-9.8
@@ -277,5 +268,15 @@ public class StreamingServiceIntegrationTests
 		};
 
 		act.Should().NotThrow();
+	}
+
+	private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 5000)
+	{
+		var elapsed = 0;
+		while (!condition() && elapsed < timeoutMs)
+		{
+			await Task.Delay(25);
+			elapsed += 25;
+		}
 	}
 }

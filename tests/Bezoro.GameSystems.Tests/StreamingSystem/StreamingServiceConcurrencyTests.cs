@@ -28,15 +28,17 @@ public class StreamingServiceConcurrencyTests
 			int index = i;
 			tasks.Add(
 				Task.Run(() =>
-				{
-					for (var j = 0; j < 50; j++)
 					{
-						var entity = new TestEntity(index * 1000 + j, new(j, 0, 0));
-						system.Register(entity);
-						Thread.Sleep(1);
-						system.Unregister(entity);
+						for (var j = 0; j < 50; j++)
+						{
+							var entity = new TestEntity(index * 1000 + j, new(j, 0, 0));
+							system.Register(entity);
+							Thread.Sleep(1);
+							system.Unregister(entity);
+						}
 					}
-				}));
+				)
+			);
 		}
 
 		var act = async () => await Task.WhenAll(tasks);

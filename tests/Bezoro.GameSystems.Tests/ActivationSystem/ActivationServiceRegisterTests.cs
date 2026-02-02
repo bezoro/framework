@@ -10,16 +10,6 @@ namespace Bezoro.GameSystems.Tests.ActivationSystem;
 public class ActivationServiceRegisterTests
 {
 	[Fact]
-	public void WhenValidCallback_ShouldReturnValidHandle()
-	{
-		using var service = new ActivationService();
-
-		var handle = service.Register(() => { });
-
-		handle.IsValid.Should().BeTrue();
-	}
-
-	[Fact]
 	public void WhenMultipleRegistrations_ShouldReturnUniqueHandles()
 	{
 		using var service = new ActivationService();
@@ -44,6 +34,16 @@ public class ActivationServiceRegisterTests
 	}
 
 	[Fact]
+	public void WhenRegistered_ActivatedCountShouldBeZero()
+	{
+		using var service = new ActivationService();
+
+		service.Register(() => { });
+
+		service.ActivatedCount.Should().Be(0);
+	}
+
+	[Fact]
 	public void WhenRegistered_ShouldIncrementPendingCount()
 	{
 		using var service = new ActivationService();
@@ -55,23 +55,23 @@ public class ActivationServiceRegisterTests
 	}
 
 	[Fact]
-	public void WhenRegistered_ActivatedCountShouldBeZero()
-	{
-		using var service = new ActivationService();
-
-		service.Register(() => { });
-
-		service.ActivatedCount.Should().Be(0);
-	}
-
-	[Fact]
 	public void WhenRegisteredWithPriority_ShouldAcceptValue()
 	{
 		using var service = new ActivationService();
 
-		var handle = service.Register(() => { }, priority: 10);
+		var handle = service.Register(() => { }, 10);
 
 		handle.IsValid.Should().BeTrue();
 		service.PendingCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void WhenValidCallback_ShouldReturnValidHandle()
+	{
+		using var service = new ActivationService();
+
+		var handle = service.Register(() => { });
+
+		handle.IsValid.Should().BeTrue();
 	}
 }

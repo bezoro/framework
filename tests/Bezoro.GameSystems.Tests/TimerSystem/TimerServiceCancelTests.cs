@@ -11,26 +11,37 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServiceCancelTests
 {
 	[Fact]
-	public void WhenRunningTimer_ShouldReturnTrue()
+	public void WhenAlreadyStopped_ShouldReturnFalse()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		service.Cancel(handle);
 
-		var result = service.Cancel(handle);
+		bool result = service.Cancel(handle);
 
-		result.Should().BeTrue();
+		result.Should().BeFalse();
 	}
 
 	[Fact]
-	public void WhenRunningTimer_ShouldTransitionToStopped()
+	public void WhenCancelled_ShouldDecrementActiveCount()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		service.Create(TimeSpan.FromSeconds(1));
+		var handle = service.Create(TimeSpan.FromSeconds(2));
 
 		service.Cancel(handle);
 
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Stopped);
+		service.ActiveCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void WhenInvalidHandle_ShouldReturnFalse()
+	{
+		using var service = new TimerService();
+
+		bool result = service.Cancel(TimerHandle.None);
+
+		result.Should().BeFalse();
 	}
 
 	[Fact]
@@ -40,7 +51,7 @@ public class TimerServiceCancelTests
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 		service.Pause(handle);
 
-		var result = service.Cancel(handle);
+		bool result = service.Cancel(handle);
 
 		result.Should().BeTrue();
 	}
@@ -59,36 +70,25 @@ public class TimerServiceCancelTests
 	}
 
 	[Fact]
-	public void WhenAlreadyStopped_ShouldReturnFalse()
+	public void WhenRunningTimer_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
-		service.Cancel(handle);
 
-		var result = service.Cancel(handle);
+		bool result = service.Cancel(handle);
 
-		result.Should().BeFalse();
+		result.Should().BeTrue();
 	}
 
 	[Fact]
-	public void WhenInvalidHandle_ShouldReturnFalse()
+	public void WhenRunningTimer_ShouldTransitionToStopped()
 	{
 		using var service = new TimerService();
-
-		var result = service.Cancel(TimerHandle.None);
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void WhenCancelled_ShouldDecrementActiveCount()
-	{
-		using var service = new TimerService();
-		service.Create(TimeSpan.FromSeconds(1));
-		var handle = service.Create(TimeSpan.FromSeconds(2));
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 
 		service.Cancel(handle);
 
-		service.ActiveCount.Should().Be(1);
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Stopped);
 	}
 }

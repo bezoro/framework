@@ -7,7 +7,7 @@ namespace Bezoro.GameSystems.ActivationSystem.Types;
 ///     Stored in the service's ConcurrentDictionary.
 /// </summary>
 internal record struct ActivationEntry(
-	Action           Callback,
-	int              Priority,
-	ActivationState  State
+	Action          Callback,
+	int             Priority,
+	ActivationState State
 );

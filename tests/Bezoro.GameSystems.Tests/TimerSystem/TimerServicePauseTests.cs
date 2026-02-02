@@ -11,36 +11,25 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServicePauseTests
 {
 	[Fact]
-	public void WhenRunningTimer_ShouldReturnTrue()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
-
-		var result = service.Pause(handle);
-
-		result.Should().BeTrue();
-	}
-
-	[Fact]
-	public void WhenRunningTimer_ShouldTransitionToPaused()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
-
-		service.Pause(handle);
-
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Paused);
-	}
-
-	[Fact]
 	public void WhenAlreadyPaused_ShouldReturnFalse()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 		service.Pause(handle);
 
-		var result = service.Pause(handle);
+		bool result = service.Pause(handle);
+
+		result.Should().BeFalse();
+	}
+
+	[Fact]
+	public void WhenCancelledTimer_ShouldReturnFalse()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		service.Cancel(handle);
+
+		bool result = service.Pause(handle);
 
 		result.Should().BeFalse();
 	}
@@ -50,7 +39,7 @@ public class TimerServicePauseTests
 	{
 		using var service = new TimerService();
 
-		var result = service.Pause(TimerHandle.None);
+		bool result = service.Pause(TimerHandle.None);
 
 		result.Should().BeFalse();
 	}
@@ -60,7 +49,7 @@ public class TimerServicePauseTests
 	{
 		using var service = new TimerService();
 
-		var result = service.Pause(new TimerHandle(999));
+		bool result = service.Pause(new(999));
 
 		result.Should().BeFalse();
 	}
@@ -80,14 +69,25 @@ public class TimerServicePauseTests
 	}
 
 	[Fact]
-	public void WhenCancelledTimer_ShouldReturnFalse()
+	public void WhenRunningTimer_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
-		service.Cancel(handle);
 
-		var result = service.Pause(handle);
+		bool result = service.Pause(handle);
 
-		result.Should().BeFalse();
+		result.Should().BeTrue();
+	}
+
+	[Fact]
+	public void WhenRunningTimer_ShouldTransitionToPaused()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+
+		service.Pause(handle);
+
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Paused);
 	}
 }

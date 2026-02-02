@@ -1,4 +1,3 @@
-using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.GameSystems.ActivationSystem.Services;
 using Bezoro.GameSystems.ActivationSystem.Types;
@@ -12,21 +11,61 @@ namespace Bezoro.GameSystems.Tests.ActivationSystem;
 public class ActivationServiceCancelTests
 {
 	[Fact]
-	public void WhenCancelPending_ShouldReturnTrue()
+	public async Task WhenCancelAlreadyActivated_ShouldReturnFalse()
 	{
 		using var service = new ActivationService();
-		var handle = service.Register(() => { });
+		var       handle  = service.Register(() => { });
 
-		var result = service.Cancel(handle);
+		service.Start(new(10, 10));
+		await Task.Delay(200);
 
-		result.Should().BeTrue();
+		bool result = service.Cancel(handle);
+
+		result.Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task WhenCancelled_ShouldNotInvokeCallback()
+	{
+		using var service   = new ActivationService();
+		var       activated = false;
+
+		var handle = service.Register(() => activated = true);
+		service.Cancel(handle);
+
+		service.Start(new(10, 10));
+		await Task.Delay(200);
+
+		activated.Should().BeFalse();
+	}
+
+	[Fact]
+	public void WhenCancelAlreadyCancelled_ShouldReturnFalse()
+	{
+		using var service = new ActivationService();
+		var       handle  = service.Register(() => { });
+
+		service.Cancel(handle);
+		bool result = service.Cancel(handle);
+
+		result.Should().BeFalse();
+	}
+
+	[Fact]
+	public void WhenCancelInvalidHandle_ShouldReturnFalse()
+	{
+		using var service = new ActivationService();
+
+		bool result = service.Cancel(ActivationHandle.None);
+
+		result.Should().BeFalse();
 	}
 
 	[Fact]
 	public void WhenCancelPending_ShouldDecrementPendingCount()
 	{
 		using var service = new ActivationService();
-		var handle = service.Register(() => { });
+		var       handle  = service.Register(() => { });
 		service.Register(() => { });
 
 		service.Cancel(handle);
@@ -35,53 +74,13 @@ public class ActivationServiceCancelTests
 	}
 
 	[Fact]
-	public void WhenCancelInvalidHandle_ShouldReturnFalse()
+	public void WhenCancelPending_ShouldReturnTrue()
 	{
 		using var service = new ActivationService();
+		var       handle  = service.Register(() => { });
 
-		var result = service.Cancel(ActivationHandle.None);
+		bool result = service.Cancel(handle);
 
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void WhenCancelAlreadyCancelled_ShouldReturnFalse()
-	{
-		using var service = new ActivationService();
-		var handle = service.Register(() => { });
-
-		service.Cancel(handle);
-		var result = service.Cancel(handle);
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task WhenCancelled_ShouldNotInvokeCallback()
-	{
-		using var service = new ActivationService();
-		var activated = false;
-
-		var handle = service.Register(() => activated = true);
-		service.Cancel(handle);
-
-		service.Start(new ActivationConfig(timeBudgetMs: 10, iterationDelayMs: 10));
-		await Task.Delay(200);
-
-		activated.Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task WhenCancelAlreadyActivated_ShouldReturnFalse()
-	{
-		using var service = new ActivationService();
-		var handle = service.Register(() => { });
-
-		service.Start(new ActivationConfig(timeBudgetMs: 10, iterationDelayMs: 10));
-		await Task.Delay(200);
-
-		var result = service.Cancel(handle);
-
-		result.Should().BeFalse();
+		result.Should().BeTrue();
 	}
 }

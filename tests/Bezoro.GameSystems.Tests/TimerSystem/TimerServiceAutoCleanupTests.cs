@@ -13,43 +13,51 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServiceAutoCleanupTests
 {
 	[Fact]
+	public async Task WhenManualCleanup_ShouldRemovePersistentCompleted()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
+
+		service.Start(new(10));
+		await TimerTestHelpers.WaitUntilAsync(() =>
+												  service.TryGetInfo(handle, out var info) &&
+												  info.State == TimerState.Completed
+		);
+
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Completed);
+
+		int removed = service.Cleanup();
+
+		removed.Should().Be(1);
+		service.TryGetInfo(handle, out _).Should().BeFalse();
+	}
+
+	[Fact]
 	public async Task WhenOneShotCompletes_ShouldAutoRemove()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.OneShot);
 
-		service.Start(new TimerConfig(tickRateMs: 10));
+		service.Start(new(10));
 		await TimerTestHelpers.WaitUntilAsync(() => !service.TryGetInfo(handle, out _));
 
 		service.TryGetInfo(handle, out _).Should().BeFalse();
 	}
 
 	[Fact]
-	public async Task WhenPersistentCompletes_ShouldNotAutoRemove()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
-
-		service.Start(new TimerConfig(tickRateMs: 10));
-		await TimerTestHelpers.WaitUntilAsync(() =>
-			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
-
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Completed);
-	}
-
-	[Fact]
 	public async Task WhenPersistentCompleted_ShouldBeRestartable()
 	{
 		using var service   = new TimerService();
-		int       callCount = 0;
+		var       callCount = 0;
 
 		var handle = service.Create(
 			TimeSpan.FromMilliseconds(50),
 			_ => Interlocked.Increment(ref callCount),
-			TimerMode.Persistent);
+			TimerMode.Persistent
+		);
 
-		service.Start(new TimerConfig(tickRateMs: 10));
+		service.Start(new(10));
 		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref callCount) == 1);
 
 		Volatile.Read(ref callCount).Should().Be(1);
@@ -61,6 +69,22 @@ public class TimerServiceAutoCleanupTests
 	}
 
 	[Fact]
+	public async Task WhenPersistentCompletes_ShouldNotAutoRemove()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
+
+		service.Start(new(10));
+		await TimerTestHelpers.WaitUntilAsync(() =>
+												  service.TryGetInfo(handle, out var info) &&
+												  info.State == TimerState.Completed
+		);
+
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Completed);
+	}
+
+	[Fact]
 	public void WhenDefaultMode_ShouldBeOneShot()
 	{
 		using var service = new TimerService();
@@ -69,24 +93,5 @@ public class TimerServiceAutoCleanupTests
 		service.TryGetInfo(handle, out var info);
 
 		info.Mode.Should().Be(TimerMode.OneShot);
-	}
-
-	[Fact]
-	public async Task WhenManualCleanup_ShouldRemovePersistentCompleted()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
-
-		service.Start(new TimerConfig(tickRateMs: 10));
-		await TimerTestHelpers.WaitUntilAsync(() =>
-			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
-
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Completed);
-
-		var removed = service.Cleanup();
-
-		removed.Should().Be(1);
-		service.TryGetInfo(handle, out _).Should().BeFalse();
 	}
 }

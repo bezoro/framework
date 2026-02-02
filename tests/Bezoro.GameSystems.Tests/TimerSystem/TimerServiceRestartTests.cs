@@ -13,27 +13,83 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServiceRestartTests
 {
 	[Fact]
-	public void WhenRunningTimer_ShouldReturnTrue()
+	public async Task WhenCompletedTimer_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
-		var result = service.Restart(handle);
+		service.Start(new(10));
+		await TimerTestHelpers.WaitUntilAsync(() =>
+												  service.TryGetInfo(handle, out var info) &&
+												  info.State == TimerState.Completed
+		);
+
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Completed);
+
+		bool result = service.Restart(handle);
 
 		result.Should().BeTrue();
 	}
 
 	[Fact]
-	public void WhenRunningTimer_ShouldResetProgress()
+	public async Task WhenCompletedTimer_ShouldTransitionToRunningAndResetProgress()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
+
+		service.Start(new(10));
+		await TimerTestHelpers.WaitUntilAsync(() =>
+												  service.TryGetInfo(handle, out var info) &&
+												  info.State == TimerState.Completed
+		);
 
 		service.Restart(handle);
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.State.Should().Be(TimerState.Running);
-		info.Progress.Should().BeLessThan(0.01);
+		info.Progress.Should().BeLessThan(0.5);
+	}
+
+	[Fact]
+	public async Task WhenRestartedAfterCompletion_ShouldFireCallbackAgain()
+	{
+		using var service = new TimerService();
+		var       count   = 0;
+
+		var handle = service.Create(
+			TimeSpan.FromMilliseconds(50), _ => Interlocked.Increment(ref count), TimerMode.Persistent
+		);
+
+		service.Start(new(10));
+
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref count) == 1);
+		Volatile.Read(ref count).Should().Be(1);
+
+		service.Restart(handle);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref count) == 2);
+
+		Volatile.Read(ref count).Should().Be(2);
+	}
+
+	[Fact]
+	public void WhenInvalidHandle_ShouldReturnFalse()
+	{
+		using var service = new TimerService();
+
+		bool result = service.Restart(TimerHandle.None);
+
+		result.Should().BeFalse();
+	}
+
+	[Fact]
+	public void WhenNonExistentHandle_ShouldReturnFalse()
+	{
+		using var service = new TimerService();
+
+		bool result = service.Restart(new(999));
+
+		result.Should().BeFalse();
 	}
 
 	[Fact]
@@ -43,7 +99,7 @@ public class TimerServiceRestartTests
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 		service.Pause(handle);
 
-		var result = service.Restart(handle);
+		bool result = service.Restart(handle);
 
 		result.Should().BeTrue();
 	}
@@ -63,13 +119,50 @@ public class TimerServiceRestartTests
 	}
 
 	[Fact]
+	public void WhenRestarted_ShouldCountAsActive()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		service.Cancel(handle);
+		service.ActiveCount.Should().Be(0);
+
+		service.Restart(handle);
+
+		service.ActiveCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void WhenRunningTimer_ShouldResetProgress()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+
+		service.Restart(handle);
+
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Running);
+		info.Progress.Should().BeLessThan(0.01);
+	}
+
+	[Fact]
+	public void WhenRunningTimer_ShouldReturnTrue()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+
+		bool result = service.Restart(handle);
+
+		result.Should().BeTrue();
+	}
+
+	[Fact]
 	public void WhenStoppedTimer_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
 		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 		service.Cancel(handle);
 
-		var result = service.Restart(handle);
+		bool result = service.Restart(handle);
 
 		result.Should().BeTrue();
 	}
@@ -85,91 +178,5 @@ public class TimerServiceRestartTests
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.State.Should().Be(TimerState.Running);
-	}
-
-	[Fact]
-	public async Task WhenCompletedTimer_ShouldReturnTrue()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
-
-		service.Start(new TimerConfig(tickRateMs: 10));
-		await TimerTestHelpers.WaitUntilAsync(() =>
-			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
-
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Completed);
-
-		var result = service.Restart(handle);
-
-		result.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task WhenCompletedTimer_ShouldTransitionToRunningAndResetProgress()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
-
-		service.Start(new TimerConfig(tickRateMs: 10));
-		await TimerTestHelpers.WaitUntilAsync(() =>
-			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
-
-		service.Restart(handle);
-
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Running);
-		info.Progress.Should().BeLessThan(0.5);
-	}
-
-	[Fact]
-	public void WhenInvalidHandle_ShouldReturnFalse()
-	{
-		using var service = new TimerService();
-
-		var result = service.Restart(TimerHandle.None);
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void WhenNonExistentHandle_ShouldReturnFalse()
-	{
-		using var service = new TimerService();
-
-		var result = service.Restart(new TimerHandle(999));
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void WhenRestarted_ShouldCountAsActive()
-	{
-		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
-		service.Cancel(handle);
-		service.ActiveCount.Should().Be(0);
-
-		service.Restart(handle);
-
-		service.ActiveCount.Should().Be(1);
-	}
-
-	[Fact]
-	public async Task WhenRestartedAfterCompletion_ShouldFireCallbackAgain()
-	{
-		using var service = new TimerService();
-		int       count   = 0;
-
-		var handle = service.Create(TimeSpan.FromMilliseconds(50), _ => Interlocked.Increment(ref count), TimerMode.Persistent);
-		service.Start(new TimerConfig(tickRateMs: 10));
-
-		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref count) == 1);
-		Volatile.Read(ref count).Should().Be(1);
-
-		service.Restart(handle);
-		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref count) == 2);
-
-		Volatile.Read(ref count).Should().Be(2);
 	}
 }

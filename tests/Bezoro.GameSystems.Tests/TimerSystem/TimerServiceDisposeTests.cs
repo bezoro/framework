@@ -1,6 +1,5 @@
 using System;
 using Bezoro.GameSystems.TimerSystem.Services;
-using Bezoro.GameSystems.TimerSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -27,7 +26,7 @@ public class TimerServiceDisposeTests
 		var service = new TimerService();
 		service.Dispose();
 
-		var act = () => service.Start(new TimerConfig());
+		var act = () => service.Start(new());
 
 		act.Should().Throw<ObjectDisposedException>();
 	}
@@ -50,7 +49,7 @@ public class TimerServiceDisposeTests
 	public void WhenDisposedWhileRunning_ShouldStopLoop()
 	{
 		var service = new TimerService();
-		service.Start(new TimerConfig(tickRateMs: 10));
+		service.Start(new(10));
 
 		service.Dispose();
 

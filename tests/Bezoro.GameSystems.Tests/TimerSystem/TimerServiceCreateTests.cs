@@ -11,13 +11,37 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServiceCreateTests
 {
 	[Fact]
-	public void WhenValidDuration_ShouldReturnValidHandle()
+	public void WhenCreated_ShouldBeInRunningState()
 	{
 		using var service = new TimerService();
 
 		var handle = service.Create(TimeSpan.FromSeconds(5));
 
+		service.TryGetInfo(handle, out var info).Should().BeTrue();
+		info.State.Should().Be(TimerState.Running);
+	}
+
+	[Fact]
+	public void WhenCreated_ShouldIncrementActiveCount()
+	{
+		using var service = new TimerService();
+
+		service.Create(TimeSpan.FromSeconds(1));
+		service.Create(TimeSpan.FromSeconds(2));
+
+		service.ActiveCount.Should().Be(2);
+	}
+
+	[Fact]
+	public void WhenCreatedWithCallback_ShouldStoreCallback()
+	{
+		using var service = new TimerService();
+		var       called  = false;
+
+		var handle = service.Create(TimeSpan.FromSeconds(5), _ => called = true);
+
 		handle.IsValid.Should().BeTrue();
+		called.Should().BeFalse();
 	}
 
 	[Fact]
@@ -35,16 +59,6 @@ public class TimerServiceCreateTests
 	}
 
 	[Fact]
-	public void WhenZeroDuration_ShouldThrow()
-	{
-		using var service = new TimerService();
-
-		var act = () => service.Create(TimeSpan.Zero);
-
-		act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("duration");
-	}
-
-	[Fact]
 	public void WhenNegativeDuration_ShouldThrow()
 	{
 		using var service = new TimerService();
@@ -55,36 +69,22 @@ public class TimerServiceCreateTests
 	}
 
 	[Fact]
-	public void WhenCreated_ShouldBeInRunningState()
+	public void WhenValidDuration_ShouldReturnValidHandle()
 	{
 		using var service = new TimerService();
 
 		var handle = service.Create(TimeSpan.FromSeconds(5));
 
-		service.TryGetInfo(handle, out var info).Should().BeTrue();
-		info.State.Should().Be(TimerState.Running);
-	}
-
-	[Fact]
-	public void WhenCreatedWithCallback_ShouldStoreCallback()
-	{
-		using var service = new TimerService();
-		bool      called  = false;
-
-		var handle = service.Create(TimeSpan.FromSeconds(5), _ => called = true);
-
 		handle.IsValid.Should().BeTrue();
-		called.Should().BeFalse();
 	}
 
 	[Fact]
-	public void WhenCreated_ShouldIncrementActiveCount()
+	public void WhenZeroDuration_ShouldThrow()
 	{
 		using var service = new TimerService();
 
-		service.Create(TimeSpan.FromSeconds(1));
-		service.Create(TimeSpan.FromSeconds(2));
+		var act = () => service.Create(TimeSpan.Zero);
 
-		service.ActiveCount.Should().Be(2);
+		act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("duration");
 	}
 }

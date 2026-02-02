@@ -10,24 +10,24 @@ namespace Bezoro.GameSystems.ActivationSystem.Abstractions;
 public interface IActivationService : IDisposable
 {
 	/// <summary>
-	///     Gets whether the background processing loop is currently running.
-	/// </summary>
-	bool IsRunning { get; }
-
-	/// <summary>
 	///     Gets whether all pending items have been activated.
 	/// </summary>
 	bool IsComplete { get; }
 
 	/// <summary>
-	///     Gets the number of entries still waiting to be activated.
+	///     Gets whether the background processing loop is currently running.
 	/// </summary>
-	int PendingCount { get; }
+	bool IsRunning { get; }
 
 	/// <summary>
 	///     Gets the number of entries that have been activated.
 	/// </summary>
 	int ActivatedCount { get; }
+
+	/// <summary>
+	///     Gets the number of entries still waiting to be activated.
+	/// </summary>
+	int PendingCount { get; }
 
 	/// <summary>
 	///     Registers a callback to be activated during background processing.

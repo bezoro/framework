@@ -11,14 +11,14 @@ public interface IExcessHealth
 	uint Excess { get; }
 
 	/// <summary>
-	///     Depletes all excess health.
-	/// </summary>
-	void DepleteExcessHealth();
-
-	/// <summary>
 	///     Decreases excess health by the given value.
 	/// </summary>
 	void DecreaseExcessHealthBy(uint value);
+
+	/// <summary>
+	///     Depletes all excess health.
+	/// </summary>
+	void DepleteExcessHealth();
 
 	/// <summary>
 	///     Increases excess health by the given value.

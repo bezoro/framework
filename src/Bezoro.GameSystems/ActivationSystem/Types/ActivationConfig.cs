@@ -6,11 +6,11 @@ namespace Bezoro.GameSystems.ActivationSystem.Types;
 ///     Configuration for the activation service's background processing loop.
 /// </summary>
 public readonly struct ActivationConfig(
-	double                  timeBudgetMs    = 2.0,
+	double                  timeBudgetMs     = 2.0,
 	int                     iterationDelayMs = 16,
-	int                     minBatchSize    = 1,
-	int                     maxBatchSize    = int.MaxValue,
-	SynchronizationContext? callbackContext = null
+	int                     minBatchSize     = 1,
+	int                     maxBatchSize     = int.MaxValue,
+	SynchronizationContext? callbackContext  = null
 )
 {
 	/// <summary>
@@ -26,16 +26,16 @@ public readonly struct ActivationConfig(
 	public readonly int IterationDelayMs = iterationDelayMs;
 
 	/// <summary>
-	///     Minimum number of items to activate per iteration, regardless of time budget.
-	///     Default is 1.
-	/// </summary>
-	public readonly int MinBatchSize = minBatchSize;
-
-	/// <summary>
 	///     Maximum number of items to activate per iteration.
 	///     Default is <see cref="int.MaxValue" /> (no cap).
 	/// </summary>
 	public readonly int MaxBatchSize = maxBatchSize;
+
+	/// <summary>
+	///     Minimum number of items to activate per iteration, regardless of time budget.
+	///     Default is 1.
+	/// </summary>
+	public readonly int MinBatchSize = minBatchSize;
 
 	/// <summary>
 	///     Optional synchronization context for marshalling callbacks.

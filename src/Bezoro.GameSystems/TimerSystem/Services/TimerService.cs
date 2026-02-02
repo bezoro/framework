@@ -29,7 +29,10 @@ public sealed class TimerService : ITimerService
 	public event Action<TimerCompletedEventArgs>? TimerCompleted;
 
 	/// <inheritdoc />
-	public TimerHandle Create(TimeSpan duration, Action<TimerHandle>? onCompleted = null, TimerMode mode = TimerMode.OneShot)
+	public TimerHandle Create(
+		TimeSpan             duration,
+		Action<TimerHandle>? onCompleted = null,
+		TimerMode            mode        = TimerMode.OneShot)
 	{
 		ThrowIfDisposed();
 
@@ -259,6 +262,15 @@ public sealed class TimerService : ITimerService
 		}
 	}
 
+	private void CleanupOneShots()
+	{
+		foreach (var kvp in _timers)
+		{
+			if (kvp.Value.State == TimerState.Completed && kvp.Value.Mode == TimerMode.OneShot)
+				_timers.TryRemove(kvp.Key, out _);
+		}
+	}
+
 	private void FlushCallbacks()
 	{
 		if (_callbackQueue.IsEmpty)
@@ -337,15 +349,6 @@ public sealed class TimerService : ITimerService
 					return existing;
 				}
 			);
-		}
-	}
-
-	private void CleanupOneShots()
-	{
-		foreach (var kvp in _timers)
-		{
-			if (kvp.Value.State == TimerState.Completed && kvp.Value.Mode == TimerMode.OneShot)
-				_timers.TryRemove(kvp.Key, out _);
 		}
 	}
 

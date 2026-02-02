@@ -12,8 +12,8 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 public sealed class Health : IHealth, IExcessHealth
 {
 	private readonly object _sync = new();
-	private long           _nextTicket;
-	private long           _servingTicket = 1;
+	private          long   _nextTicket;
+	private          long   _servingTicket = 1;
 
 	public Health(uint max) : this(max, max) { }
 
@@ -33,7 +33,9 @@ public sealed class Health : IHealth, IExcessHealth
 		get
 		{
 			lock (_sync)
-				return new Percent(Current, Max);
+			{
+				return new(Current, Max);
+			}
 		}
 	}
 
@@ -41,28 +43,24 @@ public sealed class Health : IHealth, IExcessHealth
 	public uint Excess  { get; private set; }
 	public uint Max     { get; private set; }
 
-	public void DepleteExcessHealth()
-	{
-		ExecuteOrdered(() => Excess = 0);
-	}
-
 	public void DecreaseCurrentHealthBy(uint value)
 	{
 		if (value == 0) return;
 
 		ExecuteOrdered(() =>
-		{
-			uint remaining = value;
-			if (Excess > 0)
 			{
-				uint absorbed = Excess >= remaining ? remaining : Excess;
-				Excess    -= absorbed;
-				remaining -= absorbed;
-			}
+				uint remaining = value;
+				if (Excess > 0)
+				{
+					uint absorbed = Excess >= remaining ? remaining : Excess;
+					Excess    -= absorbed;
+					remaining -= absorbed;
+				}
 
-			if (remaining > 0)
-				Current = remaining >= Current ? 0u : Current - remaining;
-		});
+				if (remaining > 0)
+					Current = remaining >= Current ? 0u : Current - remaining;
+			}
+		);
 	}
 
 	public void DecreaseExcessHealthBy(uint value)
@@ -77,15 +75,21 @@ public sealed class Health : IHealth, IExcessHealth
 		if (value == 0) return;
 
 		ExecuteOrdered(() =>
-		{
-			uint newMax = value >= Max ? 0u : Max - value;
-			SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
-		});
+			{
+				uint newMax = value >= Max ? 0u : Max - value;
+				SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
+			}
+		);
 	}
 
 	public void DepleteCurrentHealth()
 	{
 		ExecuteOrdered(() => Current = 0);
+	}
+
+	public void DepleteExcessHealth()
+	{
+		ExecuteOrdered(() => Excess = 0);
 	}
 
 	public void FullyRestoreCurrentHealth()
@@ -98,17 +102,18 @@ public sealed class Health : IHealth, IExcessHealth
 		if (value == 0) return;
 
 		ExecuteOrdered(() =>
-		{
-			ulong sum = (ulong)Current + value;
-			if (sum <= Max)
 			{
-				Current = (uint)sum;
-				return;
-			}
+				ulong sum = (ulong)Current + value;
+				if (sum <= Max)
+				{
+					Current = (uint)sum;
+					return;
+				}
 
-			Current = Max;
-			AddExcessInternal(sum - Max);
-		});
+				Current = Max;
+				AddExcessInternal(sum - Max);
+			}
+		);
 	}
 
 	public void IncreaseExcessHealthBy(uint value)
@@ -123,10 +128,11 @@ public sealed class Health : IHealth, IExcessHealth
 		if (value == 0) return;
 
 		ExecuteOrdered(() =>
-		{
-			uint newMax = Saturate((ulong)Max + value);
-			SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
-		});
+			{
+				uint newMax = Saturate((ulong)Max + value);
+				SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
+			}
+		);
 	}
 
 	public void RestoreCurrentHealthBy(uint value)
@@ -134,10 +140,11 @@ public sealed class Health : IHealth, IExcessHealth
 		if (value == 0) return;
 
 		ExecuteOrdered(() =>
-		{
-			ulong newCurrent = (ulong)Current + value;
-			Current = newCurrent >= Max ? Max : (uint)newCurrent;
-		});
+			{
+				ulong newCurrent = (ulong)Current + value;
+				Current = newCurrent >= Max ? Max : (uint)newCurrent;
+			}
+		);
 	}
 
 	public void SetCurrentHealthTo(uint value)
@@ -158,29 +165,6 @@ public sealed class Health : IHealth, IExcessHealth
 	public void SetMaxHealthTo(uint value, MaxHealthUpdateMode mode)
 	{
 		ExecuteOrdered(() => SetMaxHealthToInternal(value, mode));
-	}
-
-	private void SetMaxHealthToInternal(uint value, MaxHealthUpdateMode mode)
-	{
-		uint oldMax = Max;
-		uint newMax = value;
-
-		switch (mode)
-		{
-			case MaxHealthUpdateMode.PreservePercentage when oldMax > 0:
-			{
-				float percent = (float)Current / oldMax;
-				var   scaled  = (uint)MathF.Round(percent * newMax, MidpointRounding.AwayFromZero);
-				Current = scaled > newMax ? newMax : scaled;
-				break;
-			}
-			case MaxHealthUpdateMode.ClampCurrent:
-			default:
-				Current = Current > newMax ? newMax : Current;
-				break;
-		}
-
-		Max = newMax;
 	}
 
 	private static uint Saturate(ulong value) => value >= uint.MaxValue ? uint.MaxValue : (uint)value;
@@ -210,5 +194,28 @@ public sealed class Health : IHealth, IExcessHealth
 				Monitor.PulseAll(_sync);
 			}
 		}
+	}
+
+	private void SetMaxHealthToInternal(uint value, MaxHealthUpdateMode mode)
+	{
+		uint oldMax = Max;
+		uint newMax = value;
+
+		switch (mode)
+		{
+			case MaxHealthUpdateMode.PreservePercentage when oldMax > 0:
+			{
+				float percent = (float)Current / oldMax;
+				var   scaled  = (uint)MathF.Round(percent * newMax, MidpointRounding.AwayFromZero);
+				Current = scaled > newMax ? newMax : scaled;
+				break;
+			}
+			case MaxHealthUpdateMode.ClampCurrent:
+			default:
+				Current = Current > newMax ? newMax : Current;
+				break;
+		}
+
+		Max = newMax;
 	}
 }

@@ -50,7 +50,8 @@ public sealed class DamageResolver : IDamageResolver
 				0,
 				0f,
 				components,
-				true);
+				true
+			);
 
 		float rawTotal = SumComponents(context.Components);
 		rawTotal += request.FlatBonus + context.GlobalFlatBonus;
@@ -78,7 +79,8 @@ public sealed class DamageResolver : IDamageResolver
 			appliedDamage,
 			rawTotal,
 			components,
-			false);
+			false
+		);
 	}
 
 	private static float SumComponents(IList<DamageComponent> components)

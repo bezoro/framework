@@ -11,14 +11,33 @@ namespace Bezoro.GameSystems.Tests.TimerSystem;
 public class TimerServiceQueryTests
 {
 	[Fact]
-	public void WhenValidHandle_ShouldReturnTrue()
+	public void WhenCleanupCalled_ShouldNotRemoveActiveTimers()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+		var       h1      = service.Create(TimeSpan.FromSeconds(5));
+		var       h2      = service.Create(TimeSpan.FromSeconds(5));
+		service.Pause(h2);
 
-		var result = service.TryGetInfo(handle, out _);
+		int removed = service.Cleanup();
 
-		result.Should().BeTrue();
+		removed.Should().Be(0);
+		service.TryGetInfo(h1, out _).Should().BeTrue();
+		service.TryGetInfo(h2, out _).Should().BeTrue();
+	}
+
+	[Fact]
+	public void WhenCleanupCalled_ShouldRemoveStoppedTimers()
+	{
+		using var service = new TimerService();
+		var       h1      = service.Create(TimeSpan.FromSeconds(5));
+		service.Create(TimeSpan.FromSeconds(5));
+
+		service.Cancel(h1);
+
+		int removed = service.Cleanup();
+
+		removed.Should().Be(1);
+		service.TryGetInfo(h1, out _).Should().BeFalse();
 	}
 
 	[Fact]
@@ -26,7 +45,7 @@ public class TimerServiceQueryTests
 	{
 		using var service = new TimerService();
 
-		var result = service.TryGetInfo(TimerHandle.None, out _);
+		bool result = service.TryGetInfo(TimerHandle.None, out _);
 
 		result.Should().BeFalse();
 	}
@@ -36,20 +55,19 @@ public class TimerServiceQueryTests
 	{
 		using var service = new TimerService();
 
-		var result = service.TryGetInfo(new TimerHandle(999), out _);
+		bool result = service.TryGetInfo(new(999), out _);
 
 		result.Should().BeFalse();
 	}
 
 	[Fact]
-	public void WhenQueried_ShouldReturnCorrectHandle()
+	public void WhenNoTimersToClean_ShouldReturnZero()
 	{
 		using var service = new TimerService();
-		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 
-		service.TryGetInfo(handle, out var info);
+		int removed = service.Cleanup();
 
-		info.Handle.Should().Be(handle);
+		removed.Should().Be(0);
 	}
 
 	[Fact]
@@ -61,6 +79,17 @@ public class TimerServiceQueryTests
 		service.TryGetInfo(handle, out var info);
 
 		info.Duration.TotalSeconds.Should().BeApproximately(5.0, 0.1);
+	}
+
+	[Fact]
+	public void WhenQueried_ShouldReturnCorrectHandle()
+	{
+		using var service = new TimerService();
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
+
+		service.TryGetInfo(handle, out var info);
+
+		info.Handle.Should().Be(handle);
 	}
 
 	[Fact]
@@ -86,42 +115,13 @@ public class TimerServiceQueryTests
 	}
 
 	[Fact]
-	public void WhenCleanupCalled_ShouldRemoveStoppedTimers()
+	public void WhenValidHandle_ShouldReturnTrue()
 	{
 		using var service = new TimerService();
-		var       h1      = service.Create(TimeSpan.FromSeconds(5));
-		service.Create(TimeSpan.FromSeconds(5));
+		var       handle  = service.Create(TimeSpan.FromSeconds(5));
 
-		service.Cancel(h1);
+		bool result = service.TryGetInfo(handle, out _);
 
-		var removed = service.Cleanup();
-
-		removed.Should().Be(1);
-		service.TryGetInfo(h1, out _).Should().BeFalse();
-	}
-
-	[Fact]
-	public void WhenCleanupCalled_ShouldNotRemoveActiveTimers()
-	{
-		using var service = new TimerService();
-		var       h1      = service.Create(TimeSpan.FromSeconds(5));
-		var       h2      = service.Create(TimeSpan.FromSeconds(5));
-		service.Pause(h2);
-
-		var removed = service.Cleanup();
-
-		removed.Should().Be(0);
-		service.TryGetInfo(h1, out _).Should().BeTrue();
-		service.TryGetInfo(h2, out _).Should().BeTrue();
-	}
-
-	[Fact]
-	public void WhenNoTimersToClean_ShouldReturnZero()
-	{
-		using var service = new TimerService();
-
-		var removed = service.Cleanup();
-
-		removed.Should().Be(0);
+		result.Should().BeTrue();
 	}
 }
