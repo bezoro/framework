@@ -19,8 +19,8 @@ public class TimerServiceTickTests
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() =>
+			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.State.Should().Be(TimerState.Completed);
@@ -35,7 +35,7 @@ public class TimerServiceTickTests
 		service.Create(TimeSpan.FromMilliseconds(50), _ => Interlocked.Exchange(ref callFlag, 1));
 		service.Start(new TimerConfig(tickRateMs: 10));
 
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref callFlag) == 1);
 
 		Volatile.Read(ref callFlag).Should().Be(1);
 	}
@@ -51,7 +51,7 @@ public class TimerServiceTickTests
 		service.Create(TimeSpan.FromMilliseconds(50));
 		service.Start(new TimerConfig(tickRateMs: 10));
 
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref eventFlag) == 1);
 
 		Volatile.Read(ref eventFlag).Should().Be(1);
 	}
@@ -75,10 +75,11 @@ public class TimerServiceTickTests
 	{
 		using var service = new TimerService();
 		var       fast    = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
-		var       slow    = service.Create(TimeSpan.FromMilliseconds(500), mode: TimerMode.Persistent);
+		var       slow    = service.Create(TimeSpan.FromMilliseconds(2000), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() =>
+			service.TryGetInfo(fast, out var info) && info.State == TimerState.Completed);
 
 		service.TryGetInfo(fast, out var fastInfo).Should().BeTrue();
 		service.TryGetInfo(slow, out var slowInfo).Should().BeTrue();
@@ -100,7 +101,7 @@ public class TimerServiceTickTests
 		service.Create(TimeSpan.FromMilliseconds(60), _ => Interlocked.Exchange(ref completed, 1));
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(300);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref completed) == 1);
 
 		Volatile.Read(ref completed).Should().Be(1);
 		service.IsRunning.Should().BeTrue();
@@ -113,7 +114,8 @@ public class TimerServiceTickTests
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() =>
+			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.Progress.Should().Be(1.0);

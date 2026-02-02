@@ -19,7 +19,7 @@ public class TimerServiceAutoCleanupTests
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.OneShot);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(300);
+		await TimerTestHelpers.WaitUntilAsync(() => !service.TryGetInfo(handle, out _));
 
 		service.TryGetInfo(handle, out _).Should().BeFalse();
 	}
@@ -31,7 +31,8 @@ public class TimerServiceAutoCleanupTests
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(300);
+		await TimerTestHelpers.WaitUntilAsync(() =>
+			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.State.Should().Be(TimerState.Completed);
@@ -49,12 +50,12 @@ public class TimerServiceAutoCleanupTests
 			TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref callCount) == 1);
 
 		Volatile.Read(ref callCount).Should().Be(1);
 
 		service.Restart(handle).Should().BeTrue();
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() => Volatile.Read(ref callCount) == 2);
 
 		Volatile.Read(ref callCount).Should().Be(2);
 	}
@@ -77,7 +78,8 @@ public class TimerServiceAutoCleanupTests
 		var       handle  = service.Create(TimeSpan.FromMilliseconds(50), mode: TimerMode.Persistent);
 
 		service.Start(new TimerConfig(tickRateMs: 10));
-		await Task.Delay(200);
+		await TimerTestHelpers.WaitUntilAsync(() =>
+			service.TryGetInfo(handle, out var info) && info.State == TimerState.Completed);
 
 		service.TryGetInfo(handle, out var info).Should().BeTrue();
 		info.State.Should().Be(TimerState.Completed);
