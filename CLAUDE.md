@@ -61,17 +61,6 @@ src/Bezoro.Core/
 └── Utilities/        # Constants, StringTags
 ```
 
-## Coding Standards
-
-From `.aiassistant/rules/Base.md`:
-
-- **TDD**: Write/update tests before implementation (Red → Green → Refactor)
-- **File-scoped namespaces**: `namespace Bezoro.Core.Types;`
-- **Methods under 40 lines**, single responsibility
-- **Prefer immutability**: `readonly`, `init`, `record` types
-- **Performance hot paths**: Use `Span<T>`, `Memory<T>`, `ArrayPool`; avoid LINQ in critical loops
-- **Mocking**: NSubstitute for external I/O only, not logic
-
 ### Test Structure
 
 ```csharp
@@ -80,16 +69,13 @@ using JetBrains.Annotations;
 using Xunit;
 
 [TestSubject(typeof(TargetClass))]
-public static class TargetClassTests
+public class TargetClassTests
 {
-    public class Unit
+    [Fact]
+    public void MethodName_WhenCondition_ShouldExpectation()
     {
-        [Fact]
-        public void MethodName_WhenCondition_ShouldExpectation()
-        {
-            // Arrange, Act, Assert with FluentAssertions
-            result.Should().BeTrue();
-        }
+        // Arrange, Act, Assert with FluentAssertions
+        result.Should().BeTrue();
     }
 }
 ```
