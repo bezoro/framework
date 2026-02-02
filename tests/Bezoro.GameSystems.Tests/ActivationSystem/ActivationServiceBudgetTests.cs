@@ -55,16 +55,20 @@ public class ActivationServiceBudgetTests
 		// Large budget but maxBatchSize = 5
 		service.Start(new ActivationConfig(
 			timeBudgetMs: 1000,
-			iterationDelayMs: 50,
+			iterationDelayMs: 1000,
 			maxBatchSize: 5
 		));
 
-		// Wait for exactly one iteration
-		await Task.Delay(80);
+		// Wait for the first activation, with a long delay between iterations to avoid racey counts.
+		var sw = Stopwatch.StartNew();
+		while (Volatile.Read(ref activated) == 0 && sw.ElapsedMilliseconds < 500)
+			await Task.Delay(5);
+
 		service.Stop();
 
 		// Should have activated at most maxBatchSize per iteration
-		Volatile.Read(ref activated).Should().BeLessThanOrEqualTo(10); // Allow for 2 iterations
+		Volatile.Read(ref activated).Should().BeGreaterThan(0);
+		Volatile.Read(ref activated).Should().BeLessThanOrEqualTo(5);
 	}
 
 	[Fact]
