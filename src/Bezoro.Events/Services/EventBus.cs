@@ -6,208 +6,205 @@ using Bezoro.Events.Types;
 namespace Bezoro.Events.Services;
 
 /// <summary>
-/// Thread-safe event bus with priority-ordered handlers, cancellable propagation,
-/// synchronous inline dispatch, and queued deferred dispatch.
+///     Thread-safe event bus with priority-ordered handlers, cancellable propagation,
+///     synchronous inline dispatch, and queued deferred dispatch.
 /// </summary>
 public sealed class EventBus : IEventBus
 {
-    private readonly ConcurrentDictionary<Type, List<EventSubscription>> _subscriptions = new();
-    private readonly ConcurrentDictionary<int, Type> _handleToType = new();
-    private readonly ConcurrentQueue<QueuedEvent> _queue = new();
-    private int _nextId;
-    private int _disposed;
+	private readonly ConcurrentDictionary<int, Type>                     _handleToType  = new();
+	private readonly ConcurrentDictionary<Type, List<EventSubscription>> _subscriptions = new();
+	private readonly ConcurrentQueue<QueuedEvent>                        _queue         = new();
+	private          int                                                 _disposed;
+	private          int                                                 _nextId;
 
-    /// <inheritdoc />
-    public int QueuedCount => _queue.Count;
+	/// <inheritdoc />
+	public int QueuedCount => _queue.Count;
 
-    /// <inheritdoc />
-    public int SubscriptionCount
-    {
-        get
-        {
-            var count = 0;
-            foreach (var pair in _subscriptions)
-            {
-                lock (pair.Value)
-                {
-                    count += pair.Value.Count;
-                }
-            }
+	/// <inheritdoc />
+	public int SubscriptionCount
+	{
+		get
+		{
+			var count = 0;
+			foreach (var pair in _subscriptions)
+			{
+				lock (pair.Value)
+				{
+					count += pair.Value.Count;
+				}
+			}
 
-            return count;
-        }
-    }
+			return count;
+		}
+	}
 
-    /// <inheritdoc />
-    public SubscriptionHandle Subscribe<TEvent>(Action<EventContext<TEvent>> handler, int priority = 0)
-        where TEvent : struct
-    {
-        ThrowIfDisposed();
+	/// <inheritdoc />
+	public bool Unsubscribe(SubscriptionHandle handle)
+	{
+		ThrowIfDisposed();
 
-        if (handler is null)
-            throw new ArgumentNullException(nameof(handler));
+		if (!_handleToType.TryRemove(handle.Id, out var eventType))
+			return false;
 
-        var id = Interlocked.Increment(ref _nextId);
-        var handle = new SubscriptionHandle(id);
-        var subscription = new EventSubscription(handle, priority, handler);
+		if (!_subscriptions.TryGetValue(eventType, out var list))
+			return false;
 
-        var eventType = typeof(TEvent);
-        var list = _subscriptions.GetOrAdd(eventType, _ => new List<EventSubscription>());
-        lock (list)
-        {
-            InsertSorted(list, subscription);
-        }
+		lock (list)
+		{
+			for (var i = 0; i < list.Count; i++)
+			{
+				if (list[i].Handle != handle)
+					continue;
 
-        _handleToType[id] = eventType;
+				list.RemoveAt(i);
+				return true;
+			}
+		}
 
-        return handle;
-    }
+		return false;
+	}
 
-    /// <inheritdoc />
-    public bool Unsubscribe(SubscriptionHandle handle)
-    {
-        ThrowIfDisposed();
+	/// <inheritdoc />
+	public EventContext<TEvent> Publish<TEvent>(TEvent evt) where TEvent : struct
+	{
+		ThrowIfDisposed();
 
-        if (!_handleToType.TryRemove(handle.Id, out var eventType))
-            return false;
+		var context = new EventContext<TEvent>(evt);
+		(var snapshot, int count) = RentSnapshot(typeof(TEvent));
 
-        if (!_subscriptions.TryGetValue(eventType, out var list))
-            return false;
+		if (snapshot is null)
+			return context;
 
-        lock (list)
-        {
-            for (var i = 0; i < list.Count; i++)
-            {
-                if (list[i].Handle != handle)
-                    continue;
+		try
+		{
+			for (var i = 0; i < count; i++)
+			{
+				if (context.Handled)
+					break;
 
-                list.RemoveAt(i);
-                return true;
-            }
-        }
+				try
+				{
+					((Action<EventContext<TEvent>>)snapshot[i].Handler)(context);
+				}
+				catch
+				{
+					// Don't let handler exceptions crash the bus
+				}
+			}
+		}
+		finally
+		{
+			ArrayPool<EventSubscription>.Shared.Return(snapshot, true);
+		}
 
-        return false;
-    }
+		return context;
+	}
 
-    /// <inheritdoc />
-    public EventContext<TEvent> Publish<TEvent>(TEvent evt) where TEvent : struct
-    {
-        ThrowIfDisposed();
+	/// <inheritdoc />
+	public int FlushQueued()
+	{
+		ThrowIfDisposed();
 
-        var context = new EventContext<TEvent>(evt);
-        var (snapshot, count) = RentSnapshot(typeof(TEvent));
+		var count = 0;
+		while (_queue.TryDequeue(out var queued))
+		{
+			try
+			{
+				queued.Dispatch();
+			}
+			catch
+			{
+				// Don't let dispatch exceptions stop the flush
+			}
 
-        if (snapshot is null)
-            return context;
+			count++;
+		}
 
-        try
-        {
-            for (var i = 0; i < count; i++)
-            {
-                if (context.Handled)
-                    break;
+		return count;
+	}
 
-                try
-                {
-                    ((Action<EventContext<TEvent>>)snapshot[i].Handler)(context);
-                }
-                catch
-                {
-                    // Don't let handler exceptions crash the bus
-                }
-            }
-        }
-        finally
-        {
-            ArrayPool<EventSubscription>.Shared.Return(snapshot, clearArray: true);
-        }
+	/// <inheritdoc />
+	public SubscriptionHandle Subscribe<TEvent>(Action<EventContext<TEvent>> handler, int priority = 0)
+		where TEvent : struct
+	{
+		ThrowIfDisposed();
 
-        return context;
-    }
+		if (handler is null)
+			throw new ArgumentNullException(nameof(handler));
 
-    /// <inheritdoc />
-    public void Enqueue<TEvent>(TEvent evt) where TEvent : struct
-    {
-        ThrowIfDisposed();
+		int id           = Interlocked.Increment(ref _nextId);
+		var handle       = new SubscriptionHandle(id);
+		var subscription = new EventSubscription(handle, priority, handler);
 
-        _queue.Enqueue(new QueuedEvent(() => Publish(evt)));
-    }
+		var eventType = typeof(TEvent);
+		var list      = _subscriptions.GetOrAdd(eventType, _ => new());
+		lock (list)
+		{
+			InsertSorted(list, subscription);
+		}
 
-    /// <inheritdoc />
-    public int FlushQueued()
-    {
-        ThrowIfDisposed();
+		_handleToType[id] = eventType;
 
-        var count = 0;
-        while (_queue.TryDequeue(out var queued))
-        {
-            try
-            {
-                queued.Dispatch();
-            }
-            catch
-            {
-                // Don't let dispatch exceptions stop the flush
-            }
+		return handle;
+	}
 
-            count++;
-        }
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
+			return;
 
-        return count;
-    }
+		foreach (var pair in _subscriptions)
+		{
+			lock (pair.Value)
+			{
+				pair.Value.Clear();
+			}
+		}
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
-            return;
+		_subscriptions.Clear();
+		_handleToType.Clear();
 
-        foreach (var pair in _subscriptions)
-        {
-            lock (pair.Value)
-            {
-                pair.Value.Clear();
-            }
-        }
+		while (_queue.TryDequeue(out _)) { }
+	}
 
-        _subscriptions.Clear();
-        _handleToType.Clear();
+	/// <inheritdoc />
+	public void Enqueue<TEvent>(TEvent evt) where TEvent : struct
+	{
+		ThrowIfDisposed();
 
-        while (_queue.TryDequeue(out _)) { }
-    }
+		_queue.Enqueue(new(() => Publish(evt)));
+	}
 
-    private (EventSubscription[]? Array, int Count) RentSnapshot(Type eventType)
-    {
-        if (!_subscriptions.TryGetValue(eventType, out var list))
-            return (null, 0);
+	private static void InsertSorted(List<EventSubscription> list, EventSubscription subscription)
+	{
+		// Descending by priority; same priority appends (stable insertion order)
+		var index = 0;
+		while (index < list.Count && list[index].Priority >= subscription.Priority) index++;
 
-        lock (list)
-        {
-            var count = list.Count;
-            if (count == 0)
-                return (null, 0);
+		list.Insert(index, subscription);
+	}
 
-            var rented = ArrayPool<EventSubscription>.Shared.Rent(count);
-            list.CopyTo(rented, 0);
-            return (rented, count);
-        }
-    }
+	private (EventSubscription[]? Array, int Count) RentSnapshot(Type eventType)
+	{
+		if (!_subscriptions.TryGetValue(eventType, out var list))
+			return (null, 0);
 
-    private static void InsertSorted(List<EventSubscription> list, EventSubscription subscription)
-    {
-        // Descending by priority; same priority appends (stable insertion order)
-        var index = 0;
-        while (index < list.Count && list[index].Priority >= subscription.Priority)
-        {
-            index++;
-        }
+		lock (list)
+		{
+			int count = list.Count;
+			if (count == 0)
+				return (null, 0);
 
-        list.Insert(index, subscription);
-    }
+			var rented = ArrayPool<EventSubscription>.Shared.Rent(count);
+			list.CopyTo(rented, 0);
+			return (rented, count);
+		}
+	}
 
-    private void ThrowIfDisposed()
-    {
-        if (_disposed != 0)
-            throw new ObjectDisposedException(nameof(EventBus));
-    }
+	private void ThrowIfDisposed()
+	{
+		if (_disposed != 0)
+			throw new ObjectDisposedException(nameof(EventBus));
+	}
 }
