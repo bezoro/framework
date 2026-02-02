@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
@@ -13,6 +14,16 @@ namespace Bezoro.GameSystems.Tests.StreamingSystem;
 [TestSubject(typeof(StreamingService))]
 public class StreamingServiceIntegrationTests
 {
+	private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 5000)
+	{
+		int elapsed = 0;
+		while (!condition() && elapsed < timeoutMs)
+		{
+			await Task.Delay(25);
+			elapsed += 25;
+		}
+	}
+
 	[Fact]
 	public async Task WhenEntityAlreadyStreamedIn_HysteresisZone_ShouldRemainStreamedIn()
 	{
@@ -32,14 +43,14 @@ public class StreamingServiceIntegrationTests
 		system.Start(config);
 
 		// Wait for entity to stream in
-		await Task.Delay(100);
+		await WaitUntil(() => entity.IsStreamedIn);
 		entity.IsStreamedIn.Should().BeTrue();
 
 		// Move to hysteresis zone (between 10 and 15)
 		entity.StreamingPosition = new(12, 0, 0);
 
-		// Wait for processing
-		await Task.Delay(100);
+		// Wait for processing — entity should remain streamed in, so use generous delay
+		await Task.Delay(500);
 
 		// Should remain streamed in (still within stream out distance)
 		entity.IsStreamedIn.Should().BeTrue();
@@ -66,8 +77,8 @@ public class StreamingServiceIntegrationTests
 		system.Register(entity);
 		system.Start(config);
 
-		// Wait for multiple processing cycles
-		await Task.Delay(150);
+		// Wait for multiple processing cycles — negative assertion, use generous delay
+		await Task.Delay(500);
 
 		// Entity should not have streamed in (beyond stream in distance)
 		entity.IsStreamedIn.Should().BeFalse();
@@ -93,14 +104,14 @@ public class StreamingServiceIntegrationTests
 		system.Start(config);
 
 		// Wait for entity to stream in
-		await Task.Delay(100);
+		await WaitUntil(() => entity.IsStreamedIn);
 		entity.IsStreamedIn.Should().BeTrue();
 
 		// Move entity beyond stream out distance
 		entity.StreamingPosition = new(20, 0, 0);
 
-		// Wait for processing
-		await Task.Delay(100);
+		// Wait for entity to stream out
+		await WaitUntil(() => !entity.IsStreamedIn);
 
 		entity.IsStreamedIn.Should().BeFalse();
 		entity.Events.Should().Contain("StreamOut");
@@ -124,8 +135,7 @@ public class StreamingServiceIntegrationTests
 		system.Register(entity);
 		system.Start(config);
 
-		// Wait for processing
-		await Task.Delay(100);
+		await WaitUntil(() => entity.IsStreamedIn);
 
 		entity.IsStreamedIn.Should().BeTrue();
 		entity.Events.Should().Contain("StreamIn");
@@ -155,8 +165,17 @@ public class StreamingServiceIntegrationTests
 
 		system.Start(config);
 
-		// Wait for multiple iterations to process all entities
-		await Task.Delay(200);
+		// Wait for all nearby entities to stream in
+		await WaitUntil(() =>
+		{
+			foreach (var entity in entities)
+			{
+				if (entity.StreamingPosition.X <= 10f && !entity.IsStreamedIn)
+					return false;
+			}
+
+			return true;
+		});
 
 		// Entities within stream in distance (0-10 units, roughly 50 entities at 0.2 per unit = 50 entities up to index 50)
 		// At 0.2 distance per entity, entities 0-49 are at distances 0-9.8
@@ -187,7 +206,7 @@ public class StreamingServiceIntegrationTests
 
 		// First run
 		system.Start(config);
-		await Task.Delay(100);
+		await WaitUntil(() => entity.IsStreamedIn);
 		system.Stop();
 
 		entity.IsStreamedIn.Should().BeTrue();
@@ -197,7 +216,7 @@ public class StreamingServiceIntegrationTests
 
 		// Second run
 		system.Start(config);
-		await Task.Delay(100);
+		await WaitUntil(() => !entity.IsStreamedIn);
 
 		entity.IsStreamedIn.Should().BeFalse();
 	}
