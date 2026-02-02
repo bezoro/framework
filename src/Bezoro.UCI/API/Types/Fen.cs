@@ -88,7 +88,8 @@ public readonly record struct Fen
 				last.FullmoveNumber,
 				last.FenParts,
 				payload,
-				last.Raw);
+				last.Raw
+			);
 
 			// keep cached raw FEN; 'checkers' is a separate line in engine output
 			fen = enriched;
@@ -165,7 +166,8 @@ public readonly record struct Fen
 		if (token.Length != 1)
 			throw new ArgumentException(
 				"Invalid active color in FEN. Expected single character 'w' or 'b'.",
-				nameof(parts));
+				nameof(parts)
+			);
 
 		var c = char.ToLowerInvariant(token[0]);
 		return c switch

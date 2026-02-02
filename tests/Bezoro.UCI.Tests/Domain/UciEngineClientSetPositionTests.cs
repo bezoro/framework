@@ -52,6 +52,7 @@ public class UciEngineClientSetPositionTests
 		// Assert
 		await transport.Received().WriteLineAsync(
 			Arg.Is<string>(s => s.StartsWith($"position fen {fen.Raw}")),
-			ct);
+			ct
+		);
 	}
 }

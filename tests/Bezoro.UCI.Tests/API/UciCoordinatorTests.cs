@@ -2,8 +2,8 @@
 using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
-using Bezoro.UCI.Tests.TestHelpers;
 using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -44,11 +44,13 @@ public class UciCoordinatorTests
 
 		var bestTcs1 =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
-				TaskCreationOptions.RunContinuationsAsynchronously);
+				TaskCreationOptions.RunContinuationsAsynchronously
+			);
 
 		var bestTcs2 =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
-				TaskCreationOptions.RunContinuationsAsynchronously);
+				TaskCreationOptions.RunContinuationsAsynchronously
+			);
 
 		coordinator.StateChanged += state =>
 		{
@@ -131,21 +133,23 @@ public class UciCoordinatorTests
 			var fen = i % 2 == 0 ? Fen.Default : Fen.Parse(TestConstants.ITALIAN_GAME_FEN)!.Value;
 			tasks.Add(
 				Task.Run(async () =>
-				{
-					try
 					{
-						await coordinator.UpdatePositionAsync(fen, null);
-						await Task.Delay(TestConstants.VeryShortDelay);
+						try
+						{
+							await coordinator.UpdatePositionAsync(fen, null);
+							await Task.Delay(TestConstants.VeryShortDelay);
+						}
+						catch (OperationCanceledException)
+						{
+							// Expected when previous classification is cancelled
+						}
+						catch (Exception ex)
+						{
+							exceptions.Add(ex);
+						}
 					}
-					catch (OperationCanceledException)
-					{
-						// Expected when previous classification is cancelled
-					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
+				)
+			);
 		}
 
 		await Task.WhenAll(tasks);
@@ -154,7 +158,8 @@ public class UciCoordinatorTests
 		var unexpectedExceptions = exceptions.Where(ex => ex is not OperationCanceledException).ToList();
 		unexpectedExceptions.Should()
 							.BeEmpty(
-								"Concurrent ClearState operations (via UpdatePositionAsync) should be thread-safe");
+								"Concurrent ClearState operations (via UpdatePositionAsync) should be thread-safe"
+							);
 
 		await coordinator.StopAsync();
 	}
@@ -175,36 +180,40 @@ public class UciCoordinatorTests
 		{
 			tasks.Add(
 				Task.Run(async () =>
-				{
-					try
 					{
-						for (var j = 0; j < 10; j++) await Task.Delay(1);
-						// moves can be null during position updates, checking for thread-safety (no exceptions)
+						try
+						{
+							for (var j = 0; j < 10; j++) await Task.Delay(1);
+							// moves can be null during position updates, checking for thread-safety (no exceptions)
+						}
+						catch (Exception ex)
+						{
+							exceptions.Add(ex);
+						}
 					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
+				)
+			);
 		}
 
 		// Also update position concurrently
 		tasks.Add(
 			Task.Run(async () =>
-			{
-				try
 				{
-					for (var i = 0; i < 5; i++)
+					try
 					{
-						await coordinator.UpdatePositionAsync(Fen.Default, null);
-						await Task.Delay(TestConstants.ShortDelay);
+						for (var i = 0; i < 5; i++)
+						{
+							await coordinator.UpdatePositionAsync(Fen.Default, null);
+							await Task.Delay(TestConstants.ShortDelay);
+						}
+					}
+					catch (Exception ex)
+					{
+						exceptions.Add(ex);
 					}
 				}
-				catch (Exception ex)
-				{
-					exceptions.Add(ex);
-				}
-			}));
+			)
+		);
 
 		await Task.WhenAll(tasks);
 
@@ -282,20 +291,21 @@ public class UciCoordinatorTests
 
 		// Start another search concurrently before disposing
 		var searchTask = Task.Run(async () =>
-		{
-			try
 			{
-				await coordinator.StartSearchAsync(Fen.Default);
+				try
+				{
+					await coordinator.StartSearchAsync(Fen.Default);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected to be cancelled during disposal
+				}
+				catch (ObjectDisposedException)
+				{
+					// Expected during disposal
+				}
 			}
-			catch (OperationCanceledException)
-			{
-				// Expected to be cancelled during disposal
-			}
-			catch (ObjectDisposedException)
-			{
-				// Expected during disposal
-			}
-		});
+		);
 
 		// Dispose while operations are active
 		await Task.Delay(TestConstants.VeryShortDelay);
@@ -427,7 +437,8 @@ public class UciCoordinatorTests
 
 		var bestAfterWhiteTcs =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
-				TaskCreationOptions.RunContinuationsAsynchronously);
+				TaskCreationOptions.RunContinuationsAsynchronously
+			);
 
 		var classifiedTcs =
 			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -552,7 +563,8 @@ public class UciCoordinatorTests
 
 		var bestTcs =
 			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
-				TaskCreationOptions.RunContinuationsAsynchronously);
+				TaskCreationOptions.RunContinuationsAsynchronously
+			);
 
 		coordinator.StateChanged += state =>
 		{
@@ -683,21 +695,23 @@ public class UciCoordinatorTests
 		{
 			startTasks.Add(
 				Task.Run(async () =>
-				{
-					try
 					{
-						await coordinator.StartSearchAsync(Fen.Default);
-						await Task.Delay(TestConstants.VeryShortDelay);
+						try
+						{
+							await coordinator.StartSearchAsync(Fen.Default);
+							await Task.Delay(TestConstants.VeryShortDelay);
+						}
+						catch (OperationCanceledException)
+						{
+							// Expected when StopSearchAsync cancels the operation
+						}
+						catch (Exception ex)
+						{
+							exceptions.Add(ex);
+						}
 					}
-					catch (OperationCanceledException)
-					{
-						// Expected when StopSearchAsync cancels the operation
-					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
+				)
+			);
 		}
 
 		// Launch concurrent StopSearchAsync calls
@@ -705,17 +719,19 @@ public class UciCoordinatorTests
 		{
 			stopTasks.Add(
 				Task.Run(async () =>
-				{
-					try
 					{
-						await coordinator.StopSearchAsync();
-						await Task.Delay(TestConstants.VeryShortDelay);
+						try
+						{
+							await coordinator.StopSearchAsync();
+							await Task.Delay(TestConstants.VeryShortDelay);
+						}
+						catch (Exception ex)
+						{
+							exceptions.Add(ex);
+						}
 					}
-					catch (Exception ex)
-					{
-						exceptions.Add(ex);
-					}
-				}));
+				)
+			);
 		}
 
 		await Task.WhenAll(startTasks.Concat(stopTasks));

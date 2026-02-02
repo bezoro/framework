@@ -161,16 +161,17 @@ public class MoveClassificationEngineTests
 
 		// Act: Start classification stream and concurrently check for mate
 		var classificationTask = Task.Run(async () =>
-		{
-			var count = 0;
-			await foreach (var move in engine.ClassifyAsync(fen!.Value))
 			{
-				count++;
-				if (count >= 5) break; // Limit to avoid long test
-			}
+				var count = 0;
+				await foreach (var move in engine.ClassifyAsync(fen!.Value))
+				{
+					count++;
+					if (count >= 5) break; // Limit to avoid long test
+				}
 
-			return count;
-		});
+				return count;
+			}
+		);
 
 		// Start checkmate check concurrently - it should work correctly even with classification running
 		var checkmateTask = engine.IsCheckmateAsync(fen.Value, "f7g7");

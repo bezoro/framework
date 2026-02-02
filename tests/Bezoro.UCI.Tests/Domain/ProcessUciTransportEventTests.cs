@@ -40,7 +40,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 
 		var verificationCompleted = await Task.WhenAny(
 										verificationTcs.Task,
-										Task.Delay(TestConstants.DefaultTimeout));
+										Task.Delay(TestConstants.DefaultTimeout)
+									);
 
 		verificationCompleted.Should().Be(verificationTcs.Task, "Verification should complete");
 
@@ -118,7 +119,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 									.Build();
 
 		var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
-			TaskCreationOptions.RunContinuationsAsynchronously);
+			TaskCreationOptions.RunContinuationsAsynchronously
+		);
 
 		var count = 0;
 		transport.Exited += (code, error) =>
@@ -144,7 +146,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	{
 		Log("Starting test: Exited_WhenProcessExits_ShouldRaiseExitedEvent");
 		var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
-			TaskCreationOptions.RunContinuationsAsynchronously);
+			TaskCreationOptions.RunContinuationsAsynchronously
+		);
 
 		await using var process = Transport().Build();
 		process.Exited += (code, error) => tcs.TrySetResult((code, error));
@@ -289,7 +292,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 										ProcessArgs.CMD_EXECUTE,
 										ProcessArgs.ECHO,
 										"oops",
-										ProcessArgs.STD_OUT_TO_STD_ERR)
+										ProcessArgs.STD_OUT_TO_STD_ERR
+									)
 									.WithRedirectStandardError()
 									.Build();
 
@@ -303,7 +307,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 		var completed = await Task.WhenAny(errorTcs.Task, Task.Delay(TestConstants.BackpressureDelay));
 		completed.Should().NotBe(
 			errorTcs.Task,
-			"stderr handler exceptions must be swallowed and not surface via Error");
+			"stderr handler exceptions must be swallowed and not surface via Error"
+		);
 	}
 
 	[Fact]
@@ -318,7 +323,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 										ProcessArgs.CMD_EXECUTE,
 										ProcessArgs.ECHO,
 										"HelloStderr",
-										ProcessArgs.STD_OUT_TO_STD_ERR)
+										ProcessArgs.STD_OUT_TO_STD_ERR
+									)
 									.WithRedirectStandardError()
 									.Build();
 
@@ -346,7 +352,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 										ProcessArgs.CMD_EXECUTE,
 										ProcessArgs.ECHO,
 										"HelloErr",
-										ProcessArgs.STD_OUT_TO_STD_ERR)
+										ProcessArgs.STD_OUT_TO_STD_ERR
+									)
 									.WithRedirectStandardError(false)
 									.Build();
 
@@ -374,7 +381,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 										ProcessArgs.CMD_EXECUTE,
 										ProcessArgs.ECHO,
 										"test",
-										ProcessArgs.STD_OUT_TO_STD_ERR)
+										ProcessArgs.STD_OUT_TO_STD_ERR
+									)
 									.WithRedirectStandardError()
 									.WithStderrEncoding(Encoding.UTF8)
 									.Build();

@@ -37,9 +37,11 @@ internal sealed class UciEngineCommandModule(
 		await _lineWaiters.WaitForAsync(
 							  static l => l.Trim().Equals(
 								  UciConstants.Responses.READY_OK,
-								  StringComparison.OrdinalIgnoreCase),
+								  StringComparison.OrdinalIgnoreCase
+							  ),
 							  TimeSpan.FromSeconds(10),
-							  ct)
+							  ct
+						  )
 						  .ConfigureAwait(false);
 	}
 
@@ -65,7 +67,8 @@ internal sealed class UciEngineCommandModule(
 
 		await _transport.WriteLineAsync(
 			$"{UciConstants.Commands.POSITION} {UciConstants.Keywords.FEN} {fen.Raw} {movePart}",
-			ct).ConfigureAwait(false);
+			ct
+		).ConfigureAwait(false);
 	}
 
 	public async Task StopSearchAsync(CancellationToken ct)
@@ -80,9 +83,11 @@ internal sealed class UciEngineCommandModule(
 		await _lineWaiters.WaitForAsync(
 							  static l => l.Trim().Equals(
 								  UciConstants.Responses.UCI_OK,
-								  StringComparison.OrdinalIgnoreCase),
+								  StringComparison.OrdinalIgnoreCase
+							  ),
 							  TimeSpan.FromSeconds(5),
-							  ct)
+							  ct
+						  )
 						  .ConfigureAwait(false);
 
 		await IsReadyAsync(ct).ConfigureAwait(false);
@@ -102,7 +107,8 @@ internal sealed class UciEngineCommandModule(
 		var checkersTask = _lineWaiters.WaitForAsync(
 			static line => IsCheckersLine(line),
 			Timeout.InfiniteTimeSpan,
-			checkersCts.Token);
+			checkersCts.Token
+		);
 
 		await _transport.WriteLineAsync(UciConstants.Commands.DISPLAY_BOARD, ct).ConfigureAwait(false);
 

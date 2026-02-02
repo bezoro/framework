@@ -29,7 +29,8 @@ public readonly record struct Move()
 
 		if (resolved is null)
 			throw new InvalidOperationException(
-				$"Unable to determine moving piece for move '{notation}'. Ensure the move was analyzed with a valid board state or include a piece designator.");
+				$"Unable to determine moving piece for move '{notation}'. Ensure the move was analyzed with a valid board state or include a piece designator."
+			);
 
 		return resolved.Value;
 	}

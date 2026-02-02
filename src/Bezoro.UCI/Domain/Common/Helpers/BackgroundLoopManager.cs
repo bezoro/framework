@@ -179,7 +179,8 @@ internal sealed class BackgroundLoopManager(
 					onExited(null, ex.Message);
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		Observe(_exitNotifyTask);
 	}
@@ -210,7 +211,8 @@ internal sealed class BackgroundLoopManager(
 					ChannelFactory.TryComplete(writer, ex);
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		Observe(_readLoopTask);
 	}
@@ -234,7 +236,8 @@ internal sealed class BackgroundLoopManager(
 					reportError(ex, "Stderr loop faulted.");
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		Observe(_stderrLoopTask);
 	}
@@ -264,7 +267,8 @@ internal sealed class BackgroundLoopManager(
 					reportError(ex, "Write loop faulted.");
 				}
 			},
-			CancellationToken.None);
+			CancellationToken.None
+		);
 
 		Observe(_writeLoopTask);
 	}
@@ -390,16 +394,17 @@ internal sealed class BackgroundLoopManager(
 				// Invoke handler on thread pool to avoid blocking the stderr loop.
 				// Exceptions are swallowed as per interface contract.
 				await Task.Run(() =>
-				{
-					try
 					{
-						handler(line);
+						try
+						{
+							handler(line);
+						}
+						catch
+						{
+							// User-provided handler exceptions must not crash the loop
+						}
 					}
-					catch
-					{
-						// User-provided handler exceptions must not crash the loop
-					}
-				});
+				);
 		}
 		catch
 		{
@@ -524,6 +529,7 @@ internal sealed class BackgroundLoopManager(
 			},
 			CancellationToken.None,
 			TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted,
-			TaskScheduler.Default);
+			TaskScheduler.Default
+		);
 	}
 }

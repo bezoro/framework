@@ -157,7 +157,8 @@ internal sealed class MoveClassificationEngine(
 						move,
 						boardState,
 						quickScore,
-						true);
+						true
+					);
 
 					quickMove = new Move(move, quickAnalysis);
 				}
@@ -198,7 +199,8 @@ internal sealed class MoveClassificationEngine(
 							move,
 							boardState,
 							fallbackScore,
-							!inCheck);
+							!inCheck
+						);
 
 						evaluatedMove = new Move(move, analysis);
 					}
@@ -229,7 +231,8 @@ internal sealed class MoveClassificationEngine(
 							move,
 							boardState,
 							forceScore,
-							true);
+							true
+						);
 
 						m = new(move, forcedAnalysis);
 					}
@@ -768,6 +771,7 @@ internal sealed class MoveClassificationEngine(
 	{
 		if (!_started || _client is null)
 			throw new InvalidOperationException(
-				"MoveClassificationEngine must be started by calling StartAsync() before use.");
+				"MoveClassificationEngine must be started by calling StartAsync() before use."
+			);
 	}
 }

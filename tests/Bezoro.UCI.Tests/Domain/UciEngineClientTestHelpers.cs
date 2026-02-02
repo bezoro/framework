@@ -36,10 +36,11 @@ internal static class UciEngineClientTestHelpers
 		transport.ClearReceivedCalls();
 		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
 				 .Do(async _ =>
-				 {
-					 await readyGate.Task;
-					 await channel.Writer.WriteAsync("readyok");
-				 });
+					 {
+						 await readyGate.Task;
+						 await channel.Writer.WriteAsync("readyok");
+					 }
+				 );
 
 		return () => readyGate.TrySetResult();
 	}
@@ -78,7 +79,8 @@ internal static class UciEngineClientTestHelpers
 					await Task.Delay(TestConstants.ShortDelay);
 				}
 			},
-			pumpCts.Token);
+			pumpCts.Token
+		);
 
 		await client.StartAsync(CancellationToken.None);
 		pumpCts.Cancel();
@@ -106,7 +108,8 @@ internal static class UciEngineClientTestHelpers
 					await Task.Delay(TestConstants.VeryShortDelay);
 				}
 			},
-			pumpCts.Token);
+			pumpCts.Token
+		);
 
 		await client.StartAsync(CancellationToken.None);
 		pumpCts.Cancel();

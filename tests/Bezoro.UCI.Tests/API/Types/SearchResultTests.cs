@@ -21,7 +21,8 @@ public class SearchResultTests
 			0,
 			50,
 			["e2e4", "e7e5", "g1f3"],
-			"e2e4 e7e5 g1f3");
+			"e2e4 e7e5 g1f3"
+		);
 
 		var pv2 = new PrincipalVariation(
 			5,
@@ -34,7 +35,8 @@ public class SearchResultTests
 			0,
 			70,
 			["d2d4", "d7d5"],
-			"d2d4 d7d5");
+			"d2d4 d7d5"
+		);
 
 		var result = new SearchResult(
 			5,
@@ -45,7 +47,8 @@ public class SearchResultTests
 			120,
 			[pv1, pv2],
 			"e2e4",
-			"e7e5");
+			"e7e5"
+		);
 
 		result.ContainsMove("G1F3").Should().BeTrue();
 		result.GetVariationContaining("g1f3")!.Value.Moves.Should().Contain("g1f3");
@@ -66,7 +69,8 @@ public class SearchResultTests
 			0,
 			1,
 			["e2e4"],
-			"e2e4");
+			"e2e4"
+		);
 
 		var pv2 = new PrincipalVariation(
 			10,
@@ -79,7 +83,8 @@ public class SearchResultTests
 			0,
 			2,
 			["d2d4"],
-			"d2d4");
+			"d2d4"
+		);
 
 		var pv3 = new PrincipalVariation(
 			10,
@@ -92,7 +97,8 @@ public class SearchResultTests
 			0,
 			3,
 			["c2c4"],
-			"c2c4");
+			"c2c4"
+		);
 
 		var result = new SearchResult(
 			10,
@@ -103,7 +109,8 @@ public class SearchResultTests
 			6,
 			[pv1, pv2, pv3],
 			"e2e4",
-			"e7e5");
+			"e7e5"
+		);
 
 		result.HasMate.Should().BeTrue();
 		result.MateScore.Should().Be(-2);

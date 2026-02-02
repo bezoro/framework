@@ -184,7 +184,8 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 										"L1",
 										ProcessArgs.CHAIN,
 										ProcessArgs.ECHO,
-										"L2")
+										"L2"
+									)
 									.WithChannelCapacity(1)
 									.Build();
 
@@ -210,7 +211,8 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 										ProcessArgs.ECHO_EMPTY,
 										ProcessArgs.CHAIN,
 										ProcessArgs.ECHO,
-										"marker")
+										"marker"
+									)
 									.Build();
 
 		await transport.StartAsync();

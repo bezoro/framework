@@ -24,7 +24,8 @@ public class MoveScoreTests(ITestOutputHelper output) : UnitTestBase(output)
 			0,
 			50,
 			["f7g7"],
-			"f7g7");
+			"f7g7"
+		);
 
 		var result = new SearchResult(
 			10,
@@ -35,7 +36,8 @@ public class MoveScoreTests(ITestOutputHelper output) : UnitTestBase(output)
 			50,
 			[pv],
 			"f7g7",
-			string.Empty);
+			string.Empty
+		);
 
 		var score = MoveScore.FromSearchResult(result);
 
@@ -58,7 +60,8 @@ public class MoveScoreTests(ITestOutputHelper output) : UnitTestBase(output)
 			0,
 			20,
 			["e2e4"],
-			"e2e4");
+			"e2e4"
+		);
 
 		var pv2 = new PrincipalVariation(
 			8,
@@ -71,7 +74,8 @@ public class MoveScoreTests(ITestOutputHelper output) : UnitTestBase(output)
 			0,
 			25,
 			["d2d4"],
-			"d2d4");
+			"d2d4"
+		);
 
 		var result = new SearchResult(
 			8,
@@ -82,7 +86,8 @@ public class MoveScoreTests(ITestOutputHelper output) : UnitTestBase(output)
 			45,
 			[pv1, pv2],
 			"e2e4",
-			string.Empty);
+			string.Empty
+		);
 
 		var score = MoveScore.FromSearchResult(result);
 

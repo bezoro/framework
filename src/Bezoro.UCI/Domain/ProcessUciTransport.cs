@@ -57,7 +57,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			_options,
 			ReportError,
 			_metrics,
-			line => StderrReceived?.Invoke(line));
+			line => StderrReceived?.Invoke(line)
+		);
 	}
 
 	public bool            IsHealthy          => IsStarted && ProcessIsAlive() && _loopManager.AreLoopsHealthy();
@@ -360,7 +361,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			OperationCanceledException when ct.IsCancellationRequested => throw ex,
 			OperationCanceledException                                 => false,
 			ChannelClosedException => throw new InvalidOperationException(
-										  "Transport is stopping or stopped; cannot write."),
+										  "Transport is stopping or stopped; cannot write."
+									  ),
 			_ => throw ex
 		};
 	}
@@ -423,7 +425,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 				$"WARNING: WriteLineAsync has been blocked for {warningThreshold.TotalSeconds:F1}s waiting for channel space. " +
 				"The consumer may not be reading, or the channel is saturated. " +
 				"Consider using TryWriteLineAsync with a timeout for better control.",
-				category: LogCategory.UCI);
+				category: LogCategory.UCI
+			);
 		else
 			warningCts.Cancel();
 
@@ -624,7 +627,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			workingDir,
 			_options.RedirectStandardError,
 			_options.StdoutEncoding,
-			_options.StderrEncoding);
+			_options.StderrEncoding
+		);
 
 		var startedProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
@@ -669,7 +673,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			Logger.Log(
 				$"Killing UCI engine process after grace period (tree={_options.KillEntireProcessTree}).",
-				category: LogCategory.UCI);
+				category: LogCategory.UCI
+			);
 
 			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
 		}
@@ -692,7 +697,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			Logger.Log(
 				$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
-				category: LogCategory.UCI);
+				category: LogCategory.UCI
+			);
 
 			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
 		}
@@ -862,7 +868,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			_options.StderrEncoding,
 			_options.RedirectStandardError,
 			_options.NewLine,
-			false);
+			false
+		);
 
 		_streams.Stdin  = streams.Stdin;
 		_streams.Stdout = streams.Stdout;
@@ -928,7 +935,8 @@ internal sealed class ProcessUciTransport : IUciTransport
 			process,
 			(exitCode, error) => FireExitedOnce(exitCode, error),
 			ex => ReportError(ex, "Error while waiting for process exit."),
-			_stateManager);
+			_stateManager
+		);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -937,12 +945,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (line.Length > _options.MaxLineLength)
 			throw new ArgumentException(
 				$"Command line exceeds maximum length of {_options.MaxLineLength} characters. Actual: {line.Length}",
-				nameof(line));
+				nameof(line)
+			);
 
 		if (line.Length > _options.WarnLineLength)
 			Logger.Log(
 				$"Warning: Command line length ({line.Length} characters) exceeds warning threshold ({_options.WarnLineLength} characters). This may indicate unusual usage.",
-				category: LogCategory.UCI);
+				category: LogCategory.UCI
+			);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

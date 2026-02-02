@@ -20,10 +20,11 @@ public class UciEngineClientGetFenViaDTests
 		transport.ClearReceivedCalls();
 		transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
 				 .Do(async _ =>
-				 {
-					 await channel.Writer.WriteAsync($"fen: {fen}");
-					 await channel.Writer.WriteAsync("checkers: e1");
-				 });
+					 {
+						 await channel.Writer.WriteAsync($"fen: {fen}");
+						 await channel.Writer.WriteAsync("checkers: e1");
+					 }
+				 );
 
 		// Act
 		var fenResult = await client.GetFenViaDAsync(CancellationToken.None);

@@ -326,7 +326,8 @@ internal static class UciConstants
 			= new(
 				"^[a-h][1-8]$",
 				RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-				RegexTimeout);
+				RegexTimeout
+			);
 		/// <summary>
 		///     Regular expression for validating Forsyth–Edwards Notation (FEN) strings.
 		///     Note: This checks only basic syntax, not semantic validity (e.g., rank sums, king counts).
@@ -335,7 +336,8 @@ internal static class UciConstants
 			new(
 				@"^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+\s[bw]\s(-|(?=[KQkq]+)K?Q?k?q?)\s(-|[a-h][36])\s\d+\s\d+$",
 				RegexOptions.Compiled | RegexOptions.CultureInvariant,
-				RegexTimeout);
+				RegexTimeout
+			);
 		/// <summary>
 		///     Regular expression for validating UCI move notation.
 		/// </summary>
@@ -343,7 +345,8 @@ internal static class UciConstants
 			new(
 				@"^[a-h][1-8][a-h][1-8]([qrbn])?$",
 				RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-				RegexTimeout);
+				RegexTimeout
+			);
 	}
 
 	internal static class Responses

@@ -19,7 +19,8 @@ internal static class ChannelFactory
 				SingleWriter = true,
 				SingleReader = singleReader,
 				FullMode     = BoundedChannelFullMode.Wait
-			});
+			}
+		);
 
 	/// <summary>
 	///     Creates a bounded channel for outgoing messages to the process.
@@ -32,7 +33,8 @@ internal static class ChannelFactory
 				SingleWriter = singleWriter,
 				SingleReader = true,
 				FullMode     = BoundedChannelFullMode.Wait
-			});
+			}
+		);
 
 	/// <summary>
 	///     Safely completes a channel writer.

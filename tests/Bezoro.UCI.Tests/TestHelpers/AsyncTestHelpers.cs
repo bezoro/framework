@@ -155,7 +155,8 @@ public static class AsyncTestHelpers
 		catch (OperationCanceledException)
 		{
 			throw new TimeoutException(
-				$"Event matching predicate was not raised within {timeout.TotalSeconds} seconds.");
+				$"Event matching predicate was not raised within {timeout.TotalSeconds} seconds."
+			);
 		}
 	}
 

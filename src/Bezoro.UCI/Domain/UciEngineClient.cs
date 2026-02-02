@@ -68,7 +68,8 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			_transport,
 			SetActivity,
 			pv => InfoPvReceived?.Invoke(pv),
-			(best, ponder) => BestMoveReceived?.Invoke(best, ponder));
+			(best, ponder) => BestMoveReceived?.Invoke(best, ponder)
+		);
 
 		_outputDispatcher = new(_lineWaiters, _searchCoordinator);
 		_commandModule    = new(_transport, _lineWaiters, this, SetActivity);

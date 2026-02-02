@@ -474,7 +474,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 													currentFen,
 													_options.ClassificationDepth,
 													legalMoves,
-													_classificationCts!.Token)
+													_classificationCts!.Token
+												)
 												.ConfigureAwait(false))
 						{
 							// No-op; MoveClassificationEngine events will handle updates
@@ -489,7 +490,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 						RaiseError(ex);
 					}
 				},
-				CancellationToken.None);
+				CancellationToken.None
+			);
 		}
 	}
 
@@ -509,7 +511,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public async Task<IReadOnlyDictionary<string, Move>> WaitForClassificationAsync(CancellationToken ct = default)
 	{
 		var tcs = new TaskCompletionSource<IReadOnlyDictionary<string, Move>>(
-			TaskCreationOptions.RunContinuationsAsynchronously);
+			TaskCreationOptions.RunContinuationsAsynchronously
+		);
 
 		using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
 

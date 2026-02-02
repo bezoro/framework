@@ -15,6 +15,96 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	: IntegrationTestBase(fixture, output)
 {
 	[Fact]
+	public void Constructor_WhenArgsContainsNull_ShouldThrowArgumentException()
+	{
+		Log("Starting test: Constructor_WhenArgsContainsNull_ShouldThrowArgumentException");
+		string[] argsWithNull = ["arg1", null!, "arg2"];
+
+		var act = () => _ = new ProcessUciTransport("any/nonempty/path", argsWithNull);
+
+		act.Should().Throw<ArgumentException>()
+		   .WithMessage("*cannot contain null values*");
+	}
+
+	[Fact]
+	public void Constructor_WhenDefault_ShouldHaveInitialStateCorrect()
+	{
+		Log("Starting test: Constructor_WhenDefault_ShouldHaveInitialStateCorrect");
+		var process = Transport().WithPath("any/nonempty/path").Build();
+
+		process.Status.Should().Be(TransportStatus.Created);
+		process.IsStarted.Should().BeFalse();
+		process.BackpressureEvents.Should().Be(0);
+		process.LinesRead.Should().Be(0);
+		process.LinesWritten.Should().Be(0);
+	}
+
+	[Fact]
+	public void Constructor_WhenEmptyPath_ShouldThrowArgumentException()
+	{
+		Log("Starting test: Constructor_WhenEmptyPath_ShouldThrowArgumentException");
+		var act = () => _ = new ProcessUciTransport("");
+
+		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
+	public void Constructor_WhenFourParameterOverload_ShouldWorkCorrectly()
+	{
+		Log("Starting test: Constructor_WhenFourParameterOverload_ShouldWorkCorrectly");
+		var process = Transport()
+					  .WithPath("any/nonempty/path")
+					  .WithArguments("arg1", "arg2")
+					  .WithWorkingDirectory(Environment.CurrentDirectory)
+					  .WithChannelCapacity(512)
+					  .Build();
+
+		process.Should().NotBeNull();
+		process.Status.Should().Be(TransportStatus.Created);
+		process.IsStarted.Should().BeFalse();
+	}
+
+	[Fact]
+	public void Constructor_WhenInvalidChannelCapacity_ShouldThrowArgumentOutOfRangeException()
+	{
+		Log("Starting test: Constructor_WhenInvalidChannelCapacity_ShouldThrowArgumentOutOfRangeException");
+		Action act = () => _ = Transport()
+							   .WithPath("any/nonempty/path")
+							   .WithChannelCapacity(0)
+							   .Build();
+
+		act.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
+	public void Constructor_WhenInvalidNewLine_ShouldThrowArgumentException()
+	{
+		Log("Starting test: Constructor_WhenInvalidNewLine_ShouldThrowArgumentException");
+		var    invalidOptions = new ProcessUciTransportOptions { NewLine = "" };
+		Action act            = () => _ = new ProcessUciTransport("any/nonempty/path", null, null, invalidOptions);
+
+		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
+	public void Constructor_WhenNullPath_ShouldThrowArgumentException()
+	{
+		Log("Starting test: Constructor_WhenNullPath_ShouldThrowArgumentException");
+		var act = () => _ = new ProcessUciTransport(null!);
+
+		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
+	public void Constructor_WhenWhitespacePath_ShouldThrowArgumentException()
+	{
+		Log("Starting test: Constructor_WhenWhitespacePath_ShouldThrowArgumentException");
+		var act = () => _ = new ProcessUciTransport("   ");
+
+		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
 	public async Task DisposeAsync_AfterStop_ShouldNotThrow()
 	{
 		Log("Starting test: DisposeAsync_AfterStop_ShouldNotThrow");
@@ -236,7 +326,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		var disposeCompleted = await Task.WhenAny(
 								   disposeTask,
-								   Task.Delay(TestConstants.DefaultTimeout, cts.Token));
+								   Task.Delay(TestConstants.DefaultTimeout, cts.Token)
+							   );
 
 		disposeCompleted.Should().Be(disposeTask, "Dispose should complete when process has already exited");
 
@@ -261,7 +352,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		disposeDuration.Should().BeLessThan(
 			TestConstants.DefaultTimeout,
-			"Dispose should complete within reasonable time");
+			"Dispose should complete within reasonable time"
+		);
 
 		transport.Status.Should().Be(TransportStatus.Disposed);
 	}
@@ -331,7 +423,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 			Path.GetTempPath(),
 			"no-such-dir",
 			Guid.NewGuid().ToString("N"),
-			"missing.exe");
+			"missing.exe"
+		);
 
 		await using var transport = Transport().WithPath(missing).Build();
 
@@ -342,7 +435,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		string[] allTasks = await Task.WhenAll(
 								start1.ContinueWith(t => t.Exception != null ? "failed" : "success"),
 								start2.ContinueWith(t => t.Exception != null ? "failed" : "success"),
-								start3.ContinueWith(t => t.Exception != null ? "failed" : "success"));
+								start3.ContinueWith(t => t.Exception != null ? "failed" : "success")
+							);
 
 		allTasks.Should().AllBe("failed", "All concurrent StartAsync calls should fail when path is invalid");
 		transport.IsStarted.Should().BeFalse();
@@ -386,7 +480,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 			Path.GetTempPath(),
 			"no-such-dir",
 			Guid.NewGuid().ToString("N"),
-			"missing.exe");
+			"missing.exe"
+		);
 
 		await using var transport = Transport().WithPath(missing).Build();
 
@@ -405,7 +500,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await Task.Delay(TestConstants.StandardDelay);
 
 		errors.Should().BeEmpty(
-			"Error events should not be raised when start fails early (before initialization)");
+			"Error events should not be raised when start fails early (before initialization)"
+		);
 
 		transport.Status.Should().Be(TransportStatus.Failed, "Status should be set to Failed when start fails");
 		transport.IsStarted.Should().BeFalse("Transport should not be started after failure");
@@ -439,7 +535,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
 								() => process.Status == TransportStatus.Stopping,
 								TestConstants.ShortDelay,
-								TestConstants.DefaultTimeout);
+								TestConstants.DefaultTimeout
+							);
 
 		conditionMet.Should().BeTrue("Status should transition to Stopping");
 
@@ -473,7 +570,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 			Path.GetTempPath(),
 			"no-such-dir",
 			Guid.NewGuid().ToString("N"),
-			"missing.exe");
+			"missing.exe"
+		);
 
 		await using var transport = Transport().WithPath(missing).Build();
 
@@ -566,95 +664,5 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 		transport.Status.Should().Be(TransportStatus.Stopped);
-	}
-
-	[Fact]
-	public void Constructor_WhenArgsContainsNull_ShouldThrowArgumentException()
-	{
-		Log("Starting test: Constructor_WhenArgsContainsNull_ShouldThrowArgumentException");
-		string[] argsWithNull = ["arg1", null!, "arg2"];
-
-		var act = () => _ = new ProcessUciTransport("any/nonempty/path", argsWithNull);
-
-		act.Should().Throw<ArgumentException>()
-		   .WithMessage("*cannot contain null values*");
-	}
-
-	[Fact]
-	public void Constructor_WhenDefault_ShouldHaveInitialStateCorrect()
-	{
-		Log("Starting test: Constructor_WhenDefault_ShouldHaveInitialStateCorrect");
-		var process = Transport().WithPath("any/nonempty/path").Build();
-
-		process.Status.Should().Be(TransportStatus.Created);
-		process.IsStarted.Should().BeFalse();
-		process.BackpressureEvents.Should().Be(0);
-		process.LinesRead.Should().Be(0);
-		process.LinesWritten.Should().Be(0);
-	}
-
-	[Fact]
-	public void Constructor_WhenEmptyPath_ShouldThrowArgumentException()
-	{
-		Log("Starting test: Constructor_WhenEmptyPath_ShouldThrowArgumentException");
-		var act = () => _ = new ProcessUciTransport("");
-
-		act.Should().Throw<ArgumentException>();
-	}
-
-	[Fact]
-	public void Constructor_WhenFourParameterOverload_ShouldWorkCorrectly()
-	{
-		Log("Starting test: Constructor_WhenFourParameterOverload_ShouldWorkCorrectly");
-		var process = Transport()
-					  .WithPath("any/nonempty/path")
-					  .WithArguments("arg1", "arg2")
-					  .WithWorkingDirectory(Environment.CurrentDirectory)
-					  .WithChannelCapacity(512)
-					  .Build();
-
-		process.Should().NotBeNull();
-		process.Status.Should().Be(TransportStatus.Created);
-		process.IsStarted.Should().BeFalse();
-	}
-
-	[Fact]
-	public void Constructor_WhenInvalidChannelCapacity_ShouldThrowArgumentOutOfRangeException()
-	{
-		Log("Starting test: Constructor_WhenInvalidChannelCapacity_ShouldThrowArgumentOutOfRangeException");
-		Action act = () => _ = Transport()
-							   .WithPath("any/nonempty/path")
-							   .WithChannelCapacity(0)
-							   .Build();
-
-		act.Should().Throw<ArgumentOutOfRangeException>();
-	}
-
-	[Fact]
-	public void Constructor_WhenInvalidNewLine_ShouldThrowArgumentException()
-	{
-		Log("Starting test: Constructor_WhenInvalidNewLine_ShouldThrowArgumentException");
-		var    invalidOptions = new ProcessUciTransportOptions { NewLine = "" };
-		Action act            = () => _ = new ProcessUciTransport("any/nonempty/path", null, null, invalidOptions);
-
-		act.Should().Throw<ArgumentException>();
-	}
-
-	[Fact]
-	public void Constructor_WhenNullPath_ShouldThrowArgumentException()
-	{
-		Log("Starting test: Constructor_WhenNullPath_ShouldThrowArgumentException");
-		var act = () => _ = new ProcessUciTransport(null!);
-
-		act.Should().Throw<ArgumentException>();
-	}
-
-	[Fact]
-	public void Constructor_WhenWhitespacePath_ShouldThrowArgumentException()
-	{
-		Log("Starting test: Constructor_WhenWhitespacePath_ShouldThrowArgumentException");
-		var act = () => _ = new ProcessUciTransport("   ");
-
-		act.Should().Throw<ArgumentException>();
 	}
 }

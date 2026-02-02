@@ -23,7 +23,8 @@ public class StockfishFixture : IAsyncLifetime
 		if (!IsStockfishAvailable())
 			throw new InvalidOperationException(
 				$"Stockfish not found at path: {StockfishPath}. " +
-				"Ensure the Stockfish executable is available for integration tests.");
+				"Ensure the Stockfish executable is available for integration tests."
+			);
 
 		return Task.CompletedTask;
 	}

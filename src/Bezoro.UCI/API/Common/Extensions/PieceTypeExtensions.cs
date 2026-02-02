@@ -24,7 +24,8 @@ public static class PieceTypeExtensions
 			PieceType.King   => 'k',
 			_ => throw new ArgumentOutOfRangeException(
 					 nameof(type),
-					 "Cannot convert PieceType.Empty or unknown type to a character.")
+					 "Cannot convert PieceType.Empty or unknown type to a character."
+				 )
 		};
 
 		return color == PieceColor.White ? char.ToUpperInvariant(baseChar) : baseChar;

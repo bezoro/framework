@@ -299,7 +299,8 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 
 		output.Should().Be(
 			"uciok",
-			"the engine should acknowledge UCI initialization with 'uciok' within timeout");
+			"the engine should acknowledge UCI initialization with 'uciok' within timeout"
+		);
 	}
 
 	[Fact]
@@ -452,7 +453,8 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 
 		transport.LinesWritten.Should().BeGreaterOrEqualTo(
 			3,
-			"All three lines should be written by the write loop");
+			"All three lines should be written by the write loop"
+		);
 	}
 
 	[Fact]

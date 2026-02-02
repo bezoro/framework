@@ -88,7 +88,8 @@ internal static class ProcessHelper
 					var (src, token) = ((TaskCompletionSource<object?>, CancellationToken))s!;
 					src.TrySetCanceled(token);
 				},
-				(tcs, ct));
+				(tcs, ct)
+			);
 
 		return tcs.Task.ContinueWith(
 					  t =>
@@ -104,7 +105,8 @@ internal static class ProcessHelper
 					  },
 					  CancellationToken.None,
 					  TaskContinuationOptions.ExecuteSynchronously,
-					  TaskScheduler.Default)
+					  TaskScheduler.Default
+				  )
 				  .Unwrap();
 
 		void Handler(object? _, EventArgs __) => tcs.TrySetResult(null);

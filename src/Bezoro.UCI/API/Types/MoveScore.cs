@@ -36,7 +36,8 @@ public readonly record struct MoveScore()
 					line.AsSpan(start, end - start),
 					NumberStyles.Integer,
 					CultureInfo.InvariantCulture,
-					out int mateScore)) return false;
+					out int mateScore
+				)) return false;
 
 			scoreMate = mateScore;
 		}
@@ -52,7 +53,8 @@ public readonly record struct MoveScore()
 					line.AsSpan(start, end - start),
 					NumberStyles.Integer,
 					CultureInfo.InvariantCulture,
-					out int cpScore)) return false;
+					out int cpScore
+				)) return false;
 
 			scoreCp = cpScore;
 		}

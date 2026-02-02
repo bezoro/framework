@@ -47,7 +47,8 @@ internal static class ProcessUciTransportValidator
 		if (options.ChannelCapacity <= 0)
 			throw new ArgumentOutOfRangeException(
 				nameof(options.ChannelCapacity),
-				"ChannelCapacity must be greater than 0.");
+				"ChannelCapacity must be greater than 0."
+			);
 
 		if (string.IsNullOrEmpty(options.NewLine))
 			throw new ArgumentException("NewLine must be non-empty.", nameof(options.NewLine));
@@ -55,11 +56,13 @@ internal static class ProcessUciTransportValidator
 		if (options.QuitGracePeriod < TimeSpan.Zero)
 			throw new ArgumentOutOfRangeException(
 				nameof(options.QuitGracePeriod),
-				"QuitGracePeriod cannot be negative.");
+				"QuitGracePeriod cannot be negative."
+			);
 
 		if (options.QuitGracePeriod == default && options.QuitGracePeriodMs < 0)
 			throw new ArgumentOutOfRangeException(
 				nameof(options.QuitGracePeriodMs),
-				"QuitGracePeriodMs cannot be negative.");
+				"QuitGracePeriodMs cannot be negative."
+			);
 	}
 }

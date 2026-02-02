@@ -35,6 +35,7 @@ public class UciEngineClientGoFireAndForgetTests
 		await transport.Received().WriteLineAsync("go ponder depth 6", CancellationToken.None);
 		client.Activity.Should().Be(
 			EngineActivity.Pondering,
-			"activity should be Pondering when ponder is enabled");
+			"activity should be Pondering when ponder is enabled"
+		);
 	}
 }

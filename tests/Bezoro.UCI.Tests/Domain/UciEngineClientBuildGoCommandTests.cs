@@ -25,7 +25,8 @@ public class UciEngineClientBuildGoCommandTests
 	public void ShouldFilterAndLowercaseSearchmoves()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(
-			new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] });
+			new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] }
+		);
 
 		cmd.Should().Be("go depth 6 searchmoves e2e4 a7a8q", "searchmoves should be filtered and lowercased");
 	}
@@ -34,7 +35,8 @@ public class UciEngineClientBuildGoCommandTests
 	public void ShouldFormatTimeControlsCorrectly()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(
-			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, WhiteIncrementMs = 10, BlackIncrementMs = 20 });
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, WhiteIncrementMs = 10, BlackIncrementMs = 20 }
+		);
 
 		cmd.Should().Be(
 			"go wtime 1000 btime 2000 winc 10 binc 20",

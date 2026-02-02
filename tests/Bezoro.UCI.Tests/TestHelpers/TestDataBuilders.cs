@@ -154,7 +154,8 @@ public static class TestDataBuilders
 				_tbHits,
 				_time,
 				_moves,
-				_rawPv);
+				_rawPv
+			);
 
 		public PrincipalVariationBuilder WithDepth(uint depth)
 		{
@@ -262,7 +263,8 @@ public static class TestDataBuilders
 				_totalSearchTimeMs,
 				_principalVariations,
 				_bestMove,
-				_ponderMove);
+				_ponderMove
+			);
 		}
 
 		public SearchResultBuilder WithBestMove(string bestMove)

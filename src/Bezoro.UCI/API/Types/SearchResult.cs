@@ -118,7 +118,8 @@ public readonly record struct SearchResult
 			totalSearchTimeMs,
 			principalVariations,
 			bestMove,
-			ponderMove);
+			ponderMove
+		);
 
 		return true;
 	}

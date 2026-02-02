@@ -35,7 +35,8 @@ public readonly record struct MoveAnalysis
 		if (!boardState.TryGetPieceAt(parsedMove.From, out var movingPiece) || movingPiece is null)
 			throw new ArgumentException(
 				$"No piece found on square '{parsedMove.From}' for move '{moveNotation}'.",
-				nameof(boardState));
+				nameof(boardState)
+			);
 
 		bool isCaptureOnToSquare = boardState.TryGetPieceAt(parsedMove.To, out var targetPiece) && targetPiece.HasValue;
 

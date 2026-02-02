@@ -96,7 +96,8 @@ public class PonderEngineTests
 							.Select(i => TestDataBuilders.PrincipalVariation()
 														 .WithScoreCp(i * 10)                    // Improving cp scores
 														 .WithMoves($"e{i % 8 + 2}e{i % 8 + 4}") // Valid move notation
-														 .Build())
+														 .Build()
+							)
 							.ToArray();
 
 		// Act: Invoke concurrently
@@ -534,7 +535,8 @@ public class PonderEngineTests
 		// Initially lastCp is null, so this should raise BestMove
 		bestMoveCount.Should().Be(
 			2,
-			"Transition from negative mate to negative cp should raise BestMove if cp is higher");
+			"Transition from negative mate to negative cp should raise BestMove if cp is higher"
+		);
 
 		engine.OnClientInfoPvReceived(pv3);
 		bestMoveCount.Should().Be(3, "Higher negative cp should raise BestMove");
