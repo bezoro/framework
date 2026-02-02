@@ -21,64 +21,46 @@ public interface IHealthRegenService
 	bool IsActive(RegenHandle handle);
 
 	/// <summary>
-	///     Clears all existing regens on the target, then starts a new one.
-	///     Heals <paramref name="amountPerSecond" /> HP each second for <paramref name="durationSeconds" /> seconds.
+	///     Clears all existing regens on the target, then starts a finite regen.
+	///     Delivers exactly <c>Round(amountPerSec * duration.TotalSeconds)</c> total HP over the duration.
 	/// </summary>
 	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="amountPerSecond">HP restored per second.</param>
-	/// <param name="durationSeconds">Total duration in seconds.</param>
+	/// <param name="amountPerSec">HP restored per second. Must be positive and finite.</param>
+	/// <param name="duration">Total duration. Must be positive.</param>
+	/// <param name="tickFrequencyMs">Milliseconds between ticks (default 20 = 50 ticks/sec).</param>
 	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle StartRegen(IHealth target, uint amountPerSecond, float durationSeconds);
+	RegenHandle StartRegen(IHealth target, float amountPerSec, TimeSpan duration, uint tickFrequencyMs = 20);
 
 	/// <summary>
-	///     Clears all existing regens on the target, then starts a new one.
-	///     Distributes <paramref name="totalAmount" /> HP evenly across <paramref name="ticks" /> applications.
+	///     Stacks a finite regen alongside any existing ones on the target.
+	///     Delivers exactly <c>Round(amountPerSec * duration.TotalSeconds)</c> total HP over the duration.
 	/// </summary>
 	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="totalAmount">Total HP to restore over the full duration.</param>
-	/// <param name="ticks">Number of discrete heal applications.</param>
+	/// <param name="amountPerSec">HP restored per second. Must be positive and finite.</param>
+	/// <param name="duration">Total duration. Must be positive.</param>
+	/// <param name="tickFrequencyMs">Milliseconds between ticks (default 20 = 50 ticks/sec).</param>
 	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle StartRegen(IHealth target, uint totalAmount, uint ticks);
+	RegenHandle AddRegen(IHealth target, float amountPerSec, TimeSpan duration, uint tickFrequencyMs = 20);
 
 	/// <summary>
-	///     Stacks a new regen alongside any existing ones on the target.
-	///     Heals <paramref name="amountPerSecond" /> HP each second for <paramref name="durationSeconds" /> seconds.
+	///     Clears all existing regens on the target, then starts an infinite regen.
+	///     Delivers <paramref name="amountPerSec" /> HP/s until explicitly stopped.
 	/// </summary>
 	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="amountPerSecond">HP restored per second.</param>
-	/// <param name="durationSeconds">Total duration in seconds.</param>
+	/// <param name="amountPerSec">HP restored per second. Must be positive and finite.</param>
+	/// <param name="tickFrequencyMs">Milliseconds between ticks (default 20 = 50 ticks/sec).</param>
 	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle AddRegen(IHealth target, uint amountPerSecond, float durationSeconds);
+	RegenHandle StartRepeatingRegen(IHealth target, float amountPerSec, uint tickFrequencyMs = 20);
 
 	/// <summary>
-	///     Stacks a new regen alongside any existing ones on the target.
-	///     Distributes <paramref name="totalAmount" /> HP evenly across <paramref name="ticks" /> applications.
+	///     Stacks an infinite regen alongside any existing ones on the target.
+	///     Delivers <paramref name="amountPerSec" /> HP/s until explicitly stopped.
 	/// </summary>
 	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="totalAmount">Total HP to restore over the full duration.</param>
-	/// <param name="ticks">Number of discrete heal applications.</param>
+	/// <param name="amountPerSec">HP restored per second. Must be positive and finite.</param>
+	/// <param name="tickFrequencyMs">Milliseconds between ticks (default 20 = 50 ticks/sec).</param>
 	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle AddRegen(IHealth target, uint totalAmount, uint ticks);
-
-	/// <summary>
-	///     Clears all existing regens on the target, then starts a new repeating regen
-	///     that ticks indefinitely at the specified interval until explicitly stopped.
-	/// </summary>
-	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="amount">HP restored per tick.</param>
-	/// <param name="interval">Time between ticks.</param>
-	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle StartRepeatingRegen(IHealth target, uint amount, TimeSpan interval);
-
-	/// <summary>
-	///     Stacks a new repeating regen alongside any existing ones on the target.
-	///     Ticks indefinitely at the specified interval until explicitly stopped.
-	/// </summary>
-	/// <param name="target">The health instance to regenerate.</param>
-	/// <param name="amount">HP restored per tick.</param>
-	/// <param name="interval">Time between ticks.</param>
-	/// <returns>A handle to the new regen effect.</returns>
-	RegenHandle AddRepeatingRegen(IHealth target, uint amount, TimeSpan interval);
+	RegenHandle AddRepeatingRegen(IHealth target, float amountPerSec, uint tickFrequencyMs = 20);
 
 	/// <summary>
 	///     Cancels a specific regen effect.

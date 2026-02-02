@@ -9,16 +9,12 @@ using Bezoro.GameSystems.HealthSystem.Types;
 namespace Bezoro.GameSystems.HealthSystem.Services;
 
 /// <summary>
-///     Provides timed health-over-time regeneration using async loops for smooth,
-///     cup-filling restoration.
+///     Provides timed health-over-time regeneration using async loops.
+///     Finite regens use integer distribution for exact HP delivery.
+///     Infinite regens use a double accumulator for precision.
 /// </summary>
 public sealed class HealthRegenService : IHealthRegenService
 {
-	/// <summary>
-	///     The interval between heal ticks for the per-second overload.
-	///     50ms = 20 ticks per second for smooth restoration.
-	/// </summary>
-	private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(50);
 	private readonly ConcurrentDictionary<IHealth, List<int>> _targetRegens = new();
 
 	private readonly ConcurrentDictionary<int, RegenEntry> _regens = new();
@@ -46,37 +42,26 @@ public sealed class HealthRegenService : IHealthRegenService
 	}
 
 	/// <inheritdoc />
-	public RegenHandle AddRegen(IHealth target, uint amountPerSecond, float durationSeconds) =>
-		AddRegenInternal(target, amountPerSecond, durationSeconds);
-
-	/// <inheritdoc />
-	public RegenHandle AddRegen(IHealth target, uint totalAmount, uint ticks) =>
-		AddRegenByTicks(target, totalAmount, ticks);
-
-	/// <inheritdoc />
-	public RegenHandle StartRegen(IHealth target, uint amountPerSecond, float durationSeconds)
+	public RegenHandle StartRegen(IHealth target, float amountPerSec, TimeSpan duration, uint tickFrequencyMs = 20)
 	{
 		StopAll(target);
-		return AddRegenInternal(target, amountPerSecond, durationSeconds);
+		return AddFiniteCore(target, amountPerSec, duration, tickFrequencyMs);
 	}
 
 	/// <inheritdoc />
-	public RegenHandle StartRegen(IHealth target, uint totalAmount, uint ticks)
+	public RegenHandle AddRegen(IHealth target, float amountPerSec, TimeSpan duration, uint tickFrequencyMs = 20) =>
+		AddFiniteCore(target, amountPerSec, duration, tickFrequencyMs);
+
+	/// <inheritdoc />
+	public RegenHandle StartRepeatingRegen(IHealth target, float amountPerSec, uint tickFrequencyMs = 20)
 	{
 		StopAll(target);
-		return AddRegenByTicks(target, totalAmount, ticks);
+		return AddInfiniteCore(target, amountPerSec, tickFrequencyMs);
 	}
 
 	/// <inheritdoc />
-	public RegenHandle StartRepeatingRegen(IHealth target, uint amount, TimeSpan interval)
-	{
-		StopAll(target);
-		return AddRepeatingRegenInternal(target, amount, interval);
-	}
-
-	/// <inheritdoc />
-	public RegenHandle AddRepeatingRegen(IHealth target, uint amount, TimeSpan interval) =>
-		AddRepeatingRegenInternal(target, amount, interval);
+	public RegenHandle AddRepeatingRegen(IHealth target, float amountPerSec, uint tickFrequencyMs = 20) =>
+		AddInfiniteCore(target, amountPerSec, tickFrequencyMs);
 
 	/// <inheritdoc />
 	public void StopAll(IHealth target)
@@ -99,37 +84,44 @@ public sealed class HealthRegenService : IHealthRegenService
 		}
 	}
 
-	private RegenHandle AddRegenByTicks(IHealth target, uint totalAmount, uint ticks)
+	private static void ValidateCommon(IHealth target, float amountPerSec, uint tickFrequencyMs)
 	{
-		if (ticks == 0u)
-			throw new ArgumentOutOfRangeException(nameof(ticks), "Ticks must be positive.");
+		if (target is null)
+			throw new ArgumentNullException(nameof(target));
 
-		if (totalAmount == 0u)
-			throw new ArgumentOutOfRangeException(nameof(totalAmount), "Amount must be positive.");
+		if (amountPerSec <= 0f || float.IsNaN(amountPerSec) || float.IsInfinity(amountPerSec))
+			throw new ArgumentOutOfRangeException(nameof(amountPerSec), "Amount per second must be a positive finite number.");
 
-		uint perTick   = totalAmount / ticks;
-		uint remainder = totalAmount % ticks;
-
-		return StartLoop(target, perTick, remainder, (int)ticks, TimeSpan.FromSeconds(1));
+		if (tickFrequencyMs == 0u)
+			throw new ArgumentOutOfRangeException(nameof(tickFrequencyMs), "Tick frequency must be positive.");
 	}
 
-	private RegenHandle AddRegenInternal(IHealth target, uint amountPerSecond, float durationSeconds)
+	private RegenHandle AddFiniteCore(IHealth target, float amountPerSec, TimeSpan duration, uint tickFrequencyMs)
 	{
-		if (durationSeconds <= 0f)
-			throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Duration must be positive.");
+		ValidateCommon(target, amountPerSec, tickFrequencyMs);
 
-		if (amountPerSecond == 0u)
-			throw new ArgumentOutOfRangeException(nameof(amountPerSecond), "Amount must be positive.");
+		if (duration <= TimeSpan.Zero)
+			throw new ArgumentOutOfRangeException(nameof(duration), "Duration must be positive. Use StartRepeatingRegen/AddRepeatingRegen for infinite regen.");
 
-		var totalAmount = (uint)(amountPerSecond * durationSeconds);
-		int totalTicks  = Math.Max(1, (int)(durationSeconds / TickInterval.TotalSeconds));
-		uint perTick    = totalAmount / (uint)totalTicks;
-		uint remainder  = totalAmount % (uint)totalTicks;
+		double rawTotal = Math.Round((double)amountPerSec * duration.TotalSeconds, MidpointRounding.AwayFromZero);
+		uint totalAmount = rawTotal >= uint.MaxValue ? uint.MaxValue : (uint)rawTotal;
+		int totalTicks = Math.Max(1, (int)(duration.TotalMilliseconds / tickFrequencyMs));
+		var interval = TimeSpan.FromMilliseconds(tickFrequencyMs);
 
-		return StartLoop(target, perTick, remainder, totalTicks, TickInterval);
+		return StartLoop(target, (t, id, ct) => RunFiniteLoopAsync(t, id, totalAmount, totalTicks, interval, ct));
 	}
 
-	private RegenHandle StartLoop(IHealth target, uint perTick, uint remainder, int totalTicks, TimeSpan interval)
+	private RegenHandle AddInfiniteCore(IHealth target, float amountPerSec, uint tickFrequencyMs)
+	{
+		ValidateCommon(target, amountPerSec, tickFrequencyMs);
+
+		double healPerTick = (double)amountPerSec * tickFrequencyMs / 1000.0;
+		var interval = TimeSpan.FromMilliseconds(tickFrequencyMs);
+
+		return StartLoop(target, (t, id, ct) => RunInfiniteLoopAsync(t, id, healPerTick, interval, ct));
+	}
+
+	private RegenHandle StartLoop(IHealth target, Func<IHealth, int, CancellationToken, Task> loopFactory)
 	{
 		int regenId = Interlocked.Increment(ref _nextId);
 		var handle  = new RegenHandle(regenId);
@@ -139,28 +131,73 @@ public sealed class HealthRegenService : IHealthRegenService
 		_regens.TryAdd(regenId, entry);
 		TrackTarget(target, regenId);
 
-		_ = RunLoopAsync(target, regenId, perTick, remainder, totalTicks, interval, cts.Token);
+		_ = loopFactory(target, regenId, cts.Token);
 
 		return handle;
 	}
 
-	private async Task RunLoopAsync(
+	private async Task RunFiniteLoopAsync(
 		IHealth           target,
 		int               regenId,
-		uint              perTick,
-		uint              remainder,
+		uint              totalAmount,
 		int               totalTicks,
 		TimeSpan          interval,
 		CancellationToken ct)
 	{
+		uint totalDelivered = 0;
+
 		try
 		{
-			for (var i = 0; totalTicks < 0 || i < totalTicks; i++)
+			for (var i = 1; i <= totalTicks; i++)
 			{
 				await Task.Delay(interval, ct).ConfigureAwait(false);
 
-				uint healThisTick = perTick + ((uint)i < remainder ? 1u : 0u);
-				target.RestoreCurrentHealthBy(healThisTick);
+				uint expectedSoFar = (uint)((ulong)totalAmount * (uint)i / (uint)totalTicks);
+				uint healThisTick = expectedSoFar - totalDelivered;
+
+				if (healThisTick > 0u)
+					target.RestoreCurrentHealthBy(healThisTick);
+
+				totalDelivered = expectedSoFar;
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Regen was stopped — expected
+		}
+		finally
+		{
+			if (_regens.TryRemove(regenId, out var entry))
+			{
+				RemoveFromTargetTracking(entry.Target, regenId);
+				entry.Cts.Dispose();
+			}
+		}
+	}
+
+	private async Task RunInfiniteLoopAsync(
+		IHealth           target,
+		int               regenId,
+		double            healPerTick,
+		TimeSpan          interval,
+		CancellationToken ct)
+	{
+		double accumulator = 0.0;
+
+		try
+		{
+			while (true)
+			{
+				await Task.Delay(interval, ct).ConfigureAwait(false);
+
+				accumulator += healPerTick;
+				var toHeal = (uint)accumulator;
+
+				if (toHeal > 0u)
+				{
+					target.RestoreCurrentHealthBy(toHeal);
+					accumulator -= toHeal;
+				}
 			}
 		}
 		catch (OperationCanceledException)
@@ -195,17 +232,6 @@ public sealed class HealthRegenService : IHealthRegenService
 		{
 			list.Add(regenId);
 		}
-	}
-
-	private RegenHandle AddRepeatingRegenInternal(IHealth target, uint amount, TimeSpan interval)
-	{
-		if (amount == 0u)
-			throw new ArgumentOutOfRangeException(nameof(amount), "Amount must be positive.");
-
-		if (interval <= TimeSpan.Zero)
-			throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be positive.");
-
-		return StartLoop(target, amount, 0u, -1, interval);
 	}
 
 	private readonly struct RegenEntry(IHealth target, CancellationTokenSource cts)

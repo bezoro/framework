@@ -26,23 +26,12 @@ public class HealthRegenServiceTests
 	public class StartRegenTests
 	{
 		[Fact]
-		public void WithAmountPerSecond_ShouldReturnValidHandle()
+		public void ShouldReturnValidHandle()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			var handle = service.StartRegen(health, amountPerSecond: 10u, durationSeconds: 3f);
-
-			handle.IsValid.Should().BeTrue();
-		}
-
-		[Fact]
-		public void WithTotalAmountAndTicks_ShouldReturnValidHandle()
-		{
-			var service = CreateService();
-			var health  = new Health(100u, 50u);
-
-			var handle = service.StartRegen(health, totalAmount: 50u, ticks: 5u);
+			var handle = service.StartRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(3));
 
 			handle.IsValid.Should().BeTrue();
 		}
@@ -53,10 +42,10 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var first = service.AddRegen(health, amountPerSecond: 100u, durationSeconds: 5f);
+			var first = service.AddRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(5));
 			service.IsActive(first).Should().BeTrue();
 
-			var second = service.StartRegen(health, amountPerSecond: 10u, durationSeconds: 1f);
+			var second = service.StartRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(1));
 
 			service.IsActive(first).Should().BeFalse();
 			service.IsActive(second).Should().BeTrue();
@@ -68,7 +57,7 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			service.StartRegen(health, amountPerSecond: 10u, durationSeconds: 5f);
+			service.StartRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(5));
 
 			service.ActiveCount.Should().Be(1);
 		}
@@ -82,8 +71,8 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var first  = service.AddRegen(health, amountPerSecond: 10u, durationSeconds: 5f);
-			var second = service.AddRegen(health, amountPerSecond: 20u, durationSeconds: 3f);
+			var first  = service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(5));
+			var second = service.AddRegen(health, amountPerSec: 20f, TimeSpan.FromSeconds(3));
 
 			service.IsActive(first).Should().BeTrue();
 			service.IsActive(second).Should().BeTrue();
@@ -91,12 +80,12 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public void WithTotalAmountAndTicks_ShouldReturnValidHandle()
+		public void ShouldReturnValidHandle()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			var handle = service.AddRegen(health, totalAmount: 30u, ticks: 3u);
+			var handle = service.AddRegen(health, amountPerSec: 30f, TimeSpan.FromSeconds(1));
 
 			handle.IsValid.Should().BeTrue();
 			service.IsActive(handle).Should().BeTrue();
@@ -111,7 +100,7 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			service.StartRegen(health, amountPerSecond: 100u, durationSeconds: 2f);
+			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(2));
 
 			await Task.Delay(600);
 
@@ -124,26 +113,28 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			service.StartRegen(health, amountPerSecond: 50u, durationSeconds: 1f);
+			// 50 HP/s for 1s at default 20ms ticks = 50 total ticks, 1 HP/tick
+			service.StartRegen(health, amountPerSec: 50f, TimeSpan.FromSeconds(1));
 
 			await WaitUntilIdle(service);
 
 			service.ActiveCount.Should().Be(0, "regen should have finished");
-			health.Current.Should().Be(50u, "total restored should equal amountPerSecond * durationSeconds");
+			health.Current.Should().Be(50u, "total restored should equal amountPerSec * durationSeconds");
 		}
 
 		[Fact]
-		public async Task TotalAmountOverload_ShouldDivideEvenly()
+		public async Task WithCustomTickFrequency_ShouldRestoreCorrectTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			service.StartRegen(health, totalAmount: 100u, ticks: 5u);
+			// 100 HP/s for 1s at 1000ms ticks = 1 tick of 100 HP
+			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(1), tickFrequencyMs: 1000);
 
 			await WaitUntilIdle(service);
 
 			service.ActiveCount.Should().Be(0);
-			health.Current.Should().Be(100u, "total restored should equal totalAmount");
+			health.Current.Should().Be(100u, "1 tick * 100 HP/tick = 100 HP total");
 		}
 
 		[Fact]
@@ -152,13 +143,11 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(100u, 95u);
 
-			var handle = service.StartRegen(health, amountPerSecond: 50u, durationSeconds: 1f);
+			var handle = service.StartRegen(health, amountPerSec: 50f, TimeSpan.FromSeconds(1));
 
 			await Task.Delay(500);
 
-			// Health should be capped at max
 			health.Current.Should().Be(100u);
-			// Regen should still be active partway through duration
 			service.IsActive(handle).Should().BeTrue();
 		}
 
@@ -168,9 +157,8 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(10000u, 0u);
 
-			service.StartRegen(health, amountPerSecond: 1000u, durationSeconds: 2f);
+			service.StartRegen(health, amountPerSec: 1000f, TimeSpan.FromSeconds(2));
 
-			// Check at 300ms — should have partial healing, not a full second's worth
 			await Task.Delay(300);
 			uint earlyHealth = health.Current;
 			earlyHealth.Should().BeGreaterThan(0u);
@@ -186,12 +174,11 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var handle = service.StartRegen(health, amountPerSecond: 100u, durationSeconds: 5f);
+			var handle = service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(5));
 			service.IsActive(handle).Should().BeTrue();
 
 			service.Stop(handle).Should().BeTrue();
 
-			// Give async loop time to observe cancellation
 			await Task.Delay(100);
 
 			service.IsActive(handle).Should().BeFalse();
@@ -216,14 +203,13 @@ public class HealthRegenServiceTests
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var h1 = service.AddRegen(health, amountPerSecond: 10u, durationSeconds: 5f);
-			var h2 = service.AddRegen(health, amountPerSecond: 20u, durationSeconds: 5f);
+			var h1 = service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(5));
+			var h2 = service.AddRegen(health, amountPerSec: 20f, TimeSpan.FromSeconds(5));
 
 			service.ActiveCount.Should().Be(2);
 
 			service.StopAll(health);
 
-			// Give async loops time to observe cancellation
 			await Task.Delay(100);
 
 			service.IsActive(h1).Should().BeFalse();
@@ -234,12 +220,12 @@ public class HealthRegenServiceTests
 		[Fact]
 		public async Task StopAll_ShouldNotAffectOtherTargets()
 		{
-			var service  = CreateService();
-			var health1  = new Health(1000u, 0u);
-			var health2  = new Health(1000u, 0u);
+			var service = CreateService();
+			var health1 = new Health(1000u, 0u);
+			var health2 = new Health(1000u, 0u);
 
-			service.AddRegen(health1, amountPerSecond: 10u, durationSeconds: 5f);
-			var h2 = service.AddRegen(health2, amountPerSecond: 20u, durationSeconds: 5f);
+			service.AddRegen(health1, amountPerSec: 10f, TimeSpan.FromSeconds(5));
+			var h2 = service.AddRegen(health2, amountPerSec: 20f, TimeSpan.FromSeconds(5));
 
 			service.StopAll(health1);
 
@@ -250,37 +236,27 @@ public class HealthRegenServiceTests
 		}
 	}
 
-	public class StartRepeatingRegenTests
+	public class RepeatingRegenTests
 	{
 		[Fact]
-		public void ShouldReturnValidHandle()
+		public void StartRepeatingRegen_ShouldReturnValidHandle()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			var handle = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+			var handle = service.StartRepeatingRegen(health, amountPerSec: 5f);
 
 			handle.IsValid.Should().BeTrue();
-		}
-
-		[Fact]
-		public void ShouldReportIsActive()
-		{
-			var service = CreateService();
-			var health  = new Health(100u, 50u);
-
-			var handle = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
-
 			service.IsActive(handle).Should().BeTrue();
 		}
 
 		[Fact]
-		public async Task ShouldHealOverTime()
+		public async Task StartRepeatingRegen_ShouldHealOverTime()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			service.StartRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+			service.StartRepeatingRegen(health, amountPerSec: 100f);
 
 			await Task.Delay(300);
 
@@ -288,12 +264,12 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public async Task ShouldStopWhenHandleStopped()
+		public async Task StartRepeatingRegen_ShouldStopWhenHandleStopped()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var handle = service.StartRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+			var handle = service.StartRepeatingRegen(health, amountPerSec: 100f);
 
 			await Task.Delay(200);
 			service.Stop(handle).Should().BeTrue();
@@ -307,64 +283,28 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public void ShouldClearExistingRegens()
+		public void StartRepeatingRegen_ShouldClearExistingRegens()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var first = service.AddRegen(health, amountPerSecond: 100u, durationSeconds: 5f);
+			var first = service.AddRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(5));
 			service.IsActive(first).Should().BeTrue();
 
-			var second = service.StartRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+			var second = service.StartRepeatingRegen(health, amountPerSec: 5f);
 
 			service.IsActive(first).Should().BeFalse();
 			service.IsActive(second).Should().BeTrue();
 		}
 
 		[Fact]
-		public void WithZeroAmount_ShouldThrow()
-		{
-			var service = CreateService();
-			var health  = new Health(100u, 50u);
-
-			var act = () => service.StartRepeatingRegen(health, amount: 0u, TimeSpan.FromMilliseconds(100));
-
-			act.Should().Throw<ArgumentOutOfRangeException>();
-		}
-
-		[Fact]
-		public void WithZeroInterval_ShouldThrow()
-		{
-			var service = CreateService();
-			var health  = new Health(100u, 50u);
-
-			var act = () => service.StartRepeatingRegen(health, amount: 5u, TimeSpan.Zero);
-
-			act.Should().Throw<ArgumentOutOfRangeException>();
-		}
-	}
-
-	public class AddRepeatingRegenTests
-	{
-		[Fact]
-		public void ShouldReturnValidHandle()
-		{
-			var service = CreateService();
-			var health  = new Health(100u, 50u);
-
-			var handle = service.AddRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
-
-			handle.IsValid.Should().BeTrue();
-		}
-
-		[Fact]
-		public void ShouldStackWithExistingRegens()
+		public void AddRepeatingRegen_ShouldStackWithExisting()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var first  = service.AddRegen(health, amountPerSecond: 10u, durationSeconds: 5f);
-			var second = service.AddRepeatingRegen(health, amount: 5u, TimeSpan.FromMilliseconds(100));
+			var first  = service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(5));
+			var second = service.AddRepeatingRegen(health, amountPerSec: 5f);
 
 			service.IsActive(first).Should().BeTrue();
 			service.IsActive(second).Should().BeTrue();
@@ -372,53 +312,211 @@ public class HealthRegenServiceTests
 		}
 
 		[Fact]
-		public async Task ShouldHealOverTime()
+		public async Task AddRepeatingRegen_WithCustomTickFrequency_ShouldHeal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			service.AddRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+			service.AddRepeatingRegen(health, amountPerSec: 10f, tickFrequencyMs: 100);
 
-			await Task.Delay(300);
+			await Task.Delay(350);
 
-			health.Current.Should().BeGreaterThan(0u, "repeating regen should restore health over time");
+			health.Current.Should().BeGreaterThan(0u, "repeating regen with custom tick frequency should heal");
 		}
+	}
 
+	public class PrecisionTests
+	{
 		[Fact]
-		public async Task ShouldStopWhenHandleStopped()
+		public async Task FiniteRegen_ShouldDeliverExactTotal()
 		{
 			var service = CreateService();
 			var health  = new Health(1000u, 0u);
 
-			var handle = service.AddRepeatingRegen(health, amount: 10u, TimeSpan.FromMilliseconds(50));
+			// 7 HP/s for 1s — old float bug would deliver 6 instead of 7
+			service.StartRegen(health, amountPerSec: 7f, TimeSpan.FromSeconds(1));
 
-			await Task.Delay(200);
-			service.Stop(handle).Should().BeTrue();
+			await WaitUntilIdle(service);
 
-			await Task.Delay(50);
-			service.IsActive(handle).Should().BeFalse();
+			health.Current.Should().Be(7u, "finite regen must deliver exactly Round(7 * 1) = 7 HP");
 		}
 
 		[Fact]
-		public void WithZeroAmount_ShouldThrow()
+		public async Task FiniteRegen_WithFractionalRate_ShouldDeliverExactTotal()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			// 3.5 HP/s for 2s = 7 HP total
+			service.StartRegen(health, amountPerSec: 3.5f, TimeSpan.FromSeconds(2));
+
+			await WaitUntilIdle(service);
+
+			health.Current.Should().Be(7u, "finite regen must deliver exactly Round(3.5 * 2) = 7 HP");
+		}
+
+		[Fact]
+		public async Task FiniteRegen_WithSmallRate_ShouldDeliverExactTotal()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			// 0.5 HP/s for 4s = 2 HP total
+			service.StartRegen(health, amountPerSec: 0.5f, TimeSpan.FromSeconds(4));
+
+			await WaitUntilIdle(service);
+
+			health.Current.Should().Be(2u, "finite regen must deliver exactly Round(0.5 * 4) = 2 HP");
+		}
+
+		[Fact]
+		public async Task FiniteRegen_WithCustomTickFrequency_ShouldDeliverExactTotal()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			// 100 HP/s for 1s at 1000ms ticks = 1 tick delivering 100 HP
+			service.StartRegen(health, amountPerSec: 100f, TimeSpan.FromSeconds(1), tickFrequencyMs: 1000);
+
+			await WaitUntilIdle(service);
+
+			health.Current.Should().Be(100u, "finite regen must deliver exactly Round(100 * 1) = 100 HP");
+		}
+
+		[Fact]
+		public async Task FractionalRate_ShouldAccumulateAndHeal()
+		{
+			var service = CreateService();
+			var health  = new Health(1000u, 0u);
+
+			// 0.5 HP/s at 1000ms ticks — accumulator reaches 1.0 after 2 ticks
+			service.AddRepeatingRegen(health, amountPerSec: 0.5f, tickFrequencyMs: 1000);
+
+			await Task.Delay(2500);
+
+			health.Current.Should().BeGreaterThanOrEqualTo(1u, "accumulator should have reached 1.0 after two ticks");
+		}
+	}
+
+	public class ValidationTests
+	{
+		[Fact]
+		public void WithZeroAmountPerSec_ShouldThrow()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			var act = () => service.AddRepeatingRegen(health, amount: 0u, TimeSpan.FromMilliseconds(100));
+			var act = () => service.AddRegen(health, amountPerSec: 0f, TimeSpan.FromSeconds(1));
 
 			act.Should().Throw<ArgumentOutOfRangeException>();
 		}
 
 		[Fact]
-		public void WithZeroInterval_ShouldThrow()
+		public void WithNegativeAmountPerSec_ShouldThrow()
 		{
 			var service = CreateService();
 			var health  = new Health(100u, 50u);
 
-			var act = () => service.AddRepeatingRegen(health, amount: 5u, TimeSpan.Zero);
+			var act = () => service.AddRegen(health, amountPerSec: -5f, TimeSpan.FromSeconds(1));
 
 			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithZeroDuration_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRegen(health, amountPerSec: 10f, TimeSpan.Zero);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithNegativeDuration_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromMilliseconds(-1));
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithZeroTickFrequency_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(1), tickFrequencyMs: 0);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithNaNAmountPerSec_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRegen(health, amountPerSec: float.NaN, TimeSpan.FromSeconds(1));
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithInfinityAmountPerSec_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRegen(health, amountPerSec: float.PositiveInfinity, TimeSpan.FromSeconds(1));
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithNegativeInfinityAmountPerSec_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.AddRepeatingRegen(health, amountPerSec: float.NegativeInfinity);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void RepeatingRegen_WithNaNAmountPerSec_ShouldThrow()
+		{
+			var service = CreateService();
+			var health  = new Health(100u, 50u);
+
+			var act = () => service.StartRepeatingRegen(health, amountPerSec: float.NaN);
+
+			act.Should().Throw<ArgumentOutOfRangeException>();
+		}
+
+		[Fact]
+		public void WithNullTarget_ShouldThrow()
+		{
+			var service = CreateService();
+
+			var act = () => service.AddRegen(null!, amountPerSec: 10f, TimeSpan.FromSeconds(1));
+
+			act.Should().Throw<ArgumentNullException>();
+		}
+
+		[Fact]
+		public void RepeatingRegen_WithNullTarget_ShouldThrow()
+		{
+			var service = CreateService();
+
+			var act = () => service.AddRepeatingRegen(null!, amountPerSec: 10f);
+
+			act.Should().Throw<ArgumentNullException>();
 		}
 	}
 }
