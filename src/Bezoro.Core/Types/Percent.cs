@@ -85,24 +85,54 @@ public readonly struct Percent : IEquatable<Percent>, IComparable<Percent>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Percent(uint current, uint max)
 	{
-		if (max == 0)
+		Value = CalculateValue(current, max);
+	}
+
+	/// <summary>
+	///     Creates a <see cref="Percent" /> from the sum of one or more current/max pairs.
+	/// </summary>
+	/// <param name="totals">The current/max pairs to sum.</param>
+	/// <returns>The computed percentage value.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="totals" /> is <c>null</c>.</exception>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static Percent FromTotals(params (uint current, uint max)[] totals)
+	{
+		if (totals is null)
+			throw new ArgumentNullException(nameof(totals));
+
+		ulong totalCurrent = 0;
+		ulong totalMax     = 0;
+
+		foreach ((uint current, uint max) in totals)
 		{
-			Value = 0;
-			return;
+			totalCurrent += current;
+			totalMax     += max;
 		}
 
-		ulong numerator = (ulong)current * 100;
-		ulong rounded   = numerator + max / 2;
-		var   value     = (uint)(rounded / max);
-		if (value > 100)
-			value = 100;
-
-		Value = (byte)value;
+		return new(CalculateValue(totalCurrent, totalMax));
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static void ThrowArgumentOutOfRange(byte value) =>
 		throw new ArgumentOutOfRangeException(nameof(value), value, "Percentage must be between 0 and 100.");
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static byte CalculateValue(ulong current, ulong max)
+	{
+		if (max == 0)
+			return 0;
+
+		if (current >= max)
+			return 100;
+
+		ulong numerator = current * 100;
+		ulong rounded   = numerator + max / 2;
+		var   value     = (uint)(rounded / max);
+		if (value > 100)
+			value = 100;
+
+		return (byte)value;
+	}
 
 	/// <summary>
 	///     Gets the percentage value (0–100).
