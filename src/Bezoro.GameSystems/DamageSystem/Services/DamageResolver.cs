@@ -12,9 +12,9 @@ namespace Bezoro.GameSystems.DamageSystem.Services;
 public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 	where THealth : struct, IDamageableHealth<THealth>
 {
-	private static readonly IDamageRule<THealth>[] EmptyRules = Array.Empty<IDamageRule<THealth>>();
-	private readonly DamageResolverConfig<THealth> _config;
-	private readonly IDamageRule<THealth>[]        _rules;
+	private static readonly IDamageRule<THealth>[]        EmptyRules = Array.Empty<IDamageRule<THealth>>();
+	private readonly        DamageResolverConfig<THealth> _config;
+	private readonly        IDamageRule<THealth>[]        _rules;
 
 	/// <summary>
 	///     Creates a resolver with the specified configuration.
@@ -36,82 +36,49 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 		if (target is null)
 			throw new ArgumentNullException(nameof(target));
 
-		var  initialHealth      = target.Health;
-		uint contextHealthBefore = initialHealth.EffectiveCurrent;
-		var  components         = BuildComponents(request);
-
-		var context = new DamageContext<THealth>(request, target, contextHealthBefore, components);
-		for (var i = 0; i < _rules.Length; i++)
-			_rules[i].Apply(context);
+		var context = CreateContext(request, target, out var components);
+		ApplyRules(context);
 
 		if (context.IsCancelled)
-			return new(
-				contextHealthBefore,
-				contextHealthBefore,
-				0,
-				0,
-				0f,
-				components,
-				true
-			);
+			return BuildCancelledResult(context.HealthBefore, components);
 
-		float rawTotal = SumComponents(context.Components);
-		rawTotal += request.FlatBonus + context.GlobalFlatBonus;
-		rawTotal *= request.Multiplier * context.GlobalMultiplier;
+		float rawTotal       = CalculateRawDamage(context, request);
+		uint  intendedDamage = CalculateIntendedDamage(rawTotal);
 
-		if (float.IsNaN(rawTotal) || float.IsInfinity(rawTotal))
-			rawTotal = 0f;
+		(uint healthBefore, uint healthAfter, uint appliedIntended) =
+			ApplyDamage(target, context.HealthBefore, intendedDamage);
 
-		int  roundedDamage  = RoundDamage(rawTotal, _config.RoundingMode);
-		uint intendedDamage = ClampToUInt(roundedDamage, _config.MinimumAppliedDamage, _config.MaximumAppliedDamage);
-
-		uint healthBefore = contextHealthBefore;
-		uint healthAfter  = contextHealthBefore;
-
-		if (intendedDamage != 0)
-		{
-			uint appliedIntended = intendedDamage;
-			while (true)
-			{
-				var  snapshot      = target.Health;
-				uint currentHealth = snapshot.EffectiveCurrent;
-				uint clamped       = appliedIntended;
-
-				if (_config.ClampToCurrentHealth && clamped > currentHealth)
-					clamped = currentHealth;
-
-				if (clamped == 0)
-				{
-					healthBefore    = currentHealth;
-					healthAfter     = currentHealth;
-					appliedIntended = 0;
-					break;
-				}
-
-				var updated = snapshot.ApplyDamage(clamped);
-				if (!target.TryUpdateHealth(snapshot, updated))
-					continue;
-
-				healthBefore    = currentHealth;
-				healthAfter     = updated.EffectiveCurrent;
-				appliedIntended = clamped;
-				break;
-			}
-
-			intendedDamage = appliedIntended;
-		}
-
-		uint appliedDamage = healthBefore > healthAfter ? healthBefore - healthAfter : 0;
+		uint appliedDamage = CalculateAppliedDamage(healthBefore, healthAfter);
 
 		return new(
 			healthBefore,
 			healthAfter,
-			intendedDamage,
+			appliedIntended,
 			appliedDamage,
 			rawTotal,
 			components,
 			false
 		);
+	}
+
+	private static DamageResult BuildCancelledResult(uint healthBefore, IReadOnlyList<DamageComponent> components) =>
+		new(
+			healthBefore,
+			healthBefore,
+			0,
+			0,
+			0f,
+			components,
+			true
+		);
+
+	private static float CalculateRawDamage(DamageContext<THealth> context, in DamageRequest request)
+	{
+		float rawTotal = SumComponents(context.Components);
+		rawTotal += request.FlatBonus + context.GlobalFlatBonus;
+		rawTotal *= request.Multiplier * context.GlobalMultiplier;
+
+		return float.IsNaN(rawTotal) || float.IsInfinity(rawTotal) ? 0f : rawTotal;
 	}
 
 	private static float SumComponents(IList<DamageComponent> components)
@@ -146,20 +113,18 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 
 	private static List<DamageComponent> BuildComponents(in DamageRequest request)
 	{
-		if (request.Components is { Count: > 0 } components)
-		{
-			var list = new List<DamageComponent>(components.Count);
-			for (var i = 0; i < components.Count; i++)
-				list.Add(components[i]);
+		if (request.Components is not { Count: > 0 } components)
+			return [new(request.Type, request.BaseAmount)];
 
-			return list;
-		}
+		var list = new List<DamageComponent>(components.Count);
+		for (var i = 0; i < components.Count; i++)
+			list.Add(components[i]);
 
-		return new(1)
-		{
-			new(request.Type, request.BaseAmount)
-		};
+		return list;
 	}
+
+	private static uint CalculateAppliedDamage(uint healthBefore, uint healthAfter) =>
+		healthBefore > healthAfter ? healthBefore - healthAfter : 0;
 
 	private static uint ClampToUInt(int value, uint min, uint? max)
 	{
@@ -172,5 +137,58 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 			result = max.Value;
 
 		return result;
+	}
+
+	private (uint HealthBefore, uint HealthAfter, uint AppliedIntended) ApplyDamage(
+		IDamageable<THealth> target,
+		uint                 healthBefore,
+		uint                 intendedDamage)
+	{
+		if (intendedDamage == 0)
+			return (healthBefore, healthBefore, 0);
+
+		uint appliedIntended = intendedDamage;
+		while (true)
+		{
+			var  snapshot      = target.Health;
+			uint currentHealth = snapshot.EffectiveCurrent;
+			uint clamped       = appliedIntended;
+
+			if (_config.ClampToCurrentHealth && clamped > currentHealth)
+				clamped = currentHealth;
+
+			if (clamped == 0)
+				return (currentHealth, currentHealth, 0);
+
+			var updated = snapshot.ApplyDamage(clamped);
+			if (!target.TryUpdateHealth(snapshot, updated))
+				continue;
+
+			return (currentHealth, updated.EffectiveCurrent, clamped);
+		}
+	}
+
+	private DamageContext<THealth> CreateContext(
+		in DamageRequest          request,
+		IDamageable<THealth>      target,
+		out List<DamageComponent> components)
+	{
+		components = BuildComponents(request);
+		uint healthBefore = target.Health.EffectiveCurrent;
+
+		return new(request, target, healthBefore, components);
+	}
+
+	private uint CalculateIntendedDamage(float rawTotal)
+	{
+		int roundedDamage = RoundDamage(rawTotal, _config.RoundingMode);
+
+		return ClampToUInt(roundedDamage, _config.MinimumAppliedDamage, _config.MaximumAppliedDamage);
+	}
+
+	private void ApplyRules(DamageContext<THealth> context)
+	{
+		for (var i = 0; i < _rules.Length; i++)
+			_rules[i].Apply(context);
 	}
 }
