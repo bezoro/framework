@@ -36,11 +36,11 @@ public readonly struct DamageResult(
 	public readonly uint AppliedDamage = appliedDamage;
 
 	/// <summary>
-	///     Gets the health value after damage was applied.
+	///     Gets the effective health value after damage was applied.
 	/// </summary>
 	public readonly uint HealthAfter = healthAfter;
 	/// <summary>
-	///     Gets the health value before damage was applied.
+	///     Gets the effective health value before damage was applied.
 	/// </summary>
 	public readonly uint HealthBefore = healthBefore;
 
@@ -50,7 +50,7 @@ public readonly struct DamageResult(
 	public readonly uint IntendedDamage = intendedDamage;
 
 	/// <summary>
-	///     Gets whether the target was reduced to zero or below.
+	///     Gets whether the target was reduced to zero or below in effective health.
 	/// </summary>
 	public bool WasFatal => HealthAfter == 0;
 

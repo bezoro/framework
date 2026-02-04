@@ -1,13 +1,15 @@
 using System;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
 using Bezoro.GameSystems.DamageSystem.Types;
+using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.DamageSystem.Resistances;
 
 /// <summary>
 ///     Applies resistances from an <see cref="IDamageResistanceProvider" />.
 /// </summary>
-public sealed class DamageResistanceRule : IDamageRule
+public sealed class DamageResistanceRule<THealth> : IDamageRule<THealth>
+	where THealth : struct, IDamageableHealth<THealth>
 {
 	private readonly IDamageResistanceProvider _provider;
 
@@ -20,7 +22,7 @@ public sealed class DamageResistanceRule : IDamageRule
 	}
 
 	/// <inheritdoc />
-	public void Apply(DamageContext context)
+	public void Apply(DamageContext<THealth> context)
 	{
 		if ((context.Request.Flags & DamageFlags.True) != 0)
 			return;

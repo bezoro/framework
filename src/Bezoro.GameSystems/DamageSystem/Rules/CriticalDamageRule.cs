@@ -1,13 +1,15 @@
 using System;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
 using Bezoro.GameSystems.DamageSystem.Types;
+using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.DamageSystem.Rules;
 
 /// <summary>
 ///     Applies a multiplier when <see cref="DamageFlags.Critical" /> is set.
 /// </summary>
-public sealed class CriticalDamageRule : IDamageRule
+public sealed class CriticalDamageRule<THealth> : IDamageRule<THealth>
+	where THealth : struct, IDamageableHealth<THealth>
 {
 	private readonly float _multiplier;
 
@@ -24,7 +26,7 @@ public sealed class CriticalDamageRule : IDamageRule
 	}
 
 	/// <inheritdoc />
-	public void Apply(DamageContext context)
+	public void Apply(DamageContext<THealth> context)
 	{
 		if ((context.Request.Flags & DamageFlags.Critical) == 0)
 			return;

@@ -17,14 +17,14 @@ public class DamageServiceApplyComponentsWithResolverTests
 	[Fact]
 	public void WhenCustomResolverProvided_ShouldForwardComponents()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 		var components = new List<DamageComponent>
 		{
 			new(DamageType.Lightning, 3f),
 			new(DamageType.Poison, 2f)
 		};
 
-		var resolver = Substitute.For<IDamageResolver>();
+		var resolver = Substitute.For<IDamageResolver<HealthWithExcess>>();
 		var expected = new DamageResult(
 			100u,
 			100u,
@@ -37,7 +37,7 @@ public class DamageServiceApplyComponentsWithResolverTests
 
 		DamageRequest? forwarded = null;
 
-		resolver.Resolve(Arg.Any<DamageRequest>(), Arg.Any<IDamageable>())
+		resolver.Resolve(Arg.Any<DamageRequest>(), Arg.Any<IDamageable<HealthWithExcess>>())
 				.Returns(callInfo =>
 					{
 						forwarded = callInfo.ArgAt<DamageRequest>(0);

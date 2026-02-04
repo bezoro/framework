@@ -14,7 +14,7 @@ public class DamageServiceApplyTypedTests
 	[Fact]
 	public void WhenTargetIsNull_ShouldThrow()
 	{
-		var act = () => DamageService.Apply(null!, 10f, DamageType.Fire);
+		var act = () => DamageService.Apply<HealthWithExcess>(null!, 10f, DamageType.Fire);
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("target");
 	}
@@ -22,7 +22,7 @@ public class DamageServiceApplyTypedTests
 	[Fact]
 	public void WhenValidTarget_ShouldApplySpecifiedTypeDamage()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 
 		var result = DamageService.Apply(target, 12f, DamageType.Fire);
 

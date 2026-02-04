@@ -1,18 +1,20 @@
 using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
+using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.DamageSystem.Types;
 
 /// <summary>
 ///     Mutable context passed through damage rules.
 /// </summary>
-public sealed class DamageContext
+public sealed class DamageContext<THealth>
+	where THealth : struct, IDamageableHealth<THealth>
 {
 	private readonly List<DamageComponent> _components;
 
 	internal DamageContext(
 		DamageRequest         request,
-		IDamageable           target,
+		IDamageable<THealth>  target,
 		uint                  healthBefore,
 		List<DamageComponent> components)
 	{
@@ -31,7 +33,7 @@ public sealed class DamageContext
 	/// <summary>
 	///     Gets the damageable target receiving damage.
 	/// </summary>
-	public IDamageable Target { get; }
+	public IDamageable<THealth> Target { get; }
 
 	/// <summary>
 	///     Gets the mutable component list.
@@ -39,7 +41,7 @@ public sealed class DamageContext
 	public IList<DamageComponent> Components => _components;
 
 	/// <summary>
-	///     Gets the health value before damage was applied.
+	///     Gets the effective health value before damage was applied.
 	/// </summary>
 	public uint HealthBefore { get; }
 

@@ -1,16 +1,25 @@
-using Bezoro.GameSystems.HealthSystem.Abstractions;
+using Bezoro.Core.Types;
 
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
 ///     Event payload describing a health mutation and its before/after state.
 /// </summary>
+/// <param name="Target">The target associated with the change.</param>
+/// <param name="Kind">The kind of change that occurred.</param>
+/// <param name="Value">The value passed to the change operation.</param>
+/// <param name="MaxUpdateMode">The max update mode used for max changes.</param>
+/// <param name="OldCurrent">The current health before the change.</param>
+/// <param name="OldMax">The max health before the change.</param>
+/// <param name="OldExcess">The excess health before the change.</param>
+/// <param name="NewCurrent">The current health after the change.</param>
+/// <param name="NewMax">The max health after the change.</param>
+/// <param name="NewExcess">The excess health after the change.</param>
 public readonly record struct HealthChangedEvent(
-	IHealth             Target,
+	object              Target,
 	HealthChangeKind    Kind,
 	uint                Value,
-	MaxHealthUpdateMode MaxUpdateMode,
-	bool                SupportsExcess,
+	MaxValueUpdateMode MaxUpdateMode,
 	uint                OldCurrent,
 	uint                OldMax,
 	uint                OldExcess,

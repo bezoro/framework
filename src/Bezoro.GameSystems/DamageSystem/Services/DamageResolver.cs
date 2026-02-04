@@ -2,22 +2,24 @@ using System;
 using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
 using Bezoro.GameSystems.DamageSystem.Types;
+using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.DamageSystem.Services;
 
 /// <summary>
 ///     Default damage resolver that applies optional rules and updates health.
 /// </summary>
-public sealed class DamageResolver : IDamageResolver
+public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
+	where THealth : struct, IDamageableHealth<THealth>
 {
-	private static readonly IDamageRule[]        EmptyRules = Array.Empty<IDamageRule>();
-	private readonly        DamageResolverConfig _config;
-	private readonly        IDamageRule[]        _rules;
+	private static readonly IDamageRule<THealth>[] EmptyRules = Array.Empty<IDamageRule<THealth>>();
+	private readonly DamageResolverConfig<THealth> _config;
+	private readonly IDamageRule<THealth>[]        _rules;
 
 	/// <summary>
 	///     Creates a resolver with the specified configuration.
 	/// </summary>
-	public DamageResolver(DamageResolverConfig config)
+	public DamageResolver(DamageResolverConfig<THealth> config)
 	{
 		_config = config;
 		_rules  = config.Rules is { Count: > 0 } ? CopyRules(config.Rules) : EmptyRules;
@@ -26,26 +28,26 @@ public sealed class DamageResolver : IDamageResolver
 	/// <summary>
 	///     Gets a basic resolver with no additional rules.
 	/// </summary>
-	public static DamageResolver Basic { get; } = new(new());
+	public static DamageResolver<THealth> Basic { get; } = new(new());
 
 	/// <inheritdoc />
-	public DamageResult Resolve(in DamageRequest request, IDamageable target)
+	public DamageResult Resolve(in DamageRequest request, IDamageable<THealth> target)
 	{
 		if (target is null)
 			throw new ArgumentNullException(nameof(target));
 
-		var  health       = target.Health;
-		uint healthBefore = health.Current;
-		var  components   = BuildComponents(request);
+		var  initialHealth      = target.Health;
+		uint contextHealthBefore = initialHealth.EffectiveCurrent;
+		var  components         = BuildComponents(request);
 
-		var context = new DamageContext(request, target, healthBefore, components);
+		var context = new DamageContext<THealth>(request, target, contextHealthBefore, components);
 		for (var i = 0; i < _rules.Length; i++)
 			_rules[i].Apply(context);
 
 		if (context.IsCancelled)
 			return new(
-				healthBefore,
-				health.Current,
+				contextHealthBefore,
+				contextHealthBefore,
 				0,
 				0,
 				0f,
@@ -63,13 +65,42 @@ public sealed class DamageResolver : IDamageResolver
 		int  roundedDamage  = RoundDamage(rawTotal, _config.RoundingMode);
 		uint intendedDamage = ClampToUInt(roundedDamage, _config.MinimumAppliedDamage, _config.MaximumAppliedDamage);
 
-		if (_config.ClampToCurrentHealth && intendedDamage > healthBefore)
-			intendedDamage = healthBefore;
+		uint healthBefore = contextHealthBefore;
+		uint healthAfter  = contextHealthBefore;
 
 		if (intendedDamage != 0)
-			health.DecreaseCurrentHealthBy(intendedDamage);
+		{
+			uint appliedIntended = intendedDamage;
+			while (true)
+			{
+				var  snapshot      = target.Health;
+				uint currentHealth = snapshot.EffectiveCurrent;
+				uint clamped       = appliedIntended;
 
-		uint healthAfter   = health.Current;
+				if (_config.ClampToCurrentHealth && clamped > currentHealth)
+					clamped = currentHealth;
+
+				if (clamped == 0)
+				{
+					healthBefore    = currentHealth;
+					healthAfter     = currentHealth;
+					appliedIntended = 0;
+					break;
+				}
+
+				var updated = snapshot.ApplyDamage(clamped);
+				if (!target.TryUpdateHealth(snapshot, updated))
+					continue;
+
+				healthBefore    = currentHealth;
+				healthAfter     = updated.EffectiveCurrent;
+				appliedIntended = clamped;
+				break;
+			}
+
+			intendedDamage = appliedIntended;
+		}
+
 		uint appliedDamage = healthBefore > healthAfter ? healthBefore - healthAfter : 0;
 
 		return new(
@@ -92,9 +123,9 @@ public sealed class DamageResolver : IDamageResolver
 		return total;
 	}
 
-	private static IDamageRule[] CopyRules(IReadOnlyList<IDamageRule> rules)
+	private static IDamageRule<THealth>[] CopyRules(IReadOnlyList<IDamageRule<THealth>> rules)
 	{
-		var array = new IDamageRule[rules.Count];
+		var array = new IDamageRule<THealth>[rules.Count];
 		for (var i = 0; i < rules.Count; i++)
 			array[i] = rules[i];
 

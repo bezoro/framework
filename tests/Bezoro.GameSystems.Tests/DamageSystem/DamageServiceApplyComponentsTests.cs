@@ -14,7 +14,7 @@ public class DamageServiceApplyComponentsTests
 	[Fact]
 	public void WhenComponentsIsNull_ShouldThrow()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 		var act    = () => DamageService.Apply(target, null!);
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("components");
@@ -23,7 +23,7 @@ public class DamageServiceApplyComponentsTests
 	[Fact]
 	public void WhenResolverIsNull_ShouldApplyComponentsUsingDefaultResolver()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 		var components = new[]
 		{
 			new DamageComponent(DamageType.Fire, 7f),
@@ -40,7 +40,7 @@ public class DamageServiceApplyComponentsTests
 	[Fact]
 	public void WhenTargetIsNull_ShouldThrow()
 	{
-		var act = () => DamageService.Apply(null!, Array.Empty<DamageComponent>());
+		var act = () => DamageService.Apply<HealthWithExcess>(null!, Array.Empty<DamageComponent>());
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("target");
 	}

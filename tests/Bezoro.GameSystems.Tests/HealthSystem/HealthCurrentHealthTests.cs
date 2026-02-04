@@ -9,36 +9,33 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthCurrentHealthTests
 {
 	[Fact]
-	public void WhenDecreasing_ShouldConsumeExcessFirst()
+	public void WhenDecreasing_ShouldReduceCurrent()
 	{
-		var health = new Health(100u, 50u, 20u);
+		var health = new Health(100u, 50u);
 
-		health.DecreaseCurrentHealthBy(10u);
+		health = health.DecreaseCurrentHealthBy(10u);
 
-		health.Current.Should().Be(50u);
-		health.Excess.Should().Be(10u);
+		health.Current.Should().Be(40u);
 	}
 
 	[Fact]
-	public void WhenDecreasingBeyondTotal_ShouldSetCurrentAndExcessToZero()
+	public void WhenDecreasingBeyondTotal_ShouldSetCurrentToZero()
 	{
-		var health = new Health(100u, 10u, 5u);
+		var health = new Health(100u, 10u);
 
-		health.DecreaseCurrentHealthBy(20u);
+		health = health.DecreaseCurrentHealthBy(20u);
 
 		health.Current.Should().Be(0u);
-		health.Excess.Should().Be(0u);
 	}
 
 	[Fact]
-	public void WhenDecreasingPastExcess_ShouldReduceCurrent()
+	public void WhenDecreasingToExactZero_ShouldClampToZero()
 	{
-		var health = new Health(100u, 50u, 20u);
+		var health = new Health(100u, 25u);
 
-		health.DecreaseCurrentHealthBy(25u);
+		health = health.DecreaseCurrentHealthBy(25u);
 
-		health.Current.Should().Be(45u);
-		health.Excess.Should().Be(0u);
+		health.Current.Should().Be(0u);
 	}
 
 	[Fact]
@@ -46,44 +43,31 @@ public class HealthCurrentHealthTests
 	{
 		var health = new Health(75u, 30u);
 
-		health.DepleteCurrentHealth();
+		health = health.DepleteCurrentHealth();
 		health.Current.Should().Be(0u);
 
-		health.FullyRestoreCurrentHealth();
+		health = health.FullyRestoreCurrentHealth();
 		health.Current.Should().Be(75u);
 	}
 
 	[Fact]
-	public void WhenIncreasingPastMax_ShouldFillCurrentAndAddExcess()
+	public void WhenRestoringPastMax_ShouldClampToMax()
 	{
 		var health = new Health(100u, 90u);
 
-		health.IncreaseCurrentHealthBy(20u);
+		health = health.RestoreCurrentHealthBy(20u);
 
 		health.Current.Should().Be(100u);
-		health.Excess.Should().Be(10u);
 	}
 
 	[Fact]
-	public void WhenIncreasingUnderMax_ShouldIncreaseCurrentOnly()
+	public void WhenRestoringUnderMax_ShouldIncreaseCurrentOnly()
 	{
 		var health = new Health(100u, 40u);
 
-		health.IncreaseCurrentHealthBy(10u);
+		health = health.RestoreCurrentHealthBy(10u);
 
 		health.Current.Should().Be(50u);
-		health.Excess.Should().Be(0u);
-	}
-
-	[Fact]
-	public void WhenRestoringPastMax_ShouldNotCreateExcess()
-	{
-		var health = new Health(100u, 90u, 5u);
-
-		health.RestoreCurrentHealthBy(20u);
-
-		health.Current.Should().Be(100u);
-		health.Excess.Should().Be(5u);
 	}
 
 	[Fact]
@@ -91,20 +75,19 @@ public class HealthCurrentHealthTests
 	{
 		var health = new Health(100u, 20u);
 
-		health.SetCurrentHealthTo(150u);
+		health = health.SetCurrentHealthTo(150u);
 
 		health.Current.Should().Be(100u);
 	}
 
 	[Fact]
-	public void WhenSumExceedsUIntMax_ShouldNotLoseOverflow()
+	public void WhenRestoreSumExceedsUIntMax_ShouldClampToMax()
 	{
 		uint max    = uint.MaxValue - 1u;
 		var  health = new Health(max, max);
 
-		health.IncreaseCurrentHealthBy(10u);
+		health = health.RestoreCurrentHealthBy(10u);
 
 		health.Current.Should().Be(max);
-		health.Excess.Should().Be(10u);
 	}
 }

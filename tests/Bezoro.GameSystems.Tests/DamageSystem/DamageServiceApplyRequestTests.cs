@@ -14,7 +14,7 @@ public class DamageServiceApplyRequestTests
 	[Fact]
 	public void WhenTargetIsNull_ShouldThrow()
 	{
-		var act = () => DamageService.Apply(null!, new DamageRequest(10f, DamageType.Physical));
+		var act = () => DamageService.Apply<HealthWithExcess>(null!, new DamageRequest(10f, DamageType.Physical));
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("target");
 	}
@@ -23,11 +23,11 @@ public class DamageServiceApplyRequestTests
 	public void WhenUsingDefaultResolver_ShouldMatchDefaultResolver()
 	{
 		var request        = new DamageRequest(15f, DamageType.Physical, 1.5f, 2f);
-		var serviceTarget  = new TestDamageable(new Health(100u, 100u));
-		var resolverTarget = new TestDamageable(new Health(100u, 100u));
+		var serviceTarget  = new TestDamageable<HealthWithExcess>(new(100u, 100u));
+		var resolverTarget = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 
 		var serviceResult  = DamageService.Apply(serviceTarget, request);
-		var resolverResult = DamageService.DefaultResolver.Resolve(request, resolverTarget);
+		var resolverResult = DamageResolver<HealthWithExcess>.Basic.Resolve(request, resolverTarget);
 
 		serviceTarget.Health.Current.Should().Be(resolverTarget.Health.Current);
 		serviceResult.HealthBefore.Should().Be(resolverResult.HealthBefore);

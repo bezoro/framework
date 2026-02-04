@@ -13,7 +13,6 @@ public readonly struct DamageRequest(
 	float                           flatBonus  = 0f,
 	DamageFlags                     flags      = DamageFlags.None,
 	IDamageSource?                  source     = null,
-	IDamageable?                    target     = null,
 	IReadOnlyList<DamageComponent>? components = null
 )
 {
@@ -42,14 +41,8 @@ public readonly struct DamageRequest(
 	public readonly float Multiplier = multiplier;
 
 	/// <summary>
-	///     Gets the optional target of the damage (defender, hitbox).
-	///     Use <see cref="DamageContext" /> for extra metadata.
-	/// </summary>
-	public readonly IDamageable? Target = target;
-
-	/// <summary>
 	///     Gets the optional source of the damage (attacker, skill, projectile).
-	///     Use <see cref="DamageContext" /> for extra metadata.
+	///     Use the damage context for extra metadata.
 	/// </summary>
 	public readonly IDamageSource? Source = source;
 
@@ -71,9 +64,8 @@ public readonly struct DamageRequest(
 		float                          multiplier = 1f,
 		float                          flatBonus  = 0f,
 		DamageFlags                    flags      = DamageFlags.None,
-		IDamageSource?                 source     = null,
-		IDamageable?                   target     = null)
-		=> new(0f, DamageType.Unspecified, multiplier, flatBonus, flags, source, target, components);
+		IDamageSource?                 source     = null)
+		=> new(0f, DamageType.Unspecified, multiplier, flatBonus, flags, source, components);
 
 	/// <summary>
 	///     Creates a simple single-component damage request.

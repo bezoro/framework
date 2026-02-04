@@ -9,22 +9,20 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthConstructorTests
 {
 	[Fact]
-	public void WhenCurrentExceedsMax_ShouldClampAndAddOverflowToExcess()
+	public void WhenCurrentExceedsMax_ShouldClampToMax()
 	{
-		var health = new Health(100u, 120u, 5u);
+		var health = new Health(100u, 120u);
 
 		health.Max.Should().Be(100u);
 		health.Current.Should().Be(100u);
-		health.Excess.Should().Be(25u);
 	}
 
 	[Fact]
-	public void WhenMaxIsZero_ShouldClampCurrentAndCarryOverflowToExcess()
+	public void WhenMaxIsZero_ShouldClampCurrentToZero()
 	{
-		var health = new Health(0u, 25u, 10u);
+		var health = new Health(0u, 25u);
 
 		health.Max.Should().Be(0u);
 		health.Current.Should().Be(0u);
-		health.Excess.Should().Be(35u);
 	}
 }

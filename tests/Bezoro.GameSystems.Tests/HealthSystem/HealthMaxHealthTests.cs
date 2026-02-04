@@ -1,3 +1,4 @@
+using Bezoro.Core.Types;
 using Bezoro.GameSystems.HealthSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -9,15 +10,14 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthMaxHealthTests
 {
 	[Fact]
-	public void WhenClampingMax_ShouldClampCurrentAndPreserveExcess()
+	public void WhenClampingMax_ShouldClampCurrent()
 	{
-		var health = new Health(100u, 90u, 20u);
+		var health = new Health(100u, 90u);
 
-		health.SetMaxHealthTo(50u, MaxHealthUpdateMode.ClampCurrent);
+		health = health.SetMaxHealthTo(50u, MaxValueUpdateMode.ClampCurrent);
 
 		health.Max.Should().Be(50u);
 		health.Current.Should().Be(50u);
-		health.Excess.Should().Be(20u);
 	}
 
 	[Fact]
@@ -25,7 +25,7 @@ public class HealthMaxHealthTests
 	{
 		var health = new Health(100u, 80u);
 
-		health.DecreaseMaxHealthBy(200u);
+		health = health.DecreaseMaxHealthBy(200u, MaxValueUpdateMode.ClampCurrent);
 
 		health.Max.Should().Be(0u);
 		health.Current.Should().Be(0u);
@@ -37,10 +37,21 @@ public class HealthMaxHealthTests
 		uint max    = uint.MaxValue - 1u;
 		var  health = new Health(max, 10u);
 
-		health.IncreaseMaxHealthBy(10u);
+		health = health.IncreaseMaxHealthBy(10u, MaxValueUpdateMode.ClampCurrent);
 
 		health.Max.Should().Be(uint.MaxValue);
 		health.Current.Should().Be(10u);
+	}
+
+	[Fact]
+	public void WhenIncreasingMaxWithPreservePercentage_ShouldScaleCurrent()
+	{
+		var health = new Health(100u, 25u);
+
+		health = health.IncreaseMaxHealthBy(100u, MaxValueUpdateMode.PreservePercentage);
+
+		health.Max.Should().Be(200u);
+		health.Current.Should().Be(50u);
 	}
 
 	[Fact]
@@ -48,7 +59,7 @@ public class HealthMaxHealthTests
 	{
 		var health = new Health(2u, 1u);
 
-		health.SetMaxHealthTo(1u, MaxHealthUpdateMode.PreservePercentage);
+		health = health.SetMaxHealthTo(1u, MaxValueUpdateMode.PreservePercentage);
 
 		health.Current.Should().Be(1u);
 	}
@@ -58,7 +69,7 @@ public class HealthMaxHealthTests
 	{
 		var health = new Health(100u, 25u);
 
-		health.SetMaxHealthTo(200u, MaxHealthUpdateMode.PreservePercentage);
+		health = health.SetMaxHealthTo(200u, MaxValueUpdateMode.PreservePercentage);
 
 		health.Max.Should().Be(200u);
 		health.Current.Should().Be(50u);
@@ -69,7 +80,7 @@ public class HealthMaxHealthTests
 	{
 		var health = new Health(0u, 0u);
 
-		health.SetMaxHealthTo(10u, MaxHealthUpdateMode.PreservePercentage);
+		health = health.SetMaxHealthTo(10u, MaxValueUpdateMode.PreservePercentage);
 
 		health.Max.Should().Be(10u);
 		health.Current.Should().Be(0u);

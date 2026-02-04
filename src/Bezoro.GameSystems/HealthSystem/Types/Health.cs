@@ -1,221 +1,123 @@
-using System;
-using System.Threading;
 using Bezoro.Core.Types;
 using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
-///     Default health implementation with optional excess health support.
-///     All mutations are thread-safe and ordered FIFO via an internal ticket lock.
+///     Default health implementation.
 /// </summary>
-public sealed class Health : IHealth, IExcessHealth
+/// <remarks>
+///     Immutable value type. Operations return updated instances.
+/// </remarks>
+public readonly record struct Health : IDamageableHealth<Health>
 {
-	private readonly object _sync = new();
-	private          long   _nextTicket;
-	private          long   _servingTicket = 1;
+	private readonly UIntRange _range;
 
+	/// <summary>
+	///     Initializes a new health instance with current set to max.
+	/// </summary>
+	/// <param name="max">The maximum health.</param>
 	public Health(uint max) : this(max, max) { }
 
-	public Health(uint max, uint current, uint excess = 0u)
+	/// <summary>
+	///     Initializes a new health instance.
+	/// </summary>
+	/// <param name="max">The maximum health.</param>
+	/// <param name="current">The current health.</param>
+	public Health(uint max, uint current)
 	{
-		Max = max;
-
-		uint clampedCurrent = current > Max ? Max : current;
-		uint overflow       = current > clampedCurrent ? current - clampedCurrent : 0u;
-
-		Current = clampedCurrent;
-		Excess  = Saturate((ulong)excess + overflow);
+		_range = new(max, current);
 	}
 
-	public Percent Percentage
+	private Health(UIntRange range)
 	{
-		get
-		{
-			lock (_sync)
-			{
-				return new(Current, Max);
-			}
-		}
+		_range = range;
 	}
 
-	public uint Current { get; private set; }
-	public uint Excess  { get; private set; }
-	public uint Max     { get; private set; }
+	/// <summary>
+	///     Gets the current health as a percentage of max.
+	/// </summary>
+	public Percent Percentage => _range.Percentage;
 
-	public void DecreaseCurrentHealthBy(uint value)
-	{
-		if (value == 0) return;
+	/// <summary>
+	///     Gets the current health value.
+	/// </summary>
+	public uint Current => _range.Current;
 
-		ExecuteOrdered(() =>
-			{
-				uint remaining = value;
-				if (Excess > 0)
-				{
-					uint absorbed = Excess >= remaining ? remaining : Excess;
-					Excess    -= absorbed;
-					remaining -= absorbed;
-				}
+	/// <summary>
+	///     Gets the effective current health used for damage calculations.
+	/// </summary>
+	public uint EffectiveCurrent => Current;
 
-				if (remaining > 0)
-					Current = remaining >= Current ? 0u : Current - remaining;
-			}
-		);
-	}
+	/// <summary>
+	///     Gets the maximum health value.
+	/// </summary>
+	public uint Max => _range.Max;
 
-	public void DecreaseExcessHealthBy(uint value)
-	{
-		if (value == 0) return;
+	/// <summary>
+	///     Returns a new health with current decreased by the specified amount, clamped to zero.
+	/// </summary>
+	/// <param name="value">The amount to subtract from current.</param>
+	/// <returns>The updated health.</returns>
+	public Health DecreaseCurrentHealthBy(uint value) => new(_range.Decrease(value));
 
-		ExecuteOrdered(() => Excess = value >= Excess ? 0u : Excess - value);
-	}
+	/// <summary>
+	///     Applies damage and returns the updated health.
+	/// </summary>
+	/// <param name="amount">The amount of damage to apply.</param>
+	/// <returns>The updated health.</returns>
+	public Health ApplyDamage(uint amount) => DecreaseCurrentHealthBy(amount);
 
-	public void DecreaseMaxHealthBy(uint value)
-	{
-		if (value == 0) return;
+	/// <summary>
+	///     Returns a new health with max decreased and current updated based on the chosen mode.
+	/// </summary>
+	/// <param name="value">The amount to subtract from max.</param>
+	/// <param name="mode">How to update current relative to the new max.</param>
+	/// <returns>The updated health.</returns>
+	public Health DecreaseMaxHealthBy(uint value, MaxValueUpdateMode mode) =>
+		new(_range.DecreaseMax(value, mode));
 
-		ExecuteOrdered(() =>
-			{
-				uint newMax = value >= Max ? 0u : Max - value;
-				SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
-			}
-		);
-	}
+	/// <summary>
+	///     Returns a new health with current set to zero.
+	/// </summary>
+	/// <returns>The updated health.</returns>
+	public Health DepleteCurrentHealth() => new(_range.Deplete());
 
-	public void DepleteCurrentHealth()
-	{
-		ExecuteOrdered(() => Current = 0);
-	}
+	/// <summary>
+	///     Returns a new health with current fully restored to max.
+	/// </summary>
+	/// <returns>The updated health.</returns>
+	public Health FullyRestoreCurrentHealth() => new(_range.FullyRestore());
 
-	public void DepleteExcessHealth()
-	{
-		ExecuteOrdered(() => Excess = 0);
-	}
+	/// <summary>
+	///     Returns a new health with max increased and current updated based on the chosen mode.
+	/// </summary>
+	/// <param name="value">The amount to add to max.</param>
+	/// <param name="mode">How to update current relative to the new max.</param>
+	/// <returns>The updated health.</returns>
+	public Health IncreaseMaxHealthBy(uint value, MaxValueUpdateMode mode) =>
+		new(_range.IncreaseMax(value, mode));
 
-	public void FullyRestoreCurrentHealth()
-	{
-		ExecuteOrdered(() => Current = Max);
-	}
+	/// <summary>
+	///     Returns a new health with current restored by the specified amount, capped at max.
+	/// </summary>
+	/// <param name="value">The amount to restore.</param>
+	/// <returns>The updated health.</returns>
+	public Health RestoreCurrentHealthBy(uint value) => new(_range.Restore(value));
 
-	public void IncreaseCurrentHealthBy(uint value)
-	{
-		if (value == 0) return;
+	/// <summary>
+	///     Returns a new health with current set to the specified value, clamped to max.
+	/// </summary>
+	/// <param name="value">The new current health.</param>
+	/// <returns>The updated health.</returns>
+	public Health SetCurrentHealthTo(uint value) => new(_range.SetCurrent(value));
 
-		ExecuteOrdered(() =>
-			{
-				ulong sum = (ulong)Current + value;
-				if (sum <= Max)
-				{
-					Current = (uint)sum;
-					return;
-				}
-
-				Current = Max;
-				AddExcessInternal(sum - Max);
-			}
-		);
-	}
-
-	public void IncreaseExcessHealthBy(uint value)
-	{
-		if (value == 0) return;
-
-		ExecuteOrdered(() => AddExcessInternal(value));
-	}
-
-	public void IncreaseMaxHealthBy(uint value)
-	{
-		if (value == 0) return;
-
-		ExecuteOrdered(() =>
-			{
-				uint newMax = Saturate((ulong)Max + value);
-				SetMaxHealthToInternal(newMax, MaxHealthUpdateMode.ClampCurrent);
-			}
-		);
-	}
-
-	public void RestoreCurrentHealthBy(uint value)
-	{
-		if (value == 0) return;
-
-		ExecuteOrdered(() =>
-			{
-				ulong newCurrent = (ulong)Current + value;
-				Current = newCurrent >= Max ? Max : (uint)newCurrent;
-			}
-		);
-	}
-
-	public void SetCurrentHealthTo(uint value)
-	{
-		ExecuteOrdered(() => Current = value > Max ? Max : value);
-	}
-
-	public void SetExcessHealthTo(uint value)
-	{
-		ExecuteOrdered(() => Excess = value);
-	}
-
-	public void SetMaxHealthTo(uint value)
-	{
-		ExecuteOrdered(() => SetMaxHealthToInternal(value, MaxHealthUpdateMode.ClampCurrent));
-	}
-
-	public void SetMaxHealthTo(uint value, MaxHealthUpdateMode mode)
-	{
-		ExecuteOrdered(() => SetMaxHealthToInternal(value, mode));
-	}
-
-	private static uint Saturate(ulong value) => value >= uint.MaxValue ? uint.MaxValue : (uint)value;
-
-	private void AddExcessInternal(ulong value)
-	{
-		if (value == 0) return;
-
-		Excess = Saturate(Excess + value);
-	}
-
-	private void ExecuteOrdered(Action action)
-	{
-		long ticket = Interlocked.Increment(ref _nextTicket);
-		lock (_sync)
-		{
-			while (ticket != _servingTicket)
-				Monitor.Wait(_sync);
-
-			try
-			{
-				action();
-			}
-			finally
-			{
-				_servingTicket++;
-				Monitor.PulseAll(_sync);
-			}
-		}
-	}
-
-	private void SetMaxHealthToInternal(uint value, MaxHealthUpdateMode mode)
-	{
-		uint oldMax = Max;
-		uint newMax = value;
-
-		switch (mode)
-		{
-			case MaxHealthUpdateMode.PreservePercentage when oldMax > 0:
-			{
-				float percent = (float)Current / oldMax;
-				var   scaled  = (uint)MathF.Round(percent * newMax, MidpointRounding.AwayFromZero);
-				Current = scaled > newMax ? newMax : scaled;
-				break;
-			}
-			case MaxHealthUpdateMode.ClampCurrent:
-			default:
-				Current = Current > newMax ? newMax : Current;
-				break;
-		}
-
-		Max = newMax;
-	}
+	/// <summary>
+	///     Returns a new health with max set and current updated based on the chosen mode.
+	/// </summary>
+	/// <param name="value">The new maximum health.</param>
+	/// <param name="mode">How to update current relative to the new max.</param>
+	/// <returns>The updated health.</returns>
+	public Health SetMaxHealthTo(uint value, MaxValueUpdateMode mode) =>
+		new(_range.SetMax(value, mode));
 }

@@ -16,7 +16,7 @@ public class DamageServiceApplyRequestWithResolverTests
 	[Fact]
 	public void WhenCustomResolverProvided_ShouldForwardRequestAndReturnResult()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 		var request = new DamageRequest(
 			7f,
 			DamageType.Magic,
@@ -25,7 +25,7 @@ public class DamageServiceApplyRequestWithResolverTests
 			DamageFlags.Critical
 		);
 
-		var resolver = Substitute.For<IDamageResolver>();
+		var resolver = Substitute.For<IDamageResolver<HealthWithExcess>>();
 		var expected = new DamageResult(
 			100u,
 			100u,
@@ -38,7 +38,7 @@ public class DamageServiceApplyRequestWithResolverTests
 
 		DamageRequest? forwarded = null;
 
-		resolver.Resolve(Arg.Any<DamageRequest>(), Arg.Any<IDamageable>())
+		resolver.Resolve(Arg.Any<DamageRequest>(), Arg.Any<IDamageable<HealthWithExcess>>())
 				.Returns(callInfo =>
 					{
 						forwarded = callInfo.ArgAt<DamageRequest>(0);
@@ -66,7 +66,7 @@ public class DamageServiceApplyRequestWithResolverTests
 	[Fact]
 	public void WhenResolverIsNull_ShouldThrow()
 	{
-		var target = new TestDamageable(new Health(100u, 100u));
+		var target = new TestDamageable<HealthWithExcess>(new(100u, 100u));
 		var act    = () => DamageService.Apply(target, new DamageRequest(1f, DamageType.Fire), null!);
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("resolver");
@@ -75,8 +75,8 @@ public class DamageServiceApplyRequestWithResolverTests
 	[Fact]
 	public void WhenTargetIsNull_ShouldThrow()
 	{
-		var resolver = Substitute.For<IDamageResolver>();
-		var act      = () => DamageService.Apply(null!, new DamageRequest(1f, DamageType.Fire), resolver);
+		var resolver = Substitute.For<IDamageResolver<HealthWithExcess>>();
+		var act      = () => DamageService.Apply<HealthWithExcess>(null!, new DamageRequest(1f, DamageType.Fire), resolver);
 
 		act.Should().Throw<ArgumentNullException>().WithParameterName("target");
 	}

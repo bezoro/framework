@@ -1,18 +1,20 @@
 using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
+using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.DamageSystem.Types;
 
 /// <summary>
 ///     Configuration options for the damage resolver.
 /// </summary>
-public readonly struct DamageResolverConfig(
-	IReadOnlyList<IDamageRule>? rules                = null,
-	DamageRoundingMode          roundingMode         = DamageRoundingMode.RoundToNearest,
-	uint                        minimumAppliedDamage = 0,
-	uint?                       maximumAppliedDamage = null,
-	bool                        clampToCurrentHealth = true
+public readonly struct DamageResolverConfig<THealth>(
+	IReadOnlyList<IDamageRule<THealth>>? rules       = null,
+	DamageRoundingMode                  roundingMode = DamageRoundingMode.RoundToNearest,
+	uint                                minimumAppliedDamage = 0,
+	uint?                               maximumAppliedDamage = null,
+	bool                                clampToCurrentHealth = true
 )
+	where THealth : struct, IDamageableHealth<THealth>
 {
 	/// <summary>
 	///     Gets whether the intended damage should be clamped to the current health.
@@ -26,7 +28,7 @@ public readonly struct DamageResolverConfig(
 	/// <summary>
 	///     Gets the rules applied during resolution in order.
 	/// </summary>
-	public readonly IReadOnlyList<IDamageRule>? Rules = rules;
+	public readonly IReadOnlyList<IDamageRule<THealth>>? Rules = rules;
 
 	/// <summary>
 	///     Gets the minimum applied damage after rounding.
