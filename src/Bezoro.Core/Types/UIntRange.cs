@@ -1,7 +1,7 @@
 namespace Bezoro.Core.Types;
 
 /// <summary>
-///     Represents a bounded unsigned integer range with current and maximum values.
+///     Represents a bounded unsigned integer range with minimum, current, and maximum values.
 /// </summary>
 /// <remarks>
 ///     Immutable value type. Use the instance methods to create updated ranges.
@@ -9,20 +9,24 @@ namespace Bezoro.Core.Types;
 public readonly record struct UIntRange
 {
 	/// <summary>
-	///     Initializes a new range with the specified max and current value.
+	///     Initializes a new range with the specified value as both max and current.
+	/// </summary>
+	/// <param name="value">The current and maximum value.</param>
+	public UIntRange(uint value)
+		: this(value, value) { }
+
+	/// <summary>
+	///     Initializes a new range with the specified maximum, current, and minimum value.
 	/// </summary>
 	/// <param name="max">The maximum value.</param>
 	/// <param name="current">The current value.</param>
-	public UIntRange(uint max, uint current)
+	/// <param name="min">The minimum value.</param>
+	public UIntRange(uint max, uint current, uint min = 0u)
 	{
-		Max     = max;
-		Current = current > max ? max : current;
+		Min     = min;
+		Max     = max < min ? min : max;
+		Current = Clamp(current, Min, Max);
 	}
-
-	/// <summary>
-	///     Gets the minimum value for the range (always zero).
-	/// </summary>
-	public static uint Min => 0u;
 
 	/// <summary>
 	///     Gets the current value as a percentage of the maximum.
@@ -40,55 +44,58 @@ public readonly record struct UIntRange
 	public uint Max { get; }
 
 	/// <summary>
-	///     Returns a new range with the current value decreased by the specified amount, clamped to zero.
+	///     Gets the minimum value for the range.
+	/// </summary>
+	public uint Min { get; }
+
+	/// <summary>
+	///     Returns a new range with the current value decreased by the specified amount, clamped to min.
 	/// </summary>
 	public UIntRange Decrease(uint value)
 	{
-		if (value == 0) return this;
+		if (value == 0 || Current <= Min) return this;
 
-		uint newCurrent = value >= Current ? 0u : Current - value;
-		return new(Max, newCurrent);
+		uint deltaToMin = Current - Min;
+		uint newCurrent = value >= deltaToMin ? Min : Current - value;
+		return new(Max, newCurrent, Min);
 	}
 
 	/// <summary>
-	///     Returns a new range with the maximum value decreased, clamped to zero, and current updated accordingly.
+	///     Returns a new range with the maximum value decreased, clamped to min, and current updated accordingly.
 	/// </summary>
 	/// <param name="value">The amount to subtract from the maximum value.</param>
-	/// <param name="preservePercentage">
-	///     Whether to preserve the current percentage relative to the previous max.
-	/// </param>
-	public UIntRange DecreaseMax(uint value, bool preservePercentage)
+	/// <param name="mode">How to update the current value relative to the new maximum.</param>
+	public UIntRange DecreaseMax(uint value, MaxValueUpdateMode mode)
 	{
 		if (value == 0) return this;
 
-		uint newMax = value >= Max ? 0u : Max - value;
-		return SetMax(newMax, preservePercentage);
+		uint maxSpan = Max - Min;
+		uint newMax  = value >= maxSpan ? Min : Max - value;
+		return SetMax(newMax, mode);
 	}
 
 	/// <summary>
-	///     Returns a new range with the current value set to zero.
+	///     Returns a new range with the current value set to min.
 	/// </summary>
-	public UIntRange Deplete() => new(Max, 0u);
+	public UIntRange Deplete() => new(Max, Min, Min);
 
 	/// <summary>
 	///     Returns a new range with the current value set to max.
 	/// </summary>
-	public UIntRange FullyRestore() => new(Max, Max);
+	public UIntRange FullyRestore() => new(Max, Max, Min);
 
 	/// <summary>
 	///     Returns a new range with the maximum value increased, saturated at <see cref="uint.MaxValue" />, and current
 	///     updated accordingly.
 	/// </summary>
 	/// <param name="value">The amount to add to the maximum value.</param>
-	/// <param name="preservePercentage">
-	///     Whether to preserve the current percentage relative to the previous max.
-	/// </param>
-	public UIntRange IncreaseMax(uint value, bool preservePercentage)
+	/// <param name="mode">How to update the current value relative to the new maximum.</param>
+	public UIntRange IncreaseMax(uint value, MaxValueUpdateMode mode)
 	{
 		if (value == 0) return this;
 
 		uint newMax = Saturate((ulong)Max + value);
-		return SetMax(newMax, preservePercentage);
+		return SetMax(newMax, mode);
 	}
 
 	/// <summary>
@@ -100,44 +107,49 @@ public readonly record struct UIntRange
 
 		ulong sum        = (ulong)Current + value;
 		uint  newCurrent = sum >= Max ? Max : (uint)sum;
-		return new(Max, newCurrent);
+		return new(Max, newCurrent, Min);
 	}
 
 	/// <summary>
-	///     Returns a new range with the current value set, clamped to max.
+	///     Returns a new range with the current value set, clamped to min and max.
 	/// </summary>
-	public UIntRange SetCurrent(uint value) => new(Max, value);
+	public UIntRange SetCurrent(uint value) => new(Max, value, Min);
 
 	/// <summary>
 	///     Returns a new range with the maximum value set and current updated based on the chosen mode.
 	/// </summary>
 	/// <param name="value">The new maximum value.</param>
-	/// <param name="preservePercentage">
-	///     Whether to preserve the current percentage relative to the previous max.
-	/// </param>
-	public UIntRange SetMax(uint value, bool preservePercentage) =>
-		preservePercentage
-			? SetMaxPreservePercentage(value)
-			: SetMaxClampCurrent(value);
-
-	/// <summary>
-	///     Returns a new range with the maximum value set and current clamped to the new max.
-	/// </summary>
-	/// <param name="value">The new maximum value.</param>
-	public UIntRange SetMaxClampCurrent(uint value)
+	/// <param name="mode">How to update the current value relative to the new maximum.</param>
+	public UIntRange SetMax(uint value, MaxValueUpdateMode mode)
 	{
-		uint newCurrent = Current > value ? value : Current;
-		return new(value, newCurrent);
+		uint newMax = value < Min ? Min : value;
+
+		return mode switch
+		{
+			MaxValueUpdateMode.PreservePercentage => SetMaxPreservePercentage(newMax),
+			MaxValueUpdateMode.ClampCurrent => SetMaxClampCurrent(newMax),
+			_ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Invalid MaxValueUpdateMode")
+		};
 	}
 
-	/// <summary>
-	///     Returns a new range with the maximum value set while preserving the current percentage.
-	/// </summary>
-	/// <param name="value">The new maximum value.</param>
-	public UIntRange SetMaxPreservePercentage(uint value)
+	private static uint Clamp(uint value, uint min, uint max)
+	{
+		if (value < min) return min;
+
+		return value > max ? max : value;
+	}
+
+	private static uint Saturate(ulong value) => value >= uint.MaxValue ? uint.MaxValue : (uint)value;
+
+	private UIntRange SetMaxClampCurrent(uint newMax)
+	{
+		uint newCurrent = Clamp(Current, Min, newMax);
+		return new(newMax, newCurrent, Min);
+	}
+
+	private UIntRange SetMaxPreservePercentage(uint newMax)
 	{
 		uint oldMax     = Max;
-		uint newMax     = value;
 		uint newCurrent = Current;
 
 		if (oldMax > 0)
@@ -151,8 +163,7 @@ public readonly record struct UIntRange
 			newCurrent = newMax;
 		}
 
-		return new(newMax, newCurrent);
+		newCurrent = Clamp(newCurrent, Min, newMax);
+		return new(newMax, newCurrent, Min);
 	}
-
-	private static uint Saturate(ulong value) => value >= uint.MaxValue ? uint.MaxValue : (uint)value;
 }
