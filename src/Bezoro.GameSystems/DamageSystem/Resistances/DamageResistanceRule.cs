@@ -22,20 +22,35 @@ public sealed class DamageResistanceRule<THealth> : IDamageRule<THealth>
 	}
 
 	/// <inheritdoc />
-	public void Apply(DamageContext<THealth> context)
+	public DamageContext<THealth> Apply(DamageContext<THealth> context)
 	{
 		if ((context.Request.Flags & DamageFlags.True) != 0)
-			return;
+			return context;
 
 		var components = context.Components;
+		DamageComponent[]? updated = null;
 		for (var i = 0; i < components.Count; i++)
 		{
 			var component = components[i];
 			if (!_provider.TryGetResistance(component.Type, out var resistance))
+			{
+				if (updated is not null)
+					updated[i] = component;
+
 				continue;
+			}
+
+			if (updated is null)
+			{
+				updated = new DamageComponent[components.Count];
+				for (var j = 0; j < i; j++)
+					updated[j] = components[j];
+			}
 
 			float adjusted = resistance.Apply(component.Amount);
-			components[i] = new(component.Type, adjusted);
+			updated[i] = new(component.Type, adjusted);
 		}
+
+		return updated is null ? context : context with { Components = updated };
 	}
 }

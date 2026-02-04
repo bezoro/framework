@@ -17,7 +17,7 @@ A lightweight, genre-agnostic damage pipeline built around `IDamageable<THealth>
 - **Multi-component damage**: Combine damage types in one hit
 - **Rule pipeline**: Optional `IDamageRule<THealth>` stages for advanced logic
 - **Configurable rounding/clamping**: Safe defaults with opt-out control
-- **Thread-safe updates**: `TryUpdateHealth` enables atomic health writes
+- **Thread-safe updates**: `DamageContext<THealth>` is immutable and `TryUpdateHealth` enables atomic health writes
 
 ## Quick Start
 
@@ -151,7 +151,7 @@ DamageService.Apply(new Enemy(), request);
 ## Order of Operations
 
 1. Build components (from `DamageRequest.Components` or `BaseAmount` + `Type`)
-2. Apply rules (`IDamageRule<THealth>.Apply`) to mutate components and context
+2. Apply rules (`IDamageRule<THealth>.Apply`) to return an updated context (may replace components or cancel)
 3. Sum component amounts
 4. Add flat bonuses (`request.FlatBonus` + `context.GlobalFlatBonus`)
 5. Apply multipliers (`request.Multiplier` * `context.GlobalMultiplier`)
@@ -233,6 +233,7 @@ Built-in types include `Physical`, `Fire`, `Ice`, `Lightning`, `Poison`, `Magic`
 ### Rules & Resistances
 
 - `IDamageRule<THealth>` lets you inject any custom rule (armor, shields, immunity)
+- `IDamageRule<THealth>.Apply` returns the updated context (use `AddFlatBonus`, `MultiplyAll`, `Cancel`, or `with`)
 - `DamageResistanceRule<THealth>` reads adjustments from `IDamageResistanceProvider`
 - `DamageResistanceTable` is a simple dictionary-based provider
 
@@ -240,4 +241,4 @@ Built-in types include `Physical`, `Fire`, `Ice`, `Lightning`, `Poison`, `Magic`
 
 - The resolver uses `EffectiveCurrent` for clamping and applied-damage calculations.
 - If `ClampToCurrentHealth` is true, intended damage is capped by effective current health.
-- Use `DamageContext<THealth>.Cancel()` inside a rule to nullify a hit.
+- Use `context = context.Cancel()` inside a rule to nullify a hit.

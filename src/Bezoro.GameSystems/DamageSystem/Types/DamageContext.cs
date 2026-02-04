@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Bezoro.GameSystems.DamageSystem.Abstractions;
 using Bezoro.GameSystems.HealthSystem.Abstractions;
@@ -5,23 +6,24 @@ using Bezoro.GameSystems.HealthSystem.Abstractions;
 namespace Bezoro.GameSystems.DamageSystem.Types;
 
 /// <summary>
-///     Mutable context passed through damage rules.
+///     Immutable context passed through damage rules.
 /// </summary>
-public sealed class DamageContext<THealth>
+/// <remarks>
+///     Thread-safe by design; mutations return a new context instance.
+/// </remarks>
+public readonly record struct DamageContext<THealth>
 	where THealth : struct, IDamageableHealth<THealth>
 {
-	private readonly List<DamageComponent> _components;
-
 	internal DamageContext(
-		DamageRequest         request,
-		IDamageable<THealth>  target,
-		uint                  healthBefore,
-		List<DamageComponent> components)
+		DamageRequest                 request,
+		IDamageable<THealth>          target,
+		uint                          healthBefore,
+		IReadOnlyList<DamageComponent> components)
 	{
 		Request          = request;
-		Target           = target;
+		Target           = target ?? throw new ArgumentNullException(nameof(target), "Target cannot be null.");
 		HealthBefore     = healthBefore;
-		_components      = components;
+		Components       = components ?? throw new ArgumentNullException(nameof(components), "Components cannot be null.");
 		GlobalMultiplier = 1f;
 	}
 
@@ -36,9 +38,9 @@ public sealed class DamageContext<THealth>
 	public IDamageable<THealth> Target { get; }
 
 	/// <summary>
-	///     Gets the mutable component list.
+	///     Gets the damage components snapshot.
 	/// </summary>
-	public IList<DamageComponent> Components => _components;
+	public IReadOnlyList<DamageComponent> Components { get; init; }
 
 	/// <summary>
 	///     Gets the effective health value before damage was applied.
@@ -48,30 +50,32 @@ public sealed class DamageContext<THealth>
 	/// <summary>
 	///     Gets whether the damage has been cancelled by a rule.
 	/// </summary>
-	public bool IsCancelled { get; private set; }
+	public bool IsCancelled { get; init; }
 
 	/// <summary>
-	///     Gets or sets a flat bonus added to the total.
+	///     Gets a flat bonus added to the total.
 	/// </summary>
-	public float GlobalFlatBonus { get; set; }
+	public float GlobalFlatBonus { get; init; }
 
 	/// <summary>
-	///     Gets or sets a multiplier applied to the total.
+	///     Gets a multiplier applied to the total.
 	/// </summary>
-	public float GlobalMultiplier { get; set; }
+	public float GlobalMultiplier { get; init; }
 
 	/// <summary>
-	///     Adds to the global flat bonus.
+	///     Adds to the global flat bonus and returns the updated context.
 	/// </summary>
-	public void AddFlatBonus(float flatBonus) => GlobalFlatBonus += flatBonus;
+	public DamageContext<THealth> AddFlatBonus(float flatBonus) =>
+		this with { GlobalFlatBonus = GlobalFlatBonus + flatBonus };
 
 	/// <summary>
-	///     Cancels the damage, resulting in zero applied damage.
+	///     Cancels the damage, resulting in zero applied damage, and returns the updated context.
 	/// </summary>
-	public void Cancel() => IsCancelled = true;
+	public DamageContext<THealth> Cancel() => this with { IsCancelled = true };
 
 	/// <summary>
-	///     Multiplies the current global multiplier.
+	///     Multiplies the current global multiplier and returns the updated context.
 	/// </summary>
-	public void MultiplyAll(float multiplier) => GlobalMultiplier *= multiplier;
+	public DamageContext<THealth> MultiplyAll(float multiplier) =>
+		this with { GlobalMultiplier = GlobalMultiplier * multiplier };
 }

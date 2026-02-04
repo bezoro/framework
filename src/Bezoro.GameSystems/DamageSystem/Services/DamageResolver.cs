@@ -36,11 +36,11 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 		if (target is null)
 			throw new ArgumentNullException(nameof(target));
 
-		var context = CreateContext(request, target, out var components);
-		ApplyRules(context);
+		var context = CreateContext(request, target);
+		context = ApplyRules(context);
 
 		if (context.IsCancelled)
-			return BuildCancelledResult(context.HealthBefore, components);
+			return BuildCancelledResult(context.HealthBefore, context.Components);
 
 		float rawTotal       = CalculateRawDamage(context, request);
 		uint  intendedDamage = CalculateIntendedDamage(rawTotal);
@@ -56,7 +56,7 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 			appliedIntended,
 			appliedDamage,
 			rawTotal,
-			components,
+			context.Components,
 			false
 		);
 	}
@@ -81,7 +81,7 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 		return float.IsNaN(rawTotal) || float.IsInfinity(rawTotal) ? 0f : rawTotal;
 	}
 
-	private static float SumComponents(IList<DamageComponent> components)
+	private static float SumComponents(IReadOnlyList<DamageComponent> components)
 	{
 		var total = 0f;
 		for (var i = 0; i < components.Count; i++)
@@ -111,16 +111,16 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 		};
 	}
 
-	private static List<DamageComponent> BuildComponents(in DamageRequest request)
+	private static DamageComponent[] BuildComponents(in DamageRequest request)
 	{
 		if (request.Components is not { Count: > 0 } components)
 			return [new(request.Type, request.BaseAmount)];
 
-		var list = new List<DamageComponent>(components.Count);
+		var array = new DamageComponent[components.Count];
 		for (var i = 0; i < components.Count; i++)
-			list.Add(components[i]);
+			array[i] = components[i];
 
-		return list;
+		return array;
 	}
 
 	private static uint CalculateAppliedDamage(uint healthBefore, uint healthAfter) =>
@@ -169,11 +169,10 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 	}
 
 	private DamageContext<THealth> CreateContext(
-		in DamageRequest          request,
-		IDamageable<THealth>      target,
-		out List<DamageComponent> components)
+		in DamageRequest     request,
+		IDamageable<THealth> target)
 	{
-		components = BuildComponents(request);
+		var components = BuildComponents(request);
 		uint healthBefore = target.Health.EffectiveCurrent;
 
 		return new(request, target, healthBefore, components);
@@ -186,9 +185,11 @@ public sealed class DamageResolver<THealth> : IDamageResolver<THealth>
 		return ClampToUInt(roundedDamage, _config.MinimumAppliedDamage, _config.MaximumAppliedDamage);
 	}
 
-	private void ApplyRules(DamageContext<THealth> context)
+	private DamageContext<THealth> ApplyRules(DamageContext<THealth> context)
 	{
 		for (var i = 0; i < _rules.Length; i++)
-			_rules[i].Apply(context);
+			context = _rules[i].Apply(context);
+
+		return context;
 	}
 }

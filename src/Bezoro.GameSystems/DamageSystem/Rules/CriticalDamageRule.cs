@@ -26,11 +26,11 @@ public sealed class CriticalDamageRule<THealth> : IDamageRule<THealth>
 	}
 
 	/// <inheritdoc />
-	public void Apply(DamageContext<THealth> context)
+	public DamageContext<THealth> Apply(DamageContext<THealth> context)
 	{
 		if ((context.Request.Flags & DamageFlags.Critical) == 0)
-			return;
+			return context;
 
-		context.GlobalMultiplier *= _multiplier;
+		return context.MultiplyAll(_multiplier);
 	}
 }
