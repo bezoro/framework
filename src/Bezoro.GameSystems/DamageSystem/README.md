@@ -1,6 +1,6 @@
 # Damage System
 
-A lightweight, genre-agnostic damage pipeline built around `IDamageable`. It supports simple "deal X damage" calls, multi-type component damage, and an optional rule pipeline for resistances, critical hits, and custom formulas.
+A lightweight, genre-agnostic damage pipeline built around `IDamageable<THealth>`. It supports simple "deal X damage" calls, multi-type component damage, and an optional rule pipeline for resistances, critical hits, and custom formulas.
 
 ## Use Cases
 
@@ -12,23 +12,27 @@ A lightweight, genre-agnostic damage pipeline built around `IDamageable`. It sup
 
 ## Features
 
-- **Straightforward API**: One-liners like `DamageSystem.Apply(target, 25)`
+- **Straightforward API**: One-liners like `DamageService.Apply(target, 25)`
 - **Typed damage**: Use `DamageType` identifiers (e.g., `Physical`, `Fire`)
 - **Multi-component damage**: Combine damage types in one hit
-- **Rule pipeline**: Optional `IDamageRule` stages for advanced logic
+- **Rule pipeline**: Optional `IDamageRule<THealth>` stages for advanced logic
 - **Configurable rounding/clamping**: Safe defaults with opt-out control
-- **Genre-agnostic**: No hardcoded assumptions about combat style
+- **Thread-safe updates**: `TryUpdateHealth` enables atomic health writes
 
 ## Quick Start
 
 ```csharp
-IDamageable target = /* your damageable implementation */;
+using Bezoro.GameSystems.DamageSystem.Services;
+using Bezoro.GameSystems.DamageSystem.Types;
+using Bezoro.GameSystems.HealthSystem.Types;
+
+IDamageable<HealthWithExcess> target = /* your damageable implementation */;
 
 // Simple hit
-DamageSystem.Apply(target, 35);
+DamageService.Apply(target, 35);
 
 // Typed hit
-DamageSystem.Apply(target, 15f, DamageType.Fire);
+DamageService.Apply(target, 15f, DamageType.Fire);
 
 // Request with bonuses and flags
 var request = new DamageRequest(
@@ -39,7 +43,7 @@ var request = new DamageRequest(
 	flags: DamageFlags.Critical
 );
 
-DamageResult result = DamageSystem.Apply(target, request);
+DamageResult result = DamageService.Apply(target, request);
 ```
 
 ### Multi-Component Damage
@@ -52,7 +56,7 @@ var components = new[]
 };
 
 var request = DamageRequest.FromComponents(components, multiplier: 1.25f);
-DamageSystem.Apply(target, request);
+DamageService.Apply(target, request);
 ```
 
 ## Configuration & Rules
@@ -60,15 +64,22 @@ DamageSystem.Apply(target, request);
 Use a custom resolver when you want resistances, crits, armor rules, or any bespoke logic.
 
 ```csharp
+using Bezoro.GameSystems.DamageSystem.Abstractions;
+using Bezoro.GameSystems.DamageSystem.Resistances;
+using Bezoro.GameSystems.DamageSystem.Rules;
+using Bezoro.GameSystems.DamageSystem.Services;
+using Bezoro.GameSystems.DamageSystem.Types;
+using Bezoro.GameSystems.HealthSystem.Types;
+
 var resistances = new DamageResistanceTable();
 resistances[DamageType.Fire] = new DamageResistance(multiplier: 0.75f);
 resistances[DamageType.Physical] = new DamageResistance(multiplier: 0.90f, flat: -2f);
 
-var resolver = new DamageResolver(new DamageResolverConfig(
-	rules: new IDamageRule[]
+var resolver = new DamageResolver<HealthWithExcess>(new DamageResolverConfig<HealthWithExcess>(
+	rules: new IDamageRule<HealthWithExcess>[]
 	{
-		new DamageResistanceRule(resistances),
-		new CriticalDamageRule(multiplier: 2.0f)
+		new DamageResistanceRule<HealthWithExcess>(resistances),
+		new CriticalDamageRule<HealthWithExcess>(multiplier: 2.0f)
 	},
 	roundingMode: DamageRoundingMode.Floor,
 	minimumAppliedDamage: 0,
@@ -76,32 +87,60 @@ var resolver = new DamageResolver(new DamageResolverConfig(
 	clampToCurrentHealth: true
 ));
 
-DamageSystem.Apply(target, request, resolver);
+DamageService.Apply(target, request, resolver);
 ```
 
 ## Damage Participants
 
-`DamageRequest.Source` uses `IDamageSource`, while `DamageRequest.Target` uses `IDamageable` (which extends `IDamageSource`).
-This lets sources be traps, projectiles, or abilities that do not have health.
+`DamageRequest.Source` uses `IDamageSource`. The target is always supplied to the resolver and available via `DamageContext<THealth>`.
+Types can implement both when they are also valid damage sources (e.g., enemies, players).
 
 ```csharp
+using System.Collections.Generic;
+using Bezoro.GameSystems.DamageSystem.Abstractions;
+using Bezoro.GameSystems.HealthSystem.Types;
+
 public sealed class Trap : IDamageSource
 {
-	public object? DamageContext => this;
+	public object? Source => this;
 }
 
-public sealed class Enemy : IDamageable
+public sealed class Enemy : IDamageable<HealthWithExcess>, IDamageSource
 {
-	public IHealth Health { get; }
-	public object? DamageContext => this;
+	private readonly object _gate = new();
+	private HealthWithExcess _health = new(max: 100u);
+
+	public HealthWithExcess Health
+	{
+		get
+		{
+			lock (_gate)
+				return _health;
+		}
+	}
+
+	public bool TryUpdateHealth(HealthWithExcess expected, HealthWithExcess updated)
+	{
+		lock (_gate)
+		{
+			if (!EqualityComparer<HealthWithExcess>.Default.Equals(_health, expected))
+				return false;
+
+			_health = updated;
+			return true;
+		}
+	}
+
+	public object? Source => this;
 }
 
 var request = new DamageRequest(
 	baseAmount: 25f,
 	type: DamageType.Physical,
-	source: trap,
-	target: enemy
+	source: new Trap()
 );
+
+DamageService.Apply(new Enemy(), request);
 ```
 
 ### Flags
@@ -112,25 +151,40 @@ var request = new DamageRequest(
 ## Order of Operations
 
 1. Build components (from `DamageRequest.Components` or `BaseAmount` + `Type`)
-2. Apply rules (`IDamageRule.Apply`) to mutate components and context
+2. Apply rules (`IDamageRule<THealth>.Apply`) to mutate components and context
 3. Sum component amounts
 4. Add flat bonuses (`request.FlatBonus` + `context.GlobalFlatBonus`)
 5. Apply multipliers (`request.Multiplier` * `context.GlobalMultiplier`)
-6. Round and clamp (per `DamageResolverConfig`)
-7. Apply to `Target.Health` via `DecreaseCurrentHealthBy`
+6. Round and clamp (per `DamageResolverConfig<THealth>`)
+7. Atomically apply to target health via `IDamageable<THealth>.TryUpdateHealth`
+8. Compute `AppliedDamage` from effective-health delta (includes excess when applicable)
 
 ## API Reference
 
-### DamageSystem
+### DamageService
 
 Convenience entry point.
 
-| Member                                           | Description                           |
-|--------------------------------------------------|---------------------------------------|
-| `Apply(IDamageable, int)`                            | Simple damage, unspecified type       |
-| `Apply(IDamageable, float, DamageType)`              | Simple typed damage                   |
-| `Apply(IDamageable, DamageRequest)`                  | Apply a request with default resolver |
-| `Apply(IDamageable, DamageRequest, IDamageResolver)` | Apply with a custom resolver          |
+| Member                                                        | Description                           |
+|---------------------------------------------------------------|---------------------------------------|
+| `Apply<T>(IDamageable<T>, int)`                               | Simple damage, unspecified type       |
+| `Apply<T>(IDamageable<T>, float, DamageType)`                 | Simple typed damage                   |
+| `Apply<T>(IDamageable<T>, DamageRequest)`                     | Apply a request with default resolver |
+| `Apply<T>(IDamageable<T>, DamageRequest, IDamageResolver<T>)` | Apply with a custom resolver          |
+
+### IDamageable<THealth>
+
+| Member                           | Description                                  |
+|----------------------------------|----------------------------------------------|
+| `THealth Health`                 | Snapshot of current health                   |
+| `TryUpdateHealth(expected, next)`| Atomic health update used by the resolver    |
+
+### IDamageableHealth<T>
+
+| Member                 | Description                                               |
+|------------------------|-----------------------------------------------------------|
+| `uint EffectiveCurrent`| Current health used for damage calculations               |
+| `ApplyDamage(uint)`    | Applies damage and returns the updated health             |
 
 ### DamageRequest
 
@@ -141,26 +195,26 @@ Convenience entry point.
 | `Multiplier`        | Multiplier applied after flat bonuses        |
 | `FlatBonus`         | Flat bonus added after rules                 |
 | `Flags`             | Optional flags (critical, true damage, etc.) |
-| `Source` / `Target` | Optional `IDamageSource` / `IDamageable`     |
+| `Source`            | Optional `IDamageSource`                     |
 | `Components`        | Optional list of `DamageComponent`           |
 
 ### DamageResult
 
-| Member                         | Description                          |
-|--------------------------------|--------------------------------------|
-| `HealthBefore` / `HealthAfter` | Health snapshot around the hit       |
-| `IntendedDamage`               | Damage after rounding and clamping   |
-| `AppliedDamage`                | Actual applied damage (health delta) |
-| `RawDamage`                    | Unrounded raw value after rules      |
-| `WasCancelled`                 | True if a rule cancelled the hit     |
-| `WasFatal`                     | True if health reached 0 or below    |
-| `Overkill`                     | Intended damage that did not apply   |
+| Member                         | Description                                   |
+|--------------------------------|-----------------------------------------------|
+| `HealthBefore` / `HealthAfter` | Effective health snapshot around the hit      |
+| `IntendedDamage`               | Damage after rounding and clamping            |
+| `AppliedDamage`                | Actual applied damage (effective health delta)|
+| `RawDamage`                    | Unrounded raw value after rules               |
+| `WasCancelled`                 | True if a rule cancelled the hit              |
+| `WasFatal`                     | True if effective health reached 0            |
+| `Overkill`                     | Intended damage that did not apply            |
 
-### DamageResolverConfig
+### DamageResolverConfig<THealth>
 
 | Member                 | Description                           |
 |------------------------|---------------------------------------|
-| `Rules`                | Ordered list of `IDamageRule`         |
+| `Rules`                | Ordered list of `IDamageRule<THealth>`|
 | `RoundingMode`         | How raw damage becomes an int         |
 | `MinimumAppliedDamage` | Lower clamp after rounding            |
 | `MaximumAppliedDamage` | Optional upper clamp                  |
@@ -178,12 +232,12 @@ Built-in types include `Physical`, `Fire`, `Ice`, `Lightning`, `Poison`, `Magic`
 
 ### Rules & Resistances
 
-- `IDamageRule` lets you inject any custom rule (armor, shields, immunity)
-- `DamageResistanceRule` reads adjustments from `IDamageResistanceProvider`
+- `IDamageRule<THealth>` lets you inject any custom rule (armor, shields, immunity)
+- `DamageResistanceRule<THealth>` reads adjustments from `IDamageResistanceProvider`
 - `DamageResistanceTable` is a simple dictionary-based provider
 
 ## Notes
 
-- The resolver assumes `IDamageable.Health` is authoritative for clamping or validation.
-- If `ClampToCurrentHealth` is true, intended damage is capped by current health (when current is non-negative).
-- Use `DamageContext.Cancel()` inside a rule to nullify a hit.
+- The resolver uses `EffectiveCurrent` for clamping and applied-damage calculations.
+- If `ClampToCurrentHealth` is true, intended damage is capped by effective current health.
+- Use `DamageContext<THealth>.Cancel()` inside a rule to nullify a hit.

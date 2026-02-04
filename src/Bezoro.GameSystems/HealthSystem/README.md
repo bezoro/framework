@@ -1,96 +1,90 @@
 # HealthSystem
 
-A health management system with overflow/shield (excess health) support and safe arithmetic that prevents `uint` overflow.
+A health management system with optional overflow/shield (excess health) support and safe arithmetic that prevents `uint` overflow.
 
 ## Types
 
-| Type                  | Description                                                  |
-|-----------------------|--------------------------------------------------------------|
-| `IHealth`             | Core health contract (current, max, percentage, damage/heal) |
-| `IExcessHealth`       | Optional interface for overflow/shield mechanics             |
-| `Health`              | Default sealed implementation of both interfaces             |
-| `MaxHealthUpdateMode` | Controls how current health adjusts when max changes         |
-| `IHealthRegenService` | Health-over-time regeneration service contract               |
-| `HealthRegenService`  | Timer-based batch regen with zero per-tick allocations       |
-| `RegenHandle`         | Lightweight handle to a regen effect                         |
-| `ObservableHealth`    | Decorator that enqueues `HealthChangedEvent` via `IEventBus` |
-| `HealthChangedEvent`  | Event payload with before/after health values                |
-| `HealthChangeKind`    | Enum describing the operation that caused the change         |
+| Type                   | Description                                                       |
+|------------------------|-------------------------------------------------------------------|
+| `IDamageableHealth<T>` | Minimal health contract used by the DamageSystem                  |
+| `Health`               | Immutable record struct for base health only                      |
+| `HealthWithExcess`     | Immutable record struct with base + excess health                 |
+| `MaxValueUpdateMode`   | Controls how current health adjusts when max changes              |
+| `HealthChangedEvent`   | Event payload with before/after health values                     |
+| `HealthChangeKind`     | Enum describing the operation that caused the change              |
 
 ## Quick Start
 
 ```csharp
 using Bezoro.GameSystems.HealthSystem.Types;
 
-var health = new Health(100u); // Max=100, Current=100, Excess=0
+var health = new Health(100u); // Max=100, Current=100
 
 // Damage
-health.DecreaseCurrentHealthBy(30u); // Current=70
+health = health.DecreaseCurrentHealthBy(30u); // Current=70
 
 // Heal (capped at max)
-health.RestoreCurrentHealthBy(50u); // Current=100
+health = health.RestoreCurrentHealthBy(50u); // Current=100
+```
+
+```csharp
+using Bezoro.GameSystems.HealthSystem.Types;
+
+// Health with excess/shield capacity
+var shielded = new HealthWithExcess(max: 100u, current: 100u, excess: 0u, excessMax: 50u);
 
 // Overheal (excess/shield)
-health.IncreaseCurrentHealthBy(20u); // Current=100, Excess=20
+shielded = shielded.IncreaseCurrentHealthBy(20u); // Current=100, Excess=20
 
 // Damage consumes excess first
-health.DecreaseCurrentHealthBy(25u); // Excess=0, Current=95
+shielded = shielded.DecreaseHealthBy(25u); // Excess=0, Current=95
 ```
 
 ## API Reference
 
-### IHealth
+### IDamageableHealth<T>
 
-| Member                          | Description                                    |
-|---------------------------------|------------------------------------------------|
-| `uint Current`                  | Current health value                           |
-| `uint Max`                      | Maximum health value                           |
-| `Percent Percentage`            | Current health as a percentage                 |
-| `DecreaseCurrentHealthBy(uint)` | Apply damage (drains excess first)             |
-| `IncreaseCurrentHealthBy(uint)` | Heal, overflow goes to excess                  |
-| `RestoreCurrentHealthBy(uint)`  | Heal capped at max (no excess created)         |
-| `DecreaseMaxHealthBy(uint)`     | Reduce maximum health                          |
-| `IncreaseMaxHealthBy(uint)`     | Increase maximum health                        |
-| `SetCurrentHealthTo(uint)`      | Set current to specific value (clamped to max) |
-| `SetMaxHealthTo(uint)`          | Set maximum health                             |
-| `DepleteCurrentHealth()`        | Set current health to zero                     |
-| `FullyRestoreCurrentHealth()`   | Set current health to max                      |
+| Member                  | Description                                   |
+|-------------------------|-----------------------------------------------|
+| `uint EffectiveCurrent` | Current health used for damage calculations   |
+| `ApplyDamage(uint)`     | Applies damage and returns the updated health |
 
-### IExcessHealth
+### Health
 
-| Member                         | Description                    |
-|--------------------------------|--------------------------------|
-| `uint Excess`                  | Current excess (shield) health |
-| `IncreaseExcessHealthBy(uint)` | Add excess health              |
-| `DecreaseExcessHealthBy(uint)` | Remove excess health           |
-| `SetExcessHealthTo(uint)`      | Set excess to specific value   |
-| `DepleteExcessHealth()`        | Remove all excess health       |
+| Member                          | Description                                         |
+|---------------------------------|-----------------------------------------------------|
+| `uint Current`                  | Current health value                                |
+| `uint Max`                      | Maximum health value                                |
+| `uint EffectiveCurrent`         | Effective current health (same as `Current`)        |
+| `Percent BasePercentage`        | Current health as a percentage                      |
+| `ApplyDamage(uint)`             | Applies damage (alias of `DecreaseCurrentHealthBy`) |
+| `DecreaseCurrentHealthBy(uint)` | Apply damage (clamped to zero)                      |
+| `RestoreCurrentHealthBy(uint)`  | Heal current health (capped at max)                 |
+| `DecreaseMaxHealthBy(uint)`     | Reduce maximum health                               |
+| `IncreaseMaxHealthBy(uint)`     | Increase maximum health                             |
+| `SetCurrentHealthTo(uint)`      | Set current to specific value (clamped to max)      |
+| `SetMaxHealthTo(uint)`          | Set maximum health                                  |
+| `DepleteCurrentHealth()`        | Set current health to zero                          |
+| `FullyRestoreCurrentHealth()`   | Set current health to max                           |
 
-## Observable Health
+### HealthWithExcess
 
-`ObservableHealth` wraps an `IHealth` and enqueues a `HealthChangedEvent` after each delegated call.
-This makes it safe to publish on background threads and flush on the Unity main thread.
+| Member                          | Description                                            |
+|---------------------------------|--------------------------------------------------------|
+| `uint ExcessCurrent`            | Current excess health                                  |
+| `uint ExcessMax`                | Maximum excess health                                  |
+| `uint EffectiveCurrent`         | Effective current health (base + excess, saturated)    |
+| `Percent ExcessPercentage`      | Excess health as a percentage of excess max            |
+| `Percent TotalPercentage`       | Combined health as a percentage of total max           |
+| `ApplyDamage(uint)`             | Applies damage (alias of `DecreaseHealthBy`)           |
+| `IncreaseCurrentHealthBy(uint)` | Heal current health, overflow into excess              |
+| `DecreaseHealthBy(uint)`        | Apply damage to excess first, then base health         |
+| `IncreaseExcessHealthBy(uint)`  | Add excess health                                      |
+| `DecreaseExcessHealthBy(uint)`  | Remove excess health                                   |
+| `SetExcessHealthTo(uint)`       | Set excess to specific value                           |
+| `DepleteExcessHealth()`         | Remove all excess health                               |
 
-```csharp
-using Bezoro.Events.Services;
-using Bezoro.GameSystems.HealthSystem.Types;
-
-var bus        = new EventBus();
-var health     = new Health(100u, 50u);
-var observable = new ObservableHealth(health, bus);
-
-bus.Subscribe<HealthChangedEvent>(ctx =>
-{
-    // Read old/new values from ctx.Data
-});
-
-observable.DecreaseCurrentHealthBy(10u);
-
-// Unity main thread (e.g., Update)
-bus.FlushQueued();
-```
-
-### MaxHealthUpdateMode
+### MaxValueUpdateMode
 
 | Value                | Description                                                |
 |----------------------|------------------------------------------------------------|
@@ -98,92 +92,27 @@ bus.FlushQueued();
 | `PreservePercentage` | Scale current health proportionally to maintain percentage |
 
 ```csharp
-health.SetMaxHealthTo(50u, MaxHealthUpdateMode.ClampCurrent);
+using Bezoro.Core.Types;
+
+health.SetMaxHealthTo(50u, MaxValueUpdateMode.ClampCurrent);
 // If health was 80/100, it becomes 50/50 (clamped to new max)
 
-health.SetMaxHealthTo(200u, MaxHealthUpdateMode.ClampCurrent);
+health.SetMaxHealthTo(200u, MaxValueUpdateMode.ClampCurrent);
 // If health was 50/100, it becomes 50/200
 
-health.SetMaxHealthTo(200u, MaxHealthUpdateMode.PreservePercentage);
+health.SetMaxHealthTo(200u, MaxValueUpdateMode.PreservePercentage);
 // If health was 50/100 (50%), it becomes 100/200 (50%)
 ```
 
-## Health Regeneration
+## Damage Integration
 
-`HealthRegenService` provides timed health-over-time regeneration using a single background timer with batch processing and zero per-tick allocations. Default tick frequency is 20ms (50 ticks/second).
-
-### Types
-
-| Type                  | Description                                                  |
-|-----------------------|--------------------------------------------------------------|
-| `IHealthRegenService` | Regen service contract                                       |
-| `HealthRegenService`  | Timer-based batch implementation with precision delivery     |
-| `RegenHandle`         | Lightweight handle to a regen effect (mirrors `TimerHandle`) |
-
-### Quick Start
-
-```csharp
-using Bezoro.GameSystems.HealthSystem.Services;
-using Bezoro.GameSystems.HealthSystem.Types;
-
-var service = new HealthRegenService();
-var health  = new Health(1000u, 200u);
-
-// Finite regen: 50 HP/s for 4 seconds (delivers exactly 200 HP, default 20ms ticks)
-var handle = service.StartRegen(health, amountPerSec: 50f, TimeSpan.FromSeconds(4));
-
-// Stack another finite regen on top
-service.AddRegen(health, amountPerSec: 10f, TimeSpan.FromSeconds(10));
-
-// Discrete 1/s ticks: 20 HP/s for 5 seconds at 1000ms tick frequency
-service.AddRegen(health, amountPerSec: 20f, TimeSpan.FromSeconds(5), tickFrequencyMs: 1000);
-
-// Infinite regen: heal 25 HP/s indefinitely until stopped
-var repeating = service.StartRepeatingRegen(health, amountPerSec: 25f);
-
-// Stack an infinite regen alongside existing ones
-service.AddRepeatingRegen(health, amountPerSec: 3f, tickFrequencyMs: 100);
-
-// Cancel a specific regen
-service.Stop(handle);
-
-// Cancel all regens on a target
-service.StopAll(health);
-```
-
-### API Reference
-
-| Member                                                                                       | Description                                         |
-|----------------------------------------------------------------------------------------------|-----------------------------------------------------|
-| `int ActiveCount`                                                                            | Number of active regen effects                      |
-| `bool IsActive(RegenHandle)`                                                                 | Whether a specific regen is still ticking           |
-| `RegenHandle StartRegen(IHealth, float amountPerSec, TimeSpan duration, uint tickFreqMs=20)` | Replace all regens on target with a finite regen    |
-| `RegenHandle AddRegen(IHealth, float amountPerSec, TimeSpan duration, uint tickFreqMs=20)`   | Stack a finite regen alongside existing ones        |
-| `RegenHandle StartRepeatingRegen(IHealth, float amountPerSec, uint tickFreqMs=20)`           | Replace all regens on target with an infinite regen |
-| `RegenHandle AddRepeatingRegen(IHealth, float amountPerSec, uint tickFreqMs=20)`             | Stack an infinite regen alongside existing ones     |
-| `bool Stop(RegenHandle)`                                                                     | Cancel a specific regen                             |
-| `void StopAll(IHealth)`                                                                      | Cancel all regens on a target                       |
-| `void Update(float deltaTime)`                                                               | Advance all regens by delta time (seconds)          |
-| `void Dispose()`                                                                             | Dispose the internal timer                          |
-| `static CreateManual()`                                                                      | Create a service with no timer (caller-driven)      |
-
-### Finite vs Repeating
-
-- **Finite** (`StartRegen`/`AddRegen`) — Takes a `TimeSpan duration`. Ticks for `duration / tickFrequencyMs` total ticks, then stops automatically. Guarantees exact HP delivery (see below).
-- **Repeating** (`StartRepeatingRegen`/`AddRepeatingRegen`) — No duration parameter. Ticks indefinitely until explicitly stopped via `Stop` or `StopAll`.
-- **`Start*`** calls `StopAll(target)` before adding. **`Add*`** stacks alongside existing regens.
-- **`tickFrequencyMs`** controls granularity: 20ms (default) = smooth, 1000ms = discrete 1/s ticks.
-
-### Precision Guarantees
-
-**Finite regens** use Bresenham-style integer distribution to deliver exactly `Round(amountPerSec * duration.TotalSeconds)` total HP. The total is precomputed as an integer and distributed evenly across ticks, eliminating floating-point accumulation errors. For example, 7 HP/s for 1 second at 20ms ticks delivers exactly 7 HP — not 6 as a naive float accumulator would.
-
-**Repeating (infinite) regens** use a `double` accumulator (53-bit mantissa) instead of `float` (23-bit). The accumulator stays in `[0, 1)` after each subtraction, maintaining precision indefinitely.
+DamageSystem uses `IDamageableHealth<T>` to compute applied damage from `EffectiveCurrent`.
+For `HealthWithExcess`, effective health includes excess, so damage absorbed by excess counts as applied damage.
 
 ## Design Notes
 
-- **Excess-first damage**: `DecreaseCurrentHealthBy` drains excess health before reducing current health.
-- **Restore vs Increase**: `RestoreCurrentHealthBy` never creates excess; `IncreaseCurrentHealthBy` overflows into excess.
-- **Overflow-safe arithmetic**: All operations use `ulong` intermediates and saturate at `uint.MaxValue`.
-- **Constructor overflow**: If `current > max` during construction, the overflow is moved to excess.
-- **Deterministic ordering**: Health mutations are ordered FIFO via an internal ticket lock under concurrency.
+- **Excess-first damage**: `HealthWithExcess.DecreaseHealthBy` drain excess before base health.
+- **Restore vs Increase**: Base health exposes `RestoreCurrentHealthBy` only; `HealthWithExcess.IncreaseCurrentHealthBy` overflows into excess while restore never creates excess.
+- **Overflow-safe arithmetic**: Additions use `ulong` intermediates and saturate at `uint.MaxValue`.
+- **Constructor overflow**: `Health` clamps current to max; `HealthWithExcess` moves overflow into excess (subject to `excessMax`).
+- **Excess capacity**: Excess is capped by `excessMax`; the default `excessMax = 0` disables excess capacity unless provided.
