@@ -2,11 +2,23 @@
 
 ## Core Philosophy
 
-- **Ergonomic API is King**: Logical, easy to use, straightforward, powerful, optionally configurable.
 - **Correctness First**: Must compile, pass tests, handle edge cases.
 - **Minimal & Atomic**: Touch only what's necessary. No scope creep.
 - **TDD**: Red → Green → Refactor. Tests before implementation.
 - **Safety**: Never leak secrets/PII. Validate inputs.
+
+### Public API
+
+- **Ergonomic API is King**: Logical, easy to use, straightforward, powerful, optionally configurable.
+- Favor straightforward, readable surface over exposing internal complexity.
+
+### Internal Implementation
+
+- **DoD/ECS over OOP**: Prefer data-oriented design and ECS patterns over traditional OOP.
+- **Performance**: Favor batch processing, multithreading, and cache-friendly access patterns.
+- **Memory Efficiency**: Prefer no-alloc, small types, and avoid GC pressure.
+- **Thread Safety**: Favor immutability and lock-free designs.
+- **Threading Model**: Worker threads produce immutable results. Callbacks dispatch via configurable context. Framework remains engine-agnostic.
 
 ## Workflow
 
@@ -22,6 +34,7 @@
 1. **Test**: Write/update test. Run to confirm it fails.
 2. **Implement**: Minimal code to pass. Run tests. Verify no fake greens.
 3. **Refactor**: Optimize after green. Run tests again.
+4. **Document**: Check if XML docs or README need updates for changed/added APIs.
 
 ## Project Structure
 
