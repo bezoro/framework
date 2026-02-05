@@ -49,14 +49,14 @@ public readonly record struct UIntRange
 	public uint Min { get; }
 
 	/// <summary>
-	///     Returns a new range with the current value decreased by the specified amount, clamped to min.
+	///     Returns a new range with the current value restored by the specified amount, capped at max.
 	/// </summary>
-	public UIntRange Decrease(uint value)
+	public UIntRange AddToCurrent(uint value)
 	{
-		if (value == 0 || Current <= Min) return this;
+		if (value == 0) return this;
 
-		uint deltaToMin = Current - Min;
-		uint newCurrent = value >= deltaToMin ? Min : Current - value;
+		ulong sum        = (ulong)Current + value;
+		uint  newCurrent = sum >= Max ? Max : (uint)sum;
 		return new(Max, newCurrent, Min);
 	}
 
@@ -75,16 +75,6 @@ public readonly record struct UIntRange
 	}
 
 	/// <summary>
-	///     Returns a new range with the current value set to min.
-	/// </summary>
-	public UIntRange Deplete() => new(Max, Min, Min);
-
-	/// <summary>
-	///     Returns a new range with the current value set to max.
-	/// </summary>
-	public UIntRange FullyRestore() => new(Max, Max, Min);
-
-	/// <summary>
 	///     Returns a new range with the maximum value increased, saturated at <see cref="uint.MaxValue" />, and current
 	///     updated accordingly.
 	/// </summary>
@@ -99,21 +89,19 @@ public readonly record struct UIntRange
 	}
 
 	/// <summary>
-	///     Returns a new range with the current value restored by the specified amount, capped at max.
+	///     Returns a new range with the current value set to max.
 	/// </summary>
-	public UIntRange Restore(uint value)
-	{
-		if (value == 0) return this;
-
-		ulong sum        = (ulong)Current + value;
-		uint  newCurrent = sum >= Max ? Max : (uint)sum;
-		return new(Max, newCurrent, Min);
-	}
+	public UIntRange MaximizeCurrent() => new(Max, Max, Min);
 
 	/// <summary>
 	///     Returns a new range with the current value set, clamped to min and max.
 	/// </summary>
 	public UIntRange SetCurrent(uint value) => new(Max, value, Min);
+
+	/// <summary>
+	///     Returns a new range with the current value set to min.
+	/// </summary>
+	public UIntRange SetCurrentToMinimum() => new(Max, Min, Min);
 
 	/// <summary>
 	///     Returns a new range with the maximum value set and current updated based on the chosen mode.
@@ -130,6 +118,18 @@ public readonly record struct UIntRange
 			MaxValueUpdateMode.ClampCurrent => SetMaxClampCurrent(newMax),
 			_ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Invalid MaxValueUpdateMode")
 		};
+	}
+
+	/// <summary>
+	///     Returns a new range with the current value decreased by the specified amount, clamped to min.
+	/// </summary>
+	public UIntRange SubtractFromCurrent(uint value)
+	{
+		if (value == 0 || Current <= Min) return this;
+
+		uint deltaToMin = Current - Min;
+		uint newCurrent = value >= deltaToMin ? Min : Current - value;
+		return new(Max, newCurrent, Min);
 	}
 
 	private static uint Clamp(uint value, uint min, uint max)
