@@ -170,19 +170,18 @@ public readonly record struct UIntRange
 
 	private UIntRange SetMaxPreservePercentage(uint newMax)
 	{
-		uint oldMax     = Max;
-		uint newCurrent = Current;
+		uint oldMax = Max;
 
-		if (oldMax > 0)
+		uint newCurrent;
+		if (oldMax == 0)
 		{
-			float percent = (float)Current / oldMax;
-			var   scaled  = (uint)MathF.Round(percent * newMax, MidpointRounding.AwayFromZero);
-			newCurrent = scaled > newMax ? newMax : scaled;
+			newCurrent = Clamp(Current, Min, newMax);
+			return new(newMax, newCurrent, Min);
 		}
-		else if (newCurrent > newMax)
-		{
-			newCurrent = newMax;
-		}
+
+		// newCurrent = round(Current / oldMax * newMax) using integer math
+		ulong numerator = (ulong)Current * newMax + (oldMax / 2u);
+		newCurrent = (uint)(numerator / oldMax);
 
 		newCurrent = Clamp(newCurrent, Min, newMax);
 		return new(newMax, newCurrent, Min);

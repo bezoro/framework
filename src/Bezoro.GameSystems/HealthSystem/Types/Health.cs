@@ -49,6 +49,16 @@ public readonly record struct Health
 	public uint Max => _range.Max;
 
 	/// <summary>
+	///     Gets whether the current health is empty.
+	/// </summary>
+	public bool IsEmpty => _range.Current == _range.Min;
+
+	/// <summary>
+	///     Gets whether the current health is full.
+	/// </summary>
+	public bool IsFull => _range.Current == _range.Max;
+
+	/// <summary>
 	///     Returns a new health with current decreased by the specified amount, clamped to zero.
 	/// </summary>
 	/// <param name="value">The amount to subtract from current.</param>
