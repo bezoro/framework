@@ -22,6 +22,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\src\Bezoro.ECS\Bezoro.ECS.csproj" />
 		<ProjectReference Include="..\..\src\Bezoro.GameSystems\Bezoro.GameSystems.csproj" />
 	</ItemGroup>
 

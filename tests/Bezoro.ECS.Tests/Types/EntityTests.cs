@@ -13,11 +13,13 @@ public class EntityTests
 	{
 		// Arrange
 		const int expectedId = 123;
+		const int expectedVersion = 4;
 
 		// Act
-		var entity = new Entity(expectedId);
+		var entity = new Entity(expectedId, expectedVersion);
 
 		// Assert
 		entity.Id.Should().Be(expectedId);
+		entity.Version.Should().Be(expectedVersion);
 	}
 }

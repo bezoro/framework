@@ -1,6 +1,6 @@
-using System.Collections.Generic;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -11,65 +11,36 @@ namespace Bezoro.ECS.Tests.Services;
 public class SystemManagerTests
 {
 	[Fact]
-	public void UpdateAll_Should_Call_Update_On_Registered_Systems()
+	public void UpdateAll_Should_Respect_Update_Frequency()
 	{
 		// Arrange
-		var systemManager = new SystemManager();
-		var testSystem    = new TestSystem();
-		systemManager.RegisterSystem(testSystem);
+		var world  = new World();
+		var system = new FixedStepSystem();
+		world.RegisterSystem(system);
 
 		// Act
-		systemManager.UpdateAll();
+		world.Update(0.2f);
+		world.Update(0.29f);
+		world.Update(0.31f);
 
 		// Assert
-		testSystem.WasUpdated.Should().BeTrue();
+		system.UpdateCount.Should().Be(1);
+		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
 	}
 
-	[Fact]
-	public void UpdateAll_Should_Execute_Systems_In_Registration_Order()
+	private sealed class FixedStepSystem : ISystem
 	{
-		// Arrange
-		var systemManager  = new SystemManager();
-		var executionOrder = new List<string>();
-		var system1        = new OrderTestSystem("System1", executionOrder);
-		var system2        = new OrderTestSystem("System2", executionOrder);
+		public int UpdateCount { get; private set; }
+		public float LastDeltaTime { get; private set; }
 
-		systemManager.RegisterSystem(system1);
-		systemManager.RegisterSystem(system2);
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.Fixed(0.5f);
 
-		// Act
-		systemManager.UpdateAll();
+		public ComponentAccess[] Accesses => [];
 
-		// Assert
-		executionOrder.Should().Equal("System1", "System2");
-	}
-
-	private class OrderTestSystem : ISystem
-	{
-		private readonly List<string> _executionOrder;
-		private readonly string       _name;
-
-		public OrderTestSystem(string name, List<string> executionOrder)
+		public void Update(IWorld world, in SystemContext context)
 		{
-			_name           = name;
-			_executionOrder = executionOrder;
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
 		}
-
-		#region Interface Implementations
-
-		public void Update() => _executionOrder.Add(_name);
-
-		#endregion
-	}
-
-	private class TestSystem : ISystem
-	{
-		public bool WasUpdated { get; private set; }
-
-		#region Interface Implementations
-
-		public void Update() => WasUpdated = true;
-
-		#endregion
 	}
 }

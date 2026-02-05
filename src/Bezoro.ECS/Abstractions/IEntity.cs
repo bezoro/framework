@@ -10,4 +10,9 @@ public interface IEntity
 	///     Gets the unique integer identifier for this entity.
 	/// </summary>
 	int Id { get; }
+
+	/// <summary>
+	///     Gets the version associated with this entity ID.
+	/// </summary>
+	int Version { get; }
 }

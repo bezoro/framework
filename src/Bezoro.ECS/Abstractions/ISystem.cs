@@ -1,3 +1,5 @@
+using Bezoro.ECS.Types;
+
 namespace Bezoro.ECS.Abstractions;
 
 /// <summary>
@@ -7,8 +9,20 @@ namespace Bezoro.ECS.Abstractions;
 public interface ISystem
 {
 	/// <summary>
-	///     Performs the update logic for this system.
-	///     This is typically called once per frame or tick of the simulation.
+	///     Gets the update settings that control how often this system runs.
 	/// </summary>
-	void Update();
+	SystemUpdateSettings UpdateSettings { get; }
+
+	/// <summary>
+	///     Gets the component access requirements for this system.
+	///     This allows the scheduler to run compatible systems in parallel safely.
+	/// </summary>
+	ComponentAccess[] Accesses { get; }
+
+	/// <summary>
+	///     Performs the update logic for this system.
+	/// </summary>
+	/// <param name="world">The world context this system operates on.</param>
+	/// <param name="context">The update context for this execution.</param>
+	void Update(IWorld world, in SystemContext context);
 }
