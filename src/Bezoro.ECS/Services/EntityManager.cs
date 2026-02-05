@@ -8,12 +8,21 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 internal sealed class EntityManager
 {
+	private readonly int              _worldId;
 	private readonly Stack<int>       _availableIds = new();
 	private          bool[]           _alive        = [];
 	private          bool[]           _reserved     = [];
 	private          EntityLocation[] _locations    = [];
 	private          int              _nextId;
 	private          int[]            _versions = [];
+
+	public EntityManager(int worldId)
+	{
+		if (worldId <= 0)
+			throw new ArgumentOutOfRangeException(nameof(worldId), "World identifier must be positive.");
+
+		_worldId = worldId;
+	}
 
 	/// <summary>
 	///     Gets the number of currently alive entities.
@@ -27,6 +36,7 @@ internal sealed class EntityManager
 	/// <returns><c>true</c> if the entity is alive; otherwise, <c>false</c>.</returns>
 	public bool IsAlive(Entity entity)
 	{
+		if (entity.WorldId != _worldId) return false;
 		if (entity.Id < 0 || entity.Id >= _alive.Length) return false;
 
 		return _alive[entity.Id] && _versions[entity.Id] == entity.Version;
@@ -37,6 +47,7 @@ internal sealed class EntityManager
 	/// </summary>
 	public bool IsReserved(Entity entity)
 	{
+		if (entity.WorldId != _worldId) return false;
 		if (entity.Id < 0 || entity.Id >= _reserved.Length) return false;
 
 		return _reserved[entity.Id] && _versions[entity.Id] == entity.Version;
@@ -100,7 +111,7 @@ internal sealed class EntityManager
 	}
 
 	internal EntityLocation GetLocation(Entity entity) =>
-		entity.Id < 0 || entity.Id >= _locations.Length
+		entity.WorldId != _worldId || entity.Id < 0 || entity.Id >= _locations.Length
 			? EntityLocation.Empty
 			: _locations[entity.Id];
 
@@ -120,7 +131,7 @@ internal sealed class EntityManager
 		_alive[id]     = false;
 		_reserved[id]  = reserved;
 		_locations[id] = EntityLocation.Empty;
-		return new(id, _versions[id]);
+		return new(id, _versions[id], _worldId);
 	}
 
 	private void EnsureCapacity(int id)

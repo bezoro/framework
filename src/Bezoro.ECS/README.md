@@ -115,6 +115,8 @@ Command buffer notes:
 - Commands are executed in the order they were recorded.
 - Temporary entities returned by `CreateEntity()` are only meaningful within that same buffer before playback.
 - During `World.Update(...)`, command playback is handled by the scheduler after system execution.
+- Calling `Playback()` manually during `World.Update(...)` throws `InvalidOperationException`.
+- If playback throws, already-processed commands stay applied and unprocessed commands remain queued for retry.
 
 ### `IWorld`
 
@@ -139,7 +141,8 @@ Command buffer notes:
 
 ## Lifecycle And Structural Rules
 
-- Entity identity is `(Id, Version)`.
+- Entity identity is `(World, Id, Version)`.
+- Entity handles are world-scoped; passing an entity from one world to another world is invalid.
 - Destroying or clearing invalidates previous handles through version increments.
 - Structural world operations are blocked while `World.Update(...)` is running.
 - During update, `SetComponent` can update an existing component in place.

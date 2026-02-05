@@ -4,7 +4,7 @@ namespace Bezoro.ECS.Types;
 
 /// <summary>
 ///     Represents a unique entity within the Entity Component System (ECS).
-///     Each entity is identified by an immutable integer ID and version.
+///     Each entity is identified by an immutable world, ID, and version tuple.
 /// </summary>
 public readonly struct Entity : IEntity, IEquatable<Entity>
 {
@@ -13,10 +13,13 @@ public readonly struct Entity : IEntity, IEquatable<Entity>
 	/// </summary>
 	/// <param name="id">The unique integer identifier for this entity.</param>
 	/// <param name="version">The version associated with this entity ID.</param>
-	internal Entity(int id, int version)
+	internal Entity(int id, int version) : this(id, version, 0) { }
+
+	internal Entity(int id, int version, int worldId)
 	{
 		Id      = id;
 		Version = version;
+		WorldId = worldId;
 	}
 
 	/// <summary>
@@ -29,9 +32,11 @@ public readonly struct Entity : IEntity, IEquatable<Entity>
 	/// </summary>
 	public int Version { get; }
 
+	internal int WorldId { get; }
+
 	/// <inheritdoc />
 	public bool Equals(Entity other) =>
-		Id == other.Id && Version == other.Version;
+		Id == other.Id && Version == other.Version && WorldId == other.WorldId;
 
 	/// <inheritdoc />
 	public override bool Equals(object? obj) =>
@@ -39,7 +44,7 @@ public readonly struct Entity : IEntity, IEquatable<Entity>
 
 	/// <inheritdoc />
 	public override int GetHashCode() =>
-		HashCode.Combine(Id, Version);
+		HashCode.Combine(Id, Version, WorldId);
 
 	/// <summary>Determines whether two entities are equal.</summary>
 	public static bool operator ==(Entity left, Entity right) => left.Equals(right);

@@ -102,7 +102,7 @@ internal sealed class SystemManager
 		{
 			var buffer = buffers[i];
 			if (buffer.HasCommands)
-				buffer.Playback();
+				buffer.PlaybackInternal(allowDuringUpdate: true);
 		}
 	}
 

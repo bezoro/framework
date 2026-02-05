@@ -9,10 +9,12 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public sealed class CommandBuffer
 {
-	private readonly List<Command> _commands = [];
-	private readonly object        _sync     = new();
-	private readonly World         _world;
-	private          int           _nextTemporaryId = -1;
+	private readonly List<Command>            _commands                  = [];
+	private readonly Dictionary<int, Entity> _resolvedTemporaryEntities = [];
+	private readonly object                   _sync                     = new();
+	private readonly World                    _world;
+	private          bool                     _isPlayingBack;
+	private          int                      _nextTemporaryId = -1;
 
 	internal CommandBuffer(World world)
 	{
@@ -52,7 +54,7 @@ public sealed class CommandBuffer
 
 		lock (_sync)
 		{
-			var entity = new Entity(_nextTemporaryId--, 0);
+			var entity = new Entity(_nextTemporaryId--, 0, _world.WorldId);
 			_commands.Add(new Command(CommandType.CreateEntity, entity, archetype, -1, null));
 			return entity;
 		}
@@ -79,48 +81,75 @@ public sealed class CommandBuffer
 		Enqueue(new Command(CommandType.DestroyEntity, entity, null, -1, null));
 
 	/// <summary>
-	///     Applies all recorded commands to the world and clears the buffer.
+	///     Applies all recorded commands to the world.
 	/// </summary>
+	/// <remarks>
+	///     Playback is not allowed while systems are executing inside <see cref="World.Update(float)" />.
+	///     If playback fails, successfully processed commands are removed and unprocessed commands stay queued for retry.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">Thrown when playback is invoked during world update.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when a temporary entity has not been created in this buffer.</exception>
-	public void Playback()
+	public void Playback() =>
+		PlaybackInternal(allowDuringUpdate: false);
+
+	internal void PlaybackInternal(bool allowDuringUpdate)
 	{
+		if (!allowDuringUpdate && _world.IsUpdating)
+			throw new InvalidOperationException("Playback cannot run during world update.");
+
 		Command[] commands;
+		Dictionary<int, Entity> tempEntities;
 		lock (_sync)
 		{
+			if (_isPlayingBack)
+				throw new InvalidOperationException("CommandBuffer playback is already in progress.");
+
 			if (_commands.Count == 0) return;
 
 			commands = new Command[_commands.Count];
 			_commands.CopyTo(commands);
-			_commands.Clear();
+			tempEntities = _resolvedTemporaryEntities.Count == 0 ? [] : new(_resolvedTemporaryEntities);
+			_isPlayingBack = true;
 		}
 
-		var tempEntities = new Dictionary<int, Entity>();
-
-		for (var i = 0; i < commands.Length; i++)
+		var processedCount = 0;
+		try
 		{
-			var command = commands[i];
-			switch (command.Type)
+			for (; processedCount < commands.Length; processedCount++)
 			{
-				case CommandType.CreateEntity:
+				var command = commands[processedCount];
+				switch (command.Type)
 				{
-					var archetype = command.Archetype ?? _world.EmptyArchetype;
-					_world.EnsureOwnedArchetype(archetype);
-					var entity = _world.CreateEntityInternal(archetype);
-					tempEntities[command.Entity.Id] = entity;
-					break;
+					case CommandType.CreateEntity:
+					{
+						var archetype = command.Archetype ?? _world.EmptyArchetype;
+						_world.EnsureOwnedArchetype(archetype);
+						var entity = _world.CreateEntityInternal(archetype);
+						tempEntities[command.Entity.Id] = entity;
+						break;
+					}
+					case CommandType.DestroyEntity:
+						_world.DestroyEntityInternal(ResolveEntity(command.Entity, tempEntities));
+						break;
+					case CommandType.AddComponent:
+					case CommandType.SetComponent:
+						command.Applicator!.Apply(_world, ResolveEntity(command.Entity, tempEntities));
+						break;
+					case CommandType.RemoveComponent:
+						_world.RemoveComponentById(ResolveEntity(command.Entity, tempEntities), command.ComponentTypeId);
+						break;
+					default:
+						throw new ArgumentOutOfRangeException();
 				}
-				case CommandType.DestroyEntity:
-					_world.DestroyEntityInternal(ResolveEntity(command.Entity, tempEntities));
-					break;
-				case CommandType.AddComponent:
-				case CommandType.SetComponent:
-					command.Applicator!.Apply(_world, ResolveEntity(command.Entity, tempEntities));
-					break;
-				case CommandType.RemoveComponent:
-					_world.RemoveComponentById(ResolveEntity(command.Entity, tempEntities), command.ComponentTypeId);
-					break;
-				default:
-					throw new ArgumentOutOfRangeException();
+			}
+		}
+		finally
+		{
+			lock (_sync)
+			{
+				RemoveProcessedCommandsUnsafe(processedCount);
+				ReplaceResolvedTemporaryEntitiesUnsafe(tempEntities);
+				_isPlayingBack = false;
 			}
 		}
 	}
@@ -165,5 +194,25 @@ public sealed class CommandBuffer
 		{
 			_commands.Add(command);
 		}
+	}
+
+	private void RemoveProcessedCommandsUnsafe(int processedCount)
+	{
+		if (processedCount <= 0 || _commands.Count == 0) return;
+
+		if (processedCount > _commands.Count)
+			processedCount = _commands.Count;
+
+		_commands.RemoveRange(0, processedCount);
+	}
+
+	private void ReplaceResolvedTemporaryEntitiesUnsafe(Dictionary<int, Entity> source)
+	{
+		_resolvedTemporaryEntities.Clear();
+		foreach (var entry in source)
+			_resolvedTemporaryEntities[entry.Key] = entry.Value;
+
+		if (_commands.Count == 0)
+			_resolvedTemporaryEntities.Clear();
 	}
 }

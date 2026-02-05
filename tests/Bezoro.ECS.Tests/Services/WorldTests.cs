@@ -1,8 +1,7 @@
+using System;
 using System.Threading;
 using Bezoro.ECS.Abstractions;
-using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
-using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -13,7 +12,7 @@ namespace Bezoro.ECS.Tests.Services;
 public class WorldTests
 {
 	[Fact]
-	public void AddComponent_Should_Be_Queryable()
+	public void AddComponent_Should_BeQueryable()
 	{
 		// Arrange
 		var world  = new World();
@@ -30,23 +29,87 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_Should_Return_All_Entities_With_Position_And_Velocity()
+	public void Clear_ShouldNotRevalidatePreviousEntityHandle()
+	{
+		// Arrange
+		var world = new World();
+		var stale = world.CreateEntity();
+
+		// Act
+		world.Clear();
+		var current = world.CreateEntity();
+
+		// Assert
+		stale.Should().NotBe(current);
+		world.IsAlive(stale).Should().BeFalse();
+		world.IsAlive(current).Should().BeTrue();
+	}
+
+	[Fact]
+	public void Clear_ShouldResetEntityCount_And_InvalidateExistingEntities()
+	{
+		// Arrange
+		var world  = new World();
+		var first  = world.CreateEntity();
+		var second = world.CreateEntity();
+
+		// Act
+		world.Clear();
+
+		// Assert
+		world.EntityCount.Should().Be(0);
+		world.IsAlive(first).Should().BeFalse();
+		world.IsAlive(second).Should().BeFalse();
+	}
+
+	[Fact]
+	public void GetOrCreateArchetype_ShouldReturnSameInstance_WhenSameComponentSet()
+	{
+		// Arrange
+		var world = new World();
+
+		// Act
+		var first  = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
+		var second = world.GetOrCreateArchetype(typeof(Velocity), typeof(Position));
+
+		// Assert
+		first.Should().BeSameAs(second);
+	}
+
+	[Fact]
+	public void IsAlive_WhenEntityBelongsToDifferentWorld_ShouldBeFalse()
+	{
+		// Arrange
+		var worldA  = new World();
+		var worldB  = new World();
+		var foreign = worldA.CreateEntity();
+		worldB.CreateEntity();
+
+		// Act
+		bool isAlive = worldB.IsAlive(foreign);
+
+		// Assert
+		isAlive.Should().BeFalse();
+	}
+
+	[Fact]
+	public void Query_ShouldReturnAllEntities_WithPositionAndVelocity()
 	{
 		// Arrange
 		var world = new World();
 		var e1    = world.CreateEntity();
-		world.AddComponent(e1, new Position { X = 1, Y = 1 });
+		world.AddComponent(e1, new Position { X = 1, Y    = 1 });
 		world.AddComponent(e1, new Velocity { X = 0.5f, Y = 0.25f });
 
 		var e2 = world.CreateEntity();
-		world.AddComponent(e2, new Position { X = 2, Y = 2 });
+		world.AddComponent(e2, new Position { X = 2, Y    = 2 });
 		world.AddComponent(e2, new Velocity { X = 1.5f, Y = -0.5f });
 
 		var e3 = world.CreateEntity();
 		world.AddComponent(e3, new Position { X = 3, Y = 3 });
 
 		// Act
-		int count = 0;
+		var count = 0;
 		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
 			count += chunk.Count;
 
@@ -55,7 +118,32 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_With_Without_Filter_Should_Exclude_Entities_With_Excluded_Components()
+	public void Query_WithArchetypeFilter_ShouldReturnOnlyExactArchetype()
+	{
+		// Arrange
+		var world             = new World();
+		var baseArchetype     = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
+		var extendedArchetype = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity), typeof(Health));
+
+		world.CreateEntity(baseArchetype);
+		world.CreateEntity(extendedArchetype);
+
+		// Act
+		var allCount = 0;
+		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+			allCount += chunk.Count;
+
+		var filteredCount = 0;
+		foreach (var chunk in world.Query(baseArchetype).With<Position>().With<Velocity>())
+			filteredCount += chunk.Count;
+
+		// Assert
+		allCount.Should().Be(2);
+		filteredCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Query_WithWithoutFilter_ShouldExcludeEntitiesWithExcludedComponents()
 	{
 		// Arrange
 		var world = new World();
@@ -77,7 +165,7 @@ public class WorldTests
 		world.AddComponent(posVelocityHealth, new Health());
 
 		// Act
-		int count = 0;
+		var count = 0;
 		foreach (var chunk in world.Query().With<Position>().Without(typeof(Health), typeof(Velocity), typeof(Health)))
 			count += chunk.Count;
 
@@ -86,11 +174,11 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_With_Without_Filter_Should_Work_In_Parallel_Path()
+	public void Query_WithWithoutFilter_ShouldWorkInParallelPath()
 	{
 		// Arrange
 		var world = new World(
-			new WorldOptions
+			new()
 			{
 				ChunkCapacity          = 1,
 				MaxDegreeOfParallelism = 4
@@ -110,7 +198,7 @@ public class WorldTests
 		// Act
 		var count = 0;
 		world.Query().With<Position>().Without<Velocity>().ForEachParallel(
-			chunk => Interlocked.Add(ref count, chunk.Count), maxDegreeOfParallelism: 4
+			chunk => Interlocked.Add(ref count, chunk.Count), 4
 		);
 
 		// Assert
@@ -118,77 +206,23 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_With_Archetype_Filter_Should_Return_Only_Exact_Archetype()
+	public void SetComponent_WhenEntityBelongsToDifferentWorld_ShouldThrow()
 	{
 		// Arrange
-		var world = new World();
-		var baseArchetype = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
-		var extendedArchetype = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity), typeof(Health));
-
-		world.CreateEntity(baseArchetype);
-		world.CreateEntity(extendedArchetype);
+		var worldA  = new World();
+		var worldB  = new World();
+		var foreign = worldA.CreateEntity();
+		var local   = worldB.CreateEntity();
 
 		// Act
-		int allCount = 0;
-		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
-			allCount += chunk.Count;
-
-		int filteredCount = 0;
-		foreach (var chunk in world.Query(baseArchetype).With<Position>().With<Velocity>())
-			filteredCount += chunk.Count;
+		var act = () => worldB.SetComponent(foreign, new Position { X = 5, Y = 6 });
 
 		// Assert
-		allCount.Should().Be(2);
-		filteredCount.Should().Be(1);
+		act.Should().Throw<InvalidOperationException>();
+		worldB.HasComponent<Position>(local).Should().BeFalse();
 	}
 
-	[Fact]
-	public void GetOrCreateArchetype_Should_Return_Same_Instance_For_Same_Component_Set()
-	{
-		// Arrange
-		var world = new World();
-
-		// Act
-		var first  = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
-		var second = world.GetOrCreateArchetype(typeof(Velocity), typeof(Position));
-
-		// Assert
-		first.Should().BeSameAs(second);
-	}
-
-	[Fact]
-	public void Clear_Should_Reset_EntityCount_And_Invalidate_Existing_Entities()
-	{
-		// Arrange
-		var world  = new World();
-		var first  = world.CreateEntity();
-		var second = world.CreateEntity();
-
-		// Act
-		world.Clear();
-
-		// Assert
-		world.EntityCount.Should().Be(0);
-		world.IsAlive(first).Should().BeFalse();
-		world.IsAlive(second).Should().BeFalse();
-	}
-
-	[Fact]
-	public void Clear_Should_Not_Revalidate_Previous_Entity_Handle()
-	{
-		// Arrange
-		var world  = new World();
-		var stale  = world.CreateEntity();
-
-		// Act
-		world.Clear();
-		var current = world.CreateEntity();
-
-		// Assert
-		stale.Should().NotBe(current);
-		world.IsAlive(stale).Should().BeFalse();
-		world.IsAlive(current).Should().BeTrue();
-	}
+	private struct Health : IComponent;
 
 	private struct Position : IComponent
 	{
@@ -201,7 +235,4 @@ public class WorldTests
 		public float X;
 		public float Y;
 	}
-
-	private struct Health : IComponent
-	{ }
 }

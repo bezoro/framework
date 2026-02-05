@@ -11,12 +11,12 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 public class World : IWorld
 {
+	private static   int                                 _nextWorldId;
 	private readonly Dictionary<ArchetypeKey, Archetype> _archetypesByKey = new();
-	private readonly EntityManager                       _entityManager   = new();
-	private readonly List<Archetype>                     _archetypes      = [];
-	private readonly SystemManager                       _systemManager;
+	private readonly EntityManager                       _entityManager;
 	private readonly int                                 _chunkCapacity;
-	private readonly int                                 _maxDegreeOfParallelism;
+	private readonly List<Archetype>                     _archetypes = [];
+	private readonly SystemManager                       _systemManager;
 	private volatile bool                                _isUpdating;
 
 	/// <summary>
@@ -43,10 +43,11 @@ public class World : IWorld
 				"Parallelism must be positive."
 			);
 
-		_chunkCapacity          = options.ChunkCapacity;
-		_maxDegreeOfParallelism = options.MaxDegreeOfParallelism;
-		_systemManager          = new(_maxDegreeOfParallelism);
-		EmptyArchetype          = CreateArchetypeInternal([], []);
+		_chunkCapacity         = options.ChunkCapacity;
+		MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+		_entityManager         = new(WorldId);
+		_systemManager         = new(MaxDegreeOfParallelism);
+		EmptyArchetype         = CreateArchetypeInternal([], []);
 	}
 
 	/// <summary>
@@ -59,7 +60,11 @@ public class World : IWorld
 	/// </summary>
 	internal Archetype EmptyArchetype { get; }
 
-	internal int MaxDegreeOfParallelism => _maxDegreeOfParallelism;
+	internal bool IsUpdating => _isUpdating;
+
+	internal int MaxDegreeOfParallelism { get; }
+
+	internal int WorldId { get; } = Interlocked.Increment(ref _nextWorldId);
 
 	internal IReadOnlyList<Archetype> Archetypes => _archetypes;
 
@@ -278,6 +283,20 @@ public class World : IWorld
 	}
 
 	/// <summary>
+	///     Removes all entities and clears chunk data. Archetypes and registered systems are preserved.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when called during an update.</exception>
+	public void Clear()
+	{
+		EnsureNotUpdating();
+
+		for (var i = 0; i < _archetypes.Count; i++)
+			_archetypes[i].ClearChunks();
+
+		_entityManager.Clear();
+	}
+
+	/// <summary>
 	///     Destroys the specified entity, removing all its components and recycling its ID.
 	/// </summary>
 	/// <param name="entity">The entity to destroy.</param>
@@ -359,20 +378,6 @@ public class World : IWorld
 	/// </summary>
 	public void Update() =>
 		Update(0f);
-
-	/// <summary>
-	///     Removes all entities and clears chunk data. Archetypes and registered systems are preserved.
-	/// </summary>
-	/// <exception cref="InvalidOperationException">Thrown when called during an update.</exception>
-	public void Clear()
-	{
-		EnsureNotUpdating();
-
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].ClearChunks();
-
-		_entityManager.Clear();
-	}
 
 	internal Entity CreateEntityInternal(Archetype archetype)
 	{
@@ -476,6 +481,35 @@ public class World : IWorld
 			Array.Clear(chunk.Components[i], slot, 1);
 	}
 
+	private (Chunk targetChunk, int targetSlot) MoveEntityCore(
+		Entity         entity,
+		Archetype      source,
+		EntityLocation sourceLocation,
+		Archetype      target)
+	{
+		var sourceChunk = source.Chunks[sourceLocation.ChunkIndex];
+		var targetChunk = target.GetOrCreateChunkWithSpace(out int targetChunkIndex);
+		int targetSlot  = targetChunk.Count++;
+
+		targetChunk.Entities[targetSlot] = entity;
+		ClearComponentSlot(targetChunk, targetSlot);
+		_entityManager.SetLocation(entity, new(target.Id, targetChunkIndex, targetSlot));
+
+		for (var i = 0; i < source.TypeIds.Length; i++)
+		{
+			int typeId      = source.TypeIds[i];
+			int targetIndex = target.GetTypeIndex(typeId);
+			if (targetIndex < 0) continue;
+
+			var sourceArray = sourceChunk.Components[i];
+			var targetArray = targetChunk.Components[targetIndex];
+			Array.Copy(sourceArray, sourceLocation.SlotIndex, targetArray, targetSlot, 1);
+		}
+
+		RemoveEntityFromArchetype(source, sourceLocation, entity, false);
+		return (targetChunk, targetSlot);
+	}
+
 	private Archetype CreateArchetypeInternal(int[] typeIds, Type[] types)
 	{
 		var archetype = new Archetype(this, _archetypes.Count, typeIds, types, _chunkCapacity);
@@ -555,7 +589,7 @@ public class World : IWorld
 		int[] newTypeIds = InsertTypeId(source.TypeIds, typeId);
 		var   target     = GetOrCreateArchetypeByTypeIds(newTypeIds);
 
-		var (targetChunk, targetSlot) = MoveEntityCore(entity, source, location, target);
+		(var targetChunk, int targetSlot) = MoveEntityCore(entity, source, location, target);
 
 		int addedIndex = target.GetTypeIndex(typeId);
 		if (addedIndex >= 0)
@@ -584,35 +618,6 @@ public class World : IWorld
 		Archetype      target)
 	{
 		MoveEntityCore(entity, source, sourceLocation, target);
-	}
-
-	private (Chunk targetChunk, int targetSlot) MoveEntityCore(
-		Entity         entity,
-		Archetype      source,
-		EntityLocation sourceLocation,
-		Archetype      target)
-	{
-		var sourceChunk = source.Chunks[sourceLocation.ChunkIndex];
-		var targetChunk = target.GetOrCreateChunkWithSpace(out int targetChunkIndex);
-		int targetSlot  = targetChunk.Count++;
-
-		targetChunk.Entities[targetSlot] = entity;
-		ClearComponentSlot(targetChunk, targetSlot);
-		_entityManager.SetLocation(entity, new(target.Id, targetChunkIndex, targetSlot));
-
-		for (var i = 0; i < source.TypeIds.Length; i++)
-		{
-			int typeId      = source.TypeIds[i];
-			int targetIndex = target.GetTypeIndex(typeId);
-			if (targetIndex < 0) continue;
-
-			var sourceArray = sourceChunk.Components[i];
-			var targetArray = targetChunk.Components[targetIndex];
-			Array.Copy(sourceArray, sourceLocation.SlotIndex, targetArray, targetSlot, 1);
-		}
-
-		RemoveEntityFromArchetype(source, sourceLocation, entity, false);
-		return (targetChunk, targetSlot);
 	}
 
 	private void RemoveEntityFromArchetype(Entity entity)
