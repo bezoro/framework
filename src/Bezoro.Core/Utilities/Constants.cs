@@ -7,6 +7,11 @@
 public static class Constants
 {
 	/// <summary>
+	///     The number of seconds in a millisecond.
+	/// </summary>
+	public const float SECONDS_PER_MILLISECOND = 1f / 1000f;
+
+	/// <summary>
 	///     Constants related to game initialization configuration assets.
 	/// </summary>
 	public static class GameInitialization
