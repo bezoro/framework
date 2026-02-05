@@ -11,6 +11,7 @@
 
 - **Ergonomic API is King**: Logical, easy to use, straightforward, powerful, optionally configurable.
 - Favor straightforward, readable surface over exposing internal complexity.
+- **Design APIs in tests first**: The test file is the design surface. Write consumer-perspective usage code *before* any interfaces or classes exist. Refine until the usage feels natural — then let the implementation follow.
 
 ### Internal Implementation
 
@@ -31,8 +32,8 @@
 
 ### 2. Execution
 
-1. **Test**: Write/update test. Run to confirm it fails.
-2. **Implement**: Minimal code to pass. Run tests. Verify no fake greens.
+1. **Test (= API Design)**: Tests are the primary design tool. Before writing any implementation, write tests that express the **ideal consumer experience** — the way a caller *should* interact with the API. Iterate on naming, signatures, overloads, return types, and error handling *in the test* until the usage reads naturally and feels ergonomic. Only once the test captures the desired public surface, run to confirm it fails.
+2. **Implement**: Minimal code to pass the test-defined API. Run tests. Verify no fake greens.
 3. **Refactor**: Optimize after green. Run tests again.
 4. **Document**: Check if XML docs or README need updates for changed/added APIs.
 5. **Verify**: Build the full solution (`dotnet build bezoro.framework.sln`) to ensure no breaks.
