@@ -221,6 +221,8 @@ public class TargetTests
 
 **Breaking**: `feat(api)!: message` or footer `BREAKING CHANGE: description`
 
+**Body**: Use bulleted lists (`-`) to describe individual changes.
+
 **SemVer**: `feat` → MINOR | `fix` → PATCH | `!`/`BREAKING CHANGE` → MAJOR
 
 ### Commit Workflow
