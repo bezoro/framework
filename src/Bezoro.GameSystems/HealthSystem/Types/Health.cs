@@ -1,5 +1,4 @@
 using Bezoro.Core.Types;
-using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
@@ -9,7 +8,7 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 /// <remarks>
 ///     Immutable value type. Operations return updated instances.
 /// </remarks>
-public readonly record struct Health : IDamageableHealth<Health>
+public readonly record struct Health
 {
 	private readonly UIntRange _range;
 
@@ -45,11 +44,6 @@ public readonly record struct Health : IDamageableHealth<Health>
 	public uint Current => _range.Current;
 
 	/// <summary>
-	///     Gets the effective current health used for damage calculations.
-	/// </summary>
-	public uint EffectiveCurrent => Current;
-
-	/// <summary>
 	///     Gets the maximum health value.
 	/// </summary>
 	public uint Max => _range.Max;
@@ -59,14 +53,7 @@ public readonly record struct Health : IDamageableHealth<Health>
 	/// </summary>
 	/// <param name="value">The amount to subtract from current.</param>
 	/// <returns>The updated health.</returns>
-	public Health DecreaseCurrentHealthBy(uint value) => new(_range.Decrease(value));
-
-	/// <summary>
-	///     Applies damage and returns the updated health.
-	/// </summary>
-	/// <param name="amount">The amount of damage to apply.</param>
-	/// <returns>The updated health.</returns>
-	public Health ApplyDamage(uint amount) => DecreaseCurrentHealthBy(amount);
+	public Health DecreaseCurrentHealthBy(uint value) => new(_range.SubtractFromCurrent(value));
 
 	/// <summary>
 	///     Returns a new health with max decreased and current updated based on the chosen mode.
@@ -81,13 +68,13 @@ public readonly record struct Health : IDamageableHealth<Health>
 	///     Returns a new health with current set to zero.
 	/// </summary>
 	/// <returns>The updated health.</returns>
-	public Health DepleteCurrentHealth() => new(_range.Deplete());
+	public Health DepleteCurrentHealth() => new(_range.SetCurrentToMinimum());
 
 	/// <summary>
 	///     Returns a new health with current fully restored to max.
 	/// </summary>
 	/// <returns>The updated health.</returns>
-	public Health FullyRestoreCurrentHealth() => new(_range.FullyRestore());
+	public Health FullyRestoreCurrentHealth() => new(_range.MaximizeCurrent());
 
 	/// <summary>
 	///     Returns a new health with max increased and current updated based on the chosen mode.
@@ -103,7 +90,7 @@ public readonly record struct Health : IDamageableHealth<Health>
 	/// </summary>
 	/// <param name="value">The amount to restore.</param>
 	/// <returns>The updated health.</returns>
-	public Health RestoreCurrentHealthBy(uint value) => new(_range.Restore(value));
+	public Health RestoreCurrentHealthBy(uint value) => new(_range.AddToCurrent(value));
 
 	/// <summary>
 	///     Returns a new health with current set to the specified value, clamped to max.

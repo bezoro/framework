@@ -1,5 +1,4 @@
 using Bezoro.Core.Types;
-using Bezoro.GameSystems.HealthSystem.Abstractions;
 
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
@@ -9,7 +8,7 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 /// <remarks>
 ///     Immutable value type. Operations return updated instances.
 /// </remarks>
-public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExcess>
+public readonly record struct HealthWithExcess
 {
 	private readonly UIntRange _base;
 	private readonly UIntRange _excess;
@@ -106,7 +105,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 	{
 		if (value == 0) return this;
 
-		return new(_base.Decrease(value), _excess);
+		return new(_base.SubtractFromCurrent(value), _excess);
 	}
 
 	/// <summary>
@@ -118,7 +117,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 	{
 		if (value == 0) return this;
 
-		return new(_base, _excess.Decrease(value));
+		return new(_base, _excess.SubtractFromCurrent(value));
 	}
 
 	/// <summary>
@@ -138,12 +137,12 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 		if (excessCurrent > 0)
 		{
 			uint absorbed = excessCurrent >= remaining ? remaining : excessCurrent;
-			excessRange =  excessRange.Decrease(absorbed);
+			excessRange =  excessRange.SubtractFromCurrent(absorbed);
 			remaining   -= absorbed;
 		}
 
 		if (remaining > 0)
-			baseRange = baseRange.Decrease(remaining);
+			baseRange = baseRange.SubtractFromCurrent(remaining);
 
 		return new(baseRange, excessRange);
 	}
@@ -168,19 +167,19 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 	///     Returns a new health with base current set to zero.
 	/// </summary>
 	/// <returns>The updated health.</returns>
-	public HealthWithExcess DepleteCurrentHealth() => new(_base.Deplete(), _excess);
+	public HealthWithExcess DepleteCurrentHealth() => new(_base.SetCurrentToMinimum(), _excess);
 
 	/// <summary>
 	///     Returns a new health with excess current set to zero.
 	/// </summary>
 	/// <returns>The updated health.</returns>
-	public HealthWithExcess DepleteExcessHealth() => new(_base, _excess.Deplete());
+	public HealthWithExcess DepleteExcessHealth() => new(_base, _excess.SetCurrentToMinimum());
 
 	/// <summary>
 	///     Returns a new health with base current fully restored to max.
 	/// </summary>
 	/// <returns>The updated health.</returns>
-	public HealthWithExcess FullyRestoreCurrentHealth() => new(_base.FullyRestore(), _excess);
+	public HealthWithExcess FullyRestoreCurrentHealth() => new(_base.MaximizeCurrent(), _excess);
 
 	/// <summary>
 	///     Returns a new health with base restored and any overflow routed into excess.
@@ -195,7 +194,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 		var   excessRange = _excess;
 		ulong sum         = (ulong)baseRange.Current + value;
 		if (sum <= baseRange.Max)
-			return new(baseRange.Restore(value), excessRange);
+			return new(baseRange.AddToCurrent(value), excessRange);
 
 		if (baseRange.Current < baseRange.Max)
 			baseRange = baseRange.SetCurrent(baseRange.Max);
@@ -203,7 +202,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 		ulong overflow = sum - baseRange.Max;
 		uint  add      = Saturate(overflow);
 		if (add > 0)
-			excessRange = excessRange.Restore(add);
+			excessRange = excessRange.AddToCurrent(add);
 
 		return new(baseRange, excessRange);
 	}
@@ -217,7 +216,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 	{
 		if (value == 0) return this;
 
-		return new(_base, _excess.Restore(value));
+		return new(_base, _excess.AddToCurrent(value));
 	}
 
 	/// <summary>
@@ -245,7 +244,7 @@ public readonly record struct HealthWithExcess : IDamageableHealth<HealthWithExc
 	{
 		if (value == 0) return this;
 
-		return new(_base.Restore(value), _excess);
+		return new(_base.AddToCurrent(value), _excess);
 	}
 
 	/// <summary>
