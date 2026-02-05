@@ -6,7 +6,7 @@ namespace Bezoro.ECS.Services;
 /// <summary>
 ///     Manages the lifecycle of entities within the Entity Component System (ECS).
 /// </summary>
-public class EntityManager
+internal sealed class EntityManager
 {
 	private readonly Stack<int>       _availableIds = new();
 	private          bool[]           _alive        = [];
@@ -14,6 +14,11 @@ public class EntityManager
 	private          EntityLocation[] _locations    = [];
 	private          int              _nextId;
 	private          int[]            _versions = [];
+
+	/// <summary>
+	///     Gets the number of currently alive entities.
+	/// </summary>
+	internal int AliveCount { get; private set; }
 
 	/// <summary>
 	///     Determines whether the specified entity is currently alive.
@@ -44,6 +49,7 @@ public class EntityManager
 	{
 		var entity = AllocateEntity(false);
 		_alive[entity.Id] = true;
+		AliveCount++;
 		return entity;
 	}
 
@@ -65,6 +71,7 @@ public class EntityManager
 		EnsureReserved(entity);
 		_reserved[entity.Id] = false;
 		_alive[entity.Id]    = true;
+		AliveCount++;
 	}
 
 	/// <summary>
@@ -86,6 +93,7 @@ public class EntityManager
 	{
 		EnsureAlive(entity);
 		_alive[entity.Id] = false;
+		AliveCount--;
 		_versions[entity.Id]++;
 		_locations[entity.Id] = EntityLocation.Empty;
 		_availableIds.Push(entity.Id);
@@ -126,6 +134,22 @@ public class EntityManager
 		Array.Resize(ref _reserved,  newSize);
 		Array.Resize(ref _versions,  newSize);
 		Array.Resize(ref _locations, newSize);
+	}
+
+	internal void Clear()
+	{
+		_availableIds.Clear();
+
+		for (var id = 0; id < _nextId; id++)
+		{
+			_alive[id]      = false;
+			_reserved[id]   = false;
+			_versions[id]++;
+			_locations[id] = EntityLocation.Empty;
+		}
+
+		_nextId = 0;
+		AliveCount = 0;
 	}
 
 	private void EnsureReserved(Entity entity)

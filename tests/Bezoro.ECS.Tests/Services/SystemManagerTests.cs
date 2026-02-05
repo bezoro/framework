@@ -28,6 +28,25 @@ public class SystemManagerTests
 		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
 	}
 
+	[Fact]
+	public void UpdateAll_When_DeltaTime_Is_Large_Should_Cap_Catch_Up_Ticks()
+	{
+		// Arrange
+		var world  = new World();
+		var system = new FixedStepSystem();
+		world.RegisterSystem(system);
+
+		// Act
+		world.Update(10f);
+		world.Update(0f);
+		world.Update(0f);
+		world.Update(0f);
+
+		// Assert
+		system.UpdateCount.Should().Be(3);
+		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+	}
+
 	private sealed class FixedStepSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }

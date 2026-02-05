@@ -10,14 +10,16 @@ namespace Bezoro.ECS.Types;
 public readonly struct Query
 {
 	private readonly Archetype? _archetype;
+	private readonly int[]      _excludeTypeIds;
 	private readonly int[]      _typeIds;
 	private readonly World      _world;
 
-	internal Query(World world, Archetype? archetype, int[] typeIds)
+	internal Query(World world, Archetype? archetype, int[] typeIds, int[] excludeTypeIds)
 	{
-		_world     = world;
-		_archetype = archetype;
-		_typeIds   = typeIds;
+		_world          = world;
+		_archetype      = archetype;
+		_typeIds        = typeIds;
+		_excludeTypeIds = excludeTypeIds;
 	}
 
 	/// <summary>
@@ -32,7 +34,7 @@ public readonly struct Query
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 
 		_world.EnsureOwnedArchetype(archetype);
-		return new(_world, archetype, _typeIds);
+		return new(_world, archetype, _typeIds, _excludeTypeIds);
 	}
 
 	/// <summary>
@@ -69,9 +71,42 @@ public readonly struct Query
 	}
 
 	/// <summary>
+	///     Adds a component type exclusion to this query. Entities with this component will be skipped.
+	/// </summary>
+	/// <typeparam name="T">The component type to exclude.</typeparam>
+	/// <returns>A new query with the additional exclusion.</returns>
+	public Query Without<T>() where T : struct, IComponent
+	{
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		return WithoutTypeId(typeId);
+	}
+
+	/// <summary>
+	///     Adds component type exclusions to this query. Entities with any of these components will be skipped.
+	/// </summary>
+	/// <param name="componentTypes">The component types to exclude.</param>
+	/// <returns>A new query with the additional exclusions.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="componentTypes" /> is null.</exception>
+	/// <exception cref="ArgumentException">Thrown when a component type is invalid.</exception>
+	public Query Without(params Type[] componentTypes)
+	{
+		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
+
+		var query = this;
+		for (var i = 0; i < componentTypes.Length; i++)
+		{
+			var type   = componentTypes[i] ?? throw new ArgumentNullException(nameof(componentTypes));
+			int typeId = ComponentTypeRegistry.GetOrCreate(type);
+			query = query.WithoutTypeId(typeId);
+		}
+
+		return query;
+	}
+
+	/// <summary>
 	///     Returns an enumerator for foreach iteration.
 	/// </summary>
-	public QueryEnumerator GetEnumerator() => new(_world, _archetype, _typeIds);
+	public QueryEnumerator GetEnumerator() => new(_world, _archetype, _typeIds, _excludeTypeIds);
 
 	/// <summary>
 	///     Executes an action for each matching chunk.
@@ -103,22 +138,47 @@ public readonly struct Query
 
 		if (_archetype is { })
 		{
-			ExecuteParallelForArchetype(_archetype, _typeIds, action, parallelism);
+			ExecuteParallelForArchetype(_archetype, action, parallelism);
 			return;
 		}
 
+		var views      = new List<ChunkView>();
 		var archetypes = _world.Archetypes;
 		for (var i = 0; i < archetypes.Count; i++)
-			ExecuteParallelForArchetype(archetypes[i], _typeIds, action, parallelism);
+		{
+			var archetype = archetypes[i];
+			if (!MatchesArchetype(archetype)) continue;
+
+			var chunks = archetype.Chunks;
+			for (var c = 0; c < chunks.Count; c++)
+			{
+				var chunk = chunks[c];
+				if (chunk.Count == 0) continue;
+
+				views.Add(new(chunk.Entities, chunk.Components, chunk.Count, archetype.TypeIndexById));
+			}
+		}
+
+		if (views.Count == 0) return;
+
+		var options = new ParallelOptions { MaxDegreeOfParallelism = parallelism };
+		Parallel.For(0, views.Count, options, i => action(views[i]));
 	}
 
-	private static void ExecuteParallelForArchetype(
+	private bool MatchesArchetype(Archetype archetype)
+	{
+		if (_typeIds.Length > 0 && !archetype.ContainsAll(_typeIds)) return false;
+		if (_excludeTypeIds.Length > 0 && archetype.ContainsAny(_excludeTypeIds)) return false;
+
+		return true;
+	}
+
+	private void ExecuteParallelForArchetype(
 		Archetype         archetype,
-		int[]             typeIds,
 		Action<ChunkView> action,
 		int               parallelism)
 	{
-		if (typeIds.Length > 0 && !archetype.ContainsAll(typeIds)) return;
+		if (!MatchesArchetype(archetype)) return;
 
 		var options = new ParallelOptions { MaxDegreeOfParallelism = parallelism };
 		var chunks  = archetype.Chunks;
@@ -137,7 +197,7 @@ public readonly struct Query
 	private Query WithTypeId(int typeId)
 	{
 		if (_typeIds.Length == 0)
-			return new(_world, _archetype, [typeId]);
+			return new(_world, _archetype, [typeId], _excludeTypeIds);
 
 		for (var i = 0; i < _typeIds.Length; i++)
 		{
@@ -164,6 +224,39 @@ public readonly struct Query
 		if (!added)
 			updated[index] = typeId;
 
-		return new(_world, _archetype, updated);
+		return new(_world, _archetype, updated, _excludeTypeIds);
+	}
+
+	private Query WithoutTypeId(int typeId)
+	{
+		if (_excludeTypeIds.Length == 0)
+			return new(_world, _archetype, _typeIds, [typeId]);
+
+		for (var i = 0; i < _excludeTypeIds.Length; i++)
+		{
+			if (_excludeTypeIds[i] == typeId)
+				return this;
+		}
+
+		var updated = new int[_excludeTypeIds.Length + 1];
+		var index   = 0;
+		var added   = false;
+
+		for (var i = 0; i < _excludeTypeIds.Length; i++)
+		{
+			int current = _excludeTypeIds[i];
+			if (!added && typeId < current)
+			{
+				updated[index++] = typeId;
+				added            = true;
+			}
+
+			updated[index++] = current;
+		}
+
+		if (!added)
+			updated[index] = typeId;
+
+		return new(_world, _archetype, _typeIds, updated);
 	}
 }

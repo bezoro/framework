@@ -15,8 +15,9 @@ public class World : IWorld
 	private readonly EntityManager                       _entityManager   = new();
 	private readonly List<Archetype>                     _archetypes      = [];
 	private readonly SystemManager                       _systemManager;
-	private readonly WorldOptions                        _options;
-	private          bool                                _isUpdating;
+	private readonly int                                 _chunkCapacity;
+	private readonly int                                 _maxDegreeOfParallelism;
+	private volatile bool                                _isUpdating;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="World" /> class with default options.
@@ -42,17 +43,23 @@ public class World : IWorld
 				"Parallelism must be positive."
 			);
 
-		_options       = options;
-		_systemManager = new(options.MaxDegreeOfParallelism);
-		EmptyArchetype = CreateArchetypeInternal([], []);
+		_chunkCapacity          = options.ChunkCapacity;
+		_maxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+		_systemManager          = new(_maxDegreeOfParallelism);
+		EmptyArchetype          = CreateArchetypeInternal([], []);
 	}
+
+	/// <summary>
+	///     Gets the number of currently alive entities.
+	/// </summary>
+	public int EntityCount => _entityManager.AliveCount;
 
 	/// <summary>
 	///     Gets the default empty archetype.
 	/// </summary>
 	internal Archetype EmptyArchetype { get; }
 
-	internal int MaxDegreeOfParallelism => _options.MaxDegreeOfParallelism;
+	internal int MaxDegreeOfParallelism => _maxDegreeOfParallelism;
 
 	internal IReadOnlyList<Archetype> Archetypes => _archetypes;
 
@@ -223,7 +230,7 @@ public class World : IWorld
 	///     Creates a query builder over entities.
 	/// </summary>
 	public Query Query() =>
-		new(this, null, []);
+		new(this, null, [], []);
 
 	/// <summary>
 	///     Creates a query builder restricted to a specific archetype.
@@ -235,7 +242,7 @@ public class World : IWorld
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 
 		EnsureOwnedArchetype(archetype);
-		return new(this, archetype, []);
+		return new(this, archetype, [], []);
 	}
 
 	/// <summary>
@@ -254,13 +261,21 @@ public class World : IWorld
 	}
 
 	/// <summary>
-	///     Adds or replaces a component of type <typeparamref name="T" /> on the specified entity.
+	///     Adds a component of type <typeparamref name="T" /> to the specified entity.
+	///     Throws if the entity already has the component. Use <see cref="SetComponent{T}" /> to update an existing value.
 	/// </summary>
-	/// <typeparam name="T">The type of component to add or replace.</typeparam>
+	/// <typeparam name="T">The type of component to add.</typeparam>
 	/// <param name="entity">The entity to modify.</param>
-	/// <param name="component">The component instance to set.</param>
-	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent =>
-		SetComponent(entity, in component);
+	/// <param name="component">The component instance to add.</param>
+	/// <exception cref="InvalidOperationException">Thrown when the entity already has the component.</exception>
+	/// <exception cref="InvalidOperationException">Thrown when the entity is not alive.</exception>
+	/// <exception cref="InvalidOperationException">Thrown when structural changes are attempted during update.</exception>
+	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
+	{
+		EnsureNotUpdating();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		ApplyAddComponentTyped(entity, typeId, in component);
+	}
 
 	/// <summary>
 	///     Destroys the specified entity, removing all its components and recycling its ID.
@@ -301,7 +316,8 @@ public class World : IWorld
 
 	/// <summary>
 	///     Sets a component of type <typeparamref name="T" /> on the specified entity.
-	///     If the component does not exist, it is added.
+	///     If the component does not exist, it is added. Allows in-place updates during system execution;
+	///     structural changes (adding a new component type) require a <see cref="CommandBuffer" />.
 	/// </summary>
 	/// <typeparam name="T">The type of component to set.</typeparam>
 	/// <param name="entity">The entity to modify.</param>
@@ -344,6 +360,20 @@ public class World : IWorld
 	public void Update() =>
 		Update(0f);
 
+	/// <summary>
+	///     Removes all entities and clears chunk data. Archetypes and registered systems are preserved.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when called during an update.</exception>
+	public void Clear()
+	{
+		EnsureNotUpdating();
+
+		for (var i = 0; i < _archetypes.Count; i++)
+			_archetypes[i].ClearChunks();
+
+		_entityManager.Clear();
+	}
+
 	internal Entity CreateEntityInternal(Archetype archetype)
 	{
 		var entity = _entityManager.CreateEntity();
@@ -351,16 +381,25 @@ public class World : IWorld
 		return entity;
 	}
 
-	internal void ApplySetComponentInternal(Entity entity, int typeId, object? component)
+	internal void ApplyAddComponentTyped<T>(Entity entity, int typeId, in T component) where T : struct, IComponent
 	{
-		if (component is null)
-			throw new ArgumentNullException(nameof(component), "Component value cannot be null.");
-
 		_entityManager.EnsureAlive(entity);
 
-		if (TrySetComponentBoxed(entity, typeId, component)) return;
+		if (HasComponent(typeId, entity))
+			throw new InvalidOperationException(
+				$"Entity {entity.Id} already has component {typeof(T).Name}. Use SetComponent to update."
+			);
 
-		AddComponentWithMoveBoxed(entity, typeId, component);
+		AddComponentWithMove(entity, typeId, in component);
+	}
+
+	internal void ApplySetComponentTyped<T>(Entity entity, int typeId, in T component) where T : struct, IComponent
+	{
+		_entityManager.EnsureAlive(entity);
+
+		if (TrySetComponentInPlace(entity, typeId, in component)) return;
+
+		AddComponentWithMove(entity, typeId, in component);
 	}
 
 	internal void DestroyEntityInternal(Entity entity)
@@ -389,7 +428,7 @@ public class World : IWorld
 		int[] newTypeIds = RemoveTypeId(source.TypeIds, typeId);
 		var   target     = GetOrCreateArchetypeByTypeIds(newTypeIds);
 
-		MoveEntity(entity, source, location, target, -1, null);
+		MoveEntity(entity, source, location, target);
 	}
 
 	private static int[] InsertTypeId(int[] source, int typeId)
@@ -439,7 +478,7 @@ public class World : IWorld
 
 	private Archetype CreateArchetypeInternal(int[] typeIds, Type[] types)
 	{
-		var archetype = new Archetype(this, _archetypes.Count, typeIds, types, _options.ChunkCapacity);
+		var archetype = new Archetype(this, _archetypes.Count, typeIds, types, _chunkCapacity);
 		_archetypes.Add(archetype);
 		_archetypesByKey.Add(new(typeIds), archetype);
 		return archetype;
@@ -499,15 +538,6 @@ public class World : IWorld
 		return true;
 	}
 
-	private bool TrySetComponentBoxed(Entity entity, int typeId, object component)
-	{
-		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
-			return false;
-
-		chunk.Components[componentIndex].SetValue(component, slot);
-		return true;
-	}
-
 	private bool TrySetComponentInPlace<T>(Entity entity, int typeId, in T component) where T : struct, IComponent
 	{
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
@@ -525,18 +555,11 @@ public class World : IWorld
 		int[] newTypeIds = InsertTypeId(source.TypeIds, typeId);
 		var   target     = GetOrCreateArchetypeByTypeIds(newTypeIds);
 
-		MoveEntity(entity, source, location, target, typeId, component);
-	}
+		var (targetChunk, targetSlot) = MoveEntityCore(entity, source, location, target);
 
-	private void AddComponentWithMoveBoxed(Entity entity, int typeId, object component)
-	{
-		var location = _entityManager.GetLocation(entity);
-		var source   = _archetypes[location.ArchetypeId];
-
-		int[] newTypeIds = InsertTypeId(source.TypeIds, typeId);
-		var   target     = GetOrCreateArchetypeByTypeIds(newTypeIds);
-
-		MoveEntity(entity, source, location, target, typeId, component);
+		int addedIndex = target.GetTypeIndex(typeId);
+		if (addedIndex >= 0)
+			((T[])targetChunk.Components[addedIndex])[targetSlot] = component;
 	}
 
 	private void AddEntityToArchetype(Entity entity, Archetype archetype)
@@ -558,9 +581,16 @@ public class World : IWorld
 		Entity         entity,
 		Archetype      source,
 		EntityLocation sourceLocation,
-		Archetype      target,
-		int            addedTypeId,
-		object?        addedComponent)
+		Archetype      target)
+	{
+		MoveEntityCore(entity, source, sourceLocation, target);
+	}
+
+	private (Chunk targetChunk, int targetSlot) MoveEntityCore(
+		Entity         entity,
+		Archetype      source,
+		EntityLocation sourceLocation,
+		Archetype      target)
 	{
 		var sourceChunk = source.Chunks[sourceLocation.ChunkIndex];
 		var targetChunk = target.GetOrCreateChunkWithSpace(out int targetChunkIndex);
@@ -581,14 +611,8 @@ public class World : IWorld
 			Array.Copy(sourceArray, sourceLocation.SlotIndex, targetArray, targetSlot, 1);
 		}
 
-		if (addedTypeId >= 0 && addedComponent is { })
-		{
-			int addedIndex = target.GetTypeIndex(addedTypeId);
-			if (addedIndex >= 0)
-				targetChunk.Components[addedIndex].SetValue(addedComponent, targetSlot);
-		}
-
 		RemoveEntityFromArchetype(source, sourceLocation, entity, false);
+		return (targetChunk, targetSlot);
 	}
 
 	private void RemoveEntityFromArchetype(Entity entity)
@@ -628,6 +652,8 @@ public class World : IWorld
 			Array.Clear(chunk.Components[i], last, 1);
 
 		chunk.Count--;
+		archetype.NotifyChunkFreed(location.ChunkIndex);
+
 		if (clearLocation)
 			_entityManager.SetLocation(removedEntity, EntityLocation.Empty);
 	}

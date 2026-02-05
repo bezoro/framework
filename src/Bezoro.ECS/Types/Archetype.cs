@@ -8,6 +8,8 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public sealed class Archetype
 {
+	private int _firstAvailableChunkIndex;
+
 	internal Archetype(World owner, int id, int[] typeIds, Type[] types, int chunkCapacity)
 	{
 		Owner         = owner;
@@ -73,22 +75,58 @@ public sealed class Archetype
 		return j == requiredTypeIds.Length;
 	}
 
+	internal bool ContainsAny(int[] typeIds)
+	{
+		var i = 0;
+		var j = 0;
+
+		while (i < TypeIds.Length && j < typeIds.Length)
+		{
+			int current = TypeIds[i];
+			int check   = typeIds[j];
+
+			if (current == check)
+				return true;
+
+			if (current < check)
+				i++;
+			else
+				j++;
+		}
+
+		return false;
+	}
+
 	internal Chunk GetOrCreateChunkWithSpace(out int chunkIndex)
 	{
-		for (var i = 0; i < Chunks.Count; i++)
+		for (var i = _firstAvailableChunkIndex; i < Chunks.Count; i++)
 		{
 			var chunk = Chunks[i];
 			if (chunk.Count < ChunkCapacity)
 			{
-				chunkIndex = i;
+				_firstAvailableChunkIndex = i;
+				chunkIndex                = i;
 				return chunk;
 			}
 		}
 
 		var newChunk = new Chunk(Types, ChunkCapacity);
 		Chunks.Add(newChunk);
-		chunkIndex = Chunks.Count - 1;
+		chunkIndex                = Chunks.Count - 1;
+		_firstAvailableChunkIndex = chunkIndex;
 		return newChunk;
+	}
+
+	internal void NotifyChunkFreed(int chunkIndex)
+	{
+		if (chunkIndex < _firstAvailableChunkIndex)
+			_firstAvailableChunkIndex = chunkIndex;
+	}
+
+	internal void ClearChunks()
+	{
+		Chunks.Clear();
+		_firstAvailableChunkIndex = 0;
 	}
 
 	internal int GetTypeIndex(int typeId)

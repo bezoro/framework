@@ -7,7 +7,7 @@ namespace Bezoro.ECS.Services;
 /// <summary>
 ///     Manages the registration and update cycle of systems within the Entity Component System (ECS) framework.
 /// </summary>
-public class SystemManager
+internal sealed class SystemManager
 {
 	private readonly int               _maxDegreeOfParallelism;
 	private readonly List<SystemState> _systems = [];
@@ -108,6 +108,8 @@ public class SystemManager
 
 	private static bool ShouldRun(SystemState state, float deltaTime, out float effectiveDeltaTime)
 	{
+		const int maxCatchUpTicks = 3;
+
 		var settings = state.System.UpdateSettings;
 		if (settings.IntervalSeconds <= 0f)
 		{
@@ -116,6 +118,11 @@ public class SystemManager
 		}
 
 		state.Accumulator += deltaTime;
+
+		float maxAccumulator = settings.IntervalSeconds * maxCatchUpTicks;
+		if (state.Accumulator > maxAccumulator)
+			state.Accumulator = maxAccumulator;
+
 		if (state.Accumulator < settings.IntervalSeconds)
 		{
 			effectiveDeltaTime = 0f;

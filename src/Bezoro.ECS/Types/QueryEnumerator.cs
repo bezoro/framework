@@ -8,17 +8,19 @@ namespace Bezoro.ECS.Types;
 public struct QueryEnumerator
 {
 	private readonly Archetype? _archetype;
+	private readonly int[]      _excludeTypeIds;
 	private readonly int[]      _typeIds;
 	private readonly World      _world;
 	private          Archetype? _currentArchetype;
 	private          int        _archetypeIndex;
 	private          int        _chunkIndex;
 
-	internal QueryEnumerator(World world, Archetype? archetype, int[] typeIds)
+	internal QueryEnumerator(World world, Archetype? archetype, int[] typeIds, int[] excludeTypeIds)
 	{
 		_world            = world;
 		_archetype        = archetype;
 		_typeIds          = typeIds;
+		_excludeTypeIds   = excludeTypeIds;
 		_archetypeIndex   = 0;
 		_chunkIndex       = 0;
 		_currentArchetype = null;
@@ -48,7 +50,7 @@ public struct QueryEnumerator
 				_currentArchetype = archetypes[_archetypeIndex++];
 				_chunkIndex       = 0;
 
-				if (_typeIds.Length > 0 && !_currentArchetype.ContainsAll(_typeIds))
+				if (!MatchesArchetype(_currentArchetype))
 				{
 					_currentArchetype = null;
 					continue;
@@ -62,9 +64,17 @@ public struct QueryEnumerator
 		}
 	}
 
+	private bool MatchesArchetype(Archetype archetype)
+	{
+		if (_typeIds.Length > 0 && !archetype.ContainsAll(_typeIds)) return false;
+		if (_excludeTypeIds.Length > 0 && archetype.ContainsAny(_excludeTypeIds)) return false;
+
+		return true;
+	}
+
 	private bool MoveNextInArchetype(Archetype archetype)
 	{
-		if (_typeIds.Length > 0 && !archetype.ContainsAll(_typeIds))
+		if (!MatchesArchetype(archetype))
 			return false;
 
 		var chunks = archetype.Chunks;

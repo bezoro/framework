@@ -1,4 +1,6 @@
+using System.Threading;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -53,6 +55,69 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Query_With_Without_Filter_Should_Exclude_Entities_With_Excluded_Components()
+	{
+		// Arrange
+		var world = new World();
+
+		var posOnly = world.CreateEntity();
+		world.AddComponent(posOnly, new Position { X = 1, Y = 1 });
+
+		var posVelocity = world.CreateEntity();
+		world.AddComponent(posVelocity, new Position { X = 2, Y = 2 });
+		world.AddComponent(posVelocity, new Velocity { X = 1, Y = 1 });
+
+		var posHealth = world.CreateEntity();
+		world.AddComponent(posHealth, new Position { X = 3, Y = 3 });
+		world.AddComponent(posHealth, new Health());
+
+		var posVelocityHealth = world.CreateEntity();
+		world.AddComponent(posVelocityHealth, new Position { X = 4, Y = 4 });
+		world.AddComponent(posVelocityHealth, new Velocity { X = 2, Y = 2 });
+		world.AddComponent(posVelocityHealth, new Health());
+
+		// Act
+		int count = 0;
+		foreach (var chunk in world.Query().With<Position>().Without(typeof(Health), typeof(Velocity), typeof(Health)))
+			count += chunk.Count;
+
+		// Assert
+		count.Should().Be(1);
+	}
+
+	[Fact]
+	public void Query_With_Without_Filter_Should_Work_In_Parallel_Path()
+	{
+		// Arrange
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkCapacity          = 1,
+				MaxDegreeOfParallelism = 4
+			}
+		);
+
+		const int entityCount = 20;
+		for (var i = 0; i < entityCount; i++)
+		{
+			var entity = world.CreateEntity();
+			world.AddComponent(entity, new Position { X = i, Y = i });
+
+			if (i % 2 == 0)
+				world.AddComponent(entity, new Velocity { X = 1, Y = 1 });
+		}
+
+		// Act
+		var count = 0;
+		world.Query().With<Position>().Without<Velocity>().ForEachParallel(
+			chunk => Interlocked.Add(ref count, chunk.Count), maxDegreeOfParallelism: 4
+		);
+
+		// Assert
+		count.Should().Be(entityCount / 2);
+	}
+
+	[Fact]
 	public void Query_With_Archetype_Filter_Should_Return_Only_Exact_Archetype()
 	{
 		// Arrange
@@ -89,6 +154,40 @@ public class WorldTests
 
 		// Assert
 		first.Should().BeSameAs(second);
+	}
+
+	[Fact]
+	public void Clear_Should_Reset_EntityCount_And_Invalidate_Existing_Entities()
+	{
+		// Arrange
+		var world  = new World();
+		var first  = world.CreateEntity();
+		var second = world.CreateEntity();
+
+		// Act
+		world.Clear();
+
+		// Assert
+		world.EntityCount.Should().Be(0);
+		world.IsAlive(first).Should().BeFalse();
+		world.IsAlive(second).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Clear_Should_Not_Revalidate_Previous_Entity_Handle()
+	{
+		// Arrange
+		var world  = new World();
+		var stale  = world.CreateEntity();
+
+		// Act
+		world.Clear();
+		var current = world.CreateEntity();
+
+		// Assert
+		stale.Should().NotBe(current);
+		world.IsAlive(stale).Should().BeFalse();
+		world.IsAlive(current).Should().BeTrue();
 	}
 
 	private struct Position : IComponent

@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -25,6 +26,46 @@ public class CommandBufferTests
 
 		// Assert
 		world.HasComponent<Velocity>(entity).Should().BeTrue();
+	}
+
+	[Fact]
+	public void AddComponent_When_Component_Already_Exists_Should_Throw_On_Playback()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Position { X = 1, Y = 2 });
+		var commands = world.CreateCommandBuffer();
+		commands.AddComponent(entity, new Position { X = 9, Y = 8 });
+
+		// Act
+		var act = () => commands.Playback();
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>();
+
+		var component = world.GetComponent<Position>(entity);
+		component.X.Should().Be(1);
+		component.Y.Should().Be(2);
+	}
+
+	[Fact]
+	public void SetComponent_When_Component_Already_Exists_Should_Update_On_Playback()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Position { X = 1, Y = 2 });
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Position { X = 9, Y = 8 });
+
+		// Act
+		commands.Playback();
+
+		// Assert
+		var component = world.GetComponent<Position>(entity);
+		component.X.Should().Be(9);
+		component.Y.Should().Be(8);
 	}
 
 	private sealed class AddVelocitySystem : ISystem

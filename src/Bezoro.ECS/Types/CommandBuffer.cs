@@ -53,7 +53,7 @@ public sealed class CommandBuffer
 		lock (_sync)
 		{
 			var entity = new Entity(_nextTemporaryId--, 0);
-			_commands.Add(new(CommandType.CreateEntity, entity, archetype, -1, null));
+			_commands.Add(new Command(CommandType.CreateEntity, entity, archetype, -1, null));
 			return entity;
 		}
 	}
@@ -66,8 +66,9 @@ public sealed class CommandBuffer
 	/// <param name="component">The component value to add.</param>
 	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
-		Enqueue(new(CommandType.AddComponent, entity, null, typeId, component));
+		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
+		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: true);
+		Enqueue(new(CommandType.AddComponent, entity, null, typeId, applicator));
 	}
 
 	/// <summary>
@@ -75,7 +76,7 @@ public sealed class CommandBuffer
 	/// </summary>
 	/// <param name="entity">The entity to destroy.</param>
 	public void DestroyEntity(Entity entity) =>
-		Enqueue(new(CommandType.DestroyEntity, entity, null, -1, null));
+		Enqueue(new Command(CommandType.DestroyEntity, entity, null, -1, null));
 
 	/// <summary>
 	///     Applies all recorded commands to the world and clears the buffer.
@@ -113,11 +114,7 @@ public sealed class CommandBuffer
 					break;
 				case CommandType.AddComponent:
 				case CommandType.SetComponent:
-					_world.ApplySetComponentInternal(
-						ResolveEntity(command.Entity, tempEntities), command.ComponentTypeId,
-						command.Component
-					);
-
+					command.Applicator!.Apply(_world, ResolveEntity(command.Entity, tempEntities));
 					break;
 				case CommandType.RemoveComponent:
 					_world.RemoveComponentById(ResolveEntity(command.Entity, tempEntities), command.ComponentTypeId);
@@ -136,7 +133,7 @@ public sealed class CommandBuffer
 	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
 	{
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
-		Enqueue(new(CommandType.RemoveComponent, entity, null, typeId, null));
+		Enqueue(new Command(CommandType.RemoveComponent, entity, null, typeId, null));
 	}
 
 	/// <summary>
@@ -147,8 +144,9 @@ public sealed class CommandBuffer
 	/// <param name="component">The component value to set.</param>
 	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
-		Enqueue(new(CommandType.SetComponent, entity, null, typeId, component));
+		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
+		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: false);
+		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
 	}
 
 	private static Entity ResolveEntity(Entity entity, Dictionary<int, Entity> tempEntities)

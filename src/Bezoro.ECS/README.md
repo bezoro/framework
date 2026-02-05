@@ -1,112 +1,205 @@
 # Bezoro.ECS
 
-Bezoro.ECS is a cache-friendly, archetype-based Entity Component System designed for batch processing and parallel execution.
+Bezoro.ECS is a cache-friendly, archetype-based Entity Component System for high-throughput, chunked, parallel updates.
 
 ## Types
 
-| Type                   | Description                                                                |
-|------------------------|----------------------------------------------------------------------------|
-| `World`                | Core entry point for entities, components, archetypes, and system updates. |
-| `Archetype`            | Fixed set of component types stored together in chunked SoA layout.        |
-| `CommandBuffer`        | Records deferred structural changes.                                       |
-| `Query`                | Chunked query over entities with required components.                      |
-| `ChunkView`            | Per-chunk view exposing entities and component spans.                      |
-| `SystemUpdateSettings` | Configures system update frequency.                                        |
-| `ComponentAccess`      | Declares system read/write component access for scheduling.                |
-| `Entity`               | Stable entity handle with id + version.                                    |
-| `IWorld`               | Read/query surface for systems.                                            |
-| `ISystem`              | Update contract for systems.                                               |
+| Type                   | Description                                                                             |
+|------------------------|-----------------------------------------------------------------------------------------|
+| `World`                | Main ECS entry point for entities, components, archetypes, queries, and system updates. |
+| `WorldOptions`         | Performance options (`ChunkCapacity`, `MaxDegreeOfParallelism`).                        |
+| `Archetype`            | Exact component-set identity with chunked SoA storage.                                  |
+| `Entity`               | Stable handle (`Id` + `Version`).                                                       |
+| `Query`                | Builder for include/exclude component queries.                                          |
+| `QueryEnumerator`      | Chunk enumerator returned by `Query`.                                                   |
+| `ChunkView`            | Read/write span access to chunk-local component arrays.                                 |
+| `CommandBuffer`        | Deferred structural command recorder (`Create`, `Destroy`, `Add`, `Remove`, `Set`).     |
+| `SystemContext`        | Per-system execution context (`DeltaTime`, `Commands`).                                 |
+| `SystemUpdateSettings` | System update cadence (`EveryFrame`, fixed interval helpers).                           |
+| `ComponentAccess`      | Scheduler metadata describing read/write component access.                              |
+| `ComponentAccessMode`  | `ReadOnly` or `ReadWrite`.                                                              |
+| `IWorld`               | Restricted world surface exposed to systems.                                            |
+| `ISystem`              | ECS system contract.                                                                    |
+| `IComponent`           | Marker interface for struct components.                                                 |
+| `IEntity`              | Entity abstraction exposing `Id` and `Version`.                                         |
 
 ## Quick Start
 
 ```csharp
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-var world = new World();
+var world = new World(new WorldOptions { ChunkCapacity = 256 });
 
 public struct Position : IComponent { public float X; public float Y; }
 public struct Velocity : IComponent { public float X; public float Y; }
+public struct FrozenTag : IComponent { }
 
-// Create entity and add components
 var entity = world.CreateEntity();
 world.AddComponent(entity, new Position { X = 1, Y = 2 });
-world.AddComponent(entity, new Velocity { X = 0.5f, Y = 0.25f });
+world.SetComponent(entity, new Velocity { X = 0.5f, Y = 0.25f });
 
-// Query Position + Velocity in chunked batches
-foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+foreach (var chunk in world.Query().With<Position>().With<Velocity>().Without<FrozenTag>())
 {
     var positions = chunk.Components<Position>();
     var velocities = chunk.Components<Velocity>();
-    for (int i = 0; i < chunk.Count; i++)
+    for (var i = 0; i < chunk.Count; i++)
     {
         positions[i].X += velocities[i].X;
         positions[i].Y += velocities[i].Y;
     }
 }
 
-// Systems with deferred structural changes
-public sealed class SpawnSystem : ISystem
-{
-    public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.Fixed(0.5f);
-    public ComponentAccess[] Accesses => [ComponentAccess.Read<Position>()];
-
-    public void Update(IWorld world, in SystemContext context)
-    {
-        var entity = context.Commands.CreateEntity();
-        context.Commands.AddComponent(entity, new Position { X = 0, Y = 0 });
-    }
-}
-
-world.RegisterSystem(new SpawnSystem());
 world.Update(1f / 60f);
 ```
 
 ## API Reference
 
+### `World`
+
+| Member                                       | Description                                                                             |
+|----------------------------------------------|-----------------------------------------------------------------------------------------|
+| `World()` / `World(WorldOptions)`            | Creates a world with default or custom chunk/scheduler settings.                        |
+| `EntityCount`                                | Count of currently alive entities.                                                      |
+| `GetOrCreateArchetype(...)`                  | Gets/creates archetype identity for a component set.                                    |
+| `CreateEntity()` / `CreateEntity(Archetype)` | Creates an entity in empty or specific archetype.                                       |
+| `DestroyEntity(Entity)`                      | Destroys entity and recycles id with version bump.                                      |
+| `IsAlive(Entity)`                            | Checks whether a handle is currently valid.                                             |
+| `HasComponent<T>(Entity)`                    | Checks component presence.                                                              |
+| `TryGetComponent<T>(Entity, out T)`          | Gets component if present.                                                              |
+| `GetComponent<T>(Entity)`                    | Gets component or throws if missing.                                                    |
+| `AddComponent<T>(Entity, in T)`              | Add-only operation. Throws if component already exists.                                 |
+| `SetComponent<T>(Entity, in T)`              | Upsert operation (update existing or add missing).                                      |
+| `RemoveComponent<T>(Entity)`                 | Removes component if present.                                                           |
+| `Query()` / `Query(Archetype)`               | Creates query over all archetypes or one archetype.                                     |
+| `CreateCommandBuffer()`                      | Creates deferred structural command buffer.                                             |
+| `RegisterSystem(ISystem)`                    | Registers system for scheduler-driven updates.                                          |
+| `Update(float)` / `Update()`                 | Runs system scheduler and command playback.                                             |
+| `Clear()`                                    | Removes all entities and chunk data while preserving archetypes and registered systems. |
+
+### `Query`
+
+| Member                                     | Description                                             |
+|--------------------------------------------|---------------------------------------------------------|
+| `With<T>()` / `With(params Type[])`        | Adds required component types (AND semantics).          |
+| `Without<T>()` / `Without(params Type[])`  | Adds excluded component types (entity must match none). |
+| `ForArchetype(Archetype)`                  | Restricts the query to one archetype.                   |
+| `GetEnumerator()`                          | Supports `foreach` chunk iteration.                     |
+| `ForEach(Action<ChunkView>)`               | Executes action for each matching chunk (serial).       |
+| `ForEachParallel(Action<ChunkView>, int?)` | Executes action for each matching chunk in parallel.    |
+
+### `ChunkView`
+
+| Member                          | Description                                          |
+|---------------------------------|------------------------------------------------------|
+| `Count`                         | Number of entities in the chunk.                     |
+| `Entities`                      | `ReadOnlySpan<Entity>` for entities in `[0..Count)`. |
+| `TryComponents<T>(out Span<T>)` | Gets mutable component span if chunk has that type.  |
+| `Components<T>()`               | Gets mutable component span or throws if missing.    |
+
+### `CommandBuffer`
+
+| Member                                       | Description                                                            |
+|----------------------------------------------|------------------------------------------------------------------------|
+| `CreateEntity()` / `CreateEntity(Archetype)` | Records deferred entity creation.                                      |
+| `DestroyEntity(Entity)`                      | Records deferred destroy.                                              |
+| `AddComponent<T>(Entity, in T)`              | Records add-only component op (throws on playback if already present). |
+| `SetComponent<T>(Entity, in T)`              | Records upsert component op.                                           |
+| `RemoveComponent<T>(Entity)`                 | Records deferred component removal.                                    |
+| `Playback()`                                 | Applies all recorded commands in order and clears the buffer.          |
+
+Command buffer notes:
+
+- Commands are executed in the order they were recorded.
+- Temporary entities returned by `CreateEntity()` are only meaningful within that same buffer before playback.
+- During `World.Update(...)`, command playback is handled by the scheduler after system execution.
+
 ### `IWorld`
 
-| Member                              | Description                                                 |
-|-------------------------------------|-------------------------------------------------------------|
-| `IsAlive(Entity)`                   | Checks whether an entity handle is valid.                   |
-| `HasComponent<T>(Entity)`           | Checks for component presence.                              |
-| `TryGetComponent<T>(Entity, out T)` | Tries to read a component value.                            |
-| `GetComponent<T>(Entity)`           | Reads a component value or throws if missing.               |
-| `SetComponent<T>(Entity, in T)`     | Sets or adds a component value.                             |
-| `Query()`                           | Creates a chunked query builder.                            |
-| `Query(Archetype)`                  | Creates a chunked query builder restricted to an archetype. |
+`IWorld` is the system-facing restricted surface:
+
+| Member                              | Description                                                        |
+|-------------------------------------|--------------------------------------------------------------------|
+| `IsAlive(Entity)`                   | Handle validity check.                                             |
+| `HasComponent<T>(Entity)`           | Component presence check.                                          |
+| `TryGetComponent<T>(Entity, out T)` | Safe read.                                                         |
+| `GetComponent<T>(Entity)`           | Read or throw.                                                     |
+| `SetComponent<T>(Entity, in T)`     | Upsert; during update, only in-place updates are allowed directly. |
+| `Query()` / `Query(Archetype)`      | Chunk query access.                                                |
 
 ### `ISystem`
 
-| Member                             | Description                                   |
-|------------------------------------|-----------------------------------------------|
-| `UpdateSettings`                   | Update frequency configuration.               |
-| `Accesses`                         | Component access requirements for scheduling. |
-| `Update(IWorld, in SystemContext)` | System update entry point.                    |
+| Member                             | Description                                               |
+|------------------------------------|-----------------------------------------------------------|
+| `UpdateSettings`                   | Run frequency (`EveryFrame` or fixed interval).           |
+| `Accesses`                         | Read/write declarations used for conflict-aware batching. |
+| `Update(IWorld, in SystemContext)` | System execution entry point.                             |
 
-## Archetypes & Queries
+## Lifecycle And Structural Rules
 
-- Archetypes represent exact component sets and store data in chunked SoA arrays.
-- Queries iterate archetypes that contain required components.
-- Use `World.Query(archetype)` to target a specific archetype only.
+- Entity identity is `(Id, Version)`.
+- Destroying or clearing invalidates previous handles through version increments.
+- Structural world operations are blocked while `World.Update(...)` is running.
+- During update, `SetComponent` can update an existing component in place.
+- During update, adding a new component type, removing components, creating, or destroying entities must go through `CommandBuffer`.
+- `Clear()` preserves archetype objects and registered systems, resets `EntityCount` to `0`, and invalidates all existing entity handles.
 
-## Command Buffers
+## Query Semantics
 
-- Structural changes (create/destroy/add/remove) are recorded in a `CommandBuffer`.
-- Buffers are applied after system execution to keep iteration stable and parallel-safe.
+- `With` requirements are combined with AND semantics.
+- `Without` exclusions are combined with OR semantics (if any excluded component exists, entity is filtered out).
+- Query iteration is chunk-based, not entity-by-entity.
+- `ChunkView` spans are direct views over internal chunk arrays; process immediately and do not cache spans past the current iteration scope.
 
-## Scheduling & Parallelism
+### Example: Exclusion Query
 
-- Systems declare read/write access via `ComponentAccess`.
-- The scheduler batches compatible systems and runs them in parallel.
-- Use `SystemUpdateSettings.Fixed(intervalSeconds)` to control update frequency.
+```csharp
+var moving = world.Query()
+    .With<Position>()
+    .With<Velocity>()
+    .Without<FrozenTag>();
+
+moving.ForEach(chunk =>
+{
+    var p = chunk.Components<Position>();
+    var v = chunk.Components<Velocity>();
+    for (var i = 0; i < chunk.Count; i++)
+    {
+        p[i].X += v[i].X;
+        p[i].Y += v[i].Y;
+    }
+});
+```
+
+## Scheduling And Parallelism
+
+- Systems are scheduled in batches based on `ComponentAccess` conflict rules.
+- Systems in the same batch run in parallel up to `WorldOptions.MaxDegreeOfParallelism`.
+- Each system execution receives its own `CommandBuffer`.
+- Buffered commands are played back after scheduled system execution.
+- Fixed-step systems use an accumulator. Catch-up backlog is intentionally capped (currently 3 ticks) to avoid unbounded spiral-of-death behavior.
+
+## Threading Model
+
+- Scheduler execution may run multiple systems concurrently when access declarations permit it.
+- `CommandBuffer` recording is synchronized and safe for concurrent callers.
+- World structural mutation is single-threaded through the update/playback flow.
+- If `ForEachParallel` is used, callback code must be thread-safe.
 
 ## Design Notes
 
-- Chunked SoA storage keeps `Position` and `Velocity` arrays contiguous for fast scans.
-- Structural changes move entities between archetypes; command buffers defer those moves.
-- Parallel updates are safe when systems declare accurate access patterns.
+- Storage is archetype + chunk + SoA arrays for cache-efficient scans.
+- Structural changes move entities between archetypes and preserve dense chunks with swap-back removal.
+- Component type ids are registered once and used for fast archetype matching/indexing.
+
+## Build And Test
+
+```bash
+dotnet build bezoro.framework.sln
+dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
+```
 
 ## Target Frameworks
 
