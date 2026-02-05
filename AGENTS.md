@@ -35,6 +35,7 @@
 2. **Implement**: Minimal code to pass. Run tests. Verify no fake greens.
 3. **Refactor**: Optimize after green. Run tests again.
 4. **Document**: Check if XML docs or README need updates for changed/added APIs.
+5. **Verify**: Build the full solution (`dotnet build bezoro.framework.sln`) to ensure no breaks.
 
 ## Project Structure
 
@@ -220,3 +221,12 @@ public class TargetTests
 **Breaking**: `feat(api)!: message` or footer `BREAKING CHANGE: description`
 
 **SemVer**: `feat` → MINOR | `fix` → PATCH | `!`/`BREAKING CHANGE` → MAJOR
+
+### Commit Workflow
+
+1. **Check state**: Run `git status` and `git diff` to review all changes.
+2. **Stage selectively**: Only `git add` files related to the current task. Never use `git add -A` or `git add .` blindly.
+3. **Review staged**: Run `git diff --staged` to verify only intended changes are staged.
+4. **Commit**: Create commit with appropriate message format.
+
+**Never commit unrelated changes**. If unrelated modifications exist, leave them unstaged or ask the user how to proceed.
