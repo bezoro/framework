@@ -535,7 +535,7 @@ public sealed class World : IWorld, IDisposable
 			for (var i = 0; i < archetype.TypeIds.Length; i++)
 			{
 				int typeId = archetype.TypeIds[i];
-				if (_componentTypeRegistry.IsRelationship(typeId))
+				if (ComponentTypeRegistry.IsRelationship(typeId))
 					continue;
 
 				serializedTypeIds.Add(typeId);
@@ -545,7 +545,7 @@ public sealed class World : IWorld, IDisposable
 			for (var i = 0; i < serializedTypeIds.Count; i++)
 			{
 				int  typeId = serializedTypeIds[i];
-				Type type   = _componentTypeRegistry.GetType(typeId);
+				Type type   = ComponentTypeRegistry.GetType(typeId);
 				writer.Write(type.AssemblyQualifiedName!);
 				writer.Write(ComputeLayoutHash(type));
 				writer.Write((byte)GetSnapshotPayloadKind(type));
@@ -555,10 +555,10 @@ public sealed class World : IWorld, IDisposable
 			for (var i = 0; i < archetype.TypeIds.Length; i++)
 			{
 				int typeId = archetype.TypeIds[i];
-				if (!_componentTypeRegistry.IsRelationship(typeId))
+				if (!ComponentTypeRegistry.IsRelationship(typeId))
 					continue;
 
-				if (!_componentTypeRegistry.TryGetRelationshipInfo(typeId, out var relationship))
+				if (!ComponentTypeRegistry.TryGetRelationshipInfo(typeId, out var relationship))
 					throw new InvalidOperationException("Relationship type information is missing for snapshot serialization.");
 
 				relationshipDescriptors.Add(relationship);
@@ -599,7 +599,7 @@ public sealed class World : IWorld, IDisposable
 				{
 					int    typeId         = serializedTypeIds[typeIndex];
 					int    componentIndex = archetype.GetTypeIndex(typeId);
-					Type   type           = _componentTypeRegistry.GetType(typeId);
+					Type   type           = ComponentTypeRegistry.GetType(typeId);
 					var    payloadKind    = GetSnapshotPayloadKind(type);
 					object value          = entry.Chunk.GetValue(componentIndex, entry.Row);
 					byte[] payload        = SerializeSnapshotValue(type, value, payloadKind);

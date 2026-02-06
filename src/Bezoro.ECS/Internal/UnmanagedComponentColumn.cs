@@ -29,13 +29,13 @@ internal sealed unsafe class UnmanagedComponentColumn : ComponentColumn
 
 		var byteLength = checked((nuint)((ulong)_elementSize * (ulong)capacity));
 #if NET9_0
-		void* native = NativeMemory.AlignedAlloc(byteLength, (nuint)_alignmentBytes);
+		void* native = NativeMemory.AlignedAlloc(byteLength, (nuint)AlignmentBytes);
 		if (native is null)
 			throw new OutOfMemoryException("Failed to allocate unmanaged component buffer.");
 
-		_allocatedPointer       = (IntPtr)native;
-		_alignedPointer         = _allocatedPointer;
-		_usesNativeAlignedAlloc = true;
+		_allocatedPointer      = (IntPtr)native;
+		_alignedPointer        = _allocatedPointer;
+		UsesNativeAlignedAlloc = true;
 #else
 		var allocationLength = checked((nint)byteLength + AlignmentBytes - 1);
 		_allocatedPointer = Marshal.AllocHGlobal(allocationLength);
@@ -156,7 +156,7 @@ internal sealed unsafe class UnmanagedComponentColumn : ComponentColumn
 			return;
 
 #if NET9_0
-		if (_usesNativeAlignedAlloc)
+		if (UsesNativeAlignedAlloc)
 		{
 			NativeMemory.AlignedFree(_allocatedPointer.ToPointer());
 			return;
