@@ -4,23 +4,23 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 
 ## Types
 
-| Type | Description |
-|---|---|
-| `World` | ECS root for entities, components, resources, systems, queries, and snapshots. |
-| `Entity` | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`. |
-| `Archetype` | Exact component-set storage identity backed by chunked columns. |
-| `Query` | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters. |
-| `IQuery` | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints. |
-| `ChunkView` | Span-based access to entities and component columns in a chunk. |
-| `CommandBuffer` | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback. |
-| `IForEach<T...>` | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
-| `[SplitFields]` / `[SplitGroup]` | Opt-in split storage annotations consumed by source-generated split helpers. |
-| `OnAddObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/remove hooks with `ref`/`in` semantics. |
-| `WorldDiagnostics` / `ArchetypeDiagnostics` | Snapshot diagnostics for archetype/chunk/entity memory usage. |
-| `SystemContext` | Per-system execution context (`DeltaTime`, `Stage`, `Commands`). |
-| `Stage` | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`. |
-| `ISystem` | System contract with optional lifecycle hooks and stage metadata. |
-| `IWorld` | Restricted world contract for systems. |
+| Type                                        | Description                                                                                          |
+|---------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `World`                                     | ECS root for entities, components, resources, systems, queries, and snapshots.                       |
+| `Entity`                                    | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`.                  |
+| `Archetype`                                 | Exact component-set storage identity backed by chunked columns.                                      |
+| `Query`                                     | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters.                         |
+| `IQuery`                                    | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints.                  |
+| `ChunkView`                                 | Span-based access to entities and component columns in a chunk.                                      |
+| `CommandBuffer`                             | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback.                     |
+| `IForEach<T...>`                            | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
+| `[SplitFields]` / `[SplitGroup]`            | Opt-in split storage annotations consumed by source-generated split helpers.                         |
+| `OnAddObserver<T>` / `OnRemoveObserver<T>`  | Typed observer delegates for add/remove hooks with `ref`/`in` semantics.                             |
+| `WorldDiagnostics` / `ArchetypeDiagnostics` | Snapshot diagnostics for archetype/chunk/entity memory usage.                                        |
+| `SystemContext`                             | Per-system execution context (`DeltaTime`, `Stage`, `Commands`).                                     |
+| `Stage`                                     | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`.                       |
+| `ISystem`                                   | System contract with optional lifecycle hooks and stage metadata.                                    |
+| `IWorld`                                    | Restricted world contract for systems.                                                               |
 
 ## Quick Start
 
@@ -63,35 +63,35 @@ world.Query()
 
 ### World
 
-| Member | Description |
-|---|---|
-| `Spawn()` / `Spawn<T1..T4>(...)` / `CreateEntity()` | Creates an entity in the empty archetype or inferred archetype from initial components. |
-| `Despawn(Entity)` / `DestroyEntity(Entity)` | Removes entity and recycles id/version. |
-| `Has<T>(Entity)` / `Get<T>(Entity)` / `TryGet<T>(Entity, out T)` | Component lookups. |
-| `Add<T>(Entity)` / `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)` | Component mutation APIs. |
-| `Add<TRelation>(Entity source, Entity target)` | Adds a relationship edge using target-parameterized relation ids. |
-| `Query()` / `Query<T1..T4>()` / `Query(Archetype)` | Builds cached chunk queries. |
-| `Query<TQuery>()` | Builds a query from a `[Query]` definition struct implementing `IQuery`. |
-| `SetResource<T>(T)` / `GetResource<T>()` | Singleton/resource storage. |
+| Member                                                                                                       | Description                                                                                                             |
+|--------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `Spawn()` / `Spawn<T1..T4>(...)`                                                                             | Creates an entity in the empty archetype or inferred archetype from initial components.                                 |
+| `Despawn(Entity)`                                                                                            | Removes entity and recycles id/version.                                                                                 |
+| `Has<T>(Entity)` / `Get<T>(Entity)` / `TryGet<T>(Entity, out T)`                                             | Component lookups.                                                                                                      |
+| `Add<T>(Entity)` / `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)`                     | Component mutation APIs.                                                                                                |
+| `Add<TRelation>(Entity source, Entity target)`                                                               | Adds a relationship edge using target-parameterized relation ids.                                                       |
+| `Query()` / `Query<T1..T4>()` / `Query(Archetype)`                                                           | Builds cached chunk queries.                                                                                            |
+| `Query<TQuery>()`                                                                                            | Builds a query from a `[Query]` definition struct implementing `IQuery`.                                                |
+| `SetResource<T>(T)` / `GetResource<T>()`                                                                     | Singleton/resource storage.                                                                                             |
 | `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks dispatched during `CommandBuffer` playback; returns `IDisposable` subscription. |
-| `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
-| `Update(float)` | Runs systems by stage with sync-point command playback. |
-| `CreateCommandBuffer()` | Creates manual deferred mutation buffer. |
-| `GetDiagnostics()` | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot. |
-| `Serialize()` / `World.Deserialize(byte[])` | Snapshot round-trip (`net9.0` only). |
+| `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)`                                                    | Adds systems to stage pipeline.                                                                                         |
+| `Update(float)`                                                                                              | Runs systems by stage with sync-point command playback.                                                                 |
+| `CreateCommandBuffer()`                                                                                      | Creates manual deferred mutation buffer.                                                                                |
+| `GetDiagnostics()`                                                                                           | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot.                                         |
+| `Serialize()` / `World.Deserialize(byte[])`                                                                  | Snapshot round-trip (`net9.0` only).                                                                                    |
 
 ### Query
 
-| Member | Description |
-|---|---|
-| `All<T>()` | Required component filter. |
-| `None<T>()` | Excluded component filter. |
-| `Any<T1,T2>()` / `Any(params Type[])` | At least one component must exist. |
-| `Optional<T>()` | Optional component availability for chunk access. |
-| `Changed<T>()` | Includes chunks changed in the current version window. |
-| `Related<TRelation>(Entity target)` | Relationship target filter (`Entity.Wildcard` for any target). |
+| Member                                                                                | Description                                                                                              |
+|---------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `All<T>()`                                                                            | Required component filter.                                                                               |
+| `None<T>()`                                                                           | Excluded component filter.                                                                               |
+| `Any<T1,T2>()` / `Any(params Type[])`                                                 | At least one component must exist.                                                                       |
+| `Optional<T>()`                                                                       | Optional component availability for chunk access.                                                        |
+| `Changed<T>()`                                                                        | Includes chunks changed in the current version window.                                                   |
+| `Related<TRelation>(Entity target)`                                                   | Relationship target filter (`Entity.Wildcard` for any target).                                           |
 | `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T...>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style (arity 1-4), or parallel chunk iteration. |
-| `ChunkView.OptionalComponents<T>()` | Optional component span; returns `Span<T>.Empty` when missing in the current chunk. |
+| `ChunkView.OptionalComponents<T>()`                                                   | Optional component span; returns `Span<T>.Empty` when missing in the current chunk.                      |
 
 ### ISystem
 

@@ -74,19 +74,4 @@ public interface IWorld
 	void SetResource<T>(T resource) where T : notnull;
 
 	ref T GetResource<T>() where T : notnull;
-
-	// Compatibility aliases for existing callers.
-	bool HasComponent<T>(Entity entity) where T : struct, IComponent => Has<T>(entity);
-
-	T GetComponent<T>(Entity entity) where T : struct, IComponent => Get<T>(entity);
-
-	bool TryGetComponent<T>(Entity entity, out T component) where T : struct, IComponent => TryGet(entity, out component);
-
-	void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent => Set(entity, in component);
-
-	void AddComponent<T>(Entity entity) where T : struct, IComponent => Add<T>(entity);
-
-	void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent => Add(entity, in component);
-
-	void RemoveComponent<T>(Entity entity) where T : struct, IComponent => Remove<T>(entity);
 }

@@ -17,16 +17,16 @@ public class SystemManagerTests
 	{
 		// Arrange
 		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Counter { Value = 1 });
+		var entity = world.Spawn();
+		world.Add(entity, new Counter { Value = 1 });
 
 		var preRead  = new ReadCounterSystem();
 		var write    = new WriteCounterSystem(2);
 		var postRead = new ReadCounterSystem();
 
-		world.RegisterSystem(preRead);
-		world.RegisterSystem(write);
-		world.RegisterSystem(postRead);
+		world.AddSystem(preRead);
+		world.AddSystem(write);
+		world.AddSystem(postRead);
 
 		// Act
 		world.Update(1f / 60f);
@@ -42,7 +42,7 @@ public class SystemManagerTests
 		// Arrange
 		var world  = new World();
 		var system = new FixedStepSystem();
-		world.RegisterSystem(system);
+		world.AddSystem(system);
 
 		// Act
 		world.Update(0.2f);
@@ -60,7 +60,7 @@ public class SystemManagerTests
 		// Arrange
 		var world  = new World();
 		var system = new FixedStepSystem();
-		world.RegisterSystem(system);
+		world.AddSystem(system);
 
 		// Act
 		world.Update(10f);
@@ -78,8 +78,8 @@ public class SystemManagerTests
 	{
 		// Arrange
 		var world = new World();
-		world.RegisterSystem(new ReadCounterSystem());
-		world.RegisterSystem(new WriteCounterSystem(3));
+		world.AddSystem(new ReadCounterSystem());
+		world.AddSystem(new WriteCounterSystem(3));
 
 		// Assert precondition
 		world.SchedulerPlanBuildCount.Should().Be(0);
@@ -98,12 +98,12 @@ public class SystemManagerTests
 	{
 		// Arrange
 		var world = new World();
-		world.RegisterSystem(new ReadCounterSystem());
+		world.AddSystem(new ReadCounterSystem());
 		world.Update(1f / 60f);
 		world.SchedulerPlanBuildCount.Should().Be(1);
 
 		// Act
-		world.RegisterSystem(new WriteCounterSystem(5));
+		world.AddSystem(new WriteCounterSystem(5));
 		world.SchedulerPlanBuildCount.Should().Be(1);
 		world.Update(1f / 60f);
 
@@ -116,7 +116,7 @@ public class SystemManagerTests
 	{
 		var world = new World();
 		var system = new CommandCaptureSystem();
-		world.RegisterSystem(system);
+		world.AddSystem(system);
 
 		world.Update(1f / 60f);
 
@@ -130,8 +130,8 @@ public class SystemManagerTests
 	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
 	{
 		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		world.RegisterSystem(new NoOpSystem());
-		world.RegisterSystem(new ThrowingSystem());
+		world.AddSystem(new NoOpSystem());
+		world.AddSystem(new ThrowingSystem());
 
 		var act = () => world.Update(1f / 60f);
 
@@ -170,7 +170,7 @@ public class SystemManagerTests
 
 		public void Update(IWorld world, in SystemContext context)
 		{
-			foreach (var chunk in world.Query().With<Counter>())
+			foreach (var chunk in world.Query().All<Counter>())
 			{
 				var counters = chunk.Components<Counter>();
 				if (chunk.Count > 0)
@@ -194,7 +194,7 @@ public class SystemManagerTests
 
 		public void Update(IWorld world, in SystemContext context)
 		{
-			foreach (var chunk in world.Query().With<Counter>())
+			foreach (var chunk in world.Query().All<Counter>())
 			{
 				var counters = chunk.Components<Counter>();
 				for (var i = 0; i < chunk.Count; i++)
@@ -227,3 +227,4 @@ public class SystemManagerTests
 			throw new InvalidOperationException("system-fail");
 	}
 }
+

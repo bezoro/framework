@@ -137,14 +137,6 @@ public sealed class Query
 		return withTarget;
 	}
 
-	public Query With<T>() where T : struct, IComponent => All<T>();
-
-	public Query With(params Type[] componentTypes) => All(componentTypes);
-
-	public Query Without<T>() where T : struct, IComponent => None<T>();
-
-	public Query Without(params Type[] componentTypes) => None(componentTypes);
-
 	public QueryEnumerator GetEnumerator() => new(_world, _archetype, _spec);
 
 	public void ForEach(Action<ChunkView> action)

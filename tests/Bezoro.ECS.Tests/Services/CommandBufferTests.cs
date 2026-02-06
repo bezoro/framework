@@ -16,8 +16,8 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 1, Y = 2 });
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
 		var commands = world.CreateCommandBuffer();
 		commands.AddComponent(entity, new Position { X = 9, Y = 8 });
 
@@ -27,7 +27,7 @@ public class CommandBufferTests
 		// Assert
 		act.Should().Throw<InvalidOperationException>();
 
-		var component = world.GetComponent<Position>(entity);
+		var component = world.Get<Position>(entity);
 		component.X.Should().Be(1);
 		component.Y.Should().Be(2);
 	}
@@ -37,16 +37,16 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 1, Y = 2 });
-		world.RegisterSystem(new AddVelocitySystem(entity));
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
+		world.AddSystem(new AddVelocitySystem(entity));
 
 		// Act
-		world.HasComponent<Velocity>(entity).Should().BeFalse();
+		world.Has<Velocity>(entity).Should().BeFalse();
 		world.Update(0.016f);
 
 		// Assert
-		world.HasComponent<Velocity>(entity).Should().BeTrue();
+		world.Has<Velocity>(entity).Should().BeTrue();
 	}
 
 	[Fact]
@@ -54,7 +54,7 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world = new World();
-		world.RegisterSystem(new PlaybackDuringUpdateSystem());
+		world.AddSystem(new PlaybackDuringUpdateSystem());
 
 		// Act
 		var act = () => world.Update(0.016f);
@@ -79,7 +79,7 @@ public class CommandBufferTests
 
 		// Assert
 		var matched = 0;
-		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+		foreach (var chunk in world.Query().All<Position>().All<Velocity>())
 		{
 			var positions = chunk.Components<Position>();
 			var velocities = chunk.Components<Velocity>();
@@ -99,8 +99,8 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 0, Y = 0 });
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 0, Y = 0 });
 
 		var commands = world.CreateCommandBuffer();
 		commands.CreateEntity();
@@ -108,7 +108,7 @@ public class CommandBufferTests
 		// Act
 		var act = () =>
 		{
-			foreach (var _ in world.Query().With<Position>())
+			foreach (var _ in world.Query().All<Position>())
 				commands.Playback();
 		};
 
@@ -122,8 +122,8 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world    = new World();
-		var existing = world.CreateEntity();
-		world.AddComponent(existing, new Position { X = 1, Y = 1 });
+		var existing = world.Spawn();
+		world.Add(existing, new Position { X = 1, Y = 1 });
 
 		var commands = world.CreateCommandBuffer();
 		var temp     = commands.CreateEntity();
@@ -139,15 +139,15 @@ public class CommandBufferTests
 		commands.HasCommands.Should().BeTrue();
 		world.EntityCount.Should().Be(2);
 
-		world.RemoveComponent<Position>(existing);
+		world.Remove<Position>(existing);
 		commands.Playback();
 
-		world.GetComponent<Position>(existing).Should().Be(new Position { X = 9, Y = 8 });
-		world.GetComponent<Velocity>(existing).Should().Be(new Velocity { X = 7, Y = 0 });
+		world.Get<Position>(existing).Should().Be(new Position { X = 9, Y = 8 });
+		world.Get<Velocity>(existing).Should().Be(new Velocity { X = 7, Y = 0 });
 		world.EntityCount.Should().Be(2);
 
 		var velocityOnlyCount = 0;
-		foreach (var chunk in world.Query().With<Velocity>().Without<Position>())
+		foreach (var chunk in world.Query().All<Velocity>().None<Position>())
 			velocityOnlyCount += chunk.Count;
 
 		velocityOnlyCount.Should().Be(1);
@@ -158,8 +158,8 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 1, Y = 2 });
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
 		var commands = world.CreateCommandBuffer();
 		commands.SetComponent(entity, new Position { X = 9, Y = 8 });
 
@@ -167,7 +167,7 @@ public class CommandBufferTests
 		commands.Playback();
 
 		// Assert
-		var component = world.GetComponent<Position>(entity);
+		var component = world.Get<Position>(entity);
 		component.X.Should().Be(9);
 		component.Y.Should().Be(8);
 	}
@@ -181,7 +181,7 @@ public class CommandBufferTests
 
 		// Act
 		commands.Dispose();
-		var addAct = () => commands.AddComponent(world.CreateEntity(), new Position { X = 1, Y = 1 });
+		var addAct = () => commands.AddComponent(world.Spawn(), new Position { X = 1, Y = 1 });
 		var playbackAct = () => commands.Playback();
 
 		// Assert
@@ -194,8 +194,8 @@ public class CommandBufferTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.DestroyEntity(entity);
+		var entity = world.Spawn();
+		world.Despawn(entity);
 
 		var commands = world.CreateCommandBuffer();
 		commands.RemoveComponent<Position>(entity);
@@ -222,7 +222,7 @@ public class CommandBufferTests
 
 		public void Update(IWorld world, in SystemContext context)
 		{
-			if (world.HasComponent<Velocity>(_entity)) return;
+			if (world.Has<Velocity>(_entity)) return;
 
 			context.Commands.AddComponent(_entity, new Velocity { X = 1, Y = 0 });
 		}
@@ -248,3 +248,4 @@ public class CommandBufferTests
 		public float Y;
 	}
 }
+

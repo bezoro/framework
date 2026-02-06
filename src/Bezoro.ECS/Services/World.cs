@@ -72,7 +72,6 @@ public sealed class World : IWorld, IDisposable
 	private readonly Dictionary<Type, object> _resources = new();
 	private readonly Dictionary<int, List<Delegate>> _onAddObservers = new();
 	private readonly Dictionary<int, List<Delegate>> _onAddRefObservers = new();
-	private readonly Dictionary<int, List<Action<Entity, object, bool>>> _onRemoveObservers = new();
 	private readonly Dictionary<int, List<Action<Entity, object>>> _onRemoveInObservers = new();
 	private readonly SystemManager _systemManager;
 	private int _activeQueryIterations;
@@ -165,13 +164,18 @@ public sealed class World : IWorld, IDisposable
 
 	public bool IsAlive(Entity entity) => _entityManager.IsAlive(entity);
 
-	public Entity Spawn() => CreateEntity();
+	public Entity Spawn()
+	{
+		EnsureNotUpdating();
+		return CreateEntityInternal(EmptyArchetype);
+	}
 
 	public Entity Spawn<T1>(in T1 component1) where T1 : struct, IComponent
 	{
+		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1));
-		var entity = CreateEntity(archetype);
-		SetComponent(entity, in component1);
+		var entity = CreateEntityInternal(archetype);
+		Set(entity, in component1);
 		return entity;
 	}
 
@@ -179,10 +183,11 @@ public sealed class World : IWorld, IDisposable
 		where T1 : struct, IComponent
 		where T2 : struct, IComponent
 	{
+		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2));
-		var entity = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
+		var entity = CreateEntityInternal(archetype);
+		Set(entity, in component1);
+		Set(entity, in component2);
 		return entity;
 	}
 
@@ -191,11 +196,12 @@ public sealed class World : IWorld, IDisposable
 		where T2 : struct, IComponent
 		where T3 : struct, IComponent
 	{
+		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
-		var entity = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
-		SetComponent(entity, in component3);
+		var entity = CreateEntityInternal(archetype);
+		Set(entity, in component1);
+		Set(entity, in component2);
+		Set(entity, in component3);
 		return entity;
 	}
 
@@ -205,18 +211,28 @@ public sealed class World : IWorld, IDisposable
 		where T3 : struct, IComponent
 		where T4 : struct, IComponent
 	{
+		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
-		var entity = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
-		SetComponent(entity, in component3);
-		SetComponent(entity, in component4);
+		var entity = CreateEntityInternal(archetype);
+		Set(entity, in component1);
+		Set(entity, in component2);
+		Set(entity, in component3);
+		Set(entity, in component4);
 		return entity;
 	}
 
-	public void Despawn(Entity entity) => DestroyEntity(entity);
+	public void Despawn(Entity entity)
+	{
+		EnsureNotUpdating();
+		DestroyEntityInternal(entity);
+	}
 
-	public bool Has<T>(Entity entity) where T : struct, IComponent => HasComponent<T>(entity);
+	public bool Has<T>(Entity entity) where T : struct, IComponent
+	{
+		_entityManager.EnsureAlive(entity);
+		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		return HasComponent(typeId, entity);
+	}
 
 	public ref T Get<T>(Entity entity) where T : struct, IComponent
 	{
@@ -228,19 +244,62 @@ public sealed class World : IWorld, IDisposable
 		return ref chunk.GetReference<T>(componentIndex, slot);
 	}
 
-	public bool TryGet<T>(Entity entity, out T component) where T : struct, IComponent => TryGetComponent(entity, out component);
+	public bool TryGet<T>(Entity entity, out T component) where T : struct, IComponent
+	{
+		_entityManager.EnsureAlive(entity);
+		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
+		{
+			component = default;
+			return false;
+		}
 
-	public void Set<T>(Entity entity, in T component) where T : struct, IComponent => SetComponent(entity, in component);
+		component = chunk.GetReference<T>(componentIndex, slot);
+		return true;
+	}
+
+	public void Set<T>(Entity entity, in T component) where T : struct, IComponent
+	{
+		_entityManager.EnsureAlive(entity);
+		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		if (TrySetComponentInPlace(entity, typeId, component))
+		{
+			RaiseOnAdd<T>(entity, typeId);
+			BumpChangeVersion();
+			MarkComponentChanged(entity, typeId);
+			return;
+		}
+
+		if (_isUpdating || HasActiveQueryIteration)
+			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration. Use CommandBuffer.");
+
+		AddComponentWithMove(entity, typeId, component);
+		RaiseOnAdd<T>(entity, typeId);
+		BumpChangeVersion();
+		MarkComponentChanged(entity, typeId);
+	}
 
 	public void Add<T>(Entity entity) where T : struct, IComponent
 	{
 		var component = default(T);
-		AddComponent(entity, in component);
+		Add(entity, in component);
 	}
 
-	public void Add<T>(Entity entity, in T component) where T : struct, IComponent => AddComponent(entity, in component);
+	public void Add<T>(Entity entity, in T component) where T : struct, IComponent
+	{
+		EnsureNotUpdating();
+		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		ApplyAddComponentTyped(entity, typeId, in component);
+	}
 
-	public void Remove<T>(Entity entity) where T : struct, IComponent => RemoveComponent<T>(entity);
+	public void Remove<T>(Entity entity) where T : struct, IComponent
+	{
+		EnsureNotUpdating();
+		_entityManager.EnsureAlive(entity);
+
+		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		RemoveComponentById(entity, typeId);
+	}
 
 	public void SetResource<T>(T resource) where T : notnull
 	{
@@ -283,25 +342,6 @@ public sealed class World : IWorld, IDisposable
 		return new ObserverSubscription(() => RemoveObserver(_onAddRefObservers, typeId, observer));
 	}
 
-	public IDisposable Observe<T>(Action<Entity, T, bool> observer) where T : struct, IComponent
-	{
-		if (observer is null) throw new ArgumentNullException(nameof(observer));
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		if (!_onRemoveObservers.TryGetValue(typeId, out var handlers))
-		{
-			handlers = [];
-			_onRemoveObservers[typeId] = handlers;
-		}
-
-		var wrapped = (Action<Entity, object, bool>)((entity, value, isRemoved) =>
-		{
-			observer(entity, (T)value, isRemoved);
-		});
-
-		handlers.Add(wrapped);
-		return new ObserverSubscription(() => RemoveObserver(_onRemoveObservers, typeId, wrapped));
-	}
-
 	public IDisposable ObserveRemove<T>(OnRemoveObserver<T> observer) where T : struct, IComponent
 	{
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
@@ -319,28 +359,6 @@ public sealed class World : IWorld, IDisposable
 		});
 		handlers.Add(wrapped);
 		return new ObserverSubscription(() => RemoveObserver(_onRemoveInObservers, typeId, wrapped));
-	}
-
-	public Entity CreateEntity()
-	{
-		EnsureNotUpdating();
-		var entity = _entityManager.CreateEntity();
-		AddEntityToArchetype(entity, EmptyArchetype);
-		BumpChangeVersion();
-		return entity;
-	}
-
-	public Entity CreateEntity(Archetype archetype)
-	{
-		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
-
-		EnsureNotUpdating();
-		EnsureOwnedArchetype(archetype);
-
-		var entity = _entityManager.CreateEntity();
-		AddEntityToArchetype(entity, archetype);
-		BumpChangeVersion();
-		return entity;
 	}
 
 	public Query Query() =>
@@ -383,8 +401,6 @@ public sealed class World : IWorld, IDisposable
 		where TSystem : ISystem, new() =>
 		AddSystem(new TSystem(), stage);
 
-	public void RegisterSystem(ISystem system) => AddSystem(system, system.Stage);
-
 	public void Add<TRelation>(Entity source, Entity target)
 	{
 		EnsureNotUpdating();
@@ -395,78 +411,6 @@ public sealed class World : IWorld, IDisposable
 		int relationTypeId = _componentTypeRegistry.GetOrCreateRelationship(typeof(TRelation), target);
 		AddRelationshipWithMove(source, relationTypeId);
 		BumpChangeVersion();
-	}
-
-	public bool HasComponent<T>(Entity entity) where T : struct, IComponent
-	{
-		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		return HasComponent(typeId, entity);
-	}
-
-	public bool TryGetComponent<T>(Entity entity, out T component) where T : struct, IComponent
-	{
-		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
-		{
-			component = default;
-			return false;
-		}
-
-		component = chunk.GetReference<T>(componentIndex, slot);
-		return true;
-	}
-
-	public T GetComponent<T>(Entity entity) where T : struct, IComponent
-	{
-		if (TryGetComponent(entity, out T component))
-			return component;
-
-		throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found for entity {entity.Id}.");
-	}
-
-	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
-	{
-		EnsureNotUpdating();
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		ApplyAddComponentTyped(entity, typeId, in component);
-	}
-
-	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
-	{
-		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		if (TrySetComponentInPlace(entity, typeId, component))
-		{
-			RaiseOnAdd<T>(entity, typeId);
-			BumpChangeVersion();
-			MarkComponentChanged(entity, typeId);
-			return;
-		}
-
-		if (_isUpdating || HasActiveQueryIteration)
-			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration. Use CommandBuffer.");
-
-		AddComponentWithMove(entity, typeId, component);
-		RaiseOnAdd<T>(entity, typeId);
-		BumpChangeVersion();
-		MarkComponentChanged(entity, typeId);
-	}
-
-	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
-	{
-		EnsureNotUpdating();
-		_entityManager.EnsureAlive(entity);
-
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
-		RemoveComponentById(entity, typeId);
-	}
-
-	public void DestroyEntity(Entity entity)
-	{
-		EnsureNotUpdating();
-		DestroyEntityInternal(entity);
 	}
 
 	public void Update(float deltaTime)
@@ -770,7 +714,7 @@ public sealed class World : IWorld, IDisposable
 				var entities = new Entity[entityCount];
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
 				{
-					entities[entityIndex] = world.CreateEntity(archetype);
+					entities[entityIndex] = world.CreateEntityInternal(archetype);
 					var snapshotEntity = snapshotEntities[entityIndex];
 					if (!entityMap.TryAdd(snapshotEntity, entities[entityIndex]))
 					{
@@ -988,7 +932,6 @@ public sealed class World : IWorld, IDisposable
 		_resources.Clear();
 		_onAddObservers.Clear();
 		_onAddRefObservers.Clear();
-		_onRemoveObservers.Clear();
 		_onRemoveInObservers.Clear();
 	}
 
@@ -1051,7 +994,7 @@ public sealed class World : IWorld, IDisposable
 	{
 		_entityManager.EnsureAlive(entity);
 		List<(int TypeId, object Value)>? removedComponents = null;
-		if (_onRemoveObservers.Count > 0 || _onRemoveInObservers.Count > 0)
+		if (_onRemoveInObservers.Count > 0)
 			removedComponents = CaptureRemovedComponents(entity);
 
 		RemoveEntityFromArchetype(entity);
@@ -1074,7 +1017,7 @@ public sealed class World : IWorld, IDisposable
 		_entityManager.EnsureAlive(entity);
 
 		if (HasComponent(typeId, entity))
-			throw new InvalidOperationException($"Entity {entity.Id} already has component {typeof(T).Name}. Use SetComponent to update.");
+			throw new InvalidOperationException($"Entity {entity.Id} already has component {typeof(T).Name}. Use Set to update.");
 
 		AddComponentWithMove(entity, typeId, in component);
 		RaiseOnAdd<T>(entity, typeId);
@@ -1248,12 +1191,6 @@ public sealed class World : IWorld, IDisposable
 			for (var i = 0; i < inHandlers.Count; i++)
 				inHandlers[i](entity, removedValue);
 		}
-
-		if (!_onRemoveObservers.TryGetValue(typeId, out var handlers))
-			return;
-
-		for (var i = 0; i < handlers.Count; i++)
-			handlers[i](entity, removedValue, true);
 	}
 
 	private List<(int TypeId, object Value)> CaptureRemovedComponents(Entity entity)

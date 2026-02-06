@@ -438,21 +438,6 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void ObserveRemoveLegacy_WhenRegistered_ShouldReceiveRemovalFlagDuringPlayback()
-	{
-		var world = new World();
-		bool? wasRemoved = null;
-		world.Observe<Velocity>((Entity _, Velocity _, bool isRemoved) => wasRemoved = isRemoved);
-
-		var entity = world.Spawn(new Velocity { X = 7f, Y = 1f });
-		var commands = world.CreateCommandBuffer();
-		commands.RemoveComponent<Velocity>(entity);
-		commands.Playback();
-
-		wasRemoved.Should().BeTrue();
-	}
-
-	[Fact]
 	public void ObserveRemove_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
 	{
 		var world = new World();

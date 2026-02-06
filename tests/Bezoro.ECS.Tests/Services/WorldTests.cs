@@ -17,15 +17,15 @@ public class WorldTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
+		var entity = world.Spawn();
 		var input  = new Position { X = 1, Y = 2 };
 
 		// Act
-		world.AddComponent(entity, input);
-		var output = world.GetComponent<Position>(entity);
+		world.Add(entity, input);
+		var output = world.Get<Position>(entity);
 
 		// Assert
-		world.HasComponent<Position>(entity).Should().BeTrue();
+		world.Has<Position>(entity).Should().BeTrue();
 		output.Should().Be(input);
 	}
 
@@ -34,11 +34,11 @@ public class WorldTests
 	{
 		// Arrange
 		var world = new World();
-		var stale = world.CreateEntity();
+		var stale = world.Spawn();
 
 		// Act
 		world.Clear();
-		var current = world.CreateEntity();
+		var current = world.Spawn();
 
 		// Assert
 		stale.Should().NotBe(current);
@@ -51,8 +51,8 @@ public class WorldTests
 	{
 		// Arrange
 		var world  = new World();
-		var first  = world.CreateEntity();
-		var second = world.CreateEntity();
+		var first  = world.Spawn();
+		var second = world.Spawn();
 
 		// Act
 		world.Clear();
@@ -67,10 +67,10 @@ public class WorldTests
 	public void CreateEntity_WhenIdIsRecycled_ShouldBumpEntityVersion()
 	{
 		var world = new World();
-		var original = world.CreateEntity();
-		world.DestroyEntity(original);
+		var original = world.Spawn();
+		world.Despawn(original);
 
-		var recycled = world.CreateEntity();
+		var recycled = world.Spawn();
 
 		recycled.Id.Should().Be(original.Id);
 		recycled.Version.Should().NotBe(original.Version);
@@ -96,8 +96,8 @@ public class WorldTests
 		// Arrange
 		var worldA  = new World();
 		var worldB  = new World();
-		var foreign = worldA.CreateEntity();
-		worldB.CreateEntity();
+		var foreign = worldA.Spawn();
+		worldB.Spawn();
 
 		// Act
 		bool isAlive = worldB.IsAlive(foreign);
@@ -126,20 +126,20 @@ public class WorldTests
 	{
 		// Arrange
 		var world = new World();
-		var e1    = world.CreateEntity();
-		world.AddComponent(e1, new Position { X = 1, Y    = 1 });
-		world.AddComponent(e1, new Velocity { X = 0.5f, Y = 0.25f });
+		var e1    = world.Spawn();
+		world.Add(e1, new Position { X = 1, Y    = 1 });
+		world.Add(e1, new Velocity { X = 0.5f, Y = 0.25f });
 
-		var e2 = world.CreateEntity();
-		world.AddComponent(e2, new Position { X = 2, Y    = 2 });
-		world.AddComponent(e2, new Velocity { X = 1.5f, Y = -0.5f });
+		var e2 = world.Spawn();
+		world.Add(e2, new Position { X = 2, Y    = 2 });
+		world.Add(e2, new Velocity { X = 1.5f, Y = -0.5f });
 
-		var e3 = world.CreateEntity();
-		world.AddComponent(e3, new Position { X = 3, Y = 3 });
+		var e3 = world.Spawn();
+		world.Add(e3, new Position { X = 3, Y = 3 });
 
 		// Act
 		var count = 0;
-		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+		foreach (var chunk in world.Query().All<Position>().All<Velocity>())
 			count += chunk.Count;
 
 		// Assert
@@ -154,16 +154,16 @@ public class WorldTests
 		var baseArchetype     = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
 		var extendedArchetype = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity), typeof(Health));
 
-		world.CreateEntity(baseArchetype);
-		world.CreateEntity(extendedArchetype);
+		world.Spawn(new Position { X = 1, Y = 1 }, new Velocity { X = 2, Y = 2 });
+		world.Spawn(new Position { X = 3, Y = 3 }, new Velocity { X = 4, Y = 4 }, new Health());
 
 		// Act
 		var allCount = 0;
-		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+		foreach (var chunk in world.Query().All<Position>().All<Velocity>())
 			allCount += chunk.Count;
 
 		var filteredCount = 0;
-		foreach (var chunk in world.Query(baseArchetype).With<Position>().With<Velocity>())
+		foreach (var chunk in world.Query(baseArchetype).All<Position>().All<Velocity>())
 			filteredCount += chunk.Count;
 
 		// Assert
@@ -177,25 +177,25 @@ public class WorldTests
 		// Arrange
 		var world = new World();
 
-		var posOnly = world.CreateEntity();
-		world.AddComponent(posOnly, new Position { X = 1, Y = 1 });
+		var posOnly = world.Spawn();
+		world.Add(posOnly, new Position { X = 1, Y = 1 });
 
-		var posVelocity = world.CreateEntity();
-		world.AddComponent(posVelocity, new Position { X = 2, Y = 2 });
-		world.AddComponent(posVelocity, new Velocity { X = 1, Y = 1 });
+		var posVelocity = world.Spawn();
+		world.Add(posVelocity, new Position { X = 2, Y = 2 });
+		world.Add(posVelocity, new Velocity { X = 1, Y = 1 });
 
-		var posHealth = world.CreateEntity();
-		world.AddComponent(posHealth, new Position { X = 3, Y = 3 });
-		world.AddComponent(posHealth, new Health());
+		var posHealth = world.Spawn();
+		world.Add(posHealth, new Position { X = 3, Y = 3 });
+		world.Add(posHealth, new Health());
 
-		var posVelocityHealth = world.CreateEntity();
-		world.AddComponent(posVelocityHealth, new Position { X = 4, Y = 4 });
-		world.AddComponent(posVelocityHealth, new Velocity { X = 2, Y = 2 });
-		world.AddComponent(posVelocityHealth, new Health());
+		var posVelocityHealth = world.Spawn();
+		world.Add(posVelocityHealth, new Position { X = 4, Y = 4 });
+		world.Add(posVelocityHealth, new Velocity { X = 2, Y = 2 });
+		world.Add(posVelocityHealth, new Health());
 
 		// Act
 		var count = 0;
-		foreach (var chunk in world.Query().With<Position>().Without(typeof(Health), typeof(Velocity), typeof(Health)))
+		foreach (var chunk in world.Query().All<Position>().None(typeof(Health), typeof(Velocity), typeof(Health)))
 			count += chunk.Count;
 
 		// Assert
@@ -207,17 +207,17 @@ public class WorldTests
 	{
 		var world = new World();
 
-		var positionOnly = world.CreateEntity();
-		world.AddComponent(positionOnly, new Position { X = 1, Y = 1 });
+		var positionOnly = world.Spawn();
+		world.Add(positionOnly, new Position { X = 1, Y = 1 });
 
-		var velocityOnly = world.CreateEntity();
-		world.AddComponent(velocityOnly, new Velocity { X = 1, Y = 1 });
+		var velocityOnly = world.Spawn();
+		world.Add(velocityOnly, new Velocity { X = 1, Y = 1 });
 
-		var both = world.CreateEntity();
-		world.AddComponent(both, new Position { X = 2, Y = 2 });
-		world.AddComponent(both, new Velocity { X = 2, Y = 2 });
+		var both = world.Spawn();
+		world.Add(both, new Position { X = 2, Y = 2 });
+		world.Add(both, new Velocity { X = 2, Y = 2 });
 
-		world.CreateEntity();
+		world.Spawn();
 
 		var count = 0;
 		foreach (var chunk in world.Query().Any(typeof(Position), typeof(Velocity)))
@@ -241,16 +241,16 @@ public class WorldTests
 		const int entityCount = 20;
 		for (var i = 0; i < entityCount; i++)
 		{
-			var entity = world.CreateEntity();
-			world.AddComponent(entity, new Position { X = i, Y = i });
+			var entity = world.Spawn();
+			world.Add(entity, new Position { X = i, Y = i });
 
 			if (i % 2 == 0)
-				world.AddComponent(entity, new Velocity { X = 1, Y = 1 });
+				world.Add(entity, new Velocity { X = 1, Y = 1 });
 		}
 
 		// Act
 		var count = 0;
-		world.Query().With<Position>().Without<Velocity>().ForEachParallel(
+		world.Query().All<Position>().None<Velocity>().ForEachParallel(
 			chunk => Interlocked.Add(ref count, chunk.Count), 4
 		);
 
@@ -274,8 +274,8 @@ public class WorldTests
 		var expectedSum = 0;
 		for (var i = 1; i <= entityCount; i++)
 		{
-			var entity = world.CreateEntity();
-			world.AddComponent(entity, new Position { X = i, Y = 0 });
+			var entity = world.Spawn();
+			world.Add(entity, new Position { X = i, Y = 0 });
 			expectedSum += i;
 		}
 
@@ -283,7 +283,7 @@ public class WorldTests
 		long processedSum = 0;
 
 		// Act
-		world.Query().With<Position>().ForEachParallel(
+		world.Query().All<Position>().ForEachParallel(
 			chunk =>
 			{
 				var positions = chunk.ReadOnlyComponents<Position>();
@@ -313,11 +313,11 @@ public class WorldTests
 
 		for (var i = 0; i < 16; i++)
 		{
-			var entity = world.CreateEntity();
-			world.AddComponent(entity, new Position { X = i, Y = i });
+			var entity = world.Spawn();
+			world.Add(entity, new Position { X = i, Y = i });
 		}
 
-		var act = () => world.Query().With<Position>().ForEachParallel(_ => throw new InvalidOperationException("query-fail"));
+		var act = () => world.Query().All<Position>().ForEachParallel(_ => throw new InvalidOperationException("query-fail"));
 
 		act.Should().Throw<InvalidOperationException>()
 			.WithMessage("query-fail");
@@ -327,16 +327,16 @@ public class WorldTests
 	public void QueryCache_WhenOnlyChangedFilterDiffers_ShouldReuseArchetypeMatchCache()
 	{
 		var world = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 1, Y = 1 });
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 1 });
 
-		foreach (var _ in world.Query().With<Position>())
+		foreach (var _ in world.Query().All<Position>())
 		{
 		}
 
 		world.QueryCacheEntryCount.Should().Be(1);
 
-		foreach (var _ in world.Query().With<Position>().Changed<Position>())
+		foreach (var _ in world.Query().All<Position>().Changed<Position>())
 		{
 		}
 
@@ -348,19 +348,19 @@ public class WorldTests
 	{
 		// Arrange
 		var world  = new World();
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 1, Y = 1 });
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 1 });
 
 		// Act
 		var act = () =>
 		{
-			foreach (var _ in world.Query().With<Position>())
-				world.AddComponent(entity, new Velocity { X = 0, Y = 0 });
+			foreach (var _ in world.Query().All<Position>())
+				world.Add(entity, new Velocity { X = 0, Y = 0 });
 		};
 
 		// Assert
 		act.Should().Throw<InvalidOperationException>();
-		world.HasComponent<Velocity>(entity).Should().BeFalse();
+		world.Has<Velocity>(entity).Should().BeFalse();
 	}
 
 	[Fact]
@@ -369,15 +369,15 @@ public class WorldTests
 		// Arrange
 		var worldA  = new World();
 		var worldB  = new World();
-		var foreign = worldA.CreateEntity();
-		var local   = worldB.CreateEntity();
+		var foreign = worldA.Spawn();
+		var local   = worldB.Spawn();
 
 		// Act
-		var act = () => worldB.SetComponent(foreign, new Position { X = 5, Y = 6 });
+		var act = () => worldB.Set(foreign, new Position { X = 5, Y = 6 });
 
 		// Assert
 		act.Should().Throw<InvalidOperationException>();
-		worldB.HasComponent<Position>(local).Should().BeFalse();
+		worldB.Has<Position>(local).Should().BeFalse();
 	}
 
 	private struct Health : IComponent;
@@ -398,3 +398,4 @@ public class WorldTests
 	private struct WorldBOnlyComponent : IComponent;
 	private struct WorldBSecondOnlyComponent : IComponent;
 }
+
