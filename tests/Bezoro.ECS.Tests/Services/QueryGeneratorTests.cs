@@ -108,6 +108,36 @@ public class QueryGeneratorTests
 	}
 
 	[Fact]
+	public void GeneratedForEachJobExtension_WhenUsingSingleComponentJob_ShouldApplyUpdates()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
+
+		world.Query<Position>().ForEach(new PositionScaleJob { Scale = 3f });
+
+		var updated = world.Get<Position>(entity);
+		updated.X.Should().Be(3);
+		updated.Y.Should().Be(6);
+	}
+
+	[Fact]
+	public void GeneratedForEachJobExtension_WhenUsingThreeComponentJob_ShouldApplyUpdates()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
+		world.Add(entity, new Velocity { X = 3, Y = 4 });
+		world.Add(entity, new Acceleration { X = 5, Y = -1 });
+
+		world.Query<Position, Velocity, Acceleration>().ForEach(new MovementForEachJob3 { DeltaTime = 0.5f });
+
+		var updated = world.Get<Position>(entity);
+		updated.X.Should().Be(5f);
+		updated.Y.Should().Be(3.5f);
+	}
+
+	[Fact]
 	public void GeneratedQuery_WhenUsingWorldQueryDefinitionEntryPoint_ShouldMatchExpectedEntities()
 	{
 		var world = new World();
@@ -185,6 +215,28 @@ internal struct MovementForEachJob : IForEach<Position, Velocity>
 	{
 		component1.X += component2.X * DeltaTime;
 		component1.Y += component2.Y * DeltaTime;
+	}
+}
+
+internal struct PositionScaleJob : IForEach<Position>
+{
+	public float Scale;
+
+	public void Execute(ref Position component1)
+	{
+		component1.X *= Scale;
+		component1.Y *= Scale;
+	}
+}
+
+internal struct MovementForEachJob3 : IForEach<Position, Velocity, Acceleration>
+{
+	public float DeltaTime;
+
+	public void Execute(ref Position component1, in Velocity component2, in Acceleration component3)
+	{
+		component1.X += (component2.X + component3.X) * DeltaTime;
+		component1.Y += (component2.Y + component3.Y) * DeltaTime;
 	}
 }
 

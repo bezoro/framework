@@ -13,7 +13,8 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `IQuery` | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints. |
 | `ChunkView` | Span-based access to entities and component columns in a chunk. |
 | `CommandBuffer` | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback. |
-| `IForEach<T1,T2>` | Job-style query executor contract for writable/read-only component iteration. |
+| `IForEach<T...>` | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
+| `[SplitFields]` / `[SplitGroup]` | Opt-in split storage annotations consumed by source-generated split helpers. |
 | `OnAddObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/remove hooks with `ref`/`in` semantics. |
 | `SystemContext` | Per-system execution context (`DeltaTime`, `Stage`, `Commands`). |
 | `Stage` | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`. |
@@ -87,7 +88,7 @@ world.Query()
 | `Optional<T>()` | Optional component availability for chunk access. |
 | `Changed<T>()` | Includes chunks changed in the current version window. |
 | `Related<TRelation>(Entity target)` | Relationship target filter (`Entity.Wildcard` for any target). |
-| `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T1,T2>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style, or parallel chunk iteration. |
+| `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T...>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style (arity 1-4), or parallel chunk iteration. |
 | `ChunkView.OptionalComponents<T>()` | Optional component span; returns `Span<T>.Empty` when missing in the current chunk. |
 
 ### ISystem

@@ -48,18 +48,19 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 	{
 		if (type.TypeKind == TypeKind.Struct &&
 		    IsAccessibleFromGeneratedCode(type) &&
-		    TryGetForEachTypes(type, out var firstType, out var secondType))
+		    TryGetForEachTypes(type, out var componentTypes))
 		{
 			var namespaceName = type.ContainingNamespace.IsGlobalNamespace
 				? string.Empty
 				: type.ContainingNamespace.ToDisplayString();
 			string jobType = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			string first = firstType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			string second = secondType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var componentTypeNames = new string[componentTypes.Length];
+			for (var i = 0; i < componentTypes.Length; i++)
+				componentTypeNames[i] = componentTypes[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 			string sanitizedName = SanitizeTypeName(jobType);
 			string generatedTypeName = sanitizedName + "ForEachExtensions";
 			string hintName = sanitizedName + ".ForEachJob.g.cs";
-			models.Add(new JobModel(namespaceName, generatedTypeName, jobType, first, second, hintName));
+			models.Add(new JobModel(namespaceName, generatedTypeName, jobType, componentTypeNames, hintName));
 		}
 
 		var nestedTypes = type.GetTypeMembers();
@@ -67,27 +68,53 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 			CollectJobs(nestedTypes[i], models);
 	}
 
-	private static bool TryGetForEachTypes(INamedTypeSymbol type, out ITypeSymbol firstType, out ITypeSymbol secondType)
+	private static bool TryGetForEachTypes(INamedTypeSymbol type, out ITypeSymbol[] componentTypes)
 	{
+		INamedTypeSymbol? selected = null;
+		var selectedArity = 0;
+
 		for (var i = 0; i < type.AllInterfaces.Length; i++)
 		{
 			var iface = type.AllInterfaces[i];
-			if (!IsForEachInterface(iface.OriginalDefinition))
+			if (!TryGetSupportedArity(iface.OriginalDefinition, out int arity))
 				continue;
 
-			firstType = iface.TypeArguments[0];
-			secondType = iface.TypeArguments[1];
-			return true;
+			if (arity > selectedArity)
+			{
+				selected = iface;
+				selectedArity = arity;
+			}
 		}
 
-		firstType = null!;
-		secondType = null!;
-		return false;
+		if (selected is null)
+		{
+			componentTypes = [];
+			return false;
+		}
+
+		componentTypes = new ITypeSymbol[selected.TypeArguments.Length];
+		for (var i = 0; i < selected.TypeArguments.Length; i++)
+			componentTypes[i] = selected.TypeArguments[i];
+
+		return true;
 	}
 
-	private static bool IsForEachInterface(INamedTypeSymbol symbol) =>
-		symbol.MetadataName == "IForEach`2" &&
-		symbol.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Abstractions";
+	private static bool TryGetSupportedArity(INamedTypeSymbol symbol, out int arity)
+	{
+		arity = 0;
+		if (symbol.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Abstractions")
+			return false;
+
+		var metadataName = symbol.MetadataName;
+		if (!metadataName.StartsWith("IForEach`", StringComparison.Ordinal))
+			return false;
+
+		var arityText = metadataName.Substring("IForEach`".Length);
+		if (!int.TryParse(arityText, out arity))
+			return false;
+
+		return arity is >= 1 and <= 4;
+	}
 
 	private static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
 	{
@@ -134,7 +161,10 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 		builder.Append("    public static void ForEach(this global::Bezoro.ECS.Types.Query query, ").Append(model.JobType).AppendLine(" job)");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (query is null) throw new global::System.ArgumentNullException(nameof(query));");
-		builder.Append("        query.ForEach<").Append(model.JobType).Append(", ").Append(model.FirstType).Append(", ").Append(model.SecondType).AppendLine(">(job);");
+		builder.Append("        query.ForEach<").Append(model.JobType);
+		for (var i = 0; i < model.ComponentTypes.Length; i++)
+			builder.Append(", ").Append(model.ComponentTypes[i]);
+		builder.AppendLine(">(job);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
 
@@ -143,21 +173,24 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 	private sealed class JobModel
 	{
-		public JobModel(string typeNamespace, string generatedTypeName, string jobType, string firstType, string secondType, string hintName)
+		public JobModel(
+			string typeNamespace,
+			string generatedTypeName,
+			string jobType,
+			string[] componentTypes,
+			string hintName)
 		{
 			Namespace = typeNamespace;
 			GeneratedTypeName = generatedTypeName;
 			JobType = jobType;
-			FirstType = firstType;
-			SecondType = secondType;
+			ComponentTypes = componentTypes;
 			HintName = hintName;
 		}
 
 		public string Namespace { get; }
 		public string GeneratedTypeName { get; }
 		public string JobType { get; }
-		public string FirstType { get; }
-		public string SecondType { get; }
+		public string[] ComponentTypes { get; }
 		public string HintName { get; }
 	}
 }

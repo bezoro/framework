@@ -20,6 +20,17 @@ public sealed class Query
 		where T1 : struct, IComponent
 		where T2 : struct, IComponent;
 
+	public delegate void RefInAction<T1, T2, T3>(ref T1 component1, in T2 component2, in T3 component3)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent;
+
+	public delegate void RefInAction<T1, T2, T3, T4>(ref T1 component1, in T2 component2, in T3 component3, in T4 component4)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+		where T4 : struct, IComponent;
+
 	private readonly Archetype? _archetype;
 	private readonly QuerySpec _spec;
 	private readonly World _world;
@@ -181,6 +192,54 @@ public sealed class Query
 		}
 	}
 
+	public void ForEach<T1, T2, T3>(RefInAction<T1, T2, T3> action)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+	{
+		if (action is null) throw new ArgumentNullException(nameof(action));
+
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components3 = chunk.ReadOnlyComponents<T3>();
+			for (var i = 0; i < chunk.Count; i++)
+				action(ref components1[i], in components2[i], in components3[i]);
+		}
+	}
+
+	public void ForEach<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+		where T4 : struct, IComponent
+	{
+		if (action is null) throw new ArgumentNullException(nameof(action));
+
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components3 = chunk.ReadOnlyComponents<T3>();
+			var components4 = chunk.ReadOnlyComponents<T4>();
+			for (var i = 0; i < chunk.Count; i++)
+				action(ref components1[i], in components2[i], in components3[i], in components4[i]);
+		}
+	}
+
+	public void ForEach<TJob, T1>(TJob job)
+		where TJob : struct, IForEach<T1>
+		where T1 : struct, IComponent
+	{
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			for (var i = 0; i < chunk.Count; i++)
+				job.Execute(ref components1[i]);
+		}
+	}
+
 	public void ForEach<TJob, T1, T2>(TJob job)
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : struct, IComponent
@@ -192,6 +251,40 @@ public sealed class Query
 			var components2 = chunk.ReadOnlyComponents<T2>();
 			for (var i = 0; i < chunk.Count; i++)
 				job.Execute(ref components1[i], in components2[i]);
+		}
+	}
+
+	public void ForEach<TJob, T1, T2, T3>(TJob job)
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+	{
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components3 = chunk.ReadOnlyComponents<T3>();
+			for (var i = 0; i < chunk.Count; i++)
+				job.Execute(ref components1[i], in components2[i], in components3[i]);
+		}
+	}
+
+	public void ForEach<TJob, T1, T2, T3, T4>(TJob job)
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+		where T4 : struct, IComponent
+	{
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components3 = chunk.ReadOnlyComponents<T3>();
+			var components4 = chunk.ReadOnlyComponents<T4>();
+			for (var i = 0; i < chunk.Count; i++)
+				job.Execute(ref components1[i], in components2[i], in components3[i], in components4[i]);
 		}
 	}
 
