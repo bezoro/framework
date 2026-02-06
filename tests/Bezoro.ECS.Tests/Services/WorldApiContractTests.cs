@@ -80,6 +80,18 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
+	{
+		var world = new World();
+		GenericUpdateSystem.RunCount = 0;
+
+		world.AddSystem<GenericUpdateSystem>(Stage.Update);
+		world.Update(0.016f);
+
+		GenericUpdateSystem.RunCount.Should().Be(1);
+	}
+
+	[Fact]
 	public void Relationships_WhenQueriedByTarget_ShouldMatchCorrectEntities()
 	{
 		var world = new World();
@@ -142,6 +154,22 @@ public class WorldApiContractTests
 			count += chunk.Count;
 
 		count.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryJob_WhenUsingIForEachOverload_ShouldApplyUpdates()
+	{
+		var world = new World();
+		var entity = world.Spawn(
+			new Position { X = 1f, Y = 2f },
+			new Velocity { X = 3f, Y = 4f });
+
+		world.Query<Position, Velocity>()
+			.ForEach<MovementJob, Position, Velocity>(new MovementJob { DeltaTime = 0.5f });
+
+		var position = world.Get<Position>(entity);
+		position.X.Should().Be(2.5f);
+		position.Y.Should().Be(4f);
 	}
 
 	[Fact]
@@ -232,6 +260,53 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Serialize_WhenRoundTripped_ShouldRestoreRelationships()
+	{
+		var world = new World();
+		var parentA = world.Spawn(new ParentTag { Id = 1 });
+		var parentB = world.Spawn(new ParentTag { Id = 2 });
+		var childA = world.Spawn();
+		var childB = world.Spawn();
+
+		world.Add<ChildOf>(childA, parentA);
+		world.Add<ChildOf>(childB, parentB);
+
+		var data = world.Serialize();
+		var clone = World.Deserialize(data);
+
+		var cloneParentA = Entity.None;
+		var cloneParentB = Entity.None;
+		foreach (var chunk in clone.Query<ParentTag>())
+		{
+			var tags = chunk.ReadOnlyComponents<ParentTag>();
+			for (var i = 0; i < chunk.Count; i++)
+			{
+				if (tags[i].Id == 1) cloneParentA = chunk.Entities[i];
+				if (tags[i].Id == 2) cloneParentB = chunk.Entities[i];
+			}
+		}
+
+		cloneParentA.Should().NotBe(Entity.None);
+		cloneParentB.Should().NotBe(Entity.None);
+
+		var relatedToA = 0;
+		foreach (var chunk in clone.Query().Related<ChildOf>(cloneParentA))
+			relatedToA += chunk.Count;
+
+		var relatedToB = 0;
+		foreach (var chunk in clone.Query().Related<ChildOf>(cloneParentB))
+			relatedToB += chunk.Count;
+
+		var anyRelated = 0;
+		foreach (var chunk in clone.Query().Related<ChildOf>(Entity.Wildcard))
+			anyRelated += chunk.Count;
+
+		relatedToA.Should().Be(1);
+		relatedToB.Should().Be(1);
+		anyRelated.Should().Be(2);
+	}
+
+	[Fact]
 	public void Serialize_WhenCalled_ShouldProduceBinarySnapshotHeader()
 	{
 		var world = new World();
@@ -314,6 +389,13 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
 	}
 
+	private sealed class GenericUpdateSystem : ISystem
+	{
+		public static int RunCount;
+
+		public void Update(IWorld world, in SystemContext context) => RunCount++;
+	}
+
 	private sealed class LifecycleTracker
 	{
 		public int Created;
@@ -343,5 +425,21 @@ public class WorldApiContractTests
 	private struct GameTime
 	{
 		public float DeltaTime;
+	}
+
+	private struct ParentTag : IComponent
+	{
+		public int Id;
+	}
+
+	private struct MovementJob : IForEach<Position, Velocity>
+	{
+		public float DeltaTime;
+
+		public void Execute(ref Position position, in Velocity velocity)
+		{
+			position.X += velocity.X * DeltaTime;
+			position.Y += velocity.Y * DeltaTime;
+		}
 	}
 }

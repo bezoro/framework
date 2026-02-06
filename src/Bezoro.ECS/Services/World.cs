@@ -346,6 +346,10 @@ public sealed class World : IWorld, IDisposable
 	public void AddSystem(ISystem system, Stage stage = Stage.Update) =>
 		_systemManager.RegisterSystem(this, system, stage);
 
+	public void AddSystem<TSystem>(Stage stage = Stage.Update)
+		where TSystem : ISystem, new() =>
+		AddSystem(new TSystem(), stage);
+
 	public void RegisterSystem(ISystem system) => AddSystem(system, system.Stage);
 
 	public void Add<TRelation>(Entity source, Entity target)
@@ -507,6 +511,29 @@ public sealed class World : IWorld, IDisposable
 				writer.Write((byte)GetSnapshotPayloadKind(type));
 			}
 
+			var relationshipDescriptors = new List<RelationshipInfo>();
+			for (var i = 0; i < archetype.TypeIds.Length; i++)
+			{
+				int typeId = archetype.TypeIds[i];
+				if (!ComponentTypeRegistry.IsRelationship(typeId))
+					continue;
+
+				if (!ComponentTypeRegistry.TryGetRelationshipInfo(typeId, out var relationship))
+					throw new InvalidOperationException("Relationship type information is missing for snapshot serialization.");
+
+				relationshipDescriptors.Add(relationship);
+			}
+
+			writer.Write(relationshipDescriptors.Count);
+			for (var i = 0; i < relationshipDescriptors.Count; i++)
+			{
+				var relationship = relationshipDescriptors[i];
+				writer.Write(relationship.RelationType.AssemblyQualifiedName!);
+				writer.Write(relationship.Target.Id);
+				writer.Write(relationship.Target.Version);
+				writer.Write(relationship.Target.WorldId);
+			}
+
 			var rows = new List<(Chunk Chunk, int Row)>();
 			for (var c = 0; c < archetype.Chunks.Count; c++)
 			{
@@ -589,6 +616,8 @@ public sealed class World : IWorld, IDisposable
 				throw new InvalidOperationException($"Invalid snapshot payload: unsupported version '{version}'.");
 
 			var world = new World();
+			var entityMap = new Dictionary<(int Id, int Version), Entity>();
+			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion, int TargetWorldId)>();
 			int archetypeCount = reader.ReadInt32();
 			if (archetypeCount < 0)
 				throw new InvalidOperationException("Invalid snapshot payload: archetype count cannot be negative.");
@@ -619,6 +648,22 @@ public sealed class World : IWorld, IDisposable
 					payloadKinds[typeIndex] = payloadKind;
 				}
 
+				int relationshipCount = reader.ReadInt32();
+				if (relationshipCount < 0)
+					throw new InvalidOperationException("Invalid snapshot payload: relationship count cannot be negative.");
+
+				var relationshipDescriptors = new (Type RelationType, int TargetId, int TargetVersion, int TargetWorldId)[relationshipCount];
+				for (var relationshipIndex = 0; relationshipIndex < relationshipCount; relationshipIndex++)
+				{
+					string relationTypeName = reader.ReadString();
+					Type relationType = Type.GetType(relationTypeName, throwOnError: true)
+						?? throw new InvalidOperationException($"Snapshot relation type '{relationTypeName}' could not be resolved.");
+					int targetId = reader.ReadInt32();
+					int targetVersion = reader.ReadInt32();
+					int targetWorldId = reader.ReadInt32();
+					relationshipDescriptors[relationshipIndex] = (relationType, targetId, targetVersion, targetWorldId);
+				}
+
 				var archetype = componentTypes.Length == 0
 					? world.EmptyArchetype
 					: world.GetOrCreateArchetype(componentTypes);
@@ -627,15 +672,23 @@ public sealed class World : IWorld, IDisposable
 				if (entityCount < 0)
 					throw new InvalidOperationException("Invalid snapshot payload: entity count cannot be negative.");
 
+				var snapshotEntities = new (int Id, int Version)[entityCount];
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
 				{
-					_ = reader.ReadInt32();
-					_ = reader.ReadInt32();
+					snapshotEntities[entityIndex] = (reader.ReadInt32(), reader.ReadInt32());
 				}
 
 				var entities = new Entity[entityCount];
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
+				{
 					entities[entityIndex] = world.CreateEntity(archetype);
+					var snapshotEntity = snapshotEntities[entityIndex];
+					if (!entityMap.TryAdd(snapshotEntity, entities[entityIndex]))
+					{
+						throw new InvalidOperationException(
+							$"Invalid snapshot payload: duplicate entity mapping for id '{snapshotEntity.Id}:{snapshotEntity.Version}'.");
+					}
+				}
 
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
 				{
@@ -654,6 +707,13 @@ public sealed class World : IWorld, IDisposable
 							throw new InvalidOperationException($"Invalid snapshot payload: missing component slot for '{componentType.FullName}'.");
 
 						chunk.SetValue(componentIndex, slot, value);
+					}
+
+					for (var relationshipIndex = 0; relationshipIndex < relationshipDescriptors.Length; relationshipIndex++)
+					{
+						var relationship = relationshipDescriptors[relationshipIndex];
+						pendingRelationships.Add(
+							(entities[entityIndex], relationship.RelationType, relationship.TargetId, relationship.TargetVersion, relationship.TargetWorldId));
 					}
 				}
 			}
@@ -683,6 +743,19 @@ public sealed class World : IWorld, IDisposable
 				byte[] payload = ReadBytesExact(reader, length);
 				object value = DeserializeSnapshotValue(type, payloadKind, payload);
 				world.SetResourceObject(type, value);
+			}
+
+			for (var i = 0; i < pendingRelationships.Count; i++)
+			{
+				var relationship = pendingRelationships[i];
+				var target = relationship.TargetId == Entity.Wildcard.Id
+					? Entity.Wildcard
+					: entityMap.TryGetValue((relationship.TargetId, relationship.TargetVersion), out var mappedTarget)
+						? mappedTarget
+						: throw new InvalidOperationException(
+							$"Invalid snapshot payload: relationship target '{relationship.TargetId}:{relationship.TargetVersion}' was not found.");
+
+				world.AddRelationshipObject(relationship.Source, relationship.RelationType, target);
 			}
 
 			return world;
@@ -991,6 +1064,21 @@ public sealed class World : IWorld, IDisposable
 		(var targetChunk, int targetSlot) = MoveEntityCore(entity, source, location, target);
 		int addedIndex = target.GetTypeIndex(typeId);
 		targetChunk.SetValue(addedIndex, targetSlot, value);
+	}
+
+	private void AddRelationshipObject(Entity source, Type relationType, Entity target)
+	{
+		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
+
+		_entityManager.EnsureAlive(source);
+		if (!_entityManager.IsAlive(target) && target != Entity.Wildcard)
+		{
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: relationship target '{target.Id}:{target.Version}' is not alive.");
+		}
+
+		int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(relationType, target);
+		AddRelationshipWithMove(source, relationTypeId);
 	}
 
 	private void SetResourceObject(Type type, object value)

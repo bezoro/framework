@@ -181,6 +181,20 @@ public sealed class Query
 		}
 	}
 
+	public void ForEach<TJob, T1, T2>(TJob job)
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+	{
+		foreach (var chunk in this)
+		{
+			var components1 = chunk.Components<T1>();
+			var components2 = chunk.ReadOnlyComponents<T2>();
+			for (var i = 0; i < chunk.Count; i++)
+				job.Execute(ref components1[i], in components2[i]);
+		}
+	}
+
 	public void ForEachParallel(Action<ChunkView> action, int? maxDegreeOfParallelism = null)
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));

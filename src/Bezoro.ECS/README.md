@@ -12,6 +12,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `Query` | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters. |
 | `ChunkView` | Span-based access to entities and component columns in a chunk. |
 | `CommandBuffer` | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback. |
+| `IForEach<T1,T2>` | Job-style query executor contract for writable/read-only component iteration. |
 | `OnAddObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/remove hooks with `ref`/`in` semantics. |
 | `SystemContext` | Per-system execution context (`DeltaTime`, `Stage`, `Commands`). |
 | `Stage` | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`. |
@@ -69,7 +70,7 @@ world.Query()
 | `Query()` / `Query<T1..T4>()` / `Query(Archetype)` | Builds cached chunk queries. |
 | `SetResource<T>(T)` / `GetResource<T>()` | Singleton/resource storage. |
 | `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks; returns `IDisposable` subscription. |
-| `AddSystem(ISystem, Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
+| `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
 | `Update(float)` | Runs systems by stage with sync-point command playback. |
 | `CreateCommandBuffer()` | Creates manual deferred mutation buffer. |
 | `Serialize()` / `World.Deserialize(byte[])` | Snapshot round-trip (`net9.0` only). |
@@ -84,7 +85,7 @@ world.Query()
 | `Optional<T>()` | Optional component availability for chunk access. |
 | `Changed<T>()` | Includes chunks changed in the current version window. |
 | `Related<TRelation>(Entity target)` | Relationship target filter (`Entity.Wildcard` for any target). |
-| `ForEach(...)` / `ForEachParallel(...)` | Serial or parallel chunk iteration. |
+| `ForEach(...)` / `ForEach<TJob,T1,T2>(TJob)` / `ForEachParallel(...)` | Serial, job-style, or parallel chunk iteration. |
 
 ### ISystem
 
