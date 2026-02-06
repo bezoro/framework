@@ -50,29 +50,32 @@ public class CommandBufferTests
 	}
 
 	[Fact]
-	public void Playback_WhenCalledDuringUpdate_ShouldThrow()
+	public void CommandBuffer_WhenDisposed_ShouldRejectFurtherUsage()
 	{
 		// Arrange
-		var world = new World();
-		world.AddSystem(new PlaybackDuringUpdateSystem());
+		var world    = new World();
+		var commands = world.CreateCommandBuffer();
 
 		// Act
-		var act = () => world.Update(0.016f);
+		commands.Dispose();
+		var addAct      = () => commands.AddComponent(world.Spawn(), new Position { X = 1, Y = 1 });
+		var playbackAct = () => commands.Playback();
 
 		// Assert
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*Playback*");
+		addAct.Should().Throw<ObjectDisposedException>();
+		playbackAct.Should().Throw<ObjectDisposedException>();
 	}
 
 	[Fact]
 	public void CreateEntity_WhenGivenInitialComponents_ShouldCreateEntityWithValuesOnPlayback()
 	{
 		// Arrange
-		var world = new World();
+		var world    = new World();
 		var commands = world.CreateCommandBuffer();
 		commands.CreateEntity(
 			new Position { X = 10, Y = 20 },
-			new Velocity { X = 3, Y = -1 });
+			new Velocity { X = 3, Y  = -1 }
+		);
 
 		// Act
 		commands.Playback();
@@ -81,12 +84,12 @@ public class CommandBufferTests
 		var matched = 0;
 		foreach (var chunk in world.Query().All<Position>().All<Velocity>())
 		{
-			var positions = chunk.Components<Position>();
+			var positions  = chunk.Components<Position>();
 			var velocities = chunk.Components<Velocity>();
 			for (var i = 0; i < chunk.Count; i++)
 			{
-				positions[i].Should().Be(new Position { X = 10, Y = 20 });
-				velocities[i].Should().Be(new Velocity { X = 3, Y = -1 });
+				positions[i].Should().Be(new Position { X  = 10, Y = 20 });
+				velocities[i].Should().Be(new Velocity { X = 3, Y  = -1 });
 				matched++;
 			}
 		}
@@ -111,6 +114,21 @@ public class CommandBufferTests
 			foreach (var _ in world.Query().All<Position>())
 				commands.Playback();
 		};
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*Playback*");
+	}
+
+	[Fact]
+	public void Playback_WhenCalledDuringUpdate_ShouldThrow()
+	{
+		// Arrange
+		var world = new World();
+		world.AddSystem(new PlaybackDuringUpdateSystem());
+
+		// Act
+		var act = () => world.Update(0.016f);
 
 		// Assert
 		act.Should().Throw<InvalidOperationException>()
@@ -154,6 +172,24 @@ public class CommandBufferTests
 	}
 
 	[Fact]
+	public void RemoveComponent_WhenEntityIsNotAlive_ShouldThrowOnPlayback()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Despawn(entity);
+
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Position>(entity);
+
+		// Act
+		var act = () => commands.Playback();
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
 	public void SetComponent_WhenComponentAlreadyExists_ShouldUpdateOnPlayback()
 	{
 		// Arrange
@@ -170,41 +206,6 @@ public class CommandBufferTests
 		var component = world.Get<Position>(entity);
 		component.X.Should().Be(9);
 		component.Y.Should().Be(8);
-	}
-
-	[Fact]
-	public void CommandBuffer_WhenDisposed_ShouldRejectFurtherUsage()
-	{
-		// Arrange
-		var world = new World();
-		var commands = world.CreateCommandBuffer();
-
-		// Act
-		commands.Dispose();
-		var addAct = () => commands.AddComponent(world.Spawn(), new Position { X = 1, Y = 1 });
-		var playbackAct = () => commands.Playback();
-
-		// Assert
-		addAct.Should().Throw<ObjectDisposedException>();
-		playbackAct.Should().Throw<ObjectDisposedException>();
-	}
-
-	[Fact]
-	public void RemoveComponent_WhenEntityIsNotAlive_ShouldThrowOnPlayback()
-	{
-		// Arrange
-		var world  = new World();
-		var entity = world.Spawn();
-		world.Despawn(entity);
-
-		var commands = world.CreateCommandBuffer();
-		commands.RemoveComponent<Position>(entity);
-
-		// Act
-		var act = () => commands.Playback();
-
-		// Assert
-		act.Should().Throw<InvalidOperationException>();
 	}
 
 	private sealed class AddVelocitySystem : ISystem
@@ -248,4 +249,3 @@ public class CommandBufferTests
 		public float Y;
 	}
 }
-

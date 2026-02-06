@@ -10,6 +10,14 @@ namespace Bezoro.ECS.Tests.Types;
 public class SystemUpdateSettingsTests
 {
 	[Fact]
+	public void FixedMilliseconds_WhenNegative_ShouldThrow()
+	{
+		var act = () => SystemUpdateSettings.FixedMilliseconds(-1);
+
+		act.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
 	public void FixedMilliseconds_WhenPositive_ShouldReturnSeconds()
 	{
 		var settings = SystemUpdateSettings.FixedMilliseconds(1500);
@@ -18,9 +26,9 @@ public class SystemUpdateSettingsTests
 	}
 
 	[Fact]
-	public void FixedMilliseconds_WhenNegative_ShouldThrow()
+	public void FixedTimeSpan_WhenNegative_ShouldThrow()
 	{
-		var act = () => SystemUpdateSettings.FixedMilliseconds(-1);
+		var act = () => SystemUpdateSettings.Fixed(TimeSpan.FromMilliseconds(-1));
 
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
@@ -31,13 +39,5 @@ public class SystemUpdateSettingsTests
 		var settings = SystemUpdateSettings.Fixed(TimeSpan.FromMilliseconds(250));
 
 		settings.IntervalSeconds.Should().BeApproximately(0.25f, 1e-6f);
-	}
-
-	[Fact]
-	public void FixedTimeSpan_WhenNegative_ShouldThrow()
-	{
-		var act = () => SystemUpdateSettings.Fixed(TimeSpan.FromMilliseconds(-1));
-
-		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
 }

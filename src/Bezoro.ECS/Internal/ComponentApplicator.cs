@@ -7,13 +7,13 @@ namespace Bezoro.ECS.Internal;
 internal sealed class ComponentApplicator<T> : IComponentApplicator where T : struct, IComponent
 {
 	private readonly bool _addOnly;
-	private readonly T   _component;
-	private readonly int _typeId;
+	private readonly int  _typeId;
+	private readonly T    _component;
 
 	public ComponentApplicator(int typeId, in T component, bool addOnly)
 	{
-		_addOnly  = addOnly;
-		_typeId   = typeId;
+		_addOnly   = addOnly;
+		_typeId    = typeId;
 		_component = component;
 	}
 

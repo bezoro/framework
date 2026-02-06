@@ -21,8 +21,10 @@ internal readonly struct ArchetypeKey : IEquatable<ArchetypeKey>
 		if (TypeIds.Length != other.TypeIds.Length) return false;
 
 		for (var i = 0; i < TypeIds.Length; i++)
+		{
 			if (TypeIds[i] != other.TypeIds[i])
 				return false;
+		}
 
 		return true;
 	}

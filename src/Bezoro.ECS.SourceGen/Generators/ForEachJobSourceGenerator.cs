@@ -12,66 +12,47 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var jobs = context.CompilationProvider.Select(static (compilation, _) =>
-		{
-			var models = new List<JobModel>();
-			CollectJobs(compilation.Assembly.GlobalNamespace, models);
-			return models;
-		});
-
-		context.RegisterSourceOutput(jobs, static (productionContext, models) =>
-		{
-			for (var i = 0; i < models.Count; i++)
 			{
-				var model = models[i];
-				var source = BuildSource(model);
-				productionContext.AddSource(model.HintName, SourceText.From(source, Encoding.UTF8));
+				var models = new List<JobModel>();
+				CollectJobs(compilation.Assembly.GlobalNamespace, models);
+				return models;
 			}
-		});
+		);
+
+		context.RegisterSourceOutput(
+			jobs, static (productionContext, models) =>
+			{
+				for (var i = 0; i < models.Count; i++)
+				{
+					var    model  = models[i];
+					string source = BuildSource(model);
+					productionContext.AddSource(model.HintName, SourceText.From(source, Encoding.UTF8));
+				}
+			}
+		);
 	}
 
-	private static void CollectJobs(INamespaceSymbol namespaceSymbol, ICollection<JobModel> models)
+	private static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
 	{
-		foreach (var member in namespaceSymbol.GetMembers())
-		{
-			if (member is INamespaceSymbol ns)
-			{
-				CollectJobs(ns, models);
-				continue;
-			}
+		if (!IsTypeAccessibilitySupported(type.DeclaredAccessibility))
+			return false;
 
-			if (member is INamedTypeSymbol type)
-				CollectJobs(type, models);
-		}
-	}
-
-	private static void CollectJobs(INamedTypeSymbol type, ICollection<JobModel> models)
-	{
-		if (type.TypeKind == TypeKind.Struct &&
-		    IsAccessibleFromGeneratedCode(type) &&
-		    TryGetForEachTypes(type, out var componentTypes))
+		for (var containing = type.ContainingType; containing is { }; containing = containing.ContainingType)
 		{
-			var namespaceName = type.ContainingNamespace.IsGlobalNamespace
-				? string.Empty
-				: type.ContainingNamespace.ToDisplayString();
-			string jobType = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var componentTypeNames = new string[componentTypes.Length];
-			for (var i = 0; i < componentTypes.Length; i++)
-				componentTypeNames[i] = componentTypes[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			string sanitizedName = SanitizeTypeName(jobType);
-			string generatedTypeName = sanitizedName + "ForEachExtensions";
-			string hintName = sanitizedName + ".ForEachJob.g.cs";
-			models.Add(new JobModel(namespaceName, generatedTypeName, jobType, componentTypeNames, hintName));
+			if (!IsTypeAccessibilitySupported(containing.DeclaredAccessibility))
+				return false;
 		}
 
-		var nestedTypes = type.GetTypeMembers();
-		for (var i = 0; i < nestedTypes.Length; i++)
-			CollectJobs(nestedTypes[i], models);
+		return true;
 	}
+
+	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
+		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
 
 	private static bool TryGetForEachTypes(INamedTypeSymbol type, out ITypeSymbol[] componentTypes)
 	{
-		INamedTypeSymbol? selected = null;
-		var selectedArity = 0;
+		INamedTypeSymbol? selected      = null;
+		var               selectedArity = 0;
 
 		for (var i = 0; i < type.AllInterfaces.Length; i++)
 		{
@@ -81,7 +62,7 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 			if (arity > selectedArity)
 			{
-				selected = iface;
+				selected      = iface;
 				selectedArity = arity;
 			}
 		}
@@ -105,44 +86,15 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 		if (symbol.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Abstractions")
 			return false;
 
-		var metadataName = symbol.MetadataName;
+		string metadataName = symbol.MetadataName;
 		if (!metadataName.StartsWith("IForEach`", StringComparison.Ordinal))
 			return false;
 
-		var arityText = metadataName.Substring("IForEach`".Length);
+		string arityText = metadataName.Substring("IForEach`".Length);
 		if (!int.TryParse(arityText, out arity))
 			return false;
 
 		return arity is >= 1 and <= 4;
-	}
-
-	private static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
-	{
-		if (!IsTypeAccessibilitySupported(type.DeclaredAccessibility))
-			return false;
-
-		for (var containing = type.ContainingType; containing is not null; containing = containing.ContainingType)
-		{
-			if (!IsTypeAccessibilitySupported(containing.DeclaredAccessibility))
-				return false;
-		}
-
-		return true;
-	}
-
-	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
-		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
-
-	private static string SanitizeTypeName(string typeName)
-	{
-		var builder = new StringBuilder(typeName.Length);
-		for (var i = 0; i < typeName.Length; i++)
-		{
-			char ch = typeName[i];
-			builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
-		}
-
-		return builder.ToString();
 	}
 
 	private static string BuildSource(JobModel model)
@@ -158,12 +110,15 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 		builder.Append("internal static class ").Append(model.GeneratedTypeName).AppendLine();
 		builder.AppendLine("{");
-		builder.Append("    public static void ForEach(this global::Bezoro.ECS.Types.Query query, ").Append(model.JobType).AppendLine(" job)");
+		builder.Append("    public static void ForEach(this global::Bezoro.ECS.Types.Query query, ")
+			   .Append(model.JobType).AppendLine(" job)");
+
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (query is null) throw new global::System.ArgumentNullException(nameof(query));");
 		builder.Append("        query.ForEach<").Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
+
 		builder.AppendLine(">(job);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
@@ -171,26 +126,80 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 		return builder.ToString();
 	}
 
+	private static string SanitizeTypeName(string typeName)
+	{
+		var builder = new StringBuilder(typeName.Length);
+		for (var i = 0; i < typeName.Length; i++)
+		{
+			char ch = typeName[i];
+			builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
+		}
+
+		return builder.ToString();
+	}
+
+	private static void CollectJobs(INamespaceSymbol namespaceSymbol, ICollection<JobModel> models)
+	{
+		foreach (var member in namespaceSymbol.GetMembers())
+		{
+			if (member is INamespaceSymbol ns)
+			{
+				CollectJobs(ns, models);
+				continue;
+			}
+
+			if (member is INamedTypeSymbol type)
+				CollectJobs(type, models);
+		}
+	}
+
+	private static void CollectJobs(INamedTypeSymbol type, ICollection<JobModel> models)
+	{
+		if (type.TypeKind == TypeKind.Struct &&
+			IsAccessibleFromGeneratedCode(type) &&
+			TryGetForEachTypes(type, out var componentTypes))
+		{
+			string namespaceName = type.ContainingNamespace.IsGlobalNamespace
+									   ? string.Empty
+									   : type.ContainingNamespace.ToDisplayString();
+
+			string jobType            = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var    componentTypeNames = new string[componentTypes.Length];
+			for (var i = 0; i < componentTypes.Length; i++)
+				componentTypeNames[i] = componentTypes[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+			string sanitizedName     = SanitizeTypeName(jobType);
+			string generatedTypeName = sanitizedName + "ForEachExtensions";
+			string hintName          = sanitizedName + ".ForEachJob.g.cs";
+			models.Add(new(namespaceName, generatedTypeName, jobType, componentTypeNames, hintName));
+		}
+
+		var nestedTypes = type.GetTypeMembers();
+		for (var i = 0; i < nestedTypes.Length; i++)
+			CollectJobs(nestedTypes[i], models);
+	}
+
 	private sealed class JobModel
 	{
 		public JobModel(
-			string typeNamespace,
-			string generatedTypeName,
-			string jobType,
+			string   typeNamespace,
+			string   generatedTypeName,
+			string   jobType,
 			string[] componentTypes,
-			string hintName)
+			string   hintName)
 		{
-			Namespace = typeNamespace;
+			Namespace         = typeNamespace;
 			GeneratedTypeName = generatedTypeName;
-			JobType = jobType;
-			ComponentTypes = componentTypes;
-			HintName = hintName;
+			JobType           = jobType;
+			ComponentTypes    = componentTypes;
+			HintName          = hintName;
 		}
 
-		public string Namespace { get; }
 		public string GeneratedTypeName { get; }
-		public string JobType { get; }
+		public string HintName          { get; }
+		public string JobType           { get; }
+
+		public string   Namespace      { get; }
 		public string[] ComponentTypes { get; }
-		public string HintName { get; }
 	}
 }

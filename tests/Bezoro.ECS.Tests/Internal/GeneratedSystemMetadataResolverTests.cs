@@ -14,8 +14,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenGeneratedMetadataExists_ShouldReturnSystemMetadata()
 	{
-		var resolver = new GeneratedSystemMetadataResolver();
-		var result = resolver.TryGet(typeof(ResolverDerivedSystem), out var metadata);
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverDerivedSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverDerivedSystem));
@@ -25,23 +25,10 @@ public class GeneratedSystemMetadataResolverTests
 	}
 
 	[Fact]
-	public void TryGet_WhenSystemIsStruct_ShouldReturnGeneratedMetadata()
-	{
-		var resolver = new GeneratedSystemMetadataResolver();
-		var result = resolver.TryGet(typeof(ResolverStructSystem), out var metadata);
-
-		result.Should().BeTrue();
-		metadata.SystemType.Should().Be(typeof(ResolverStructSystem));
-		metadata.Reads.Should().ContainSingle(t => t == typeof(ResolverReadComponent));
-		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
-		metadata.IsExclusive.Should().BeTrue();
-	}
-
-	[Fact]
 	public void TryGet_WhenSystemIsNestedType_ShouldReturnGeneratedMetadata()
 	{
-		var resolver = new GeneratedSystemMetadataResolver();
-		var result = resolver.TryGet(typeof(ResolverNestedSystems.NestedSystem), out var metadata);
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverNestedSystems.NestedSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverNestedSystems.NestedSystem));
@@ -51,10 +38,23 @@ public class GeneratedSystemMetadataResolverTests
 	}
 
 	[Fact]
+	public void TryGet_WhenSystemIsStruct_ShouldReturnGeneratedMetadata()
+	{
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverStructSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.SystemType.Should().Be(typeof(ResolverStructSystem));
+		metadata.Reads.Should().ContainSingle(t => t == typeof(ResolverReadComponent));
+		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
+		metadata.IsExclusive.Should().BeTrue();
+	}
+
+	[Fact]
 	public void TryGet_WhenSystemUsesForEachQuery_ShouldInferReadAndWriteSets()
 	{
-		var resolver = new GeneratedSystemMetadataResolver();
-		var result = resolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.Reads.Should().Contain(typeof(ResolverInferredVelocity));
@@ -64,8 +64,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenSystemUsesForEachRwQuery_ShouldInferBothAsWrites()
 	{
-		var resolver = new GeneratedSystemMetadataResolver();
-		var result = resolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.Reads.Should().NotContain(typeof(ResolverInferredPosition));
@@ -73,7 +73,6 @@ public class GeneratedSystemMetadataResolverTests
 		metadata.Writes.Should().Contain(typeof(ResolverInferredPosition));
 		metadata.Writes.Should().Contain(typeof(ResolverInferredVelocity));
 	}
-
 }
 
 [Reads<ResolverReadComponent>]
@@ -86,22 +85,24 @@ internal abstract class ResolverBaseSystem : ISystem
 [Writes<ResolverWriteComponent>]
 internal sealed class ResolverDerivedSystem : ResolverBaseSystem
 {
-	public override void Update(IWorld world, in SystemContext context)
-	{
-	}
+	public override void Update(IWorld world, in SystemContext context) { }
 }
 
-internal struct ResolverReadComponent : IComponent;
-
-internal struct ResolverWriteComponent : IComponent;
-
-[Reads<ResolverReadComponent>]
-[Writes<ResolverWriteComponent>]
-[Exclusive]
-internal struct ResolverStructSystem : ISystem
+internal sealed class ResolverInferredForEachRwSystem : ISystem
 {
 	public void Update(IWorld world, in SystemContext context)
 	{
+		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+			 .ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
+	}
+}
+
+internal sealed class ResolverInferredForEachSystem : ISystem
+{
+	public void Update(IWorld world, in SystemContext context)
+	{
+		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+			 .ForEach((ref ResolverInferredPosition position, in ResolverInferredVelocity velocity) => { });
 	}
 }
 
@@ -111,29 +112,22 @@ internal static class ResolverNestedSystems
 	[Writes<ResolverWriteComponent>]
 	internal sealed class NestedSystem : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context)
-		{
-		}
+		public void Update(IWorld world, in SystemContext context) { }
 	}
 }
 
 internal struct ResolverInferredPosition : IComponent;
+
 internal struct ResolverInferredVelocity : IComponent;
 
-internal sealed class ResolverInferredForEachSystem : ISystem
+internal struct ResolverReadComponent : IComponent;
+
+[Reads<ResolverReadComponent>]
+[Writes<ResolverWriteComponent>]
+[Exclusive]
+internal struct ResolverStructSystem : ISystem
 {
-	public void Update(IWorld world, in SystemContext context)
-	{
-		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
-			.ForEach((ref ResolverInferredPosition position, in ResolverInferredVelocity velocity) => { });
-	}
+	public void Update(IWorld world, in SystemContext context) { }
 }
 
-internal sealed class ResolverInferredForEachRwSystem : ISystem
-{
-	public void Update(IWorld world, in SystemContext context)
-	{
-		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
-			.ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
-	}
-}
+internal struct ResolverWriteComponent : IComponent;

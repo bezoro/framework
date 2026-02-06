@@ -16,42 +16,9 @@ namespace Bezoro.ECS.Tests.Services;
 public class WorldApiContractTests
 {
 	[Fact]
-	public void Spawn_WhenCalled_ShouldCreateAliveEntity()
-	{
-		var world = new World();
-		var entity = world.Spawn();
-
-		world.IsAlive(entity).Should().BeTrue();
-	}
-
-	[Fact]
-	public void World_WhenCreatedWithName_ShouldExposeConfiguredName()
-	{
-		var world = new World("Main");
-
-		world.Name.Should().Be("Main");
-	}
-
-	[Fact]
-	public void Spawn_WhenGivenComponents_ShouldCreateEntityWithInferredArchetypeAndValues()
-	{
-		var world = new World();
-
-		var entity = world.Spawn(
-			new Position { X = 2f, Y = 3f },
-			new Velocity { X = 1.5f, Y = -0.25f });
-
-		world.IsAlive(entity).Should().BeTrue();
-		world.Has<Position>(entity).Should().BeTrue();
-		world.Has<Velocity>(entity).Should().BeTrue();
-		world.Get<Position>(entity).Should().BeEquivalentTo(new Position { X = 2f, Y = 3f });
-		world.Get<Velocity>(entity).Should().BeEquivalentTo(new Velocity { X = 1.5f, Y = -0.25f });
-	}
-
-	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
 	{
-		var world = new World();
+		var world  = new World();
 		var entity = world.Spawn();
 
 		world.Add<Health>(entity);
@@ -61,15 +28,45 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void Resources_WhenSet_ShouldBeReadableByReference()
+	public void Deserialize_WhenComponentLayoutHashDoesNotMatch_ShouldThrowInvalidOperationException()
 	{
-		var world = new World();
-		world.SetResource(new GameTime { DeltaTime = 0.5f });
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 9f, Y = 4f });
+		byte[] payload = world.Serialize();
 
-		ref var resource = ref world.GetResource<GameTime>();
-		resource.DeltaTime = 1f;
+		using (var stream = new MemoryStream(payload, false))
+		{
+			using (var reader = new BinaryReader(stream))
+			{
+				reader.ReadBytes(4); // magic
+				reader.ReadInt32();  // version
+				int archetypeCount = reader.ReadInt32();
+				archetypeCount.Should().BeGreaterThan(0);
+				int componentCount = reader.ReadInt32();
+				componentCount.Should().BeGreaterThan(0);
+				_ = reader.ReadString();
 
-		world.GetResource<GameTime>().DeltaTime.Should().Be(1f);
+				var hashOffset = (int)stream.Position;
+				payload[hashOffset] ^= 0xFF;
+			}
+		}
+
+		var act = () => World.Deserialize(payload);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*layout mismatch*");
+	}
+
+	[Fact]
+	public void Deserialize_WhenHeaderIsInvalid_ShouldThrowInvalidOperationException()
+	{
+		var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
+
+		var act = () => World.Deserialize(payload);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*snapshot*");
 	}
 
 	[Fact]
@@ -94,7 +91,9 @@ public class WorldApiContractTests
 		empty.AllocatedBytes.Should().Be(0);
 		empty.LiveBytes.Should().Be(0);
 
-		var positionOnly = diagnostics.Archetypes.Single(x => x.ComponentTypes.Count == 1 && x.ComponentTypes[0] == typeof(Position));
+		var positionOnly =
+			diagnostics.Archetypes.Single(x => x.ComponentTypes.Count == 1 && x.ComponentTypes[0] == typeof(Position));
+
 		positionOnly.EntityCount.Should().Be(3);
 		positionOnly.ChunkCount.Should().Be(2);
 		positionOnly.AllocatedEntitySlots.Should().Be(4);
@@ -103,9 +102,11 @@ public class WorldApiContractTests
 		positionOnly.LiveBytes.Should().Be(48);
 
 		var positionVelocity = diagnostics.Archetypes.Single(x =>
-			x.ComponentTypes.Count == 2 &&
-			x.ComponentTypes.Contains(typeof(Position)) &&
-			x.ComponentTypes.Contains(typeof(Velocity)));
+																 x.ComponentTypes.Count == 2 &&
+																 x.ComponentTypes.Contains(typeof(Position)) &&
+																 x.ComponentTypes.Contains(typeof(Velocity))
+		);
+
 		positionVelocity.EntityCount.Should().Be(1);
 		positionVelocity.ChunkCount.Should().Be(1);
 		positionVelocity.AllocatedEntitySlots.Should().Be(2);
@@ -119,42 +120,338 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void Systems_WhenAddedWithStages_ShouldRunInStageOrder()
+	public void Dispose_WhenSystemRegistered_ShouldInvokeOnDestroy()
 	{
-		var world = new World();
-		var order = new List<Stage>();
+		var tracker = new LifecycleTracker();
+		var world   = new World();
+		world.AddSystem(new LifecycleSystem(tracker));
 
-		world.AddSystem(new StageRecorder(order), Stage.Render);
-		world.AddSystem(new StageRecorder(order), Stage.Input);
-		world.AddSystem(new StageRecorder(order), Stage.PostUpdate);
-		world.AddSystem(new StageRecorder(order), Stage.PreUpdate);
-		world.AddSystem(new StageRecorder(order), Stage.Update);
-
-		world.Update(0.016f);
-
-		order.Should().Equal(Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render);
+		tracker.Created.Should().Be(1);
+		world.Dispose();
+		tracker.Destroyed.Should().Be(1);
 	}
 
 	[Fact]
-	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
+	public void ObserveAdd_WhenCreatingWithInitialComponentInPlayback_ShouldInvokeObserver()
 	{
 		var world = new World();
-		GenericUpdateSystem.RunCount = 0;
+		var calls = 0;
+		world.ObserveAdd((Entity _, ref Health health) =>
+			{
+				calls++;
+				health.Current = health.Max;
+			}
+		);
 
-		world.AddSystem<GenericUpdateSystem>(Stage.Update);
-		world.Update(0.016f);
+		var commands = world.CreateCommandBuffer();
+		commands.CreateEntity(new Health { Current = 1, Max = 8 });
+		commands.Playback();
 
-		GenericUpdateSystem.RunCount.Should().Be(1);
+		int observedCurrent = -1;
+		foreach (var chunk in world.Query<Health>())
+		{
+			chunk.Count.Should().Be(1);
+			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
+		}
+
+		calls.Should().Be(1);
+		observedCurrent.Should().Be(8);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd((Entity _, ref Health health) => calls++);
+
+		var entity = world.Spawn();
+		world.Add(entity, new Health { Current = 0, Max = 1 });
+		world.Set(entity, new Health { Current = 1, Max = 1 });
+
+		calls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponentDuringPlayback()
+	{
+		var world = new World();
+		world.ObserveAdd((Entity _, ref Health health) => health.Current = health.Max);
+
+		var commands = world.CreateCommandBuffer();
+		var entity   = commands.CreateEntity();
+		commands.AddComponent(entity, new Health { Current = 0, Max = 10 });
+		commands.Playback();
+
+		int observedCurrent = -1;
+		foreach (var chunk in world.Query<Health>())
+		{
+			chunk.Count.Should().Be(1);
+			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
+		}
+
+		observedCurrent.Should().Be(10);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSetAddsMissingComponentInPlayback_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd((Entity _, ref Health health) =>
+			{
+				calls++;
+				health.Current = health.Max;
+			}
+		);
+
+		var entity   = world.Spawn();
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 1, Max = 6 });
+		commands.Playback();
+
+		calls.Should().Be(1);
+		world.Get<Health>(entity).Current.Should().Be(6);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd((Entity _, ref Health health) =>
+			{
+				calls++;
+				health.Current = health.Max;
+			}
+		);
+
+		var entity   = world.Spawn(new Health { Current = 1, Max = 4 });
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 2, Max = 9 });
+		commands.Playback();
+
+		calls.Should().Be(1);
+		world.Get<Health>(entity).Current.Should().Be(9);
+	}
+
+	[Fact]
+	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingPlaybackEvents()
+	{
+		var world              = new World();
+		var addCalls           = 0;
+		var removeCalls        = 0;
+		var addSubscription    = world.ObserveAdd((Entity    _, ref Health health) => addCalls++);
+		var removeSubscription = world.ObserveRemove((Entity _, in  Health health) => removeCalls++);
+
+		addSubscription.Dispose();
+		removeSubscription.Dispose();
+
+		var entity   = world.Spawn();
+		var commands = world.CreateCommandBuffer();
+		commands.AddComponent(entity, new Health { Current = 1, Max = 5 });
+		commands.RemoveComponent<Health>(entity);
+		commands.Playback();
+
+		addCalls.Should().Be(0);
+		removeCalls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveRemove((Entity _, in Velocity velocity) => calls++);
+
+		var entity = world.Spawn(new Velocity { X = 2f, Y = 3f });
+		world.Remove<Velocity>(entity);
+
+		calls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenEntityIsDespawnedInPlayback_ShouldReceiveRemovedComponentValue()
+	{
+		var world    = new World();
+		var removedX = 0f;
+		var calls    = 0;
+		world.ObserveRemove((Entity _, in Velocity velocity) =>
+			{
+				calls++;
+				removedX = velocity.X;
+			}
+		);
+
+		var entity   = world.Spawn(new Velocity { X = 11f, Y = 3f });
+		var commands = world.CreateCommandBuffer();
+		commands.DestroyEntity(entity);
+		commands.Playback();
+
+		calls.Should().Be(1);
+		removedX.Should().Be(11f);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerPlaybackRemoval()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveRemove((Entity _, in Velocity velocity) => calls++);
+
+		var entity   = world.Spawn(new Velocity { X = 2f, Y = 3f });
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Velocity>(entity);
+		commands.Playback();
+
+		calls.Should().Be(1);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValueDuringPlayback()
+	{
+		var world    = new World();
+		var removedX = 0f;
+		world.ObserveRemove((Entity _, in Velocity velocity) => removedX = velocity.X);
+
+		var entity   = world.Spawn(new Velocity { X = 7f, Y = 1f });
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Velocity>(entity);
+		commands.Playback();
+
+		removedX.Should().Be(7f);
+	}
+
+	[Fact]
+	public void QueryChanged_WhenChunkWritten_ShouldMatchChangedChunk()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1f, Y = 2f });
+		world.Update(0f);
+
+		var before = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			before += chunk.Count;
+
+		world.Query().All<Position>().ForEach(chunk =>
+			{
+				var positions = chunk.Components<Position>();
+				for (var i = 0; i < chunk.Count; i++)
+					positions[i].X += 1f;
+			}
+		);
+
+		var after = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			after += chunk.Count;
+
+		before.Should().Be(0);
+		after.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryChanged_WhenComponentAddedThroughWorldApi_ShouldMatchChangedChunk()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Update(0f);
+
+		world.Add(entity, new Position { X = 5f, Y = 6f });
+
+		var changed = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			changed += chunk.Count;
+
+		changed.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryChanged_WhenComponentSetThroughWorldApi_ShouldMatchChangedChunk()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1f, Y = 2f });
+		world.Update(0f);
+
+		var before = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			before += chunk.Count;
+
+		world.Set(entity, new Position { X = 3f, Y = 4f });
+
+		var after = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			after += chunk.Count;
+
+		before.Should().Be(0);
+		after.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryJob_WhenUsingIForEachOverload_ShouldApplyUpdates()
+	{
+		var world = new World();
+		var entity = world.Spawn(
+			new Position { X = 1f, Y = 2f },
+			new Velocity { X = 3f, Y = 4f }
+		);
+
+		world.Query<Position, Velocity>()
+			 .ForEach<MovementJob, Position, Velocity>(new() { DeltaTime = 0.5f });
+
+		var position = world.Get<Position>(entity);
+		position.X.Should().Be(2.5f);
+		position.Y.Should().Be(4f);
+	}
+
+	[Fact]
+	public void QueryOptional_WhenComponentMissing_ShouldExposeEmptySpan()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 });
+		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 4 });
+
+		var chunksWithOptional      = 0;
+		var entitiesWithVelocity    = 0;
+		var entitiesWithoutVelocity = 0;
+		foreach (var chunk in world.Query().All<Position>().Optional<Velocity>())
+		{
+			var velocities = chunk.OptionalComponents<Velocity>();
+			chunksWithOptional++;
+			if (velocities.Length == 0)
+				entitiesWithoutVelocity += chunk.Count;
+			else
+				entitiesWithVelocity += chunk.Count;
+		}
+
+		chunksWithOptional.Should().Be(2);
+		entitiesWithVelocity.Should().Be(1);
+		entitiesWithoutVelocity.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryTyped_WhenUsingGenericWorldEntryPoint_ShouldMatchRequestedComponents()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 }, new Velocity { X = 1, Y = 0 });
+		world.Spawn(new Position { X = 2, Y = 2 });
+
+		var count = 0;
+		foreach (var chunk in world.Query<Position, Velocity>())
+			count += chunk.Count;
+
+		count.Should().Be(1);
 	}
 
 	[Fact]
 	public void Relationships_WhenQueriedByTarget_ShouldMatchCorrectEntities()
 	{
-		var world = new World();
+		var world   = new World();
 		var parentA = world.Spawn();
 		var parentB = world.Spawn();
-		var childA = world.Spawn();
-		var childB = world.Spawn();
+		var childA  = world.Spawn();
+		var childB  = world.Spawn();
 
 		world.Add<ChildOf>(childA, parentA);
 		world.Add<ChildOf>(childB, parentB);
@@ -174,9 +471,9 @@ public class WorldApiContractTests
 	[Fact]
 	public void Relationships_WhenTargetIdIsReusedWithDifferentVersion_ShouldUseCorrectQueryCacheEntry()
 	{
-		var world = new World();
+		var world          = new World();
 		var originalParent = world.Spawn();
-		var originalChild = world.Spawn();
+		var originalChild  = world.Spawn();
 		world.Add<ChildOf>(originalChild, originalParent);
 
 		var originalMatches = 0;
@@ -202,310 +499,32 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void QueryChanged_WhenChunkWritten_ShouldMatchChangedChunk()
+	public void Resources_WhenSet_ShouldBeReadableByReference()
 	{
 		var world = new World();
+		world.SetResource(new GameTime { DeltaTime = 0.5f });
+
+		ref var resource = ref world.GetResource<GameTime>();
+		resource.DeltaTime = 1f;
+
+		world.GetResource<GameTime>().DeltaTime.Should().Be(1f);
+	}
+
+	[Fact]
+	public void Serialize_WhenCalled_ShouldProduceBinarySnapshotHeader()
+	{
+		var world  = new World();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
-		world.Update(0f);
 
-		var before = 0;
-		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
-			before += chunk.Count;
+		byte[] data = world.Serialize();
 
-		world.Query().All<Position>().ForEach(chunk =>
-		{
-			var positions = chunk.Components<Position>();
-			for (var i = 0; i < chunk.Count; i++)
-				positions[i].X += 1f;
-		});
-
-		var after = 0;
-		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
-			after += chunk.Count;
-
-		before.Should().Be(0);
-		after.Should().Be(1);
-	}
-
-	[Fact]
-	public void QueryChanged_WhenComponentSetThroughWorldApi_ShouldMatchChangedChunk()
-	{
-		var world = new World();
-		var entity = world.Spawn();
-		world.Add(entity, new Position { X = 1f, Y = 2f });
-		world.Update(0f);
-
-		var before = 0;
-		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
-			before += chunk.Count;
-
-		world.Set(entity, new Position { X = 3f, Y = 4f });
-
-		var after = 0;
-		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
-			after += chunk.Count;
-
-		before.Should().Be(0);
-		after.Should().Be(1);
-	}
-
-	[Fact]
-	public void QueryChanged_WhenComponentAddedThroughWorldApi_ShouldMatchChangedChunk()
-	{
-		var world = new World();
-		var entity = world.Spawn();
-		world.Update(0f);
-
-		world.Add(entity, new Position { X = 5f, Y = 6f });
-
-		var changed = 0;
-		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
-			changed += chunk.Count;
-
-		changed.Should().Be(1);
-	}
-
-	[Fact]
-	public void QueryTyped_WhenUsingGenericWorldEntryPoint_ShouldMatchRequestedComponents()
-	{
-		var world = new World();
-		world.Spawn(new Position { X = 1, Y = 1 }, new Velocity { X = 1, Y = 0 });
-		world.Spawn(new Position { X = 2, Y = 2 });
-
-		var count = 0;
-		foreach (var chunk in world.Query<Position, Velocity>())
-			count += chunk.Count;
-
-		count.Should().Be(1);
-	}
-
-	[Fact]
-	public void QueryOptional_WhenComponentMissing_ShouldExposeEmptySpan()
-	{
-		var world = new World();
-		world.Spawn(new Position { X = 1, Y = 1 });
-		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 4 });
-
-		var chunksWithOptional = 0;
-		var entitiesWithVelocity = 0;
-		var entitiesWithoutVelocity = 0;
-		foreach (var chunk in world.Query().All<Position>().Optional<Velocity>())
-		{
-			var velocities = chunk.OptionalComponents<Velocity>();
-			chunksWithOptional++;
-			if (velocities.Length == 0)
-				entitiesWithoutVelocity += chunk.Count;
-			else
-				entitiesWithVelocity += chunk.Count;
-		}
-
-		chunksWithOptional.Should().Be(2);
-		entitiesWithVelocity.Should().Be(1);
-		entitiesWithoutVelocity.Should().Be(1);
-	}
-
-	[Fact]
-	public void QueryJob_WhenUsingIForEachOverload_ShouldApplyUpdates()
-	{
-		var world = new World();
-		var entity = world.Spawn(
-			new Position { X = 1f, Y = 2f },
-			new Velocity { X = 3f, Y = 4f });
-
-		world.Query<Position, Velocity>()
-			.ForEach<MovementJob, Position, Velocity>(new MovementJob { DeltaTime = 0.5f });
-
-		var position = world.Get<Position>(entity);
-		position.X.Should().Be(2.5f);
-		position.Y.Should().Be(4f);
-	}
-
-	[Fact]
-	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponentDuringPlayback()
-	{
-		var world = new World();
-		world.ObserveAdd<Health>((Entity _, ref Health health) => health.Current = health.Max);
-
-		var commands = world.CreateCommandBuffer();
-		var entity = commands.CreateEntity();
-		commands.AddComponent(entity, new Health { Current = 0, Max = 10 });
-		commands.Playback();
-
-		var observedCurrent = -1;
-		foreach (var chunk in world.Query<Health>())
-		{
-			chunk.Count.Should().Be(1);
-			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
-		}
-
-		observedCurrent.Should().Be(10);
-	}
-
-	[Fact]
-	public void ObserveAdd_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveAdd<Health>((Entity _, ref Health health) => calls++);
-
-		var entity = world.Spawn();
-		world.Add(entity, new Health { Current = 0, Max = 1 });
-		world.Set(entity, new Health { Current = 1, Max = 1 });
-
-		calls.Should().Be(0);
-	}
-
-	[Fact]
-	public void ObserveAdd_WhenCreatingWithInitialComponentInPlayback_ShouldInvokeObserver()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveAdd<Health>((Entity _, ref Health health) =>
-		{
-			calls++;
-			health.Current = health.Max;
-		});
-
-		var commands = world.CreateCommandBuffer();
-		commands.CreateEntity(new Health { Current = 1, Max = 8 });
-		commands.Playback();
-
-		var observedCurrent = -1;
-		foreach (var chunk in world.Query<Health>())
-		{
-			chunk.Count.Should().Be(1);
-			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
-		}
-
-		calls.Should().Be(1);
-		observedCurrent.Should().Be(8);
-	}
-
-	[Fact]
-	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveAdd<Health>((Entity _, ref Health health) =>
-		{
-			calls++;
-			health.Current = health.Max;
-		});
-
-		var entity = world.Spawn(new Health { Current = 1, Max = 4 });
-		var commands = world.CreateCommandBuffer();
-		commands.SetComponent(entity, new Health { Current = 2, Max = 9 });
-		commands.Playback();
-
-		calls.Should().Be(1);
-		world.Get<Health>(entity).Current.Should().Be(9);
-	}
-
-	[Fact]
-	public void ObserveAdd_WhenSetAddsMissingComponentInPlayback_ShouldInvokeObserver()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveAdd<Health>((Entity _, ref Health health) =>
-		{
-			calls++;
-			health.Current = health.Max;
-		});
-
-		var entity = world.Spawn();
-		var commands = world.CreateCommandBuffer();
-		commands.SetComponent(entity, new Health { Current = 1, Max = 6 });
-		commands.Playback();
-
-		calls.Should().Be(1);
-		world.Get<Health>(entity).Current.Should().Be(6);
-	}
-
-	[Fact]
-	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValueDuringPlayback()
-	{
-		var world = new World();
-		var removedX = 0f;
-		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => removedX = velocity.X);
-
-		var entity = world.Spawn(new Velocity { X = 7f, Y = 1f });
-		var commands = world.CreateCommandBuffer();
-		commands.RemoveComponent<Velocity>(entity);
-		commands.Playback();
-
-		removedX.Should().Be(7f);
-	}
-
-	[Fact]
-	public void ObserveRemove_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => calls++);
-
-		var entity = world.Spawn(new Velocity { X = 2f, Y = 3f });
-		world.Remove<Velocity>(entity);
-
-		calls.Should().Be(0);
-	}
-
-	[Fact]
-	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerPlaybackRemoval()
-	{
-		var world = new World();
-		var calls = 0;
-		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => calls++);
-
-		var entity = world.Spawn(new Velocity { X = 2f, Y = 3f });
-		var commands = world.CreateCommandBuffer();
-		commands.RemoveComponent<Velocity>(entity);
-		commands.Playback();
-
-		calls.Should().Be(1);
-	}
-
-	[Fact]
-	public void ObserveRemove_WhenEntityIsDespawnedInPlayback_ShouldReceiveRemovedComponentValue()
-	{
-		var world = new World();
-		var removedX = 0f;
-		var calls = 0;
-		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) =>
-		{
-			calls++;
-			removedX = velocity.X;
-		});
-
-		var entity = world.Spawn(new Velocity { X = 11f, Y = 3f });
-		var commands = world.CreateCommandBuffer();
-		commands.DestroyEntity(entity);
-		commands.Playback();
-
-		calls.Should().Be(1);
-		removedX.Should().Be(11f);
-	}
-
-	[Fact]
-	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingPlaybackEvents()
-	{
-		var world = new World();
-		var addCalls = 0;
-		var removeCalls = 0;
-		var addSubscription = world.ObserveAdd<Health>((Entity _, ref Health health) => addCalls++);
-		var removeSubscription = world.ObserveRemove<Health>((Entity _, in Health health) => removeCalls++);
-
-		addSubscription.Dispose();
-		removeSubscription.Dispose();
-
-		var entity = world.Spawn();
-		var commands = world.CreateCommandBuffer();
-		commands.AddComponent(entity, new Health { Current = 1, Max = 5 });
-		commands.RemoveComponent<Health>(entity);
-		commands.Playback();
-
-		addCalls.Should().Be(0);
-		removeCalls.Should().Be(0);
+		data.Length.Should().BeGreaterThan(8);
+		data[0].Should().Be((byte)'B');
+		data[1].Should().Be((byte)'Z');
+		data[2].Should().Be((byte)'E');
+		data[3].Should().Be((byte)'C');
+		data[0].Should().NotBe((byte)'{');
 	}
 
 	[Fact]
@@ -517,8 +536,8 @@ public class WorldApiContractTests
 		world.Add(entity, new Position { X = 3f, Y = 4f });
 		world.Add(entity, new Velocity { X = 2f, Y = 1f });
 
-		var data = world.Serialize();
-		var clone = World.Deserialize(data);
+		byte[] data  = world.Serialize();
+		var    clone = World.Deserialize(data);
 
 		clone.EntityCount.Should().Be(1);
 		clone.GetResource<GameTime>().DeltaTime.Should().Be(0.25f);
@@ -538,17 +557,17 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenRoundTripped_ShouldRestoreRelationships()
 	{
-		var world = new World();
+		var world   = new World();
 		var parentA = world.Spawn(new ParentTag { Id = 1 });
 		var parentB = world.Spawn(new ParentTag { Id = 2 });
-		var childA = world.Spawn();
-		var childB = world.Spawn();
+		var childA  = world.Spawn();
+		var childB  = world.Spawn();
 
 		world.Add<ChildOf>(childA, parentA);
 		world.Add<ChildOf>(childB, parentB);
 
-		var data = world.Serialize();
-		var clone = World.Deserialize(data);
+		byte[] data  = world.Serialize();
+		var    clone = World.Deserialize(data);
 
 		var cloneParentA = Entity.None;
 		var cloneParentB = Entity.None;
@@ -583,86 +602,73 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void Serialize_WhenCalled_ShouldProduceBinarySnapshotHeader()
+	public void Spawn_WhenCalled_ShouldCreateAliveEntity()
 	{
-		var world = new World();
+		var world  = new World();
 		var entity = world.Spawn();
-		world.Add(entity, new Position { X = 1f, Y = 2f });
 
-		var data = world.Serialize();
-
-		data.Length.Should().BeGreaterThan(8);
-		data[0].Should().Be((byte)'B');
-		data[1].Should().Be((byte)'Z');
-		data[2].Should().Be((byte)'E');
-		data[3].Should().Be((byte)'C');
-		data[0].Should().NotBe((byte)'{');
+		world.IsAlive(entity).Should().BeTrue();
 	}
 
 	[Fact]
-	public void Deserialize_WhenHeaderIsInvalid_ShouldThrowInvalidOperationException()
-	{
-		var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
-
-		var act = () => World.Deserialize(payload);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*snapshot*");
-	}
-
-	[Fact]
-	public void Deserialize_WhenComponentLayoutHashDoesNotMatch_ShouldThrowInvalidOperationException()
+	public void Spawn_WhenGivenComponents_ShouldCreateEntityWithInferredArchetypeAndValues()
 	{
 		var world = new World();
-		var entity = world.Spawn();
-		world.Add(entity, new Position { X = 9f, Y = 4f });
-		var payload = world.Serialize();
 
-		using (var stream = new MemoryStream(payload, writable: false))
-		using (var reader = new BinaryReader(stream))
-		{
-			reader.ReadBytes(4); // magic
-			reader.ReadInt32(); // version
-			var archetypeCount = reader.ReadInt32();
-			archetypeCount.Should().BeGreaterThan(0);
-			var componentCount = reader.ReadInt32();
-			componentCount.Should().BeGreaterThan(0);
-			_ = reader.ReadString();
+		var entity = world.Spawn(
+			new Position { X = 2f, Y   = 3f },
+			new Velocity { X = 1.5f, Y = -0.25f }
+		);
 
-			var hashOffset = (int)stream.Position;
-			payload[hashOffset] ^= 0xFF;
-		}
-
-		var act = () => World.Deserialize(payload);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*layout mismatch*");
+		world.IsAlive(entity).Should().BeTrue();
+		world.Has<Position>(entity).Should().BeTrue();
+		world.Has<Velocity>(entity).Should().BeTrue();
+		world.Get<Position>(entity).Should().BeEquivalentTo(new Position { X = 2f, Y   = 3f });
+		world.Get<Velocity>(entity).Should().BeEquivalentTo(new Velocity { X = 1.5f, Y = -0.25f });
 	}
 
 	[Fact]
-	public void Dispose_WhenSystemRegistered_ShouldInvokeOnDestroy()
+	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
 	{
-		var tracker = new LifecycleTracker();
 		var world = new World();
-		world.AddSystem(new LifecycleSystem(tracker), Stage.Update);
+		GenericUpdateSystem.RunCount = 0;
 
-		tracker.Created.Should().Be(1);
-		world.Dispose();
-		tracker.Destroyed.Should().Be(1);
+		world.AddSystem<GenericUpdateSystem>();
+		world.Update(0.016f);
+
+		GenericUpdateSystem.RunCount.Should().Be(1);
 	}
 
-	private sealed class LifecycleSystem(LifecycleTracker tracker) : ISystem
+	[Fact]
+	public void Systems_WhenAddedWithStages_ShouldRunInStageOrder()
 	{
-		public void OnCreate(World world) => tracker.Created++;
-		public void OnDestroy(World world) => tracker.Destroyed++;
-		public void Update(IWorld world, in SystemContext context)
-		{
-		}
+		var world = new World();
+		var order = new List<Stage>();
+
+		world.AddSystem(new StageRecorder(order), Stage.Render);
+		world.AddSystem(new StageRecorder(order), Stage.Input);
+		world.AddSystem(new StageRecorder(order), Stage.PostUpdate);
+		world.AddSystem(new StageRecorder(order), Stage.PreUpdate);
+		world.AddSystem(new StageRecorder(order));
+
+		world.Update(0.016f);
+
+		order.Should().Equal(Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render);
 	}
 
-	private sealed class StageRecorder(List<Stage> order) : ISystem
+	[Fact]
+	public void World_WhenCreatedWithName_ShouldExposeConfiguredName()
 	{
-		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
+		var world = new World("Main");
+
+		world.Name.Should().Be("Main");
+	}
+
+	private readonly struct ChildOf;
+
+	private struct GameTime
+	{
+		public float DeltaTime;
 	}
 
 	private sealed class GenericUpdateSystem : ISystem
@@ -672,40 +678,24 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) => RunCount++;
 	}
 
-	private sealed class LifecycleTracker
-	{
-		public int Created;
-		public int Destroyed;
-	}
-
-	private readonly struct ChildOf;
-
-	private struct Position : IComponent
-	{
-		public float X;
-		public float Y;
-	}
-
-	private struct Velocity : IComponent
-	{
-		public float X;
-		public float Y;
-	}
-
 	private struct Health : IComponent
 	{
 		public int Current;
 		public int Max;
 	}
 
-	private struct GameTime
+	private sealed class LifecycleSystem(LifecycleTracker tracker) : ISystem
 	{
-		public float DeltaTime;
+		public void OnCreate(World  world) => tracker.Created++;
+		public void OnDestroy(World world) => tracker.Destroyed++;
+
+		public void Update(IWorld world, in SystemContext context) { }
 	}
 
-	private struct ParentTag : IComponent
+	private sealed class LifecycleTracker
 	{
-		public int Id;
+		public int Created;
+		public int Destroyed;
 	}
 
 	private struct MovementJob : IForEach<Position, Velocity>
@@ -717,5 +707,27 @@ public class WorldApiContractTests
 			position.X += velocity.X * DeltaTime;
 			position.Y += velocity.Y * DeltaTime;
 		}
+	}
+
+	private struct ParentTag : IComponent
+	{
+		public int Id;
+	}
+
+	private struct Position : IComponent
+	{
+		public float X;
+		public float Y;
+	}
+
+	private sealed class StageRecorder(List<Stage> order) : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
+	}
+
+	private struct Velocity : IComponent
+	{
+		public float X;
+		public float Y;
 	}
 }

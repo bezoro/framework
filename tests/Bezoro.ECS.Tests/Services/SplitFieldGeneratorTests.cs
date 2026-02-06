@@ -11,16 +11,43 @@ namespace Bezoro.ECS.Tests.Services;
 public class SplitFieldGeneratorTests
 {
 	[Fact]
+	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
+	{
+		var world  = new World();
+		var first  = world.Spawn();
+		var second = world.Spawn();
+
+		SplitTransformSplitGenerated.Add(
+			world, first, new() { PositionX = 1f, PositionY = 2f, RotationZ = 3f, Scale = 4f }
+		);
+
+		SplitTransformSplitGenerated.Add(
+			world, second, new() { PositionX = 5f, PositionY = 6f, RotationZ = 7f, Scale = 8f }
+		);
+
+		var sum = 0f;
+		world.Query<SplitTransformSplitGenerated.Group0>().ForEach((ref SplitTransformSplitGenerated.Group0 group) =>
+			{
+				sum += group.PositionX +
+					   group.PositionY +
+					   group.RotationZ;
+			}
+		);
+
+		sum.Should().Be(24f);
+	}
+
+	[Fact]
 	public void SplitGeneratedHelpers_WhenAddingSplitComponent_ShouldStoreAndRehydrateGroups()
 	{
-		var world = new World();
+		var world  = new World();
 		var entity = world.Spawn();
 		var input = new SplitTransform
 		{
 			PositionX = 3f,
 			PositionY = 4f,
 			RotationZ = 90f,
-			Scale = 2f
+			Scale     = 2f
 		};
 
 		SplitTransformSplitGenerated.Add(world, entity, in input);
@@ -29,25 +56,6 @@ public class SplitFieldGeneratorTests
 		world.Has<SplitTransformSplitGenerated.Group1>(entity).Should().BeTrue();
 		SplitTransformSplitGenerated.TryGet(world, entity, out var restored).Should().BeTrue();
 		restored.Should().BeEquivalentTo(input);
-	}
-
-	[Fact]
-	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
-	{
-		var world = new World();
-		var first = world.Spawn();
-		var second = world.Spawn();
-
-		SplitTransformSplitGenerated.Add(world, first, new SplitTransform { PositionX = 1f, PositionY = 2f, RotationZ = 3f, Scale = 4f });
-		SplitTransformSplitGenerated.Add(world, second, new SplitTransform { PositionX = 5f, PositionY = 6f, RotationZ = 7f, Scale = 8f });
-
-		var sum = 0f;
-		world.Query<SplitTransformSplitGenerated.Group0>().ForEach((ref SplitTransformSplitGenerated.Group0 group) =>
-		{
-			sum += group.PositionX + group.PositionY + group.RotationZ;
-		});
-
-		sum.Should().Be(24f);
 	}
 }
 

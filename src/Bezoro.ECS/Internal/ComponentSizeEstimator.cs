@@ -1,11 +1,12 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Bezoro.ECS.Internal;
 
 internal static class ComponentSizeEstimator
 {
-	private static readonly object Sync = new();
 	private static readonly Dictionary<Type, int> SizeCache = new();
+	private static readonly object                Sync      = new();
 
 	public static int GetSizeInBytes(Type type)
 	{
@@ -44,18 +45,19 @@ internal static class ComponentSizeEstimator
 		if (type.IsEnum)
 			return Marshal.SizeOf(Enum.GetUnderlyingType(type));
 
-		int total = 0;
+		var total = 0;
 		var fields = type.GetFields(
-			System.Reflection.BindingFlags.Instance |
-			System.Reflection.BindingFlags.Public |
-			System.Reflection.BindingFlags.NonPublic);
+			BindingFlags.Instance |
+			BindingFlags.Public |
+			BindingFlags.NonPublic
+		);
 
 		for (var i = 0; i < fields.Length; i++)
 		{
-			Type fieldType = fields[i].FieldType;
+			var fieldType = fields[i].FieldType;
 			total += fieldType.IsValueType
-				? GetSizeInBytes(fieldType)
-				: IntPtr.Size;
+						 ? GetSizeInBytes(fieldType)
+						 : IntPtr.Size;
 		}
 
 		return Math.Max(1, total);

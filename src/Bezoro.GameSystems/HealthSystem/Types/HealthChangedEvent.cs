@@ -16,16 +16,16 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 /// <param name="NewMax">The max health after the change.</param>
 /// <param name="NewExcess">The excess health after the change.</param>
 public readonly record struct HealthChangedEvent(
-	object              Target,
-	HealthChangeKind    Kind,
-	uint                Value,
+	object             Target,
+	HealthChangeKind   Kind,
+	uint               Value,
 	MaxValueUpdateMode MaxUpdateMode,
-	uint                OldCurrent,
-	uint                OldMax,
-	uint                OldExcess,
-	uint                NewCurrent,
-	uint                NewMax,
-	uint                NewExcess
+	uint               OldCurrent,
+	uint               OldMax,
+	uint               OldExcess,
+	uint               NewCurrent,
+	uint               NewMax,
+	uint               NewExcess
 )
 {
 	/// <summary>

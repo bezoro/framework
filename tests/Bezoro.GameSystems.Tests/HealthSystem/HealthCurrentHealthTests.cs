@@ -51,6 +51,17 @@ public class HealthCurrentHealthTests
 	}
 
 	[Fact]
+	public void WhenRestoreSumExceedsUIntMax_ShouldClampToMax()
+	{
+		uint max    = uint.MaxValue - 1u;
+		var  health = new Health(max, max);
+
+		health = health.RestoreCurrentHealthBy(10u);
+
+		health.Current.Should().Be(max);
+	}
+
+	[Fact]
 	public void WhenRestoringPastMax_ShouldClampToMax()
 	{
 		var health = new Health(100u, 90u);
@@ -78,16 +89,5 @@ public class HealthCurrentHealthTests
 		health = health.SetCurrentHealthTo(150u);
 
 		health.Current.Should().Be(100u);
-	}
-
-	[Fact]
-	public void WhenRestoreSumExceedsUIntMax_ShouldClampToMax()
-	{
-		uint max    = uint.MaxValue - 1u;
-		var  health = new Health(max, max);
-
-		health = health.RestoreCurrentHealthBy(10u);
-
-		health.Current.Should().Be(max);
 	}
 }

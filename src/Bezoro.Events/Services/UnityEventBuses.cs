@@ -9,20 +9,20 @@ public sealed class UnityEventBuses : IUnityEventBuses
 {
 	private readonly bool _ownsBuses;
 
-    /// <summary>
-    ///     Creates Unity event buses backed by new <see cref="EventBus" /> instances.
-    /// </summary>
-    public UnityEventBuses()
+	/// <summary>
+	///     Creates Unity event buses backed by new <see cref="EventBus" /> instances.
+	/// </summary>
+	public UnityEventBuses()
 		: this(new EventBus(), new EventBus(), new EventBus()) { }
 
-    /// <summary>
-    ///     Creates Unity event buses backed by the provided <see cref="IEventBus" /> instances.
-    /// </summary>
-    /// <param name="update">The Update bus.</param>
-    /// <param name="fixedUpdate">The FixedUpdate bus.</param>
-    /// <param name="lateUpdate">The LateUpdate bus.</param>
-    /// <param name="ownsBuses">Whether this instance should dispose the provided buses.</param>
-    public UnityEventBuses(IEventBus update, IEventBus fixedUpdate, IEventBus lateUpdate, bool ownsBuses = true)
+	/// <summary>
+	///     Creates Unity event buses backed by the provided <see cref="IEventBus" /> instances.
+	/// </summary>
+	/// <param name="update">The Update bus.</param>
+	/// <param name="fixedUpdate">The FixedUpdate bus.</param>
+	/// <param name="lateUpdate">The LateUpdate bus.</param>
+	/// <param name="ownsBuses">Whether this instance should dispose the provided buses.</param>
+	public UnityEventBuses(IEventBus update, IEventBus fixedUpdate, IEventBus lateUpdate, bool ownsBuses = true)
 	{
 		Update      = update ?? throw new ArgumentNullException(nameof(update));
 		FixedUpdate = fixedUpdate ?? throw new ArgumentNullException(nameof(fixedUpdate));

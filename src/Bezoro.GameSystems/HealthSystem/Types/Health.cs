@@ -34,6 +34,16 @@ public readonly record struct Health
 	}
 
 	/// <summary>
+	///     Gets whether the current health is empty.
+	/// </summary>
+	public bool IsEmpty => _range.Current == _range.Min;
+
+	/// <summary>
+	///     Gets whether the current health is full.
+	/// </summary>
+	public bool IsFull => _range.Current == _range.Max;
+
+	/// <summary>
 	///     Gets the current health as a percentage of max.
 	/// </summary>
 	public Percent Percentage => _range.Percentage;
@@ -47,16 +57,6 @@ public readonly record struct Health
 	///     Gets the maximum health value.
 	/// </summary>
 	public uint Max => _range.Max;
-
-	/// <summary>
-	///     Gets whether the current health is empty.
-	/// </summary>
-	public bool IsEmpty => _range.Current == _range.Min;
-
-	/// <summary>
-	///     Gets whether the current health is full.
-	/// </summary>
-	public bool IsFull => _range.Current == _range.Max;
 
 	/// <summary>
 	///     Returns a new health with current decreased by the specified amount, clamped to zero.

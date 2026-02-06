@@ -4,10 +4,11 @@ internal readonly struct SystemExecution
 {
 	public SystemExecution(SystemState state, float deltaTime)
 	{
-		State      = state;
+		State     = state;
 		DeltaTime = deltaTime;
 	}
 
-	public SystemState State { get; }
 	public float DeltaTime { get; }
+
+	public SystemState State { get; }
 }

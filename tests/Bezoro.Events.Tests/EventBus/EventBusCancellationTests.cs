@@ -24,7 +24,7 @@ public static class EventBusCancellationTests
 			using var bus          = new Services.EventBus();
 			var       secondCalled = false;
 			bus.Subscribe<TestEventA>(ctx => ctx.Handled = true, 10);
-			bus.Subscribe<TestEventA>(_ => secondCalled  = true, 0);
+			bus.Subscribe<TestEventA>(_ => secondCalled  = true);
 			bus.Publish(new TestEventA(1));
 			secondCalled.Should().BeFalse();
 		}
@@ -35,7 +35,7 @@ public static class EventBusCancellationTests
 			using var bus     = new Services.EventBus();
 			var       highRan = false;
 			bus.Subscribe<TestEventA>(_ => highRan       = true, 10);
-			bus.Subscribe<TestEventA>(ctx => ctx.Handled = true, 0);
+			bus.Subscribe<TestEventA>(ctx => ctx.Handled = true);
 			bus.Publish(new TestEventA(1));
 			highRan.Should().BeTrue();
 		}

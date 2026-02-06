@@ -4,14 +4,25 @@ using Bezoro.ECS.Types;
 using Bezoro.GameSystems.MovementSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
-using MovementSystemType = Bezoro.GameSystems.MovementSystem.Services.MovementSystem;
 using Xunit;
+using MovementSystemType = Bezoro.GameSystems.MovementSystem.Services.MovementSystem;
 
 namespace Bezoro.GameSystems.Tests.MovementSystem;
 
 [TestSubject(typeof(MovementSystemType))]
 public class MovementSystemTests
 {
+	[Fact]
+	public void Metadata_WhenInspectingMovementSystem_ShouldDeclareReadAndWriteAttributes()
+	{
+		// Arrange
+		var systemType = typeof(MovementSystemType);
+
+		// Act / Assert
+		systemType.IsDefined(typeof(WritesAttribute<Position>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<Velocity>),  true).Should().BeTrue();
+	}
+
 	[Fact]
 	public void Update_WhenEntitiesHavePositionAndVelocity_ShouldAdvancePositions()
 	{
@@ -20,12 +31,14 @@ public class MovementSystemTests
 		world.AddSystem(new MovementSystemType());
 
 		var e1 = world.Spawn(
-			new Position { X = 1f, Y = 2f, Z = 3f },
-			new Velocity { X = 0.5f, Y = -1f, Z = 2f });
+			new Position { X = 1f, Y   = 2f, Z  = 3f },
+			new Velocity { X = 0.5f, Y = -1f, Z = 2f }
+		);
 
 		var e2 = world.Spawn(
 			new Position { X = -4f, Y = 0.5f, Z = 1f },
-			new Velocity { X = 2f, Y = 1f, Z = -0.5f });
+			new Velocity { X = 2f, Y  = 1f, Z   = -0.5f }
+		);
 
 		// Act
 		world.Update(2f);
@@ -52,7 +65,8 @@ public class MovementSystemTests
 
 		var entity = world.Spawn(
 			new Position { X = 0f, Y = 0f, Z = 0f },
-			new Velocity { X = 2f, Y = 0f, Z = 0f });
+			new Velocity { X = 2f, Y = 0f, Z = 0f }
+		);
 
 		// Act
 		world.Update(0.25f);
@@ -62,18 +76,7 @@ public class MovementSystemTests
 		var afterSecond = world.Get<Position>(entity);
 
 		// Assert
-		afterFirst.Should().Be(new Position { X = 0f, Y = 0f, Z = 0f });
+		afterFirst.Should().Be(new Position { X  = 0f, Y = 0f, Z = 0f });
 		afterSecond.Should().Be(new Position { X = 1f, Y = 0f, Z = 0f });
-	}
-
-	[Fact]
-	public void Metadata_WhenInspectingMovementSystem_ShouldDeclareReadAndWriteAttributes()
-	{
-		// Arrange
-		var systemType = typeof(MovementSystemType);
-
-		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Position>), inherit: true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<Velocity>), inherit: true).Should().BeTrue();
 	}
 }

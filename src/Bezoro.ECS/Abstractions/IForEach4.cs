@@ -1,7 +1,7 @@
 namespace Bezoro.ECS.Abstractions;
 
 /// <summary>
-/// Defines a job-style iterator over four component columns.
+///     Defines a job-style iterator over four component columns.
 /// </summary>
 /// <typeparam name="T1">Writable component type.</typeparam>
 /// <typeparam name="T2">Read-only component type.</typeparam>
@@ -14,7 +14,7 @@ public interface IForEach<T1, T2, T3, T4>
 	where T4 : struct, IComponent
 {
 	/// <summary>
-	/// Executes once per matched entity.
+	///     Executes once per matched entity.
 	/// </summary>
 	/// <param name="component1">Writable component.</param>
 	/// <param name="component2">Read-only component.</param>

@@ -8,10 +8,13 @@ internal static class ParallelWorkScheduler
 	{
 		if (itemCount < 0)
 			throw new ArgumentOutOfRangeException(nameof(itemCount), "Item count must be non-negative.");
+
 		if (maxDegreeOfParallelism <= 0)
 			throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism), "Parallelism must be positive.");
+
 		if (action is null)
 			throw new ArgumentNullException(nameof(action));
+
 		if (itemCount == 0)
 			return;
 
@@ -24,10 +27,10 @@ internal static class ParallelWorkScheduler
 			return;
 		}
 
-		var nextIndex = -1;
-		ExceptionDispatchInfo? captured = null;
-		var remainingWorkers = 1;
-		using var completion = new ManualResetEventSlim(false);
+		int                    nextIndex        = -1;
+		ExceptionDispatchInfo? captured         = null;
+		var                    remainingWorkers = 1;
+		using var              completion       = new ManualResetEventSlim(false);
 		WaitCallback worker = _ =>
 		{
 			try

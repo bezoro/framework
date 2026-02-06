@@ -5,12 +5,12 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class ComponentTypeRegistry
 {
-	private readonly object _sync = new();
-	private readonly Dictionary<Type, int> _typeToId = new();
-	private readonly List<Type> _idToType = [];
 	private readonly Dictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
-	private readonly Dictionary<int, RelationshipInfo> _relationshipInfoById = [];
-	private readonly Dictionary<Type, List<int>> _relationIdsByType = [];
+	private readonly Dictionary<int, RelationshipInfo>                                     _relationshipInfoById = [];
+	private readonly Dictionary<Type, int>                                                 _typeToId = new();
+	private readonly Dictionary<Type, List<int>>                                           _relationIdsByType = [];
+	private readonly List<Type>                                                            _idToType = [];
+	private readonly object                                                                _sync = new();
 
 	public int Count
 	{
@@ -20,6 +20,22 @@ internal sealed class ComponentTypeRegistry
 			{
 				return _idToType.Count;
 			}
+		}
+	}
+
+	public bool IsRelationship(int id)
+	{
+		lock (_sync)
+		{
+			return _relationshipInfoById.ContainsKey(id);
+		}
+	}
+
+	public bool TryGetRelationshipInfo(int id, out RelationshipInfo info)
+	{
+		lock (_sync)
+		{
+			return _relationshipInfoById.TryGetValue(id, out info);
 		}
 	}
 
@@ -38,7 +54,7 @@ internal sealed class ComponentTypeRegistry
 			if (_typeToId.TryGetValue(type, out int id))
 				return id;
 
-			id = _idToType.Count;
+			id              = _idToType.Count;
 			_typeToId[type] = id;
 			_idToType.Add(type);
 			return id;
@@ -55,34 +71,18 @@ internal sealed class ComponentTypeRegistry
 			if (_relationToId.TryGetValue(key, out int id))
 				return id;
 
-			id = _idToType.Count;
+			id                 = _idToType.Count;
 			_relationToId[key] = id;
 			_idToType.Add(typeof(RelationMarker));
 			_relationshipInfoById[id] = new(relationType, target);
 			if (!_relationIdsByType.TryGetValue(relationType, out var ids))
 			{
-				ids = [];
+				ids                              = [];
 				_relationIdsByType[relationType] = ids;
 			}
 
 			ids.Add(id);
 			return id;
-		}
-	}
-
-	public bool IsRelationship(int id)
-	{
-		lock (_sync)
-		{
-			return _relationshipInfoById.ContainsKey(id);
-		}
-	}
-
-	public bool TryGetRelationshipInfo(int id, out RelationshipInfo info)
-	{
-		lock (_sync)
-		{
-			return _relationshipInfoById.TryGetValue(id, out info);
 		}
 	}
 

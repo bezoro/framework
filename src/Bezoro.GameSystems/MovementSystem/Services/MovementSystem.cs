@@ -45,10 +45,11 @@ public sealed class MovementSystem : ISystem
 		if (deltaTime == 0f) return;
 
 		world.Query<Position, Velocity>().ForEach((ref Position position, in Velocity velocity) =>
-		{
-			position.X += velocity.X * deltaTime;
-			position.Y += velocity.Y * deltaTime;
-			position.Z += velocity.Z * deltaTime;
-		});
+			{
+				position.X += velocity.X * deltaTime;
+				position.Y += velocity.Y * deltaTime;
+				position.Z += velocity.Z * deltaTime;
+			}
+		);
 	}
 }

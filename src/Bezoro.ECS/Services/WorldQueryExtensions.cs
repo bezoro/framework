@@ -4,12 +4,12 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Services;
 
 /// <summary>
-/// Provides query-definition based query creation extensions.
+///     Provides query-definition based query creation extensions.
 /// </summary>
 public static class WorldQueryExtensions
 {
 	/// <summary>
-	/// Builds a query from a source-generated query definition.
+	///     Builds a query from a source-generated query definition.
 	/// </summary>
 	/// <typeparam name="TQuery">Generated query definition type.</typeparam>
 	/// <param name="world">World to query.</param>
@@ -18,6 +18,7 @@ public static class WorldQueryExtensions
 		where TQuery : struct, IQuery
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
+
 		return default(TQuery).Create(world);
 	}
 }

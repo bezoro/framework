@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 #endif
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Generated;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
@@ -13,42 +14,42 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Services;
 
 /// <summary>
-/// Main entry point for ECS state management.
+///     Main entry point for ECS state management.
 /// </summary>
 public sealed class World : IWorld, IDisposable
 {
 #if NET9_0
-	private static readonly JsonSerializerOptions SnapshotJsonOptions = new() { IncludeFields = true };
-	private static readonly byte[] SnapshotMagic = [(byte)'B', (byte)'Z', (byte)'E', (byte)'C'];
-	private const int SnapshotFormatVersion = 1;
+	private static readonly JsonSerializerOptions SnapshotJsonOptions   = new() { IncludeFields = true };
+	private static readonly byte[]                SnapshotMagic         = [(byte)'B', (byte)'Z', (byte)'E', (byte)'C'];
+	private const           int                   SnapshotFormatVersion = 1;
 	private enum SnapshotPayloadKind : byte
 	{
 		RawUnmanaged = 0,
-		Json = 1
+		Json         = 1
 	}
 #endif
 
 	private sealed class ResourceBox<T>
 		where T : notnull
 	{
+		public T Value;
+
 		public ResourceBox(T value)
 		{
 			Value = value;
 		}
-
-		public T Value;
 	}
 
 	private sealed class SnapshotResource
 	{
+		public string Json     { get; set; } = string.Empty;
 		public string TypeName { get; set; } = string.Empty;
-		public string Json { get; set; } = string.Empty;
 	}
 
 	private sealed class SnapshotComponent
 	{
+		public string Json     { get; set; } = string.Empty;
 		public string TypeName { get; set; } = string.Empty;
-		public string Json { get; set; } = string.Empty;
 	}
 
 	private sealed class SnapshotEntity
@@ -58,27 +59,25 @@ public sealed class World : IWorld, IDisposable
 
 	private sealed class WorldSnapshot
 	{
-		public List<SnapshotEntity> Entities { get; set; } = [];
+		public List<SnapshotEntity>   Entities  { get; set; } = [];
 		public List<SnapshotResource> Resources { get; set; } = [];
 	}
 
-	private readonly Dictionary<ArchetypeKey, Archetype> _archetypesByKey = new();
-	private readonly Dictionary<QueryCacheKey, QueryCacheEntry> _queryCache = new();
-	private readonly ComponentTypeRegistry _componentTypeRegistry = new();
-	private readonly EntityManager _entityManager;
-	private readonly int _chunkCapacityOverride;
-	private readonly int _chunkSizeInBytes;
-	private readonly List<Archetype> _archetypes = [];
-	private readonly Dictionary<Type, object> _resources = new();
-	private readonly Dictionary<int, List<Delegate>> _onAddObservers = new();
-	private readonly Dictionary<int, List<Delegate>> _onAddRefObservers = new();
+	private readonly Dictionary<ArchetypeKey, Archetype>           _archetypesByKey = new();
+	private readonly Dictionary<QueryCacheKey, QueryCacheEntry>    _queryCache      = new();
+	private readonly EntityManager                                 _entityManager;
+	private readonly int                                           _chunkCapacityOverride;
+	private readonly int                                           _chunkSizeInBytes;
+	private readonly List<Archetype>                               _archetypes          = [];
+	private readonly Dictionary<Type, object>                      _resources           = new();
+	private readonly Dictionary<int, List<Delegate>>               _onAddObservers      = new();
+	private readonly Dictionary<int, List<Delegate>>               _onAddRefObservers   = new();
 	private readonly Dictionary<int, List<Action<Entity, object>>> _onRemoveInObservers = new();
-	private readonly SystemManager _systemManager;
-	private int _activeQueryIterations;
-	private int _activeCommandPlaybacks;
-	private volatile bool _isUpdating;
-	private uint _changeVersion;
-	private bool _disposed;
+	private readonly SystemManager                                 _systemManager;
+	private          int                                           _activeQueryIterations;
+	private          int                                           _activeCommandPlaybacks;
+	private volatile bool                                          _isUpdating;
+	private          bool                                          _disposed;
 
 	private sealed class ObserverSubscription(Action unsubscribe) : IDisposable
 	{
@@ -91,17 +90,11 @@ public sealed class World : IWorld, IDisposable
 		}
 	}
 
-	public World() : this(new WorldOptions())
-	{
-	}
+	public World() : this(new WorldOptions()) { }
 
-	public World(ReadOnlySpan<char> name) : this(name, new WorldOptions())
-	{
-	}
+	public World(ReadOnlySpan<char> name) : this(name, new()) { }
 
-	public World(WorldOptions options) : this(CreateDefaultName().AsSpan(), options)
-	{
-	}
+	public World(WorldOptions options) : this(CreateDefaultName().AsSpan(), options) { }
 
 	public World(ReadOnlySpan<char> name, WorldOptions options)
 	{
@@ -111,28 +104,34 @@ public sealed class World : IWorld, IDisposable
 		if (options is null) throw new ArgumentNullException(nameof(options));
 
 		if (options.ChunkCapacity < 0)
-			throw new ArgumentOutOfRangeException(nameof(options.ChunkCapacity), "Chunk capacity must be non-negative.");
+			throw new ArgumentOutOfRangeException(
+				nameof(options.ChunkCapacity), "Chunk capacity must be non-negative."
+			);
 
 		if (options.ChunkSizeInBytes <= 0)
-			throw new ArgumentOutOfRangeException(nameof(options.ChunkSizeInBytes), "Chunk size in bytes must be positive.");
+			throw new ArgumentOutOfRangeException(
+				nameof(options.ChunkSizeInBytes), "Chunk size in bytes must be positive."
+			);
 
 		if (options.MaxDegreeOfParallelism <= 0)
-			throw new ArgumentOutOfRangeException(nameof(options.MaxDegreeOfParallelism), "Parallelism must be positive.");
+			throw new ArgumentOutOfRangeException(
+				nameof(options.MaxDegreeOfParallelism), "Parallelism must be positive."
+			);
 
 		_chunkCapacityOverride = options.ChunkCapacity;
-		_chunkSizeInBytes = options.ChunkSizeInBytes;
+		_chunkSizeInBytes      = options.ChunkSizeInBytes;
 		MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
-		WorldId = CreateWorldId();
-		Name = name.ToString();
-		_entityManager = new(WorldId);
-		_systemManager = new(MaxDegreeOfParallelism);
-		EmptyArchetype = CreateArchetypeInternal([], []);
-		Generated.ComponentTypeCatalog.RegisterAll(_componentTypeRegistry);
-		_changeVersion = 1;
+		WorldId                = CreateWorldId();
+		Name                   = name.ToString();
+		_entityManager         = new(WorldId);
+		_systemManager         = new(MaxDegreeOfParallelism);
+		EmptyArchetype         = CreateArchetypeInternal([], []);
+		ComponentTypeCatalog.RegisterAll(ComponentTypeRegistry);
+		ChangeVersion = 1;
 	}
 
-	public int EntityCount => _entityManager.AliveCount;
-	public string Name { get; }
+	public int    EntityCount => _entityManager.AliveCount;
+	public string Name        { get; }
 
 	internal Archetype EmptyArchetype { get; }
 
@@ -148,19 +147,20 @@ public sealed class World : IWorld, IDisposable
 
 	internal IReadOnlyList<Archetype> Archetypes => _archetypes;
 
-	internal uint ChangeVersion => _changeVersion;
-	internal int SchedulerPlanBuildCount => _systemManager.PlanBuildCount;
-	internal int QueryCacheEntryCount => _queryCache.Count;
-	internal ComponentTypeRegistry ComponentTypeRegistry => _componentTypeRegistry;
+	internal uint ChangeVersion { get; private set; }
+
+	internal int                   SchedulerPlanBuildCount => _systemManager.PlanBuildCount;
+	internal int                   QueryCacheEntryCount    => _queryCache.Count;
+	internal ComponentTypeRegistry ComponentTypeRegistry   { get; } = new();
 
 	internal int GetOrCreateComponentTypeId<T>() where T : struct, IComponent =>
-		_componentTypeRegistry.GetOrCreate<T>();
+		ComponentTypeRegistry.GetOrCreate<T>();
 
 	internal int GetOrCreateComponentTypeId(Type type) =>
-		_componentTypeRegistry.GetOrCreate(type);
+		ComponentTypeRegistry.GetOrCreate(type);
 
 	internal int GetOrCreateRelationshipTypeId(Type relationType, Entity target) =>
-		_componentTypeRegistry.GetOrCreateRelationship(relationType, target);
+		ComponentTypeRegistry.GetOrCreateRelationship(relationType, target);
 
 	public bool IsAlive(Entity entity) => _entityManager.IsAlive(entity);
 
@@ -174,7 +174,7 @@ public sealed class World : IWorld, IDisposable
 	{
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1));
-		var entity = CreateEntityInternal(archetype);
+		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		return entity;
 	}
@@ -185,7 +185,7 @@ public sealed class World : IWorld, IDisposable
 	{
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2));
-		var entity = CreateEntityInternal(archetype);
+		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
 		return entity;
@@ -198,7 +198,7 @@ public sealed class World : IWorld, IDisposable
 	{
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
-		var entity = CreateEntityInternal(archetype);
+		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
 		Set(entity, in component3);
@@ -213,7 +213,7 @@ public sealed class World : IWorld, IDisposable
 	{
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
-		var entity = CreateEntityInternal(archetype);
+		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
 		Set(entity, in component3);
@@ -230,14 +230,14 @@ public sealed class World : IWorld, IDisposable
 	public bool Has<T>(Entity entity) where T : struct, IComponent
 	{
 		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		return HasComponent(typeId, entity);
 	}
 
 	public ref T Get<T>(Entity entity) where T : struct, IComponent
 	{
 		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found for entity {entity.Id}.");
 
@@ -247,7 +247,7 @@ public sealed class World : IWorld, IDisposable
 	public bool TryGet<T>(Entity entity, out T component) where T : struct, IComponent
 	{
 		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
 		{
 			component = default;
@@ -261,7 +261,7 @@ public sealed class World : IWorld, IDisposable
 	public void Set<T>(Entity entity, in T component) where T : struct, IComponent
 	{
 		_entityManager.EnsureAlive(entity);
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (TrySetComponentInPlace(entity, typeId, component))
 		{
 			RaiseOnAdd<T>(entity, typeId);
@@ -271,7 +271,9 @@ public sealed class World : IWorld, IDisposable
 		}
 
 		if (_isUpdating || HasActiveQueryIteration)
-			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration. Use CommandBuffer.");
+			throw new InvalidOperationException(
+				"Structural changes are not allowed during update or query iteration. Use CommandBuffer."
+			);
 
 		AddComponentWithMove(entity, typeId, component);
 		RaiseOnAdd<T>(entity, typeId);
@@ -288,7 +290,7 @@ public sealed class World : IWorld, IDisposable
 	public void Add<T>(Entity entity, in T component) where T : struct, IComponent
 	{
 		EnsureNotUpdating();
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		ApplyAddComponentTyped(entity, typeId, in component);
 	}
 
@@ -297,7 +299,7 @@ public sealed class World : IWorld, IDisposable
 		EnsureNotUpdating();
 		_entityManager.EnsureAlive(entity);
 
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		RemoveComponentById(entity, typeId);
 	}
 
@@ -308,7 +310,7 @@ public sealed class World : IWorld, IDisposable
 
 	public ref T GetResource<T>() where T : notnull
 	{
-		if (!_resources.TryGetValue(typeof(T), out var boxed))
+		if (!_resources.TryGetValue(typeof(T), out object? boxed))
 			throw new KeyNotFoundException($"Resource of type {typeof(T).Name} was not found.");
 
 		return ref ((ResourceBox<T>)boxed).Value;
@@ -317,10 +319,11 @@ public sealed class World : IWorld, IDisposable
 	public IDisposable Observe<T>(Action<Entity, T> observer) where T : struct, IComponent
 	{
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!_onAddObservers.TryGetValue(typeId, out var handlers))
 		{
-			handlers = [];
+			handlers                = [];
 			_onAddObservers[typeId] = handlers;
 		}
 
@@ -331,10 +334,11 @@ public sealed class World : IWorld, IDisposable
 	public IDisposable ObserveAdd<T>(OnAddObserver<T> observer) where T : struct, IComponent
 	{
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!_onAddRefObservers.TryGetValue(typeId, out var handlers))
 		{
-			handlers = [];
+			handlers                   = [];
 			_onAddRefObservers[typeId] = handlers;
 		}
 
@@ -345,18 +349,20 @@ public sealed class World : IWorld, IDisposable
 	public IDisposable ObserveRemove<T>(OnRemoveObserver<T> observer) where T : struct, IComponent
 	{
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
-		int typeId = _componentTypeRegistry.GetOrCreate<T>();
+
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!_onRemoveInObservers.TryGetValue(typeId, out var handlers))
 		{
-			handlers = [];
+			handlers                     = [];
 			_onRemoveInObservers[typeId] = handlers;
 		}
 
 		var wrapped = (Action<Entity, object>)((entity, value) =>
-		{
-			var typed = (T)value;
-			observer(entity, in typed);
-		});
+												  {
+													  var typed = (T)value;
+													  observer(entity, in typed);
+												  });
+
 		handlers.Add(wrapped);
 		return new ObserverSubscription(() => RemoveObserver(_onRemoveInObservers, typeId, wrapped));
 	}
@@ -408,7 +414,7 @@ public sealed class World : IWorld, IDisposable
 		if (!_entityManager.IsAlive(target) && target != Entity.Wildcard)
 			throw new InvalidOperationException("Relationship target must be alive.");
 
-		int relationTypeId = _componentTypeRegistry.GetOrCreateRelationship(typeof(TRelation), target);
+		int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(typeof(TRelation), target);
 		AddRelationshipWithMove(source, relationTypeId);
 		BumpChangeVersion();
 	}
@@ -445,37 +451,37 @@ public sealed class World : IWorld, IDisposable
 	public CommandBuffer CreateCommandBuffer() => new(this);
 
 	/// <summary>
-	/// Gets a point-in-time diagnostics snapshot for archetype, chunk, entity, and memory usage.
+	///     Gets a point-in-time diagnostics snapshot for archetype, chunk, entity, and memory usage.
 	/// </summary>
 	/// <remarks>
-	/// Memory values are estimates derived from component and entity row sizes.
+	///     Memory values are estimates derived from component and entity row sizes.
 	/// </remarks>
 	/// <returns>World diagnostics snapshot.</returns>
 	public WorldDiagnostics GetDiagnostics()
 	{
-		var archetypeDiagnostics = new ArchetypeDiagnostics[_archetypes.Count];
-		var totalChunks = 0;
-		long totalAllocatedBytes = 0;
-		long totalLiveBytes = 0;
+		var  archetypeDiagnostics = new ArchetypeDiagnostics[_archetypes.Count];
+		var  totalChunks          = 0;
+		long totalAllocatedBytes  = 0;
+		long totalLiveBytes       = 0;
 
 		for (var archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
 		{
-			var archetype = _archetypes[archetypeIndex];
-			int chunkCount = archetype.Chunks.Count;
-			int entityCount = 0;
+			var archetype   = _archetypes[archetypeIndex];
+			int chunkCount  = archetype.Chunks.Count;
+			var entityCount = 0;
 			for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
 				entityCount += archetype.Chunks[chunkIndex].Count;
 
-			int allocatedEntitySlots = checked(chunkCount * archetype.ChunkCapacity);
-			long bytesPerEntity = GetBytesPerEntity(archetype.Types);
-			long allocatedBytes = bytesPerEntity * allocatedEntitySlots;
-			long liveBytes = bytesPerEntity * entityCount;
+			int  allocatedEntitySlots = checked(chunkCount * archetype.ChunkCapacity);
+			long bytesPerEntity       = GetBytesPerEntity(archetype.Types);
+			long allocatedBytes       = bytesPerEntity * allocatedEntitySlots;
+			long liveBytes            = bytesPerEntity * entityCount;
 
-			totalChunks += chunkCount;
+			totalChunks         += chunkCount;
 			totalAllocatedBytes += allocatedBytes;
-			totalLiveBytes += liveBytes;
+			totalLiveBytes      += liveBytes;
 
-			archetypeDiagnostics[archetypeIndex] = new ArchetypeDiagnostics(
+			archetypeDiagnostics[archetypeIndex] = new(
 				archetype.Id,
 				chunkCount,
 				archetype.ChunkCapacity,
@@ -484,15 +490,17 @@ public sealed class World : IWorld, IDisposable
 				bytesPerEntity,
 				allocatedBytes,
 				liveBytes,
-				[.. archetype.Types]);
+				[.. archetype.Types]
+			);
 		}
 
-		return new WorldDiagnostics(
+		return new(
 			archetypeDiagnostics,
 			_entityManager.AliveCount,
 			totalChunks,
 			totalAllocatedBytes,
-			totalLiveBytes);
+			totalLiveBytes
+		);
 	}
 
 	public byte[] Serialize()
@@ -509,7 +517,7 @@ public sealed class World : IWorld, IDisposable
 		var archetypesToWrite = new List<Archetype>();
 		for (var a = 0; a < _archetypes.Count; a++)
 		{
-			var archetype = _archetypes[a];
+			var archetype   = _archetypes[a];
 			var entityCount = 0;
 			for (var c = 0; c < archetype.Chunks.Count; c++)
 				entityCount += archetype.Chunks[c].Count;
@@ -536,8 +544,8 @@ public sealed class World : IWorld, IDisposable
 			writer.Write(serializedTypeIds.Count);
 			for (var i = 0; i < serializedTypeIds.Count; i++)
 			{
-				int typeId = serializedTypeIds[i];
-				Type type = _componentTypeRegistry.GetType(typeId);
+				int  typeId = serializedTypeIds[i];
+				Type type   = _componentTypeRegistry.GetType(typeId);
 				writer.Write(type.AssemblyQualifiedName!);
 				writer.Write(ComputeLayoutHash(type));
 				writer.Write((byte)GetSnapshotPayloadKind(type));
@@ -578,7 +586,7 @@ public sealed class World : IWorld, IDisposable
 			writer.Write(rows.Count);
 			for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
 			{
-				var entry = rows[rowIndex];
+				var entry  = rows[rowIndex];
 				var entity = entry.Chunk.Entities[entry.Row];
 				writer.Write(entity.Id);
 				writer.Write(entity.Version);
@@ -589,12 +597,12 @@ public sealed class World : IWorld, IDisposable
 				var entry = rows[rowIndex];
 				for (var typeIndex = 0; typeIndex < serializedTypeIds.Count; typeIndex++)
 				{
-					int typeId = serializedTypeIds[typeIndex];
-					int componentIndex = archetype.GetTypeIndex(typeId);
-					Type type = _componentTypeRegistry.GetType(typeId);
-					var payloadKind = GetSnapshotPayloadKind(type);
-					object value = entry.Chunk.GetValue(componentIndex, entry.Row);
-					byte[] payload = SerializeSnapshotValue(type, value, payloadKind);
+					int    typeId         = serializedTypeIds[typeIndex];
+					int    componentIndex = archetype.GetTypeIndex(typeId);
+					Type   type           = _componentTypeRegistry.GetType(typeId);
+					var    payloadKind    = GetSnapshotPayloadKind(type);
+					object value          = entry.Chunk.GetValue(componentIndex, entry.Row);
+					byte[] payload        = SerializeSnapshotValue(type, value, payloadKind);
 					writer.Write(payload.Length);
 					writer.Write(payload);
 				}
@@ -604,14 +612,12 @@ public sealed class World : IWorld, IDisposable
 		writer.Write(_resources.Count);
 		foreach (var pair in _resources)
 		{
-			Type resourceType = pair.Key;
-			var payloadKind = GetSnapshotPayloadKind(resourceType);
-			object resourceBox = pair.Value;
-			var valueField = resourceBox.GetType().GetField("Value", BindingFlags.Instance | BindingFlags.Public)
-				?? throw new InvalidOperationException("Resource box does not expose a value field.");
-			object value = valueField.GetValue(resourceBox)
-				?? throw new InvalidOperationException("Resource value cannot be null.");
-			byte[] payload = SerializeSnapshotValue(resourceType, value, payloadKind);
+			Type   resourceType = pair.Key;
+			var    payloadKind  = GetSnapshotPayloadKind(resourceType);
+			object resourceBox  = pair.Value;
+			var    valueField   = resourceBox.GetType().GetField("Value", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Resource box does not expose a value field.");
+			object value        = valueField.GetValue(resourceBox) ?? throw new InvalidOperationException("Resource value cannot be null.");
+			byte[] payload      = SerializeSnapshotValue(resourceType, value, payloadKind);
 
 			writer.Write(resourceType.AssemblyQualifiedName!);
 			writer.Write(ComputeLayoutHash(resourceType));
@@ -648,10 +654,10 @@ public sealed class World : IWorld, IDisposable
 			if (version != SnapshotFormatVersion)
 				throw new InvalidOperationException($"Invalid snapshot payload: unsupported version '{version}'.");
 
-			var world = new World();
-			var entityMap = new Dictionary<(int Id, int Version), Entity>();
+			var world                = new World();
+			var entityMap            = new Dictionary<(int Id, int Version), Entity>();
 			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion)>();
-			int archetypeCount = reader.ReadInt32();
+			int archetypeCount       = reader.ReadInt32();
 			if (archetypeCount < 0)
 				throw new InvalidOperationException("Invalid snapshot payload: archetype count cannot be negative.");
 
@@ -662,14 +668,13 @@ public sealed class World : IWorld, IDisposable
 					throw new InvalidOperationException("Invalid snapshot payload: component type count cannot be negative.");
 
 				var componentTypes = new Type[componentTypeCount];
-				var payloadKinds = new SnapshotPayloadKind[componentTypeCount];
+				var payloadKinds   = new SnapshotPayloadKind[componentTypeCount];
 				for (var typeIndex = 0; typeIndex < componentTypeCount; typeIndex++)
 				{
-					string typeName = reader.ReadString();
-					Type type = Type.GetType(typeName, throwOnError: true)
-						?? throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
-					ulong expectedLayoutHash = reader.ReadUInt64();
-					ulong actualLayoutHash = ComputeLayoutHash(type);
+					string typeName           = reader.ReadString();
+					Type   type               = Type.GetType(typeName, throwOnError: true) ?? throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
+					ulong  expectedLayoutHash = reader.ReadUInt64();
+					ulong  actualLayoutHash   = ComputeLayoutHash(type);
 					if (expectedLayoutHash != actualLayoutHash)
 						throw new InvalidOperationException($"Invalid snapshot payload: layout mismatch for '{type.FullName}'.");
 
@@ -678,28 +683,29 @@ public sealed class World : IWorld, IDisposable
 						throw new InvalidOperationException($"Invalid snapshot payload: storage kind mismatch for '{type.FullName}'.");
 
 					componentTypes[typeIndex] = type;
-					payloadKinds[typeIndex] = payloadKind;
+					payloadKinds[typeIndex]   = payloadKind;
 				}
 
 				int relationshipCount = reader.ReadInt32();
 				if (relationshipCount < 0)
 					throw new InvalidOperationException("Invalid snapshot payload: relationship count cannot be negative.");
 
-				var relationshipDescriptors = new (Type RelationType, int TargetId, int TargetVersion)[relationshipCount];
+				var relationshipDescriptors =
+					new (Type RelationType, int TargetId, int TargetVersion)[relationshipCount];
+
 				for (var relationshipIndex = 0; relationshipIndex < relationshipCount; relationshipIndex++)
 				{
 					string relationTypeName = reader.ReadString();
-					Type relationType = Type.GetType(relationTypeName, throwOnError: true)
-						?? throw new InvalidOperationException($"Snapshot relation type '{relationTypeName}' could not be resolved.");
-					int targetId = reader.ReadInt32();
-					int targetVersion = reader.ReadInt32();
-					_ = reader.ReadInt32(); // reserved in snapshot v1
+					Type   relationType     = Type.GetType(relationTypeName, throwOnError: true) ?? throw new InvalidOperationException($"Snapshot relation type '{relationTypeName}' could not be resolved.");
+					int    targetId         = reader.ReadInt32();
+					int    targetVersion    = reader.ReadInt32();
+					_                                          = reader.ReadInt32(); // reserved in snapshot v1
 					relationshipDescriptors[relationshipIndex] = (relationType, targetId, targetVersion);
 				}
 
 				var archetype = componentTypes.Length == 0
-					? world.EmptyArchetype
-					: world.GetOrCreateArchetype(componentTypes);
+									? world.EmptyArchetype
+									: world.GetOrCreateArchetype(componentTypes);
 
 				int entityCount = reader.ReadInt32();
 				if (entityCount < 0)
@@ -719,7 +725,8 @@ public sealed class World : IWorld, IDisposable
 					if (!entityMap.TryAdd(snapshotEntity, entities[entityIndex]))
 					{
 						throw new InvalidOperationException(
-							$"Invalid snapshot payload: duplicate entity mapping for id '{snapshotEntity.Id}:{snapshotEntity.Version}'.");
+							$"Invalid snapshot payload: duplicate entity mapping for id '{snapshotEntity.Id}:{snapshotEntity.Version}'."
+						);
 					}
 				}
 
@@ -732,21 +739,25 @@ public sealed class World : IWorld, IDisposable
 						if (length < 0)
 							throw new InvalidOperationException("Invalid snapshot payload: component payload length cannot be negative.");
 
-						byte[] payload = ReadBytesExact(reader, length);
-						Type componentType = componentTypes[typeIndex];
-						object value = DeserializeSnapshotValue(componentType, payloadKinds[typeIndex], payload);
-						int typeId = world.GetOrCreateComponentTypeId(componentType);
+						byte[] payload       = ReadBytesExact(reader, length);
+						Type   componentType = componentTypes[typeIndex];
+						object value         = DeserializeSnapshotValue(componentType, payloadKinds[typeIndex], payload);
+						int    typeId        = world.GetOrCreateComponentTypeId(componentType);
 						if (!world.TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
 							throw new InvalidOperationException($"Invalid snapshot payload: missing component slot for '{componentType.FullName}'.");
 
 						chunk.SetValue(componentIndex, slot, value);
 					}
 
-					for (var relationshipIndex = 0; relationshipIndex < relationshipDescriptors.Length; relationshipIndex++)
+					for (var relationshipIndex =
+							 0;
+						 relationshipIndex < relationshipDescriptors.Length;
+						 relationshipIndex++)
 					{
 						var relationship = relationshipDescriptors[relationshipIndex];
 						pendingRelationships.Add(
-							(entities[entityIndex], relationship.RelationType, relationship.TargetId, relationship.TargetVersion));
+							(entities[entityIndex], relationship.RelationType, relationship.TargetId, relationship.TargetVersion)
+						);
 					}
 				}
 			}
@@ -757,11 +768,10 @@ public sealed class World : IWorld, IDisposable
 
 			for (var resourceIndex = 0; resourceIndex < resourceCount; resourceIndex++)
 			{
-				string typeName = reader.ReadString();
-				Type type = Type.GetType(typeName, throwOnError: true)
-					?? throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
-				ulong expectedLayoutHash = reader.ReadUInt64();
-				ulong actualLayoutHash = ComputeLayoutHash(type);
+				string typeName           = reader.ReadString();
+				Type   type               = Type.GetType(typeName, throwOnError: true) ?? throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
+				ulong  expectedLayoutHash = reader.ReadUInt64();
+				ulong  actualLayoutHash   = ComputeLayoutHash(type);
 				if (expectedLayoutHash != actualLayoutHash)
 					throw new InvalidOperationException($"Invalid snapshot payload: layout mismatch for '{type.FullName}'.");
 
@@ -774,7 +784,7 @@ public sealed class World : IWorld, IDisposable
 					throw new InvalidOperationException("Invalid snapshot payload: resource payload length cannot be negative.");
 
 				byte[] payload = ReadBytesExact(reader, length);
-				object value = DeserializeSnapshotValue(type, payloadKind, payload);
+				object value   = DeserializeSnapshotValue(type, payloadKind, payload);
 				world.SetResourceObject(type, value);
 			}
 
@@ -782,11 +792,12 @@ public sealed class World : IWorld, IDisposable
 			{
 				var relationship = pendingRelationships[i];
 				var target = relationship.TargetId == Entity.Wildcard.Id
-					? Entity.Wildcard
-					: entityMap.TryGetValue((relationship.TargetId, relationship.TargetVersion), out var mappedTarget)
-						? mappedTarget
-						: throw new InvalidOperationException(
-							$"Invalid snapshot payload: relationship target '{relationship.TargetId}:{relationship.TargetVersion}' was not found.");
+								 ? Entity.Wildcard
+								 : entityMap.TryGetValue((relationship.TargetId, relationship.TargetVersion), out var mappedTarget)
+									 ? mappedTarget
+									 : throw new InvalidOperationException(
+										   $"Invalid snapshot payload: relationship target '{relationship.TargetId}:{relationship.TargetVersion}' was not found."
+									   );
 
 				world.AddRelationshipObject(relationship.Source, relationship.RelationType, target);
 			}
@@ -804,7 +815,7 @@ public sealed class World : IWorld, IDisposable
 #endif
 	}
 
-	#if NET9_0
+#if NET9_0
 	private static SnapshotPayloadKind GetSnapshotPayloadKind(Type type) =>
 		ComponentTypeTraits.IsUnmanaged(type) ? SnapshotPayloadKind.RawUnmanaged : SnapshotPayloadKind.Json;
 
@@ -812,17 +823,16 @@ public sealed class World : IWorld, IDisposable
 		payloadKind switch
 		{
 			SnapshotPayloadKind.RawUnmanaged => SerializeRawUnmanagedValue(type, value),
-			SnapshotPayloadKind.Json => JsonSerializer.SerializeToUtf8Bytes(value, type, SnapshotJsonOptions),
-			_ => throw new ArgumentOutOfRangeException(nameof(payloadKind))
+			SnapshotPayloadKind.Json         => JsonSerializer.SerializeToUtf8Bytes(value, type, SnapshotJsonOptions),
+			_                                => throw new ArgumentOutOfRangeException(nameof(payloadKind))
 		};
 
 	private static object DeserializeSnapshotValue(Type type, SnapshotPayloadKind payloadKind, byte[] payload) =>
 		payloadKind switch
 		{
 			SnapshotPayloadKind.RawUnmanaged => DeserializeRawUnmanagedValue(type, payload),
-			SnapshotPayloadKind.Json => JsonSerializer.Deserialize(payload, type, SnapshotJsonOptions)
-				?? throw new InvalidOperationException($"Snapshot value for '{type.FullName}' could not be deserialized."),
-			_ => throw new ArgumentOutOfRangeException(nameof(payloadKind))
+			SnapshotPayloadKind.Json         => JsonSerializer.Deserialize(payload, type, SnapshotJsonOptions) ?? throw new InvalidOperationException($"Snapshot value for '{type.FullName}' could not be deserialized."),
+			_                                => throw new ArgumentOutOfRangeException(nameof(payloadKind))
 		};
 
 	private static byte[] SerializeRawUnmanagedValue(Type type, object value)
@@ -830,9 +840,9 @@ public sealed class World : IWorld, IDisposable
 		if (!ComponentTypeTraits.IsUnmanaged(type))
 			throw new InvalidOperationException($"Type '{type.FullName}' is not unmanaged.");
 
-		var size = Marshal.SizeOf(type);
+		var size    = Marshal.SizeOf(type);
 		var payload = new byte[size];
-		var handle = GCHandle.Alloc(payload, GCHandleType.Pinned);
+		var handle  = GCHandle.Alloc(payload, GCHandleType.Pinned);
 		try
 		{
 			Marshal.StructureToPtr(value, handle.AddrOfPinnedObject(), fDeleteOld: false);
@@ -856,8 +866,7 @@ public sealed class World : IWorld, IDisposable
 		var handle = GCHandle.Alloc(payload, GCHandleType.Pinned);
 		try
 		{
-			return Marshal.PtrToStructure(handle.AddrOfPinnedObject(), type)
-				?? throw new InvalidOperationException($"Snapshot value for '{type.FullName}' could not be materialized.");
+			return Marshal.PtrToStructure(handle.AddrOfPinnedObject(), type) ?? throw new InvalidOperationException($"Snapshot value for '{type.FullName}' could not be materialized.");
 		}
 		finally
 		{
@@ -905,8 +914,8 @@ public sealed class World : IWorld, IDisposable
 	private static ulong ComputeFnv1aHash64(string value)
 	{
 		const ulong offset = 14695981039346656037;
-		const ulong prime = 1099511628211;
-		ulong hash = offset;
+		const ulong prime  = 1099511628211;
+		ulong       hash   = offset;
 
 		byte[] bytes = Encoding.UTF8.GetBytes(value);
 		for (var i = 0; i < bytes.Length; i++)
@@ -917,15 +926,17 @@ public sealed class World : IWorld, IDisposable
 
 		return hash;
 	}
-	#endif
+#endif
 
 	public void Dispose()
 	{
 		if (_disposed) return;
+
 		_disposed = true;
 		_systemManager.Shutdown(this);
 		for (var i = 0; i < _archetypes.Count; i++)
 			_archetypes[i].ClearChunks();
+
 		_archetypes.Clear();
 		_archetypesByKey.Clear();
 		_queryCache.Clear();
@@ -937,7 +948,7 @@ public sealed class World : IWorld, IDisposable
 
 	internal IReadOnlyList<Archetype> GetOrCreateQueryMatches(QuerySpec spec)
 	{
-		QueryCacheKey key = spec.CacheKey;
+		var key = spec.CacheKey;
 		if (_queryCache.TryGetValue(key, out var existing))
 			return existing.MatchingArchetypes;
 
@@ -1000,14 +1011,12 @@ public sealed class World : IWorld, IDisposable
 		RemoveEntityFromArchetype(entity);
 		_entityManager.DestroyEntity(entity);
 
-		if (removedComponents is not null)
-		{
+		if (removedComponents is { })
 			for (var i = 0; i < removedComponents.Count; i++)
 			{
 				var removed = removedComponents[i];
 				RaiseOnRemove(entity, removed.TypeId, removed.Value);
 			}
-		}
 
 		BumpChangeVersion();
 	}
@@ -1017,7 +1026,9 @@ public sealed class World : IWorld, IDisposable
 		_entityManager.EnsureAlive(entity);
 
 		if (HasComponent(typeId, entity))
-			throw new InvalidOperationException($"Entity {entity.Id} already has component {typeof(T).Name}. Use Set to update.");
+			throw new InvalidOperationException(
+				$"Entity {entity.Id} already has component {typeof(T).Name}. Use Set to update."
+			);
 
 		AddComponentWithMove(entity, typeId, in component);
 		RaiseOnAdd<T>(entity, typeId);
@@ -1050,12 +1061,12 @@ public sealed class World : IWorld, IDisposable
 		var location = _entityManager.GetLocation(entity);
 		if (!location.IsValid) return;
 
-		var source = _archetypes[location.ArchetypeId];
+		var source      = _archetypes[location.ArchetypeId];
 		int sourceIndex = source.GetTypeIndex(typeId);
 		if (sourceIndex < 0) return;
 
 		DecomposeLocation(source, location, out int sourceChunkIndex, out int sourceSlotIndex);
-		var sourceChunk = source.Chunks[sourceChunkIndex];
+		var    sourceChunk  = source.Chunks[sourceChunkIndex];
 		object removedValue = sourceChunk.GetValue(sourceIndex, sourceSlotIndex);
 
 		Archetype target;
@@ -1077,17 +1088,20 @@ public sealed class World : IWorld, IDisposable
 		if (spec.NoneTypeIds.Length > 0 && archetype.ContainsAny(spec.NoneTypeIds)) return false;
 		if (spec.AnyTypeIds.Length > 0 && !archetype.ContainsAny(spec.AnyTypeIds)) return false;
 
-		if (spec.RelatedRelationType is not null)
+		if (spec.RelatedRelationType is { })
 		{
 			if (spec.RelatedTarget == Entity.Wildcard)
 			{
-				var relationIds = _componentTypeRegistry.GetRelationshipIds(spec.RelatedRelationType);
+				int[] relationIds = ComponentTypeRegistry.GetRelationshipIds(spec.RelatedRelationType);
 				if (relationIds.Length == 0 || !archetype.ContainsAny(relationIds))
 					return false;
 			}
 			else
 			{
-				int relationTypeId = _componentTypeRegistry.GetOrCreateRelationship(spec.RelatedRelationType, spec.RelatedTarget);
+				int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(
+					spec.RelatedRelationType, spec.RelatedTarget
+				);
+
 				if (!archetype.ContainsAll([relationTypeId]))
 					return false;
 			}
@@ -1107,12 +1121,12 @@ public sealed class World : IWorld, IDisposable
 
 	private void AddComponentObject(Entity entity, Type componentType, object value)
 	{
-		int typeId = _componentTypeRegistry.GetOrCreate(componentType);
+		int typeId = ComponentTypeRegistry.GetOrCreate(componentType);
 		if (_isUpdating || HasActiveQueryIteration)
 			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration.");
 
-		var location = _entityManager.GetLocation(entity);
-		var source = _archetypes[location.ArchetypeId];
+		var       location = _entityManager.GetLocation(entity);
+		var       source   = _archetypes[location.ArchetypeId];
 		Archetype target;
 		if (!source.TryGetAddEdge(typeId, out target!))
 		{
@@ -1132,18 +1146,17 @@ public sealed class World : IWorld, IDisposable
 
 		_entityManager.EnsureAlive(source);
 		if (!_entityManager.IsAlive(target) && target != Entity.Wildcard)
-		{
 			throw new InvalidOperationException(
-				$"Invalid snapshot payload: relationship target '{target.Id}:{target.Version}' is not alive.");
-		}
+				$"Invalid snapshot payload: relationship target '{target.Id}:{target.Version}' is not alive."
+			);
 
-		int relationTypeId = _componentTypeRegistry.GetOrCreateRelationship(relationType, target);
+		int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(relationType, target);
 		AddRelationshipWithMove(source, relationTypeId);
 	}
 
 	private void SetResourceObject(Type type, object value)
 	{
-		Type boxType = typeof(ResourceBox<>).MakeGenericType(type);
+		var boxType = typeof(ResourceBox<>).MakeGenericType(type);
 		_resources[type] = Activator.CreateInstance(boxType, value)!;
 	}
 
@@ -1153,7 +1166,7 @@ public sealed class World : IWorld, IDisposable
 			return;
 
 		bool hasValueHandlers = _onAddObservers.TryGetValue(typeId, out var valueHandlers);
-		bool hasRefHandlers = _onAddRefObservers.TryGetValue(typeId, out var refHandlers);
+		bool hasRefHandlers   = _onAddRefObservers.TryGetValue(typeId, out var refHandlers);
 		if (!hasValueHandlers && !hasRefHandlers)
 			return;
 
@@ -1163,22 +1176,18 @@ public sealed class World : IWorld, IDisposable
 		ref var component = ref chunk.GetReference<T>(componentIndex, slot);
 
 		if (hasRefHandlers)
-		{
 			for (var i = 0; i < refHandlers!.Count; i++)
 			{
 				if (refHandlers[i] is OnAddObserver<T> observer)
 					observer(entity, ref component);
 			}
-		}
 
 		if (hasValueHandlers)
-		{
 			for (var i = 0; i < valueHandlers!.Count; i++)
 			{
 				if (valueHandlers[i] is Action<Entity, T> observer)
 					observer(entity, component);
 			}
-		}
 	}
 
 	private void RaiseOnRemove(Entity entity, int typeId, object removedValue)
@@ -1187,10 +1196,8 @@ public sealed class World : IWorld, IDisposable
 			return;
 
 		if (_onRemoveInObservers.TryGetValue(typeId, out var inHandlers))
-		{
 			for (var i = 0; i < inHandlers.Count; i++)
 				inHandlers[i](entity, removedValue);
-		}
 	}
 
 	private List<(int TypeId, object Value)> CaptureRemovedComponents(Entity entity)
@@ -1201,12 +1208,12 @@ public sealed class World : IWorld, IDisposable
 
 		var archetype = _archetypes[location.ArchetypeId];
 		DecomposeLocation(archetype, location, out int chunkIndex, out int slotIndex);
-		var chunk = archetype.Chunks[chunkIndex];
+		var chunk   = archetype.Chunks[chunkIndex];
 		var removed = new List<(int TypeId, object Value)>(archetype.TypeIds.Length);
 		for (var i = 0; i < archetype.TypeIds.Length; i++)
 		{
 			int typeId = archetype.TypeIds[i];
-			if (_componentTypeRegistry.IsRelationship(typeId))
+			if (ComponentTypeRegistry.IsRelationship(typeId))
 				continue;
 
 			removed.Add((typeId, chunk.GetValue(i, slotIndex)));
@@ -1217,8 +1224,8 @@ public sealed class World : IWorld, IDisposable
 
 	private static void RemoveObserver<TObserver>(
 		Dictionary<int, List<TObserver>> observers,
-		int typeId,
-		TObserver observer)
+		int                              typeId,
+		TObserver                        observer)
 		where TObserver : class
 	{
 		if (!observers.TryGetValue(typeId, out var handlers))
@@ -1232,7 +1239,7 @@ public sealed class World : IWorld, IDisposable
 	private void AddRelationshipWithMove(Entity entity, int relationTypeId)
 	{
 		var location = _entityManager.GetLocation(entity);
-		var source = _archetypes[location.ArchetypeId];
+		var source   = _archetypes[location.ArchetypeId];
 		if (source.GetTypeIndex(relationTypeId) >= 0)
 			return;
 
@@ -1246,14 +1253,14 @@ public sealed class World : IWorld, IDisposable
 
 		(var targetChunk, int targetSlot) = MoveEntityCore(entity, source, location, target);
 		int addedIndex = target.GetTypeIndex(relationTypeId);
-		targetChunk.GetReference<RelationMarker>(addedIndex, targetSlot) = new RelationMarker(1);
+		targetChunk.GetReference<RelationMarker>(addedIndex, targetSlot) = new(1);
 	}
 
 	private static int[] InsertTypeId(int[] source, int typeId)
 	{
 		var result = new int[source.Length + 1];
-		var index = 0;
-		var added = false;
+		var index  = 0;
+		var added  = false;
 
 		for (var i = 0; i < source.Length; i++)
 		{
@@ -1261,7 +1268,7 @@ public sealed class World : IWorld, IDisposable
 			if (!added && typeId < current)
 			{
 				result[index++] = typeId;
-				added = true;
+				added           = true;
 			}
 
 			result[index++] = current;
@@ -1276,11 +1283,12 @@ public sealed class World : IWorld, IDisposable
 	private static int[] RemoveTypeId(int[] source, int typeId)
 	{
 		var result = new int[source.Length - 1];
-		var index = 0;
+		var index  = 0;
 
 		for (var i = 0; i < source.Length; i++)
 		{
 			if (source[i] == typeId) continue;
+
 			result[index++] = source[i];
 		}
 
@@ -1295,29 +1303,34 @@ public sealed class World : IWorld, IDisposable
 	private static int ToRowIndex(Archetype archetype, int chunkIndex, int slotIndex)
 	{
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
+
 		return checked(chunkIndex * archetype.ChunkCapacity + slotIndex);
 	}
 
-	private static void DecomposeLocation(Archetype archetype, EntityLocation location, out int chunkIndex, out int slotIndex)
+	private static void DecomposeLocation(
+		Archetype      archetype,
+		EntityLocation location,
+		out int        chunkIndex,
+		out int        slotIndex)
 	{
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 		if (location.RowIndex < 0)
 			throw new ArgumentOutOfRangeException(nameof(location));
 
 		chunkIndex = location.RowIndex / archetype.ChunkCapacity;
-		slotIndex = location.RowIndex % archetype.ChunkCapacity;
+		slotIndex  = location.RowIndex % archetype.ChunkCapacity;
 	}
 
 	private (Chunk targetChunk, int targetSlot) MoveEntityCore(
-		Entity entity,
-		Archetype source,
+		Entity         entity,
+		Archetype      source,
 		EntityLocation sourceLocation,
-		Archetype target)
+		Archetype      target)
 	{
 		DecomposeLocation(source, sourceLocation, out int sourceChunkIndex, out int sourceSlotIndex);
 		var sourceChunk = source.Chunks[sourceChunkIndex];
 		var targetChunk = target.GetOrCreateChunkWithSpace(out int targetChunkIndex);
-		int targetSlot = targetChunk.Count++;
+		int targetSlot  = targetChunk.Count++;
 
 		targetChunk.Entities[targetSlot] = entity;
 		ClearComponentSlot(targetChunk, targetSlot);
@@ -1325,21 +1338,21 @@ public sealed class World : IWorld, IDisposable
 
 		for (var i = 0; i < source.TypeIds.Length; i++)
 		{
-			int typeId = source.TypeIds[i];
+			int typeId      = source.TypeIds[i];
 			int targetIndex = target.GetTypeIndex(typeId);
 			if (targetIndex < 0) continue;
 
 			sourceChunk.CopyValueTo(i, sourceSlotIndex, targetChunk, targetIndex, targetSlot);
 		}
 
-		RemoveEntityFromArchetype(source, sourceLocation, entity, clearLocation: false);
+		RemoveEntityFromArchetype(source, sourceLocation, entity, false);
 		return (targetChunk, targetSlot);
 	}
 
 	private Archetype CreateArchetypeInternal(int[] typeIds, Type[] types)
 	{
 		int chunkCapacity = ResolveChunkCapacity(types);
-		var archetype = new Archetype(this, _archetypes.Count, typeIds, types, chunkCapacity);
+		var archetype     = new Archetype(this, _archetypes.Count, typeIds, types, chunkCapacity);
 		_archetypes.Add(archetype);
 		_archetypesByKey[new(typeIds)] = archetype;
 		OnArchetypeCreated(archetype);
@@ -1351,16 +1364,12 @@ public sealed class World : IWorld, IDisposable
 		if (_chunkCapacityOverride > 0)
 			return _chunkCapacityOverride;
 
-		int bytesPerEntity = 0;
+		var bytesPerEntity = 0;
 		if (componentTypes.Length == 0)
-		{
 			bytesPerEntity = ComponentSizeEstimator.GetSizeInBytes(typeof(Entity));
-		}
 		else
-		{
 			for (var i = 0; i < componentTypes.Length; i++)
 				bytesPerEntity += ComponentSizeEstimator.GetSizeInBytes(componentTypes[i]);
-		}
 
 		if (bytesPerEntity <= 0)
 			bytesPerEntity = 1;
@@ -1382,8 +1391,8 @@ public sealed class World : IWorld, IDisposable
 
 	private static int CreateWorldId()
 	{
-		var bytes = Guid.NewGuid().ToByteArray();
-		var id = BitConverter.ToInt32(bytes, 0) & int.MaxValue;
+		byte[] bytes = Guid.NewGuid().ToByteArray();
+		int    id    = BitConverter.ToInt32(bytes, 0) & int.MaxValue;
 		if (id == 0)
 			id = BitConverter.ToInt32(bytes, 4) & int.MaxValue;
 
@@ -1393,16 +1402,17 @@ public sealed class World : IWorld, IDisposable
 	public Archetype GetOrCreateArchetype(params Type[] componentTypes)
 	{
 		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
+
 		if (componentTypes.Length == 0) return EmptyArchetype;
 
 		var typeIds = new int[componentTypes.Length];
-		var types = new Type[componentTypes.Length];
+		var types   = new Type[componentTypes.Length];
 
 		for (var i = 0; i < componentTypes.Length; i++)
 		{
 			var type = componentTypes[i] ?? throw new ArgumentNullException(nameof(componentTypes));
-			typeIds[i] = _componentTypeRegistry.GetOrCreate(type);
-			types[i] = type;
+			typeIds[i] = ComponentTypeRegistry.GetOrCreate(type);
+			types[i]   = type;
 		}
 
 		Array.Sort(typeIds, types);
@@ -1410,24 +1420,35 @@ public sealed class World : IWorld, IDisposable
 		for (var i = 0; i < typeIds.Length; i++)
 		{
 			if (i > 0 && typeIds[i] == typeIds[i - 1]) continue;
+
 			typeIds[uniqueCount] = typeIds[i];
-			types[uniqueCount] = types[i];
+			types[uniqueCount]   = types[i];
 			uniqueCount++;
 		}
 
 		if (uniqueCount != typeIds.Length)
 		{
 			Array.Resize(ref typeIds, uniqueCount);
-			Array.Resize(ref types, uniqueCount);
+			Array.Resize(ref types,   uniqueCount);
 		}
 
 		return GetOrCreateArchetype(typeIds, types);
 	}
 
 	public Archetype GetOrCreateArchetype<T1>() where T1 : struct, IComponent => GetOrCreateArchetype(typeof(T1));
-	public Archetype GetOrCreateArchetype<T1, T2>() where T1 : struct, IComponent where T2 : struct, IComponent => GetOrCreateArchetype(typeof(T1), typeof(T2));
-	public Archetype GetOrCreateArchetype<T1, T2, T3>() where T1 : struct, IComponent where T2 : struct, IComponent where T3 : struct, IComponent => GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
-	public Archetype GetOrCreateArchetype<T1, T2, T3, T4>() where T1 : struct, IComponent where T2 : struct, IComponent where T3 : struct, IComponent where T4 : struct, IComponent => GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+
+	public Archetype GetOrCreateArchetype<T1, T2>() where T1 : struct, IComponent where T2 : struct, IComponent =>
+		GetOrCreateArchetype(typeof(T1), typeof(T2));
+
+	public Archetype GetOrCreateArchetype<T1, T2, T3>()
+		where T1 : struct, IComponent where T2 : struct, IComponent where T3 : struct, IComponent =>
+		GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+
+	public Archetype GetOrCreateArchetype<T1, T2, T3, T4>()
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+		where T4 : struct, IComponent => GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
 
 	private Archetype GetOrCreateArchetype(int[] typeIds, Type[] types)
 	{
@@ -1444,7 +1465,7 @@ public sealed class World : IWorld, IDisposable
 
 		var types = new Type[typeIds.Length];
 		for (var i = 0; i < typeIds.Length; i++)
-			types[i] = _componentTypeRegistry.GetType(typeIds[i]);
+			types[i] = ComponentTypeRegistry.GetType(typeIds[i]);
 
 		return GetOrCreateArchetype(typeIds, types);
 	}
@@ -1463,8 +1484,8 @@ public sealed class World : IWorld, IDisposable
 		var location = _entityManager.GetLocation(entity);
 		if (!location.IsValid)
 		{
-			chunk = null!;
-			slot = -1;
+			chunk          = null!;
+			slot           = -1;
 			componentIndex = -1;
 			return false;
 		}
@@ -1474,13 +1495,13 @@ public sealed class World : IWorld, IDisposable
 		if (componentIndex < 0)
 		{
 			chunk = null!;
-			slot = -1;
+			slot  = -1;
 			return false;
 		}
 
 		DecomposeLocation(archetype, location, out int chunkIndex, out int slotIndex);
 		chunk = archetype.Chunks[chunkIndex];
-		slot = slotIndex;
+		slot  = slotIndex;
 		return true;
 	}
 
@@ -1490,7 +1511,7 @@ public sealed class World : IWorld, IDisposable
 			return false;
 
 		chunk.GetReference<T>(componentIndex, slot) = component;
-		chunk.MarkChanged(componentIndex, _changeVersion);
+		chunk.MarkChanged(componentIndex, ChangeVersion);
 		return true;
 	}
 
@@ -1499,13 +1520,13 @@ public sealed class World : IWorld, IDisposable
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out _, out int componentIndex))
 			return;
 
-		chunk.MarkChanged(componentIndex, _changeVersion);
+		chunk.MarkChanged(componentIndex, ChangeVersion);
 	}
 
 	private void AddComponentWithMove<T>(Entity entity, int typeId, in T component) where T : struct, IComponent
 	{
 		var location = _entityManager.GetLocation(entity);
-		var source = _archetypes[location.ArchetypeId];
+		var source   = _archetypes[location.ArchetypeId];
 
 		Archetype target;
 		if (!source.TryGetAddEdge(typeId, out target!))
@@ -1518,13 +1539,13 @@ public sealed class World : IWorld, IDisposable
 		(var targetChunk, int targetSlot) = MoveEntityCore(entity, source, location, target);
 		int addedIndex = target.GetTypeIndex(typeId);
 		targetChunk.GetReference<T>(addedIndex, targetSlot) = component;
-		targetChunk.MarkChanged(addedIndex, _changeVersion);
+		targetChunk.MarkChanged(addedIndex, ChangeVersion);
 	}
 
 	private void AddEntityToArchetype(Entity entity, Archetype archetype)
 	{
 		var chunk = archetype.GetOrCreateChunkWithSpace(out int chunkIndex);
-		int slot = chunk.Count++;
+		int slot  = chunk.Count++;
 		chunk.Entities[slot] = entity;
 		ClearComponentSlot(chunk, slot);
 		_entityManager.SetLocation(entity, new(archetype.Id, ToRowIndex(archetype, chunkIndex, slot)));
@@ -1533,7 +1554,9 @@ public sealed class World : IWorld, IDisposable
 	private void EnsureNotUpdating()
 	{
 		if (_isUpdating || HasActiveQueryIteration)
-			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration. Use CommandBuffer.");
+			throw new InvalidOperationException(
+				"Structural changes are not allowed during update or query iteration. Use CommandBuffer."
+			);
 	}
 
 	private void MoveEntity(Entity entity, Archetype source, EntityLocation sourceLocation, Archetype target) =>
@@ -1545,14 +1568,18 @@ public sealed class World : IWorld, IDisposable
 		if (!location.IsValid) return;
 
 		var archetype = _archetypes[location.ArchetypeId];
-		RemoveEntityFromArchetype(archetype, location, entity, clearLocation: true);
+		RemoveEntityFromArchetype(archetype, location, entity, true);
 	}
 
-	private void RemoveEntityFromArchetype(Archetype archetype, EntityLocation location, Entity removedEntity, bool clearLocation)
+	private void RemoveEntityFromArchetype(
+		Archetype      archetype,
+		EntityLocation location,
+		Entity         removedEntity,
+		bool           clearLocation)
 	{
 		DecomposeLocation(archetype, location, out int chunkIndex, out int slot);
 		var chunk = archetype.Chunks[chunkIndex];
-		int last = chunk.Count - 1;
+		int last  = chunk.Count - 1;
 		if (last < 0) return;
 
 		if (slot != last)
@@ -1580,9 +1607,9 @@ public sealed class World : IWorld, IDisposable
 	{
 		unchecked
 		{
-			_changeVersion++;
-			if (_changeVersion == 0)
-				_changeVersion = 1;
+			ChangeVersion++;
+			if (ChangeVersion == 0)
+				ChangeVersion = 1;
 		}
 	}
 }

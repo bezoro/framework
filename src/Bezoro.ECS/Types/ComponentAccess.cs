@@ -19,21 +19,23 @@ public readonly struct ComponentAccess
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
 		if (!componentType.IsValueType || !typeof(IComponent).IsAssignableFrom(componentType))
-			throw new ArgumentException("Component types must be structs implementing IComponent.", nameof(componentType));
+			throw new ArgumentException(
+				"Component types must be structs implementing IComponent.", nameof(componentType)
+			);
 
 		ComponentType = componentType;
 		Mode          = mode;
 	}
 
 	/// <summary>
-	///     Gets the component type being accessed.
-	/// </summary>
-	public Type ComponentType { get; }
-
-	/// <summary>
 	///     Gets the access mode.
 	/// </summary>
 	public ComponentAccessMode Mode { get; }
+
+	/// <summary>
+	///     Gets the component type being accessed.
+	/// </summary>
+	public Type ComponentType { get; }
 
 	/// <summary>
 	///     Creates a read-only access descriptor for component type <typeparamref name="T" />.

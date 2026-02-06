@@ -5,39 +5,39 @@ using Bezoro.ECS.Services;
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Provides access to a chunk of entities and component columns.
+///     Provides access to a chunk of entities and component columns.
 /// </summary>
 public readonly struct ChunkView
 {
+	private readonly bool              _trackWrites;
+	private readonly Chunk?            _chunk;
 	private readonly ComponentColumn[] _columns;
-	private readonly Entity[] _entities;
-	private readonly int[] _typeIndexById;
-	private readonly uint[] _componentVersions;
-	private readonly uint _currentVersion;
-	private readonly bool _trackWrites;
-	private readonly Chunk? _chunk;
-	private readonly World _world;
+	private readonly Entity[]          _entities;
+	private readonly int[]             _typeIndexById;
+	private readonly uint              _currentVersion;
+	private readonly uint[]            _componentVersions;
+	private readonly World             _world;
 
 	internal ChunkView(
-		Entity[] entities,
+		Entity[]          entities,
 		ComponentColumn[] columns,
-		int count,
-		int[] typeIndexById,
-		uint[] componentVersions,
-		uint currentVersion,
-		bool trackWrites,
-		Chunk? chunk,
-		World world)
+		int               count,
+		int[]             typeIndexById,
+		uint[]            componentVersions,
+		uint              currentVersion,
+		bool              trackWrites,
+		Chunk?            chunk,
+		World             world)
 	{
-		_entities = entities;
-		_columns = columns;
-		Count = count;
-		_typeIndexById = typeIndexById;
+		_entities          = entities;
+		_columns           = columns;
+		Count              = count;
+		_typeIndexById     = typeIndexById;
 		_componentVersions = componentVersions;
-		_currentVersion = currentVersion;
-		_trackWrites = trackWrites;
-		_chunk = chunk;
-		_world = world;
+		_currentVersion    = currentVersion;
+		_trackWrites       = trackWrites;
+		_chunk             = chunk;
+		_world             = world;
 	}
 
 	public int Count { get; }
@@ -47,7 +47,7 @@ public readonly struct ChunkView
 	public bool TryComponents<T>(out Span<T> components) where T : struct, IComponent
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		int index = GetIndex(typeId);
+		int index  = GetIndex(typeId);
 		if (index < 0)
 		{
 			components = default;
@@ -58,10 +58,20 @@ public readonly struct ChunkView
 		return true;
 	}
 
+	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct, IComponent
+	{
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		int index  = GetIndex(typeId);
+		if (index < 0)
+			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
+
+		return _columns[index].GetReadOnlySpan<T>(Count);
+	}
+
 	public Span<T> Components<T>() where T : struct, IComponent
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		int index = GetIndex(typeId);
+		int index  = GetIndex(typeId);
 		if (index < 0)
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
 
@@ -74,7 +84,7 @@ public readonly struct ChunkView
 	public Span<T> OptionalComponents<T>() where T : struct, IComponent
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		int index = GetIndex(typeId);
+		int index  = GetIndex(typeId);
 		if (index < 0)
 			return Span<T>.Empty;
 
@@ -82,16 +92,6 @@ public readonly struct ChunkView
 			MarkChanged(index);
 
 		return _columns[index].GetSpan<T>(Count);
-	}
-
-	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct, IComponent
-	{
-		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		int index = GetIndex(typeId);
-		if (index < 0)
-			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
-
-		return _columns[index].GetReadOnlySpan<T>(Count);
 	}
 
 	internal bool IsChanged(int typeId)
@@ -113,6 +113,7 @@ public readonly struct ChunkView
 	private void MarkChanged(int index)
 	{
 		if (_chunk is null) return;
+
 		_chunk.MarkChanged(index, _currentVersion);
 	}
 }

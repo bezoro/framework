@@ -5,28 +5,28 @@ namespace Bezoro.Events.Types;
 /// </summary>
 public readonly struct SubscriptionHandle : IEquatable<SubscriptionHandle>
 {
-    /// <summary>
-    ///     Represents an invalid/uninitialized handle.
-    /// </summary>
-    public static readonly SubscriptionHandle None = default;
+	/// <summary>
+	///     Represents an invalid/uninitialized handle.
+	/// </summary>
+	public static readonly SubscriptionHandle None = default;
 
-    /// <summary>
-    ///     The unique identifier for this subscription.
-    /// </summary>
-    public readonly int Id;
+	/// <summary>
+	///     The unique identifier for this subscription.
+	/// </summary>
+	public readonly int Id;
 
-    /// <summary>
-    ///     Creates a new subscription handle with the specified id.
-    /// </summary>
-    public SubscriptionHandle(int id)
+	/// <summary>
+	///     Creates a new subscription handle with the specified id.
+	/// </summary>
+	public SubscriptionHandle(int id)
 	{
 		Id = id;
 	}
 
-    /// <summary>
-    ///     Whether this handle represents a valid subscription.
-    /// </summary>
-    public bool IsValid => Id > 0;
+	/// <summary>
+	///     Whether this handle represents a valid subscription.
+	/// </summary>
+	public bool IsValid => Id > 0;
 
 	/// <inheritdoc />
 	public static bool operator ==(SubscriptionHandle left, SubscriptionHandle right) => left.Id == right.Id;

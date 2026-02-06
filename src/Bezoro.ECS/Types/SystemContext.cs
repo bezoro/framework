@@ -12,17 +12,17 @@ namespace Bezoro.ECS.Types;
 public readonly struct SystemContext(float deltaTime, Stage stage, CommandBuffer commands)
 {
 	/// <summary>
+	///     Gets the command buffer for deferred structural changes.
+	/// </summary>
+	public CommandBuffer Commands { get; } = commands;
+
+	/// <summary>
+	///     Gets the elapsed time passed to this system update.
+	/// </summary>
+	public float DeltaTime { get; } = deltaTime;
+
+	/// <summary>
 	///     Gets the stage currently being executed.
 	/// </summary>
 	public Stage Stage { get; } = stage;
-
-    /// <summary>
-    ///     Gets the command buffer for deferred structural changes.
-    /// </summary>
-    public CommandBuffer Commands { get; } = commands;
-
-    /// <summary>
-    ///     Gets the elapsed time passed to this system update.
-    /// </summary>
-    public float DeltaTime { get; } = deltaTime;
 }

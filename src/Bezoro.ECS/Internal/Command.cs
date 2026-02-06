@@ -4,7 +4,11 @@ namespace Bezoro.ECS.Internal;
 
 internal readonly struct Command
 {
-	public Command(CommandType type, Entity entity, Archetype? archetype, int componentTypeId,
+	public Command(
+		CommandType           type,
+		Entity                entity,
+		Archetype?            archetype,
+		int                   componentTypeId,
 		IComponentApplicator? applicator)
 	{
 		Type            = type;
@@ -14,9 +18,10 @@ internal readonly struct Command
 		Applicator      = applicator;
 	}
 
-	public CommandType Type { get; }
-	public Entity Entity { get; }
 	public Archetype? Archetype { get; }
-	public int ComponentTypeId { get; }
-	public IComponentApplicator? Applicator { get; }
+
+	public CommandType           Type            { get; }
+	public Entity                Entity          { get; }
+	public IComponentApplicator? Applicator      { get; }
+	public int                   ComponentTypeId { get; }
 }

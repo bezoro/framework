@@ -9,13 +9,13 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public sealed class CommandBuffer : IDisposable
 {
-	private readonly List<Command>            _commands                  = [];
 	private readonly Dictionary<int, Entity> _resolvedTemporaryEntities = [];
-	private readonly object                   _sync                     = new();
-	private readonly World                    _world;
-	private          bool                     _isPlayingBack;
-	private          int                      _nextTemporaryId = -1;
-	private bool _disposed;
+	private readonly List<Command>           _commands                  = [];
+	private readonly object                  _sync                      = new();
+	private readonly World                   _world;
+	private          bool                    _disposed;
+	private          bool                    _isPlayingBack;
+	private          int                     _nextTemporaryId = -1;
 
 	internal CommandBuffer(World world)
 	{
@@ -48,7 +48,7 @@ public sealed class CommandBuffer : IDisposable
 		where T1 : struct, IComponent
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1));
-		var entity = CreateEntity(archetype);
+		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		return entity;
 	}
@@ -61,7 +61,7 @@ public sealed class CommandBuffer : IDisposable
 		where T2 : struct, IComponent
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2));
-		var entity = CreateEntity(archetype);
+		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
 		return entity;
@@ -76,7 +76,7 @@ public sealed class CommandBuffer : IDisposable
 		where T3 : struct, IComponent
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
-		var entity = CreateEntity(archetype);
+		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
 		SetComponent(entity, in component3);
@@ -93,7 +93,7 @@ public sealed class CommandBuffer : IDisposable
 		where T4 : struct, IComponent
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
-		var entity = CreateEntity(archetype);
+		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
 		SetComponent(entity, in component3);
@@ -118,7 +118,7 @@ public sealed class CommandBuffer : IDisposable
 		lock (_sync)
 		{
 			var entity = new Entity(_nextTemporaryId--, 0);
-			_commands.Add(new Command(CommandType.CreateEntity, entity, archetype, -1, null));
+			_commands.Add(new(CommandType.CreateEntity, entity, archetype, -1, null));
 			return entity;
 		}
 	}
@@ -133,7 +133,7 @@ public sealed class CommandBuffer : IDisposable
 	{
 		ThrowIfDisposed();
 		int typeId     = _world.GetOrCreateComponentTypeId<T>();
-		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: true);
+		var applicator = new ComponentApplicator<T>(typeId, in component, true);
 		Enqueue(new(CommandType.AddComponent, entity, null, typeId, applicator));
 	}
 
@@ -142,7 +142,19 @@ public sealed class CommandBuffer : IDisposable
 	/// </summary>
 	/// <param name="entity">The entity to destroy.</param>
 	public void DestroyEntity(Entity entity) =>
-		Enqueue(new Command(CommandType.DestroyEntity, entity, null, -1, null));
+		Enqueue(new(CommandType.DestroyEntity, entity, null, -1, null));
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+
+		_disposed = true;
+		lock (_sync)
+		{
+			_commands.Clear();
+			_resolvedTemporaryEntities.Clear();
+		}
+	}
 
 	/// <summary>
 	///     Applies all recorded commands to the world.
@@ -154,7 +166,33 @@ public sealed class CommandBuffer : IDisposable
 	/// <exception cref="InvalidOperationException">Thrown when playback is invoked during world update.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when a temporary entity has not been created in this buffer.</exception>
 	public void Playback() =>
-		PlaybackInternal(allowDuringUpdate: false);
+		PlaybackInternal(false);
+
+	/// <summary>
+	///     Removes a component from an entity when the command buffer is played back.
+	/// </summary>
+	/// <typeparam name="T">The component type.</typeparam>
+	/// <param name="entity">The entity to modify.</param>
+	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
+	{
+		ThrowIfDisposed();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		Enqueue(new(CommandType.RemoveComponent, entity, null, typeId, null));
+	}
+
+	/// <summary>
+	///     Sets a component value when the command buffer is played back.
+	/// </summary>
+	/// <typeparam name="T">The component type.</typeparam>
+	/// <param name="entity">The entity to modify.</param>
+	/// <param name="component">The component value to set.</param>
+	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
+	{
+		ThrowIfDisposed();
+		int typeId     = _world.GetOrCreateComponentTypeId<T>();
+		var applicator = new ComponentApplicator<T>(typeId, in component, false);
+		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
+	}
 
 	internal void PlaybackInternal(bool allowDuringUpdate)
 	{
@@ -165,7 +203,7 @@ public sealed class CommandBuffer : IDisposable
 		if (!allowDuringUpdate && _world.IsUpdating)
 			throw new InvalidOperationException("Playback cannot run during world update.");
 
-		Command[] commands;
+		Command[]               commands;
 		Dictionary<int, Entity> tempEntities;
 		lock (_sync)
 		{
@@ -176,11 +214,11 @@ public sealed class CommandBuffer : IDisposable
 
 			commands = new Command[_commands.Count];
 			_commands.CopyTo(commands);
-			tempEntities = _resolvedTemporaryEntities.Count == 0 ? [] : new(_resolvedTemporaryEntities);
+			tempEntities   = _resolvedTemporaryEntities.Count == 0 ? [] : new(_resolvedTemporaryEntities);
 			_isPlayingBack = true;
 		}
 
-		var processedCount = 0;
+		var processedCount  = 0;
 		var enteredPlayback = false;
 		try
 		{
@@ -230,43 +268,6 @@ public sealed class CommandBuffer : IDisposable
 				ReplaceResolvedTemporaryEntitiesUnsafe(tempEntities);
 				_isPlayingBack = false;
 			}
-		}
-	}
-
-	/// <summary>
-	///     Removes a component from an entity when the command buffer is played back.
-	/// </summary>
-	/// <typeparam name="T">The component type.</typeparam>
-	/// <param name="entity">The entity to modify.</param>
-	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
-	{
-		ThrowIfDisposed();
-		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		Enqueue(new Command(CommandType.RemoveComponent, entity, null, typeId, null));
-	}
-
-	/// <summary>
-	///     Sets a component value when the command buffer is played back.
-	/// </summary>
-	/// <typeparam name="T">The component type.</typeparam>
-	/// <param name="entity">The entity to modify.</param>
-	/// <param name="component">The component value to set.</param>
-	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
-	{
-		ThrowIfDisposed();
-		int typeId     = _world.GetOrCreateComponentTypeId<T>();
-		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: false);
-		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
-	}
-
-	public void Dispose()
-	{
-		if (_disposed) return;
-		_disposed = true;
-		lock (_sync)
-		{
-			_commands.Clear();
-			_resolvedTemporaryEntities.Clear();
 		}
 	}
 

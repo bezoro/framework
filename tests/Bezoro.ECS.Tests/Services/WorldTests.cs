@@ -30,6 +30,26 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 1 });
+
+		// Act
+		var act = () =>
+		{
+			foreach (var _ in world.Query().All<Position>())
+				world.Add(entity, new Velocity { X = 0, Y = 0 });
+		};
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>();
+		world.Has<Velocity>(entity).Should().BeFalse();
+	}
+
+	[Fact]
 	public void Clear_ShouldNotRevalidatePreviousEntityHandle()
 	{
 		// Arrange
@@ -64,9 +84,24 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void ComponentTypeIds_WhenDifferentWorldsRegisterDifferentTypes_ShouldRemainWorldScoped()
+	{
+		var worldA            = new World();
+		int worldAFirstCustom = worldA.GetOrCreateComponentTypeId<WorldAOnlyComponent>();
+
+		var worldB = new World();
+		worldB.GetOrCreateComponentTypeId<WorldBOnlyComponent>();
+		worldB.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+
+		int worldASecondCustom = worldA.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+
+		worldASecondCustom.Should().Be(worldAFirstCustom + 1);
+	}
+
+	[Fact]
 	public void CreateEntity_WhenIdIsRecycled_ShouldBumpEntityVersion()
 	{
-		var world = new World();
+		var world    = new World();
 		var original = world.Spawn();
 		world.Despawn(original);
 
@@ -107,18 +142,70 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void ComponentTypeIds_WhenDifferentWorldsRegisterDifferentTypes_ShouldRemainWorldScoped()
+	public void Query_ForEachParallel_WhenActionThrows_ShouldRethrowOriginalException()
 	{
-		var worldA = new World();
-		int worldAFirstCustom = worldA.GetOrCreateComponentTypeId<WorldAOnlyComponent>();
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkCapacity          = 1,
+				MaxDegreeOfParallelism = 4
+			}
+		);
 
-		var worldB = new World();
-		worldB.GetOrCreateComponentTypeId<WorldBOnlyComponent>();
-		worldB.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+		for (var i = 0; i < 16; i++)
+		{
+			var entity = world.Spawn();
+			world.Add(entity, new Position { X = i, Y = i });
+		}
 
-		int worldASecondCustom = worldA.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+		var act = () =>
+			world.Query().All<Position>().ForEachParallel(_ => throw new InvalidOperationException("query-fail"));
 
-		worldASecondCustom.Should().Be(worldAFirstCustom + 1);
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("query-fail");
+	}
+
+	[Fact]
+	public void Query_ForEachParallel_WhenManyChunks_ShouldProcessEveryEntityExactlyOnce()
+	{
+		// Arrange
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkCapacity          = 1,
+				MaxDegreeOfParallelism = 4
+			}
+		);
+
+		const int entityCount = 128;
+		var       expectedSum = 0;
+		for (var i = 1; i <= entityCount; i++)
+		{
+			var entity = world.Spawn();
+			world.Add(entity, new Position { X = i, Y = 0 });
+			expectedSum += i;
+		}
+
+		var  processedCount = 0;
+		long processedSum   = 0;
+
+		// Act
+		world.Query().All<Position>().ForEachParallel(
+			chunk =>
+			{
+				var positions = chunk.ReadOnlyComponents<Position>();
+				for (var i = 0; i < chunk.Count; i++)
+				{
+					Interlocked.Increment(ref processedCount);
+					Interlocked.Add(ref processedSum, (long)positions[i].X);
+				}
+			},
+			4
+		);
+
+		// Assert
+		processedCount.Should().Be(entityCount);
+		processedSum.Should().Be(expectedSum);
 	}
 
 	[Fact]
@@ -144,6 +231,30 @@ public class WorldTests
 
 		// Assert
 		count.Should().Be(2);
+	}
+
+	[Fact]
+	public void Query_WithAnyTypeArrayFilter_ShouldMatchEntitiesWithAtLeastOneRequestedComponent()
+	{
+		var world = new World();
+
+		var positionOnly = world.Spawn();
+		world.Add(positionOnly, new Position { X = 1, Y = 1 });
+
+		var velocityOnly = world.Spawn();
+		world.Add(velocityOnly, new Velocity { X = 1, Y = 1 });
+
+		var both = world.Spawn();
+		world.Add(both, new Position { X = 2, Y = 2 });
+		world.Add(both, new Velocity { X = 2, Y = 2 });
+
+		world.Spawn();
+
+		var count = 0;
+		foreach (var chunk in world.Query().Any(typeof(Position), typeof(Velocity)))
+			count += chunk.Count;
+
+		count.Should().Be(3);
 	}
 
 	[Fact]
@@ -203,30 +314,6 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_WithAnyTypeArrayFilter_ShouldMatchEntitiesWithAtLeastOneRequestedComponent()
-	{
-		var world = new World();
-
-		var positionOnly = world.Spawn();
-		world.Add(positionOnly, new Position { X = 1, Y = 1 });
-
-		var velocityOnly = world.Spawn();
-		world.Add(velocityOnly, new Velocity { X = 1, Y = 1 });
-
-		var both = world.Spawn();
-		world.Add(both, new Position { X = 2, Y = 2 });
-		world.Add(both, new Velocity { X = 2, Y = 2 });
-
-		world.Spawn();
-
-		var count = 0;
-		foreach (var chunk in world.Query().Any(typeof(Position), typeof(Velocity)))
-			count += chunk.Count;
-
-		count.Should().Be(3);
-	}
-
-	[Fact]
 	public void Query_WithWithoutFilter_ShouldWorkInParallelPath()
 	{
 		// Arrange
@@ -259,108 +346,19 @@ public class WorldTests
 	}
 
 	[Fact]
-	public void Query_ForEachParallel_WhenManyChunks_ShouldProcessEveryEntityExactlyOnce()
-	{
-		// Arrange
-		var world = new World(
-			new WorldOptions
-			{
-				ChunkCapacity          = 1,
-				MaxDegreeOfParallelism = 4
-			}
-		);
-
-		const int entityCount = 128;
-		var expectedSum = 0;
-		for (var i = 1; i <= entityCount; i++)
-		{
-			var entity = world.Spawn();
-			world.Add(entity, new Position { X = i, Y = 0 });
-			expectedSum += i;
-		}
-
-		var processedCount = 0;
-		long processedSum = 0;
-
-		// Act
-		world.Query().All<Position>().ForEachParallel(
-			chunk =>
-			{
-				var positions = chunk.ReadOnlyComponents<Position>();
-				for (var i = 0; i < chunk.Count; i++)
-				{
-					Interlocked.Increment(ref processedCount);
-					Interlocked.Add(ref processedSum, (long)positions[i].X);
-				}
-			},
-			4
-		);
-
-		// Assert
-		processedCount.Should().Be(entityCount);
-		processedSum.Should().Be(expectedSum);
-	}
-
-	[Fact]
-	public void Query_ForEachParallel_WhenActionThrows_ShouldRethrowOriginalException()
-	{
-		var world = new World(
-			new WorldOptions
-			{
-				ChunkCapacity = 1,
-				MaxDegreeOfParallelism = 4
-			});
-
-		for (var i = 0; i < 16; i++)
-		{
-			var entity = world.Spawn();
-			world.Add(entity, new Position { X = i, Y = i });
-		}
-
-		var act = () => world.Query().All<Position>().ForEachParallel(_ => throw new InvalidOperationException("query-fail"));
-
-		act.Should().Throw<InvalidOperationException>()
-			.WithMessage("query-fail");
-	}
-
-	[Fact]
 	public void QueryCache_WhenOnlyChangedFilterDiffers_ShouldReuseArchetypeMatchCache()
 	{
-		var world = new World();
-		var entity = world.Spawn();
-		world.Add(entity, new Position { X = 1, Y = 1 });
-
-		foreach (var _ in world.Query().All<Position>())
-		{
-		}
-
-		world.QueryCacheEntryCount.Should().Be(1);
-
-		foreach (var _ in world.Query().All<Position>().Changed<Position>())
-		{
-		}
-
-		world.QueryCacheEntryCount.Should().Be(1);
-	}
-
-	[Fact]
-	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
-	{
-		// Arrange
 		var world  = new World();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 1 });
 
-		// Act
-		var act = () =>
-		{
-			foreach (var _ in world.Query().All<Position>())
-				world.Add(entity, new Velocity { X = 0, Y = 0 });
-		};
+		foreach (var _ in world.Query().All<Position>()) { }
 
-		// Assert
-		act.Should().Throw<InvalidOperationException>();
-		world.Has<Velocity>(entity).Should().BeFalse();
+		world.QueryCacheEntryCount.Should().Be(1);
+
+		foreach (var _ in world.Query().All<Position>().Changed<Position>()) { }
+
+		world.QueryCacheEntryCount.Should().Be(1);
 	}
 
 	[Fact]
@@ -395,7 +393,8 @@ public class WorldTests
 	}
 
 	private struct WorldAOnlyComponent : IComponent;
+
 	private struct WorldBOnlyComponent : IComponent;
+
 	private struct WorldBSecondOnlyComponent : IComponent;
 }
-

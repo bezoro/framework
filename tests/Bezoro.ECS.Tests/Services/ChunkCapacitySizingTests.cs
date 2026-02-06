@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -15,13 +16,15 @@ public class ChunkCapacitySizingTests
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenChunkSizeBytesConfigured_ShouldUseByteBudget()
 	{
-		var world = new World(new WorldOptions
-		{
-			ChunkSizeInBytes = 64
-		});
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkSizeInBytes = 64
+			}
+		);
 
-		var archetype = world.GetOrCreateArchetype(typeof(SizedPosition));
-		int elementSize = Marshal.SizeOf(typeof(SizedPosition));
+		var archetype        = world.GetOrCreateArchetype(typeof(SizedPosition));
+		int elementSize      = Marshal.SizeOf(typeof(SizedPosition));
 		int expectedCapacity = Math.Max(1, 64 / elementSize);
 
 		archetype.ChunkCapacity.Should().Be(expectedCapacity);
@@ -30,11 +33,13 @@ public class ChunkCapacitySizingTests
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenExplicitChunkCapacityConfigured_ShouldOverrideByteBudget()
 	{
-		var world = new World(new WorldOptions
-		{
-			ChunkSizeInBytes = 64,
-			ChunkCapacity = 3
-		});
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkSizeInBytes = 64,
+				ChunkCapacity    = 3
+			}
+		);
 
 		var archetype = world.GetOrCreateArchetype(typeof(SizedPosition));
 
@@ -44,12 +49,14 @@ public class ChunkCapacitySizingTests
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenNoComponents_ShouldUseByteBudgetWithEntitySize()
 	{
-		var world = new World(new WorldOptions
-		{
-			ChunkSizeInBytes = 64
-		});
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkSizeInBytes = 64
+			}
+		);
 
-		int entitySize = Marshal.SizeOf(typeof(Bezoro.ECS.Types.Entity));
+		int entitySize       = Marshal.SizeOf(typeof(Entity));
 		int expectedCapacity = Math.Max(1, 64 / entitySize);
 
 		world.GetOrCreateArchetype().ChunkCapacity.Should().Be(expectedCapacity);

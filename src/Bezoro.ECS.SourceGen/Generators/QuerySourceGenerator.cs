@@ -1,8 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -12,20 +12,40 @@ namespace Bezoro.ECS.SourceGen.Generators;
 public sealed class QuerySourceGenerator : IIncrementalGenerator
 {
 	private const string QueryAttributeName = "Bezoro.ECS.Attributes.QueryAttribute";
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var queryModels = context.SyntaxProvider.ForAttributeWithMetadataName(
-			QueryAttributeName,
-			static (node, _) => node is StructDeclarationSyntax,
-			static (syntaxContext, _) => CreateModel((INamedTypeSymbol)syntaxContext.TargetSymbol))
-			.Where(static model => model is not null)
-			.Select(static (model, _) => model!);
+									 QueryAttributeName,
+									 static (node, _) => node is StructDeclarationSyntax,
+									 static (syntaxContext, _) =>
+										 CreateModel((INamedTypeSymbol)syntaxContext.TargetSymbol)
+								 )
+								 .Where(static model => model is { })
+								 .Select(static (model, _) => model!);
 
-		context.RegisterSourceOutput(queryModels, static (productionContext, model) =>
+		context.RegisterSourceOutput(
+			queryModels, static (productionContext, model) =>
+			{
+				string source = BuildSource(model);
+				productionContext.AddSource(model.HintName, SourceText.From(source, Encoding.UTF8));
+			}
+		);
+	}
+
+	private static bool IsPartial(INamedTypeSymbol symbol)
+	{
+		for (var i = 0; i < symbol.DeclaringSyntaxReferences.Length; i++)
 		{
-			var source = BuildSource(model);
-			productionContext.AddSource(model.HintName, SourceText.From(source, Encoding.UTF8));
-		});
+			if (symbol.DeclaringSyntaxReferences[i].GetSyntax() is StructDeclarationSyntax structSyntax)
+				for (var m = 0; m < structSyntax.Modifiers.Count; m++)
+				{
+					if (structSyntax.Modifiers[m].IsKind(SyntaxKind.PartialKeyword))
+						return true;
+				}
+		}
+
+		return false;
 	}
 
 	private static QueryModel? CreateModel(INamedTypeSymbol symbol)
@@ -40,7 +60,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			var attributeClass = attribute.AttributeClass;
 			if (attributeClass is null) continue;
 
-			var namespaceName = attributeClass.ContainingNamespace.ToDisplayString();
+			string namespaceName = attributeClass.ContainingNamespace.ToDisplayString();
 			if (namespaceName != "Bezoro.ECS.Attributes")
 				continue;
 
@@ -57,9 +77,11 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			else if (attributeClass.Name == "AnyAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 2)
-					filters.AnyPairs.Add((
-						ToFullyQualified(attributeClass.TypeArguments[0]),
-						ToFullyQualified(attributeClass.TypeArguments[1])));
+					filters.AnyPairs.Add(
+						(
+							ToFullyQualified(attributeClass.TypeArguments[0]),
+							ToFullyQualified(attributeClass.TypeArguments[1]))
+					);
 			}
 			else if (attributeClass.Name == "OptionalAttribute")
 			{
@@ -73,20 +95,24 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			}
 		}
 
-		var typeNamespace = symbol.ContainingNamespace.IsGlobalNamespace
-			? string.Empty
-			: symbol.ContainingNamespace.ToDisplayString();
-		bool isPartial = IsPartial(symbol);
-		bool isReadOnly = symbol.IsReadOnly;
-		string accessibility = ToAccessibilityKeyword(symbol.DeclaredAccessibility);
-		var generatedTypeName = symbol.Name + "Generated";
-		var hintName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-			.Replace("global::", string.Empty)
-			.Replace('<', '_')
-			.Replace('>', '_')
-			.Replace('.', '_') + ".Query.g.cs";
+		string typeNamespace = symbol.ContainingNamespace.IsGlobalNamespace
+								   ? string.Empty
+								   : symbol.ContainingNamespace.ToDisplayString();
 
-		return new QueryModel(typeNamespace, symbol.Name, generatedTypeName, hintName, filters, isPartial, isReadOnly, accessibility);
+		bool   isPartial         = IsPartial(symbol);
+		bool   isReadOnly        = symbol.IsReadOnly;
+		string accessibility     = ToAccessibilityKeyword(symbol.DeclaredAccessibility);
+		string generatedTypeName = symbol.Name + "Generated";
+		string hintName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+								.Replace("global::", string.Empty)
+								.Replace('<',        '_')
+								.Replace('>',        '_')
+								.Replace('.',        '_') +
+						  ".Query.g.cs";
+
+		return new(
+			typeNamespace, symbol.Name, generatedTypeName, hintName, filters, isPartial, isReadOnly, accessibility
+		);
 	}
 
 	private static string BuildSource(QueryModel model)
@@ -109,25 +135,29 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        if (world is null) throw new System.ArgumentNullException(nameof(world));");
 		builder.AppendLine("        var query = world.Query();");
 
-		foreach (var typeName in model.Filters.All.Distinct())
+		foreach (string? typeName in model.Filters.All.Distinct())
 			builder.Append("        query = query.All<").Append(typeName).AppendLine(">();");
 
-		foreach (var typeName in model.Filters.None.Distinct())
+		foreach (string? typeName in model.Filters.None.Distinct())
 			builder.Append("        query = query.None<").Append(typeName).AppendLine(">();");
 
 		foreach (var pair in model.Filters.AnyPairs.Distinct())
-			builder.Append("        query = query.Any<").Append(pair.First).Append(", ").Append(pair.Second).AppendLine(">();");
+			builder.Append("        query = query.Any<").Append(pair.First).Append(", ").Append(pair.Second)
+				   .AppendLine(">();");
 
-		foreach (var typeName in model.Filters.Optional.Distinct())
+		foreach (string? typeName in model.Filters.Optional.Distinct())
 			builder.Append("        query = query.Optional<").Append(typeName).AppendLine(">();");
 
-		foreach (var typeName in model.Filters.Changed.Distinct())
+		foreach (string? typeName in model.Filters.Changed.Distinct())
 			builder.Append("        query = query.Changed<").Append(typeName).AppendLine(">();");
 
 		builder.AppendLine("        return query;");
 		builder.AppendLine("    }");
 		builder.AppendLine();
-		builder.AppendLine("    public static void ForEach<T1>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1> action)");
+		builder.AppendLine(
+			"    public static void ForEach<T1>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1> action)"
+		);
+
 		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
@@ -135,7 +165,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        query.ForEach(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine();
-		builder.AppendLine("    public static void ForEach<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2> action)");
+		builder.AppendLine(
+			"    public static void ForEach<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2> action)"
+		);
+
 		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("    {");
@@ -144,7 +177,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        query.ForEach(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine();
-		builder.AppendLine("    public static void ForEach<T1, T2, T3>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3> action)");
+		builder.AppendLine(
+			"    public static void ForEach<T1, T2, T3>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3> action)"
+		);
+
 		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T3 : struct, global::Bezoro.ECS.Abstractions.IComponent");
@@ -154,7 +190,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        query.ForEach(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine();
-		builder.AppendLine("    public static void ForEach<T1, T2, T3, T4>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3, T4> action)");
+		builder.AppendLine(
+			"    public static void ForEach<T1, T2, T3, T4>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3, T4> action)"
+		);
+
 		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T3 : struct, global::Bezoro.ECS.Abstractions.IComponent");
@@ -165,7 +204,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        query.ForEach(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine();
-		builder.AppendLine("    public static void ForEachRW<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1, T2> action)");
+		builder.AppendLine(
+			"    public static void ForEachRW<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1, T2> action)"
+		);
+
 		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
 		builder.AppendLine("    {");
@@ -181,12 +223,21 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			builder.Append(model.Accessibility).Append(' ');
 			if (model.IsReadOnly)
 				builder.Append("readonly ");
-			builder.Append("partial struct ").Append(model.TypeName).Append(" : global::Bezoro.ECS.Abstractions.IQuery").AppendLine();
+
+			builder.Append("partial struct ").Append(model.TypeName).Append(" : global::Bezoro.ECS.Abstractions.IQuery")
+				   .AppendLine();
+
 			builder.AppendLine("{");
-			builder.AppendLine("    public static global::Bezoro.ECS.Types.Query Create(global::Bezoro.ECS.Abstractions.IWorld world) =>");
+			builder.AppendLine(
+				"    public static global::Bezoro.ECS.Types.Query Create(global::Bezoro.ECS.Abstractions.IWorld world) =>"
+			);
+
 			builder.Append("        ").Append(model.GeneratedTypeName).AppendLine(".Create(world);");
 			builder.AppendLine();
-			builder.AppendLine("    global::Bezoro.ECS.Types.Query global::Bezoro.ECS.Abstractions.IQuery.Create(global::Bezoro.ECS.Abstractions.IWorld world) =>");
+			builder.AppendLine(
+				"    global::Bezoro.ECS.Types.Query global::Bezoro.ECS.Abstractions.IQuery.Create(global::Bezoro.ECS.Abstractions.IWorld world) =>"
+			);
+
 			builder.AppendLine("        Create(world);");
 			builder.AppendLine("}");
 		}
@@ -194,90 +245,75 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		return builder.ToString();
 	}
 
-	private static string ToFullyQualified(ITypeSymbol symbol) =>
-		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-	private static bool IsPartial(INamedTypeSymbol symbol)
-	{
-		for (var i = 0; i < symbol.DeclaringSyntaxReferences.Length; i++)
-		{
-			if (symbol.DeclaringSyntaxReferences[i].GetSyntax() is StructDeclarationSyntax structSyntax)
-			{
-				for (var m = 0; m < structSyntax.Modifiers.Count; m++)
-				{
-					if (structSyntax.Modifiers[m].IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword))
-						return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
 	private static string ToAccessibilityKeyword(Accessibility accessibility) =>
 		accessibility switch
 		{
-			Accessibility.Public => "public",
-			Accessibility.Internal => "internal",
-			Accessibility.Private => "private",
-			Accessibility.Protected => "protected",
+			Accessibility.Public               => "public",
+			Accessibility.Internal             => "internal",
+			Accessibility.Private              => "private",
+			Accessibility.Protected            => "protected",
 			Accessibility.ProtectedAndInternal => "private protected",
-			Accessibility.ProtectedOrInternal => "protected internal",
-			_ => "internal"
+			Accessibility.ProtectedOrInternal  => "protected internal",
+			_                                  => "internal"
 		};
 
-	private sealed class QueryModel
-	{
-		public QueryModel(
-			string typeNamespace,
-			string typeName,
-			string generatedTypeName,
-			string hintName,
-			FilterModel filters,
-			bool isPartial,
-			bool isReadOnly,
-			string accessibility)
-		{
-			Namespace = typeNamespace;
-			TypeName = typeName;
-			GeneratedTypeName = generatedTypeName;
-			HintName = hintName;
-			Filters = filters;
-			IsPartial = isPartial;
-			IsReadOnly = isReadOnly;
-			Accessibility = accessibility;
-		}
-
-		public string Namespace { get; }
-		public string TypeName { get; }
-		public string GeneratedTypeName { get; }
-		public string HintName { get; }
-		public FilterModel Filters { get; }
-		public bool IsPartial { get; }
-		public bool IsReadOnly { get; }
-		public string Accessibility { get; }
-	}
+	private static string ToFullyQualified(ITypeSymbol symbol) =>
+		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 	private sealed class FilterModel
 	{
 		public FilterModel(
-			List<string> all,
-			List<string> none,
+			List<string>                        all,
+			List<string>                        none,
 			List<(string First, string Second)> anyPairs,
-			List<string> optional,
-			List<string> changed)
+			List<string>                        optional,
+			List<string>                        changed)
 		{
-			All = all;
-			None = none;
+			All      = all;
+			None     = none;
 			AnyPairs = anyPairs;
 			Optional = optional;
-			Changed = changed;
+			Changed  = changed;
 		}
 
-		public List<string> All { get; }
-		public List<string> None { get; }
 		public List<(string First, string Second)> AnyPairs { get; }
+
+		public List<string> All      { get; }
+		public List<string> Changed  { get; }
+		public List<string> None     { get; }
 		public List<string> Optional { get; }
-		public List<string> Changed { get; }
+	}
+
+	private sealed class QueryModel
+	{
+		public QueryModel(
+			string      typeNamespace,
+			string      typeName,
+			string      generatedTypeName,
+			string      hintName,
+			FilterModel filters,
+			bool        isPartial,
+			bool        isReadOnly,
+			string      accessibility)
+		{
+			Namespace         = typeNamespace;
+			TypeName          = typeName;
+			GeneratedTypeName = generatedTypeName;
+			HintName          = hintName;
+			Filters           = filters;
+			IsPartial         = isPartial;
+			IsReadOnly        = isReadOnly;
+			Accessibility     = accessibility;
+		}
+
+		public bool        IsPartial         { get; }
+		public bool        IsReadOnly        { get; }
+		public FilterModel Filters           { get; }
+		public string      Accessibility     { get; }
+		public string      GeneratedTypeName { get; }
+		public string      HintName          { get; }
+
+		public string Namespace { get; }
+		public string TypeName  { get; }
 	}
 }

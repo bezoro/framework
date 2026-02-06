@@ -10,11 +10,6 @@ namespace Bezoro.ECS.Abstractions;
 public interface ISystem
 {
 	/// <summary>
-	///     Gets the update settings that control how often this system runs.
-	/// </summary>
-	SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
-
-	/// <summary>
 	///     Gets the component access requirements for this system.
 	///     This allows the scheduler to run compatible systems in parallel safely.
 	/// </summary>
@@ -24,6 +19,11 @@ public interface ISystem
 	///     Gets the stage this system executes in.
 	/// </summary>
 	Stage Stage => Stage.Update;
+
+	/// <summary>
+	///     Gets the update settings that control how often this system runs.
+	/// </summary>
+	SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
 
 	/// <summary>
 	///     Called once when the system is added to a world.

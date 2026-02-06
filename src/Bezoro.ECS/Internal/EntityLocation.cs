@@ -7,11 +7,11 @@ internal readonly struct EntityLocation
 	public EntityLocation(int archetypeId, int rowIndex)
 	{
 		ArchetypeId = archetypeId;
-		RowIndex = rowIndex;
+		RowIndex    = rowIndex;
 	}
 
-	public int ArchetypeId { get; }
-	public int RowIndex { get; }
-
 	public bool IsValid => ArchetypeId >= 0 && RowIndex >= 0;
+
+	public int ArchetypeId { get; }
+	public int RowIndex    { get; }
 }

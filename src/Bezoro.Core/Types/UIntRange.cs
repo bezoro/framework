@@ -180,7 +180,7 @@ public readonly record struct UIntRange
 		}
 
 		// newCurrent = round(Current / oldMax * newMax) using integer math
-		ulong numerator = (ulong)Current * newMax + (oldMax / 2u);
+		ulong numerator = (ulong)Current * newMax + oldMax / 2u;
 		newCurrent = (uint)(numerator / oldMax);
 
 		newCurrent = Clamp(newCurrent, Min, newMax);

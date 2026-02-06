@@ -9,7 +9,7 @@ internal static class ComponentColumnFactory
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
 		return ComponentTypeTraits.IsUnmanaged(componentType)
-			? new UnmanagedComponentColumn(componentType, capacity, AlignmentBytes)
-			: new ManagedComponentColumn(componentType, capacity);
+				   ? new UnmanagedComponentColumn(componentType, capacity, AlignmentBytes)
+				   : new ManagedComponentColumn(componentType, capacity);
 	}
 }

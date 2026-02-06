@@ -4,34 +4,34 @@ namespace Bezoro.ECS.Internal;
 
 internal readonly struct QueryCacheKey : IEquatable<QueryCacheKey>
 {
-	private readonly int[] _allTypeIds;
-	private readonly int[] _noneTypeIds;
-	private readonly int[] _anyTypeIds;
-	private readonly Type? _relatedRelationType;
 	private readonly Entity _relatedTarget;
+	private readonly int[]  _allTypeIds;
+	private readonly int[]  _anyTypeIds;
+	private readonly int[]  _noneTypeIds;
+	private readonly Type?  _relatedRelationType;
 
 	public QueryCacheKey(
-		int[] allTypeIds,
-		int[] noneTypeIds,
-		int[] anyTypeIds,
-		Type? relatedRelationType,
+		int[]  allTypeIds,
+		int[]  noneTypeIds,
+		int[]  anyTypeIds,
+		Type?  relatedRelationType,
 		Entity relatedTarget)
 	{
-		_allTypeIds = allTypeIds;
-		_noneTypeIds = noneTypeIds;
-		_anyTypeIds = anyTypeIds;
+		_allTypeIds          = allTypeIds;
+		_noneTypeIds         = noneTypeIds;
+		_anyTypeIds          = anyTypeIds;
 		_relatedRelationType = relatedRelationType;
-		_relatedTarget = relatedTarget;
+		_relatedTarget       = relatedTarget;
 	}
 
-	public bool Equals(QueryCacheKey other)
-	{
-		return _relatedRelationType == other._relatedRelationType &&
-		       _relatedTarget == other._relatedTarget &&
-		       SequenceEquals(_allTypeIds, other._allTypeIds) &&
-		       SequenceEquals(_noneTypeIds, other._noneTypeIds) &&
-		       SequenceEquals(_anyTypeIds, other._anyTypeIds);
-	}
+	#region Equality
+
+	public bool Equals(QueryCacheKey other) =>
+		_relatedRelationType == other._relatedRelationType &&
+		_relatedTarget == other._relatedTarget &&
+		SequenceEquals(_allTypeIds,  other._allTypeIds) &&
+		SequenceEquals(_noneTypeIds, other._noneTypeIds) &&
+		SequenceEquals(_anyTypeIds,  other._anyTypeIds);
 
 	public override bool Equals(object? obj) =>
 		obj is QueryCacheKey other && Equals(other);
@@ -47,10 +47,13 @@ internal readonly struct QueryCacheKey : IEquatable<QueryCacheKey>
 		return hash.ToHashCode();
 	}
 
+	#endregion
+
 	private static bool SequenceEquals(int[] left, int[] right)
 	{
 		if (ReferenceEquals(left, right))
 			return true;
+
 		if (left.Length != right.Length)
 			return false;
 

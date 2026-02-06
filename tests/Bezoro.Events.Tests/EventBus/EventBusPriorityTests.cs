@@ -15,7 +15,7 @@ public static class EventBusPriorityTests
 		{
 			using var bus   = new Services.EventBus();
 			var       order = new List<string>();
-			bus.Subscribe<TestEventA>(_ => order.Add("low"),  0);
+			bus.Subscribe<TestEventA>(_ => order.Add("low"));
 			bus.Subscribe<TestEventA>(_ => order.Add("high"), 10);
 			bus.Publish(new TestEventA(1));
 			order.Should().ContainInOrder("high", "low");

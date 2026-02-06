@@ -13,10 +13,28 @@ namespace Bezoro.ECS.Tests.Services;
 public class SystemManagerTests
 {
 	[Fact]
+	public void UpdateAll_Should_Respect_Update_Frequency()
+	{
+		// Arrange
+		var world  = new World();
+		var system = new FixedStepSystem();
+		world.AddSystem(system);
+
+		// Act
+		world.Update(0.2f);
+		world.Update(0.29f);
+		world.Update(0.31f);
+
+		// Assert
+		system.UpdateCount.Should().Be(1);
+		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+	}
+
+	[Fact]
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var entity = world.Spawn();
 		world.Add(entity, new Counter { Value = 1 });
 
@@ -37,24 +55,6 @@ public class SystemManagerTests
 	}
 
 	[Fact]
-	public void UpdateAll_Should_Respect_Update_Frequency()
-	{
-		// Arrange
-		var world  = new World();
-		var system = new FixedStepSystem();
-		world.AddSystem(system);
-
-		// Act
-		world.Update(0.2f);
-		world.Update(0.29f);
-		world.Update(0.31f);
-
-		// Assert
-		system.UpdateCount.Should().Be(1);
-		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
-	}
-
-	[Fact]
 	public void UpdateAll_When_DeltaTime_Is_Large_Should_Cap_Catch_Up_Ticks()
 	{
 		// Arrange
@@ -71,6 +71,19 @@ public class SystemManagerTests
 		// Assert
 		system.UpdateCount.Should().Be(3);
 		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		world.AddSystem(new NoOpSystem());
+		world.AddSystem(new ThrowingSystem());
+
+		var act = () => world.Update(1f / 60f);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("system-fail");
 	}
 
 	[Fact]
@@ -94,6 +107,21 @@ public class SystemManagerTests
 	}
 
 	[Fact]
+	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
+	{
+		var world  = new World();
+		var system = new CommandCaptureSystem();
+		world.AddSystem(system);
+
+		world.Update(1f / 60f);
+
+		world.EntityCount.Should().Be(1);
+		system.Captured.Should().NotBeNull();
+		var act = () => system.Captured!.CreateEntity();
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
 	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
 	{
 		// Arrange
@@ -111,47 +139,14 @@ public class SystemManagerTests
 		world.SchedulerPlanBuildCount.Should().Be(2);
 	}
 
-	[Fact]
-	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
+	private sealed class CommandCaptureSystem : ISystem
 	{
-		var world = new World();
-		var system = new CommandCaptureSystem();
-		world.AddSystem(system);
-
-		world.Update(1f / 60f);
-
-		world.EntityCount.Should().Be(1);
-		system.Captured.Should().NotBeNull();
-		var act = () => system.Captured!.CreateEntity();
-		act.Should().Throw<ObjectDisposedException>();
-	}
-
-	[Fact]
-	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
-	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		world.AddSystem(new NoOpSystem());
-		world.AddSystem(new ThrowingSystem());
-
-		var act = () => world.Update(1f / 60f);
-
-		act.Should().Throw<InvalidOperationException>()
-			.WithMessage("system-fail");
-	}
-
-	private sealed class FixedStepSystem : ISystem
-	{
-		public int UpdateCount { get; private set; }
-		public float LastDeltaTime { get; private set; }
-
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.Fixed(0.5f);
-
-		public ComponentAccess[] Accesses => [];
+		public CommandBuffer? Captured { get; private set; }
 
 		public void Update(IWorld world, in SystemContext context)
 		{
-			UpdateCount++;
-			LastDeltaTime = context.DeltaTime;
+			Captured = context.Commands;
+			context.Commands.CreateEntity();
 		}
 	}
 
@@ -160,13 +155,32 @@ public class SystemManagerTests
 		public int Value { get; init; }
 	}
 
+	private sealed class FixedStepSystem : ISystem
+	{
+		public ComponentAccess[] Accesses => [];
+
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.Fixed(0.5f);
+		public float                LastDeltaTime  { get; private set; }
+		public int                  UpdateCount    { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
+		}
+	}
+
+	private sealed class NoOpSystem : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context) { }
+	}
+
 	private sealed class ReadCounterSystem : ISystem
 	{
-		public int LastObserved { get; private set; } = -1;
+		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
 
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
-
-		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
+		public int                  LastObserved   { get; private set; } = -1;
 
 		public void Update(IWorld world, in SystemContext context)
 		{
@@ -179,6 +193,12 @@ public class SystemManagerTests
 		}
 	}
 
+	private sealed class ThrowingSystem : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context) =>
+			throw new InvalidOperationException("system-fail");
+	}
+
 	private sealed class WriteCounterSystem : ISystem
 	{
 		private readonly int _value;
@@ -188,9 +208,9 @@ public class SystemManagerTests
 			_value = value;
 		}
 
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
-
 		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
+
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
 
 		public void Update(IWorld world, in SystemContext context)
 		{
@@ -198,33 +218,8 @@ public class SystemManagerTests
 			{
 				var counters = chunk.Components<Counter>();
 				for (var i = 0; i < chunk.Count; i++)
-					counters[i] = new Counter { Value = _value };
+					counters[i] = new() { Value = _value };
 			}
 		}
 	}
-
-	private sealed class CommandCaptureSystem : ISystem
-	{
-		public CommandBuffer? Captured { get; private set; }
-
-		public void Update(IWorld world, in SystemContext context)
-		{
-			Captured = context.Commands;
-			context.Commands.CreateEntity();
-		}
-	}
-
-	private sealed class NoOpSystem : ISystem
-	{
-		public void Update(IWorld world, in SystemContext context)
-		{
-		}
-	}
-
-	private sealed class ThrowingSystem : ISystem
-	{
-		public void Update(IWorld world, in SystemContext context) =>
-			throw new InvalidOperationException("system-fail");
-	}
 }
-

@@ -9,14 +9,6 @@ namespace Bezoro.GameSystems.Tests.HealthSystem;
 public class HealthStateTests
 {
 	[Fact]
-	public void IsEmpty_WhenCurrentIsZero_ShouldBeTrue()
-	{
-		var health = new Health(100u, 0u);
-
-		health.IsEmpty.Should().BeTrue();
-	}
-
-	[Fact]
 	public void IsEmpty_WhenCurrentIsAboveZero_ShouldBeFalse()
 	{
 		var health = new Health(100u, 1u);
@@ -25,11 +17,11 @@ public class HealthStateTests
 	}
 
 	[Fact]
-	public void IsFull_WhenCurrentEqualsMax_ShouldBeTrue()
+	public void IsEmpty_WhenCurrentIsZero_ShouldBeTrue()
 	{
-		var health = new Health(100u, 100u);
+		var health = new Health(100u, 0u);
 
-		health.IsFull.Should().BeTrue();
+		health.IsEmpty.Should().BeTrue();
 	}
 
 	[Fact]
@@ -38,5 +30,13 @@ public class HealthStateTests
 		var health = new Health(100u, 99u);
 
 		health.IsFull.Should().BeFalse();
+	}
+
+	[Fact]
+	public void IsFull_WhenCurrentEqualsMax_ShouldBeTrue()
+	{
+		var health = new Health(100u, 100u);
+
+		health.IsFull.Should().BeTrue();
 	}
 }

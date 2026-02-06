@@ -4,27 +4,27 @@ using Bezoro.ECS.Services;
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Enumerates chunk views for a query.
+///     Enumerates chunk views for a query.
 /// </summary>
 public struct QueryEnumerator : IDisposable
 {
-	private readonly Archetype? _archetype;
-	private readonly QuerySpec _spec;
-	private readonly World _world;
+	private readonly Archetype?               _archetype;
 	private readonly IReadOnlyList<Archetype> _matches;
-	private int _archetypeIndex;
-	private int _chunkIndex;
-	private bool _entered;
+	private readonly QuerySpec                _spec;
+	private readonly World                    _world;
+	private          bool                     _entered;
+	private          int                      _archetypeIndex;
+	private          int                      _chunkIndex;
 
 	internal QueryEnumerator(World world, Archetype? archetype, QuerySpec spec)
 	{
-		_world = world;
-		_archetype = archetype;
-		_spec = spec;
+		_world          = world;
+		_archetype      = archetype;
+		_spec           = spec;
 		_archetypeIndex = 0;
-		_chunkIndex = 0;
-		Current = default;
-		_entered = true;
+		_chunkIndex     = 0;
+		Current         = default;
+		_entered        = true;
 		_world.EnterQueryIteration();
 		_matches = archetype is null ? _world.GetOrCreateQueryMatches(spec) : [archetype];
 	}
@@ -36,7 +36,7 @@ public struct QueryEnumerator : IDisposable
 		while (_archetypeIndex < _matches.Count)
 		{
 			var archetype = _matches[_archetypeIndex];
-			var chunks = archetype.Chunks;
+			var chunks    = archetype.Chunks;
 			while (_chunkIndex < chunks.Count)
 			{
 				var chunk = chunks[_chunkIndex++];
@@ -49,9 +49,10 @@ public struct QueryEnumerator : IDisposable
 					archetype.TypeIndexById,
 					chunk.ComponentVersions,
 					_world.ChangeVersion,
-					trackWrites: true,
+					true,
 					chunk,
-					_world);
+					_world
+				);
 
 				if (!MatchesChanged(view)) continue;
 
@@ -70,6 +71,7 @@ public struct QueryEnumerator : IDisposable
 	public void Dispose()
 	{
 		if (!_entered) return;
+
 		_entered = false;
 		_world.ExitQueryIteration();
 	}

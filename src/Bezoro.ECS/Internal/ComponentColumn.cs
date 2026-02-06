@@ -11,27 +11,27 @@ internal abstract class ComponentColumn : IDisposable
 		Capacity = capacity;
 	}
 
-	public Type ComponentType { get; }
+	public abstract bool IsUnmanaged { get; }
 
 	public int Capacity { get; }
 
-	public abstract bool IsUnmanaged { get; }
+	public Type ComponentType { get; }
+
+	public abstract object GetValue(int index);
+
+	public abstract ReadOnlySpan<T> GetReadOnlySpan<T>(int length) where T : struct;
+
+	public abstract Span<T> GetSpan<T>(int length) where T : struct;
+
+	public abstract ref T GetReference<T>(int index) where T : struct;
 
 	public abstract void Clear(int index, int length);
 
 	public abstract void CopyElementTo(int sourceIndex, ComponentColumn destination, int destinationIndex);
 
-	public abstract object GetValue(int index);
+	public abstract void Dispose();
 
 	public abstract void SetValue(int index, object value);
-
-	public abstract ref T GetReference<T>(int index) where T : struct;
-
-	public abstract Span<T> GetSpan<T>(int length) where T : struct;
-
-	public abstract ReadOnlySpan<T> GetReadOnlySpan<T>(int length) where T : struct;
-
-	public abstract void Dispose();
 
 	protected void ValidateIndex(int index)
 	{
@@ -51,9 +51,8 @@ internal abstract class ComponentColumn : IDisposable
 	protected void ValidateType<T>() where T : struct
 	{
 		if (typeof(T) != ComponentType)
-		{
 			throw new InvalidOperationException(
-				$"Column type mismatch. Expected {ComponentType.FullName}, got {typeof(T).FullName}.");
-		}
+				$"Column type mismatch. Expected {ComponentType.FullName}, got {typeof(T).FullName}."
+			);
 	}
 }

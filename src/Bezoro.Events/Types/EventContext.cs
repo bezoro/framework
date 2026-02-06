@@ -6,21 +6,21 @@ namespace Bezoro.Events.Types;
 /// <typeparam name="TEvent">The event struct type.</typeparam>
 public sealed class EventContext<TEvent> where TEvent : struct
 {
-    /// <summary>
-    ///     Creates a new event context wrapping the specified event data.
-    /// </summary>
-    public EventContext(TEvent data)
+	/// <summary>
+	///     Creates a new event context wrapping the specified event data.
+	/// </summary>
+	public EventContext(TEvent data)
 	{
 		Data = data;
 	}
 
-    /// <summary>
-    ///     The event data.
-    /// </summary>
-    public TEvent Data { get; }
+	/// <summary>
+	///     The event data.
+	/// </summary>
+	public TEvent Data { get; }
 
-    /// <summary>
-    ///     Set to <c>true</c> to stop further handlers from processing this event.
-    /// </summary>
-    public bool Handled { get; set; }
+	/// <summary>
+	///     Set to <c>true</c> to stop further handlers from processing this event.
+	/// </summary>
+	public bool Handled { get; set; }
 }

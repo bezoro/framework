@@ -7,9 +7,10 @@ internal readonly struct RelationshipInfo
 	public RelationshipInfo(Type relationType, Entity target)
 	{
 		RelationType = relationType;
-		Target = target;
+		Target       = target;
 	}
 
-	public Type RelationType { get; }
 	public Entity Target { get; }
+
+	public Type RelationType { get; }
 }

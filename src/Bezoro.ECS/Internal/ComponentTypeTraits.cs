@@ -4,8 +4,8 @@ namespace Bezoro.ECS.Internal;
 
 internal static class ComponentTypeTraits
 {
-	private static readonly object Sync = new();
 	private static readonly Dictionary<Type, bool> IsUnmanagedCache = new();
+	private static readonly object                 Sync             = new();
 
 	public static bool IsUnmanaged(Type type)
 	{

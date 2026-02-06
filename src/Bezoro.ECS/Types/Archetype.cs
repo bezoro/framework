@@ -8,9 +8,9 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public sealed class Archetype
 {
-	private int _firstAvailableChunkIndex;
-	private readonly Dictionary<int, Archetype> _addEdges = new();
+	private readonly Dictionary<int, Archetype> _addEdges    = new();
 	private readonly Dictionary<int, Archetype> _removeEdges = new();
+	private          int                        _firstAvailableChunkIndex;
 
 	internal Archetype(World owner, int id, int[] typeIds, Type[] types, int chunkCapacity)
 	{
@@ -47,14 +47,6 @@ public sealed class Archetype
 	internal Type[] Types { get; }
 
 	internal World Owner { get; }
-
-	internal bool TryGetAddEdge(int typeId, out Archetype archetype) => _addEdges.TryGetValue(typeId, out archetype!);
-
-	internal bool TryGetRemoveEdge(int typeId, out Archetype archetype) => _removeEdges.TryGetValue(typeId, out archetype!);
-
-	internal void SetAddEdge(int typeId, Archetype archetype) => _addEdges[typeId] = archetype;
-
-	internal void SetRemoveEdge(int typeId, Archetype archetype) => _removeEdges[typeId] = archetype;
 
 	internal bool ContainsAll(int[] requiredTypeIds)
 	{
@@ -107,9 +99,14 @@ public sealed class Archetype
 		return false;
 	}
 
+	internal bool TryGetAddEdge(int typeId, out Archetype archetype) => _addEdges.TryGetValue(typeId, out archetype!);
+
+	internal bool TryGetRemoveEdge(int typeId, out Archetype archetype) =>
+		_removeEdges.TryGetValue(typeId, out archetype!);
+
 	internal Chunk GetOrCreateChunkWithSpace(out int chunkIndex)
 	{
-		for (var i = _firstAvailableChunkIndex; i < Chunks.Count; i++)
+		for (int i = _firstAvailableChunkIndex; i < Chunks.Count; i++)
 		{
 			var chunk = Chunks[i];
 			if (chunk.Count < ChunkCapacity)
@@ -127,10 +124,11 @@ public sealed class Archetype
 		return newChunk;
 	}
 
-	internal void NotifyChunkFreed(int chunkIndex)
+	internal int GetTypeIndex(int typeId)
 	{
-		if (chunkIndex < _firstAvailableChunkIndex)
-			_firstAvailableChunkIndex = chunkIndex;
+		if (typeId < 0 || typeId >= TypeIndexById.Length) return -1;
+
+		return TypeIndexById[typeId];
 	}
 
 	internal void ClearChunks()
@@ -142,19 +140,24 @@ public sealed class Archetype
 		_firstAvailableChunkIndex = 0;
 	}
 
-	internal int GetTypeIndex(int typeId)
+	internal void NotifyChunkFreed(int chunkIndex)
 	{
-		if (typeId < 0 || typeId >= TypeIndexById.Length) return -1;
-
-		return TypeIndexById[typeId];
+		if (chunkIndex < _firstAvailableChunkIndex)
+			_firstAvailableChunkIndex = chunkIndex;
 	}
+
+	internal void SetAddEdge(int typeId, Archetype archetype) => _addEdges[typeId] = archetype;
+
+	internal void SetRemoveEdge(int typeId, Archetype archetype) => _removeEdges[typeId] = archetype;
 
 	private static int[] BuildTypeIndex(int[] typeIds)
 	{
 		int maxId = -1;
 		for (var i = 0; i < typeIds.Length; i++)
+		{
 			if (typeIds[i] > maxId)
 				maxId = typeIds[i];
+		}
 
 		if (maxId < 0) return [];
 

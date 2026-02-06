@@ -11,34 +11,34 @@ namespace Bezoro.ECS.Tests.Internal;
 public class ChunkColumnStorageTests
 {
 	[Fact]
-	public void ColumnStorage_WhenComponentIsUnmanaged_ShouldUseUnmanagedColumn()
-	{
-		var world = new World();
-		var entity = world.Spawn();
-		world.Add(entity, new UnmanagedPosition { X = 1, Y = 2 });
-
-		var archetype = world.GetOrCreateArchetype(typeof(UnmanagedPosition));
-		var chunk = archetype.Chunks[0];
-		int typeId = world.GetOrCreateComponentTypeId<UnmanagedPosition>();
-		int index = archetype.GetTypeIndex(typeId);
-
-		chunk.IsUnmanagedColumn(index).Should().BeTrue();
-	}
-
-	[Fact]
 	public void ColumnStorage_WhenComponentContainsReferences_ShouldUseManagedColumnAndPreserveData()
 	{
-		var world = new World();
+		var world  = new World();
 		var entity = world.Spawn();
 		world.Add(entity, new ManagedPayload { Name = "alpha" });
 
 		var archetype = world.GetOrCreateArchetype(typeof(ManagedPayload));
-		var chunk = archetype.Chunks[0];
-		int typeId = world.GetOrCreateComponentTypeId<ManagedPayload>();
-		int index = archetype.GetTypeIndex(typeId);
+		var chunk     = archetype.Chunks[0];
+		int typeId    = world.GetOrCreateComponentTypeId<ManagedPayload>();
+		int index     = archetype.GetTypeIndex(typeId);
 
 		chunk.IsUnmanagedColumn(index).Should().BeFalse();
 		world.Get<ManagedPayload>(entity).Name.Should().Be("alpha");
+	}
+
+	[Fact]
+	public void ColumnStorage_WhenComponentIsUnmanaged_ShouldUseUnmanagedColumn()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new UnmanagedPosition { X = 1, Y = 2 });
+
+		var archetype = world.GetOrCreateArchetype(typeof(UnmanagedPosition));
+		var chunk     = archetype.Chunks[0];
+		int typeId    = world.GetOrCreateComponentTypeId<UnmanagedPosition>();
+		int index     = archetype.GetTypeIndex(typeId);
+
+		chunk.IsUnmanagedColumn(index).Should().BeTrue();
 	}
 
 	[Fact]
@@ -51,13 +51,13 @@ public class ChunkColumnStorageTests
 	}
 }
 
+internal struct ManagedPayload : IComponent
+{
+	public string? Name;
+}
+
 internal struct UnmanagedPosition : IComponent
 {
 	public float X;
 	public float Y;
-}
-
-internal struct ManagedPayload : IComponent
-{
-	public string? Name;
 }

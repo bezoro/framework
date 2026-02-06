@@ -11,6 +11,33 @@ internal sealed class ManagedComponentColumn : ComponentColumn
 
 	public override bool IsUnmanaged => false;
 
+	public override object GetValue(int index)
+	{
+		ValidateIndex(index);
+		return _items.GetValue(index)!;
+	}
+
+	public override ReadOnlySpan<T> GetReadOnlySpan<T>(int length)
+	{
+		ValidateType<T>();
+		ValidateRange(0, length);
+		return new((T[])_items, 0, length);
+	}
+
+	public override Span<T> GetSpan<T>(int length)
+	{
+		ValidateType<T>();
+		ValidateRange(0, length);
+		return new((T[])_items, 0, length);
+	}
+
+	public override ref T GetReference<T>(int index)
+	{
+		ValidateType<T>();
+		ValidateIndex(index);
+		return ref ((T[])_items)[index];
+	}
+
 	public override void Clear(int index, int length)
 	{
 		ValidateRange(index, length);
@@ -31,11 +58,7 @@ internal sealed class ManagedComponentColumn : ComponentColumn
 		destination.SetValue(destinationIndex, GetValue(sourceIndex));
 	}
 
-	public override object GetValue(int index)
-	{
-		ValidateIndex(index);
-		return _items.GetValue(index)!;
-	}
+	public override void Dispose() { }
 
 	public override void SetValue(int index, object value)
 	{
@@ -45,30 +68,5 @@ internal sealed class ManagedComponentColumn : ComponentColumn
 			throw new ArgumentException($"Expected value of type {ComponentType.FullName}.", nameof(value));
 
 		_items.SetValue(value, index);
-	}
-
-	public override ref T GetReference<T>(int index)
-	{
-		ValidateType<T>();
-		ValidateIndex(index);
-		return ref ((T[])_items)[index];
-	}
-
-	public override Span<T> GetSpan<T>(int length)
-	{
-		ValidateType<T>();
-		ValidateRange(0, length);
-		return new Span<T>((T[])_items, 0, length);
-	}
-
-	public override ReadOnlySpan<T> GetReadOnlySpan<T>(int length)
-	{
-		ValidateType<T>();
-		ValidateRange(0, length);
-		return new ReadOnlySpan<T>((T[])_items, 0, length);
-	}
-
-	public override void Dispose()
-	{
 	}
 }
