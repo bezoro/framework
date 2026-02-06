@@ -9,6 +9,7 @@ Roslyn incremental source generators for `Bezoro.ECS` compile-time helpers.
 | `QuerySourceGenerator` | Generates query factory helpers from `[Query]` filters and bridges partial query structs to `IQuery`. |
 | `ComponentCatalogGenerator` | Generates component registration catalog from discovered `IComponent` structs. |
 | `SystemMetadataGenerator` | Generates static system metadata catalog from discovered `ISystem` types. |
+| `ForEachJobSourceGenerator` | Generates `Query.ForEach(job)` extension overloads for `IForEach<T1,T2>` job structs. |
 
 ## Design Notes
 

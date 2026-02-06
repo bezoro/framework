@@ -78,6 +78,21 @@ public class QueryGeneratorTests
 	}
 
 	[Fact]
+	public void GeneratedForEachJobExtension_WhenUsingJobStruct_ShouldApplyUpdatesWithoutGenericArguments()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
+		world.Add(entity, new Velocity { X = 3, Y = 4 });
+
+		world.Query<Position, Velocity>().ForEach(new MovementForEachJob { DeltaTime = 0.5f });
+
+		var updated = world.Get<Position>(entity);
+		updated.X.Should().Be(2.5f);
+		updated.Y.Should().Be(4f);
+	}
+
+	[Fact]
 	public void GeneratedQuery_WhenUsingWorldQueryDefinitionEntryPoint_ShouldMatchExpectedEntities()
 	{
 		var world = new World();
@@ -146,3 +161,14 @@ internal struct Acceleration : IComponent
 }
 
 internal struct Frozen : IComponent;
+
+internal struct MovementForEachJob : IForEach<Position, Velocity>
+{
+	public float DeltaTime;
+
+	public void Execute(ref Position component1, in Velocity component2)
+	{
+		component1.X += component2.X * DeltaTime;
+		component1.Y += component2.Y * DeltaTime;
+	}
+}

@@ -87,7 +87,7 @@ world.Query()
 | `Optional<T>()` | Optional component availability for chunk access. |
 | `Changed<T>()` | Includes chunks changed in the current version window. |
 | `Related<TRelation>(Entity target)` | Relationship target filter (`Entity.Wildcard` for any target). |
-| `ForEach(...)` / `ForEach<TJob,T1,T2>(TJob)` / `ForEachParallel(...)` | Serial, job-style, or parallel chunk iteration. |
+| `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T1,T2>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style, or parallel chunk iteration. |
 | `ChunkView.OptionalComponents<T>()` | Optional component span; returns `Span<T>.Empty` when missing in the current chunk. |
 
 ### ISystem
