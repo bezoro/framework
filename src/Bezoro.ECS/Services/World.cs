@@ -72,7 +72,7 @@ public sealed class World : IWorld, IDisposable
 	private readonly Dictionary<Type, object> _resources = new();
 	private readonly Dictionary<int, List<Delegate>> _onAddObservers = new();
 	private readonly Dictionary<int, List<Delegate>> _onAddRefObservers = new();
-	private readonly Dictionary<int, List<Delegate>> _onRemoveObservers = new();
+	private readonly Dictionary<int, List<Action<Entity, object, bool>>> _onRemoveObservers = new();
 	private readonly Dictionary<int, List<Action<Entity, object>>> _onRemoveInObservers = new();
 	private readonly SystemManager _systemManager;
 	private int _activeQueryIterations;
@@ -278,8 +278,13 @@ public sealed class World : IWorld, IDisposable
 			_onRemoveObservers[typeId] = handlers;
 		}
 
-		handlers.Add(observer);
-		return new ObserverSubscription(() => RemoveObserver(_onRemoveObservers, typeId, observer));
+		var wrapped = (Action<Entity, object, bool>)((entity, value, isRemoved) =>
+		{
+			observer(entity, (T)value, isRemoved);
+		});
+
+		handlers.Add(wrapped);
+		return new ObserverSubscription(() => RemoveObserver(_onRemoveObservers, typeId, wrapped));
 	}
 
 	public IDisposable ObserveRemove<T>(OnRemoveObserver<T> observer) where T : struct, IComponent
@@ -1164,7 +1169,7 @@ public sealed class World : IWorld, IDisposable
 			return;
 
 		for (var i = 0; i < handlers.Count; i++)
-			handlers[i].DynamicInvoke(entity, removedValue, true);
+			handlers[i](entity, removedValue, true);
 	}
 
 	private List<(int TypeId, object Value)> CaptureRemovedComponents(Entity entity)
