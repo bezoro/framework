@@ -14,7 +14,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenGeneratedMetadataExists_ShouldReturnSystemMetadata()
 	{
-		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverDerivedSystem), out var metadata);
+		var resolver = new GeneratedSystemMetadataResolver();
+		var result = resolver.TryGet(typeof(ResolverDerivedSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverDerivedSystem));
@@ -26,7 +27,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenSystemIsStruct_ShouldReturnGeneratedMetadata()
 	{
-		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverStructSystem), out var metadata);
+		var resolver = new GeneratedSystemMetadataResolver();
+		var result = resolver.TryGet(typeof(ResolverStructSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverStructSystem));
@@ -38,7 +40,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenSystemIsNestedType_ShouldReturnGeneratedMetadata()
 	{
-		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverNestedSystems.NestedSystem), out var metadata);
+		var resolver = new GeneratedSystemMetadataResolver();
+		var result = resolver.TryGet(typeof(ResolverNestedSystems.NestedSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverNestedSystems.NestedSystem));
@@ -50,7 +53,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenSystemUsesForEachQuery_ShouldInferReadAndWriteSets()
 	{
-		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
+		var resolver = new GeneratedSystemMetadataResolver();
+		var result = resolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.Reads.Should().Contain(typeof(ResolverInferredVelocity));
@@ -60,7 +64,8 @@ public class GeneratedSystemMetadataResolverTests
 	[Fact]
 	public void TryGet_WhenSystemUsesForEachRwQuery_ShouldInferBothAsWrites()
 	{
-		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
+		var resolver = new GeneratedSystemMetadataResolver();
+		var result = resolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
 
 		result.Should().BeTrue();
 		metadata.Reads.Should().NotContain(typeof(ResolverInferredPosition));

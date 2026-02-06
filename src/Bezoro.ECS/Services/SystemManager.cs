@@ -11,6 +11,7 @@ namespace Bezoro.ECS.Services;
 internal sealed class SystemManager
 {
 	private static readonly Stage[] StageOrder = [Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render];
+	private readonly GeneratedSystemMetadataResolver _metadataResolver = new();
 	private readonly int _maxDegreeOfParallelism;
 	private readonly List<SystemState> _systems = [];
 	private readonly Dictionary<Stage, List<SystemState[]>> _stagePlans = new();
@@ -60,7 +61,7 @@ internal sealed class SystemManager
 
 		var type = system.GetType();
 		bool isExclusive;
-		if (GeneratedSystemMetadataResolver.TryGet(type, out var metadata))
+		if (_metadataResolver.TryGet(type, out var metadata))
 		{
 			for (var i = 0; i < metadata.Reads.Length; i++)
 			{

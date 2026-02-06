@@ -3,13 +3,13 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal static class GeneratedSystemMetadataResolver
+internal sealed class GeneratedSystemMetadataResolver
 {
 	private const string MetadataTypeName = "Bezoro.ECS.Generated.GeneratedSystemMetadata";
-	private static readonly object Sync = new();
-	private static readonly Dictionary<Assembly, IReadOnlyDictionary<Type, SystemMetadata>?> Cache = new();
+	private readonly object _sync = new();
+	private readonly Dictionary<Assembly, IReadOnlyDictionary<Type, SystemMetadata>?> _cache = new();
 
-	public static bool TryGet(Type systemType, out SystemMetadata metadata)
+	public bool TryGet(Type systemType, out SystemMetadata metadata)
 	{
 		if (systemType is null) throw new ArgumentNullException(nameof(systemType));
 
@@ -21,15 +21,15 @@ internal static class GeneratedSystemMetadataResolver
 		return false;
 	}
 
-	private static IReadOnlyDictionary<Type, SystemMetadata>? GetOrCreateMap(Assembly assembly)
+	private IReadOnlyDictionary<Type, SystemMetadata>? GetOrCreateMap(Assembly assembly)
 	{
-		lock (Sync)
+		lock (_sync)
 		{
-			if (Cache.TryGetValue(assembly, out var existing))
+			if (_cache.TryGetValue(assembly, out var existing))
 				return existing;
 
 			var created = CreateMap(assembly);
-			Cache[assembly] = created;
+			_cache[assembly] = created;
 			return created;
 		}
 	}
