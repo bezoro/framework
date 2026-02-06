@@ -33,10 +33,15 @@
 ### 2. Execution
 
 1. **Test (= API Design)**: Tests are the primary design tool. Before writing any implementation, write tests that express the **ideal consumer experience** — the way a caller *should* interact with the API. Iterate on naming, signatures, overloads, return types, and error handling *in the test* until the usage reads naturally and feels ergonomic. Only once the test captures the desired public surface, run to confirm it fails.
-2. **Implement**: Minimal code to pass the test-defined API. Run tests. Verify no fake greens.
-3. **Refactor**: Optimize after green. Run tests again.
-4. **Document**: Check if XML docs or README need updates for changed/added APIs.
+2. **Implement**: Minimal code to pass the test-defined API. Run tests. Verify no fake greens. Keep it simple — performance optimization belongs in step 3.
+3. **Refactor**: Optimize after green. Apply performance techniques (Span, stackalloc, pooling, etc.) here. Run tests again. For measurable performance claims, add a BenchmarkDotNet benchmark before and after optimization.
+4. **Document**: Check if XML docs need updates for changed/added APIs. Check if the project's README needs updating — every project must have one and it must stay current.
 5. **Verify**: Build the full solution (`dotnet build bezoro.framework.sln`) to ensure no breaks.
+
+### 3. Error Recovery
+
+- If `dotnet build` or `dotnet test` fails, **diagnose the root cause, fix it, and re-run**. Do not skip or ignore failures.
+- Repeat until green. If stuck after reasonable attempts, ask the user.
 
 ## Project Structure
 
@@ -46,12 +51,12 @@ bezoro.framework.sln
 │   ├── Bezoro.Core/        # Foundation (no dependencies)
 │   ├── Bezoro.Logging/     # → Core
 │   ├── Bezoro.ECS/         # → Core
-│   ├── Bezoro.GameSystems/ # → Core
+│   ├── Bezoro.GameSystems/ # → Core + ECS
 │   ├── Bezoro.TypingSystem/# → Core
 │   └── Bezoro.UCI/         # → Core + Logging
 ├── tests/                  # Mirrors src/ with *.Tests projects
-├── benchmarks/
-└── samples/
+├── benchmarks/             # BenchmarkDotNet projects for perf-critical code
+└── samples/                # Standalone usage examples (self-documenting)
 ```
 
 ### Source Organization
@@ -84,6 +89,10 @@ dotnet test --filter "FullyQualifiedName~MethodName"
 ## Build Configuration
 
 .NET 9.0 + .NET Standard 2.1 (Unity) | Warnings as errors | Nullable enabled | XML docs generated
+
+### Dual-Targeting
+
+The solution targets both `net9.0` and `netstandard2.1`. Runtime APIs that are net9.0-only (e.g., `FrozenDictionary`, `FrozenSet`, `SearchValues<T>`) require polyfills in the `Compatibility/` folder when used in netstandard2.1-targeted projects. C# language features (collection expressions, primary constructors, pattern matching, etc.) are compiler transforms and work on any target. Always verify that code compiles against both targets.
 
 ## Coding Standards
 
@@ -169,7 +178,9 @@ dotnet test --filter "FullyQualifiedName~MethodName"
 - `// HACK: reason + issue link`
 - No commented-out code
 
-### README Structure
+### README (Required per Project)
+
+Every project under `src/` and `tests/` must have a `README.md`. After any change to public API, types, or behavior, check if the project's README needs updating. Stale READMEs are a bug.
 
 ```
 # {Project}          → One-sentence description
@@ -211,7 +222,29 @@ public class TargetTests
 }
 ```
 
+### Test Project Organization
+
+Test projects mirror the source project folder structure. For example:
+
+```
+tests/Bezoro.ECS.Tests/
+├── ArchetypeTests.cs       # mirrors src/Bezoro.ECS/Types/Archetype.cs
+├── QueryTests.cs           # mirrors src/Bezoro.ECS/Types/Query.cs
+├── CommandBufferTests.cs   # mirrors src/Bezoro.ECS/Types/CommandBuffer.cs
+└── Fixtures/               # Shared test fixtures (IClassFixture<T>)
+```
+
+One test class per source type. Test class name = `{TypeName}Tests`. Place shared fixtures in a `Fixtures/` folder.
+
 **Guidelines**: Isolated tests | One behavior per test | `[Theory]` for multiple inputs | `[MemberData]` for complex data | `IClassFixture<T>` for expensive setup | Mock only I/O boundaries | `[Trait("Category", "Integration")]` for non-unit tests
+
+## Git Branching
+
+- **Never commit directly to `main`**. The `main` branch is protected.
+- Work on `develop` or create feature branches (`feat/<name>`, `fix/<name>`, etc.) as appropriate.
+- Create feature branches when the change is non-trivial or spans multiple commits.
+- PRs target `main` from `develop` or feature branches.
+- PR titles follow commit format: `<type>(<scope>): <description>`. Body summarizes changes with bulleted list.
 
 ## Commits
 
