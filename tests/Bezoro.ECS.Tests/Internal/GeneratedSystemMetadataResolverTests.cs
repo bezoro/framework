@@ -30,9 +30,9 @@ public class GeneratedSystemMetadataResolverTests
 
 		result.Should().BeTrue();
 		metadata.SystemType.Should().Be(typeof(ResolverStructSystem));
-		metadata.Reads.Should().BeEmpty();
-		metadata.Writes.Should().BeEmpty();
-		metadata.IsExclusive.Should().BeFalse();
+		metadata.Reads.Should().ContainSingle(t => t == typeof(ResolverReadComponent));
+		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
+		metadata.IsExclusive.Should().BeTrue();
 	}
 }
 
@@ -55,6 +55,9 @@ internal struct ResolverReadComponent : IComponent;
 
 internal struct ResolverWriteComponent : IComponent;
 
+[Reads<ResolverReadComponent>]
+[Writes<ResolverWriteComponent>]
+[Exclusive]
 internal struct ResolverStructSystem : ISystem
 {
 	public void Update(IWorld world, in SystemContext context)
