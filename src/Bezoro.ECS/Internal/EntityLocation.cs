@@ -2,18 +2,16 @@ namespace Bezoro.ECS.Internal;
 
 internal readonly struct EntityLocation
 {
-	public static readonly EntityLocation Empty = new(-1, -1, -1);
+	public static readonly EntityLocation Empty = new(-1, -1);
 
-	public EntityLocation(int archetypeId, int chunkIndex, int slotIndex)
+	public EntityLocation(int archetypeId, int rowIndex)
 	{
 		ArchetypeId = archetypeId;
-		ChunkIndex  = chunkIndex;
-		SlotIndex   = slotIndex;
+		RowIndex = rowIndex;
 	}
 
 	public int ArchetypeId { get; }
-	public int ChunkIndex { get; }
-	public int SlotIndex { get; }
+	public int RowIndex { get; }
 
-	public bool IsValid => ArchetypeId >= 0 && ChunkIndex >= 0 && SlotIndex >= 0;
+	public bool IsValid => ArchetypeId >= 0 && RowIndex >= 0;
 }

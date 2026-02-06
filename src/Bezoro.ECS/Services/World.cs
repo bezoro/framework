@@ -1035,8 +1035,9 @@ public sealed class World : IWorld, IDisposable
 		int sourceIndex = source.GetTypeIndex(typeId);
 		if (sourceIndex < 0) return;
 
-		var sourceChunk = source.Chunks[location.ChunkIndex];
-		object removedValue = sourceChunk.GetValue(sourceIndex, location.SlotIndex);
+		DecomposeLocation(source, location, out int sourceChunkIndex, out int sourceSlotIndex);
+		var sourceChunk = source.Chunks[sourceChunkIndex];
+		object removedValue = sourceChunk.GetValue(sourceIndex, sourceSlotIndex);
 
 		Archetype target;
 		if (!source.TryGetRemoveEdge(typeId, out target!))
@@ -1180,7 +1181,8 @@ public sealed class World : IWorld, IDisposable
 			return [];
 
 		var archetype = _archetypes[location.ArchetypeId];
-		var chunk = archetype.Chunks[location.ChunkIndex];
+		DecomposeLocation(archetype, location, out int chunkIndex, out int slotIndex);
+		var chunk = archetype.Chunks[chunkIndex];
 		var removed = new List<(int TypeId, object Value)>(archetype.TypeIds.Length);
 		for (var i = 0; i < archetype.TypeIds.Length; i++)
 		{
@@ -1188,7 +1190,7 @@ public sealed class World : IWorld, IDisposable
 			if (ComponentTypeRegistry.IsRelationship(typeId))
 				continue;
 
-			removed.Add((typeId, chunk.GetValue(i, location.SlotIndex)));
+			removed.Add((typeId, chunk.GetValue(i, slotIndex)));
 		}
 
 		return removed;
@@ -1271,19 +1273,36 @@ public sealed class World : IWorld, IDisposable
 		chunk.ClearSlot(slot);
 	}
 
+	private static int ToRowIndex(Archetype archetype, int chunkIndex, int slotIndex)
+	{
+		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
+		return checked(chunkIndex * archetype.ChunkCapacity + slotIndex);
+	}
+
+	private static void DecomposeLocation(Archetype archetype, EntityLocation location, out int chunkIndex, out int slotIndex)
+	{
+		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
+		if (location.RowIndex < 0)
+			throw new ArgumentOutOfRangeException(nameof(location));
+
+		chunkIndex = location.RowIndex / archetype.ChunkCapacity;
+		slotIndex = location.RowIndex % archetype.ChunkCapacity;
+	}
+
 	private (Chunk targetChunk, int targetSlot) MoveEntityCore(
 		Entity entity,
 		Archetype source,
 		EntityLocation sourceLocation,
 		Archetype target)
 	{
-		var sourceChunk = source.Chunks[sourceLocation.ChunkIndex];
+		DecomposeLocation(source, sourceLocation, out int sourceChunkIndex, out int sourceSlotIndex);
+		var sourceChunk = source.Chunks[sourceChunkIndex];
 		var targetChunk = target.GetOrCreateChunkWithSpace(out int targetChunkIndex);
 		int targetSlot = targetChunk.Count++;
 
 		targetChunk.Entities[targetSlot] = entity;
 		ClearComponentSlot(targetChunk, targetSlot);
-		_entityManager.SetLocation(entity, new(target.Id, targetChunkIndex, targetSlot));
+		_entityManager.SetLocation(entity, new(target.Id, ToRowIndex(target, targetChunkIndex, targetSlot)));
 
 		for (var i = 0; i < source.TypeIds.Length; i++)
 		{
@@ -1291,7 +1310,7 @@ public sealed class World : IWorld, IDisposable
 			int targetIndex = target.GetTypeIndex(typeId);
 			if (targetIndex < 0) continue;
 
-			sourceChunk.CopyValueTo(i, sourceLocation.SlotIndex, targetChunk, targetIndex, targetSlot);
+			sourceChunk.CopyValueTo(i, sourceSlotIndex, targetChunk, targetIndex, targetSlot);
 		}
 
 		RemoveEntityFromArchetype(source, sourceLocation, entity, clearLocation: false);
@@ -1419,8 +1438,9 @@ public sealed class World : IWorld, IDisposable
 			return false;
 		}
 
-		chunk = archetype.Chunks[location.ChunkIndex];
-		slot = location.SlotIndex;
+		DecomposeLocation(archetype, location, out int chunkIndex, out int slotIndex);
+		chunk = archetype.Chunks[chunkIndex];
+		slot = slotIndex;
 		return true;
 	}
 
@@ -1467,7 +1487,7 @@ public sealed class World : IWorld, IDisposable
 		int slot = chunk.Count++;
 		chunk.Entities[slot] = entity;
 		ClearComponentSlot(chunk, slot);
-		_entityManager.SetLocation(entity, new(archetype.Id, chunkIndex, slot));
+		_entityManager.SetLocation(entity, new(archetype.Id, ToRowIndex(archetype, chunkIndex, slot)));
 	}
 
 	private void EnsureNotUpdating()
@@ -1490,8 +1510,8 @@ public sealed class World : IWorld, IDisposable
 
 	private void RemoveEntityFromArchetype(Archetype archetype, EntityLocation location, Entity removedEntity, bool clearLocation)
 	{
-		var chunk = archetype.Chunks[location.ChunkIndex];
-		int slot = location.SlotIndex;
+		DecomposeLocation(archetype, location, out int chunkIndex, out int slot);
+		var chunk = archetype.Chunks[chunkIndex];
 		int last = chunk.Count - 1;
 		if (last < 0) return;
 
@@ -1503,14 +1523,14 @@ public sealed class World : IWorld, IDisposable
 			for (var i = 0; i < chunk.Columns.Length; i++)
 				chunk.CopyValueTo(i, last, chunk, i, slot);
 
-			_entityManager.SetLocation(movedEntity, new(archetype.Id, location.ChunkIndex, slot));
+			_entityManager.SetLocation(movedEntity, new(archetype.Id, ToRowIndex(archetype, chunkIndex, slot)));
 		}
 
 		chunk.Entities[last] = default;
 		chunk.ClearSlot(last);
 
 		chunk.Count--;
-		archetype.NotifyChunkFreed(location.ChunkIndex);
+		archetype.NotifyChunkFreed(chunkIndex);
 
 		if (clearLocation)
 			_entityManager.SetLocation(removedEntity, EntityLocation.Empty);
