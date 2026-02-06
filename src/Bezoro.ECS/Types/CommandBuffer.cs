@@ -117,7 +117,7 @@ public sealed class CommandBuffer : IDisposable
 
 		lock (_sync)
 		{
-			var entity = new Entity(_nextTemporaryId--, 0, _world.WorldId);
+			var entity = new Entity(_nextTemporaryId--, 0);
 			_commands.Add(new Command(CommandType.CreateEntity, entity, archetype, -1, null));
 			return entity;
 		}

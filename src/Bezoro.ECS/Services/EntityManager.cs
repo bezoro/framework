@@ -8,13 +8,13 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 internal sealed class EntityManager
 {
-	private readonly int              _worldId;
-	private readonly Stack<int>       _availableIds = new();
-	private          bool[]           _alive        = [];
-	private          bool[]           _reserved     = [];
-	private          EntityLocation[] _locations    = [];
-	private          int              _nextId;
-	private          int[]            _versions = [];
+	private readonly int _worldId;
+	private readonly Stack<int> _availableIds = new();
+	private bool[] _alive = [];
+	private bool[] _reserved = [];
+	private EntityLocation[] _locations = [];
+	private int _nextId;
+	private int[] _generations = [];
 
 	public EntityManager(int worldId)
 	{
@@ -36,10 +36,9 @@ internal sealed class EntityManager
 	/// <returns><c>true</c> if the entity is alive; otherwise, <c>false</c>.</returns>
 	public bool IsAlive(Entity entity)
 	{
-		if (entity.WorldId != _worldId) return false;
 		if (entity.Id < 0 || entity.Id >= _alive.Length) return false;
 
-		return _alive[entity.Id] && _versions[entity.Id] == entity.Version;
+		return _alive[entity.Id] && ComposeVersion(_generations[entity.Id]) == entity.Version;
 	}
 
 	/// <summary>
@@ -47,10 +46,9 @@ internal sealed class EntityManager
 	/// </summary>
 	public bool IsReserved(Entity entity)
 	{
-		if (entity.WorldId != _worldId) return false;
 		if (entity.Id < 0 || entity.Id >= _reserved.Length) return false;
 
-		return _reserved[entity.Id] && _versions[entity.Id] == entity.Version;
+		return _reserved[entity.Id] && ComposeVersion(_generations[entity.Id]) == entity.Version;
 	}
 
 	/// <summary>
@@ -92,7 +90,7 @@ internal sealed class EntityManager
 	{
 		EnsureReserved(entity);
 		_reserved[entity.Id] = false;
-		_versions[entity.Id]++;
+		_generations[entity.Id]++;
 		_locations[entity.Id] = EntityLocation.Empty;
 		_availableIds.Push(entity.Id);
 	}
@@ -105,13 +103,13 @@ internal sealed class EntityManager
 		EnsureAlive(entity);
 		_alive[entity.Id] = false;
 		AliveCount--;
-		_versions[entity.Id]++;
+		_generations[entity.Id]++;
 		_locations[entity.Id] = EntityLocation.Empty;
 		_availableIds.Push(entity.Id);
 	}
 
 	internal EntityLocation GetLocation(Entity entity) =>
-		entity.WorldId != _worldId || entity.Id < 0 || entity.Id >= _locations.Length
+		entity.Id < 0 || entity.Id >= _locations.Length || ComposeVersion(_generations[entity.Id]) != entity.Version
 			? EntityLocation.Empty
 			: _locations[entity.Id];
 
@@ -131,19 +129,19 @@ internal sealed class EntityManager
 		_alive[id]     = false;
 		_reserved[id]  = reserved;
 		_locations[id] = EntityLocation.Empty;
-		return new(id, _versions[id], _worldId);
+		return new(id, ComposeVersion(_generations[id]));
 	}
 
 	private void EnsureCapacity(int id)
 	{
-		if (id < _versions.Length) return;
+		if (id < _generations.Length) return;
 
-		int newSize                   = _versions.Length == 0 ? 4 : _versions.Length;
+		int newSize                   = _generations.Length == 0 ? 4 : _generations.Length;
 		while (newSize <= id) newSize *= 2;
 
 		Array.Resize(ref _alive,     newSize);
 		Array.Resize(ref _reserved,  newSize);
-		Array.Resize(ref _versions,  newSize);
+		Array.Resize(ref _generations,  newSize);
 		Array.Resize(ref _locations, newSize);
 	}
 
@@ -155,7 +153,7 @@ internal sealed class EntityManager
 		{
 			_alive[id]      = false;
 			_reserved[id]   = false;
-			_versions[id]++;
+			_generations[id]++;
 			_locations[id] = EntityLocation.Empty;
 		}
 
@@ -167,5 +165,16 @@ internal sealed class EntityManager
 	{
 		if (!IsReserved(entity))
 			throw new InvalidOperationException($"Entity {entity.Id}:{entity.Version} is not reserved.");
+	}
+
+	private int ComposeVersion(int generation)
+	{
+		uint hash = unchecked((uint)_worldId * 0x9E3779B9u) ^ unchecked((uint)generation);
+		hash ^= hash >> 16;
+		hash *= 0x85EBCA6Bu;
+		hash ^= hash >> 13;
+		hash *= 0xC2B2AE35u;
+		hash ^= hash >> 16;
+		return hash == 0 ? 1 : unchecked((int)hash);
 	}
 }

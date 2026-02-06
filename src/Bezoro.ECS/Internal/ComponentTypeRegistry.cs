@@ -8,7 +8,7 @@ internal static class ComponentTypeRegistry
 	private static readonly object _sync = new();
 	private static readonly Dictionary<Type, int> _typeToId = new();
 	private static readonly List<Type> _idToType = [];
-	private static readonly Dictionary<(Type relationType, int targetId, int targetVersion, int targetWorld), int> _relationToId = new();
+	private static readonly Dictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
 	private static readonly Dictionary<int, RelationshipInfo> _relationshipInfoById = [];
 	private static readonly Dictionary<Type, List<int>> _relationIdsByType = [];
 
@@ -49,7 +49,7 @@ internal static class ComponentTypeRegistry
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 
-		var key = (relationType, target.Id, target.Version, target.WorldId);
+		var key = (relationType, target.Id, target.Version);
 		lock (_sync)
 		{
 			if (_relationToId.TryGetValue(key, out int id))

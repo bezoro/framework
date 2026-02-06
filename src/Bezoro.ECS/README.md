@@ -7,7 +7,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | Type | Description |
 |---|---|
 | `World` | ECS root for entities, components, resources, systems, queries, and snapshots. |
-| `Entity` | Versioned world-scoped handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`. |
+| `Entity` | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`. |
 | `Archetype` | Exact component-set storage identity backed by chunked columns. |
 | `Query` | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters. |
 | `IQuery` | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints. |

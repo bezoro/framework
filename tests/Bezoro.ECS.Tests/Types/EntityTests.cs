@@ -1,6 +1,7 @@
 using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
+using System.Runtime.InteropServices;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Types;
@@ -28,5 +29,11 @@ public class EntityTests
 		// Assert
 		entity.Id.Should().Be(expectedId);
 		entity.Version.Should().Be(expectedVersion);
+	}
+
+	[Fact]
+	public void Entity_ShouldBeEightBytes()
+	{
+		Marshal.SizeOf<Entity>().Should().Be(8);
 	}
 }

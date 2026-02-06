@@ -553,7 +553,8 @@ public sealed class World : IWorld, IDisposable
 				writer.Write(relationship.RelationType.AssemblyQualifiedName!);
 				writer.Write(relationship.Target.Id);
 				writer.Write(relationship.Target.Version);
-				writer.Write(relationship.Target.WorldId);
+				// Snapshot v1 reserves the target world id field. Entity handles are now {id, version}.
+				writer.Write(0);
 			}
 
 			var rows = new List<(Chunk Chunk, int Row)>();
@@ -639,7 +640,7 @@ public sealed class World : IWorld, IDisposable
 
 			var world = new World();
 			var entityMap = new Dictionary<(int Id, int Version), Entity>();
-			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion, int TargetWorldId)>();
+			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion)>();
 			int archetypeCount = reader.ReadInt32();
 			if (archetypeCount < 0)
 				throw new InvalidOperationException("Invalid snapshot payload: archetype count cannot be negative.");
@@ -674,7 +675,7 @@ public sealed class World : IWorld, IDisposable
 				if (relationshipCount < 0)
 					throw new InvalidOperationException("Invalid snapshot payload: relationship count cannot be negative.");
 
-				var relationshipDescriptors = new (Type RelationType, int TargetId, int TargetVersion, int TargetWorldId)[relationshipCount];
+				var relationshipDescriptors = new (Type RelationType, int TargetId, int TargetVersion)[relationshipCount];
 				for (var relationshipIndex = 0; relationshipIndex < relationshipCount; relationshipIndex++)
 				{
 					string relationTypeName = reader.ReadString();
@@ -682,8 +683,8 @@ public sealed class World : IWorld, IDisposable
 						?? throw new InvalidOperationException($"Snapshot relation type '{relationTypeName}' could not be resolved.");
 					int targetId = reader.ReadInt32();
 					int targetVersion = reader.ReadInt32();
-					int targetWorldId = reader.ReadInt32();
-					relationshipDescriptors[relationshipIndex] = (relationType, targetId, targetVersion, targetWorldId);
+					_ = reader.ReadInt32(); // reserved in snapshot v1
+					relationshipDescriptors[relationshipIndex] = (relationType, targetId, targetVersion);
 				}
 
 				var archetype = componentTypes.Length == 0
@@ -735,7 +736,7 @@ public sealed class World : IWorld, IDisposable
 					{
 						var relationship = relationshipDescriptors[relationshipIndex];
 						pendingRelationships.Add(
-							(entities[entityIndex], relationship.RelationType, relationship.TargetId, relationship.TargetVersion, relationship.TargetWorldId));
+							(entities[entityIndex], relationship.RelationType, relationship.TargetId, relationship.TargetVersion));
 					}
 				}
 			}
