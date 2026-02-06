@@ -181,8 +181,12 @@ public sealed class CommandBuffer : IDisposable
 		}
 
 		var processedCount = 0;
+		var enteredPlayback = false;
 		try
 		{
+			_world.EnterCommandPlayback();
+			enteredPlayback = true;
+
 			for (; processedCount < commands.Length; processedCount++)
 			{
 				var command = commands[processedCount];
@@ -217,6 +221,9 @@ public sealed class CommandBuffer : IDisposable
 		}
 		finally
 		{
+			if (enteredPlayback)
+				_world.ExitCommandPlayback();
+
 			lock (_sync)
 			{
 				RemoveProcessedCommandsUnsafe(processedCount);

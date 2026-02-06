@@ -322,19 +322,42 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponent()
+	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponentDuringPlayback()
 	{
 		var world = new World();
 		world.ObserveAdd<Health>((Entity _, ref Health health) => health.Current = health.Max);
 
-		var entity = world.Spawn();
-		world.Add(entity, new Health { Current = 0, Max = 10 });
+		var commands = world.CreateCommandBuffer();
+		var entity = commands.CreateEntity();
+		commands.AddComponent(entity, new Health { Current = 0, Max = 10 });
+		commands.Playback();
 
-		world.Get<Health>(entity).Current.Should().Be(10);
+		var observedCurrent = -1;
+		foreach (var chunk in world.Query<Health>())
+		{
+			chunk.Count.Should().Be(1);
+			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
+		}
+
+		observedCurrent.Should().Be(10);
 	}
 
 	[Fact]
-	public void ObserveAdd_WhenSpawningWithInitialComponent_ShouldInvokeObserver()
+	public void ObserveAdd_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd<Health>((Entity _, ref Health health) => calls++);
+
+		var entity = world.Spawn();
+		world.Add(entity, new Health { Current = 0, Max = 1 });
+		world.Set(entity, new Health { Current = 1, Max = 1 });
+
+		calls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenCreatingWithInitialComponentInPlayback_ShouldInvokeObserver()
 	{
 		var world = new World();
 		var calls = 0;
@@ -344,14 +367,23 @@ public class WorldApiContractTests
 			health.Current = health.Max;
 		});
 
-		var entity = world.Spawn(new Health { Current = 1, Max = 8 });
+		var commands = world.CreateCommandBuffer();
+		commands.CreateEntity(new Health { Current = 1, Max = 8 });
+		commands.Playback();
+
+		var observedCurrent = -1;
+		foreach (var chunk in world.Query<Health>())
+		{
+			chunk.Count.Should().Be(1);
+			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
+		}
 
 		calls.Should().Be(1);
-		world.Get<Health>(entity).Current.Should().Be(8);
+		observedCurrent.Should().Be(8);
 	}
 
 	[Fact]
-	public void ObserveAdd_WhenSettingExistingComponent_ShouldInvokeObserver()
+	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
 	{
 		var world = new World();
 		var calls = 0;
@@ -361,16 +393,17 @@ public class WorldApiContractTests
 			health.Current = health.Max;
 		});
 
-		var entity = world.Spawn();
-		world.Add(entity, new Health { Current = 1, Max = 4 });
-		world.Set(entity, new Health { Current = 2, Max = 9 });
+		var entity = world.Spawn(new Health { Current = 1, Max = 4 });
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 2, Max = 9 });
+		commands.Playback();
 
-		calls.Should().Be(2);
+		calls.Should().Be(1);
 		world.Get<Health>(entity).Current.Should().Be(9);
 	}
 
 	[Fact]
-	public void ObserveAdd_WhenSetAddsMissingComponent_ShouldInvokeObserver()
+	public void ObserveAdd_WhenSetAddsMissingComponentInPlayback_ShouldInvokeObserver()
 	{
 		var world = new World();
 		var calls = 0;
@@ -381,56 +414,74 @@ public class WorldApiContractTests
 		});
 
 		var entity = world.Spawn();
-		world.Set(entity, new Health { Current = 1, Max = 6 });
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 1, Max = 6 });
+		commands.Playback();
 
 		calls.Should().Be(1);
 		world.Get<Health>(entity).Current.Should().Be(6);
 	}
 
 	[Fact]
-	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValue()
+	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValueDuringPlayback()
 	{
 		var world = new World();
 		var removedX = 0f;
 		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => removedX = velocity.X);
 
-		var entity = world.Spawn();
-		world.Add(entity, new Velocity { X = 7f, Y = 1f });
-		world.Remove<Velocity>(entity);
+		var entity = world.Spawn(new Velocity { X = 7f, Y = 1f });
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Velocity>(entity);
+		commands.Playback();
 
 		removedX.Should().Be(7f);
 	}
 
 	[Fact]
-	public void ObserveRemoveLegacy_WhenRegistered_ShouldReceiveRemovalFlag()
+	public void ObserveRemoveLegacy_WhenRegistered_ShouldReceiveRemovalFlagDuringPlayback()
 	{
 		var world = new World();
 		bool? wasRemoved = null;
 		world.Observe<Velocity>((Entity _, Velocity _, bool isRemoved) => wasRemoved = isRemoved);
 
-		var entity = world.Spawn();
-		world.Add(entity, new Velocity { X = 7f, Y = 1f });
-		world.Remove<Velocity>(entity);
+		var entity = world.Spawn(new Velocity { X = 7f, Y = 1f });
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Velocity>(entity);
+		commands.Playback();
 
 		wasRemoved.Should().BeTrue();
 	}
 
 	[Fact]
-	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerRemoval()
+	public void ObserveRemove_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
 	{
 		var world = new World();
 		var calls = 0;
 		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => calls++);
 
-		var entity = world.Spawn();
-		world.Add(entity, new Velocity { X = 2f, Y = 3f });
+		var entity = world.Spawn(new Velocity { X = 2f, Y = 3f });
 		world.Remove<Velocity>(entity);
+
+		calls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerPlaybackRemoval()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => calls++);
+
+		var entity = world.Spawn(new Velocity { X = 2f, Y = 3f });
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Velocity>(entity);
+		commands.Playback();
 
 		calls.Should().Be(1);
 	}
 
 	[Fact]
-	public void ObserveRemove_WhenEntityIsDespawned_ShouldReceiveRemovedComponentValue()
+	public void ObserveRemove_WhenEntityIsDespawnedInPlayback_ShouldReceiveRemovedComponentValue()
 	{
 		var world = new World();
 		var removedX = 0f;
@@ -441,17 +492,17 @@ public class WorldApiContractTests
 			removedX = velocity.X;
 		});
 
-		var entity = world.Spawn();
-		world.Add(entity, new Velocity { X = 11f, Y = 3f });
-
-		world.Despawn(entity);
+		var entity = world.Spawn(new Velocity { X = 11f, Y = 3f });
+		var commands = world.CreateCommandBuffer();
+		commands.DestroyEntity(entity);
+		commands.Playback();
 
 		calls.Should().Be(1);
 		removedX.Should().Be(11f);
 	}
 
 	[Fact]
-	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingEvents()
+	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingPlaybackEvents()
 	{
 		var world = new World();
 		var addCalls = 0;
@@ -463,8 +514,10 @@ public class WorldApiContractTests
 		removeSubscription.Dispose();
 
 		var entity = world.Spawn();
-		world.Add(entity, new Health { Current = 1, Max = 5 });
-		world.Remove<Health>(entity);
+		var commands = world.CreateCommandBuffer();
+		commands.AddComponent(entity, new Health { Current = 1, Max = 5 });
+		commands.RemoveComponent<Health>(entity);
+		commands.Playback();
 
 		addCalls.Should().Be(0);
 		removeCalls.Should().Be(0);

@@ -76,6 +76,7 @@ public sealed class World : IWorld, IDisposable
 	private readonly Dictionary<int, List<Action<Entity, object>>> _onRemoveInObservers = new();
 	private readonly SystemManager _systemManager;
 	private int _activeQueryIterations;
+	private int _activeCommandPlaybacks;
 	private volatile bool _isUpdating;
 	private uint _changeVersion;
 	private bool _disposed;
@@ -138,6 +139,8 @@ public sealed class World : IWorld, IDisposable
 	internal bool IsUpdating => _isUpdating;
 
 	internal bool HasActiveQueryIteration => Volatile.Read(ref _activeQueryIterations) > 0;
+
+	internal bool IsPlayingBackCommands => Volatile.Read(ref _activeCommandPlaybacks) > 0;
 
 	internal int MaxDegreeOfParallelism { get; }
 
@@ -1014,6 +1017,16 @@ public sealed class World : IWorld, IDisposable
 			Interlocked.Exchange(ref _activeQueryIterations, 0);
 	}
 
+	internal void EnterCommandPlayback() =>
+		Interlocked.Increment(ref _activeCommandPlaybacks);
+
+	internal void ExitCommandPlayback()
+	{
+		int value = Interlocked.Decrement(ref _activeCommandPlaybacks);
+		if (value < 0)
+			Interlocked.Exchange(ref _activeCommandPlaybacks, 0);
+	}
+
 	internal Entity CreateEntityInternal(Archetype archetype)
 	{
 		var entity = _entityManager.CreateEntity();
@@ -1181,6 +1194,9 @@ public sealed class World : IWorld, IDisposable
 
 	private void RaiseOnAdd<T>(Entity entity, int typeId) where T : struct, IComponent
 	{
+		if (!IsPlayingBackCommands)
+			return;
+
 		bool hasValueHandlers = _onAddObservers.TryGetValue(typeId, out var valueHandlers);
 		bool hasRefHandlers = _onAddRefObservers.TryGetValue(typeId, out var refHandlers);
 		if (!hasValueHandlers && !hasRefHandlers)
@@ -1212,6 +1228,9 @@ public sealed class World : IWorld, IDisposable
 
 	private void RaiseOnRemove(Entity entity, int typeId, object removedValue)
 	{
+		if (!IsPlayingBackCommands)
+			return;
+
 		if (_onRemoveInObservers.TryGetValue(typeId, out var inHandlers))
 		{
 			for (var i = 0; i < inHandlers.Count; i++)

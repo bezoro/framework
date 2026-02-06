@@ -73,7 +73,7 @@ world.Query()
 | `Query()` / `Query<T1..T4>()` / `Query(Archetype)` | Builds cached chunk queries. |
 | `Query<TQuery>()` | Builds a query from a `[Query]` definition struct implementing `IQuery`. |
 | `SetResource<T>(T)` / `GetResource<T>()` | Singleton/resource storage. |
-| `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks; returns `IDisposable` subscription. |
+| `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks dispatched during `CommandBuffer` playback; returns `IDisposable` subscription. |
 | `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
 | `Update(float)` | Runs systems by stage with sync-point command playback. |
 | `CreateCommandBuffer()` | Creates manual deferred mutation buffer. |
@@ -108,6 +108,7 @@ world.Query()
 - Chunk columns use aligned unmanaged buffers for unmanaged component structs and managed arrays for structs containing references.
 - Structural changes move entities between archetypes and maintain dense chunk packing.
 - Command buffers are flushed at sync points during world updates.
+- Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
 - Query matching is cached and incrementally updated when new archetypes are created.
 - Resources are stored separately from entity archetypes.
 - Relationship filters use target-parameterized synthetic component ids.
