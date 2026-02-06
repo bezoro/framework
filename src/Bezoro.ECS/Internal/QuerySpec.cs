@@ -30,19 +30,10 @@ internal readonly struct QuerySpec
 	public Type? RelatedRelationType { get; }
 	public Entity RelatedTarget { get; }
 
-	public string CacheKey
-	{
-		get
-		{
-			var key = string.Join(',', AllTypeIds) + "|" +
-			          string.Join(',', NoneTypeIds) + "|" +
-			          string.Join(',', AnyTypeIds) + "|" +
-			          string.Join(',', ChangedTypeIds);
-
-			if (RelatedRelationType is null)
-				return key + "|R:none";
-
-			return key + "|R:" + RelatedRelationType.AssemblyQualifiedName + ":" + RelatedTarget.Id + ":" + RelatedTarget.Version;
-		}
-	}
+	public QueryCacheKey CacheKey => new(
+		AllTypeIds,
+		NoneTypeIds,
+		AnyTypeIds,
+		RelatedRelationType,
+		RelatedTarget);
 }

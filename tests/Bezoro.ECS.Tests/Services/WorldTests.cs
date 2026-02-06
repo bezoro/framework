@@ -300,6 +300,26 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void QueryCache_WhenOnlyChangedFilterDiffers_ShouldReuseArchetypeMatchCache()
+	{
+		var world = new World();
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Position { X = 1, Y = 1 });
+
+		foreach (var _ in world.Query().With<Position>())
+		{
+		}
+
+		world.QueryCacheEntryCount.Should().Be(1);
+
+		foreach (var _ in world.Query().With<Position>().Changed<Position>())
+		{
+		}
+
+		world.QueryCacheEntryCount.Should().Be(1);
+	}
+
+	[Fact]
 	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange

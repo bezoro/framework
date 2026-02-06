@@ -63,7 +63,7 @@ public sealed class World : IWorld, IDisposable
 	}
 
 	private readonly Dictionary<ArchetypeKey, Archetype> _archetypesByKey = new();
-	private readonly Dictionary<string, QueryCacheEntry> _queryCache = new();
+	private readonly Dictionary<QueryCacheKey, QueryCacheEntry> _queryCache = new();
 	private readonly ComponentTypeRegistry _componentTypeRegistry = new();
 	private readonly EntityManager _entityManager;
 	private readonly int _chunkCapacityOverride;
@@ -151,6 +151,7 @@ public sealed class World : IWorld, IDisposable
 
 	internal uint ChangeVersion => _changeVersion;
 	internal int SchedulerPlanBuildCount => _systemManager.PlanBuildCount;
+	internal int QueryCacheEntryCount => _queryCache.Count;
 	internal ComponentTypeRegistry ComponentTypeRegistry => _componentTypeRegistry;
 
 	internal int GetOrCreateComponentTypeId<T>() where T : struct, IComponent =>
@@ -993,7 +994,7 @@ public sealed class World : IWorld, IDisposable
 
 	internal IReadOnlyList<Archetype> GetOrCreateQueryMatches(QuerySpec spec)
 	{
-		string key = spec.CacheKey;
+		QueryCacheKey key = spec.CacheKey;
 		if (_queryCache.TryGetValue(key, out var existing))
 			return existing.MatchingArchetypes;
 
