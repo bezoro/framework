@@ -1,4 +1,5 @@
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -14,7 +15,7 @@ public class SystemManagerTests
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		var world = new World(new() { MaxDegreeOfParallelism = 1 });
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var entity = world.CreateEntity();
 		world.AddComponent(entity, new Counter { Value = 1 });
 

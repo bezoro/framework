@@ -91,12 +91,23 @@ public sealed class World : IWorld, IDisposable
 		}
 	}
 
-	public World() : this(new())
+	public World() : this(new WorldOptions())
 	{
 	}
 
-	public World(WorldOptions options)
+	public World(ReadOnlySpan<char> name) : this(name, new WorldOptions())
 	{
+	}
+
+	public World(WorldOptions options) : this($"World-{_nextWorldId + 1}".AsSpan(), options)
+	{
+	}
+
+	public World(ReadOnlySpan<char> name, WorldOptions options)
+	{
+		if (name.Trim().IsEmpty)
+			throw new ArgumentException("World name cannot be null or whitespace.", nameof(name));
+
 		if (options is null) throw new ArgumentNullException(nameof(options));
 
 		if (options.ChunkCapacity < 0)
@@ -111,6 +122,7 @@ public sealed class World : IWorld, IDisposable
 		_chunkCapacityOverride = options.ChunkCapacity;
 		_chunkSizeInBytes = options.ChunkSizeInBytes;
 		MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+		Name = name.ToString();
 		_entityManager = new(WorldId);
 		_systemManager = new(MaxDegreeOfParallelism);
 		EmptyArchetype = CreateArchetypeInternal([], []);
@@ -119,6 +131,7 @@ public sealed class World : IWorld, IDisposable
 	}
 
 	public int EntityCount => _entityManager.AliveCount;
+	public string Name { get; }
 
 	internal Archetype EmptyArchetype { get; }
 

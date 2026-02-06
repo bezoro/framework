@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -178,7 +179,7 @@ public class WorldTests
 	{
 		// Arrange
 		var world = new World(
-			new()
+			new WorldOptions
 			{
 				ChunkCapacity          = 1,
 				MaxDegreeOfParallelism = 4
@@ -210,7 +211,7 @@ public class WorldTests
 	{
 		// Arrange
 		var world = new World(
-			new()
+			new WorldOptions
 			{
 				ChunkCapacity          = 1,
 				MaxDegreeOfParallelism = 4

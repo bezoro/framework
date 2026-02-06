@@ -23,6 +23,14 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void World_WhenCreatedWithName_ShouldExposeConfiguredName()
+	{
+		var world = new World("Main");
+
+		world.Name.Should().Be("Main");
+	}
+
+	[Fact]
 	public void Spawn_WhenGivenComponents_ShouldCreateEntityWithInferredArchetypeAndValues()
 	{
 		var world = new World();

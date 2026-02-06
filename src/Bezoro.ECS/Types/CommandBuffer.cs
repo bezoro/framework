@@ -7,7 +7,7 @@ namespace Bezoro.ECS.Types;
 /// <summary>
 ///     Records structural changes to be applied after system execution.
 /// </summary>
-public sealed class CommandBuffer
+public sealed class CommandBuffer : IDisposable
 {
 	private readonly List<Command>            _commands                  = [];
 	private readonly Dictionary<int, Entity> _resolvedTemporaryEntities = [];
@@ -15,6 +15,7 @@ public sealed class CommandBuffer
 	private readonly World                    _world;
 	private          bool                     _isPlayingBack;
 	private          int                      _nextTemporaryId = -1;
+	private bool _disposed;
 
 	internal CommandBuffer(World world)
 	{
@@ -25,6 +26,7 @@ public sealed class CommandBuffer
 	{
 		get
 		{
+			ThrowIfDisposed();
 			lock (_sync)
 			{
 				return _commands.Count > 0;
@@ -108,6 +110,7 @@ public sealed class CommandBuffer
 	/// <exception cref="InvalidOperationException">Thrown when the archetype belongs to a different world.</exception>
 	public Entity CreateEntity(Archetype archetype)
 	{
+		ThrowIfDisposed();
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 
 		_world.EnsureOwnedArchetype(archetype);
@@ -128,6 +131,7 @@ public sealed class CommandBuffer
 	/// <param name="component">The component value to add.</param>
 	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
+		ThrowIfDisposed();
 		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: true);
 		Enqueue(new(CommandType.AddComponent, entity, null, typeId, applicator));
@@ -154,6 +158,7 @@ public sealed class CommandBuffer
 
 	internal void PlaybackInternal(bool allowDuringUpdate)
 	{
+		ThrowIfDisposed();
 		if (_world.HasActiveQueryIteration)
 			throw new InvalidOperationException("Playback cannot run during query iteration.");
 
@@ -228,6 +233,7 @@ public sealed class CommandBuffer
 	/// <param name="entity">The entity to modify.</param>
 	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
 	{
+		ThrowIfDisposed();
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		Enqueue(new Command(CommandType.RemoveComponent, entity, null, typeId, null));
 	}
@@ -240,9 +246,21 @@ public sealed class CommandBuffer
 	/// <param name="component">The component value to set.</param>
 	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
+		ThrowIfDisposed();
 		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: false);
 		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+		lock (_sync)
+		{
+			_commands.Clear();
+			_resolvedTemporaryEntities.Clear();
+		}
 	}
 
 	private static Entity ResolveEntity(Entity entity, Dictionary<int, Entity> tempEntities)
@@ -257,6 +275,7 @@ public sealed class CommandBuffer
 
 	private void Enqueue(Command command)
 	{
+		ThrowIfDisposed();
 		lock (_sync)
 		{
 			_commands.Add(command);
@@ -281,5 +300,11 @@ public sealed class CommandBuffer
 
 		if (_commands.Count == 0)
 			_resolvedTemporaryEntities.Clear();
+	}
+
+	private void ThrowIfDisposed()
+	{
+		if (_disposed)
+			throw new ObjectDisposedException(nameof(CommandBuffer));
 	}
 }

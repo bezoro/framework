@@ -173,6 +173,23 @@ public class CommandBufferTests
 	}
 
 	[Fact]
+	public void CommandBuffer_WhenDisposed_ShouldRejectFurtherUsage()
+	{
+		// Arrange
+		var world = new World();
+		var commands = world.CreateCommandBuffer();
+
+		// Act
+		commands.Dispose();
+		var addAct = () => commands.AddComponent(world.CreateEntity(), new Position { X = 1, Y = 1 });
+		var playbackAct = () => commands.Playback();
+
+		// Assert
+		addAct.Should().Throw<ObjectDisposedException>();
+		playbackAct.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
 	public void RemoveComponent_WhenEntityIsNotAlive_ShouldThrowOnPlayback()
 	{
 		// Arrange

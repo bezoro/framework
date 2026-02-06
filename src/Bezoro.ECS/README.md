@@ -26,7 +26,7 @@ using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-var world = new World();
+var world = new World("Main");
 
 public struct Position : IComponent { public float X; public float Y; }
 public struct Velocity : IComponent { public float X; public float Y; }
