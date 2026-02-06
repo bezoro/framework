@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
@@ -110,6 +111,21 @@ public class SystemManagerTests
 		world.SchedulerPlanBuildCount.Should().Be(2);
 	}
 
+	[Fact]
+	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
+	{
+		var world = new World();
+		var system = new CommandCaptureSystem();
+		world.RegisterSystem(system);
+
+		world.Update(1f / 60f);
+
+		world.EntityCount.Should().Be(1);
+		system.Captured.Should().NotBeNull();
+		var act = () => system.Captured!.CreateEntity();
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
 	private sealed class FixedStepSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }
@@ -171,6 +187,17 @@ public class SystemManagerTests
 				for (var i = 0; i < chunk.Count; i++)
 					counters[i] = new Counter { Value = _value };
 			}
+		}
+	}
+
+	private sealed class CommandCaptureSystem : ISystem
+	{
+		public CommandBuffer? Captured { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			Captured = context.Commands;
+			context.Commands.CreateEntity();
 		}
 	}
 }

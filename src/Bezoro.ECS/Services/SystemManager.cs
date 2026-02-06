@@ -354,8 +354,20 @@ internal sealed class SystemManager
 		for (var i = 0; i < buffers.Length; i++)
 		{
 			var buffer = buffers[i];
-			if (buffer is null || !buffer.HasCommands) continue;
-			buffer.PlaybackInternal(allowDuringUpdate: true);
+			if (buffer is null)
+				continue;
+
+			try
+			{
+				if (!buffer.HasCommands)
+					continue;
+
+				buffer.PlaybackInternal(allowDuringUpdate: true);
+			}
+			finally
+			{
+				buffer.Dispose();
+			}
 		}
 	}
 }
