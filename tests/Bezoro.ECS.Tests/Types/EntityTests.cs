@@ -9,6 +9,13 @@ namespace Bezoro.ECS.Tests.Types;
 public class EntityTests
 {
 	[Fact]
+	public void None_ShouldRepresentInvalidEntity()
+	{
+		Entity.None.Id.Should().Be(-1);
+		Entity.None.Version.Should().Be(0);
+	}
+
+	[Fact]
 	public void Entity_Should_Store_Id()
 	{
 		// Arrange

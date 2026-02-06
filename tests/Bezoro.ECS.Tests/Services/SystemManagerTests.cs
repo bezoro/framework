@@ -11,6 +11,30 @@ namespace Bezoro.ECS.Tests.Services;
 public class SystemManagerTests
 {
 	[Fact]
+	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
+	{
+		// Arrange
+		var world = new World(new() { MaxDegreeOfParallelism = 1 });
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Counter { Value = 1 });
+
+		var preRead  = new ReadCounterSystem();
+		var write    = new WriteCounterSystem(2);
+		var postRead = new ReadCounterSystem();
+
+		world.RegisterSystem(preRead);
+		world.RegisterSystem(write);
+		world.RegisterSystem(postRead);
+
+		// Act
+		world.Update(1f / 60f);
+
+		// Assert
+		preRead.LastObserved.Should().Be(1);
+		postRead.LastObserved.Should().Be(2);
+	}
+
+	[Fact]
 	public void UpdateAll_Should_Respect_Update_Frequency()
 	{
 		// Arrange
@@ -60,6 +84,54 @@ public class SystemManagerTests
 		{
 			UpdateCount++;
 			LastDeltaTime = context.DeltaTime;
+		}
+	}
+
+	private readonly struct Counter : IComponent
+	{
+		public int Value { get; init; }
+	}
+
+	private sealed class ReadCounterSystem : ISystem
+	{
+		public int LastObserved { get; private set; } = -1;
+
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+
+		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			foreach (var chunk in world.Query().With<Counter>())
+			{
+				var counters = chunk.Components<Counter>();
+				if (chunk.Count > 0)
+					LastObserved = counters[0].Value;
+			}
+		}
+	}
+
+	private sealed class WriteCounterSystem : ISystem
+	{
+		private readonly int _value;
+
+		public WriteCounterSystem(int value)
+		{
+			_value = value;
+		}
+
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+
+		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			foreach (var chunk in world.Query().With<Counter>())
+			{
+				var counters = chunk.Components<Counter>();
+				for (var i = 0; i < chunk.Count; i++)
+					counters[i] = new Counter { Value = _value };
+			}
 		}
 	}
 }

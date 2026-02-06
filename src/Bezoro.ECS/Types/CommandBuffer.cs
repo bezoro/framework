@@ -94,6 +94,9 @@ public sealed class CommandBuffer
 
 	internal void PlaybackInternal(bool allowDuringUpdate)
 	{
+		if (_world.HasActiveQueryIteration)
+			throw new InvalidOperationException("Playback cannot run during query iteration.");
+
 		if (!allowDuringUpdate && _world.IsUpdating)
 			throw new InvalidOperationException("Playback cannot run during world update.");
 
@@ -136,8 +139,12 @@ public sealed class CommandBuffer
 						command.Applicator!.Apply(_world, ResolveEntity(command.Entity, tempEntities));
 						break;
 					case CommandType.RemoveComponent:
-						_world.RemoveComponentById(ResolveEntity(command.Entity, tempEntities), command.ComponentTypeId);
+					{
+						var entity = ResolveEntity(command.Entity, tempEntities);
+						_world.EnsureEntityAlive(entity);
+						_world.RemoveComponentById(entity, command.ComponentTypeId);
 						break;
+					}
 					default:
 						throw new ArgumentOutOfRangeException();
 				}

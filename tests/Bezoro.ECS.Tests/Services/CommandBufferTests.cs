@@ -65,6 +65,29 @@ public class CommandBufferTests
 	}
 
 	[Fact]
+	public void Playback_WhenCalledDuringQueryIteration_ShouldThrow()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Position { X = 0, Y = 0 });
+
+		var commands = world.CreateCommandBuffer();
+		commands.CreateEntity();
+
+		// Act
+		var act = () =>
+		{
+			foreach (var _ in world.Query().With<Position>())
+				commands.Playback();
+		};
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*Playback*");
+	}
+
+	[Fact]
 	public void Playback_WhenFailing_ShouldKeepUnprocessedCommandsForRetry()
 	{
 		// Arrange
@@ -117,6 +140,24 @@ public class CommandBufferTests
 		var component = world.GetComponent<Position>(entity);
 		component.X.Should().Be(9);
 		component.Y.Should().Be(8);
+	}
+
+	[Fact]
+	public void RemoveComponent_WhenEntityIsNotAlive_ShouldThrowOnPlayback()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.CreateEntity();
+		world.DestroyEntity(entity);
+
+		var commands = world.CreateCommandBuffer();
+		commands.RemoveComponent<Position>(entity);
+
+		// Act
+		var act = () => commands.Playback();
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>();
 	}
 
 	private sealed class AddVelocitySystem : ISystem

@@ -206,6 +206,26 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
+	{
+		// Arrange
+		var world  = new World();
+		var entity = world.CreateEntity();
+		world.AddComponent(entity, new Position { X = 1, Y = 1 });
+
+		// Act
+		var act = () =>
+		{
+			foreach (var _ in world.Query().With<Position>())
+				world.AddComponent(entity, new Velocity { X = 0, Y = 0 });
+		};
+
+		// Assert
+		act.Should().Throw<InvalidOperationException>();
+		world.HasComponent<Velocity>(entity).Should().BeFalse();
+	}
+
+	[Fact]
 	public void SetComponent_WhenEntityBelongsToDifferentWorld_ShouldThrow()
 	{
 		// Arrange

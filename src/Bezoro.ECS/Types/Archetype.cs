@@ -9,6 +9,8 @@ namespace Bezoro.ECS.Types;
 public sealed class Archetype
 {
 	private int _firstAvailableChunkIndex;
+	private readonly Dictionary<int, Archetype> _addEdges = new();
+	private readonly Dictionary<int, Archetype> _removeEdges = new();
 
 	internal Archetype(World owner, int id, int[] typeIds, Type[] types, int chunkCapacity)
 	{
@@ -45,6 +47,14 @@ public sealed class Archetype
 	internal Type[] Types { get; }
 
 	internal World Owner { get; }
+
+	internal bool TryGetAddEdge(int typeId, out Archetype archetype) => _addEdges.TryGetValue(typeId, out archetype!);
+
+	internal bool TryGetRemoveEdge(int typeId, out Archetype archetype) => _removeEdges.TryGetValue(typeId, out archetype!);
+
+	internal void SetAddEdge(int typeId, Archetype archetype) => _addEdges[typeId] = archetype;
+
+	internal void SetRemoveEdge(int typeId, Archetype archetype) => _removeEdges[typeId] = archetype;
 
 	internal bool ContainsAll(int[] requiredTypeIds)
 	{
@@ -125,6 +135,9 @@ public sealed class Archetype
 
 	internal void ClearChunks()
 	{
+		for (var i = 0; i < Chunks.Count; i++)
+			Chunks[i].DisposeColumns();
+
 		Chunks.Clear();
 		_firstAvailableChunkIndex = 0;
 	}

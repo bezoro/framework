@@ -1,3 +1,4 @@
+using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Abstractions;
@@ -11,13 +12,30 @@ public interface ISystem
 	/// <summary>
 	///     Gets the update settings that control how often this system runs.
 	/// </summary>
-	SystemUpdateSettings UpdateSettings { get; }
+	SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
 
 	/// <summary>
 	///     Gets the component access requirements for this system.
 	///     This allows the scheduler to run compatible systems in parallel safely.
 	/// </summary>
-	ComponentAccess[] Accesses { get; }
+	ComponentAccess[] Accesses => [];
+
+	/// <summary>
+	///     Gets the stage this system executes in.
+	/// </summary>
+	Stage Stage => Stage.Update;
+
+	/// <summary>
+	///     Called once when the system is added to a world.
+	/// </summary>
+	/// <param name="world">The owning world.</param>
+	void OnCreate(World world) { }
+
+	/// <summary>
+	///     Called once when the system is removed or the world is disposed.
+	/// </summary>
+	/// <param name="world">The owning world.</param>
+	void OnDestroy(World world) { }
 
 	/// <summary>
 	///     Performs the update logic for this system.

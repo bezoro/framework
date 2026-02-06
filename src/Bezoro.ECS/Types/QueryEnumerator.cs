@@ -1,92 +1,88 @@
+using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-///     Enumerates chunk views for a query.
+/// Enumerates chunk views for a query.
 /// </summary>
-public struct QueryEnumerator
+public struct QueryEnumerator : IDisposable
 {
 	private readonly Archetype? _archetype;
-	private readonly int[]      _excludeTypeIds;
-	private readonly int[]      _typeIds;
-	private readonly World      _world;
-	private          Archetype? _currentArchetype;
-	private          int        _archetypeIndex;
-	private          int        _chunkIndex;
+	private readonly QuerySpec _spec;
+	private readonly World _world;
+	private readonly IReadOnlyList<Archetype> _matches;
+	private int _archetypeIndex;
+	private int _chunkIndex;
+	private bool _entered;
 
-	internal QueryEnumerator(World world, Archetype? archetype, int[] typeIds, int[] excludeTypeIds)
+	internal QueryEnumerator(World world, Archetype? archetype, QuerySpec spec)
 	{
-		_world            = world;
-		_archetype        = archetype;
-		_typeIds          = typeIds;
-		_excludeTypeIds   = excludeTypeIds;
-		_archetypeIndex   = 0;
-		_chunkIndex       = 0;
-		_currentArchetype = null;
-		Current           = default;
+		_world = world;
+		_archetype = archetype;
+		_spec = spec;
+		_archetypeIndex = 0;
+		_chunkIndex = 0;
+		Current = default;
+		_entered = true;
+		_world.EnterQueryIteration();
+		_matches = archetype is null ? _world.GetOrCreateQueryMatches(spec) : [archetype];
 	}
 
-	/// <summary>
-	///     Gets the current chunk view.
-	/// </summary>
 	public ChunkView Current { get; private set; }
 
-	/// <summary>
-	///     Advances to the next chunk view.
-	/// </summary>
 	public bool MoveNext()
 	{
-		if (_archetype is { })
-			return MoveNextInArchetype(_archetype);
-
-		var archetypes = _world.Archetypes;
-		while (true)
+		while (_archetypeIndex < _matches.Count)
 		{
-			if (_currentArchetype is null)
+			var archetype = _matches[_archetypeIndex];
+			var chunks = archetype.Chunks;
+			while (_chunkIndex < chunks.Count)
 			{
-				if (_archetypeIndex >= archetypes.Count) return false;
+				var chunk = chunks[_chunkIndex++];
+				if (chunk.Count == 0) continue;
 
-				_currentArchetype = archetypes[_archetypeIndex++];
-				_chunkIndex       = 0;
+				var view = new ChunkView(
+					chunk.Entities,
+					chunk.Columns,
+					chunk.Count,
+					archetype.TypeIndexById,
+					chunk.ComponentVersions,
+					_world.ChangeVersion,
+					trackWrites: true,
+					chunk);
 
-				if (!MatchesArchetype(_currentArchetype))
-				{
-					_currentArchetype = null;
-					continue;
-				}
+				if (!MatchesChanged(view)) continue;
+
+				Current = view;
+				return true;
 			}
 
-			if (MoveNextInArchetype(_currentArchetype))
-				return true;
-
-			_currentArchetype = null;
+			_chunkIndex = 0;
+			_archetypeIndex++;
 		}
+
+		Dispose();
+		return false;
 	}
 
-	private bool MatchesArchetype(Archetype archetype)
+	public void Dispose()
 	{
-		if (_typeIds.Length > 0 && !archetype.ContainsAll(_typeIds)) return false;
-		if (_excludeTypeIds.Length > 0 && archetype.ContainsAny(_excludeTypeIds)) return false;
+		if (!_entered) return;
+		_entered = false;
+		_world.ExitQueryIteration();
+	}
+
+	private bool MatchesChanged(ChunkView view)
+	{
+		if (_spec.ChangedTypeIds.Length == 0) return true;
+
+		for (var i = 0; i < _spec.ChangedTypeIds.Length; i++)
+		{
+			if (!view.IsChanged(_spec.ChangedTypeIds[i]))
+				return false;
+		}
 
 		return true;
-	}
-
-	private bool MoveNextInArchetype(Archetype archetype)
-	{
-		if (!MatchesArchetype(archetype))
-			return false;
-
-		var chunks = archetype.Chunks;
-		while (_chunkIndex < chunks.Count)
-		{
-			var chunk = chunks[_chunkIndex++];
-			if (chunk.Count == 0) continue;
-
-			Current = new(chunk.Entities, chunk.Components, chunk.Count, archetype.TypeIndexById);
-			return true;
-		}
-
-		return false;
 	}
 }

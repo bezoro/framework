@@ -8,6 +8,8 @@
 		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<NoWarn>$(NoWarn);1591</NoWarn>
 		<Deterministic>true</Deterministic>
 		<TargetFrameworks>net9.0;netstandard2.1</TargetFrameworks>
 	</PropertyGroup>
@@ -16,6 +18,10 @@
 		<InternalsVisibleTo Include="Bezoro.ECS.Tests" />
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
+		<ProjectReference Include="..\Bezoro.ECS.SourceGen\Bezoro.ECS.SourceGen.csproj"
+		                  OutputItemType="Analyzer"
+		                  ReferenceOutputAssembly="false"
+		                  PrivateAssets="all" />
 	</ItemGroup>
 </Project>

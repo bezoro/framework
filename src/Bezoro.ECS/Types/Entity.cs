@@ -9,6 +9,16 @@ namespace Bezoro.ECS.Types;
 public readonly struct Entity : IEntity, IEquatable<Entity>
 {
 	/// <summary>
+	///     Represents an invalid entity handle.
+	/// </summary>
+	public static readonly Entity None = new(-1, 0, -1);
+
+	/// <summary>
+	///     Represents a wildcard selector used by relationship queries.
+	/// </summary>
+	public static readonly Entity Wildcard = new(-2, 0, -1);
+
+	/// <summary>
 	///     Initializes a new instance of the <see cref="Entity" /> struct with the specified ID and version.
 	/// </summary>
 	/// <param name="id">The unique integer identifier for this entity.</param>
