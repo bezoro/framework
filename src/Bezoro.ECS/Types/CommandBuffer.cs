@@ -132,7 +132,7 @@ public sealed class CommandBuffer : IDisposable
 	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
 		ThrowIfDisposed();
-		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId     = _world.GetOrCreateComponentTypeId<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: true);
 		Enqueue(new(CommandType.AddComponent, entity, null, typeId, applicator));
 	}
@@ -241,7 +241,7 @@ public sealed class CommandBuffer : IDisposable
 	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
 	{
 		ThrowIfDisposed();
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		Enqueue(new Command(CommandType.RemoveComponent, entity, null, typeId, null));
 	}
 
@@ -254,7 +254,7 @@ public sealed class CommandBuffer : IDisposable
 	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
 	{
 		ThrowIfDisposed();
-		int typeId     = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId     = _world.GetOrCreateComponentTypeId<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, addOnly: false);
 		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
 	}

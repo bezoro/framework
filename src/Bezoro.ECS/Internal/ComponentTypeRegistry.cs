@@ -3,16 +3,16 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal static class ComponentTypeRegistry
+internal sealed class ComponentTypeRegistry
 {
-	private static readonly object _sync = new();
-	private static readonly Dictionary<Type, int> _typeToId = new();
-	private static readonly List<Type> _idToType = [];
-	private static readonly Dictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
-	private static readonly Dictionary<int, RelationshipInfo> _relationshipInfoById = [];
-	private static readonly Dictionary<Type, List<int>> _relationIdsByType = [];
+	private readonly object _sync = new();
+	private readonly Dictionary<Type, int> _typeToId = new();
+	private readonly List<Type> _idToType = [];
+	private readonly Dictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
+	private readonly Dictionary<int, RelationshipInfo> _relationshipInfoById = [];
+	private readonly Dictionary<Type, List<int>> _relationIdsByType = [];
 
-	public static int Count
+	public int Count
 	{
 		get
 		{
@@ -23,10 +23,10 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static int GetOrCreate<T>() where T : struct, IComponent =>
+	public int GetOrCreate<T>() where T : struct, IComponent =>
 		GetOrCreate(typeof(T));
 
-	public static int GetOrCreate(Type type)
+	public int GetOrCreate(Type type)
 	{
 		if (type is null) throw new ArgumentNullException(nameof(type));
 
@@ -45,7 +45,7 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static int GetOrCreateRelationship(Type relationType, Entity target)
+	public int GetOrCreateRelationship(Type relationType, Entity target)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 
@@ -70,7 +70,7 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static bool IsRelationship(int id)
+	public bool IsRelationship(int id)
 	{
 		lock (_sync)
 		{
@@ -78,7 +78,7 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static bool TryGetRelationshipInfo(int id, out RelationshipInfo info)
+	public bool TryGetRelationshipInfo(int id, out RelationshipInfo info)
 	{
 		lock (_sync)
 		{
@@ -86,7 +86,7 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static int[] GetRelationshipIds(Type relationType)
+	public int[] GetRelationshipIds(Type relationType)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 
@@ -99,7 +99,7 @@ internal static class ComponentTypeRegistry
 		}
 	}
 
-	public static Type GetType(int id)
+	public Type GetType(int id)
 	{
 		lock (_sync)
 		{

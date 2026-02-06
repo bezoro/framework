@@ -51,7 +51,7 @@ public sealed class Query
 
 	public Query All<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		return WithSorted(typeId, _spec.AllTypeIds, ids => new QuerySpec(ids, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds, _spec.RelatedRelationType, _spec.RelatedTarget));
 	}
 
@@ -62,7 +62,7 @@ public sealed class Query
 		for (var i = 0; i < componentTypes.Length; i++)
 		{
 			var type = componentTypes[i] ?? throw new ArgumentNullException(nameof(componentTypes));
-			int typeId = ComponentTypeRegistry.GetOrCreate(type);
+			int typeId = _world.GetOrCreateComponentTypeId(type);
 			result = result.WithSorted(typeId, result._spec.AllTypeIds, ids => new QuerySpec(ids, result._spec.NoneTypeIds, result._spec.AnyTypeIds, result._spec.OptionalTypeIds, result._spec.ChangedTypeIds, result._spec.RelatedRelationType, result._spec.RelatedTarget));
 		}
 
@@ -71,7 +71,7 @@ public sealed class Query
 
 	public Query None<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		return WithSorted(typeId, _spec.NoneTypeIds, ids => new QuerySpec(_spec.AllTypeIds, ids, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds, _spec.RelatedRelationType, _spec.RelatedTarget));
 	}
 
@@ -82,7 +82,7 @@ public sealed class Query
 		for (var i = 0; i < componentTypes.Length; i++)
 		{
 			var type = componentTypes[i] ?? throw new ArgumentNullException(nameof(componentTypes));
-			int typeId = ComponentTypeRegistry.GetOrCreate(type);
+			int typeId = _world.GetOrCreateComponentTypeId(type);
 			result = result.WithSorted(typeId, result._spec.NoneTypeIds, ids => new QuerySpec(result._spec.AllTypeIds, ids, result._spec.AnyTypeIds, result._spec.OptionalTypeIds, result._spec.ChangedTypeIds, result._spec.RelatedRelationType, result._spec.RelatedTarget));
 		}
 
@@ -93,8 +93,8 @@ public sealed class Query
 		where T1 : struct, IComponent
 		where T2 : struct, IComponent
 	{
-		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
-		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 		var result = this;
 		result = result.WithSorted(typeId1, result._spec.AnyTypeIds, ids => new QuerySpec(result._spec.AllTypeIds, result._spec.NoneTypeIds, ids, result._spec.OptionalTypeIds, result._spec.ChangedTypeIds, result._spec.RelatedRelationType, result._spec.RelatedTarget));
 		result = result.WithSorted(typeId2, result._spec.AnyTypeIds, ids => new QuerySpec(result._spec.AllTypeIds, result._spec.NoneTypeIds, ids, result._spec.OptionalTypeIds, result._spec.ChangedTypeIds, result._spec.RelatedRelationType, result._spec.RelatedTarget));
@@ -103,13 +103,13 @@ public sealed class Query
 
 	public Query Optional<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		return WithSorted(typeId, _spec.OptionalTypeIds, ids => new QuerySpec(_spec.AllTypeIds, _spec.NoneTypeIds, _spec.AnyTypeIds, ids, _spec.ChangedTypeIds, _spec.RelatedRelationType, _spec.RelatedTarget));
 	}
 
 	public Query Changed<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		return WithSorted(typeId, _spec.ChangedTypeIds, ids => new QuerySpec(_spec.AllTypeIds, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, ids, _spec.RelatedRelationType, _spec.RelatedTarget));
 	}
 
@@ -118,7 +118,7 @@ public sealed class Query
 		if (target == Entity.Wildcard)
 			return new(_world, _archetype, new QuerySpec(_spec.AllTypeIds, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds, typeof(TRelation), Entity.Wildcard));
 
-		int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(typeof(TRelation), target);
+		int relationTypeId = _world.GetOrCreateRelationshipTypeId(typeof(TRelation), target);
 		var withTarget = WithSorted(relationTypeId, _spec.AllTypeIds, ids => new QuerySpec(ids, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds, typeof(TRelation), target));
 		return withTarget;
 	}

@@ -50,11 +50,11 @@ internal sealed class SystemManager
 			var access = accesses[i];
 			if (access.Mode == ComponentAccessMode.ReadWrite)
 			{
-				AddWriteType(readSet, writeSet, access.ComponentType);
+				AddWriteType(world, readSet, writeSet, access.ComponentType);
 			}
 			else
 			{
-				AddReadType(readSet, writeSet, access.ComponentType);
+				AddReadType(world, readSet, writeSet, access.ComponentType);
 			}
 		}
 
@@ -66,14 +66,14 @@ internal sealed class SystemManager
 			{
 				var componentType = metadata.Reads[i];
 				if (componentType is null) continue;
-				AddReadType(readSet, writeSet, componentType);
+				AddReadType(world, readSet, writeSet, componentType);
 			}
 
 			for (var i = 0; i < metadata.Writes.Length; i++)
 			{
 				var componentType = metadata.Writes[i];
 				if (componentType is null) continue;
-				AddWriteType(readSet, writeSet, componentType);
+				AddWriteType(world, readSet, writeSet, componentType);
 			}
 
 			isExclusive = metadata.IsExclusive;
@@ -91,12 +91,12 @@ internal sealed class SystemManager
 				if (generic == typeof(ReadsAttribute<>))
 				{
 					var componentType = attributeType.GetGenericArguments()[0];
-					AddReadType(readSet, writeSet, componentType);
+					AddReadType(world, readSet, writeSet, componentType);
 				}
 				else if (generic == typeof(WritesAttribute<>))
 				{
 					var componentType = attributeType.GetGenericArguments()[0];
-					AddWriteType(readSet, writeSet, componentType);
+					AddWriteType(world, readSet, writeSet, componentType);
 				}
 			}
 
@@ -110,16 +110,16 @@ internal sealed class SystemManager
 		system.OnCreate(world);
 	}
 
-	private static void AddReadType(HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddReadType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate(componentType);
+		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		if (!writeSet.Contains(typeId))
 			readSet.Add(typeId);
 	}
 
-	private static void AddWriteType(HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddWriteType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate(componentType);
+		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		writeSet.Add(typeId);
 		readSet.Remove(typeId);
 	}

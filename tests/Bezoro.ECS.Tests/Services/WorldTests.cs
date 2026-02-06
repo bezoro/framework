@@ -107,6 +107,21 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void ComponentTypeIds_WhenDifferentWorldsRegisterDifferentTypes_ShouldRemainWorldScoped()
+	{
+		var worldA = new World();
+		int worldAFirstCustom = worldA.GetOrCreateComponentTypeId<WorldAOnlyComponent>();
+
+		var worldB = new World();
+		worldB.GetOrCreateComponentTypeId<WorldBOnlyComponent>();
+		worldB.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+
+		int worldASecondCustom = worldA.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
+
+		worldASecondCustom.Should().Be(worldAFirstCustom + 1);
+	}
+
+	[Fact]
 	public void Query_ShouldReturnAllEntities_WithPositionAndVelocity()
 	{
 		// Arrange
@@ -334,4 +349,8 @@ public class WorldTests
 		public float X;
 		public float Y;
 	}
+
+	private struct WorldAOnlyComponent : IComponent;
+	private struct WorldBOnlyComponent : IComponent;
+	private struct WorldBSecondOnlyComponent : IComponent;
 }

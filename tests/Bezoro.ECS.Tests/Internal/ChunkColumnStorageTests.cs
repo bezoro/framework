@@ -19,7 +19,7 @@ public class ChunkColumnStorageTests
 
 		var archetype = world.GetOrCreateArchetype(typeof(UnmanagedPosition));
 		var chunk = archetype.Chunks[0];
-		int typeId = ComponentTypeRegistry.GetOrCreate<UnmanagedPosition>();
+		int typeId = world.GetOrCreateComponentTypeId<UnmanagedPosition>();
 		int index = archetype.GetTypeIndex(typeId);
 
 		chunk.IsUnmanagedColumn(index).Should().BeTrue();
@@ -34,7 +34,7 @@ public class ChunkColumnStorageTests
 
 		var archetype = world.GetOrCreateArchetype(typeof(ManagedPayload));
 		var chunk = archetype.Chunks[0];
-		int typeId = ComponentTypeRegistry.GetOrCreate<ManagedPayload>();
+		int typeId = world.GetOrCreateComponentTypeId<ManagedPayload>();
 		int index = archetype.GetTypeIndex(typeId);
 
 		chunk.IsUnmanagedColumn(index).Should().BeFalse();

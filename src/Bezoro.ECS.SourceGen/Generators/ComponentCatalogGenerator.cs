@@ -28,10 +28,10 @@ public sealed class ComponentCatalogGenerator : IIncrementalGenerator
 			builder.AppendLine();
 			builder.AppendLine("internal static class ComponentTypeCatalog");
 			builder.AppendLine("{");
-			builder.AppendLine("    internal static void RegisterAll()");
+			builder.AppendLine("    internal static void RegisterAll(global::Bezoro.ECS.Internal.ComponentTypeRegistry registry)");
 			builder.AppendLine("    {");
 			foreach (var typeName in componentTypes)
-				builder.Append("        global::Bezoro.ECS.Internal.ComponentTypeRegistry.GetOrCreate(typeof(").Append(typeName).AppendLine("));");
+				builder.Append("        registry.GetOrCreate(typeof(").Append(typeName).AppendLine("));");
 			builder.AppendLine("    }");
 			builder.AppendLine("}");
 

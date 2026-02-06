@@ -50,7 +50,8 @@ public struct QueryEnumerator : IDisposable
 					chunk.ComponentVersions,
 					_world.ChangeVersion,
 					trackWrites: true,
-					chunk);
+					chunk,
+					_world);
 
 				if (!MatchesChanged(view)) continue;
 

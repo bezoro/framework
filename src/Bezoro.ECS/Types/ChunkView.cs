@@ -1,5 +1,6 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
+using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Types;
 
@@ -15,6 +16,7 @@ public readonly struct ChunkView
 	private readonly uint _currentVersion;
 	private readonly bool _trackWrites;
 	private readonly Chunk? _chunk;
+	private readonly World _world;
 
 	internal ChunkView(
 		Entity[] entities,
@@ -24,7 +26,8 @@ public readonly struct ChunkView
 		uint[] componentVersions,
 		uint currentVersion,
 		bool trackWrites,
-		Chunk? chunk)
+		Chunk? chunk,
+		World world)
 	{
 		_entities = entities;
 		_columns = columns;
@@ -34,6 +37,7 @@ public readonly struct ChunkView
 		_currentVersion = currentVersion;
 		_trackWrites = trackWrites;
 		_chunk = chunk;
+		_world = world;
 	}
 
 	public int Count { get; }
@@ -42,7 +46,7 @@ public readonly struct ChunkView
 
 	public bool TryComponents<T>(out Span<T> components) where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index = GetIndex(typeId);
 		if (index < 0)
 		{
@@ -56,7 +60,7 @@ public readonly struct ChunkView
 
 	public Span<T> Components<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index = GetIndex(typeId);
 		if (index < 0)
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
@@ -69,7 +73,7 @@ public readonly struct ChunkView
 
 	public Span<T> OptionalComponents<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index = GetIndex(typeId);
 		if (index < 0)
 			return Span<T>.Empty;
@@ -82,7 +86,7 @@ public readonly struct ChunkView
 
 	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct, IComponent
 	{
-		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index = GetIndex(typeId);
 		if (index < 0)
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
