@@ -329,7 +329,7 @@ public static class TestDataBuilders
 	internal class ProcessUciTransportBuilder
 	{
 		private ProcessUciTransportOptions _options = new();
-		private string                     _path    = TestResourcePaths.StockfishPath;
+		private string                     _path    = TestResourcePaths.STOCKFISH_PATH;
 		private string?                    _workingDirectory;
 		private string[]?                  _arguments;
 

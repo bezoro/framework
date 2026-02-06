@@ -2,26 +2,18 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct Command
+internal readonly struct Command(
+	CommandType           type,
+	Entity                entity,
+	Archetype?            archetype,
+	int                   componentTypeId,
+	IComponentApplicator? applicator
+)
 {
-	public Command(
-		CommandType           type,
-		Entity                entity,
-		Archetype?            archetype,
-		int                   componentTypeId,
-		IComponentApplicator? applicator)
-	{
-		Type            = type;
-		Entity          = entity;
-		Archetype       = archetype;
-		ComponentTypeId = componentTypeId;
-		Applicator      = applicator;
-	}
+	public Archetype? Archetype { get; } = archetype;
 
-	public Archetype? Archetype { get; }
-
-	public CommandType           Type            { get; }
-	public Entity                Entity          { get; }
-	public IComponentApplicator? Applicator      { get; }
-	public int                   ComponentTypeId { get; }
+	public CommandType           Type            { get; } = type;
+	public Entity                Entity          { get; } = entity;
+	public IComponentApplicator? Applicator      { get; } = applicator;
+	public int                   ComponentTypeId { get; } = componentTypeId;
 }

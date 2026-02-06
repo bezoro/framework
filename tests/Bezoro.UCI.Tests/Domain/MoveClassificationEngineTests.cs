@@ -14,7 +14,7 @@ public class MoveClassificationEngineTests
 	{
 		var start = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// White move
@@ -49,7 +49,7 @@ public class MoveClassificationEngineTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen);
@@ -72,7 +72,7 @@ public class MoveClassificationEngineTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var moveStream = engine.ClassifyAsync(fen);
@@ -94,7 +94,7 @@ public class MoveClassificationEngineTests
 	[Fact]
 	public async Task ClassifyAsync_WhenFenIsInvalid_ThrowsArgumentException()
 	{
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await using var enumerator = engine.ClassifyAsync(Fen.Empty()).GetAsyncEnumerator();
@@ -109,7 +109,7 @@ public class MoveClassificationEngineTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen.Value);
@@ -133,7 +133,7 @@ public class MoveClassificationEngineTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var stream = engine.ClassifyAsync(fen!.Value);
@@ -156,7 +156,7 @@ public class MoveClassificationEngineTests
 		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		fen.Should().NotBeNull();
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Act: Start classification stream and concurrently check for mate
@@ -196,7 +196,7 @@ public class MoveClassificationEngineTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Act: Call ClassifyMoveAsync concurrently with different moves
@@ -223,7 +223,7 @@ public class MoveClassificationEngineTests
 	[Fact]
 	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ThrowsArgumentException()
 	{
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(Fen.Empty(), "e2e4"));
@@ -235,7 +235,7 @@ public class MoveClassificationEngineTests
 		// Starting position: "e2e5" is illegal.
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => engine.ClassifyMoveAsync(fen, "e2e5"));
@@ -247,7 +247,7 @@ public class MoveClassificationEngineTests
 		// Starting position: "e2e4" is legal.
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen, "e2e4");
@@ -266,7 +266,7 @@ public class MoveClassificationEngineTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen.Value, "f7g7");
@@ -285,7 +285,7 @@ public class MoveClassificationEngineTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		var result = await engine.ClassifyMoveAsync(fen.Value, "b7b6");
@@ -303,7 +303,7 @@ public class MoveClassificationEngineTests
 		var fen2 = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		fen2.Should().NotBeNull();
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Act: Perform concurrent operations that modify position
@@ -332,7 +332,7 @@ public class MoveClassificationEngineTests
 		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		fen.Should().NotBeNull();
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Act: Call IsCheckmateAsync concurrently with different moves
@@ -361,7 +361,7 @@ public class MoveClassificationEngineTests
 		// Move f7g7 is checkmate.
 		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isMate = await engine.IsCheckmateAsync(fen!.Value, "f7g7");
@@ -374,7 +374,7 @@ public class MoveClassificationEngineTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isMate = await engine.IsCheckmateAsync(fen, "e2e4");
@@ -388,7 +388,7 @@ public class MoveClassificationEngineTests
 		var fen = Fen.Parse(TestConstants.STALEMATE_FEN);
 		fen.Should().NotBeNull();
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		// Act: Call IsStalemateAsync concurrently
@@ -415,7 +415,7 @@ public class MoveClassificationEngineTests
 	{
 		var fen = Fen.Default;
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isStalemate = await engine.IsStalemateAsync(fen, "e2e4");
@@ -430,7 +430,7 @@ public class MoveClassificationEngineTests
 		// Move b7b6 stalemates Black.
 		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
 
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.StockfishPath);
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
 
 		bool isStalemate = await engine.IsStalemateAsync(fen!.Value, "b7b6");

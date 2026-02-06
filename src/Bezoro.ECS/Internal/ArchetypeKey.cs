@@ -1,16 +1,10 @@
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct ArchetypeKey : IEquatable<ArchetypeKey>
+internal readonly struct ArchetypeKey(int[] typeIds) : IEquatable<ArchetypeKey>
 {
-	private readonly int _hashCode;
+	private readonly int _hashCode = ComputeHashCode(typeIds);
 
-	public ArchetypeKey(int[] typeIds)
-	{
-		TypeIds   = typeIds ?? throw new ArgumentNullException(nameof(typeIds));
-		_hashCode = ComputeHashCode(typeIds);
-	}
-
-	public int[] TypeIds { get; }
+	public int[] TypeIds { get; } = typeIds ?? throw new ArgumentNullException(nameof(typeIds));
 
 	#region Equality
 

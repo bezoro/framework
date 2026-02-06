@@ -1,13 +1,9 @@
 namespace Bezoro.ECS.Internal;
 
-internal sealed class ManagedComponentColumn : ComponentColumn
+internal sealed class ManagedComponentColumn(Type componentType, int capacity)
+	: ComponentColumn(componentType, capacity)
 {
-	private readonly Array _items;
-
-	public ManagedComponentColumn(Type componentType, int capacity) : base(componentType, capacity)
-	{
-		_items = Array.CreateInstance(componentType, capacity);
-	}
+	private readonly Array _items = Array.CreateInstance(componentType, capacity);
 
 	public override bool IsUnmanaged => false;
 

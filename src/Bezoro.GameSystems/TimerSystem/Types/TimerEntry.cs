@@ -7,34 +7,28 @@ namespace Bezoro.GameSystems.TimerSystem.Types;
 ///     Internal mutable struct representing a timer's full state.
 ///     Stored in the service's ConcurrentDictionary.
 /// </summary>
-internal record struct TimerEntry
+internal record struct TimerEntry(
+	long                 DurationTicks,
+	Action<TimerHandle>? OnCompleted,
+	TimerMode            Mode = TimerMode.OneShot
+)
 {
 	/// <summary>Optional callback invoked when the timer completes.</summary>
-	public readonly Action<TimerHandle>? OnCompleted;
+	public readonly Action<TimerHandle>? OnCompleted = OnCompleted;
 
 	/// <summary>The total duration in Stopwatch ticks.</summary>
-	public readonly long DurationTicks;
+	public readonly long DurationTicks = DurationTicks;
 
 	/// <summary>The lifecycle mode of this timer.</summary>
-	public readonly TimerMode Mode;
+	public readonly TimerMode Mode = Mode;
 
 	/// <summary>Accumulated ticks from previous running periods (used for pause/resume).</summary>
-	public long AccumulatedTicks;
+	public long AccumulatedTicks = 0;
 	/// <summary>The Stopwatch timestamp when the timer was last started or resumed.</summary>
-	public long StartTimestamp;
+	public long StartTimestamp = Stopwatch.GetTimestamp();
 
 	/// <summary>Current state of the timer.</summary>
-	public TimerState State;
-
-	public TimerEntry(long durationTicks, Action<TimerHandle>? onCompleted, TimerMode mode = TimerMode.OneShot)
-	{
-		DurationTicks    = durationTicks;
-		OnCompleted      = onCompleted;
-		Mode             = mode;
-		StartTimestamp   = Stopwatch.GetTimestamp();
-		AccumulatedTicks = 0;
-		State            = TimerState.Running;
-	}
+	public TimerState State = TimerState.Running;
 
 	/// <summary>
 	///     Gets whether the timer has reached or exceeded its duration.

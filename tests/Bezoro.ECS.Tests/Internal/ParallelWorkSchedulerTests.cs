@@ -13,14 +13,14 @@ public class ParallelWorkSchedulerTests
 	[Fact]
 	public void Execute_WhenParallel_ShouldBoundWorkerThreadCount()
 	{
-		const int maxDegreeOfParallelism = 3;
-		var       threadIds              = new ConcurrentDictionary<int, byte>();
+		const int MAX_DEGREE_OF_PARALLELISM = 3;
+		var       threadIds                 = new ConcurrentDictionary<int, byte>();
 
 		ParallelWorkScheduler.Execute(
-			128, maxDegreeOfParallelism, _ => { threadIds.TryAdd(Environment.CurrentManagedThreadId, 0); }
+			128, MAX_DEGREE_OF_PARALLELISM, _ => { threadIds.TryAdd(Environment.CurrentManagedThreadId, 0); }
 		);
 
-		threadIds.Count.Should().BeLessThanOrEqualTo(maxDegreeOfParallelism);
+		threadIds.Count.Should().BeLessThanOrEqualTo(MAX_DEGREE_OF_PARALLELISM);
 	}
 
 	[Fact]

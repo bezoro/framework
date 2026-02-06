@@ -8,8 +8,8 @@ namespace Bezoro.ECS.SourceGen.Generators;
 [Generator]
 public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 {
-	private const string SplitFieldsAttributeName = "Bezoro.ECS.Attributes.SplitFieldsAttribute";
-	private const string SplitGroupAttributeName  = "Bezoro.ECS.Attributes.SplitGroupAttribute";
+	private const string SPLIT_FIELDS_ATTRIBUTE_NAME = "Bezoro.ECS.Attributes.SplitFieldsAttribute";
+	private const string SPLIT_GROUP_ATTRIBUTE_NAME  = "Bezoro.ECS.Attributes.SplitGroupAttribute";
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
@@ -120,7 +120,7 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 		for (var i = 0; i < field.GetAttributes().Length; i++)
 		{
 			var attribute = field.GetAttributes()[i];
-			if (attribute.AttributeClass?.ToDisplayString() != SplitGroupAttributeName)
+			if (attribute.AttributeClass?.ToDisplayString() != SPLIT_GROUP_ATTRIBUTE_NAME)
 				continue;
 
 			if (attribute.ConstructorArguments.Length != 1)
@@ -352,7 +352,7 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 	{
 		if (type.TypeKind == TypeKind.Struct &&
 			ImplementsComponent(type) &&
-			HasAttribute(type, SplitFieldsAttributeName) &&
+			HasAttribute(type, SPLIT_FIELDS_ATTRIBUTE_NAME) &&
 			TryCreateModel(type, out var model))
 			output.Add(model);
 
@@ -361,54 +361,33 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 			CollectSplitTypes(nestedTypes[i], output);
 	}
 
-	private sealed class FieldModel
+	private sealed class FieldModel(string name, string typeName)
 	{
-		public FieldModel(string name, string typeName)
-		{
-			Name     = name;
-			TypeName = typeName;
-		}
-
-		public string Name     { get; }
-		public string TypeName { get; }
+		public string Name     { get; } = name;
+		public string TypeName { get; } = typeName;
 	}
 
-	private sealed class GroupModel
+	private sealed class GroupModel(int groupId, List<FieldModel> fields)
 	{
-		public GroupModel(int groupId, List<FieldModel> fields)
-		{
-			GroupId = groupId;
-			Fields  = fields;
-		}
-
-		public int              GroupId { get; }
-		public List<FieldModel> Fields  { get; }
+		public int              GroupId { get; } = groupId;
+		public List<FieldModel> Fields  { get; } = fields;
 	}
 
-	private sealed class SplitModel
+	private sealed class SplitModel(
+		string           typeNamespace,
+		string           accessibility,
+		string           helperTypeName,
+		string           logicalTypeName,
+		List<GroupModel> groups,
+		string           hintName
+	)
 	{
-		public SplitModel(
-			string           typeNamespace,
-			string           accessibility,
-			string           helperTypeName,
-			string           logicalTypeName,
-			List<GroupModel> groups,
-			string           hintName)
-		{
-			Namespace       = typeNamespace;
-			Accessibility   = accessibility;
-			HelperTypeName  = helperTypeName;
-			LogicalTypeName = logicalTypeName;
-			Groups          = groups;
-			HintName        = hintName;
-		}
+		public List<GroupModel> Groups          { get; } = groups;
+		public string           Accessibility   { get; } = accessibility;
+		public string           HelperTypeName  { get; } = helperTypeName;
+		public string           HintName        { get; } = hintName;
+		public string           LogicalTypeName { get; } = logicalTypeName;
 
-		public List<GroupModel> Groups          { get; }
-		public string           Accessibility   { get; }
-		public string           HelperTypeName  { get; }
-		public string           HintName        { get; }
-		public string           LogicalTypeName { get; }
-
-		public string Namespace { get; }
+		public string Namespace { get; } = typeNamespace;
 	}
 }

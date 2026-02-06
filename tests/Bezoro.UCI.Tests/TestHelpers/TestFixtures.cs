@@ -15,7 +15,7 @@ public class StockfishFixture : IAsyncLifetime
 	/// <summary>
 	///     Gets the path to the Stockfish executable.
 	/// </summary>
-	public string StockfishPath { get; } = TestResourcePaths.StockfishPath;
+	public string StockfishPath { get; } = TestResourcePaths.STOCKFISH_PATH;
 
 	public Task InitializeAsync()
 	{

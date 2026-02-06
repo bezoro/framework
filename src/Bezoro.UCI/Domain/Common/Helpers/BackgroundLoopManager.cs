@@ -170,7 +170,7 @@ internal sealed class BackgroundLoopManager(
 
 					stateManager.MarkProcessAlive(false);
 					int exitCode = process.ExitCode;
-					Logger.Log($"UCI engine process exited with code {exitCode}.", category: LogCategory.UCI);
+					Logger.Log($"UCI engine process exited with code {exitCode}.", category: LogCategory.Uci);
 					onExited(exitCode, null);
 				}
 				catch (Exception ex)
@@ -503,7 +503,7 @@ internal sealed class BackgroundLoopManager(
 		else
 		{
 			var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
-			Logger.Log(timeoutException, category: LogCategory.UCI);
+			Logger.Log(timeoutException, category: LogCategory.Uci);
 		}
 	}
 

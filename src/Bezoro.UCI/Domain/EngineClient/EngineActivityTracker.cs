@@ -5,19 +5,14 @@ namespace Bezoro.UCI.Domain.EngineClient;
 /// <summary>
 ///     Tracks engine activity transitions and publishes notifications.
 /// </summary>
-internal sealed class EngineActivityTracker
+internal sealed class EngineActivityTracker(EngineActivity initial = EngineActivity.Idle)
 {
-	private int _activity;
+	private int _activity = (int)initial;
 
 	/// <summary>
 	///     Occurs when the activity state changes.
 	/// </summary>
 	public event Action<EngineActivity, EngineActivity>? ActivityChanged;
-
-	public EngineActivityTracker(EngineActivity initial = EngineActivity.Idle)
-	{
-		_activity = (int)initial;
-	}
 
 	/// <summary>
 	///     Current activity state.

@@ -5,7 +5,7 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class GeneratedSystemMetadataResolver
 {
-	private const    string MetadataTypeName = "Bezoro.ECS.Generated.GeneratedSystemMetadata";
+	private const    string METADATA_TYPE_NAME = "Bezoro.ECS.Generated.GeneratedSystemMetadata";
 	private readonly Dictionary<Assembly, IReadOnlyDictionary<Type, SystemMetadata>?> _cache = new();
 	private readonly object _sync = new();
 
@@ -23,7 +23,7 @@ internal sealed class GeneratedSystemMetadataResolver
 
 	private static IReadOnlyDictionary<Type, SystemMetadata>? CreateMap(Assembly assembly)
 	{
-		var metadataType = assembly.GetType(MetadataTypeName, false, false);
+		var metadataType = assembly.GetType(METADATA_TYPE_NAME, false, false);
 		if (metadataType is null)
 			return null;
 

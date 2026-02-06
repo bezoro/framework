@@ -146,7 +146,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			SignalStartFailure(startingSignal, ex, ct);
 			await CleanupAfterFailedStartSafeAsync().ConfigureAwait(false);
 			_stateManager.ResetStatusIfNeeded();
-			Logger.Log(ex, category: LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.Uci);
 			throw;
 		}
 		finally
@@ -178,7 +178,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (!_stateManager.IsStarted && _process is null)
 		{
 			_stateManager.SetStatus(TransportStatus.Stopped);
-			Logger.Log("StopAsync: transport not started; no-op.", category: LogCategory.UCI);
+			Logger.Log("StopAsync: transport not started; no-op.", category: LogCategory.Uci);
 			return;
 		}
 
@@ -189,7 +189,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			_stateManager.SetStatus(TransportStatus.Stopping);
-			Logger.Log("Stopping UCI transport.", category: LogCategory.UCI);
+			Logger.Log("Stopping UCI transport.", category: LogCategory.Uci);
 
 			await TearDownCoreAsync(_options.SendQuitOnStop, TransportStatus.Stopped, "Stopped UCI transport.")
 				.ConfigureAwait(false);
@@ -316,7 +316,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 			{
 				// Stop already completed, just update status to Disposed
 				_stateManager.SetStatus(TransportStatus.Disposed);
-				Logger.Log("Disposed UCI transport (after stop).", category: LogCategory.UCI);
+				Logger.Log("Disposed UCI transport (after stop).", category: LogCategory.Uci);
 				_gateManager.ReleaseStopGate();
 				return;
 			}
@@ -327,7 +327,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		}
 
 		_stateManager.SetStatus(TransportStatus.Stopping);
-		Logger.Log("Disposing UCI transport.", category: LogCategory.UCI);
+		Logger.Log("Disposing UCI transport.", category: LogCategory.Uci);
 
 		try
 		{
@@ -425,7 +425,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 				$"WARNING: WriteLineAsync has been blocked for {warningThreshold.TotalSeconds:F1}s waiting for channel space. " +
 				"The consumer may not be reading, or the channel is saturated. " +
 				"Consider using TryWriteLineAsync with a timeout for better control.",
-				category: LogCategory.UCI
+				category: LogCategory.Uci
 			);
 		else
 			warningCts.Cancel();
@@ -645,7 +645,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 
 		_stateManager.SetStatus(TransportStatus.Started);
 
-		Logger.Log($"UCI engine started. PID={startedProcess.Id}", category: LogCategory.UCI);
+		Logger.Log($"UCI engine started. PID={startedProcess.Id}", category: LogCategory.Uci);
 
 		startingSignal.TrySetResult(null);
 		await Task.CompletedTask;
@@ -673,7 +673,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			Logger.Log(
 				$"Killing UCI engine process after grace period (tree={_options.KillEntireProcessTree}).",
-				category: LogCategory.UCI
+				category: LogCategory.Uci
 			);
 
 			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
@@ -697,14 +697,14 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			Logger.Log(
 				$"Killing UCI engine process (tree={_options.KillEntireProcessTree}).",
-				category: LogCategory.UCI
+				category: LogCategory.Uci
 			);
 
 			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
 		}
 		catch (Exception ex)
 		{
-			Logger.Log(ex, category: LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.Uci);
 		}
 
 		await Task.CompletedTask;
@@ -740,7 +740,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		await CleanupProcessAsync(p, false).ConfigureAwait(false);
 
 		_stateManager.SetStatus(finalStatus);
-		Logger.Log(finalLog, category: LogCategory.UCI);
+		Logger.Log(finalLog, category: LogCategory.Uci);
 	}
 
 	/// <summary>
@@ -821,7 +821,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		{
 			// Log but suppress disposal errors for already-exited process
 			// This is cleanup of a terminated process, so failures are non-critical
-			Logger.Log(ex, category: LogCategory.UCI);
+			Logger.Log(ex, category: LogCategory.Uci);
 		}
 		finally
 		{
@@ -880,7 +880,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		_stateManager.ResetExitedRaised();
 		_stateManager.SetStatus(TransportStatus.Starting);
-		Logger.Log("Starting UCI engine process.", category: LogCategory.UCI);
+		Logger.Log("Starting UCI engine process.", category: LogCategory.Uci);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -889,7 +889,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		try
 		{
 			var exception = new Exception($"{message}: {ex.Message}", ex);
-			Logger.Log(exception, category: LogCategory.UCI);
+			Logger.Log(exception, category: LogCategory.Uci);
 		}
 		catch
 		{
@@ -951,7 +951,7 @@ internal sealed class ProcessUciTransport : IUciTransport
 		if (line.Length > _options.WarnLineLength)
 			Logger.Log(
 				$"Warning: Command line length ({line.Length} characters) exceeds warning threshold ({_options.WarnLineLength} characters). This may indicate unusual usage.",
-				category: LogCategory.UCI
+				category: LogCategory.Uci
 			);
 	}
 

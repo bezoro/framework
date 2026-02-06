@@ -13,21 +13,21 @@ public class Grid2DConstructorTests
 	public void WhenCalledWithDefaultValue_ThenInitializesAllCells()
 	{
 		// Arrange
-		const int    width        = 3;
-		const int    height       = 4;
-		const string defaultValue = "default";
+		const int    WIDTH         = 3;
+		const int    HEIGHT        = 4;
+		const string DEFAULT_VALUE = "default";
 
 		// Act
-		var grid = new Grid2D<string>(width, height, defaultValue);
+		var grid = new Grid2D<string>(WIDTH, HEIGHT, DEFAULT_VALUE);
 
 		// Assert
-		grid.Width.Should().Be(width);
-		grid.Height.Should().Be(height);
+		grid.Width.Should().Be(WIDTH);
+		grid.Height.Should().Be(HEIGHT);
 
-		for (var x = 0; x < width; x++)
+		for (var x = 0; x < WIDTH; x++)
 		{
-			for (var y = 0; y < height; y++)
-				grid[x, y].Should().Be(defaultValue);
+			for (var y = 0; y < HEIGHT; y++)
+				grid[x, y].Should().Be(DEFAULT_VALUE);
 		}
 	}
 
@@ -62,16 +62,16 @@ public class Grid2DConstructorTests
 	public void WhenDimensionsAreValid_ThenInitializesCorrectly()
 	{
 		// Arrange
-		const int width  = 5;
-		const int height = 8;
+		const int WIDTH  = 5;
+		const int HEIGHT = 8;
 
 		// Act
-		var grid = new Grid2D<int>(width, height);
+		var grid = new Grid2D<int>(WIDTH, HEIGHT);
 
 		// Assert
-		grid.Width.Should().Be(width);
-		grid.Height.Should().Be(height);
-		grid.Length.Should().Be(width * height);
+		grid.Width.Should().Be(WIDTH);
+		grid.Height.Should().Be(HEIGHT);
+		grid.Length.Should().Be(WIDTH * HEIGHT);
 	}
 
 	[Fact]

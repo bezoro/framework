@@ -199,15 +199,8 @@ public class SystemManagerTests
 			throw new InvalidOperationException("system-fail");
 	}
 
-	private sealed class WriteCounterSystem : ISystem
+	private sealed class WriteCounterSystem(int value) : ISystem
 	{
-		private readonly int _value;
-
-		public WriteCounterSystem(int value)
-		{
-			_value = value;
-		}
-
 		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
 
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
@@ -218,7 +211,7 @@ public class SystemManagerTests
 			{
 				var counters = chunk.Components<Counter>();
 				for (var i = 0; i < chunk.Count; i++)
-					counters[i] = new() { Value = _value };
+					counters[i] = new() { Value = value };
 			}
 		}
 	}

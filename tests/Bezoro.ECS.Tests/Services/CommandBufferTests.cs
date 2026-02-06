@@ -208,24 +208,17 @@ public class CommandBufferTests
 		component.Y.Should().Be(8);
 	}
 
-	private sealed class AddVelocitySystem : ISystem
+	private sealed class AddVelocitySystem(Entity entity) : ISystem
 	{
-		private readonly Entity _entity;
-
-		public AddVelocitySystem(Entity entity)
-		{
-			_entity = entity;
-		}
-
 		public ComponentAccess[] Accesses => [ComponentAccess.Read<Position>()];
 
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
 
 		public void Update(IWorld world, in SystemContext context)
 		{
-			if (world.Has<Velocity>(_entity)) return;
+			if (world.Has<Velocity>(entity)) return;
 
-			context.Commands.AddComponent(_entity, new Velocity { X = 1, Y = 0 });
+			context.Commands.AddComponent(entity, new Velocity { X = 1, Y = 0 });
 		}
 	}
 

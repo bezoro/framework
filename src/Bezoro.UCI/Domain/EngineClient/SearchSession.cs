@@ -9,15 +9,10 @@ namespace Bezoro.UCI.Domain.EngineClient;
 ///     Holds shared data for a search session for the duration of an active "go ..." command.
 ///     Tracks output lines and bestmove completion.
 /// </summary>
-internal sealed class SearchSession
+internal sealed class SearchSession(bool ponder)
 {
-	public SearchSession(bool ponder)
-	{
-		Ponder = ponder;
-	}
-
 	/// <summary>True if this session was started in pondering mode.</summary>
-	public bool Ponder { get; }
+	public bool Ponder { get; } = ponder;
 
 	/// <summary>Collects all info/bestmove lines output during the search.</summary>
 	public ConcurrentQueue<string> Lines { get; } = new();

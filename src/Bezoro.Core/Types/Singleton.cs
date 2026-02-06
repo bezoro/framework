@@ -13,7 +13,7 @@
 /// <typeparam name="T">The singleton's concrete type. Must be a reference type.</typeparam>
 public abstract class Singleton<T> where T : class
 {
-	private static readonly object  _sync = new();
+	private static readonly object  Sync = new();
 	private static          int     _initializing;
 	private static          Func<T> _factory = DefaultFactory;
 
@@ -58,7 +58,7 @@ public abstract class Singleton<T> where T : class
 	{
 		if (factory is null) throw new ArgumentNullException(nameof(factory));
 
-		lock (_sync)
+		lock (Sync)
 		{
 			if (IsValueCreated || _overrideInstance is { })
 				throw new InvalidOperationException("The singleton has already been created or overridden.");
@@ -134,7 +134,7 @@ public abstract class Singleton<T> where T : class
 	{
 		if (factory is null) throw new ArgumentNullException(nameof(factory));
 
-		lock (_sync)
+		lock (Sync)
 		{
 			var previous = Volatile.Read(ref _overrideInstance);
 			var current  = CreateWithGuard(factory);
@@ -155,7 +155,7 @@ public abstract class Singleton<T> where T : class
 	{
 		if (factory is null) throw new ArgumentNullException(nameof(factory));
 
-		lock (_sync)
+		lock (Sync)
 		{
 			_factory = factory;
 
@@ -180,7 +180,7 @@ public abstract class Singleton<T> where T : class
 	/// <param name="disposeInstances">If true, disposes IDisposable instances before resetting.</param>
 	public static void Reset(bool disposeInstances = false)
 	{
-		lock (_sync)
+		lock (Sync)
 		{
 			if (disposeInstances)
 			{
@@ -287,30 +287,22 @@ public abstract class Singleton<T> where T : class
 		instance = null;
 	}
 
-	private sealed class OverrideScope : IDisposable
+	private sealed class OverrideScope(T? previous, T current) : IDisposable
 	{
-		private readonly T    _current;
-		private readonly T?   _previous;
-		private          bool _disposed;
-
-		public OverrideScope(T? previous, T current)
-		{
-			_previous = previous;
-			_current  = current;
-		}
+		private bool _disposed;
 
 		public void Dispose()
 		{
 			if (_disposed) return;
 
-			lock (_sync)
+			lock (Sync)
 			{
 				// Restore only if our override is still the active one
-				if (ReferenceEquals(_overrideInstance, _current))
+				if (ReferenceEquals(_overrideInstance, current))
 				{
-					var toDispose = _current;
+					var toDispose = current;
 					DisposeIfNeeded(ref toDispose);
-					Volatile.Write(ref _overrideInstance, _previous);
+					Volatile.Write(ref _overrideInstance, previous);
 				}
 			}
 

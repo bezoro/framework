@@ -3,16 +3,9 @@ namespace Bezoro.Events.Types;
 /// <summary>
 ///     Internal record of a single event subscription.
 /// </summary>
-internal sealed class EventSubscription
+internal sealed class EventSubscription(SubscriptionHandle handle, int priority, Delegate handler)
 {
-	public EventSubscription(SubscriptionHandle handle, int priority, Delegate handler)
-	{
-		Handle   = handle;
-		Priority = priority;
-		Handler  = handler;
-	}
-
-	public Delegate           Handler  { get; }
-	public int                Priority { get; }
-	public SubscriptionHandle Handle   { get; }
+	public Delegate           Handler  { get; } = handler;
+	public int                Priority { get; } = priority;
+	public SubscriptionHandle Handle   { get; } = handle;
 }

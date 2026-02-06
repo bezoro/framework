@@ -28,14 +28,14 @@ public class ResultFactoryTests
 	public void Succeeded_ShouldCreateSuccessfulResult()
 	{
 		// Arrange
-		const int data = 42;
+		const int DATA = 42;
 
 		// Act
-		var result = ResultFactory.Succeeded(data);
+		var result = ResultFactory.Succeeded(DATA);
 
 		// Assert
 		result.Success.Should().BeTrue();
 		result.TryGet(out int value).Should().BeTrue();
-		value.Should().Be(data);
+		value.Should().Be(DATA);
 	}
 }

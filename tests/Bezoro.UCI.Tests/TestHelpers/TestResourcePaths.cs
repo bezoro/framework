@@ -8,14 +8,14 @@ public static class TestResourcePaths
 	/// <summary>
 	///     Directory containing test resources.
 	/// </summary>
-	public const string ResourcesDirectory = "../../../TestResources";
+	public const string RESOURCES_DIRECTORY = "../../../TestResources";
 
 	/// <summary>
 	///     Directory containing the Stockfish engine.
 	/// </summary>
-	public const string StockfishDirectory = "../../../TestResources/Engine/stockfish";
+	public const string STOCKFISH_DIRECTORY = "../../../TestResources/Engine/stockfish";
 	/// <summary>
 	///     Path to the Stockfish executable for integration tests.
 	/// </summary>
-	public const string StockfishPath = "../../../TestResources/Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
+	public const string STOCKFISH_PATH = "../../../TestResources/Engine/stockfish/stockfish-windows-x86-64-avx2.exe";
 }

@@ -4,20 +4,14 @@ using Bezoro.GameSystems.StreamingSystem.Abstractions;
 
 namespace Bezoro.GameSystems.Tests.StreamingSystem;
 
-internal sealed class TestEntity : IStreamableEntity
+internal sealed class TestEntity(int id, Vector3 position) : IStreamableEntity
 {
 	private readonly List<string> _events = new();
 
-	public TestEntity(int id, Vector3 position)
-	{
-		EntityId          = id;
-		StreamingPosition = position;
-	}
-
-	public int                   EntityId          { get; }
+	public int                   EntityId          { get; } = id;
 	public IReadOnlyList<string> Events            => _events;
 	public bool                  IsStreamedIn      { get; private set; }
-	public Vector3               StreamingPosition { get; set; }
+	public Vector3               StreamingPosition { get; set; } = position;
 
 	public void OnStreamIn()
 	{

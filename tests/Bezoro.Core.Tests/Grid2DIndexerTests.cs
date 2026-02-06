@@ -32,38 +32,38 @@ public class Grid2DIndexerTests
 	public void WhenSettingAndGettingAtBoundaries_ThenWorksCorrectly()
 	{
 		// Arrange
-		const int width  = 2;
-		const int height = 2;
-		var       grid   = new Grid2D<int>(width, height);
+		const int WIDTH  = 2;
+		const int HEIGHT = 2;
+		var       grid   = new Grid2D<int>(WIDTH, HEIGHT);
 
 		// Act & Assert for (0,0)
-		const int value00 = 1;
-		grid[0, 0] = value00;
-		grid[0, 0].Should().Be(value00);
+		const int VALUE00 = 1;
+		grid[0, 0] = VALUE00;
+		grid[0, 0].Should().Be(VALUE00);
 
 		// Act & Assert for (width-1, height-1)
-		const int valueWH = 4;
-		grid[width - 1, height - 1] = valueWH;
-		grid[width - 1, height - 1].Should().Be(valueWH);
+		const int VALUE_WH = 4;
+		grid[WIDTH - 1, HEIGHT - 1] = VALUE_WH;
+		grid[WIDTH - 1, HEIGHT - 1].Should().Be(VALUE_WH);
 	}
 
 	[Fact]
 	public void WhenSettingAndGettingValue_ThenStoresAndRetrievesCorrectly()
 	{
 		// Arrange
-		const int    width     = 5;
-		const int    height    = 5;
-		var          grid      = new Grid2D<double>(width, height);
-		const double testValue = 3.14;
-		const int    testX     = 2;
-		const int    testY     = 3;
+		const int    WIDTH      = 5;
+		const int    HEIGHT     = 5;
+		var          grid       = new Grid2D<double>(WIDTH, HEIGHT);
+		const double TEST_VALUE = 3.14;
+		const int    TEST_X     = 2;
+		const int    TEST_Y     = 3;
 
 		// Act
-		grid[testX, testY] = testValue;
-		double retrievedValue = grid[testX, testY];
+		grid[TEST_X, TEST_Y] = TEST_VALUE;
+		double retrievedValue = grid[TEST_X, TEST_Y];
 
 		// Assert
-		retrievedValue.Should().Be(testValue);
+		retrievedValue.Should().Be(TEST_VALUE);
 	}
 
 	[Theory]

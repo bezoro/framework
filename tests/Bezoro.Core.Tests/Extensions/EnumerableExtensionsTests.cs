@@ -356,14 +356,9 @@ public class EnumerableExtensionsTests
 	}
 }
 
-internal sealed class HybridCollection : ICollection, IEnumerable<int>
+internal sealed class HybridCollection(params int[] items) : ICollection, IEnumerable<int>
 {
-	private readonly ArrayList _list;
-
-	public HybridCollection(params int[] items)
-	{
-		_list = new(items ?? Array.Empty<int>());
-	}
+	private readonly ArrayList _list = new(items ?? Array.Empty<int>());
 
 	public bool IsSynchronized => _list.IsSynchronized;
 
@@ -382,14 +377,9 @@ internal sealed class HybridCollection : ICollection, IEnumerable<int>
 	}
 }
 
-internal sealed class ReadOnlyCollectionStub : IReadOnlyCollection<int>
+internal sealed class ReadOnlyCollectionStub(params int[] data) : IReadOnlyCollection<int>
 {
-	private readonly int[] _data;
-
-	public ReadOnlyCollectionStub(params int[] data)
-	{
-		_data = data ?? Array.Empty<int>();
-	}
+	private readonly int[] _data = data ?? Array.Empty<int>();
 
 	public int Count => _data.Length;
 

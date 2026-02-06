@@ -3,26 +3,17 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal sealed class SystemState
+internal sealed class SystemState(ISystem system, Stage stage, int[] readIds, int[] writeIds, bool isExclusive)
 {
-	public SystemState(ISystem system, Stage stage, int[] readIds, int[] writeIds, bool isExclusive)
-	{
-		System      = system;
-		Stage       = stage;
-		ReadIds     = readIds;
-		WriteIds    = writeIds;
-		IsExclusive = isExclusive;
-	}
+	public bool IsExclusive { get; } = isExclusive;
 
-	public bool IsExclusive { get; }
+	public int[] ReadIds { get; } = readIds;
 
-	public int[] ReadIds { get; }
+	public int[] WriteIds { get; } = writeIds;
 
-	public int[] WriteIds { get; }
+	public ISystem System { get; } = system;
 
-	public ISystem System { get; }
-
-	public Stage Stage { get; }
+	public Stage Stage { get; } = stage;
 
 	public float Accumulator { get; set; }
 }

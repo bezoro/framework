@@ -9,14 +9,9 @@ namespace System.Runtime.CompilerServices
 	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	[AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
-	internal sealed class CompilerFeatureRequiredAttribute : Attribute
+	internal sealed class CompilerFeatureRequiredAttribute(string featureName) : Attribute
 	{
-		public CompilerFeatureRequiredAttribute(string featureName)
-		{
-			FeatureName = featureName;
-		}
-
-		public string FeatureName { get; }
+		public string FeatureName { get; } = featureName;
 		public bool   IsOptional  { get; init; }
 	}
 

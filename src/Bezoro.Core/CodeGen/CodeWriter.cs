@@ -8,8 +8,8 @@ namespace Bezoro.Core.CodeGen;
 /// </summary>
 public class CodeWriter
 {
-	private const    string          _INDENT_STRING = "    "; // 4 spaces
-	private readonly HashSet<string> _usings        = new();
+	private const    string          INDENT_STRING = "    "; // 4 spaces
+	private readonly HashSet<string> _usings       = new();
 
 	private readonly StringBuilder _builder   = new();
 	private          bool          _isNewLine = true;
@@ -126,7 +126,7 @@ public class CodeWriter
 	/// </summary>
 	private void WriteIndent()
 	{
-		for (var i = 0; i < _indentLevel; i++) _builder.Append(_INDENT_STRING);
+		for (var i = 0; i < _indentLevel; i++) _builder.Append(INDENT_STRING);
 	}
 
 	/// <summary>

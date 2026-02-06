@@ -2,27 +2,20 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct QueryCacheKey : IEquatable<QueryCacheKey>
+internal readonly struct QueryCacheKey(
+	int[]  allTypeIds,
+	int[]  noneTypeIds,
+	int[]  anyTypeIds,
+	Type?  relatedRelationType,
+	Entity relatedTarget
+)
+	: IEquatable<QueryCacheKey>
 {
-	private readonly Entity _relatedTarget;
-	private readonly int[]  _allTypeIds;
-	private readonly int[]  _anyTypeIds;
-	private readonly int[]  _noneTypeIds;
-	private readonly Type?  _relatedRelationType;
-
-	public QueryCacheKey(
-		int[]  allTypeIds,
-		int[]  noneTypeIds,
-		int[]  anyTypeIds,
-		Type?  relatedRelationType,
-		Entity relatedTarget)
-	{
-		_allTypeIds          = allTypeIds;
-		_noneTypeIds         = noneTypeIds;
-		_anyTypeIds          = anyTypeIds;
-		_relatedRelationType = relatedRelationType;
-		_relatedTarget       = relatedTarget;
-	}
+	private readonly Entity _relatedTarget       = relatedTarget;
+	private readonly int[]  _allTypeIds          = allTypeIds;
+	private readonly int[]  _anyTypeIds          = anyTypeIds;
+	private readonly int[]  _noneTypeIds         = noneTypeIds;
+	private readonly Type?  _relatedRelationType = relatedRelationType;
 
 	#region Equality
 

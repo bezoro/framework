@@ -5,20 +5,14 @@ namespace Bezoro.UCI.Domain.EngineClient;
 /// <summary>
 ///     Routes engine output lines to search coordination and waiter registries.
 /// </summary>
-internal sealed class UciOutputDispatcher
+internal sealed class UciOutputDispatcher(UciLineWaiterRegistry waiters, UciSearchCoordinator searchCoordinator)
 {
-	private readonly UciLineWaiterRegistry _waiters;
-	private readonly UciSearchCoordinator  _searchCoordinator;
-
-	public UciOutputDispatcher(UciLineWaiterRegistry waiters, UciSearchCoordinator searchCoordinator)
-	{
-		_waiters           = waiters;
-		_searchCoordinator = searchCoordinator ?? throw new ArgumentNullException(nameof(searchCoordinator));
-	}
+	private readonly UciSearchCoordinator _searchCoordinator =
+		searchCoordinator ?? throw new ArgumentNullException(nameof(searchCoordinator));
 
 	public void OnShutdown()
 	{
-		_waiters.CancelAll();
+		waiters.CancelAll();
 		_searchCoordinator.HandleTransportTerminated();
 	}
 
@@ -29,6 +23,6 @@ internal sealed class UciOutputDispatcher
 		else if (line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase))
 			_searchCoordinator.HandleBestMoveLine(line);
 
-		_waiters.Notify(line);
+		waiters.Notify(line);
 	}
 }

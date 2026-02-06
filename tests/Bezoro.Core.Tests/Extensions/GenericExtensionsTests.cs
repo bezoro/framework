@@ -163,14 +163,9 @@ public class GenericExtensionsTests
 	}
 }
 
-internal sealed class TestReadOnlyCollection<T> : IReadOnlyCollection<T>
+internal sealed class TestReadOnlyCollection<T>(IEnumerable<T> items) : IReadOnlyCollection<T>
 {
-	private readonly T[] _items;
-
-	public TestReadOnlyCollection(IEnumerable<T> items)
-	{
-		_items = items.ToArray();
-	}
+	private readonly T[] _items = items.ToArray();
 
 	public int Count => _items.Length;
 

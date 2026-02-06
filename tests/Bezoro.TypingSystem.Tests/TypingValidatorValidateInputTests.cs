@@ -108,34 +108,34 @@ public class TypingValidatorValidateInputTests
 	public void WhenInputDoesNotMatch_ShouldReturnMismatchStatus()
 	{
 		var        target   = "abc".AsSpan();
-		const int  position = 0;
-		const char input    = 'z';
+		const int  POSITION = 0;
+		const char INPUT    = 'z';
 
-		var result = TypingValidator.ValidateInput(target, position, input);
+		var result = TypingValidator.ValidateInput(target, POSITION, INPUT);
 
 		result.Status.Should().Be(TypingValidationStatus.Mismatch);
 		result.IsCorrect.Should().BeFalse();
 		result.IsComplete.Should().BeFalse();
 		result.IsFaulted.Should().BeFalse();
-		result.Expected.Should().Be(target[position]);
-		result.NextPosition.Should().Be(position);
+		result.Expected.Should().Be(target[POSITION]);
+		result.NextPosition.Should().Be(POSITION);
 	}
 
 	[Fact]
 	public void WhenInputMatches_ShouldReturnMatchStatus()
 	{
 		var        target   = "abc".AsSpan();
-		const int  position = 1;
-		const char input    = 'b';
+		const int  POSITION = 1;
+		const char INPUT    = 'b';
 
-		var result = TypingValidator.ValidateInput(target, position, input);
+		var result = TypingValidator.ValidateInput(target, POSITION, INPUT);
 
 		result.Status.Should().Be(TypingValidationStatus.Match);
 		result.IsCorrect.Should().BeTrue();
 		result.IsComplete.Should().BeFalse();
 		result.IsFaulted.Should().BeFalse();
-		result.NextPosition.Should().Be(position + 1);
-		result.Expected.Should().Be(target[position]);
+		result.NextPosition.Should().Be(POSITION + 1);
+		result.Expected.Should().Be(target[POSITION]);
 		result.TargetLength.Should().Be(target.Length);
 	}
 
@@ -153,9 +153,9 @@ public class TypingValidatorValidateInputTests
 	public void WhenPositionIsOutOfRange_ShouldReturnFaultedStatus(byte position, byte expectedNextPosition)
 	{
 		var        target = "abc".AsSpan();
-		const char input  = 'a';
+		const char INPUT  = 'a';
 
-		var result = TypingValidator.ValidateInput(target, position, input);
+		var result = TypingValidator.ValidateInput(target, position, INPUT);
 
 		result.Status.Should().Be(TypingValidationStatus.PositionOutOfRange);
 		result.IsFaulted.Should().BeTrue();
@@ -182,9 +182,9 @@ public class TypingValidatorValidateInputTests
 	public void WhenTargetIsEmpty_ShouldReturnEmptyTargetStatus()
 	{
 		var        target = ReadOnlySpan<char>.Empty;
-		const char input  = 'x';
+		const char INPUT  = 'x';
 
-		var result = TypingValidator.ValidateInput(target, 0, input);
+		var result = TypingValidator.ValidateInput(target, 0, INPUT);
 
 		result.Status.Should().Be(TypingValidationStatus.EmptyTarget);
 		result.IsFaulted.Should().BeTrue();

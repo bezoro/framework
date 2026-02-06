@@ -341,15 +341,10 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		_activityTracker.Set(next);
 	}
 
-	private sealed class EventSubscription : IDisposable
+	private sealed class EventSubscription(Action unsubscribe) : IDisposable
 	{
-		private readonly Action _unsubscribe;
+		private readonly Action _unsubscribe = unsubscribe ?? throw new ArgumentNullException(nameof(unsubscribe));
 		private          int    _disposed;
-
-		public EventSubscription(Action unsubscribe)
-		{
-			_unsubscribe = unsubscribe ?? throw new ArgumentNullException(nameof(unsubscribe));
-		}
 
 		public void Dispose()
 		{

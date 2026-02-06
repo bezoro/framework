@@ -2,15 +2,9 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal sealed class QueryCacheEntry
+internal sealed class QueryCacheEntry(QuerySpec spec)
 {
-	public QueryCacheEntry(QuerySpec spec)
-	{
-		Spec               = spec;
-		MatchingArchetypes = [];
-	}
+	public List<Archetype> MatchingArchetypes { get; } = [];
 
-	public List<Archetype> MatchingArchetypes { get; }
-
-	public QuerySpec Spec { get; }
+	public QuerySpec Spec { get; } = spec;
 }

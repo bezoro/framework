@@ -1,14 +1,8 @@
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct SystemExecution
+internal readonly struct SystemExecution(SystemState state, float deltaTime)
 {
-	public SystemExecution(SystemState state, float deltaTime)
-	{
-		State     = state;
-		DeltaTime = deltaTime;
-	}
+	public float DeltaTime { get; } = deltaTime;
 
-	public float DeltaTime { get; }
-
-	public SystemState State { get; }
+	public SystemState State { get; } = state;
 }

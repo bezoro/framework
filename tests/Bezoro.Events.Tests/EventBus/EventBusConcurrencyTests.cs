@@ -17,11 +17,11 @@ public static class EventBusConcurrencyTests
 		public void ConcurrentEnqueue_ShouldTrackAllEvents()
 		{
 			using var bus   = new Services.EventBus();
-			const int count = 100;
+			const int COUNT = 100;
 
-			Parallel.For(0, count, i => bus.Enqueue(new TestEventA(i)));
+			Parallel.For(0, COUNT, i => bus.Enqueue(new TestEventA(i)));
 
-			bus.QueuedCount.Should().Be(count);
+			bus.QueuedCount.Should().Be(COUNT);
 		}
 
 		[Fact]
@@ -31,10 +31,10 @@ public static class EventBusConcurrencyTests
 			var       counter = 0;
 			bus.Subscribe<TestEventA>(_ => Interlocked.Increment(ref counter));
 
-			const int publishCount = 100;
-			Parallel.For(0, publishCount, i => bus.Publish(new TestEventA(i)));
+			const int PUBLISH_COUNT = 100;
+			Parallel.For(0, PUBLISH_COUNT, i => bus.Publish(new TestEventA(i)));
 
-			counter.Should().Be(publishCount);
+			counter.Should().Be(PUBLISH_COUNT);
 		}
 
 		[Fact]
@@ -68,11 +68,11 @@ public static class EventBusConcurrencyTests
 		public void ConcurrentSubscribes_ShouldNotLoseSubscriptions()
 		{
 			using var bus   = new Services.EventBus();
-			const int count = 100;
+			const int COUNT = 100;
 
-			Parallel.For(0, count, _ => bus.Subscribe<TestEventA>(_ => { }));
+			Parallel.For(0, COUNT, _ => bus.Subscribe<TestEventA>(_ => { }));
 
-			bus.SubscriptionCount.Should().Be(count);
+			bus.SubscriptionCount.Should().Be(COUNT);
 		}
 	}
 }

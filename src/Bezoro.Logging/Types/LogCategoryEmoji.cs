@@ -24,7 +24,7 @@ public static class LogCategoryEmoji
 		{ LogCategory.Memory, "🧠" },
 		{ LogCategory.Security, "🔒" },
 		{ LogCategory.Database, "💾" },
-		{ LogCategory.FileIO, "📁" },
+		{ LogCategory.FileIo, "📁" },
 		{ LogCategory.Configuration, "⚙️" },
 		{ LogCategory.Loading, "⏳" },
 		{ LogCategory.SaveSystem, "💾" },
@@ -52,7 +52,7 @@ public static class LogCategoryEmoji
 
 		// Input & UI
 		{ LogCategory.Input, "🎮" },
-		{ LogCategory.UI, "🖥️" },
+		{ LogCategory.Ui, "🖥️" },
 
 		// Animation & Physics
 		{ LogCategory.Animation, "🏃" },
@@ -60,7 +60,7 @@ public static class LogCategoryEmoji
 		{ LogCategory.Physics2D, "🎯" },
 
 		// AI & Behavior
-		{ LogCategory.AI, "🧠" },
+		{ LogCategory.Ai, "🧠" },
 
 		// Audio
 		{ LogCategory.Audio, "🔊" },
@@ -79,7 +79,7 @@ public static class LogCategoryEmoji
 		{ LogCategory.Camera, "📷" },
 		{ LogCategory.Initialization, "🚀" },
 		{ LogCategory.Utilities, "🔧" },
-		{ LogCategory.UCI, "♟️" }
+		{ LogCategory.Uci, "♟️" }
 	};
 
 	/// <summary>

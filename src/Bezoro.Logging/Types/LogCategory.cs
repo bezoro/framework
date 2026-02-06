@@ -79,7 +79,7 @@ public enum LogCategory
 	/// <summary>
 	///     File input/output messages.
 	/// </summary>
-	FileIO,
+	FileIo,
 
 	/// <summary>
 	///     Configuration or settings-related log messages.
@@ -195,7 +195,7 @@ public enum LogCategory
 	/// <summary>
 	///     User interface/in-game UI messages.
 	/// </summary>
-	UI,
+	Ui,
 
 	// Animation & Physics
 
@@ -219,7 +219,7 @@ public enum LogCategory
 	/// <summary>
 	///     Artificial intelligence or behavior-tree messages.
 	/// </summary>
-	AI,
+	Ai,
 
 	// Audio
 
@@ -282,5 +282,5 @@ public enum LogCategory
 	/// <summary>
 	///     Universal Chess Interface or other application-specific protocols.
 	/// </summary>
-	UCI
+	Uci
 }

@@ -368,11 +368,11 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 				}
 
 				// Expand 4-bit to 8-bit
-				var R8 = (byte)(r << 4 | r);
-				var G8 = (byte)(g << 4 | g);
-				var B8 = (byte)(b << 4 | b);
-				var A8 = (byte)(a << 4 | a);
-				result = new(R8, G8, B8, s.Length == 4 ? A8 : (byte)255);
+				var r8 = (byte)(r << 4 | r);
+				var g8 = (byte)(g << 4 | g);
+				var b8 = (byte)(b << 4 | b);
+				var a8 = (byte)(a << 4 | a);
+				result = new(r8, g8, b8, s.Length == 4 ? a8 : (byte)255);
 				return true;
 			}
 
@@ -511,9 +511,9 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void WriteHex2(byte value, Span<char> dest)
 	{
-		const string hex = "0123456789ABCDEF";
-		dest[0] = hex[value >> 4 & 0xF];
-		dest[1] = hex[value & 0xF];
+		const string HEX = "0123456789ABCDEF";
+		dest[0] = HEX[value >> 4 & 0xF];
+		dest[1] = HEX[value & 0xF];
 	}
 
 	/// <summary>Tries to parse a single hex nibble from character.</summary>

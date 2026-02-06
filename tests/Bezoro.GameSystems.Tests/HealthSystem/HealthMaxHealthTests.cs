@@ -78,14 +78,14 @@ public class HealthMaxHealthTests
 	[Fact]
 	public void WhenPreservingPercentageWithLargeValues_ShouldKeepCurrent()
 	{
-		const uint max     = 4_000_000_000u;
-		const uint current = 2_000_000_001u;
-		var        health  = new Health(max, current);
+		const uint MAX     = 4_000_000_000u;
+		const uint CURRENT = 2_000_000_001u;
+		var        health  = new Health(MAX, CURRENT);
 
-		health = health.SetMaxHealthTo(max, MaxValueUpdateMode.PreservePercentage);
+		health = health.SetMaxHealthTo(MAX, MaxValueUpdateMode.PreservePercentage);
 
-		health.Max.Should().Be(max);
-		health.Current.Should().Be(current);
+		health.Max.Should().Be(MAX);
+		health.Current.Should().Be(CURRENT);
 	}
 
 	[Fact]

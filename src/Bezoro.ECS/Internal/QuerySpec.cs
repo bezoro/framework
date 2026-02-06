@@ -2,33 +2,23 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct QuerySpec
+internal readonly struct QuerySpec(
+	int[]  allTypeIds,
+	int[]  noneTypeIds,
+	int[]  anyTypeIds,
+	int[]  optionalTypeIds,
+	int[]  changedTypeIds,
+	Type?  relatedRelationType,
+	Entity relatedTarget
+)
 {
-	public QuerySpec(
-		int[]  allTypeIds,
-		int[]  noneTypeIds,
-		int[]  anyTypeIds,
-		int[]  optionalTypeIds,
-		int[]  changedTypeIds,
-		Type?  relatedRelationType,
-		Entity relatedTarget)
-	{
-		AllTypeIds          = allTypeIds;
-		NoneTypeIds         = noneTypeIds;
-		AnyTypeIds          = anyTypeIds;
-		OptionalTypeIds     = optionalTypeIds;
-		ChangedTypeIds      = changedTypeIds;
-		RelatedRelationType = relatedRelationType;
-		RelatedTarget       = relatedTarget;
-	}
+	public Entity RelatedTarget { get; } = relatedTarget;
 
-	public Entity RelatedTarget { get; }
-
-	public int[] AllTypeIds      { get; }
-	public int[] AnyTypeIds      { get; }
-	public int[] ChangedTypeIds  { get; }
-	public int[] NoneTypeIds     { get; }
-	public int[] OptionalTypeIds { get; }
+	public int[] AllTypeIds      { get; } = allTypeIds;
+	public int[] AnyTypeIds      { get; } = anyTypeIds;
+	public int[] ChangedTypeIds  { get; } = changedTypeIds;
+	public int[] NoneTypeIds     { get; } = noneTypeIds;
+	public int[] OptionalTypeIds { get; } = optionalTypeIds;
 
 	public QueryCacheKey CacheKey => new(
 		AllTypeIds,
@@ -38,5 +28,5 @@ internal readonly struct QuerySpec
 		RelatedTarget
 	);
 
-	public Type? RelatedRelationType { get; }
+	public Type? RelatedRelationType { get; } = relatedRelationType;
 }

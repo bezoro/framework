@@ -13,15 +13,15 @@ public class EntityTests
 	public void Entity_Should_Store_Id()
 	{
 		// Arrange
-		const int expectedId      = 123;
-		const int expectedVersion = 4;
+		const int EXPECTED_ID      = 123;
+		const int EXPECTED_VERSION = 4;
 
 		// Act
-		var entity = new Entity(expectedId, expectedVersion);
+		var entity = new Entity(EXPECTED_ID, EXPECTED_VERSION);
 
 		// Assert
-		entity.Id.Should().Be(expectedId);
-		entity.Version.Should().Be(expectedVersion);
+		entity.Id.Should().Be(EXPECTED_ID);
+		entity.Version.Should().Be(EXPECTED_VERSION);
 	}
 
 	[Fact]

@@ -177,9 +177,9 @@ public class WorldTests
 			}
 		);
 
-		const int entityCount = 128;
-		var       expectedSum = 0;
-		for (var i = 1; i <= entityCount; i++)
+		const int ENTITY_COUNT = 128;
+		var       expectedSum  = 0;
+		for (var i = 1; i <= ENTITY_COUNT; i++)
 		{
 			var entity = world.Spawn();
 			world.Add(entity, new Position { X = i, Y = 0 });
@@ -204,7 +204,7 @@ public class WorldTests
 		);
 
 		// Assert
-		processedCount.Should().Be(entityCount);
+		processedCount.Should().Be(ENTITY_COUNT);
 		processedSum.Should().Be(expectedSum);
 	}
 
@@ -325,8 +325,8 @@ public class WorldTests
 			}
 		);
 
-		const int entityCount = 20;
-		for (var i = 0; i < entityCount; i++)
+		const int ENTITY_COUNT = 20;
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			var entity = world.Spawn();
 			world.Add(entity, new Position { X = i, Y = i });
@@ -342,7 +342,7 @@ public class WorldTests
 		);
 
 		// Assert
-		count.Should().Be(entityCount / 2);
+		count.Should().Be(ENTITY_COUNT / 2);
 	}
 
 	[Fact]

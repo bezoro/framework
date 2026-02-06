@@ -168,8 +168,8 @@ internal sealed class SystemManager
 
 	private static bool ShouldRun(SystemState state, float deltaTime, out float effectiveDeltaTime)
 	{
-		const int maxCatchUpTicks = 3;
-		var       settings        = state.System.UpdateSettings;
+		const int MAX_CATCH_UP_TICKS = 3;
+		var       settings           = state.System.UpdateSettings;
 		if (settings.IntervalSeconds <= 0f)
 		{
 			effectiveDeltaTime = deltaTime;
@@ -177,7 +177,7 @@ internal sealed class SystemManager
 		}
 
 		state.Accumulator += deltaTime;
-		float maxAccumulator = settings.IntervalSeconds * maxCatchUpTicks;
+		float maxAccumulator = settings.IntervalSeconds * MAX_CATCH_UP_TICKS;
 		if (state.Accumulator > maxAccumulator)
 			state.Accumulator = maxAccumulator;
 

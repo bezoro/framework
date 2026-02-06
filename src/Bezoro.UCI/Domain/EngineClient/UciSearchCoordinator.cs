@@ -8,29 +8,21 @@ namespace Bezoro.UCI.Domain.EngineClient;
 /// <summary>
 ///     Coordinates UCI search sessions, handling lifecycle, captured output lines, and bestmove completion.
 /// </summary>
-internal sealed class UciSearchCoordinator
+internal sealed class UciSearchCoordinator(
+	IUciTransport               transport,
+	Action<EngineActivity>      setActivity,
+	Action<PrincipalVariation>? pvObserver,
+	Action<string, string>?     bestMoveObserver
+)
 {
-	private readonly Action<EngineActivity>      _setActivity;
-	private readonly Action<PrincipalVariation>? _pvObserver;
-	private readonly Action<string, string>?     _bestMoveObserver;
+	private readonly Action<EngineActivity> _setActivity =
+		setActivity ?? throw new ArgumentNullException(nameof(setActivity));
 
 	private readonly Func<string, bool> _bestMovePredicate =
 		static line => line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase);
-	private readonly IUciTransport _transport;
+	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
 
 	private volatile SearchSession? _activeSession;
-
-	public UciSearchCoordinator(
-		IUciTransport               transport,
-		Action<EngineActivity>      setActivity,
-		Action<PrincipalVariation>? pvObserver,
-		Action<string, string>?     bestMoveObserver)
-	{
-		_transport        = transport ?? throw new ArgumentNullException(nameof(transport));
-		_setActivity      = setActivity ?? throw new ArgumentNullException(nameof(setActivity));
-		_pvObserver       = pvObserver;
-		_bestMoveObserver = bestMoveObserver;
-	}
 
 	public Task<SearchResult> ExecuteSearchAsync(SearchParameters parameters, CancellationToken ct) =>
 		ExecuteSearchInternalAsync(parameters, ct);
@@ -50,17 +42,17 @@ internal sealed class UciSearchCoordinator
 
 		if (BestMoveLine.TryParse(line, out var bestMove))
 		{
-			_bestMoveObserver?.Invoke(bestMove.BestMove, bestMove.PonderMove ?? string.Empty);
+			bestMoveObserver?.Invoke(bestMove.BestMove, bestMove.PonderMove ?? string.Empty);
 			return;
 		}
 
-		_bestMoveObserver?.Invoke(string.Empty, string.Empty);
+		bestMoveObserver?.Invoke(string.Empty, string.Empty);
 	}
 
 	public void HandleInfoLine(string line)
 	{
 		if (PrincipalVariation.TryParse(line, out var pv))
-			_pvObserver?.Invoke(pv);
+			pvObserver?.Invoke(pv);
 
 		_activeSession?.AddLine(line);
 	}

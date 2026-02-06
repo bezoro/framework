@@ -21,8 +21,8 @@ public class SingletonTests
 		DefaultSingleton.ResetCounters();
 
 		// Act
-		const int n = 64;
-		var tasks = Enumerable.Range(0, n)
+		const int N = 64;
+		var tasks = Enumerable.Range(0, N)
 							  .Select(_ => Task.Run(() => Singleton<DefaultSingleton>.Instance))
 							  .ToArray();
 

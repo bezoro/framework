@@ -2,15 +2,9 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct RelationshipInfo
+internal readonly struct RelationshipInfo(Type relationType, Entity target)
 {
-	public RelationshipInfo(Type relationType, Entity target)
-	{
-		RelationType = relationType;
-		Target       = target;
-	}
+	public Entity Target { get; } = target;
 
-	public Entity Target { get; }
-
-	public Type RelationType { get; }
+	public Type RelationType { get; } = relationType;
 }

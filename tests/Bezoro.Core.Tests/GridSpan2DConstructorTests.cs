@@ -14,15 +14,15 @@ public class GridSpan2DConstructorTests
 	{
 		// Arrange
 		Span<int> data   = stackalloc int[12];
-		const int width  = 3;
-		const int height = 4;
+		const int WIDTH  = 3;
+		const int HEIGHT = 4;
 
 		// Act
-		var grid = new GridSpan2D<int>(data, width, height);
+		var grid = new GridSpan2D<int>(data, WIDTH, HEIGHT);
 
 		// Assert
-		grid.Width.Should().Be(width);
-		grid.Height.Should().Be(height);
-		grid.Length.Should().Be(width * height);
+		grid.Width.Should().Be(WIDTH);
+		grid.Height.Should().Be(HEIGHT);
+		grid.Length.Should().Be(WIDTH * HEIGHT);
 	}
 }

@@ -179,27 +179,19 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 			CollectJobs(nestedTypes[i], models);
 	}
 
-	private sealed class JobModel
+	private sealed class JobModel(
+		string   typeNamespace,
+		string   generatedTypeName,
+		string   jobType,
+		string[] componentTypes,
+		string   hintName
+	)
 	{
-		public JobModel(
-			string   typeNamespace,
-			string   generatedTypeName,
-			string   jobType,
-			string[] componentTypes,
-			string   hintName)
-		{
-			Namespace         = typeNamespace;
-			GeneratedTypeName = generatedTypeName;
-			JobType           = jobType;
-			ComponentTypes    = componentTypes;
-			HintName          = hintName;
-		}
+		public string GeneratedTypeName { get; } = generatedTypeName;
+		public string HintName          { get; } = hintName;
+		public string JobType           { get; } = jobType;
 
-		public string GeneratedTypeName { get; }
-		public string HintName          { get; }
-		public string JobType           { get; }
-
-		public string   Namespace      { get; }
-		public string[] ComponentTypes { get; }
+		public string   Namespace      { get; } = typeNamespace;
+		public string[] ComponentTypes { get; } = componentTypes;
 	}
 }
