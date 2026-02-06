@@ -22,6 +22,18 @@ public class GeneratedSystemMetadataResolverTests
 		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
 		metadata.IsExclusive.Should().BeTrue();
 	}
+
+	[Fact]
+	public void TryGet_WhenSystemIsStruct_ShouldReturnGeneratedMetadata()
+	{
+		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverStructSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.SystemType.Should().Be(typeof(ResolverStructSystem));
+		metadata.Reads.Should().BeEmpty();
+		metadata.Writes.Should().BeEmpty();
+		metadata.IsExclusive.Should().BeFalse();
+	}
 }
 
 [Reads<ResolverReadComponent>]
@@ -42,3 +54,10 @@ internal sealed class ResolverDerivedSystem : ResolverBaseSystem
 internal struct ResolverReadComponent : IComponent;
 
 internal struct ResolverWriteComponent : IComponent;
+
+internal struct ResolverStructSystem : ISystem
+{
+	public void Update(IWorld world, in SystemContext context)
+	{
+	}
+}

@@ -68,7 +68,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			if (member is not INamedTypeSymbol type || type.TypeKind != TypeKind.Class)
+			if (member is not INamedTypeSymbol type || (type.TypeKind != TypeKind.Class && type.TypeKind != TypeKind.Struct))
 				continue;
 
 			if (!ImplementsSystem(type))
