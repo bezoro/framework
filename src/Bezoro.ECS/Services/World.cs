@@ -968,8 +968,22 @@ public sealed class World : IWorld, IDisposable
 	internal void DestroyEntityInternal(Entity entity)
 	{
 		_entityManager.EnsureAlive(entity);
+		List<(int TypeId, object Value)>? removedComponents = null;
+		if (_onRemoveObservers.Count > 0 || _onRemoveInObservers.Count > 0)
+			removedComponents = CaptureRemovedComponents(entity);
+
 		RemoveEntityFromArchetype(entity);
 		_entityManager.DestroyEntity(entity);
+
+		if (removedComponents is not null)
+		{
+			for (var i = 0; i < removedComponents.Count; i++)
+			{
+				var removed = removedComponents[i];
+				RaiseOnRemove(entity, removed.TypeId, removed.Value);
+			}
+		}
+
 		BumpChangeVersion();
 	}
 
@@ -1151,6 +1165,27 @@ public sealed class World : IWorld, IDisposable
 
 		for (var i = 0; i < handlers.Count; i++)
 			handlers[i].DynamicInvoke(entity, removedValue, true);
+	}
+
+	private List<(int TypeId, object Value)> CaptureRemovedComponents(Entity entity)
+	{
+		var location = _entityManager.GetLocation(entity);
+		if (!location.IsValid)
+			return [];
+
+		var archetype = _archetypes[location.ArchetypeId];
+		var chunk = archetype.Chunks[location.ChunkIndex];
+		var removed = new List<(int TypeId, object Value)>(archetype.TypeIds.Length);
+		for (var i = 0; i < archetype.TypeIds.Length; i++)
+		{
+			int typeId = archetype.TypeIds[i];
+			if (ComponentTypeRegistry.IsRelationship(typeId))
+				continue;
+
+			removed.Add((typeId, chunk.GetValue(i, location.SlotIndex)));
+		}
+
+		return removed;
 	}
 
 	private static void RemoveObserver<TObserver>(

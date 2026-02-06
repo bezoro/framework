@@ -313,6 +313,27 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void ObserveRemove_WhenEntityIsDespawned_ShouldReceiveRemovedComponentValue()
+	{
+		var world = new World();
+		var removedX = 0f;
+		var calls = 0;
+		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) =>
+		{
+			calls++;
+			removedX = velocity.X;
+		});
+
+		var entity = world.Spawn();
+		world.Add(entity, new Velocity { X = 11f, Y = 3f });
+
+		world.Despawn(entity);
+
+		calls.Should().Be(1);
+		removedX.Should().Be(11f);
+	}
+
+	[Fact]
 	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingEvents()
 	{
 		var world = new World();
