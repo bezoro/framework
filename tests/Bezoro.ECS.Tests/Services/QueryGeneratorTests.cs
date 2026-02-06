@@ -93,6 +93,21 @@ public class QueryGeneratorTests
 	}
 
 	[Fact]
+	public void GeneratedForEachJobExtension_WhenUsingNestedJobStruct_ShouldApplyUpdatesWithoutGenericArguments()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 2, Y = 3 });
+		world.Add(entity, new Velocity { X = 1, Y = -2 });
+
+		world.Query<Position, Velocity>().ForEach(new JobContainer.NestedMovementForEachJob { DeltaTime = 2f });
+
+		var updated = world.Get<Position>(entity);
+		updated.X.Should().Be(4f);
+		updated.Y.Should().Be(-1f);
+	}
+
+	[Fact]
 	public void GeneratedQuery_WhenUsingWorldQueryDefinitionEntryPoint_ShouldMatchExpectedEntities()
 	{
 		var world = new World();
@@ -170,5 +185,19 @@ internal struct MovementForEachJob : IForEach<Position, Velocity>
 	{
 		component1.X += component2.X * DeltaTime;
 		component1.Y += component2.Y * DeltaTime;
+	}
+}
+
+internal static class JobContainer
+{
+	internal struct NestedMovementForEachJob : IForEach<Position, Velocity>
+	{
+		public float DeltaTime;
+
+		public void Execute(ref Position component1, in Velocity component2)
+		{
+			component1.X += component2.X * DeltaTime;
+			component1.Y += component2.Y * DeltaTime;
+		}
 	}
 }
