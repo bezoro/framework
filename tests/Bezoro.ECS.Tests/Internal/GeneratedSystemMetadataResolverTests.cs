@@ -93,7 +93,7 @@ internal sealed class ResolverInferredForEachRwSystem : ISystem
 	public void Update(IWorld world, in SystemContext context)
 	{
 		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
-			 .ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
+			 .ForEachRw((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
 	}
 }
 

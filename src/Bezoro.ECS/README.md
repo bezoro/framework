@@ -78,7 +78,7 @@ world.Query()
 | `Update(float)`                                                                                              | Runs systems by stage with sync-point command playback.                                                                 |
 | `CreateCommandBuffer()`                                                                                      | Creates manual deferred mutation buffer.                                                                                |
 | `GetDiagnostics()`                                                                                           | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot.                                         |
-| `Serialize()` / `World.Deserialize(byte[])`                                                                  | Snapshot round-trip (`net9.0` only).                                                                                    |
+| `Serialize()` / `World.Deserialize(byte[])`                                                                  | Snapshot round-trip using the `BZEC` v1 binary format.                                                                  |
 
 ### Query
 

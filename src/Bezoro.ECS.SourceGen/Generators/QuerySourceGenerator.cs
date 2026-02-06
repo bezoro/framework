@@ -11,12 +11,12 @@ namespace Bezoro.ECS.SourceGen.Generators;
 [Generator]
 public sealed class QuerySourceGenerator : IIncrementalGenerator
 {
-	private const string QueryAttributeName = "Bezoro.ECS.Attributes.QueryAttribute";
+	private const string QUERY_ATTRIBUTE_NAME = "Bezoro.ECS.Attributes.QueryAttribute";
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var queryModels = context.SyntaxProvider.ForAttributeWithMetadataName(
-									 QueryAttributeName,
+									 QUERY_ATTRIBUTE_NAME,
 									 static (node, _) => node is StructDeclarationSyntax,
 									 static (syntaxContext, _) =>
 										 CreateModel((INamedTypeSymbol)syntaxContext.TargetSymbol)
@@ -142,8 +142,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			builder.Append("        query = query.None<").Append(typeName).AppendLine(">();");
 
 		foreach (var pair in model.Filters.AnyPairs.Distinct())
+		{
 			builder.Append("        query = query.Any<").Append(pair.First).Append(", ").Append(pair.Second)
 				   .AppendLine(">();");
+		}
 
 		foreach (string? typeName in model.Filters.Optional.Distinct())
 			builder.Append("        query = query.Optional<").Append(typeName).AppendLine(">();");
@@ -213,7 +215,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
-		builder.AppendLine("        query.ForEachRW(action);");
+		builder.AppendLine("        query.ForEachRw(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
 
@@ -260,60 +262,41 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 	private static string ToFullyQualified(ITypeSymbol symbol) =>
 		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-	private sealed class FilterModel
+	private sealed class FilterModel(
+		List<string>                        all,
+		List<string>                        none,
+		List<(string First, string Second)> anyPairs,
+		List<string>                        optional,
+		List<string>                        changed
+	)
 	{
-		public FilterModel(
-			List<string>                        all,
-			List<string>                        none,
-			List<(string First, string Second)> anyPairs,
-			List<string>                        optional,
-			List<string>                        changed)
-		{
-			All      = all;
-			None     = none;
-			AnyPairs = anyPairs;
-			Optional = optional;
-			Changed  = changed;
-		}
+		public List<(string First, string Second)> AnyPairs { get; } = anyPairs;
 
-		public List<(string First, string Second)> AnyPairs { get; }
-
-		public List<string> All      { get; }
-		public List<string> Changed  { get; }
-		public List<string> None     { get; }
-		public List<string> Optional { get; }
+		public List<string> All      { get; } = all;
+		public List<string> Changed  { get; } = changed;
+		public List<string> None     { get; } = none;
+		public List<string> Optional { get; } = optional;
 	}
 
-	private sealed class QueryModel
+	private sealed class QueryModel(
+		string      typeNamespace,
+		string      typeName,
+		string      generatedTypeName,
+		string      hintName,
+		FilterModel filters,
+		bool        isPartial,
+		bool        isReadOnly,
+		string      accessibility
+	)
 	{
-		public QueryModel(
-			string      typeNamespace,
-			string      typeName,
-			string      generatedTypeName,
-			string      hintName,
-			FilterModel filters,
-			bool        isPartial,
-			bool        isReadOnly,
-			string      accessibility)
-		{
-			Namespace         = typeNamespace;
-			TypeName          = typeName;
-			GeneratedTypeName = generatedTypeName;
-			HintName          = hintName;
-			Filters           = filters;
-			IsPartial         = isPartial;
-			IsReadOnly        = isReadOnly;
-			Accessibility     = accessibility;
-		}
+		public bool        IsPartial         { get; } = isPartial;
+		public bool        IsReadOnly        { get; } = isReadOnly;
+		public FilterModel Filters           { get; } = filters;
+		public string      Accessibility     { get; } = accessibility;
+		public string      GeneratedTypeName { get; } = generatedTypeName;
+		public string      HintName          { get; } = hintName;
 
-		public bool        IsPartial         { get; }
-		public bool        IsReadOnly        { get; }
-		public FilterModel Filters           { get; }
-		public string      Accessibility     { get; }
-		public string      GeneratedTypeName { get; }
-		public string      HintName          { get; }
-
-		public string Namespace { get; }
-		public string TypeName  { get; }
+		public string Namespace { get; } = typeNamespace;
+		public string TypeName  { get; } = typeName;
 	}
 }

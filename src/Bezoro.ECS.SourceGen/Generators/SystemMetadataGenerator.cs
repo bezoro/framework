@@ -97,10 +97,8 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 
 	private static bool IsQueryForEachMethod(IMethodSymbol method, IMethodSymbol originalMethod)
 	{
-		if (method.Name != "ForEach" &&
-			method.Name != "ForEachRW" &&
-			originalMethod.Name != "ForEach" &&
-			originalMethod.Name != "ForEachRW")
+		if (!IsForEachMethodName(method.Name) &&
+			!IsForEachMethodName(originalMethod.Name))
 			return false;
 
 		if (method.ContainingType.ToDisplayString() == "Bezoro.ECS.Types.Query")
@@ -118,6 +116,9 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
 		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
 
+	private static bool IsForEachMethodName(string methodName) =>
+		methodName == "ForEach" || methodName == "ForEachRw" || methodName == "ForEachRW";
+
 	private static bool TryGetForEachComponentAccess(
 		IMethodSymbol     method,
 		out bool          isReadWrite,
@@ -130,7 +131,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		if (!IsQueryForEachMethod(method, originalMethod))
 			return false;
 
-		if (method.Name == "ForEachRW" || originalMethod.Name == "ForEachRW")
+		if (IsReadWriteForEachMethodName(method.Name) || IsReadWriteForEachMethodName(originalMethod.Name))
 		{
 			if (method.TypeArguments.Length == 2)
 			{
@@ -175,6 +176,9 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		componentTypes = inferred;
 		return true;
 	}
+
+	private static bool IsReadWriteForEachMethodName(string methodName) =>
+		methodName == "ForEachRw" || methodName == "ForEachRW";
 
 	private static ITypeSymbol? GetPotentialJobType(IMethodSymbol method, IMethodSymbol originalMethod)
 	{
@@ -380,24 +384,17 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		}
 	}
 
-	private sealed class SystemModel
+	private sealed class SystemModel(
+		string                systemType,
+		IReadOnlyList<string> reads,
+		IReadOnlyList<string> writes,
+		bool                  isExclusive
+	)
 	{
-		public SystemModel(
-			string                systemType,
-			IReadOnlyList<string> reads,
-			IReadOnlyList<string> writes,
-			bool                  isExclusive)
-		{
-			SystemType  = systemType;
-			Reads       = reads;
-			Writes      = writes;
-			IsExclusive = isExclusive;
-		}
+		public bool                  IsExclusive { get; } = isExclusive;
+		public IReadOnlyList<string> Reads       { get; } = reads;
+		public IReadOnlyList<string> Writes      { get; } = writes;
 
-		public bool                  IsExclusive { get; }
-		public IReadOnlyList<string> Reads       { get; }
-		public IReadOnlyList<string> Writes      { get; }
-
-		public string SystemType { get; }
+		public string SystemType { get; } = systemType;
 	}
 }
