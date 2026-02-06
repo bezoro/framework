@@ -68,43 +68,73 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			if (member is not INamedTypeSymbol type || (type.TypeKind != TypeKind.Class && type.TypeKind != TypeKind.Struct))
-				continue;
-
-			if (!ImplementsSystem(type))
-				continue;
-
-			var reads = new HashSet<string>(StringComparer.Ordinal);
-			var writes = new HashSet<string>(StringComparer.Ordinal);
-			var isExclusive = false;
-
-			for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
-			{
-				foreach (var attribute in current.GetAttributes())
-				{
-					var attributeClass = attribute.AttributeClass;
-					if (attributeClass is null) continue;
-
-					var namespaceName = attributeClass.ContainingNamespace.ToDisplayString();
-					if (namespaceName != "Bezoro.ECS.Attributes")
-						continue;
-
-					if (attributeClass.Name == "ReadsAttribute" && attributeClass.TypeArguments.Length == 1)
-						reads.Add(attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-					else if (attributeClass.Name == "WritesAttribute" && attributeClass.TypeArguments.Length == 1)
-						writes.Add(attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-					else if (attributeClass.Name == "ExclusiveAttribute")
-						isExclusive = true;
-				}
-			}
-
-			output.Add(new SystemModel(
-				type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-				reads.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
-				writes.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
-				isExclusive));
+			if (member is INamedTypeSymbol type)
+				CollectSystems(type, output);
 		}
 	}
+
+	private static void CollectSystems(INamedTypeSymbol type, ICollection<SystemModel> output)
+	{
+		if (type.TypeKind == TypeKind.Class || type.TypeKind == TypeKind.Struct)
+		{
+			if (ImplementsSystem(type) && IsAccessibleFromGeneratedCode(type))
+				output.Add(BuildSystemModel(type));
+		}
+
+		var nestedTypes = type.GetTypeMembers();
+		for (var i = 0; i < nestedTypes.Length; i++)
+			CollectSystems(nestedTypes[i], output);
+	}
+
+	private static SystemModel BuildSystemModel(INamedTypeSymbol type)
+	{
+		var reads = new HashSet<string>(StringComparer.Ordinal);
+		var writes = new HashSet<string>(StringComparer.Ordinal);
+		var isExclusive = false;
+
+		for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+		{
+			foreach (var attribute in current.GetAttributes())
+			{
+				var attributeClass = attribute.AttributeClass;
+				if (attributeClass is null) continue;
+
+				var namespaceName = attributeClass.ContainingNamespace.ToDisplayString();
+				if (namespaceName != "Bezoro.ECS.Attributes")
+					continue;
+
+				if (attributeClass.Name == "ReadsAttribute" && attributeClass.TypeArguments.Length == 1)
+					reads.Add(attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+				else if (attributeClass.Name == "WritesAttribute" && attributeClass.TypeArguments.Length == 1)
+					writes.Add(attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+				else if (attributeClass.Name == "ExclusiveAttribute")
+					isExclusive = true;
+			}
+		}
+
+		return new SystemModel(
+			type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+			reads.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
+			writes.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
+			isExclusive);
+	}
+
+	private static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
+	{
+		if (!IsTypeAccessibilitySupported(type.DeclaredAccessibility))
+			return false;
+
+		for (var containing = type.ContainingType; containing is not null; containing = containing.ContainingType)
+		{
+			if (!IsTypeAccessibilitySupported(containing.DeclaredAccessibility))
+				return false;
+		}
+
+		return true;
+	}
+
+	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
+		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
 
 	private static bool ImplementsSystem(INamedTypeSymbol symbol)
 	{

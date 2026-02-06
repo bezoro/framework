@@ -34,6 +34,18 @@ public class GeneratedSystemMetadataResolverTests
 		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
 		metadata.IsExclusive.Should().BeTrue();
 	}
+
+	[Fact]
+	public void TryGet_WhenSystemIsNestedType_ShouldReturnGeneratedMetadata()
+	{
+		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverNestedSystems.NestedSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.SystemType.Should().Be(typeof(ResolverNestedSystems.NestedSystem));
+		metadata.Reads.Should().ContainSingle(t => t == typeof(ResolverReadComponent));
+		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
+		metadata.IsExclusive.Should().BeFalse();
+	}
 }
 
 [Reads<ResolverReadComponent>]
@@ -62,5 +74,17 @@ internal struct ResolverStructSystem : ISystem
 {
 	public void Update(IWorld world, in SystemContext context)
 	{
+	}
+}
+
+internal static class ResolverNestedSystems
+{
+	[Reads<ResolverReadComponent>]
+	[Writes<ResolverWriteComponent>]
+	internal sealed class NestedSystem : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context)
+		{
+		}
 	}
 }
