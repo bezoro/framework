@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -68,6 +70,52 @@ public class WorldApiContractTests
 		resource.DeltaTime = 1f;
 
 		world.GetResource<GameTime>().DeltaTime.Should().Be(1f);
+	}
+
+	[Fact]
+	public void Diagnostics_WhenWorldContainsMultipleArchetypes_ShouldReportChunkAndMemoryTotals()
+	{
+		var world = new World(new WorldOptions { ChunkCapacity = 2 });
+		world.Spawn(new Position { X = 1f, Y = 1f });
+		world.Spawn(new Position { X = 2f, Y = 2f });
+		world.Spawn(new Position { X = 3f, Y = 3f });
+		world.Spawn(new Position { X = 4f, Y = 4f }, new Velocity { X = 5f, Y = 6f });
+
+		var diagnostics = world.GetDiagnostics();
+
+		diagnostics.EntityCount.Should().Be(4);
+		diagnostics.ArchetypeCount.Should().Be(3);
+		diagnostics.ChunkCount.Should().Be(3);
+		diagnostics.Archetypes.Should().HaveCount(3);
+
+		var empty = diagnostics.Archetypes.Single(x => x.ComponentTypes.Count == 0);
+		empty.EntityCount.Should().Be(0);
+		empty.ChunkCount.Should().Be(0);
+		empty.AllocatedBytes.Should().Be(0);
+		empty.LiveBytes.Should().Be(0);
+
+		var positionOnly = diagnostics.Archetypes.Single(x => x.ComponentTypes.Count == 1 && x.ComponentTypes[0] == typeof(Position));
+		positionOnly.EntityCount.Should().Be(3);
+		positionOnly.ChunkCount.Should().Be(2);
+		positionOnly.AllocatedEntitySlots.Should().Be(4);
+		positionOnly.BytesPerEntity.Should().Be(16);
+		positionOnly.AllocatedBytes.Should().Be(64);
+		positionOnly.LiveBytes.Should().Be(48);
+
+		var positionVelocity = diagnostics.Archetypes.Single(x =>
+			x.ComponentTypes.Count == 2 &&
+			x.ComponentTypes.Contains(typeof(Position)) &&
+			x.ComponentTypes.Contains(typeof(Velocity)));
+		positionVelocity.EntityCount.Should().Be(1);
+		positionVelocity.ChunkCount.Should().Be(1);
+		positionVelocity.AllocatedEntitySlots.Should().Be(2);
+		positionVelocity.BytesPerEntity.Should().Be(24);
+		positionVelocity.AllocatedBytes.Should().Be(48);
+		positionVelocity.LiveBytes.Should().Be(24);
+
+		diagnostics.AllocatedBytes.Should().Be(positionOnly.AllocatedBytes + positionVelocity.AllocatedBytes);
+		diagnostics.LiveBytes.Should().Be(positionOnly.LiveBytes + positionVelocity.LiveBytes);
+		diagnostics.AllocatedBytes.Should().BeGreaterThanOrEqualTo(diagnostics.LiveBytes);
 	}
 
 	[Fact]

@@ -485,6 +485,57 @@ public sealed class World : IWorld, IDisposable
 
 	public CommandBuffer CreateCommandBuffer() => new(this);
 
+	/// <summary>
+	/// Gets a point-in-time diagnostics snapshot for archetype, chunk, entity, and memory usage.
+	/// </summary>
+	/// <remarks>
+	/// Memory values are estimates derived from component and entity row sizes.
+	/// </remarks>
+	/// <returns>World diagnostics snapshot.</returns>
+	public WorldDiagnostics GetDiagnostics()
+	{
+		var archetypeDiagnostics = new ArchetypeDiagnostics[_archetypes.Count];
+		var totalChunks = 0;
+		long totalAllocatedBytes = 0;
+		long totalLiveBytes = 0;
+
+		for (var archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
+		{
+			var archetype = _archetypes[archetypeIndex];
+			int chunkCount = archetype.Chunks.Count;
+			int entityCount = 0;
+			for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+				entityCount += archetype.Chunks[chunkIndex].Count;
+
+			int allocatedEntitySlots = checked(chunkCount * archetype.ChunkCapacity);
+			long bytesPerEntity = GetBytesPerEntity(archetype.Types);
+			long allocatedBytes = bytesPerEntity * allocatedEntitySlots;
+			long liveBytes = bytesPerEntity * entityCount;
+
+			totalChunks += chunkCount;
+			totalAllocatedBytes += allocatedBytes;
+			totalLiveBytes += liveBytes;
+
+			archetypeDiagnostics[archetypeIndex] = new ArchetypeDiagnostics(
+				archetype.Id,
+				chunkCount,
+				archetype.ChunkCapacity,
+				entityCount,
+				allocatedEntitySlots,
+				bytesPerEntity,
+				allocatedBytes,
+				liveBytes,
+				[.. archetype.Types]);
+		}
+
+		return new WorldDiagnostics(
+			archetypeDiagnostics,
+			_entityManager.AliveCount,
+			totalChunks,
+			totalAllocatedBytes,
+			totalLiveBytes);
+	}
+
 	public byte[] Serialize()
 	{
 #if !NET9_0
@@ -1348,6 +1399,15 @@ public sealed class World : IWorld, IDisposable
 
 		int capacity = _chunkSizeInBytes / bytesPerEntity;
 		return Math.Max(1, capacity);
+	}
+
+	private static long GetBytesPerEntity(Type[] componentTypes)
+	{
+		long bytesPerEntity = ComponentSizeEstimator.GetSizeInBytes(typeof(Entity));
+		for (var i = 0; i < componentTypes.Length; i++)
+			bytesPerEntity += ComponentSizeEstimator.GetSizeInBytes(componentTypes[i]);
+
+		return bytesPerEntity;
 	}
 
 	public Archetype GetOrCreateArchetype(params Type[] componentTypes)

@@ -16,6 +16,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `IForEach<T...>` | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
 | `[SplitFields]` / `[SplitGroup]` | Opt-in split storage annotations consumed by source-generated split helpers. |
 | `OnAddObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/remove hooks with `ref`/`in` semantics. |
+| `WorldDiagnostics` / `ArchetypeDiagnostics` | Snapshot diagnostics for archetype/chunk/entity memory usage. |
 | `SystemContext` | Per-system execution context (`DeltaTime`, `Stage`, `Commands`). |
 | `Stage` | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`. |
 | `ISystem` | System contract with optional lifecycle hooks and stage metadata. |
@@ -76,6 +77,7 @@ world.Query()
 | `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
 | `Update(float)` | Runs systems by stage with sync-point command playback. |
 | `CreateCommandBuffer()` | Creates manual deferred mutation buffer. |
+| `GetDiagnostics()` | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot. |
 | `Serialize()` / `World.Deserialize(byte[])` | Snapshot round-trip (`net9.0` only). |
 
 ### Query
