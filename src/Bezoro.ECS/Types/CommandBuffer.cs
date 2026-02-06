@@ -40,6 +40,66 @@ public sealed class CommandBuffer
 		CreateEntity(_world.EmptyArchetype);
 
 	/// <summary>
+	///     Creates a new entity with one initial component value.
+	/// </summary>
+	public Entity CreateEntity<T1>(in T1 component1)
+		where T1 : struct, IComponent
+	{
+		var archetype = _world.GetOrCreateArchetype(typeof(T1));
+		var entity = CreateEntity(archetype);
+		SetComponent(entity, in component1);
+		return entity;
+	}
+
+	/// <summary>
+	///     Creates a new entity with two initial component values.
+	/// </summary>
+	public Entity CreateEntity<T1, T2>(in T1 component1, in T2 component2)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+	{
+		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2));
+		var entity = CreateEntity(archetype);
+		SetComponent(entity, in component1);
+		SetComponent(entity, in component2);
+		return entity;
+	}
+
+	/// <summary>
+	///     Creates a new entity with three initial component values.
+	/// </summary>
+	public Entity CreateEntity<T1, T2, T3>(in T1 component1, in T2 component2, in T3 component3)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+	{
+		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+		var entity = CreateEntity(archetype);
+		SetComponent(entity, in component1);
+		SetComponent(entity, in component2);
+		SetComponent(entity, in component3);
+		return entity;
+	}
+
+	/// <summary>
+	///     Creates a new entity with four initial component values.
+	/// </summary>
+	public Entity CreateEntity<T1, T2, T3, T4>(in T1 component1, in T2 component2, in T3 component3, in T4 component4)
+		where T1 : struct, IComponent
+		where T2 : struct, IComponent
+		where T3 : struct, IComponent
+		where T4 : struct, IComponent
+	{
+		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+		var entity = CreateEntity(archetype);
+		SetComponent(entity, in component1);
+		SetComponent(entity, in component2);
+		SetComponent(entity, in component3);
+		SetComponent(entity, in component4);
+		return entity;
+	}
+
+	/// <summary>
 	///     Creates a new entity that will be added to the specified archetype on playback.
 	/// </summary>
 	/// <param name="archetype">The archetype the entity should belong to.</param>

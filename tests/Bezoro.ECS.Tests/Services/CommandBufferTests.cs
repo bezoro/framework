@@ -65,6 +65,36 @@ public class CommandBufferTests
 	}
 
 	[Fact]
+	public void CreateEntity_WhenGivenInitialComponents_ShouldCreateEntityWithValuesOnPlayback()
+	{
+		// Arrange
+		var world = new World();
+		var commands = world.CreateCommandBuffer();
+		commands.CreateEntity(
+			new Position { X = 10, Y = 20 },
+			new Velocity { X = 3, Y = -1 });
+
+		// Act
+		commands.Playback();
+
+		// Assert
+		var matched = 0;
+		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+		{
+			var positions = chunk.Components<Position>();
+			var velocities = chunk.Components<Velocity>();
+			for (var i = 0; i < chunk.Count; i++)
+			{
+				positions[i].Should().Be(new Position { X = 10, Y = 20 });
+				velocities[i].Should().Be(new Velocity { X = 3, Y = -1 });
+				matched++;
+			}
+		}
+
+		matched.Should().Be(1);
+	}
+
+	[Fact]
 	public void Playback_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange

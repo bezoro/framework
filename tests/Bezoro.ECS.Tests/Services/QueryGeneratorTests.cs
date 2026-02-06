@@ -55,6 +55,27 @@ public class QueryGeneratorTests
 		updated.X.Should().Be(4);
 		updated.Y.Should().Be(6);
 	}
+
+	[Fact]
+	public void GeneratedQueryForEachRw_WhenUsingTwoWritableComponents_ShouldApplyMutations()
+	{
+		var world = new World();
+
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 2 });
+		world.Add(entity, new Velocity { X = 3, Y = 4 });
+
+		QueryGenerated.ForEachRW(world, (ref Position position, ref Velocity velocity) =>
+		{
+			position.X += 10;
+			velocity.Y -= 1;
+		});
+
+		var updatedPosition = world.Get<Position>(entity);
+		var updatedVelocity = world.Get<Velocity>(entity);
+		updatedPosition.X.Should().Be(11);
+		updatedVelocity.Y.Should().Be(3);
+	}
 }
 
 [Query]

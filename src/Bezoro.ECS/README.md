@@ -12,6 +12,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `Query` | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters. |
 | `ChunkView` | Span-based access to entities and component columns in a chunk. |
 | `CommandBuffer` | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback. |
+| `OnAddObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/remove hooks with `ref`/`in` semantics. |
 | `SystemContext` | Per-system execution context (`DeltaTime`, `Stage`, `Commands`). |
 | `Stage` | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`. |
 | `ISystem` | System contract with optional lifecycle hooks and stage metadata. |
@@ -60,13 +61,14 @@ world.Query()
 
 | Member | Description |
 |---|---|
-| `Spawn()` / `CreateEntity()` | Creates an entity in the empty archetype. |
+| `Spawn()` / `Spawn<T1..T4>(...)` / `CreateEntity()` | Creates an entity in the empty archetype or inferred archetype from initial components. |
 | `Despawn(Entity)` / `DestroyEntity(Entity)` | Removes entity and recycles id/version. |
 | `Has<T>(Entity)` / `Get<T>(Entity)` / `TryGet<T>(Entity, out T)` | Component lookups. |
-| `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)` | Component mutation APIs. |
+| `Add<T>(Entity)` / `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)` | Component mutation APIs. |
 | `Add<TRelation>(Entity source, Entity target)` | Adds a relationship edge using target-parameterized relation ids. |
-| `Query()` / `Query(Archetype)` | Builds cached chunk queries. |
+| `Query()` / `Query<T1..T4>()` / `Query(Archetype)` | Builds cached chunk queries. |
 | `SetResource<T>(T)` / `GetResource<T>()` | Singleton/resource storage. |
+| `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks; returns `IDisposable` subscription. |
 | `AddSystem(ISystem, Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |
 | `Update(float)` | Runs systems by stage with sync-point command playback. |
 | `CreateCommandBuffer()` | Creates manual deferred mutation buffer. |

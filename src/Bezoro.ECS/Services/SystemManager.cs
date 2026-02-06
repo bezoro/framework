@@ -13,6 +13,8 @@ internal sealed class SystemManager
 	private static readonly Stage[] StageOrder = [Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render];
 	private readonly int _maxDegreeOfParallelism;
 	private readonly List<SystemState> _systems = [];
+	private readonly Dictionary<Stage, List<SystemState[]>> _stagePlans = new();
+	private bool _isPlanDirty = true;
 
 	public SystemManager() : this(Environment.ProcessorCount)
 	{
@@ -25,6 +27,8 @@ internal sealed class SystemManager
 
 		_maxDegreeOfParallelism = maxDegreeOfParallelism;
 	}
+
+	internal int PlanBuildCount { get; private set; }
 
 	public void RegisterSystem(World world, ISystem system, Stage? explicitStage = null)
 	{
@@ -102,6 +106,7 @@ internal sealed class SystemManager
 		var stage = explicitStage ?? system.Stage;
 		var state = new SystemState(system, stage, ToArray(readSet), ToArray(writeSet), isExclusive);
 		_systems.Add(state);
+		_isPlanDirty = true;
 		system.OnCreate(world);
 	}
 
@@ -129,17 +134,22 @@ internal sealed class SystemManager
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (_systems.Count == 0) return;
+		if (_isPlanDirty)
+			RebuildExecutionPlan();
 
 		for (var s = 0; s < StageOrder.Length; s++)
 		{
 			var stage = StageOrder[s];
-			var executions = CollectStageExecutions(stage, deltaTime);
-			if (executions.Count == 0) continue;
+			if (!_stagePlans.TryGetValue(stage, out var stageBatches) || stageBatches.Count == 0)
+				continue;
 
-			var batches = BuildBatches(executions);
-			for (var i = 0; i < batches.Count; i++)
+			for (var i = 0; i < stageBatches.Count; i++)
 			{
-				var buffers = ExecuteBatch(batches[i], world);
+				var batch = BuildExecutionBatch(stageBatches[i], deltaTime);
+				if (batch.Systems.Count == 0)
+					continue;
+
+				var buffers = ExecuteBatch(batch, world);
 				FlushBuffers(buffers);
 			}
 		}
@@ -181,23 +191,9 @@ internal sealed class SystemManager
 		return true;
 	}
 
-	private List<SystemExecution> CollectStageExecutions(Stage stage, float deltaTime)
+	private static List<SystemState[]> BuildStateBatches(List<SystemState> stageSystems)
 	{
-		var executions = new List<SystemExecution>();
-		for (var i = 0; i < _systems.Count; i++)
-		{
-			var state = _systems[i];
-			if (state.Stage != stage) continue;
-			if (!ShouldRun(state, deltaTime, out float effectiveDeltaTime)) continue;
-			executions.Add(new(state, effectiveDeltaTime));
-		}
-
-		return executions;
-	}
-
-	private static List<SystemBatch> BuildBatches(List<SystemExecution> executions)
-	{
-		var count = executions.Count;
+		var count = stageSystems.Count;
 		if (count == 0) return [];
 
 		var indegree = new int[count];
@@ -209,50 +205,50 @@ internal sealed class SystemManager
 		{
 			for (var j = i + 1; j < count; j++)
 			{
-				if (!Conflicts(executions[i].State, executions[j].State)) continue;
+				if (!Conflicts(stageSystems[i], stageSystems[j])) continue;
 				edges[i].Add(j);
 				indegree[j]++;
 			}
 		}
 
-		var batches = new List<SystemBatch>();
+		var batches = new List<SystemState[]>();
 		var processed = new bool[count];
 		var remaining = count;
 
 		while (remaining > 0)
 		{
-			var batch = new SystemBatch();
-			var selected = new List<int>();
+			var selectedIndices = new List<int>();
+			var selectedStates = new List<SystemState>();
 
 			for (var i = 0; i < count; i++)
 			{
 				if (processed[i] || indegree[i] != 0) continue;
 
-				if (executions[i].State.IsExclusive)
+				if (stageSystems[i].IsExclusive)
 				{
-					if (selected.Count > 0)
+					if (selectedIndices.Count > 0)
 						continue;
 
 					processed[i] = true;
-					selected.Add(i);
-					batch.Add(executions[i]);
+					selectedIndices.Add(i);
+					selectedStates.Add(stageSystems[i]);
 					break;
 				}
 
 				processed[i] = true;
-				selected.Add(i);
-				batch.Add(executions[i]);
+				selectedIndices.Add(i);
+				selectedStates.Add(stageSystems[i]);
 			}
 
-			if (selected.Count == 0)
+			if (selectedIndices.Count == 0)
 				throw new InvalidOperationException("System dependency graph contains a cycle.");
 
-			batches.Add(batch);
-			remaining -= selected.Count;
+			batches.Add([.. selectedStates]);
+			remaining -= selectedIndices.Count;
 
-			for (var i = 0; i < selected.Count; i++)
+			for (var i = 0; i < selectedIndices.Count; i++)
 			{
-				var from = selected[i];
+				var from = selectedIndices[i];
 				var next = edges[from];
 				for (var j = 0; j < next.Count; j++)
 					indegree[next[j]]--;
@@ -260,6 +256,45 @@ internal sealed class SystemManager
 		}
 
 		return batches;
+	}
+
+	private SystemBatch BuildExecutionBatch(SystemState[] batchStates, float deltaTime)
+	{
+		var batch = new SystemBatch();
+		for (var i = 0; i < batchStates.Length; i++)
+		{
+			var state = batchStates[i];
+			if (!ShouldRun(state, deltaTime, out float effectiveDeltaTime))
+				continue;
+
+			batch.Add(new(state, effectiveDeltaTime));
+		}
+
+		return batch;
+	}
+
+	private void RebuildExecutionPlan()
+	{
+		_stagePlans.Clear();
+		for (var i = 0; i < StageOrder.Length; i++)
+		{
+			var stage = StageOrder[i];
+			var stageSystems = new List<SystemState>();
+			for (var s = 0; s < _systems.Count; s++)
+			{
+				var state = _systems[s];
+				if (state.Stage == stage)
+					stageSystems.Add(state);
+			}
+
+			if (stageSystems.Count == 0)
+				continue;
+
+			_stagePlans[stage] = BuildStateBatches(stageSystems);
+		}
+
+		_isPlanDirty = false;
+		PlanBuildCount++;
 	}
 
 	private static bool Conflicts(SystemState first, SystemState second)

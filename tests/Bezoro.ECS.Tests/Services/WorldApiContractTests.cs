@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -18,6 +20,34 @@ public class WorldApiContractTests
 		var entity = world.Spawn();
 
 		world.IsAlive(entity).Should().BeTrue();
+	}
+
+	[Fact]
+	public void Spawn_WhenGivenComponents_ShouldCreateEntityWithInferredArchetypeAndValues()
+	{
+		var world = new World();
+
+		var entity = world.Spawn(
+			new Position { X = 2f, Y = 3f },
+			new Velocity { X = 1.5f, Y = -0.25f });
+
+		world.IsAlive(entity).Should().BeTrue();
+		world.Has<Position>(entity).Should().BeTrue();
+		world.Has<Velocity>(entity).Should().BeTrue();
+		world.Get<Position>(entity).Should().BeEquivalentTo(new Position { X = 2f, Y = 3f });
+		world.Get<Velocity>(entity).Should().BeEquivalentTo(new Velocity { X = 1.5f, Y = -0.25f });
+	}
+
+	[Fact]
+	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+
+		world.Add<Health>(entity);
+
+		world.Has<Health>(entity).Should().BeTrue();
+		world.Get<Health>(entity).Should().Be(new Health { Current = 0, Max = 0 });
 	}
 
 	[Fact]
@@ -101,6 +131,80 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void QueryTyped_WhenUsingGenericWorldEntryPoint_ShouldMatchRequestedComponents()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 }, new Velocity { X = 1, Y = 0 });
+		world.Spawn(new Position { X = 2, Y = 2 });
+
+		var count = 0;
+		foreach (var chunk in world.Query<Position, Velocity>())
+			count += chunk.Count;
+
+		count.Should().Be(1);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponent()
+	{
+		var world = new World();
+		world.ObserveAdd<Health>((Entity _, ref Health health) => health.Current = health.Max);
+
+		var entity = world.Spawn();
+		world.Add(entity, new Health { Current = 0, Max = 10 });
+
+		world.Get<Health>(entity).Current.Should().Be(10);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValue()
+	{
+		var world = new World();
+		var removedX = 0f;
+		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => removedX = velocity.X);
+
+		var entity = world.Spawn();
+		world.Add(entity, new Velocity { X = 7f, Y = 1f });
+		world.Remove<Velocity>(entity);
+
+		removedX.Should().Be(7f);
+	}
+
+	[Fact]
+	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerRemoval()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveRemove<Velocity>((Entity _, in Velocity velocity) => calls++);
+
+		var entity = world.Spawn();
+		world.Add(entity, new Velocity { X = 2f, Y = 3f });
+		world.Remove<Velocity>(entity);
+
+		calls.Should().Be(1);
+	}
+
+	[Fact]
+	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingEvents()
+	{
+		var world = new World();
+		var addCalls = 0;
+		var removeCalls = 0;
+		var addSubscription = world.ObserveAdd<Health>((Entity _, ref Health health) => addCalls++);
+		var removeSubscription = world.ObserveRemove<Health>((Entity _, in Health health) => removeCalls++);
+
+		addSubscription.Dispose();
+		removeSubscription.Dispose();
+
+		var entity = world.Spawn();
+		world.Add(entity, new Health { Current = 1, Max = 5 });
+		world.Remove<Health>(entity);
+
+		addCalls.Should().Be(0);
+		removeCalls.Should().Be(0);
+	}
+
+	[Fact]
 	public void Serialize_WhenRoundTripped_ShouldRestoreComponentsAndResources()
 	{
 		var world = new World();
@@ -125,6 +229,63 @@ public class WorldApiContractTests
 		}
 
 		count.Should().Be(1);
+	}
+
+	[Fact]
+	public void Serialize_WhenCalled_ShouldProduceBinarySnapshotHeader()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1f, Y = 2f });
+
+		var data = world.Serialize();
+
+		data.Length.Should().BeGreaterThan(8);
+		data[0].Should().Be((byte)'B');
+		data[1].Should().Be((byte)'Z');
+		data[2].Should().Be((byte)'E');
+		data[3].Should().Be((byte)'C');
+		data[0].Should().NotBe((byte)'{');
+	}
+
+	[Fact]
+	public void Deserialize_WhenHeaderIsInvalid_ShouldThrowInvalidOperationException()
+	{
+		var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
+
+		var act = () => World.Deserialize(payload);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*snapshot*");
+	}
+
+	[Fact]
+	public void Deserialize_WhenComponentLayoutHashDoesNotMatch_ShouldThrowInvalidOperationException()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 9f, Y = 4f });
+		var payload = world.Serialize();
+
+		using (var stream = new MemoryStream(payload, writable: false))
+		using (var reader = new BinaryReader(stream))
+		{
+			reader.ReadBytes(4); // magic
+			reader.ReadInt32(); // version
+			var archetypeCount = reader.ReadInt32();
+			archetypeCount.Should().BeGreaterThan(0);
+			var componentCount = reader.ReadInt32();
+			componentCount.Should().BeGreaterThan(0);
+			_ = reader.ReadString();
+
+			var hashOffset = (int)stream.Position;
+			payload[hashOffset] ^= 0xFF;
+		}
+
+		var act = () => World.Deserialize(payload);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*layout mismatch*");
 	}
 
 	[Fact]
@@ -171,6 +332,12 @@ public class WorldApiContractTests
 	{
 		public float X;
 		public float Y;
+	}
+
+	private struct Health : IComponent
+	{
+		public int Current;
+		public int Max;
 	}
 
 	private struct GameTime

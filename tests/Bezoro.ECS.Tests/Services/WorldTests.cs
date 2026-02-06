@@ -206,6 +206,49 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Query_ForEachParallel_WhenManyChunks_ShouldProcessEveryEntityExactlyOnce()
+	{
+		// Arrange
+		var world = new World(
+			new()
+			{
+				ChunkCapacity          = 1,
+				MaxDegreeOfParallelism = 4
+			}
+		);
+
+		const int entityCount = 128;
+		var expectedSum = 0;
+		for (var i = 1; i <= entityCount; i++)
+		{
+			var entity = world.CreateEntity();
+			world.AddComponent(entity, new Position { X = i, Y = 0 });
+			expectedSum += i;
+		}
+
+		var processedCount = 0;
+		long processedSum = 0;
+
+		// Act
+		world.Query().With<Position>().ForEachParallel(
+			chunk =>
+			{
+				var positions = chunk.ReadOnlyComponents<Position>();
+				for (var i = 0; i < chunk.Count; i++)
+				{
+					Interlocked.Increment(ref processedCount);
+					Interlocked.Add(ref processedSum, (long)positions[i].X);
+				}
+			},
+			4
+		);
+
+		// Assert
+		processedCount.Should().Be(entityCount);
+		processedSum.Should().Be(expectedSum);
+	}
+
+	[Fact]
 	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange

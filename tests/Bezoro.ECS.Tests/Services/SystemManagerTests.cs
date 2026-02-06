@@ -71,6 +71,44 @@ public class SystemManagerTests
 		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
 	}
 
+	[Fact]
+	public void UpdateAll_WhenPlanIsDirty_ShouldBuildPlanOnceAndReuseAcrossFrames()
+	{
+		// Arrange
+		var world = new World();
+		world.RegisterSystem(new ReadCounterSystem());
+		world.RegisterSystem(new WriteCounterSystem(3));
+
+		// Assert precondition
+		world.SchedulerPlanBuildCount.Should().Be(0);
+
+		// Act
+		world.Update(1f / 60f);
+		world.Update(1f / 60f);
+		world.Update(1f / 60f);
+
+		// Assert
+		world.SchedulerPlanBuildCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
+	{
+		// Arrange
+		var world = new World();
+		world.RegisterSystem(new ReadCounterSystem());
+		world.Update(1f / 60f);
+		world.SchedulerPlanBuildCount.Should().Be(1);
+
+		// Act
+		world.RegisterSystem(new WriteCounterSystem(5));
+		world.SchedulerPlanBuildCount.Should().Be(1);
+		world.Update(1f / 60f);
+
+		// Assert
+		world.SchedulerPlanBuildCount.Should().Be(2);
+	}
+
 	private sealed class FixedStepSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }

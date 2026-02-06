@@ -140,6 +140,15 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
 		builder.AppendLine("        query.ForEach(action);");
 		builder.AppendLine("    }");
+		builder.AppendLine();
+		builder.AppendLine("    public static void ForEachRW<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1, T2> action)");
+		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("    {");
+		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
+		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
+		builder.AppendLine("        query.ForEachRW(action);");
+		builder.AppendLine("    }");
 		builder.AppendLine("}");
 		return builder.ToString();
 	}
