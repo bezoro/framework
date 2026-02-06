@@ -86,7 +86,7 @@ world.Query()
 |---|---|
 | `All<T>()` | Required component filter. |
 | `None<T>()` | Excluded component filter. |
-| `Any<T1,T2>()` | At least one component must exist. |
+| `Any<T1,T2>()` / `Any(params Type[])` | At least one component must exist. |
 | `Optional<T>()` | Optional component availability for chunk access. |
 | `Changed<T>()` | Includes chunks changed in the current version window. |
 | `Related<TRelation>(Entity target)` | Relationship target filter (`Entity.Wildcard` for any target). |

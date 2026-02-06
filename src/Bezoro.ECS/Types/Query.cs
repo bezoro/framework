@@ -101,6 +101,20 @@ public sealed class Query
 		return result;
 	}
 
+	public Query Any(params Type[] componentTypes)
+	{
+		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
+		var result = this;
+		for (var i = 0; i < componentTypes.Length; i++)
+		{
+			var type = componentTypes[i] ?? throw new ArgumentNullException(nameof(componentTypes));
+			int typeId = _world.GetOrCreateComponentTypeId(type);
+			result = result.WithSorted(typeId, result._spec.AnyTypeIds, ids => new QuerySpec(result._spec.AllTypeIds, result._spec.NoneTypeIds, ids, result._spec.OptionalTypeIds, result._spec.ChangedTypeIds, result._spec.RelatedRelationType, result._spec.RelatedTarget));
+		}
+
+		return result;
+	}
+
 	public Query Optional<T>() where T : struct, IComponent
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();

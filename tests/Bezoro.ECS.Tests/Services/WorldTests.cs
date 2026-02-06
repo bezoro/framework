@@ -203,6 +203,30 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Query_WithAnyTypeArrayFilter_ShouldMatchEntitiesWithAtLeastOneRequestedComponent()
+	{
+		var world = new World();
+
+		var positionOnly = world.CreateEntity();
+		world.AddComponent(positionOnly, new Position { X = 1, Y = 1 });
+
+		var velocityOnly = world.CreateEntity();
+		world.AddComponent(velocityOnly, new Velocity { X = 1, Y = 1 });
+
+		var both = world.CreateEntity();
+		world.AddComponent(both, new Position { X = 2, Y = 2 });
+		world.AddComponent(both, new Velocity { X = 2, Y = 2 });
+
+		world.CreateEntity();
+
+		var count = 0;
+		foreach (var chunk in world.Query().Any(typeof(Position), typeof(Velocity)))
+			count += chunk.Count;
+
+		count.Should().Be(3);
+	}
+
+	[Fact]
 	public void Query_WithWithoutFilter_ShouldWorkInParallelPath()
 	{
 		// Arrange
