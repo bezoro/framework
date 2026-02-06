@@ -42,7 +42,7 @@ internal readonly struct QuerySpec
 			if (RelatedRelationType is null)
 				return key + "|R:none";
 
-			return key + "|R:" + RelatedRelationType.AssemblyQualifiedName + ":" + RelatedTarget.Id;
+			return key + "|R:" + RelatedRelationType.AssemblyQualifiedName + ":" + RelatedTarget.Id + ":" + RelatedTarget.Version;
 		}
 	}
 }

@@ -172,6 +172,36 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Relationships_WhenTargetIdIsReusedWithDifferentVersion_ShouldUseCorrectQueryCacheEntry()
+	{
+		var world = new World();
+		var originalParent = world.Spawn();
+		var originalChild = world.Spawn();
+		world.Add<ChildOf>(originalChild, originalParent);
+
+		var originalMatches = 0;
+		foreach (var chunk in world.Query().Related<ChildOf>(originalParent))
+			originalMatches += chunk.Count;
+
+		world.Despawn(originalChild);
+		world.Despawn(originalParent);
+
+		var recycledParent = world.Spawn();
+		recycledParent.Id.Should().Be(originalParent.Id);
+		recycledParent.Version.Should().NotBe(originalParent.Version);
+
+		var recycledChild = world.Spawn();
+		world.Add<ChildOf>(recycledChild, recycledParent);
+
+		var recycledMatches = 0;
+		foreach (var chunk in world.Query().Related<ChildOf>(recycledParent))
+			recycledMatches += chunk.Count;
+
+		originalMatches.Should().Be(1);
+		recycledMatches.Should().Be(1);
+	}
+
+	[Fact]
 	public void QueryChanged_WhenChunkWritten_ShouldMatchChangedChunk()
 	{
 		var world = new World();

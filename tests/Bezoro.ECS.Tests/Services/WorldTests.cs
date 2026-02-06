@@ -64,6 +64,19 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void CreateEntity_WhenIdIsRecycled_ShouldBumpEntityVersion()
+	{
+		var world = new World();
+		var original = world.CreateEntity();
+		world.DestroyEntity(original);
+
+		var recycled = world.CreateEntity();
+
+		recycled.Id.Should().Be(original.Id);
+		recycled.Version.Should().NotBe(original.Version);
+	}
+
+	[Fact]
 	public void GetOrCreateArchetype_ShouldReturnSameInstance_WhenSameComponentSet()
 	{
 		// Arrange

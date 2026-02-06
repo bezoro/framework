@@ -9,6 +9,7 @@ namespace Bezoro.ECS.Services;
 internal sealed class EntityManager
 {
 	private readonly int _worldId;
+	private readonly int _versionSalt;
 	private readonly Stack<int> _availableIds = new();
 	private bool[] _alive = [];
 	private bool[] _reserved = [];
@@ -22,6 +23,7 @@ internal sealed class EntityManager
 			throw new ArgumentOutOfRangeException(nameof(worldId), "World identifier must be positive.");
 
 		_worldId = worldId;
+		_versionSalt = CreateVersionSalt(worldId);
 	}
 
 	/// <summary>
@@ -169,12 +171,20 @@ internal sealed class EntityManager
 
 	private int ComposeVersion(int generation)
 	{
-		uint hash = unchecked((uint)_worldId * 0x9E3779B9u) ^ unchecked((uint)generation);
-		hash ^= hash >> 16;
-		hash *= 0x85EBCA6Bu;
-		hash ^= hash >> 13;
-		hash *= 0xC2B2AE35u;
-		hash ^= hash >> 16;
-		return hash == 0 ? 1 : unchecked((int)hash);
+		// XOR with a world-specific salt is a bijection over 32-bit values,
+		// so different generations cannot collide within the same world.
+		return generation ^ _versionSalt;
+	}
+
+	private static int CreateVersionSalt(int worldId)
+	{
+		unchecked
+		{
+			int salt = worldId * (int)0x9E3779B9u;
+			if (salt == 0)
+				salt = int.MinValue;
+
+			return salt;
+		}
 	}
 }
