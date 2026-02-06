@@ -419,7 +419,9 @@ public sealed class World : IWorld, IDisposable
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (TrySetComponentInPlace(entity, typeId, component))
 		{
+			RaiseOnAdd<T>(entity, typeId);
 			BumpChangeVersion();
+			MarkComponentChanged(entity, typeId);
 			return;
 		}
 
@@ -427,7 +429,9 @@ public sealed class World : IWorld, IDisposable
 			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration. Use CommandBuffer.");
 
 		AddComponentWithMove(entity, typeId, component);
+		RaiseOnAdd<T>(entity, typeId);
 		BumpChangeVersion();
+		MarkComponentChanged(entity, typeId);
 	}
 
 	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
@@ -979,6 +983,7 @@ public sealed class World : IWorld, IDisposable
 		AddComponentWithMove(entity, typeId, in component);
 		RaiseOnAdd<T>(entity, typeId);
 		BumpChangeVersion();
+		MarkComponentChanged(entity, typeId);
 	}
 
 	internal void ApplySetComponentTyped<T>(Entity entity, int typeId, in T component) where T : struct, IComponent
@@ -989,12 +994,14 @@ public sealed class World : IWorld, IDisposable
 		{
 			RaiseOnAdd<T>(entity, typeId);
 			BumpChangeVersion();
+			MarkComponentChanged(entity, typeId);
 			return;
 		}
 
 		AddComponentWithMove(entity, typeId, in component);
 		RaiseOnAdd<T>(entity, typeId);
 		BumpChangeVersion();
+		MarkComponentChanged(entity, typeId);
 	}
 
 	internal void RemoveComponentById(Entity entity, int typeId)
@@ -1384,6 +1391,14 @@ public sealed class World : IWorld, IDisposable
 		chunk.GetReference<T>(componentIndex, slot) = component;
 		chunk.MarkChanged(componentIndex, _changeVersion);
 		return true;
+	}
+
+	private void MarkComponentChanged(Entity entity, int typeId)
+	{
+		if (!TryGetComponentArray(entity, typeId, out var chunk, out _, out int componentIndex))
+			return;
+
+		chunk.MarkChanged(componentIndex, _changeVersion);
 	}
 
 	private void AddComponentWithMove<T>(Entity entity, int typeId, in T component) where T : struct, IComponent

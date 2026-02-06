@@ -151,6 +151,44 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void QueryChanged_WhenComponentSetThroughWorldApi_ShouldMatchChangedChunk()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1f, Y = 2f });
+		world.Update(0f);
+
+		var before = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			before += chunk.Count;
+
+		world.Set(entity, new Position { X = 3f, Y = 4f });
+
+		var after = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			after += chunk.Count;
+
+		before.Should().Be(0);
+		after.Should().Be(1);
+	}
+
+	[Fact]
+	public void QueryChanged_WhenComponentAddedThroughWorldApi_ShouldMatchChangedChunk()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Update(0f);
+
+		world.Add(entity, new Position { X = 5f, Y = 6f });
+
+		var changed = 0;
+		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
+			changed += chunk.Count;
+
+		changed.Should().Be(1);
+	}
+
+	[Fact]
 	public void QueryTyped_WhenUsingGenericWorldEntryPoint_ShouldMatchRequestedComponents()
 	{
 		var world = new World();
@@ -190,6 +228,60 @@ public class WorldApiContractTests
 		world.Add(entity, new Health { Current = 0, Max = 10 });
 
 		world.Get<Health>(entity).Current.Should().Be(10);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSpawningWithInitialComponent_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd<Health>((Entity _, ref Health health) =>
+		{
+			calls++;
+			health.Current = health.Max;
+		});
+
+		var entity = world.Spawn(new Health { Current = 1, Max = 8 });
+
+		calls.Should().Be(1);
+		world.Get<Health>(entity).Current.Should().Be(8);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSettingExistingComponent_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd<Health>((Entity _, ref Health health) =>
+		{
+			calls++;
+			health.Current = health.Max;
+		});
+
+		var entity = world.Spawn();
+		world.Add(entity, new Health { Current = 1, Max = 4 });
+		world.Set(entity, new Health { Current = 2, Max = 9 });
+
+		calls.Should().Be(2);
+		world.Get<Health>(entity).Current.Should().Be(9);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSetAddsMissingComponent_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveAdd<Health>((Entity _, ref Health health) =>
+		{
+			calls++;
+			health.Current = health.Max;
+		});
+
+		var entity = world.Spawn();
+		world.Set(entity, new Health { Current = 1, Max = 6 });
+
+		calls.Should().Be(1);
+		world.Get<Health>(entity).Current.Should().Be(6);
 	}
 
 	[Fact]
