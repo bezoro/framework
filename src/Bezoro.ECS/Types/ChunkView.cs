@@ -67,6 +67,19 @@ public readonly struct ChunkView
 		return _columns[index].GetSpan<T>(Count);
 	}
 
+	public Span<T> OptionalComponents<T>() where T : struct, IComponent
+	{
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		int index = GetIndex(typeId);
+		if (index < 0)
+			return Span<T>.Empty;
+
+		if (_trackWrites)
+			MarkChanged(index);
+
+		return _columns[index].GetSpan<T>(Count);
+	}
+
 	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct, IComponent
 	{
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();

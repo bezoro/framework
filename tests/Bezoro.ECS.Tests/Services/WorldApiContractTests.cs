@@ -203,6 +203,31 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void QueryOptional_WhenComponentMissing_ShouldExposeEmptySpan()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 });
+		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 4 });
+
+		var chunksWithOptional = 0;
+		var entitiesWithVelocity = 0;
+		var entitiesWithoutVelocity = 0;
+		foreach (var chunk in world.Query().All<Position>().Optional<Velocity>())
+		{
+			var velocities = chunk.OptionalComponents<Velocity>();
+			chunksWithOptional++;
+			if (velocities.Length == 0)
+				entitiesWithoutVelocity += chunk.Count;
+			else
+				entitiesWithVelocity += chunk.Count;
+		}
+
+		chunksWithOptional.Should().Be(2);
+		entitiesWithVelocity.Should().Be(1);
+		entitiesWithoutVelocity.Should().Be(1);
+	}
+
+	[Fact]
 	public void QueryJob_WhenUsingIForEachOverload_ShouldApplyUpdates()
 	{
 		var world = new World();
