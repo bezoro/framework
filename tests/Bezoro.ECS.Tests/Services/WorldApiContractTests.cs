@@ -628,6 +628,19 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Despawn_WhenChunkCompactsBoolComponent_ShouldPreserveRemainingEntityValue()
+	{
+		var world = new World(new WorldOptions { ChunkCapacity = 2 });
+		var first = world.Spawn(new BoolFlag { IsSet = false });
+		var second = world.Spawn(new BoolFlag { IsSet = true });
+
+		world.Despawn(first);
+
+		world.IsAlive(second).Should().BeTrue();
+		world.Get<BoolFlag>(second).IsSet.Should().BeTrue();
+	}
+
+	[Fact]
 	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
 	{
 		var world = new World();
@@ -729,5 +742,10 @@ public class WorldApiContractTests
 	{
 		public float X;
 		public float Y;
+	}
+
+	private struct BoolFlag : IComponent
+	{
+		public bool IsSet;
 	}
 }

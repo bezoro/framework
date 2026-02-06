@@ -42,6 +42,22 @@ public class ChunkColumnStorageTests
 	}
 
 	[Fact]
+	public void ColumnStorage_WhenComponentContainsBoolField_ShouldUseManagedColumn()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new BoolPayload { IsEnabled = true });
+
+		var archetype = world.GetOrCreateArchetype(typeof(BoolPayload));
+		var chunk     = archetype.Chunks[0];
+		int typeId    = world.GetOrCreateComponentTypeId<BoolPayload>();
+		int index     = archetype.GetTypeIndex(typeId);
+
+		chunk.IsUnmanagedColumn(index).Should().BeFalse();
+		world.Get<BoolPayload>(entity).IsEnabled.Should().BeTrue();
+	}
+
+	[Fact]
 	public void UnmanagedColumn_WhenCreated_ShouldUseNativeAlignedAllocAndRespectAlignment()
 	{
 		using var column = (UnmanagedComponentColumn)ComponentColumnFactory.Create(typeof(UnmanagedPosition), 8);
@@ -60,4 +76,9 @@ internal struct UnmanagedPosition : IComponent
 {
 	public float X;
 	public float Y;
+}
+
+internal struct BoolPayload : IComponent
+{
+	public bool IsEnabled;
 }

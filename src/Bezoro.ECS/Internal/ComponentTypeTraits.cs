@@ -30,7 +30,13 @@ internal static class ComponentTypeTraits
 		if (!type.IsValueType)
 			return false;
 
-		if (type.IsPrimitive || type.IsEnum)
+		if (type.IsEnum)
+			return IsUnmanaged(Enum.GetUnderlyingType(type));
+
+		if (type == typeof(bool) || type == typeof(char))
+			return false;
+
+		if (type.IsPrimitive)
 			return true;
 
 		var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
