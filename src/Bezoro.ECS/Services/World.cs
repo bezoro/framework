@@ -62,7 +62,6 @@ public sealed class World : IWorld, IDisposable
 		public List<SnapshotResource> Resources { get; set; } = [];
 	}
 
-	private static int _nextWorldId;
 	private readonly Dictionary<ArchetypeKey, Archetype> _archetypesByKey = new();
 	private readonly Dictionary<string, QueryCacheEntry> _queryCache = new();
 	private readonly EntityManager _entityManager;
@@ -100,7 +99,7 @@ public sealed class World : IWorld, IDisposable
 	{
 	}
 
-	public World(WorldOptions options) : this($"World-{_nextWorldId + 1}".AsSpan(), options)
+	public World(WorldOptions options) : this(CreateDefaultName().AsSpan(), options)
 	{
 	}
 
@@ -123,6 +122,7 @@ public sealed class World : IWorld, IDisposable
 		_chunkCapacityOverride = options.ChunkCapacity;
 		_chunkSizeInBytes = options.ChunkSizeInBytes;
 		MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+		WorldId = CreateWorldId();
 		Name = name.ToString();
 		_entityManager = new(WorldId);
 		_systemManager = new(MaxDegreeOfParallelism);
@@ -144,7 +144,7 @@ public sealed class World : IWorld, IDisposable
 
 	internal int MaxDegreeOfParallelism { get; }
 
-	internal int WorldId { get; } = Interlocked.Increment(ref _nextWorldId);
+	internal int WorldId { get; }
 
 	internal IReadOnlyList<Archetype> Archetypes => _archetypes;
 
@@ -1427,6 +1427,18 @@ public sealed class World : IWorld, IDisposable
 			bytesPerEntity += ComponentSizeEstimator.GetSizeInBytes(componentTypes[i]);
 
 		return bytesPerEntity;
+	}
+
+	private static string CreateDefaultName() => $"World-{Guid.NewGuid():N}";
+
+	private static int CreateWorldId()
+	{
+		var bytes = Guid.NewGuid().ToByteArray();
+		var id = BitConverter.ToInt32(bytes, 0) & int.MaxValue;
+		if (id == 0)
+			id = BitConverter.ToInt32(bytes, 4) & int.MaxValue;
+
+		return id == 0 ? 1 : id;
 	}
 
 	public Archetype GetOrCreateArchetype(params Type[] componentTypes)

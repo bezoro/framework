@@ -334,8 +334,10 @@ internal sealed class SystemManager
 		}
 		else
 		{
-			var options = new ParallelOptions { MaxDegreeOfParallelism = _maxDegreeOfParallelism };
-			Parallel.For(0, batch.Systems.Count, options, i => ExecuteSystem(batch.Systems[i], world, buffers, i));
+			ParallelWorkScheduler.Execute(
+				batch.Systems.Count,
+				_maxDegreeOfParallelism,
+				i => ExecuteSystem(batch.Systems[i], world, buffers, i));
 		}
 
 		return buffers;

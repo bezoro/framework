@@ -263,6 +263,28 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Query_ForEachParallel_WhenActionThrows_ShouldRethrowOriginalException()
+	{
+		var world = new World(
+			new WorldOptions
+			{
+				ChunkCapacity = 1,
+				MaxDegreeOfParallelism = 4
+			});
+
+		for (var i = 0; i < 16; i++)
+		{
+			var entity = world.CreateEntity();
+			world.AddComponent(entity, new Position { X = i, Y = i });
+		}
+
+		var act = () => world.Query().With<Position>().ForEachParallel(_ => throw new InvalidOperationException("query-fail"));
+
+		act.Should().Throw<InvalidOperationException>()
+			.WithMessage("query-fail");
+	}
+
+	[Fact]
 	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange

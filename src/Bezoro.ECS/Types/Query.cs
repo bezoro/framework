@@ -306,20 +306,7 @@ public sealed class Query
 		if (views.Count == 0)
 			return;
 
-		// Work-stealing loop: each worker atomically claims the next chunk index.
-		int nextChunk = -1;
-		var options = new ParallelOptions { MaxDegreeOfParallelism = parallelism };
-		Parallel.For(0, parallelism, options, _ =>
-		{
-			while (true)
-			{
-				int chunkIndex = Interlocked.Increment(ref nextChunk);
-				if (chunkIndex >= views.Count)
-					break;
-
-				action(views[chunkIndex]);
-			}
-		});
+		ParallelWorkScheduler.Execute(views.Count, parallelism, chunkIndex => action(views[chunkIndex]));
 	}
 
 	private Query WithSorted(int typeId, int[] source, Func<int[], QuerySpec> specFactory)

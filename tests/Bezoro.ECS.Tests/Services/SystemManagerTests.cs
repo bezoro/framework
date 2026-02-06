@@ -126,6 +126,19 @@ public class SystemManagerTests
 		act.Should().Throw<ObjectDisposedException>();
 	}
 
+	[Fact]
+	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		world.RegisterSystem(new NoOpSystem());
+		world.RegisterSystem(new ThrowingSystem());
+
+		var act = () => world.Update(1f / 60f);
+
+		act.Should().Throw<InvalidOperationException>()
+			.WithMessage("system-fail");
+	}
+
 	private sealed class FixedStepSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }
@@ -199,5 +212,18 @@ public class SystemManagerTests
 			Captured = context.Commands;
 			context.Commands.CreateEntity();
 		}
+	}
+
+	private sealed class NoOpSystem : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context)
+		{
+		}
+	}
+
+	private sealed class ThrowingSystem : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context) =>
+			throw new InvalidOperationException("system-fail");
 	}
 }
