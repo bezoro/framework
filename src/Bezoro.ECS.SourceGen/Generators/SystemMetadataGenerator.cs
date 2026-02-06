@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
@@ -15,7 +17,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		var systems = context.CompilationProvider.Select(static (compilation, _) =>
 		{
 			var result = new List<SystemModel>();
-			CollectSystems(compilation.Assembly.GlobalNamespace, result);
+			CollectSystems(compilation.Assembly.GlobalNamespace, compilation, result);
 			return result.OrderBy(static s => s.SystemType, StringComparer.Ordinal).ToArray();
 		});
 
@@ -58,35 +60,35 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		});
 	}
 
-	private static void CollectSystems(INamespaceSymbol namespaceSymbol, ICollection<SystemModel> output)
+	private static void CollectSystems(INamespaceSymbol namespaceSymbol, Compilation compilation, ICollection<SystemModel> output)
 	{
 		foreach (var member in namespaceSymbol.GetMembers())
 		{
 			if (member is INamespaceSymbol ns)
 			{
-				CollectSystems(ns, output);
+				CollectSystems(ns, compilation, output);
 				continue;
 			}
 
 			if (member is INamedTypeSymbol type)
-				CollectSystems(type, output);
+				CollectSystems(type, compilation, output);
 		}
 	}
 
-	private static void CollectSystems(INamedTypeSymbol type, ICollection<SystemModel> output)
+	private static void CollectSystems(INamedTypeSymbol type, Compilation compilation, ICollection<SystemModel> output)
 	{
 		if (type.TypeKind == TypeKind.Class || type.TypeKind == TypeKind.Struct)
 		{
 			if (ImplementsSystem(type) && IsAccessibleFromGeneratedCode(type))
-				output.Add(BuildSystemModel(type));
+				output.Add(BuildSystemModel(type, compilation));
 		}
 
 		var nestedTypes = type.GetTypeMembers();
 		for (var i = 0; i < nestedTypes.Length; i++)
-			CollectSystems(nestedTypes[i], output);
+			CollectSystems(nestedTypes[i], compilation, output);
 	}
 
-	private static SystemModel BuildSystemModel(INamedTypeSymbol type)
+	private static SystemModel BuildSystemModel(INamedTypeSymbol type, Compilation compilation)
 	{
 		var reads = new HashSet<string>(StringComparer.Ordinal);
 		var writes = new HashSet<string>(StringComparer.Ordinal);
@@ -112,11 +114,215 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			}
 		}
 
+		InferFromUpdateBodies(type, compilation, reads, writes);
+
 		return new SystemModel(
 			type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			reads.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
 			writes.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
 			isExclusive);
+	}
+
+	private static void InferFromUpdateBodies(INamedTypeSymbol type, Compilation compilation, HashSet<string> reads, HashSet<string> writes)
+	{
+		var members = type.GetMembers("Update");
+		for (var memberIndex = 0; memberIndex < members.Length; memberIndex++)
+		{
+			if (members[memberIndex] is not IMethodSymbol method)
+				continue;
+
+			for (var syntaxIndex = 0; syntaxIndex < method.DeclaringSyntaxReferences.Length; syntaxIndex++)
+			{
+				if (method.DeclaringSyntaxReferences[syntaxIndex].GetSyntax() is not MethodDeclarationSyntax syntax)
+					continue;
+
+				var semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
+				IOperation? operation = null;
+				if (syntax.Body is not null)
+				{
+					operation = semanticModel.GetOperation(syntax.Body);
+				}
+				else if (syntax.ExpressionBody?.Expression is { } expression)
+				{
+					operation = semanticModel.GetOperation(expression);
+				}
+
+				if (operation is null)
+					continue;
+
+				InferFromOperation(operation, reads, writes);
+			}
+		}
+	}
+
+	private static void InferFromOperation(IOperation root, HashSet<string> reads, HashSet<string> writes)
+	{
+		var stack = new Stack<IOperation>();
+		stack.Push(root);
+
+		while (stack.Count > 0)
+		{
+			var current = stack.Pop();
+			if (current is IInvocationOperation invocation)
+				InferFromInvocation(invocation.TargetMethod, reads, writes);
+
+			foreach (var child in current.ChildOperations)
+				stack.Push(child);
+		}
+	}
+
+	private static void InferFromInvocation(IMethodSymbol method, HashSet<string> reads, HashSet<string> writes)
+	{
+		if (!TryGetForEachComponentAccess(method, out bool isReadWrite, out var componentTypes))
+			return;
+
+		if (componentTypes.Length == 0)
+			return;
+
+		if (isReadWrite)
+		{
+			for (var i = 0; i < componentTypes.Length; i++)
+				AddWriteComponent(reads, writes, componentTypes[i]);
+			return;
+		}
+
+		AddWriteComponent(reads, writes, componentTypes[0]);
+		for (var i = 1; i < componentTypes.Length; i++)
+			AddReadComponent(reads, writes, componentTypes[i]);
+	}
+
+	private static bool TryGetForEachComponentAccess(IMethodSymbol method, out bool isReadWrite, out ITypeSymbol[] componentTypes)
+	{
+		isReadWrite = false;
+		componentTypes = [];
+		var originalMethod = method.ReducedFrom ?? method;
+
+		if (!IsQueryForEachMethod(method, originalMethod))
+			return false;
+
+		if (method.Name == "ForEachRW" || originalMethod.Name == "ForEachRW")
+		{
+			if (method.TypeArguments.Length == 2)
+			{
+				isReadWrite = true;
+				componentTypes = [method.TypeArguments[0], method.TypeArguments[1]];
+				return true;
+			}
+
+			return false;
+		}
+
+		if (method.Name != "ForEach" && originalMethod.Name != "ForEach")
+			return false;
+
+		if (method.TypeArguments.Length > 0)
+		{
+			var typeArguments = method.TypeArguments;
+			bool isJobGenericOverload = method.TypeParameters.Length > 0 &&
+			                            string.Equals(method.TypeParameters[0].Name, "TJob", StringComparison.Ordinal);
+			if (isJobGenericOverload)
+			{
+				if (typeArguments.Length <= 1)
+					return false;
+
+				componentTypes = typeArguments.Skip(1).ToArray();
+				return true;
+			}
+
+			componentTypes = typeArguments.ToArray();
+			return true;
+		}
+
+		ITypeSymbol? jobType = GetPotentialJobType(method, originalMethod);
+		if (jobType is null)
+			return false;
+
+		var inferred = InferJobComponentTypes(jobType);
+		if (inferred.Length == 0)
+			return false;
+
+		componentTypes = inferred;
+		return true;
+	}
+
+	private static bool IsQueryForEachMethod(IMethodSymbol method, IMethodSymbol originalMethod)
+	{
+		if ((method.Name != "ForEach" && method.Name != "ForEachRW") &&
+		    (originalMethod.Name != "ForEach" && originalMethod.Name != "ForEachRW"))
+			return false;
+
+		if (method.ContainingType.ToDisplayString() == "Bezoro.ECS.Types.Query")
+			return true;
+		if (originalMethod.ContainingType.ToDisplayString() == "Bezoro.ECS.Types.Query")
+			return true;
+
+		if (!originalMethod.IsExtensionMethod || originalMethod.Parameters.Length == 0)
+			return false;
+
+		return originalMethod.Parameters[0].Type.ToDisplayString() == "Bezoro.ECS.Types.Query";
+	}
+
+	private static ITypeSymbol? GetPotentialJobType(IMethodSymbol method, IMethodSymbol originalMethod)
+	{
+		if (originalMethod.IsExtensionMethod)
+		{
+			// Reduced extension methods drop the first "this Query" parameter.
+			if (method.Parameters.Length >= 1)
+				return method.Parameters[0].Type;
+
+			if (originalMethod.Parameters.Length >= 2)
+				return originalMethod.Parameters[1].Type;
+
+			return null;
+		}
+
+		if (method.Parameters.Length == 0)
+			return null;
+
+		var parameter = method.Parameters[0];
+		if (parameter.Type.TypeKind == TypeKind.Delegate)
+			return null;
+
+		return parameter.Type;
+	}
+
+	private static ITypeSymbol[] InferJobComponentTypes(ITypeSymbol jobType)
+	{
+		var result = new List<ITypeSymbol>();
+		if (jobType is not INamedTypeSymbol named)
+			return [];
+
+		for (var i = 0; i < named.AllInterfaces.Length; i++)
+		{
+			var iface = named.AllInterfaces[i];
+			if (!iface.IsGenericType)
+				continue;
+			if (iface.Name != "IForEach")
+				continue;
+			if (iface.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Abstractions")
+				continue;
+			if (iface.TypeArguments.Length is < 1 or > 4)
+				continue;
+
+			result.AddRange(iface.TypeArguments);
+			break;
+		}
+
+		return result.ToArray();
+	}
+
+	private static void AddReadComponent(HashSet<string> reads, HashSet<string> writes, ITypeSymbol type)
+	{
+		var key = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		if (!writes.Contains(key))
+			reads.Add(key);
+	}
+
+	private static void AddWriteComponent(HashSet<string> reads, HashSet<string> writes, ITypeSymbol type)
+	{
+		var key = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		writes.Add(key);
+		reads.Remove(key);
 	}
 
 	private static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)

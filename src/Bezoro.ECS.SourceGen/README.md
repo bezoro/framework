@@ -16,4 +16,5 @@ Roslyn incremental source generators for `Bezoro.ECS` compile-time helpers.
 
 - Generators avoid reflection on hot paths by precomputing query and metadata structures.
 - Generated code uses fully-qualified symbols for resilient compilation.
+- `SystemMetadataGenerator` infers read/write sets from `Query.ForEach(...)` and `Query.ForEachRW(...)` calls inside `ISystem.Update(...)`, in addition to `[Reads]`/`[Writes]` attributes.
 - Output is deterministic and incremental-safe.

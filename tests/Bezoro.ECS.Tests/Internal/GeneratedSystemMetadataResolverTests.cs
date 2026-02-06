@@ -46,6 +46,29 @@ public class GeneratedSystemMetadataResolverTests
 		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
 		metadata.IsExclusive.Should().BeFalse();
 	}
+
+	[Fact]
+	public void TryGet_WhenSystemUsesForEachQuery_ShouldInferReadAndWriteSets()
+	{
+		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.Reads.Should().Contain(typeof(ResolverInferredVelocity));
+		metadata.Writes.Should().Contain(typeof(ResolverInferredPosition));
+	}
+
+	[Fact]
+	public void TryGet_WhenSystemUsesForEachRwQuery_ShouldInferBothAsWrites()
+	{
+		var result = GeneratedSystemMetadataResolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.Reads.Should().NotContain(typeof(ResolverInferredPosition));
+		metadata.Reads.Should().NotContain(typeof(ResolverInferredVelocity));
+		metadata.Writes.Should().Contain(typeof(ResolverInferredPosition));
+		metadata.Writes.Should().Contain(typeof(ResolverInferredVelocity));
+	}
+
 }
 
 [Reads<ResolverReadComponent>]
@@ -86,5 +109,26 @@ internal static class ResolverNestedSystems
 		public void Update(IWorld world, in SystemContext context)
 		{
 		}
+	}
+}
+
+internal struct ResolverInferredPosition : IComponent;
+internal struct ResolverInferredVelocity : IComponent;
+
+internal sealed class ResolverInferredForEachSystem : ISystem
+{
+	public void Update(IWorld world, in SystemContext context)
+	{
+		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+			.ForEach((ref ResolverInferredPosition position, in ResolverInferredVelocity velocity) => { });
+	}
+}
+
+internal sealed class ResolverInferredForEachRwSystem : ISystem
+{
+	public void Update(IWorld world, in SystemContext context)
+	{
+		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+			.ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
 	}
 }
