@@ -215,7 +215,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
-		builder.AppendLine("        query.ForEachRw(action);");
+		builder.AppendLine("        query.ForEachRW(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
 

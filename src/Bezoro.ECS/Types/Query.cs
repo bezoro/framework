@@ -377,7 +377,7 @@ public sealed class Query
 		ParallelWorkScheduler.Execute(views.Count, parallelism, chunkIndex => action(views[chunkIndex]));
 	}
 
-	public void ForEachRw<T1, T2>(RefAction<T1, T2> action)
+	public void ForEachRW<T1, T2>(RefAction<T1, T2> action)
 		where T1 : struct, IComponent
 		where T2 : struct, IComponent
 	{
