@@ -76,13 +76,56 @@ public class QueryGeneratorTests
 		updatedPosition.X.Should().Be(11);
 		updatedVelocity.Y.Should().Be(3);
 	}
+
+	[Fact]
+	public void GeneratedQuery_WhenUsingWorldQueryDefinitionEntryPoint_ShouldMatchExpectedEntities()
+	{
+		var world = new World();
+
+		var e1 = world.Spawn();
+		world.Add(e1, new Position { X = 1, Y = 1 });
+		world.Add(e1, new Velocity { X = 2, Y = 0 });
+
+		var e2 = world.Spawn();
+		world.Add(e2, new Position { X = 1, Y = 1 });
+		world.Add(e2, new Acceleration { X = 1, Y = 1 });
+
+		var e3 = world.Spawn();
+		world.Add(e3, new Position { X = 1, Y = 1 });
+		world.Add(e3, new Velocity { X = 1, Y = 1 });
+		world.Add(e3, new Frozen());
+
+		var count = 0;
+		foreach (var chunk in world.Query<Query>())
+			count += chunk.Count;
+
+		count.Should().Be(2);
+	}
+
+	[Fact]
+	public void GeneratedQuery_WhenQueryStructOmitsIQuery_ShouldStillSupportWorldEntryPoint()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 });
+		world.Spawn();
+
+		var count = 0;
+		foreach (var chunk in world.Query<AutoQuery>())
+			count += chunk.Count;
+
+		count.Should().Be(1);
+	}
 }
 
 [Query]
 [All<Position>]
 [None<Frozen>]
 [Any<Velocity, Acceleration>]
-internal readonly partial struct Query;
+internal readonly partial struct Query : IQuery;
+
+[Query]
+[All<Position>]
+internal readonly partial struct AutoQuery;
 
 internal struct Position : IComponent
 {

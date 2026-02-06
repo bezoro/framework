@@ -10,6 +10,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `Entity` | Versioned world-scoped handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`. |
 | `Archetype` | Exact component-set storage identity backed by chunked columns. |
 | `Query` | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters. |
+| `IQuery` | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints. |
 | `ChunkView` | Span-based access to entities and component columns in a chunk. |
 | `CommandBuffer` | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback. |
 | `IForEach<T1,T2>` | Job-style query executor contract for writable/read-only component iteration. |
@@ -68,6 +69,7 @@ world.Query()
 | `Add<T>(Entity)` / `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)` | Component mutation APIs. |
 | `Add<TRelation>(Entity source, Entity target)` | Adds a relationship edge using target-parameterized relation ids. |
 | `Query()` / `Query<T1..T4>()` / `Query(Archetype)` | Builds cached chunk queries. |
+| `Query<TQuery>()` | Builds a query from a `[Query]` definition struct implementing `IQuery`. |
 | `SetResource<T>(T)` / `GetResource<T>()` | Singleton/resource storage. |
 | `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks; returns `IDisposable` subscription. |
 | `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)` / `RegisterSystem(ISystem)` | Adds systems to stage pipeline. |

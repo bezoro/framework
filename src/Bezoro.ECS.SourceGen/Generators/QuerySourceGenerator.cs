@@ -76,6 +76,9 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		var typeNamespace = symbol.ContainingNamespace.IsGlobalNamespace
 			? string.Empty
 			: symbol.ContainingNamespace.ToDisplayString();
+		bool isPartial = IsPartial(symbol);
+		bool isReadOnly = symbol.IsReadOnly;
+		string accessibility = ToAccessibilityKeyword(symbol.DeclaredAccessibility);
 		var generatedTypeName = symbol.Name + "Generated";
 		var hintName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
 			.Replace("global::", string.Empty)
@@ -83,7 +86,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			.Replace('>', '_')
 			.Replace('.', '_') + ".Query.g.cs";
 
-		return new QueryModel(typeNamespace, symbol.Name, generatedTypeName, hintName, filters);
+		return new QueryModel(typeNamespace, symbol.Name, generatedTypeName, hintName, filters, isPartial, isReadOnly, accessibility);
 	}
 
 	private static string BuildSource(QueryModel model)
@@ -150,21 +153,78 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		builder.AppendLine("        query.ForEachRW(action);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
+
+		if (model.IsPartial)
+		{
+			builder.AppendLine();
+			builder.Append(model.Accessibility).Append(' ');
+			if (model.IsReadOnly)
+				builder.Append("readonly ");
+			builder.Append("partial struct ").Append(model.TypeName).Append(" : global::Bezoro.ECS.Abstractions.IQuery").AppendLine();
+			builder.AppendLine("{");
+			builder.AppendLine("    public static global::Bezoro.ECS.Types.Query Create(global::Bezoro.ECS.Abstractions.IWorld world) =>");
+			builder.Append("        ").Append(model.GeneratedTypeName).AppendLine(".Create(world);");
+			builder.AppendLine();
+			builder.AppendLine("    global::Bezoro.ECS.Types.Query global::Bezoro.ECS.Abstractions.IQuery.Create(global::Bezoro.ECS.Abstractions.IWorld world) =>");
+			builder.AppendLine("        Create(world);");
+			builder.AppendLine("}");
+		}
+
 		return builder.ToString();
 	}
 
 	private static string ToFullyQualified(ITypeSymbol symbol) =>
 		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
+	private static bool IsPartial(INamedTypeSymbol symbol)
+	{
+		for (var i = 0; i < symbol.DeclaringSyntaxReferences.Length; i++)
+		{
+			if (symbol.DeclaringSyntaxReferences[i].GetSyntax() is StructDeclarationSyntax structSyntax)
+			{
+				for (var m = 0; m < structSyntax.Modifiers.Count; m++)
+				{
+					if (structSyntax.Modifiers[m].IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword))
+						return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	private static string ToAccessibilityKeyword(Accessibility accessibility) =>
+		accessibility switch
+		{
+			Accessibility.Public => "public",
+			Accessibility.Internal => "internal",
+			Accessibility.Private => "private",
+			Accessibility.Protected => "protected",
+			Accessibility.ProtectedAndInternal => "private protected",
+			Accessibility.ProtectedOrInternal => "protected internal",
+			_ => "internal"
+		};
+
 	private sealed class QueryModel
 	{
-		public QueryModel(string typeNamespace, string typeName, string generatedTypeName, string hintName, FilterModel filters)
+		public QueryModel(
+			string typeNamespace,
+			string typeName,
+			string generatedTypeName,
+			string hintName,
+			FilterModel filters,
+			bool isPartial,
+			bool isReadOnly,
+			string accessibility)
 		{
 			Namespace = typeNamespace;
 			TypeName = typeName;
 			GeneratedTypeName = generatedTypeName;
 			HintName = hintName;
 			Filters = filters;
+			IsPartial = isPartial;
+			IsReadOnly = isReadOnly;
+			Accessibility = accessibility;
 		}
 
 		public string Namespace { get; }
@@ -172,6 +232,9 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		public string GeneratedTypeName { get; }
 		public string HintName { get; }
 		public FilterModel Filters { get; }
+		public bool IsPartial { get; }
+		public bool IsReadOnly { get; }
+		public string Accessibility { get; }
 	}
 
 	private sealed class FilterModel
