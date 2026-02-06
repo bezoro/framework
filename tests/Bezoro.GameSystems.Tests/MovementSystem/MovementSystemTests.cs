@@ -1,3 +1,4 @@
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using Bezoro.GameSystems.MovementSystem.Types;
@@ -16,26 +17,26 @@ public class MovementSystemTests
 	{
 		// Arrange
 		var world = new World();
-		world.RegisterSystem(new MovementSystemType());
+		world.AddSystem(new MovementSystemType());
 
-		var e1 = world.CreateEntity();
-		world.AddComponent(e1, new Position { X = 1f, Y = 2f, Z = 3f });
-		world.AddComponent(e1, new Velocity { X = 0.5f, Y = -1f, Z = 2f });
+		var e1 = world.Spawn(
+			new Position { X = 1f, Y = 2f, Z = 3f },
+			new Velocity { X = 0.5f, Y = -1f, Z = 2f });
 
-		var e2 = world.CreateEntity();
-		world.AddComponent(e2, new Position { X = -4f, Y = 0.5f, Z = 1f });
-		world.AddComponent(e2, new Velocity { X = 2f, Y = 1f, Z = -0.5f });
+		var e2 = world.Spawn(
+			new Position { X = -4f, Y = 0.5f, Z = 1f },
+			new Velocity { X = 2f, Y = 1f, Z = -0.5f });
 
 		// Act
 		world.Update(2f);
 
 		// Assert
-		var p1 = world.GetComponent<Position>(e1);
+		var p1 = world.Get<Position>(e1);
 		p1.X.Should().Be(1f + 0.5f * 2f);
 		p1.Y.Should().Be(2f + -1f * 2f);
 		p1.Z.Should().Be(3f + 2f * 2f);
 
-		var p2 = world.GetComponent<Position>(e2);
+		var p2 = world.Get<Position>(e2);
 		p2.X.Should().Be(-4f + 2f * 2f);
 		p2.Y.Should().Be(0.5f + 1f * 2f);
 		p2.Z.Should().Be(1f + -0.5f * 2f);
@@ -47,21 +48,32 @@ public class MovementSystemTests
 		// Arrange
 		var world  = new World();
 		var system = new MovementSystemType(SystemUpdateSettings.Fixed(0.5f));
-		world.RegisterSystem(system);
+		world.AddSystem(system);
 
-		var entity = world.CreateEntity();
-		world.AddComponent(entity, new Position { X = 0f, Y = 0f, Z = 0f });
-		world.AddComponent(entity, new Velocity { X = 2f, Y = 0f, Z = 0f });
+		var entity = world.Spawn(
+			new Position { X = 0f, Y = 0f, Z = 0f },
+			new Velocity { X = 2f, Y = 0f, Z = 0f });
 
 		// Act
 		world.Update(0.25f);
-		var afterFirst = world.GetComponent<Position>(entity);
+		var afterFirst = world.Get<Position>(entity);
 
 		world.Update(0.25f);
-		var afterSecond = world.GetComponent<Position>(entity);
+		var afterSecond = world.Get<Position>(entity);
 
 		// Assert
 		afterFirst.Should().Be(new Position { X = 0f, Y = 0f, Z = 0f });
 		afterSecond.Should().Be(new Position { X = 1f, Y = 0f, Z = 0f });
+	}
+
+	[Fact]
+	public void Metadata_WhenInspectingMovementSystem_ShouldDeclareReadAndWriteAttributes()
+	{
+		// Arrange
+		var systemType = typeof(MovementSystemType);
+
+		// Act / Assert
+		systemType.IsDefined(typeof(WritesAttribute<Position>), inherit: true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<Velocity>), inherit: true).Should().BeTrue();
 	}
 }

@@ -1,4 +1,5 @@
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Types;
 using Bezoro.GameSystems.MovementSystem.Types;
 
@@ -8,8 +9,10 @@ namespace Bezoro.GameSystems.MovementSystem.Services;
 ///     Updates position components using their velocity each tick.
 /// </summary>
 /// <remarks>
-///     Iterates chunked component arrays sequentially for cache-friendly processing.
+///     Uses typed query iteration for cache-friendly sequential processing.
 /// </remarks>
+[Writes<Position>]
+[Reads<Velocity>]
 public sealed class MovementSystem : ISystem
 {
 	/// <summary>
@@ -24,13 +27,7 @@ public sealed class MovementSystem : ISystem
 	public MovementSystem(SystemUpdateSettings updateSettings)
 	{
 		UpdateSettings = updateSettings;
-		Accesses       = [ComponentAccess.Write<Position>(), ComponentAccess.Read<Velocity>()];
 	}
-
-	/// <summary>
-	///     Gets the component access requirements for this system.
-	/// </summary>
-	public ComponentAccess[] Accesses { get; }
 
 	/// <summary>
 	///     Gets the update settings that control how often this system runs.
@@ -47,17 +44,11 @@ public sealed class MovementSystem : ISystem
 		float deltaTime = context.DeltaTime;
 		if (deltaTime == 0f) return;
 
-		foreach (var chunk in world.Query().With<Position>().With<Velocity>())
+		world.Query<Position, Velocity>().ForEach((ref Position position, in Velocity velocity) =>
 		{
-			var positions  = chunk.Components<Position>();
-			var velocities = chunk.Components<Velocity>();
-
-			for (var i = 0; i < chunk.Count; i++)
-			{
-				positions[i].X += velocities[i].X * deltaTime;
-				positions[i].Y += velocities[i].Y * deltaTime;
-				positions[i].Z += velocities[i].Z * deltaTime;
-			}
-		}
+			position.X += velocity.X * deltaTime;
+			position.Y += velocity.Y * deltaTime;
+			position.Z += velocity.Z * deltaTime;
+		});
 	}
 }
