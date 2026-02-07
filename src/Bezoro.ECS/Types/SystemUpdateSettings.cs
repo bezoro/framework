@@ -63,6 +63,20 @@ public readonly struct SystemUpdateSettings
 	/// </summary>
 	/// <param name="intervalMilliseconds">The minimum interval, in milliseconds, between updates.</param>
 	/// <returns>The configured update settings.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="intervalMilliseconds" /> is negative.</exception>
+	public static SystemUpdateSettings FixedInterval(int intervalMilliseconds)
+	{
+		if (intervalMilliseconds < 0)
+			throw new ArgumentOutOfRangeException(nameof(intervalMilliseconds), "Interval must be non-negative.");
+
+		return new(intervalMilliseconds * Constants.SECONDS_PER_MILLISECOND);
+	}
+
+	/// <summary>
+	///     Creates settings for a fixed update interval.
+	/// </summary>
+	/// <param name="intervalMilliseconds">The minimum interval, in milliseconds, between updates.</param>
+	/// <returns>The configured update settings.</returns>
 	public static SystemUpdateSettings FixedInterval(uint intervalMilliseconds) =>
 		new(intervalMilliseconds * Constants.SECONDS_PER_MILLISECOND);
 }

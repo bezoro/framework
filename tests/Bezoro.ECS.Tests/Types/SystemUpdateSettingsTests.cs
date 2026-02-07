@@ -12,7 +12,7 @@ public class SystemUpdateSettingsTests
 	[Fact]
 	public void FixedMilliseconds_WhenNegative_ShouldThrow()
 	{
-		var act = () => SystemUpdateSettings.FixedInterval(-1f);
+		var act = () => SystemUpdateSettings.FixedInterval(-1);
 
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
@@ -23,6 +23,16 @@ public class SystemUpdateSettingsTests
 		var settings = SystemUpdateSettings.FixedInterval(1500u);
 
 		settings.IntervalSeconds.Should().BeApproximately(1.5f, 1e-6f);
+	}
+
+	[Fact]
+	public void FixedMilliseconds_WhenProvidedAsIntVariable_ShouldUseMillisecondsUnits()
+	{
+		var intervalMilliseconds = 500;
+
+		var settings = SystemUpdateSettings.FixedInterval(intervalMilliseconds);
+
+		settings.IntervalSeconds.Should().BeApproximately(0.5f, 1e-6f);
 	}
 
 	[Fact]
