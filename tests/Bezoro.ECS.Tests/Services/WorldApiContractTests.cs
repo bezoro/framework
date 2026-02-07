@@ -670,6 +670,36 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Systems_WhenLoopPhaseIsFixedUpdate_ShouldRunOnlyDuringFixedUpdate()
+	{
+		var world  = new World();
+		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.FixedUpdate);
+		world.AddSystem(system);
+
+		world.Update(1f / 60f);
+		world.LateUpdate(1f / 60f);
+		world.FixedUpdate(1f / 50f);
+
+		system.UpdateCount.Should().Be(1);
+		system.LastDeltaTime.Should().BeApproximately(1f / 50f, 0.0001f);
+	}
+
+	[Fact]
+	public void Systems_WhenLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
+	{
+		var world  = new World();
+		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.LateUpdate);
+		world.AddSystem(system);
+
+		world.Update(1f / 60f);
+		world.FixedUpdate(1f / 50f);
+		world.LateUpdate(1f / 60f);
+
+		system.UpdateCount.Should().Be(1);
+		system.LastDeltaTime.Should().BeApproximately(1f / 60f, 0.0001f);
+	}
+
+	[Fact]
 	public void World_WhenCreatedWithName_ShouldExposeConfiguredName()
 	{
 		var world = new World("Main");
@@ -736,6 +766,20 @@ public class WorldApiContractTests
 	private sealed class StageRecorder(List<Stage> order) : ISystem
 	{
 		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
+	}
+
+	private sealed class LoopPhaseRecorderSystem(SystemLoopPhase loopPhase) : ISystem
+	{
+		public float LastDeltaTime { get; private set; }
+		public int   UpdateCount   { get; private set; }
+
+		public SystemLoopPhase LoopPhase { get; } = loopPhase;
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
+		}
 	}
 
 	private struct Velocity : IComponent

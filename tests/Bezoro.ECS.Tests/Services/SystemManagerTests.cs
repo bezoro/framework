@@ -122,6 +122,54 @@ public class SystemManagerTests
 	}
 
 	[Fact]
+	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
+	{
+		var world  = new World();
+		var system = new PhaseCounterSystem(SystemLoopPhase.FixedUpdate, SystemUpdateSettings.EveryFrame);
+		world.AddSystem(system);
+
+		world.Update(1f / 60f);
+
+		system.UpdateCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
+	{
+		var world  = new World();
+		var system = new PhaseCounterSystem(SystemLoopPhase.LateUpdate, SystemUpdateSettings.EveryFrame);
+		world.AddSystem(system);
+
+		world.Update(1f / 60f);
+		world.FixedUpdate(1f / 50f);
+		world.LateUpdate(1f / 60f);
+
+		system.UpdateCount.Should().Be(1);
+		system.LastDeltaTime.Should().BeApproximately(1f / 60f, 0.0001f);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
+	{
+		var world = new World();
+		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Update, SystemUpdateSettings.Fixed(0.5f));
+		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedUpdate, SystemUpdateSettings.Fixed(0.5f));
+
+		world.AddSystem(updateSystem);
+		world.AddSystem(fixedSystem);
+
+		world.Update(0.3f);
+		world.FixedUpdate(0.3f);
+		world.Update(0.3f);
+		world.FixedUpdate(0.3f);
+
+		updateSystem.UpdateCount.Should().Be(1);
+		updateSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+		fixedSystem.UpdateCount.Should().Be(1);
+		fixedSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+	}
+
+	[Fact]
 	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
 	{
 		// Arrange
@@ -197,6 +245,20 @@ public class SystemManagerTests
 	{
 		public void Update(IWorld world, in SystemContext context) =>
 			throw new InvalidOperationException("system-fail");
+	}
+
+	private sealed class PhaseCounterSystem(SystemLoopPhase loopPhase, SystemUpdateSettings updateSettings) : ISystem
+	{
+		public SystemLoopPhase     LoopPhase      { get; } = loopPhase;
+		public SystemUpdateSettings UpdateSettings { get; } = updateSettings;
+		public float               LastDeltaTime  { get; private set; }
+		public int                 UpdateCount    { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
+		}
 	}
 
 	private sealed class WriteCounterSystem(int value) : ISystem

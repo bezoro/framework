@@ -777,7 +777,39 @@ public sealed class World : IWorld, IDisposable
 		_resources[typeof(T)] = new ResourceBox<T>(resource);
 	}
 
+	/// <summary>
+	///     Updates systems registered to the <see cref="SystemLoopPhase.Update" /> loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed time in seconds for this update.</param>
 	public void Update(float deltaTime)
+	{
+		RunPhase(SystemLoopPhase.Update, deltaTime);
+	}
+
+	/// <summary>
+	///     Updates systems registered to the <see cref="SystemLoopPhase.FixedUpdate" /> loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed fixed-step time in seconds for this update.</param>
+	public void FixedUpdate(float deltaTime)
+	{
+		RunPhase(SystemLoopPhase.FixedUpdate, deltaTime);
+	}
+
+	/// <summary>
+	///     Updates systems registered to the <see cref="SystemLoopPhase.LateUpdate" /> loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed time in seconds for this late update.</param>
+	public void LateUpdate(float deltaTime)
+	{
+		RunPhase(SystemLoopPhase.LateUpdate, deltaTime);
+	}
+
+	/// <summary>
+	///     Updates systems registered to the requested loop phase.
+	/// </summary>
+	/// <param name="loopPhase">The host loop phase to run.</param>
+	/// <param name="deltaTime">Elapsed time in seconds for this phase tick.</param>
+	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
 	{
 		if (_disposed) throw new ObjectDisposedException(nameof(World));
 
@@ -785,7 +817,7 @@ public sealed class World : IWorld, IDisposable
 		_isUpdating = true;
 		try
 		{
-			_systemManager.UpdateAll(this, deltaTime);
+			_systemManager.UpdatePhase(this, loopPhase, deltaTime);
 		}
 		finally
 		{

@@ -10,13 +10,15 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 internal sealed class SystemManager
 {
+	private static readonly SystemLoopPhase[] LoopPhaseOrder =
+		[SystemLoopPhase.Update, SystemLoopPhase.FixedUpdate, SystemLoopPhase.LateUpdate];
 	private static readonly Stage[] StageOrder =
 		[Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render];
-	private readonly Dictionary<Stage, List<SystemState[]>> _stagePlans       = new();
-	private readonly GeneratedSystemMetadataResolver        _metadataResolver = new();
-	private readonly int                                    _maxDegreeOfParallelism;
-	private readonly List<SystemState>                      _systems     = [];
-	private          bool                                   _isPlanDirty = true;
+	private readonly Dictionary<SystemLoopPhase, Dictionary<Stage, List<SystemState[]>>> _phaseStagePlans = new();
+	private readonly GeneratedSystemMetadataResolver                                      _metadataResolver = new();
+	private readonly int                                                                  _maxDegreeOfParallelism;
+	private readonly List<SystemState>                                                    _systems     = [];
+	private          bool                                                                 _isPlanDirty = true;
 
 	public SystemManager() : this(Environment.ProcessorCount) { }
 
@@ -116,6 +118,11 @@ internal sealed class SystemManager
 
 	public void UpdateAll(World world, float deltaTime)
 	{
+		UpdatePhase(world, SystemLoopPhase.Update, deltaTime);
+	}
+
+	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
+	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
 		if (_systems.Count == 0) return;
@@ -123,10 +130,13 @@ internal sealed class SystemManager
 		if (_isPlanDirty)
 			RebuildExecutionPlan();
 
+		if (!_phaseStagePlans.TryGetValue(loopPhase, out var stagePlans))
+			return;
+
 		for (var s = 0; s < StageOrder.Length; s++)
 		{
 			var stage = StageOrder[s];
-			if (!_stagePlans.TryGetValue(stage, out var stageBatches) || stageBatches.Count == 0)
+			if (!stagePlans.TryGetValue(stage, out var stageBatches) || stageBatches.Count == 0)
 				continue;
 
 			for (var i = 0; i < stageBatches.Count; i++)
@@ -350,22 +360,33 @@ internal sealed class SystemManager
 
 	private void RebuildExecutionPlan()
 	{
-		_stagePlans.Clear();
-		for (var i = 0; i < StageOrder.Length; i++)
+		_phaseStagePlans.Clear();
+		for (var phaseIndex = 0; phaseIndex < LoopPhaseOrder.Length; phaseIndex++)
 		{
-			var stage        = StageOrder[i];
-			var stageSystems = new List<SystemState>();
-			for (var s = 0; s < _systems.Count; s++)
+			var loopPhase = LoopPhaseOrder[phaseIndex];
+			var stagePlans = new Dictionary<Stage, List<SystemState[]>>();
+
+			for (var stageIndex = 0; stageIndex < StageOrder.Length; stageIndex++)
 			{
-				var state = _systems[s];
-				if (state.Stage == stage)
-					stageSystems.Add(state);
+				var stage        = StageOrder[stageIndex];
+				var stageSystems = new List<SystemState>();
+				for (var systemIndex = 0; systemIndex < _systems.Count; systemIndex++)
+				{
+					var state = _systems[systemIndex];
+					if (state.LoopPhase == loopPhase && state.Stage == stage)
+						stageSystems.Add(state);
+				}
+
+				if (stageSystems.Count == 0)
+					continue;
+
+				stagePlans[stage] = BuildStateBatches(stageSystems);
 			}
 
-			if (stageSystems.Count == 0)
+			if (stagePlans.Count == 0)
 				continue;
 
-			_stagePlans[stage] = BuildStateBatches(stageSystems);
+			_phaseStagePlans[loopPhase] = stagePlans;
 		}
 
 		_isPlanDirty = false;

@@ -18,6 +18,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `OnAddObserver<T>` / `OnRemoveObserver<T>`  | Typed observer delegates for add/remove hooks with `ref`/`in` semantics.                             |
 | `WorldDiagnostics` / `ArchetypeDiagnostics` | Snapshot diagnostics for archetype/chunk/entity memory usage.                                        |
 | `SystemContext`                             | Per-system execution context (`DeltaTime`, `Stage`, `Commands`).                                     |
+| `SystemLoopPhase`                           | Host loop routing: `Update`, `FixedUpdate`, `LateUpdate`.                                            |
 | `Stage`                                     | System stage ordering: `Input`, `PreUpdate`, `Update`, `PostUpdate`, `Render`.                       |
 | `ISystem`                                   | System contract with optional lifecycle hooks and stage metadata.                                    |
 | `IWorld`                                    | Restricted world contract for systems.                                                               |
@@ -75,7 +76,7 @@ world.Query()
 | `SetResource<T>(T)` / `GetResource<T>()`                                                                     | Singleton/resource storage.                                                                                             |
 | `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks dispatched during `CommandBuffer` playback; returns `IDisposable` subscription. |
 | `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)`                                                    | Adds systems to stage pipeline.                                                                                         |
-| `Update(float)`                                                                                              | Runs systems by stage with sync-point command playback.                                                                 |
+| `Update(float)` / `FixedUpdate(float)` / `LateUpdate(float)` / `RunPhase(SystemLoopPhase, float)`          | Runs systems for the selected loop phase by stage with sync-point command playback.                                     |
 | `CreateCommandBuffer()`                                                                                      | Creates manual deferred mutation buffer.                                                                                |
 | `GetDiagnostics()`                                                                                           | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot.                                         |
 | `Serialize()` / `World.Deserialize(byte[])`                                                                  | Snapshot round-trip using the `BZEC` v1 binary format.                                                                  |
@@ -100,7 +101,7 @@ world.Query()
 - `OnCreate(World)` (optional)
 - `OnDestroy(World)` (optional)
 - `Update(IWorld, in SystemContext)` (required)
-- `Stage`, `UpdateSettings`, and `Accesses` metadata (optional overrides)
+- `LoopPhase`, `Stage`, `UpdateSettings`, and `Accesses` metadata (optional overrides)
 
 ## Design Notes
 

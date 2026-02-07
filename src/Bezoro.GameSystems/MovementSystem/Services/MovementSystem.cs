@@ -29,6 +29,8 @@ public sealed class MovementSystem : ISystem
 		UpdateSettings = updateSettings;
 	}
 
+	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedUpdate;
+
 	/// <summary>
 	///     Gets the update settings that control how often this system runs.
 	/// </summary>

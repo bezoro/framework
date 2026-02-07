@@ -16,6 +16,11 @@ public interface ISystem
 	ComponentAccess[] Accesses => [];
 
 	/// <summary>
+	///     Gets the host loop phase this system executes in.
+	/// </summary>
+	SystemLoopPhase LoopPhase => SystemLoopPhase.Update;
+
+	/// <summary>
 	///     Gets the stage this system executes in.
 	/// </summary>
 	Stage Stage => Stage.Update;
