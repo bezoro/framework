@@ -21,9 +21,9 @@ public class SystemManagerTests
 		world.AddSystem(system);
 
 		// Act
-		world.Update(0.2f);
-		world.Update(0.29f);
-		world.Update(0.31f);
+		world.Tick(0.2f);
+		world.Tick(0.29f);
+		world.Tick(0.31f);
 
 		// Assert
 		system.UpdateCount.Should().Be(1);
@@ -47,7 +47,7 @@ public class SystemManagerTests
 		world.AddSystem(postRead);
 
 		// Act
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
 
 		// Assert
 		preRead.LastObserved.Should().Be(1);
@@ -63,14 +63,35 @@ public class SystemManagerTests
 		world.AddSystem(system);
 
 		// Act
-		world.Update(10f);
-		world.Update(0f);
-		world.Update(0f);
-		world.Update(0f);
+		world.Tick(10f);
+		world.Tick(0f);
+		world.Tick(0f);
+		world.Tick(0f);
 
 		// Assert
 		system.UpdateCount.Should().Be(3);
 		system.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
+	{
+		var world        = new World();
+		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Tick,      SystemUpdateSettings.FixedInterval(0.5f));
+		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.FixedInterval(0.5f));
+
+		world.AddSystem(updateSystem);
+		world.AddSystem(fixedSystem);
+
+		world.Tick(0.3f);
+		world.FixedTick(0.3f);
+		world.Tick(0.3f);
+		world.FixedTick(0.3f);
+
+		updateSystem.UpdateCount.Should().Be(1);
+		updateSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
+		fixedSystem.UpdateCount.Should().Be(1);
+		fixedSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
 	}
 
 	[Fact]
@@ -80,7 +101,7 @@ public class SystemManagerTests
 		world.AddSystem(new NoOpSystem());
 		world.AddSystem(new ThrowingSystem());
 
-		var act = () => world.Update(1f / 60f);
+		var act = () => world.Tick(1f / 60f);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("system-fail");
@@ -98,9 +119,9 @@ public class SystemManagerTests
 		world.SchedulerPlanBuildCount.Should().Be(0);
 
 		// Act
-		world.Update(1f / 60f);
-		world.Update(1f / 60f);
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
+		world.Tick(1f / 60f);
+		world.Tick(1f / 60f);
 
 		// Assert
 		world.SchedulerPlanBuildCount.Should().Be(1);
@@ -113,7 +134,7 @@ public class SystemManagerTests
 		var system = new CommandCaptureSystem();
 		world.AddSystem(system);
 
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
 
 		world.EntityCount.Should().Be(1);
 		system.Captured.Should().NotBeNull();
@@ -125,10 +146,10 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
 	{
 		var world  = new World();
-		var system = new PhaseCounterSystem(SystemLoopPhase.FixedUpdate, SystemUpdateSettings.EveryFrame);
+		var system = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
 
 		system.UpdateCount.Should().Be(0);
 	}
@@ -137,36 +158,15 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
 		var world  = new World();
-		var system = new PhaseCounterSystem(SystemLoopPhase.LateUpdate, SystemUpdateSettings.EveryFrame);
+		var system = new PhaseCounterSystem(SystemLoopPhase.LateTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
-		world.Update(1f / 60f);
-		world.FixedUpdate(1f / 50f);
-		world.LateUpdate(1f / 60f);
+		world.Tick(1f / 60f);
+		world.FixedTick(1f / 50f);
+		world.LateTick(1f / 60f);
 
 		system.UpdateCount.Should().Be(1);
 		system.LastDeltaTime.Should().BeApproximately(1f / 60f, 0.0001f);
-	}
-
-	[Fact]
-	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
-	{
-		var world = new World();
-		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Update, SystemUpdateSettings.Fixed(0.5f));
-		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedUpdate, SystemUpdateSettings.Fixed(0.5f));
-
-		world.AddSystem(updateSystem);
-		world.AddSystem(fixedSystem);
-
-		world.Update(0.3f);
-		world.FixedUpdate(0.3f);
-		world.Update(0.3f);
-		world.FixedUpdate(0.3f);
-
-		updateSystem.UpdateCount.Should().Be(1);
-		updateSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
-		fixedSystem.UpdateCount.Should().Be(1);
-		fixedSystem.LastDeltaTime.Should().BeApproximately(0.5f, 0.0001f);
 	}
 
 	[Fact]
@@ -175,13 +175,13 @@ public class SystemManagerTests
 		// Arrange
 		var world = new World();
 		world.AddSystem(new ReadCounterSystem());
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
 		world.SchedulerPlanBuildCount.Should().Be(1);
 
 		// Act
 		world.AddSystem(new WriteCounterSystem(5));
 		world.SchedulerPlanBuildCount.Should().Be(1);
-		world.Update(1f / 60f);
+		world.Tick(1f / 60f);
 
 		// Assert
 		world.SchedulerPlanBuildCount.Should().Be(2);
@@ -207,7 +207,7 @@ public class SystemManagerTests
 	{
 		public ComponentAccess[] Accesses => [];
 
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.Fixed(0.5f);
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.FixedInterval(0.5f);
 		public float                LastDeltaTime  { get; private set; }
 		public int                  UpdateCount    { get; private set; }
 
@@ -223,11 +223,25 @@ public class SystemManagerTests
 		public void Update(IWorld world, in SystemContext context) { }
 	}
 
+	private sealed class PhaseCounterSystem(SystemLoopPhase loopPhase, SystemUpdateSettings updateSettings) : ISystem
+	{
+		public SystemLoopPhase      LoopPhase      { get; } = loopPhase;
+		public SystemUpdateSettings UpdateSettings { get; } = updateSettings;
+		public float                LastDeltaTime  { get; private set; }
+		public int                  UpdateCount    { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
+		}
+	}
+
 	private sealed class ReadCounterSystem : ISystem
 	{
 		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
 
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 		public int                  LastObserved   { get; private set; } = -1;
 
 		public void Update(IWorld world, in SystemContext context)
@@ -247,25 +261,11 @@ public class SystemManagerTests
 			throw new InvalidOperationException("system-fail");
 	}
 
-	private sealed class PhaseCounterSystem(SystemLoopPhase loopPhase, SystemUpdateSettings updateSettings) : ISystem
-	{
-		public SystemLoopPhase     LoopPhase      { get; } = loopPhase;
-		public SystemUpdateSettings UpdateSettings { get; } = updateSettings;
-		public float               LastDeltaTime  { get; private set; }
-		public int                 UpdateCount    { get; private set; }
-
-		public void Update(IWorld world, in SystemContext context)
-		{
-			UpdateCount++;
-			LastDeltaTime = context.DeltaTime;
-		}
-	}
-
 	private sealed class WriteCounterSystem(int value) : ISystem
 	{
 		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
 
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context)
 		{

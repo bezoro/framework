@@ -12,7 +12,7 @@ public class SystemUpdateSettingsTests
 	[Fact]
 	public void FixedMilliseconds_WhenNegative_ShouldThrow()
 	{
-		var act = () => SystemUpdateSettings.FixedMilliseconds(-1);
+		var act = () => SystemUpdateSettings.FixedInterval(-1f);
 
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
@@ -20,7 +20,7 @@ public class SystemUpdateSettingsTests
 	[Fact]
 	public void FixedMilliseconds_WhenPositive_ShouldReturnSeconds()
 	{
-		var settings = SystemUpdateSettings.FixedMilliseconds(1500);
+		var settings = SystemUpdateSettings.FixedInterval(1500u);
 
 		settings.IntervalSeconds.Should().BeApproximately(1.5f, 1e-6f);
 	}
@@ -28,7 +28,7 @@ public class SystemUpdateSettingsTests
 	[Fact]
 	public void FixedTimeSpan_WhenNegative_ShouldThrow()
 	{
-		var act = () => SystemUpdateSettings.Fixed(TimeSpan.FromMilliseconds(-1));
+		var act = () => SystemUpdateSettings.FixedInterval(TimeSpan.FromMilliseconds(-1));
 
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
@@ -36,7 +36,7 @@ public class SystemUpdateSettingsTests
 	[Fact]
 	public void FixedTimeSpan_WhenPositive_ShouldReturnSeconds()
 	{
-		var settings = SystemUpdateSettings.Fixed(TimeSpan.FromMilliseconds(250));
+		var settings = SystemUpdateSettings.FixedInterval(TimeSpan.FromMilliseconds(250));
 
 		settings.IntervalSeconds.Should().BeApproximately(0.25f, 1e-6f);
 	}

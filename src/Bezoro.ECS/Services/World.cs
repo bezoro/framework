@@ -698,10 +698,10 @@ public sealed class World : IWorld, IDisposable
 		BumpChangeVersion();
 	}
 
-	public void AddSystem(ISystem system, Stage stage = Stage.Update) =>
+	public void AddSystem(ISystem system, Stage stage = Stage.Tick) =>
 		_systemManager.RegisterSystem(this, system, stage);
 
-	public void AddSystem<TSystem>(Stage stage = Stage.Update)
+	public void AddSystem<TSystem>(Stage stage = Stage.Tick)
 		where TSystem : ISystem, new() =>
 		AddSystem(new TSystem(), stage);
 
@@ -740,6 +740,24 @@ public sealed class World : IWorld, IDisposable
 		_onRemoveInObservers.Clear();
 	}
 
+	/// <summary>
+	///     Updates systems registered to the <see cref="SystemLoopPhase.FixedTick" /> loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed fixed-step time in seconds for this update.</param>
+	public void FixedTick(float deltaTime)
+	{
+		RunPhase(SystemLoopPhase.FixedTick, deltaTime);
+	}
+
+	/// <summary>
+	///     Updates systems registered to the <see cref="SystemLoopPhase.LateTick" /> loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed time in seconds for this late update.</param>
+	public void LateTick(float deltaTime)
+	{
+		RunPhase(SystemLoopPhase.LateTick, deltaTime);
+	}
+
 	public void Remove<T>(Entity entity) where T : struct, IComponent
 	{
 		EnsureNotUpdating();
@@ -747,6 +765,27 @@ public sealed class World : IWorld, IDisposable
 
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		RemoveComponentById(entity, typeId);
+	}
+
+	/// <summary>
+	///     Updates systems registered to the requested loop phase.
+	/// </summary>
+	/// <param name="loopPhase">The host loop phase to run.</param>
+	/// <param name="deltaTime">Elapsed time in seconds for this phase tick.</param>
+	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(World));
+
+		BumpChangeVersion();
+		_isUpdating = true;
+		try
+		{
+			_systemManager.UpdatePhase(this, loopPhase, deltaTime);
+		}
+		finally
+		{
+			_isUpdating = false;
+		}
 	}
 
 	public void Set<T>(Entity entity, in T component) where T : struct, IComponent
@@ -778,54 +817,13 @@ public sealed class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Updates systems registered to the <see cref="SystemLoopPhase.Update" /> loop phase.
+	///     Updates systems registered to the <see cref="SystemLoopPhase.Tick" /> loop phase.
 	/// </summary>
 	/// <param name="deltaTime">Elapsed time in seconds for this update.</param>
-	public void Update(float deltaTime)
+	public void Tick(float deltaTime)
 	{
-		RunPhase(SystemLoopPhase.Update, deltaTime);
+		RunPhase(SystemLoopPhase.Tick, deltaTime);
 	}
-
-	/// <summary>
-	///     Updates systems registered to the <see cref="SystemLoopPhase.FixedUpdate" /> loop phase.
-	/// </summary>
-	/// <param name="deltaTime">Elapsed fixed-step time in seconds for this update.</param>
-	public void FixedUpdate(float deltaTime)
-	{
-		RunPhase(SystemLoopPhase.FixedUpdate, deltaTime);
-	}
-
-	/// <summary>
-	///     Updates systems registered to the <see cref="SystemLoopPhase.LateUpdate" /> loop phase.
-	/// </summary>
-	/// <param name="deltaTime">Elapsed time in seconds for this late update.</param>
-	public void LateUpdate(float deltaTime)
-	{
-		RunPhase(SystemLoopPhase.LateUpdate, deltaTime);
-	}
-
-	/// <summary>
-	///     Updates systems registered to the requested loop phase.
-	/// </summary>
-	/// <param name="loopPhase">The host loop phase to run.</param>
-	/// <param name="deltaTime">Elapsed time in seconds for this phase tick.</param>
-	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
-	{
-		if (_disposed) throw new ObjectDisposedException(nameof(World));
-
-		BumpChangeVersion();
-		_isUpdating = true;
-		try
-		{
-			_systemManager.UpdatePhase(this, loopPhase, deltaTime);
-		}
-		finally
-		{
-			_isUpdating = false;
-		}
-	}
-
-	public void Update() => Update(0f);
 
 	/// <summary>
 	///     Gets a point-in-time diagnostics snapshot for archetype, chunk, entity, and memory usage.

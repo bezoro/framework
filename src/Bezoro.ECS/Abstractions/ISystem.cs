@@ -16,19 +16,19 @@ public interface ISystem
 	ComponentAccess[] Accesses => [];
 
 	/// <summary>
-	///     Gets the host loop phase this system executes in.
-	/// </summary>
-	SystemLoopPhase LoopPhase => SystemLoopPhase.Update;
-
-	/// <summary>
 	///     Gets the stage this system executes in.
 	/// </summary>
-	Stage Stage => Stage.Update;
+	Stage Stage => Stage.Tick;
+
+	/// <summary>
+	///     Gets the host loop phase this system executes in.
+	/// </summary>
+	SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <summary>
 	///     Gets the update settings that control how often this system runs.
 	/// </summary>
-	SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+	SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <summary>
 	///     Called once when the system is added to a world.

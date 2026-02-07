@@ -21,9 +21,9 @@ public readonly struct SystemUpdateSettings
 	}
 
 	/// <summary>
-	///     Gets settings for systems that run every update.
+	///     Gets settings for systems that run every tick.
 	/// </summary>
-	public static SystemUpdateSettings EveryFrame => new(0f);
+	public static SystemUpdateSettings EveryTick => new(0f);
 
 	/// <summary>
 	///     Gets the minimum interval, in seconds, between updates.
@@ -35,7 +35,7 @@ public readonly struct SystemUpdateSettings
 	/// </summary>
 	/// <param name="intervalSeconds">The minimum interval, in seconds, between updates.</param>
 	/// <returns>The configured update settings.</returns>
-	public static SystemUpdateSettings Fixed(float intervalSeconds) => new(intervalSeconds);
+	public static SystemUpdateSettings FixedInterval(float intervalSeconds) => new(intervalSeconds);
 
 	/// <summary>
 	///     Creates settings for a fixed update interval.
@@ -44,7 +44,7 @@ public readonly struct SystemUpdateSettings
 	/// <returns>The configured update settings.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="interval" /> is negative.</exception>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="interval" /> is too large.</exception>
-	public static SystemUpdateSettings Fixed(TimeSpan interval)
+	public static SystemUpdateSettings FixedInterval(TimeSpan interval)
 	{
 		if (interval < TimeSpan.Zero)
 			throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be non-negative.");
@@ -63,12 +63,6 @@ public readonly struct SystemUpdateSettings
 	/// </summary>
 	/// <param name="intervalMilliseconds">The minimum interval, in milliseconds, between updates.</param>
 	/// <returns>The configured update settings.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="intervalMilliseconds" /> is negative.</exception>
-	public static SystemUpdateSettings FixedMilliseconds(int intervalMilliseconds)
-	{
-		if (intervalMilliseconds < 0)
-			throw new ArgumentOutOfRangeException(nameof(intervalMilliseconds), "Interval must be non-negative.");
-
-		return new(intervalMilliseconds * Constants.SECONDS_PER_MILLISECOND);
-	}
+	public static SystemUpdateSettings FixedInterval(uint intervalMilliseconds) =>
+		new(intervalMilliseconds * Constants.SECONDS_PER_MILLISECOND);
 }

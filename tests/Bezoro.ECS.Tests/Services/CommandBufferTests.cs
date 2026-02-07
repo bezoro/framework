@@ -43,7 +43,7 @@ public class CommandBufferTests
 
 		// Act
 		world.Has<Velocity>(entity).Should().BeFalse();
-		world.Update(0.016f);
+		world.Tick(0.016f);
 
 		// Assert
 		world.Has<Velocity>(entity).Should().BeTrue();
@@ -128,7 +128,7 @@ public class CommandBufferTests
 		world.AddSystem(new PlaybackDuringUpdateSystem());
 
 		// Act
-		var act = () => world.Update(0.016f);
+		var act = () => world.Tick(0.016f);
 
 		// Assert
 		act.Should().Throw<InvalidOperationException>()
@@ -212,7 +212,7 @@ public class CommandBufferTests
 	{
 		public ComponentAccess[] Accesses => [ComponentAccess.Read<Position>()];
 
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context)
 		{
@@ -225,7 +225,7 @@ public class CommandBufferTests
 	private sealed class PlaybackDuringUpdateSystem : ISystem
 	{
 		public ComponentAccess[]    Accesses       => [];
-		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryFrame;
+		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context) => context.Commands.Playback();
 	}

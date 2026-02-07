@@ -18,18 +18,20 @@ public sealed class MovementSystem : ISystem
 	/// <summary>
 	///     Initializes a new instance of the <see cref="MovementSystem" /> class.
 	/// </summary>
-	public MovementSystem() : this(SystemUpdateSettings.EveryFrame) { }
+	public MovementSystem() : this(SystemUpdateSettings.EveryTick) { }
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="MovementSystem" /> class.
 	/// </summary>
-	/// <param name="updateSettings">Update frequency configuration.</param>
+	/// <param name="updateSettings">Tick frequency configuration.</param>
 	public MovementSystem(SystemUpdateSettings updateSettings)
 	{
 		UpdateSettings = updateSettings;
 	}
 
-	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedUpdate;
+	public Stage Stage => Stage.Tick;
+
+	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
 	/// <summary>
 	///     Gets the update settings that control how often this system runs.

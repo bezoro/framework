@@ -6,8 +6,8 @@ namespace Bezoro.ECS.Types;
 public enum Stage
 {
 	Input,
-	PreUpdate,
-	Update,
-	PostUpdate,
+	PreTick,
+	Tick,
+	PostTick,
 	Render
 }

@@ -13,18 +13,7 @@ namespace Bezoro.GameSystems.Tests.MovementSystem;
 public class MovementSystemTests
 {
 	[Fact]
-	public void Metadata_WhenInspectingMovementSystem_ShouldDeclareReadAndWriteAttributes()
-	{
-		// Arrange
-		var systemType = typeof(MovementSystemType);
-
-		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Position>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<Velocity>),  true).Should().BeTrue();
-	}
-
-	[Fact]
-	public void Update_WhenEntitiesHavePositionAndVelocity_ShouldAdvancePositions()
+	public void FixedTick_WhenEntitiesHavePositionAndVelocity_ShouldAdvancePositions()
 	{
 		// Arrange
 		var world = new World();
@@ -41,7 +30,7 @@ public class MovementSystemTests
 		);
 
 		// Act
-		world.Update(2f);
+		world.FixedTick(2f);
 
 		// Assert
 		var p1 = world.Get<Position>(e1);
@@ -56,11 +45,11 @@ public class MovementSystemTests
 	}
 
 	[Fact]
-	public void Update_WhenFixedInterval_ShouldAccumulateAndApplyStep()
+	public void FixedTick_WhenFixedInterval_ShouldAccumulateAndApplyStep()
 	{
 		// Arrange
 		var world  = new World();
-		var system = new MovementSystemType(SystemUpdateSettings.Fixed(0.5f));
+		var system = new MovementSystemType(SystemUpdateSettings.FixedInterval(0.5f));
 		world.AddSystem(system);
 
 		var entity = world.Spawn(
@@ -69,14 +58,25 @@ public class MovementSystemTests
 		);
 
 		// Act
-		world.Update(0.25f);
+		world.FixedTick(0.25f);
 		var afterFirst = world.Get<Position>(entity);
 
-		world.Update(0.25f);
+		world.FixedTick(0.25f);
 		var afterSecond = world.Get<Position>(entity);
 
 		// Assert
 		afterFirst.Should().Be(new Position { X  = 0f, Y = 0f, Z = 0f });
 		afterSecond.Should().Be(new Position { X = 1f, Y = 0f, Z = 0f });
+	}
+
+	[Fact]
+	public void Metadata_WhenInspectingMovementSystem_ShouldDeclareReadAndWriteAttributes()
+	{
+		// Arrange
+		var systemType = typeof(MovementSystemType);
+
+		// Act / Assert
+		systemType.IsDefined(typeof(WritesAttribute<Position>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<Velocity>),  true).Should().BeTrue();
 	}
 }

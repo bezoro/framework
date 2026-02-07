@@ -6,15 +6,15 @@ namespace Bezoro.ECS.Types;
 public enum SystemLoopPhase
 {
 	/// <summary>
-	///     Executes during the host's regular update loop.
+	///     Executes during the host's regular tick loop.
 	/// </summary>
-	Update,
+	Tick,
 	/// <summary>
-	///     Executes during the host's fixed-timestep update loop.
+	///     Executes during the host's fixed-timestep tick loop.
 	/// </summary>
-	FixedUpdate,
+	FixedTick,
 	/// <summary>
-	///     Executes during the host's late update loop.
+	///     Executes during the host's late tick loop.
 	/// </summary>
-	LateUpdate
+	LateTick
 }

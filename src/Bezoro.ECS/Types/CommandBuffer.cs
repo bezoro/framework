@@ -160,7 +160,7 @@ public sealed class CommandBuffer : IDisposable
 	///     Applies all recorded commands to the world.
 	/// </summary>
 	/// <remarks>
-	///     Playback is not allowed while systems are executing inside <see cref="World.Update(float)" />.
+	///     Playback is not allowed while systems are executing inside <see cref="World.Tick" />.
 	///     If playback fails, successfully processed commands are removed and unprocessed commands stay queued for retry.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">Thrown when playback is invoked during world update.</exception>

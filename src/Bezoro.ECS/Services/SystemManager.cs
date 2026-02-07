@@ -10,15 +10,15 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 internal sealed class SystemManager
 {
-	private static readonly SystemLoopPhase[] LoopPhaseOrder =
-		[SystemLoopPhase.Update, SystemLoopPhase.FixedUpdate, SystemLoopPhase.LateUpdate];
 	private static readonly Stage[] StageOrder =
-		[Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render];
-	private readonly Dictionary<SystemLoopPhase, Dictionary<Stage, List<SystemState[]>>> _phaseStagePlans = new();
-	private readonly GeneratedSystemMetadataResolver                                      _metadataResolver = new();
-	private readonly int                                                                  _maxDegreeOfParallelism;
-	private readonly List<SystemState>                                                    _systems     = [];
-	private          bool                                                                 _isPlanDirty = true;
+		[Stage.Input, Stage.PreTick, Stage.Tick, Stage.PostTick, Stage.Render];
+	private static readonly SystemLoopPhase[] LoopPhaseOrder =
+		[SystemLoopPhase.Tick, SystemLoopPhase.FixedTick, SystemLoopPhase.LateTick];
+	private readonly Dictionary<SystemLoopPhase, Dictionary<Stage, List<SystemState[]>>> _phaseStagePlans  = new();
+	private readonly GeneratedSystemMetadataResolver                                     _metadataResolver = new();
+	private readonly int                                                                 _maxDegreeOfParallelism;
+	private readonly List<SystemState>                                                   _systems     = [];
+	private          bool                                                                _isPlanDirty = true;
 
 	public SystemManager() : this(Environment.ProcessorCount) { }
 
@@ -114,11 +114,6 @@ internal sealed class SystemManager
 	{
 		for (int i = _systems.Count - 1; i >= 0; i--)
 			_systems[i].System.OnDestroy(world);
-	}
-
-	public void UpdateAll(World world, float deltaTime)
-	{
-		UpdatePhase(world, SystemLoopPhase.Update, deltaTime);
 	}
 
 	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
@@ -363,7 +358,7 @@ internal sealed class SystemManager
 		_phaseStagePlans.Clear();
 		for (var phaseIndex = 0; phaseIndex < LoopPhaseOrder.Length; phaseIndex++)
 		{
-			var loopPhase = LoopPhaseOrder[phaseIndex];
+			var loopPhase  = LoopPhaseOrder[phaseIndex];
 			var stagePlans = new Dictionary<Stage, List<SystemState[]>>();
 
 			for (var stageIndex = 0; stageIndex < StageOrder.Length; stageIndex++)

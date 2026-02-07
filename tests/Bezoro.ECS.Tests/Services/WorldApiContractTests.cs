@@ -70,6 +70,19 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Despawn_WhenChunkCompactsBoolComponent_ShouldPreserveRemainingEntityValue()
+	{
+		var world  = new World(new WorldOptions { ChunkCapacity = 2 });
+		var first  = world.Spawn(new BoolFlag { IsSet           = false });
+		var second = world.Spawn(new BoolFlag { IsSet           = true });
+
+		world.Despawn(first);
+
+		world.IsAlive(second).Should().BeTrue();
+		world.Get<BoolFlag>(second).IsSet.Should().BeTrue();
+	}
+
+	[Fact]
 	public void Diagnostics_WhenWorldContainsMultipleArchetypes_ShouldReportChunkAndMemoryTotals()
 	{
 		var world = new World(new WorldOptions { ChunkCapacity = 2 });
@@ -328,7 +341,7 @@ public class WorldApiContractTests
 		var world  = new World();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
-		world.Update(0f);
+		world.Tick(0f);
 
 		var before = 0;
 		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
@@ -355,7 +368,7 @@ public class WorldApiContractTests
 	{
 		var world  = new World();
 		var entity = world.Spawn();
-		world.Update(0f);
+		world.Tick(0f);
 
 		world.Add(entity, new Position { X = 5f, Y = 6f });
 
@@ -372,7 +385,7 @@ public class WorldApiContractTests
 		var world  = new World();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
-		world.Update(0f);
+		world.Tick(0f);
 
 		var before = 0;
 		foreach (var chunk in world.Query().All<Position>().Changed<Position>())
@@ -628,26 +641,13 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void Despawn_WhenChunkCompactsBoolComponent_ShouldPreserveRemainingEntityValue()
-	{
-		var world = new World(new WorldOptions { ChunkCapacity = 2 });
-		var first = world.Spawn(new BoolFlag { IsSet = false });
-		var second = world.Spawn(new BoolFlag { IsSet = true });
-
-		world.Despawn(first);
-
-		world.IsAlive(second).Should().BeTrue();
-		world.Get<BoolFlag>(second).IsSet.Should().BeTrue();
-	}
-
-	[Fact]
 	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
 	{
 		var world = new World();
 		GenericUpdateSystem.RunCount = 0;
 
 		world.AddSystem<GenericUpdateSystem>();
-		world.Update(0.016f);
+		world.Tick(0.016f);
 
 		GenericUpdateSystem.RunCount.Should().Be(1);
 	}
@@ -660,25 +660,25 @@ public class WorldApiContractTests
 
 		world.AddSystem(new StageRecorder(order), Stage.Render);
 		world.AddSystem(new StageRecorder(order), Stage.Input);
-		world.AddSystem(new StageRecorder(order), Stage.PostUpdate);
-		world.AddSystem(new StageRecorder(order), Stage.PreUpdate);
+		world.AddSystem(new StageRecorder(order), Stage.PostTick);
+		world.AddSystem(new StageRecorder(order), Stage.PreTick);
 		world.AddSystem(new StageRecorder(order));
 
-		world.Update(0.016f);
+		world.Tick(0.016f);
 
-		order.Should().Equal(Stage.Input, Stage.PreUpdate, Stage.Update, Stage.PostUpdate, Stage.Render);
+		order.Should().Equal(Stage.Input, Stage.PreTick, Stage.Tick, Stage.PostTick, Stage.Render);
 	}
 
 	[Fact]
 	public void Systems_WhenLoopPhaseIsFixedUpdate_ShouldRunOnlyDuringFixedUpdate()
 	{
 		var world  = new World();
-		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.FixedUpdate);
+		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.FixedTick);
 		world.AddSystem(system);
 
-		world.Update(1f / 60f);
-		world.LateUpdate(1f / 60f);
-		world.FixedUpdate(1f / 50f);
+		world.Tick(1f / 60f);
+		world.LateTick(1f / 60f);
+		world.FixedTick(1f / 50f);
 
 		system.UpdateCount.Should().Be(1);
 		system.LastDeltaTime.Should().BeApproximately(1f / 50f, 0.0001f);
@@ -688,12 +688,12 @@ public class WorldApiContractTests
 	public void Systems_WhenLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
 		var world  = new World();
-		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.LateUpdate);
+		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.LateTick);
 		world.AddSystem(system);
 
-		world.Update(1f / 60f);
-		world.FixedUpdate(1f / 50f);
-		world.LateUpdate(1f / 60f);
+		world.Tick(1f / 60f);
+		world.FixedTick(1f / 50f);
+		world.LateTick(1f / 60f);
 
 		system.UpdateCount.Should().Be(1);
 		system.LastDeltaTime.Should().BeApproximately(1f / 60f, 0.0001f);
@@ -705,6 +705,11 @@ public class WorldApiContractTests
 		var world = new World("Main");
 
 		world.Name.Should().Be("Main");
+	}
+
+	private struct BoolFlag : IComponent
+	{
+		public bool IsSet;
 	}
 
 	private readonly struct ChildOf;
@@ -741,6 +746,19 @@ public class WorldApiContractTests
 		public int Destroyed;
 	}
 
+	private sealed class LoopPhaseRecorderSystem(SystemLoopPhase loopPhase) : ISystem
+	{
+		public SystemLoopPhase LoopPhase     { get; } = loopPhase;
+		public float           LastDeltaTime { get; private set; }
+		public int             UpdateCount   { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			LastDeltaTime = context.DeltaTime;
+		}
+	}
+
 	private struct MovementJob : IForEach<Position, Velocity>
 	{
 		public float DeltaTime;
@@ -768,28 +786,9 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
 	}
 
-	private sealed class LoopPhaseRecorderSystem(SystemLoopPhase loopPhase) : ISystem
-	{
-		public float LastDeltaTime { get; private set; }
-		public int   UpdateCount   { get; private set; }
-
-		public SystemLoopPhase LoopPhase { get; } = loopPhase;
-
-		public void Update(IWorld world, in SystemContext context)
-		{
-			UpdateCount++;
-			LastDeltaTime = context.DeltaTime;
-		}
-	}
-
 	private struct Velocity : IComponent
 	{
 		public float X;
 		public float Y;
-	}
-
-	private struct BoolFlag : IComponent
-	{
-		public bool IsSet;
 	}
 }
