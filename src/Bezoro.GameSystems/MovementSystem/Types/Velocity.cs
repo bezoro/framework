@@ -1,11 +1,9 @@
-using Bezoro.ECS.Abstractions;
-
 namespace Bezoro.GameSystems.MovementSystem.Types;
 
 /// <summary>
 ///     Velocity component for ECS movement.
 /// </summary>
-public struct Velocity : IComponent
+public struct Velocity
 {
 	/// <summary>
 	///     Gets or sets the X velocity.

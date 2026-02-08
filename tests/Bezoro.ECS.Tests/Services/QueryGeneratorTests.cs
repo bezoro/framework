@@ -18,7 +18,7 @@ public class QueryGeneratorTests
 		world.Add(entity, new Position { X = 1, Y = 2 });
 		world.Add(entity, new Velocity { X = 3, Y = 4 });
 
-		world.Query<Position, Velocity>().ForEach(new MovementForEachJob { DeltaTime = 0.5f });
+		world.Query().All<Position>().All<Velocity>().ForEach(new MovementForEachJob { DeltaTime = 0.5f });
 
 		var updated = world.Get<Position>(entity);
 		updated.X.Should().Be(2.5f);
@@ -33,7 +33,7 @@ public class QueryGeneratorTests
 		world.Add(entity, new Position { X = 2, Y = 3 });
 		world.Add(entity, new Velocity { X = 1, Y = -2 });
 
-		world.Query<Position, Velocity>().ForEach(new JobContainer.NestedMovementForEachJob { DeltaTime = 2f });
+		world.Query().All<Position>().All<Velocity>().ForEach(new JobContainer.NestedMovementForEachJob { DeltaTime = 2f });
 
 		var updated = world.Get<Position>(entity);
 		updated.X.Should().Be(4f);
@@ -47,7 +47,7 @@ public class QueryGeneratorTests
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 
-		world.Query<Position>().ForEach(new PositionScaleJob { Scale = 3f });
+		world.Query().All<Position>().ForEach(new PositionScaleJob { Scale = 3f });
 
 		var updated = world.Get<Position>(entity);
 		updated.X.Should().Be(3);
@@ -63,7 +63,7 @@ public class QueryGeneratorTests
 		world.Add(entity, new Velocity { X     = 3, Y = 4 });
 		world.Add(entity, new Acceleration { X = 5, Y = -1 });
 
-		world.Query<Position, Velocity, Acceleration>().ForEach(new MovementForEachJob3 { DeltaTime = 0.5f });
+		world.Query().All<Position>().All<Velocity>().All<Acceleration>().ForEach(new MovementForEachJob3 { DeltaTime = 0.5f });
 
 		var updated = world.Get<Position>(entity);
 		updated.X.Should().Be(5f);
@@ -195,8 +195,7 @@ internal static class JobContainer
 	}
 }
 
-internal struct Acceleration : IComponent
-{
+internal struct Acceleration{
 	public float X;
 	public float Y;
 }
@@ -205,7 +204,7 @@ internal struct Acceleration : IComponent
 [All<Position>]
 internal readonly partial struct AutoQuery;
 
-internal struct Frozen : IComponent;
+internal struct Frozen;
 
 internal struct MovementForEachJob : IForEach<Position, Velocity>
 {
@@ -229,8 +228,7 @@ internal struct MovementForEachJob3 : IForEach<Position, Velocity, Acceleration>
 	}
 }
 
-internal struct Position : IComponent
-{
+internal struct Position{
 	public float X;
 	public float Y;
 }
@@ -252,8 +250,7 @@ internal struct PositionScaleJob : IForEach<Position>
 [Any<Velocity, Acceleration>]
 internal readonly partial struct Query : IQuery;
 
-internal struct Velocity : IComponent
-{
+internal struct Velocity{
 	public float X;
 	public float Y;
 }

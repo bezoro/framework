@@ -1,4 +1,3 @@
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using FluentAssertions;
@@ -26,7 +25,7 @@ public class SplitFieldGeneratorTests
 		);
 
 		var sum = 0f;
-		world.Query<SplitTransformSplitGenerated.Group0>().ForEach((ref SplitTransformSplitGenerated.Group0 group) =>
+		world.Query().All<SplitTransformSplitGenerated.Group0>().ForEach((ref SplitTransformSplitGenerated.Group0 group) =>
 			{
 				sum += group.PositionX +
 					   group.PositionY +
@@ -60,8 +59,7 @@ public class SplitFieldGeneratorTests
 }
 
 [SplitFields]
-internal struct SplitTransform : IComponent
-{
+internal struct SplitTransform{
 	[SplitGroup(0)] public float PositionX;
 	[SplitGroup(0)] public float PositionY;
 	[SplitGroup(0)] public float RotationZ;

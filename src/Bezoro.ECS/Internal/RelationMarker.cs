@@ -1,8 +1,6 @@
-using Bezoro.ECS.Abstractions;
-
 namespace Bezoro.ECS.Internal;
 
-internal readonly struct RelationMarker(byte value) : IComponent
+internal readonly struct RelationMarker(byte value)
 {
 	public byte Value { get; } = value;
 }

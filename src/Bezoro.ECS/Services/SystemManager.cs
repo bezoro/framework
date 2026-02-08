@@ -158,14 +158,13 @@ internal sealed class SystemManager
 
 	private static bool Overlaps(int[] left, int[] right)
 	{
-		for (var i = 0; i < left.Length; i++)
+		int i = 0, j = 0;
+		while (i < left.Length && j < right.Length)
 		{
-			int value = left[i];
-			for (var j = 0; j < right.Length; j++)
-			{
-				if (value == right[j])
-					return true;
-			}
+			if (left[i] == right[j]) return true;
+
+			if (left[i] < right[j]) i++;
+			else j++;
 		}
 
 		return false;
@@ -204,6 +203,7 @@ internal sealed class SystemManager
 		foreach (int value in set)
 			array[index++] = value;
 
+		Array.Sort(array);
 		return array;
 	}
 

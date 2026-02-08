@@ -198,8 +198,7 @@ public class SystemManagerTests
 		}
 	}
 
-	private readonly struct Counter : IComponent
-	{
+	private readonly struct Counter	{
 		public int Value { get; init; }
 	}
 

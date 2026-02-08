@@ -1,11 +1,9 @@
-using Bezoro.ECS.Abstractions;
-
 namespace Bezoro.GameSystems.MovementSystem.Types;
 
 /// <summary>
 ///     Position component for ECS movement.
 /// </summary>
-public struct Position : IComponent
+public struct Position
 {
 	/// <summary>
 	///     Gets or sets the X coordinate.

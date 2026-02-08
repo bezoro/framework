@@ -160,7 +160,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			"    public static void ForEach<T1>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1> action)"
 		);
 
-		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T1 : struct");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>();");
@@ -171,8 +171,8 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			"    public static void ForEach<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2> action)"
 		);
 
-		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T1 : struct");
+		builder.AppendLine("        where T2 : struct");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
@@ -183,9 +183,9 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			"    public static void ForEach<T1, T2, T3>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3> action)"
 		);
 
-		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T3 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T1 : struct");
+		builder.AppendLine("        where T2 : struct");
+		builder.AppendLine("        where T3 : struct");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>().All<T3>();");
@@ -196,10 +196,10 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			"    public static void ForEach<T1, T2, T3, T4>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3, T4> action)"
 		);
 
-		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T3 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T4 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T1 : struct");
+		builder.AppendLine("        where T2 : struct");
+		builder.AppendLine("        where T3 : struct");
+		builder.AppendLine("        where T4 : struct");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>().All<T3>().All<T4>();");
@@ -210,8 +210,8 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			"    public static void ForEachRW<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1, T2> action)"
 		);
 
-		builder.AppendLine("        where T1 : struct, global::Bezoro.ECS.Abstractions.IComponent");
-		builder.AppendLine("        where T2 : struct, global::Bezoro.ECS.Abstractions.IComponent");
+		builder.AppendLine("        where T1 : struct");
+		builder.AppendLine("        where T2 : struct");
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
 		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");

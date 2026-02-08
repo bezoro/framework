@@ -1,11 +1,10 @@
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
 internal sealed class ComponentApplicator<T>(int typeId, in T component, bool addOnly) : IComponentApplicator
-	where T : struct, IComponent
+	where T : struct
 {
 	private readonly T _component = component;
 

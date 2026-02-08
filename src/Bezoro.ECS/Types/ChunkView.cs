@@ -1,4 +1,3 @@
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 
@@ -44,7 +43,7 @@ public readonly struct ChunkView
 
 	public ReadOnlySpan<Entity> Entities => new(_entities, 0, Count);
 
-	public bool TryComponents<T>(out Span<T> components) where T : struct, IComponent
+	public bool TryComponents<T>(out Span<T> components) where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
@@ -58,7 +57,7 @@ public readonly struct ChunkView
 		return true;
 	}
 
-	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct, IComponent
+	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
@@ -68,7 +67,7 @@ public readonly struct ChunkView
 		return _columns[index].GetReadOnlySpan<T>(Count);
 	}
 
-	public Span<T> Components<T>() where T : struct, IComponent
+	public Span<T> Components<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
@@ -81,7 +80,7 @@ public readonly struct ChunkView
 		return _columns[index].GetSpan<T>(Count);
 	}
 
-	public Span<T> OptionalComponents<T>() where T : struct, IComponent
+	public Span<T> OptionalComponents<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);

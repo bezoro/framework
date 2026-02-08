@@ -5,7 +5,7 @@ namespace Bezoro.ECS.Abstractions;
 /// </summary>
 /// <typeparam name="T1">Writable component type.</typeparam>
 public interface IForEach<T1>
-	where T1 : struct, IComponent
+	where T1 : struct
 {
 	/// <summary>
 	///     Executes once per matched entity.

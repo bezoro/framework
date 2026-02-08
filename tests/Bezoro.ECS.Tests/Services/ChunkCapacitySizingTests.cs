@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -62,8 +61,7 @@ public class ChunkCapacitySizingTests
 		world.GetOrCreateArchetype().ChunkCapacity.Should().Be(expectedCapacity);
 	}
 
-	private struct SizedPosition : IComponent
-	{
+	private struct SizedPosition	{
 		public float X { get; init; }
 		public float Y { get; init; }
 	}

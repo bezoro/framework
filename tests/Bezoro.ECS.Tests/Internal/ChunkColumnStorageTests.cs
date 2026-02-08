@@ -1,4 +1,3 @@
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 using FluentAssertions;
@@ -7,7 +6,7 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Internal;
 
-[TestSubject(typeof(ComponentColumnFactory))]
+[TestSubject(typeof(ComponentColumn))]
 public class ChunkColumnStorageTests
 {
 	[Fact]
@@ -60,25 +59,22 @@ public class ChunkColumnStorageTests
 	[Fact]
 	public void UnmanagedColumn_WhenCreated_ShouldUseNativeAlignedAllocAndRespectAlignment()
 	{
-		using var column = (UnmanagedComponentColumn)ComponentColumnFactory.Create(typeof(UnmanagedPosition), 8);
+		using var column = ComponentColumn.Create(typeof(UnmanagedPosition), 8);
 
 		column.UsesNativeAlignedAlloc.Should().BeTrue();
 		(column.AlignedAddress % (nuint)column.AlignmentBytes).Should().Be(0);
 	}
 }
 
-internal struct ManagedPayload : IComponent
-{
+internal struct ManagedPayload{
 	public string? Name;
 }
 
-internal struct UnmanagedPosition : IComponent
-{
+internal struct UnmanagedPosition{
 	public float X;
 	public float Y;
 }
 
-internal struct BoolPayload : IComponent
-{
+internal struct BoolPayload{
 	public bool IsEnabled;
 }

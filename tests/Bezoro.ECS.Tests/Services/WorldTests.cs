@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using FluentAssertions;
@@ -378,23 +377,21 @@ public class WorldTests
 		worldB.Has<Position>(local).Should().BeFalse();
 	}
 
-	private struct Health : IComponent;
+	private struct Health;
 
-	private struct Position : IComponent
-	{
+	private struct Position	{
 		public float X;
 		public float Y;
 	}
 
-	private struct Velocity : IComponent
-	{
+	private struct Velocity	{
 		public float X;
 		public float Y;
 	}
 
-	private struct WorldAOnlyComponent : IComponent;
+	private struct WorldAOnlyComponent;
 
-	private struct WorldBOnlyComponent : IComponent;
+	private struct WorldBOnlyComponent;
 
-	private struct WorldBSecondOnlyComponent : IComponent;
+	private struct WorldBSecondOnlyComponent;
 }

@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
@@ -49,13 +48,13 @@ public class EcsStructuralBenchmarks
 		return world.EntityCount;
 	}
 
-	private struct Position : IComponent
+	private struct Position
 	{
 		public float X;
 		public float Y;
 	}
 
-	private struct Velocity : IComponent
+	private struct Velocity
 	{
 		public float X;
 		public float Y;

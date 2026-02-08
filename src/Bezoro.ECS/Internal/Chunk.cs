@@ -11,7 +11,7 @@ internal sealed class Chunk
 		ComponentVersions = new uint[componentTypes.Length];
 
 		for (var i = 0; i < componentTypes.Length; i++)
-			Columns[i] = ComponentColumnFactory.Create(componentTypes[i], capacity);
+			Columns[i] = ComponentColumn.Create(componentTypes[i], capacity);
 	}
 
 	public ComponentColumn[] Columns { get; }

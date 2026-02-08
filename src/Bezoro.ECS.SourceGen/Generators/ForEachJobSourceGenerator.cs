@@ -115,7 +115,7 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 		builder.AppendLine("    {");
 		builder.AppendLine("        if (query is null) throw new global::System.ArgumentNullException(nameof(query));");
-		builder.Append("        query.ForEach<").Append(model.JobType);
+		builder.Append("        query.Run<").Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
 

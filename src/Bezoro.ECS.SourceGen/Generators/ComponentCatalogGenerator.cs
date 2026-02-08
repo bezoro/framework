@@ -47,34 +47,9 @@ public sealed class ComponentCatalogGenerator : IIncrementalGenerator
 		);
 	}
 
-	private static bool ImplementsComponent(INamedTypeSymbol symbol)
-	{
-		for (var i = 0; i < symbol.AllInterfaces.Length; i++)
-		{
-			if (symbol.AllInterfaces[i].ToDisplayString() == "Bezoro.ECS.Abstractions.IComponent")
-				return true;
-		}
-
-		return false;
-	}
-
 	private static void CollectComponents(INamespaceSymbol namespaceSymbol, ICollection<string> output)
 	{
-		foreach (var member in namespaceSymbol.GetMembers())
-		{
-			if (member is INamespaceSymbol ns)
-			{
-				CollectComponents(ns, output);
-				continue;
-			}
-
-			if (member is not INamedTypeSymbol type || type.TypeKind != TypeKind.Struct)
-				continue;
-
-			if (!ImplementsComponent(type))
-				continue;
-
-			output.Add(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-		}
+		// Component types are now lazily registered via GetOrCreate at first use.
+		// No compile-time discovery is needed without the IComponent marker interface.
 	}
 }

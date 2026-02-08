@@ -1,5 +1,3 @@
-using Bezoro.ECS.Abstractions;
-
 namespace Bezoro.ECS.Types;
 
 /// <summary>
@@ -18,9 +16,9 @@ public readonly struct ComponentAccess
 	{
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
-		if (!componentType.IsValueType || !typeof(IComponent).IsAssignableFrom(componentType))
+		if (!componentType.IsValueType)
 			throw new ArgumentException(
-				"Component types must be structs implementing IComponent.", nameof(componentType)
+				"Component types must be value types.", nameof(componentType)
 			);
 
 		ComponentType = componentType;
@@ -42,7 +40,7 @@ public readonly struct ComponentAccess
 	/// </summary>
 	/// <typeparam name="T">The component type.</typeparam>
 	/// <returns>A read-only access descriptor.</returns>
-	public static ComponentAccess Read<T>() where T : struct, IComponent =>
+	public static ComponentAccess Read<T>() where T : struct =>
 		new(typeof(T), ComponentAccessMode.ReadOnly);
 
 	/// <summary>
@@ -50,6 +48,6 @@ public readonly struct ComponentAccess
 	/// </summary>
 	/// <typeparam name="T">The component type.</typeparam>
 	/// <returns>A read-write access descriptor.</returns>
-	public static ComponentAccess Write<T>() where T : struct, IComponent =>
+	public static ComponentAccess Write<T>() where T : struct =>
 		new(typeof(T), ComponentAccessMode.ReadWrite);
 }

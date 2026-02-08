@@ -230,14 +230,12 @@ public class CommandBufferTests
 		public void Update(IWorld world, in SystemContext context) => context.Commands.Playback();
 	}
 
-	private struct Position : IComponent
-	{
+	private struct Position	{
 		public float X;
 		public float Y;
 	}
 
-	private struct Velocity : IComponent
-	{
+	private struct Velocity	{
 		public float X;
 		public float Y;
 	}

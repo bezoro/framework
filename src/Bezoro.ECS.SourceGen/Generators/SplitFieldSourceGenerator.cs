@@ -46,17 +46,6 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static bool ImplementsComponent(INamedTypeSymbol symbol)
-	{
-		for (var i = 0; i < symbol.AllInterfaces.Length; i++)
-		{
-			if (symbol.AllInterfaces[i].ToDisplayString() == "Bezoro.ECS.Abstractions.IComponent")
-				return true;
-		}
-
-		return false;
-	}
-
 	private static bool TryCreateModel(INamedTypeSymbol type, out SplitModel model)
 	{
 		model = null!;
@@ -158,8 +147,7 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 			builder.AppendLine("    /// <summary>");
 			builder.Append("    /// Split group ").Append(group.GroupId).AppendLine(" storage component.");
 			builder.AppendLine("    /// </summary>");
-			builder.Append("    public struct ").Append(groupTypeName)
-				   .Append(" : global::Bezoro.ECS.Abstractions.IComponent").AppendLine();
+			builder.Append("    public struct ").Append(groupTypeName).AppendLine();
 
 			builder.AppendLine("    {");
 			for (var fieldIndex = 0; fieldIndex < group.Fields.Count; fieldIndex++)
@@ -351,7 +339,6 @@ public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 	private static void CollectSplitTypes(INamedTypeSymbol type, ICollection<SplitModel> output)
 	{
 		if (type.TypeKind == TypeKind.Struct &&
-			ImplementsComponent(type) &&
 			HasAttribute(type, SPLIT_FIELDS_ATTRIBUTE_NAME) &&
 			TryCreateModel(type, out var model))
 			output.Add(model);

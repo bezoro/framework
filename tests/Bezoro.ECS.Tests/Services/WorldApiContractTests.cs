@@ -161,7 +161,7 @@ public class WorldApiContractTests
 		commands.Playback();
 
 		int observedCurrent = -1;
-		foreach (var chunk in world.Query<Health>())
+		foreach (var chunk in world.Query().All<Health>())
 		{
 			chunk.Count.Should().Be(1);
 			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
@@ -197,7 +197,7 @@ public class WorldApiContractTests
 		commands.Playback();
 
 		int observedCurrent = -1;
-		foreach (var chunk in world.Query<Health>())
+		foreach (var chunk in world.Query().All<Health>())
 		{
 			chunk.Count.Should().Be(1);
 			observedCurrent = chunk.ReadOnlyComponents<Health>()[0].Current;
@@ -410,8 +410,8 @@ public class WorldApiContractTests
 			new Velocity { X = 3f, Y = 4f }
 		);
 
-		world.Query<Position, Velocity>()
-			 .ForEach<MovementJob, Position, Velocity>(new() { DeltaTime = 0.5f });
+		world.Query().All<Position>().All<Velocity>()
+			 .Run<MovementJob, Position, Velocity>(new() { DeltaTime = 0.5f });
 
 		var position = world.Get<Position>(entity);
 		position.X.Should().Be(2.5f);
@@ -451,7 +451,7 @@ public class WorldApiContractTests
 		world.Spawn(new Position { X = 2, Y = 2 });
 
 		var count = 0;
-		foreach (var chunk in world.Query<Position, Velocity>())
+		foreach (var chunk in world.Query().All<Position>().All<Velocity>())
 			count += chunk.Count;
 
 		count.Should().Be(1);
@@ -584,7 +584,7 @@ public class WorldApiContractTests
 
 		var cloneParentA = Entity.None;
 		var cloneParentB = Entity.None;
-		foreach (var chunk in clone.Query<ParentTag>())
+		foreach (var chunk in clone.Query().All<ParentTag>())
 		{
 			var tags = chunk.ReadOnlyComponents<ParentTag>();
 			for (var i = 0; i < chunk.Count; i++)
@@ -707,8 +707,7 @@ public class WorldApiContractTests
 		world.Name.Should().Be("Main");
 	}
 
-	private struct BoolFlag : IComponent
-	{
+	private struct BoolFlag	{
 		public bool IsSet;
 	}
 
@@ -726,8 +725,7 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) => RunCount++;
 	}
 
-	private struct Health : IComponent
-	{
+	private struct Health	{
 		public int Current;
 		public int Max;
 	}
@@ -770,13 +768,11 @@ public class WorldApiContractTests
 		}
 	}
 
-	private struct ParentTag : IComponent
-	{
+	private struct ParentTag	{
 		public int Id;
 	}
 
-	private struct Position : IComponent
-	{
+	private struct Position	{
 		public float X;
 		public float Y;
 	}
@@ -786,8 +782,7 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) => order.Add(context.Stage);
 	}
 
-	private struct Velocity : IComponent
-	{
+	private struct Velocity	{
 		public float X;
 		public float Y;
 	}

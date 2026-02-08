@@ -48,7 +48,7 @@ public sealed class MovementSystem : ISystem
 		float deltaTime = context.DeltaTime;
 		if (deltaTime == 0f) return;
 
-		world.Query<Position, Velocity>().ForEach((ref Position position, in Velocity velocity) =>
+		world.Query().All<Position>().All<Velocity>().ForEach((ref Position position, in Velocity velocity) =>
 			{
 				position.X += velocity.X * deltaTime;
 				position.Y += velocity.Y * deltaTime;

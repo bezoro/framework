@@ -92,7 +92,7 @@ internal sealed class ResolverInferredForEachRwSystem : ISystem
 {
 	public void Update(IWorld world, in SystemContext context)
 	{
-		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+		world.Query().All<ResolverInferredPosition>().All<ResolverInferredVelocity>()
 			 .ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
 	}
 }
@@ -101,7 +101,7 @@ internal sealed class ResolverInferredForEachSystem : ISystem
 {
 	public void Update(IWorld world, in SystemContext context)
 	{
-		world.Query<ResolverInferredPosition, ResolverInferredVelocity>()
+		world.Query().All<ResolverInferredPosition>().All<ResolverInferredVelocity>()
 			 .ForEach((ref ResolverInferredPosition position, in ResolverInferredVelocity velocity) => { });
 	}
 }
@@ -116,11 +116,11 @@ internal static class ResolverNestedSystems
 	}
 }
 
-internal struct ResolverInferredPosition : IComponent;
+internal struct ResolverInferredPosition;
 
-internal struct ResolverInferredVelocity : IComponent;
+internal struct ResolverInferredVelocity;
 
-internal struct ResolverReadComponent : IComponent;
+internal struct ResolverReadComponent;
 
 [Reads<ResolverReadComponent>]
 [Writes<ResolverWriteComponent>]
@@ -130,4 +130,4 @@ internal struct ResolverStructSystem : ISystem
 	public void Update(IWorld world, in SystemContext context) { }
 }
 
-internal struct ResolverWriteComponent : IComponent;
+internal struct ResolverWriteComponent;

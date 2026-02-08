@@ -1,4 +1,3 @@
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 
@@ -45,7 +44,7 @@ public sealed class CommandBuffer : IDisposable
 	///     Creates a new entity with one initial component value.
 	/// </summary>
 	public Entity CreateEntity<T1>(in T1 component1)
-		where T1 : struct, IComponent
+		where T1 : struct
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1));
 		var entity    = CreateEntity(archetype);
@@ -57,8 +56,8 @@ public sealed class CommandBuffer : IDisposable
 	///     Creates a new entity with two initial component values.
 	/// </summary>
 	public Entity CreateEntity<T1, T2>(in T1 component1, in T2 component2)
-		where T1 : struct, IComponent
-		where T2 : struct, IComponent
+		where T1 : struct
+		where T2 : struct
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2));
 		var entity    = CreateEntity(archetype);
@@ -71,9 +70,9 @@ public sealed class CommandBuffer : IDisposable
 	///     Creates a new entity with three initial component values.
 	/// </summary>
 	public Entity CreateEntity<T1, T2, T3>(in T1 component1, in T2 component2, in T3 component3)
-		where T1 : struct, IComponent
-		where T2 : struct, IComponent
-		where T3 : struct, IComponent
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
 		var entity    = CreateEntity(archetype);
@@ -87,10 +86,10 @@ public sealed class CommandBuffer : IDisposable
 	///     Creates a new entity with four initial component values.
 	/// </summary>
 	public Entity CreateEntity<T1, T2, T3, T4>(in T1 component1, in T2 component2, in T3 component3, in T4 component4)
-		where T1 : struct, IComponent
-		where T2 : struct, IComponent
-		where T3 : struct, IComponent
-		where T4 : struct, IComponent
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
 	{
 		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
 		var entity    = CreateEntity(archetype);
@@ -129,7 +128,7 @@ public sealed class CommandBuffer : IDisposable
 	/// <typeparam name="T">The component type.</typeparam>
 	/// <param name="entity">The entity to modify.</param>
 	/// <param name="component">The component value to add.</param>
-	public void AddComponent<T>(Entity entity, in T component) where T : struct, IComponent
+	public void AddComponent<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
 		int typeId     = _world.GetOrCreateComponentTypeId<T>();
@@ -173,7 +172,7 @@ public sealed class CommandBuffer : IDisposable
 	/// </summary>
 	/// <typeparam name="T">The component type.</typeparam>
 	/// <param name="entity">The entity to modify.</param>
-	public void RemoveComponent<T>(Entity entity) where T : struct, IComponent
+	public void RemoveComponent<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
@@ -186,7 +185,7 @@ public sealed class CommandBuffer : IDisposable
 	/// <typeparam name="T">The component type.</typeparam>
 	/// <param name="entity">The entity to modify.</param>
 	/// <param name="component">The component value to set.</param>
-	public void SetComponent<T>(Entity entity, in T component) where T : struct, IComponent
+	public void SetComponent<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
 		int typeId     = _world.GetOrCreateComponentTypeId<T>();

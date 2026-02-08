@@ -32,7 +32,7 @@ public class EcsHotPathBenchmarks
 	public int QueryCacheHit()
 	{
 		var count = 0;
-		var query = _world.Query<Position, Velocity>();
+		var query = _world.Query().All<Position>().All<Velocity>();
 		foreach (var chunk in query)
 			count += chunk.Count;
 
@@ -48,7 +48,7 @@ public class EcsHotPathBenchmarks
 	[Benchmark(Description = "Iterate entities (Position+Velocity, parallel)")]
 	public void IterateParallel()
 	{
-		_world.Query<Position, Velocity>()
+		_world.Query().All<Position>().All<Velocity>()
 			  .ForEachParallel(
 				  chunk =>
 				  {
@@ -66,8 +66,8 @@ public class EcsHotPathBenchmarks
 	[Benchmark(Description = "Iterate entities (Position+Velocity, single-threaded)")]
 	public void IterateSingleThreaded()
 	{
-		_world.Query<Position, Velocity>()
-			  .ForEach<MovementJob, Position, Velocity>(new() { DeltaTime = 0.016f });
+		_world.Query().All<Position>().All<Velocity>()
+			  .Run<MovementJob, Position, Velocity>(new() { DeltaTime = 0.016f });
 	}
 
 	[GlobalSetup]
@@ -95,13 +95,13 @@ public class EcsHotPathBenchmarks
 		}
 	}
 
-	private struct Position : IComponent
+	private struct Position
 	{
 		public float X;
 		public float Y;
 	}
 
-	private struct Velocity : IComponent
+	private struct Velocity
 	{
 		public float X;
 		public float Y;
