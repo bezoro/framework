@@ -13,13 +13,22 @@ public sealed class Query
 	private readonly QuerySpec  _spec;
 	private readonly World      _world;
 
+	/// <summary>
+	///     A delegate that receives two components by mutable reference.
+	/// </summary>
 	public delegate void RefAction<T1, T2>(ref T1 component1, ref T2 component2)
 		where T1 : struct
 		where T2 : struct;
 
+	/// <summary>
+	///     A delegate that receives one component by mutable reference.
+	/// </summary>
 	public delegate void RefAction<T1>(ref T1 component1)
 		where T1 : struct;
 
+	/// <summary>
+	///     A delegate that receives one component by mutable reference and three by read-only reference.
+	/// </summary>
 	public delegate void RefInAction<T1, T2, T3, T4>(
 		ref T1 component1,
 		in  T2 component2,
@@ -30,11 +39,17 @@ public sealed class Query
 		where T3 : struct
 		where T4 : struct;
 
+	/// <summary>
+	///     A delegate that receives one component by mutable reference and two by read-only reference.
+	/// </summary>
 	public delegate void RefInAction<T1, T2, T3>(ref T1 component1, in T2 component2, in T3 component3)
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct;
 
+	/// <summary>
+	///     A delegate that receives one component by mutable reference and one by read-only reference.
+	/// </summary>
 	public delegate void RefInAction<T1, T2>(ref T1 component1, in T2 component2)
 		where T1 : struct
 		where T2 : struct;
@@ -46,6 +61,11 @@ public sealed class Query
 		_spec      = spec;
 	}
 
+	/// <summary>
+	///     Adds a required component type to this query. Matching archetypes must contain this component.
+	/// </summary>
+	/// <typeparam name="T">The component type to require.</typeparam>
+	/// <returns>A new query with the additional constraint, or this instance if the type was already present.</returns>
 	public Query All<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
@@ -58,6 +78,11 @@ public sealed class Query
 		));
 	}
 
+	/// <summary>
+	///     Adds required component types to this query. Matching archetypes must contain all specified components.
+	/// </summary>
+	/// <param name="componentTypes">The component types to require.</param>
+	/// <returns>A new query with the additional constraints.</returns>
 	public Query All(params Type[] componentTypes)
 	{
 		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
@@ -79,6 +104,12 @@ public sealed class Query
 		return result;
 	}
 
+	/// <summary>
+	///     Adds two component types as an "any" constraint. Matching archetypes must contain at least one.
+	/// </summary>
+	/// <typeparam name="T1">The first component type.</typeparam>
+	/// <typeparam name="T2">The second component type.</typeparam>
+	/// <returns>A new query with the additional constraint.</returns>
 	public Query Any<T1, T2>()
 		where T1 : struct
 		where T2 : struct
@@ -104,6 +135,11 @@ public sealed class Query
 		return result;
 	}
 
+	/// <summary>
+	///     Adds component types as an "any" constraint. Matching archetypes must contain at least one.
+	/// </summary>
+	/// <param name="componentTypes">The component types, at least one of which must be present.</param>
+	/// <returns>A new query with the additional constraint.</returns>
 	public Query Any(params Type[] componentTypes)
 	{
 		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
@@ -125,6 +161,11 @@ public sealed class Query
 		return result;
 	}
 
+	/// <summary>
+	///     Adds a changed-component filter. Only chunks where the specified component was modified this tick are matched.
+	/// </summary>
+	/// <typeparam name="T">The component type to filter by change status.</typeparam>
+	/// <returns>A new query with the change filter applied.</returns>
 	public Query Changed<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
@@ -137,6 +178,11 @@ public sealed class Query
 		));
 	}
 
+	/// <summary>
+	///     Restricts this query to a single archetype instead of searching all archetypes in the world.
+	/// </summary>
+	/// <param name="archetype">The archetype to query against.</param>
+	/// <returns>A new query scoped to the specified archetype.</returns>
 	public Query ForArchetype(Archetype archetype)
 	{
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
@@ -145,6 +191,11 @@ public sealed class Query
 		return new(_world, archetype, _spec);
 	}
 
+	/// <summary>
+	///     Excludes archetypes that contain the specified component type.
+	/// </summary>
+	/// <typeparam name="T">The component type to exclude.</typeparam>
+	/// <returns>A new query with the exclusion constraint.</returns>
 	public Query None<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
@@ -157,6 +208,11 @@ public sealed class Query
 		));
 	}
 
+	/// <summary>
+	///     Excludes archetypes that contain any of the specified component types.
+	/// </summary>
+	/// <param name="componentTypes">The component types to exclude.</param>
+	/// <returns>A new query with the exclusion constraints.</returns>
 	public Query None(params Type[] componentTypes)
 	{
 		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
@@ -178,6 +234,11 @@ public sealed class Query
 		return result;
 	}
 
+	/// <summary>
+	///     Marks a component type as optional. The component will be included if present but will not filter archetypes.
+	/// </summary>
+	/// <typeparam name="T">The optional component type.</typeparam>
+	/// <returns>A new query with the optional component.</returns>
 	public Query Optional<T>() where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
@@ -190,6 +251,12 @@ public sealed class Query
 		));
 	}
 
+	/// <summary>
+	///     Filters for entities that have a relationship of the specified type targeting the given entity.
+	/// </summary>
+	/// <typeparam name="TRelation">The relationship type.</typeparam>
+	/// <param name="target">The target entity of the relationship, or <see cref="Entity.Wildcard" /> for any target.</param>
+	/// <returns>A new query with the relationship constraint.</returns>
 	public Query Related<TRelation>(Entity target)
 	{
 		if (target == Entity.Wildcard)
@@ -211,8 +278,16 @@ public sealed class Query
 		));
 	}
 
+	/// <summary>
+	///     Returns an enumerator that iterates over matching <see cref="ChunkView" /> instances.
+	/// </summary>
+	/// <returns>A <see cref="QueryEnumerator" /> for this query.</returns>
 	public QueryEnumerator GetEnumerator() => new(_world, _archetype, _spec);
 
+	/// <summary>
+	///     Iterates over all matching chunks and invokes the specified action for each.
+	/// </summary>
+	/// <param name="action">The action to invoke for each matching chunk.</param>
 	public void ForEach(Action<ChunkView> action)
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
@@ -229,6 +304,11 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching entities and invokes the action with a mutable reference to the component.
+	/// </summary>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <param name="action">The action to invoke per entity.</param>
 	public void ForEach<T1>(RefAction<T1> action)
 		where T1 : struct
 	{
@@ -242,6 +322,12 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching entities with one read-write and one read-only component.
+	/// </summary>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The component type to access (read-only).</typeparam>
+	/// <param name="action">The action to invoke per entity.</param>
 	public void ForEach<T1, T2>(RefInAction<T1, T2> action)
 		where T1 : struct
 		where T2 : struct
@@ -257,6 +343,13 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching entities with one read-write and two read-only components.
+	/// </summary>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The first component type to access (read-only).</typeparam>
+	/// <typeparam name="T3">The second component type to access (read-only).</typeparam>
+	/// <param name="action">The action to invoke per entity.</param>
 	public void ForEach<T1, T2, T3>(RefInAction<T1, T2, T3> action)
 		where T1 : struct
 		where T2 : struct
@@ -274,6 +367,14 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching entities with one read-write and three read-only components.
+	/// </summary>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The first component type to access (read-only).</typeparam>
+	/// <typeparam name="T3">The second component type to access (read-only).</typeparam>
+	/// <typeparam name="T4">The third component type to access (read-only).</typeparam>
+	/// <param name="action">The action to invoke per entity.</param>
 	public void ForEach<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
 		where T1 : struct
 		where T2 : struct
@@ -293,6 +394,12 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Runs a struct-based job over all matching entities with one read-write component.
+	/// </summary>
+	/// <typeparam name="TJob">The job type implementing <see cref="IForEach{T1}" />.</typeparam>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <param name="job">The job instance to execute per entity.</param>
 	public void Run<TJob, T1>(TJob job)
 		where TJob : struct, IForEach<T1>
 		where T1 : struct
@@ -305,6 +412,13 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Runs a struct-based job over all matching entities with one read-write and one read-only component.
+	/// </summary>
+	/// <typeparam name="TJob">The job type implementing <see cref="IForEach{T1, T2}" />.</typeparam>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The component type to access (read-only).</typeparam>
+	/// <param name="job">The job instance to execute per entity.</param>
 	public void Run<TJob, T1, T2>(TJob job)
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : struct
@@ -319,6 +433,14 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Runs a struct-based job over all matching entities with one read-write and two read-only components.
+	/// </summary>
+	/// <typeparam name="TJob">The job type implementing <see cref="IForEach{T1, T2, T3}" />.</typeparam>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The first component type to access (read-only).</typeparam>
+	/// <typeparam name="T3">The second component type to access (read-only).</typeparam>
+	/// <param name="job">The job instance to execute per entity.</param>
 	public void Run<TJob, T1, T2, T3>(TJob job)
 		where TJob : struct, IForEach<T1, T2, T3>
 		where T1 : struct
@@ -335,6 +457,15 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Runs a struct-based job over all matching entities with one read-write and three read-only components.
+	/// </summary>
+	/// <typeparam name="TJob">The job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
+	/// <typeparam name="T1">The component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The first component type to access (read-only).</typeparam>
+	/// <typeparam name="T3">The second component type to access (read-only).</typeparam>
+	/// <typeparam name="T4">The third component type to access (read-only).</typeparam>
+	/// <param name="job">The job instance to execute per entity.</param>
 	public void Run<TJob, T1, T2, T3, T4>(TJob job)
 		where TJob : struct, IForEach<T1, T2, T3, T4>
 		where T1 : struct
@@ -353,6 +484,13 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching chunks in parallel using the world's thread pool.
+	/// </summary>
+	/// <param name="action">The action to invoke for each matching chunk.</param>
+	/// <param name="maxDegreeOfParallelism">
+	///     The maximum number of concurrent threads. Defaults to <see cref="World.MaxDegreeOfParallelism" />.
+	/// </param>
 	public void ForEachParallel(Action<ChunkView> action, int? maxDegreeOfParallelism = null)
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
@@ -422,6 +560,12 @@ public sealed class Query
 		}
 	}
 
+	/// <summary>
+	///     Iterates over all matching entities with two read-write components.
+	/// </summary>
+	/// <typeparam name="T1">The first component type to access (read-write).</typeparam>
+	/// <typeparam name="T2">The second component type to access (read-write).</typeparam>
+	/// <param name="action">The action to invoke per entity.</param>
 	public void ForEachRW<T1, T2>(RefAction<T1, T2> action)
 		where T1 : struct
 		where T2 : struct
