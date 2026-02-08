@@ -46,6 +46,29 @@ public readonly struct ChunkView
 	public bool TryComponents<T>(out Span<T> components) where T : struct
 	{
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		return TryComponentsByTypeId(typeId, out components);
+	}
+
+	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct
+	{
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		return ReadOnlyComponentsByTypeId<T>(typeId);
+	}
+
+	public Span<T> Components<T>() where T : struct
+	{
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		return ComponentsByTypeId<T>(typeId);
+	}
+
+	public Span<T> OptionalComponents<T>() where T : struct
+	{
+		int typeId = _world.GetOrCreateComponentTypeId<T>();
+		return OptionalComponentsByTypeId<T>(typeId);
+	}
+
+	internal bool TryComponentsByTypeId<T>(int typeId, out Span<T> components) where T : struct
+	{
 		int index  = GetIndex(typeId);
 		if (index < 0)
 		{
@@ -57,9 +80,8 @@ public readonly struct ChunkView
 		return true;
 	}
 
-	public ReadOnlySpan<T> ReadOnlyComponents<T>() where T : struct
+	internal ReadOnlySpan<T> ReadOnlyComponentsByTypeId<T>(int typeId) where T : struct
 	{
-		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
 		if (index < 0)
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
@@ -67,9 +89,8 @@ public readonly struct ChunkView
 		return _columns[index].GetReadOnlySpan<T>(Count);
 	}
 
-	public Span<T> Components<T>() where T : struct
+	internal Span<T> ComponentsByTypeId<T>(int typeId) where T : struct
 	{
-		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
 		if (index < 0)
 			throw new KeyNotFoundException($"Component of type {typeof(T).Name} not found in chunk.");
@@ -80,9 +101,8 @@ public readonly struct ChunkView
 		return _columns[index].GetSpan<T>(Count);
 	}
 
-	public Span<T> OptionalComponents<T>() where T : struct
+	internal Span<T> OptionalComponentsByTypeId<T>(int typeId) where T : struct
 	{
-		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		int index  = GetIndex(typeId);
 		if (index < 0)
 			return Span<T>.Empty;

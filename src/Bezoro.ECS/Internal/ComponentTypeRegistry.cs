@@ -8,7 +8,7 @@ internal sealed class ComponentTypeRegistry
 	private readonly ConcurrentDictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
 	private readonly ConcurrentDictionary<int, RelationshipInfo>                                     _relationshipInfoById = new();
 	private readonly ConcurrentDictionary<Type, int>                                                 _typeToId = new();
-	private readonly ConcurrentDictionary<Type, List<int>>                                           _relationIdsByType = new();
+	private readonly ConcurrentDictionary<Type, int[]>                                               _relationIdsByType = new();
 	private readonly object                                                                          _sync = new();
 
 	private Type[] _idToTypeArray = new Type[16];
@@ -68,12 +68,11 @@ internal sealed class ComponentTypeRegistry
 
 			_relationToId[key]            = id;
 			_relationshipInfoById[id]     = new(relationType, target);
-
-			var ids = _relationIdsByType.GetOrAdd(relationType, _ => []);
-			lock (ids)
-			{
-				ids.Add(id);
-			}
+			var currentIds = _relationIdsByType.TryGetValue(relationType, out var ids) ? ids : [];
+			var updatedIds = new int[currentIds.Length + 1];
+			Array.Copy(currentIds, updatedIds, currentIds.Length);
+			updatedIds[^1]               = id;
+			_relationIdsByType[relationType] = updatedIds;
 
 			return id;
 		}
@@ -83,13 +82,7 @@ internal sealed class ComponentTypeRegistry
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 
-		if (!_relationIdsByType.TryGetValue(relationType, out var ids))
-			return [];
-
-		lock (ids)
-		{
-			return [.. ids];
-		}
+		return _relationIdsByType.TryGetValue(relationType, out var ids) ? ids : [];
 	}
 
 	public Type GetType(int id)

@@ -12,6 +12,10 @@ namespace Bezoro.ECS.Services;
 public sealed partial class World : IWorld, IDisposable
 {
 	private readonly Dictionary<ArchetypeKey, Archetype>           _archetypesByKey     = new();
+	private readonly Dictionary<int, Archetype>                    _singleTypeArchetypes = new();
+	private readonly Dictionary<TypeIdPairKey, Archetype>          _pairTypeArchetypes = new();
+	private readonly Dictionary<TypeIdTripleKey, Archetype>        _tripleTypeArchetypes = new();
+	private readonly Dictionary<TypeIdQuadKey, Archetype>          _quadTypeArchetypes = new();
 	private readonly Dictionary<QueryCacheKey, QueryCacheEntry>    _queryCache          = new();
 	private readonly Dictionary<Type, object>                      _resources           = new();
 	private readonly EntityManager                                 _entityManager;
@@ -127,20 +131,112 @@ public sealed partial class World : IWorld, IDisposable
 		return GetOrCreateArchetype(typeIds, types);
 	}
 
-	public Archetype GetOrCreateArchetype<T1>() where T1 : struct => GetOrCreateArchetype(typeof(T1));
+	public Archetype GetOrCreateArchetype<T1>() where T1 : struct
+	{
+		int typeId = ComponentTypeRegistry.GetOrCreate<T1>();
+		if (_singleTypeArchetypes.TryGetValue(typeId, out var archetype))
+			return archetype;
 
-	public Archetype GetOrCreateArchetype<T1, T2>() where T1 : struct where T2 : struct =>
-		GetOrCreateArchetype(typeof(T1), typeof(T2));
+		archetype = GetOrCreateArchetype([typeId], [typeof(T1)]);
+		_singleTypeArchetypes[typeId] = archetype;
+		return archetype;
+	}
+
+	public Archetype GetOrCreateArchetype<T1, T2>() where T1 : struct where T2 : struct
+	{
+		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
+		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
+		if (typeId1 == typeId2)
+			return GetOrCreateArchetype<T1>();
+
+		var key = new TypeIdPairKey(typeId1, typeId2);
+		if (_pairTypeArchetypes.TryGetValue(key, out var archetype))
+			return archetype;
+
+		Type firstType  = key.First == typeId1 ? typeof(T1) : typeof(T2);
+		Type secondType = key.Second == typeId1 ? typeof(T1) : typeof(T2);
+
+		archetype = GetOrCreateArchetype(
+			[key.First, key.Second],
+			[firstType, secondType]
+		);
+
+		_pairTypeArchetypes[key] = archetype;
+		return archetype;
+	}
 
 	public Archetype GetOrCreateArchetype<T1, T2, T3>()
-		where T1 : struct where T2 : struct where T3 : struct =>
-		GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+		where T1 : struct where T2 : struct where T3 : struct
+	{
+		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
+		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
+		int typeId3 = ComponentTypeRegistry.GetOrCreate<T3>();
+		if (typeId1 == typeId2 || typeId1 == typeId3 || typeId2 == typeId3)
+			return GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+
+		var key = new TypeIdTripleKey(typeId1, typeId2, typeId3);
+		if (_tripleTypeArchetypes.TryGetValue(key, out var archetype))
+			return archetype;
+
+		Type ResolveType(int resolvedId)
+		{
+			if (resolvedId == typeId1) return typeof(T1);
+			if (resolvedId == typeId2) return typeof(T2);
+			return typeof(T3);
+		}
+
+		archetype = GetOrCreateArchetype(
+			[key.First, key.Second, key.Third],
+			[
+				ResolveType(key.First),
+				ResolveType(key.Second),
+				ResolveType(key.Third)
+			]
+		);
+
+		_tripleTypeArchetypes[key] = archetype;
+		return archetype;
+	}
 
 	public Archetype GetOrCreateArchetype<T1, T2, T3, T4>()
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct
-		where T4 : struct => GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+		where T4 : struct
+	{
+		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
+		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
+		int typeId3 = ComponentTypeRegistry.GetOrCreate<T3>();
+		int typeId4 = ComponentTypeRegistry.GetOrCreate<T4>();
+		if (typeId1 == typeId2 || typeId1 == typeId3 || typeId1 == typeId4 ||
+			typeId2 == typeId3 || typeId2 == typeId4 || typeId3 == typeId4)
+			return GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+
+		var key = new TypeIdQuadKey(typeId1, typeId2, typeId3, typeId4);
+		if (_quadTypeArchetypes.TryGetValue(key, out var archetype))
+			return archetype;
+
+		Type ResolveType(int resolvedId)
+		{
+			if (resolvedId == typeId1) return typeof(T1);
+			if (resolvedId == typeId2) return typeof(T2);
+			if (resolvedId == typeId3) return typeof(T3);
+			return typeof(T4);
+		}
+
+		archetype = GetOrCreateArchetype(
+			[key.First, key.Second, key.Third, key.Fourth],
+			[
+				ResolveType(key.First),
+				ResolveType(key.Second),
+				ResolveType(key.Third),
+				ResolveType(key.Fourth)
+			]
+		);
+
+		_quadTypeArchetypes[key] = archetype;
+		return archetype;
+	}
 
 	public bool Has<T>(Entity entity) where T : struct
 	{
@@ -178,7 +274,7 @@ public sealed partial class World : IWorld, IDisposable
 	public Entity Spawn<T1>(in T1 component1) where T1 : struct
 	{
 		EnsureNotUpdating();
-		var archetype = GetOrCreateArchetype(typeof(T1));
+		var archetype = GetOrCreateArchetype<T1>();
 		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		return entity;
@@ -189,7 +285,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T2 : struct
 	{
 		EnsureNotUpdating();
-		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2));
+		var archetype = GetOrCreateArchetype<T1, T2>();
 		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
@@ -202,7 +298,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T3 : struct
 	{
 		EnsureNotUpdating();
-		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+		var archetype = GetOrCreateArchetype<T1, T2, T3>();
 		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
@@ -217,7 +313,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T4 : struct
 	{
 		EnsureNotUpdating();
-		var archetype = GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+		var archetype = GetOrCreateArchetype<T1, T2, T3, T4>();
 		var entity    = CreateEntityInternal(archetype);
 		Set(entity, in component1);
 		Set(entity, in component2);
@@ -314,6 +410,10 @@ public sealed partial class World : IWorld, IDisposable
 
 		_archetypes.Clear();
 		_archetypesByKey.Clear();
+		_singleTypeArchetypes.Clear();
+		_pairTypeArchetypes.Clear();
+		_tripleTypeArchetypes.Clear();
+		_quadTypeArchetypes.Clear();
 		_queryCache.Clear();
 		_resources.Clear();
 		_onAddObservers.Clear();

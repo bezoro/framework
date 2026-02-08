@@ -17,6 +17,8 @@ internal sealed class SystemManager
 	private readonly Dictionary<SystemLoopPhase, Dictionary<Stage, List<SystemState[]>>> _phaseStagePlans  = new();
 	private readonly GeneratedSystemMetadataResolver                                     _metadataResolver = new();
 	private readonly int                                                                 _maxDegreeOfParallelism;
+	private readonly Stack<CommandBuffer>                                                _commandBufferPool = new();
+	private readonly object                                                              _commandBufferPoolSync = new();
 	private readonly List<SystemState>                                                   _systems     = [];
 	private          bool                                                                _isPlanDirty = true;
 
@@ -114,6 +116,12 @@ internal sealed class SystemManager
 	{
 		for (int i = _systems.Count - 1; i >= 0; i--)
 			_systems[i].System.OnDestroy(world);
+
+		lock (_commandBufferPoolSync)
+		{
+			while (_commandBufferPool.Count > 0)
+				_commandBufferPool.Pop().Dispose();
+		}
 	}
 
 	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
@@ -289,15 +297,15 @@ internal sealed class SystemManager
 		readSet.Remove(typeId);
 	}
 
-	private static void ExecuteSystem(SystemExecution execution, World world, CommandBuffer[] buffers, int index)
+	private void ExecuteSystem(SystemExecution execution, World world, CommandBuffer[] buffers, int index)
 	{
-		var buffer = new CommandBuffer(world);
+		var buffer = RentCommandBuffer(world);
 		buffers[index] = buffer;
 		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, buffer);
 		execution.State.System.Update(world, in context);
 	}
 
-	private static void FlushBuffers(CommandBuffer[] buffers)
+	private void FlushBuffers(CommandBuffer[] buffers)
 	{
 		for (var i = 0; i < buffers.Length; i++)
 		{
@@ -314,7 +322,7 @@ internal sealed class SystemManager
 			}
 			finally
 			{
-				buffer.Dispose();
+				ReturnCommandBuffer(buffer);
 			}
 		}
 	}
@@ -351,6 +359,28 @@ internal sealed class SystemManager
 		}
 
 		return batch;
+	}
+
+	private CommandBuffer RentCommandBuffer(World world)
+	{
+		lock (_commandBufferPoolSync)
+		{
+			if (_commandBufferPool.Count == 0)
+				return new(world);
+
+			var pooled = _commandBufferPool.Pop();
+			pooled.ActivateForReuse();
+			return pooled;
+		}
+	}
+
+	private void ReturnCommandBuffer(CommandBuffer buffer)
+	{
+		buffer.DeactivateForPool();
+		lock (_commandBufferPoolSync)
+		{
+			_commandBufferPool.Push(buffer);
+		}
 	}
 
 	private void RebuildExecutionPlan()

@@ -39,6 +39,17 @@ public class EcsHotPathBenchmarks
 		return count;
 	}
 
+	[Benchmark(Description = "Relationship wildcard query (Related<Follows>(*))")]
+	public int RelationshipWildcardQuery()
+	{
+		var count = 0;
+		var query = _world.Query().Related<Follows>(Entity.Wildcard);
+		foreach (var chunk in query)
+			count += chunk.Count;
+
+		return count;
+	}
+
 	[GlobalCleanup]
 	public void Cleanup()
 	{
@@ -82,6 +93,10 @@ public class EcsHotPathBenchmarks
 				new Velocity { X = 1f, Y = -1f }
 			);
 		}
+
+		var target = _world.Spawn();
+		for (var i = 0; i < _entities.Length; i += 8)
+			_world.Add<Follows>(_entities[i], target);
 	}
 
 	private struct MovementJob : IForEach<Position, Velocity>
@@ -106,4 +121,6 @@ public class EcsHotPathBenchmarks
 		public float X;
 		public float Y;
 	}
+
+	private readonly struct Follows;
 }

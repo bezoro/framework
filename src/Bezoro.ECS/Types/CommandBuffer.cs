@@ -14,6 +14,7 @@ public sealed class CommandBuffer : IDisposable
 	private readonly World                   _world;
 	private          bool                    _disposed;
 	private          bool                    _isPlayingBack;
+	private          int                     _nextCommandIndex;
 	private          int                     _nextTemporaryId = -1;
 
 	internal CommandBuffer(World world)
@@ -28,7 +29,7 @@ public sealed class CommandBuffer : IDisposable
 			ThrowIfDisposed();
 			lock (_sync)
 			{
-				return _commands.Count > 0;
+				return _commands.Count > _nextCommandIndex;
 			}
 		}
 	}
@@ -46,7 +47,7 @@ public sealed class CommandBuffer : IDisposable
 	public Entity CreateEntity<T1>(in T1 component1)
 		where T1 : struct
 	{
-		var archetype = _world.GetOrCreateArchetype(typeof(T1));
+		var archetype = _world.GetOrCreateArchetype<T1>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		return entity;
@@ -59,7 +60,7 @@ public sealed class CommandBuffer : IDisposable
 		where T1 : struct
 		where T2 : struct
 	{
-		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2));
+		var archetype = _world.GetOrCreateArchetype<T1, T2>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
@@ -74,7 +75,7 @@ public sealed class CommandBuffer : IDisposable
 		where T2 : struct
 		where T3 : struct
 	{
-		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3));
+		var archetype = _world.GetOrCreateArchetype<T1, T2, T3>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
@@ -91,7 +92,7 @@ public sealed class CommandBuffer : IDisposable
 		where T3 : struct
 		where T4 : struct
 	{
-		var archetype = _world.GetOrCreateArchetype(typeof(T1), typeof(T2), typeof(T3), typeof(T4));
+		var archetype = _world.GetOrCreateArchetype<T1, T2, T3, T4>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
 		SetComponent(entity, in component2);
@@ -147,11 +148,10 @@ public sealed class CommandBuffer : IDisposable
 	{
 		if (_disposed) return;
 
-		_disposed = true;
 		lock (_sync)
 		{
-			_commands.Clear();
-			_resolvedTemporaryEntities.Clear();
+			ResetStateUnsafe();
+			_disposed = true;
 		}
 	}
 
@@ -209,10 +209,11 @@ public sealed class CommandBuffer : IDisposable
 			if (_isPlayingBack)
 				throw new InvalidOperationException("CommandBuffer playback is already in progress.");
 
-			if (_commands.Count == 0) return;
+			int pendingCount = _commands.Count - _nextCommandIndex;
+			if (pendingCount <= 0) return;
 
-			commands = new Command[_commands.Count];
-			_commands.CopyTo(commands);
+			commands = new Command[pendingCount];
+			_commands.CopyTo(_nextCommandIndex, commands, 0, pendingCount);
 			tempEntities   = _resolvedTemporaryEntities.Count == 0 ? [] : new(_resolvedTemporaryEntities);
 			_isPlayingBack = true;
 		}
@@ -293,10 +294,22 @@ public sealed class CommandBuffer : IDisposable
 	{
 		if (processedCount <= 0 || _commands.Count == 0) return;
 
-		if (processedCount > _commands.Count)
-			processedCount = _commands.Count;
+		_nextCommandIndex += processedCount;
+		if (_nextCommandIndex > _commands.Count)
+			_nextCommandIndex = _commands.Count;
 
-		_commands.RemoveRange(0, processedCount);
+		if (_nextCommandIndex == _commands.Count)
+		{
+			_commands.Clear();
+			_nextCommandIndex = 0;
+			return;
+		}
+
+		if (_nextCommandIndex >= 256 && _nextCommandIndex * 2 >= _commands.Count)
+		{
+			_commands.RemoveRange(0, _nextCommandIndex);
+			_nextCommandIndex = 0;
+		}
 	}
 
 	private void ReplaceResolvedTemporaryEntitiesUnsafe(Dictionary<int, Entity> source)
@@ -305,8 +318,35 @@ public sealed class CommandBuffer : IDisposable
 		foreach (var entry in source)
 			_resolvedTemporaryEntities[entry.Key] = entry.Value;
 
-		if (_commands.Count == 0)
+		if (_commands.Count == _nextCommandIndex)
 			_resolvedTemporaryEntities.Clear();
+	}
+
+	internal void ActivateForReuse()
+	{
+		lock (_sync)
+		{
+			_disposed = false;
+			ResetStateUnsafe();
+		}
+	}
+
+	internal void DeactivateForPool()
+	{
+		lock (_sync)
+		{
+			ResetStateUnsafe();
+			_disposed = true;
+		}
+	}
+
+	private void ResetStateUnsafe()
+	{
+		_isPlayingBack = false;
+		_commands.Clear();
+		_resolvedTemporaryEntities.Clear();
+		_nextCommandIndex = 0;
+		_nextTemporaryId  = -1;
 	}
 
 	private void ThrowIfDisposed()

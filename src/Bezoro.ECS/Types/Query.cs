@@ -1,3 +1,4 @@
+using System.Buffers;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
@@ -313,10 +314,11 @@ public sealed class Query
 		where T1 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
 
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
 			for (var i = 0; i < chunk.Count; i++)
 				action(ref components1[i]);
 		}
@@ -333,11 +335,13 @@ public sealed class Query
 		where T2 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
 			for (var i = 0; i < chunk.Count; i++)
 				action(ref components1[i], in components2[i]);
 		}
@@ -356,12 +360,15 @@ public sealed class Query
 		where T3 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
+		int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
 
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
-			var components3 = chunk.ReadOnlyComponents<T3>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
+			var components3 = chunk.ReadOnlyComponentsByTypeId<T3>(typeId3);
 			for (var i = 0; i < chunk.Count; i++)
 				action(ref components1[i], in components2[i], in components3[i]);
 		}
@@ -382,13 +389,17 @@ public sealed class Query
 		where T4 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
+		int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
+		int typeId4 = _world.GetOrCreateComponentTypeId<T4>();
 
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
-			var components3 = chunk.ReadOnlyComponents<T3>();
-			var components4 = chunk.ReadOnlyComponents<T4>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
+			var components3 = chunk.ReadOnlyComponentsByTypeId<T3>(typeId3);
+			var components4 = chunk.ReadOnlyComponentsByTypeId<T4>(typeId4);
 			for (var i = 0; i < chunk.Count; i++)
 				action(ref components1[i], in components2[i], in components3[i], in components4[i]);
 		}
@@ -404,9 +415,10 @@ public sealed class Query
 		where TJob : struct, IForEach<T1>
 		where T1 : struct
 	{
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
 			for (var i = 0; i < chunk.Count; i++)
 				job.Execute(ref components1[i]);
 		}
@@ -424,10 +436,12 @@ public sealed class Query
 		where T1 : struct
 		where T2 : struct
 	{
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
 			for (var i = 0; i < chunk.Count; i++)
 				job.Execute(ref components1[i], in components2[i]);
 		}
@@ -447,11 +461,14 @@ public sealed class Query
 		where T2 : struct
 		where T3 : struct
 	{
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
+		int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
-			var components3 = chunk.ReadOnlyComponents<T3>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
+			var components3 = chunk.ReadOnlyComponentsByTypeId<T3>(typeId3);
 			for (var i = 0; i < chunk.Count; i++)
 				job.Execute(ref components1[i], in components2[i], in components3[i]);
 		}
@@ -473,12 +490,16 @@ public sealed class Query
 		where T3 : struct
 		where T4 : struct
 	{
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
+		int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
+		int typeId4 = _world.GetOrCreateComponentTypeId<T4>();
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.ReadOnlyComponents<T2>();
-			var components3 = chunk.ReadOnlyComponents<T3>();
-			var components4 = chunk.ReadOnlyComponents<T4>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ReadOnlyComponentsByTypeId<T2>(typeId2);
+			var components3 = chunk.ReadOnlyComponentsByTypeId<T3>(typeId3);
+			var components4 = chunk.ReadOnlyComponentsByTypeId<T4>(typeId4);
 			for (var i = 0; i < chunk.Count; i++)
 				job.Execute(ref components1[i], in components2[i], in components3[i], in components4[i]);
 		}
@@ -506,7 +527,8 @@ public sealed class Query
 						  ? (IReadOnlyList<Archetype>)[_archetype]
 						  : _world.GetOrCreateQueryMatches(_spec);
 
-		var workItems = new List<(Archetype Archetype, int ChunkIndex)>();
+		var currentVersion = _world.ChangeVersion;
+		var workItemCount  = 0;
 		for (var a = 0; a < matches.Count; a++)
 		{
 			var archetype = matches[a];
@@ -515,36 +537,39 @@ public sealed class Query
 				var chunk = archetype.Chunks[c];
 				if (chunk.Count == 0) continue;
 
-				if (_spec.ChangedTypeIds.Length > 0)
-				{
-					bool matchesChanged = true;
-					for (var i = 0; i < _spec.ChangedTypeIds.Length; i++)
-					{
-						int typeId         = _spec.ChangedTypeIds[i];
-						int componentIndex = archetype.GetTypeIndex(typeId);
-						if (componentIndex < 0 ||
-							chunk.ComponentVersions[componentIndex] != _world.ChangeVersion)
-						{
-							matchesChanged = false;
-							break;
-						}
-					}
+				if (!MatchesChangedChunk(_spec, archetype, chunk, currentVersion))
+					continue;
 
-					if (!matchesChanged) continue;
-				}
-
-				workItems.Add((archetype, c));
+				workItemCount++;
 			}
 		}
 
-		if (workItems.Count == 0) return;
+		if (workItemCount == 0) return;
+
+		var workItems = ArrayPool<(int ArchetypeIndex, int ChunkIndex)>.Shared.Rent(workItemCount);
+		workItemCount = 0;
+		for (var a = 0; a < matches.Count; a++)
+		{
+			var archetype = matches[a];
+			for (var c = 0; c < archetype.Chunks.Count; c++)
+			{
+				var chunk = archetype.Chunks[c];
+				if (chunk.Count == 0) continue;
+
+				if (!MatchesChangedChunk(_spec, archetype, chunk, currentVersion))
+					continue;
+
+				workItems[workItemCount++] = (a, c);
+			}
+		}
 
 		_world.EnterQueryIteration();
 		try
 		{
-			ParallelWorkScheduler.Execute(workItems.Count, parallelism, i =>
+			ParallelWorkScheduler.Execute(workItemCount, parallelism, i =>
 			{
-				var (archetype, chunkIndex) = workItems[i];
+				var (archetypeIndex, chunkIndex) = workItems[i];
+				var archetype = matches[archetypeIndex];
 				var chunk = archetype.Chunks[chunkIndex];
 				var view = new ChunkView(
 					chunk.Entities, chunk.Columns, chunk.Count,
@@ -557,6 +582,7 @@ public sealed class Query
 		finally
 		{
 			_world.ExitQueryIteration();
+			ArrayPool<(int ArchetypeIndex, int ChunkIndex)>.Shared.Return(workItems);
 		}
 	}
 
@@ -571,11 +597,13 @@ public sealed class Query
 		where T2 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 
 		foreach (var chunk in this)
 		{
-			var components1 = chunk.Components<T1>();
-			var components2 = chunk.Components<T2>();
+			var components1 = chunk.ComponentsByTypeId<T1>(typeId1);
+			var components2 = chunk.ComponentsByTypeId<T2>(typeId2);
 			for (var i = 0; i < chunk.Count; i++)
 				action(ref components1[i], ref components2[i]);
 		}
@@ -609,5 +637,21 @@ public sealed class Query
 			updated[index] = typeId;
 
 		return updated;
+	}
+
+	private static bool MatchesChangedChunk(QuerySpec spec, Archetype archetype, Chunk chunk, uint currentVersion)
+	{
+		if (spec.ChangedTypeIds.Length == 0) return true;
+
+		for (var i = 0; i < spec.ChangedTypeIds.Length; i++)
+		{
+			int typeId         = spec.ChangedTypeIds[i];
+			int componentIndex = archetype.GetTypeIndex(typeId);
+			if (componentIndex < 0 ||
+				chunk.ComponentVersions[componentIndex] != currentVersion)
+				return false;
+		}
+
+		return true;
 	}
 }
