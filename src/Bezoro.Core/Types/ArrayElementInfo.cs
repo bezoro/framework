@@ -25,16 +25,16 @@ namespace Bezoro.Core.Types;
 ///     {
 ///         Console.WriteLine($"Found at index {(uint?)found}"); // explicit uint? conversion
 ///     }
-/// 
+///
 ///     // Creating a not-found result
 ///     var notFound = ArrayElementInfo&lt;string&gt;.NotFound("missing", 5);
-/// 
+///
 ///     // Using TryGetElement pattern
 ///     if (found.TryGetElement(out var element, out var index))
 ///     {
 ///         Console.WriteLine($"Element '{element}' at index {index}");
 ///     }
-/// 
+///
 ///     // Using deconstruction
 ///     var (idx, elem, len) = found;
 ///     </code>
@@ -48,6 +48,7 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 {
 	/// <summary>
 	///     Creates a new <see cref="ArrayElementInfo{T}" />.
+	///     Use <see cref="Found" /> or <see cref="NotFound" /> factory methods instead.
 	/// </summary>
 	/// <param name="index">
 	///     Index of the element inside the array or <c>null</c> when the element was not found.
@@ -56,7 +57,7 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 	/// <param name="arrayLength">Length of the searched array.</param>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when index is greater than arrayLength. </exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ArrayElementInfo(uint? index, T? element, uint arrayLength)
+	internal ArrayElementInfo(uint? index, T? element, uint arrayLength)
 	{
 		if (index >= arrayLength)
 			ThrowIndexOutOfRange(index, arrayLength);
@@ -65,14 +66,6 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 		Element     = element;
 		ArrayLength = arrayLength;
 	}
-
-	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static void ThrowIndexOutOfRange(uint? index, uint arrayLength) =>
-		throw new ArgumentOutOfRangeException(
-			nameof(index),
-			index,
-			$"Index must be less than array length: {arrayLength}."
-		);
 
 	/// <summary>The compile-time element type (<c>typeof(T)</c>).</summary>
 	public static Type ElementType
@@ -109,21 +102,72 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 	public uint? Index { get; }
 
 	/// <summary>
-	///     Returns an <see cref="ArrayElementInfo{T}" /> representing a failed search.
+	///     Indicates whether two <see cref="ArrayElementInfo{T}" /> values are equal.
 	/// </summary>
-	/// <param name="searchedElement">The element that was searched for.</param>
-	/// <param name="arrayLength">The length of the array that was searched.</param>
-	/// <returns>A new <see cref="ArrayElementInfo{T}" /> with <see cref="IsFound" /> set to <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool operator ==(ArrayElementInfo<T> left, ArrayElementInfo<T> right) => left.Equals(right);
+
+	/// <summary>
+	///     Explicitly converts the <see cref="ArrayElementInfo{T}" /> to a nullable <see cref="uint" /> representing the
+	///     index.
+	/// </summary>
+	/// <param name="info">The <see cref="ArrayElementInfo{T}" /> to convert.</param>
+	/// <returns>The index if found; otherwise, <c>null</c>.</returns>
 	/// <example>
 	///     <code>
-	///     var notFound = ArrayElementInfo&lt;string&gt;.NotFound("missing", 10);
-	///     // notFound.IsFound == false
-	///     // notFound.Element == "missing"
+	///     var info = ArrayElementInfo&lt;string&gt;.Found(2, "hello", 5);
+	///     uint? index = (uint?)info; // explicit conversion to uint?
 	///     </code>
 	/// </example>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static ArrayElementInfo<T> NotFound(T searchedElement, uint arrayLength) =>
-		new(null, searchedElement, arrayLength);
+	public static explicit operator uint?(ArrayElementInfo<T> info) => info.Index;
+
+	/// <summary>
+	///     Implicitly converts the <see cref="ArrayElementInfo{T}" /> to a <see cref="bool" /> indicating whether the element
+	///     was found.
+	/// </summary>
+	/// <param name="info">The <see cref="ArrayElementInfo{T}" /> to convert.</param>
+	/// <returns><c>true</c> if the element was found; otherwise, <c>false</c>.</returns>
+	/// <example>
+	///     <code>
+	///     var info = ArrayElementInfo&lt;string&gt;.Found(0, "hello", 5);
+	///     if (info) // implicit conversion to bool
+	///     {
+	///         Console.WriteLine("Found!");
+	///     }
+	///     </code>
+	/// </example>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static implicit operator bool(ArrayElementInfo<T> info) => info.IsFound;
+
+	/// <summary>
+	///     Indicates whether two <see cref="ArrayElementInfo{T}" /> values are not equal.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool operator !=(ArrayElementInfo<T> left, ArrayElementInfo<T> right) => !left.Equals(right);
+
+	#region Equality
+
+	/// <summary>
+	///     Indicates whether the current <see cref="ArrayElementInfo{T}" /> is equal to another.
+	/// </summary>
+	/// <param name="other">An <see cref="ArrayElementInfo{T}" /> to compare with this instance.</param>
+	/// <returns><c>true</c> if equal; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool Equals(ArrayElementInfo<T> other) =>
+		Index == other.Index &&
+		ArrayLength == other.ArrayLength &&
+		EqualityComparer<T?>.Default.Equals(Element, other.Element);
+
+	/// <inheritdoc />
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public override bool Equals(object? obj) => obj is ArrayElementInfo<T> other && Equals(other);
+
+	/// <inheritdoc />
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public override int GetHashCode() => HashCode.Combine(Index, ArrayLength, Element);
+
+	#endregion
 
 	/// <summary>
 	///     Returns an <see cref="ArrayElementInfo{T}" /> representing a successful search.
@@ -148,111 +192,28 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 	public static ArrayElementInfo<T> Found(uint index, T element, uint arrayLength) =>
 		new(index, element, arrayLength);
 
+	/// <summary>
+	///     Returns an <see cref="ArrayElementInfo{T}" /> representing a failed search.
+	/// </summary>
+	/// <param name="searchedElement">The element that was searched for.</param>
+	/// <param name="arrayLength">The length of the array that was searched.</param>
+	/// <returns>A new <see cref="ArrayElementInfo{T}" /> with <see cref="IsFound" /> set to <c>false</c>.</returns>
+	/// <example>
+	///     <code>
+	///     var notFound = ArrayElementInfo&lt;string&gt;.NotFound("missing", 10);
+	///     // notFound.IsFound == false
+	///     // notFound.Element == "missing"
+	///     </code>
+	/// </example>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static ArrayElementInfo<T> NotFound(T searchedElement, uint arrayLength) =>
+		new(null, searchedElement, arrayLength);
+
 	/// <inheritdoc />
 	public override string ToString() =>
 		IsFound
 			? $"ArrayElementInfo<{ElementType.Name}> {{ Index = {Index}, Element = {Element}, ArrayLength = {ArrayLength} }}"
 			: $"ArrayElementInfo<{ElementType.Name}> {{ NotFound, Element = {(Element is null ? "<null>" : Element)}, ArrayLength = {ArrayLength} }}";
-
-	/// <summary>Deconstructs the result into individual fields.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void Deconstruct(out uint? index, out T? element, out uint arrayLength)
-	{
-		index       = Index;
-		element     = Element;
-		arrayLength = ArrayLength;
-	}
-
-	/// <summary>
-	///     Indicates whether the current <see cref="ArrayElementInfo{T}" /> is equal to another.
-	/// </summary>
-	/// <param name="other">An <see cref="ArrayElementInfo{T}" /> to compare with this instance.</param>
-	/// <returns><c>true</c> if equal; otherwise, <c>false</c>.</returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool Equals(ArrayElementInfo<T> other) =>
-		Index == other.Index &&
-		ArrayLength == other.ArrayLength &&
-		EqualityComparer<T?>.Default.Equals(Element, other.Element);
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public override bool Equals(object? obj) => obj is ArrayElementInfo<T> other && Equals(other);
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public override int GetHashCode() => HashCode.Combine(Index, ArrayLength, Element);
-
-	/// <summary>
-	///     Indicates whether two <see cref="ArrayElementInfo{T}" /> values are equal.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool operator ==(ArrayElementInfo<T> left, ArrayElementInfo<T> right) => left.Equals(right);
-
-	/// <summary>
-	///     Indicates whether two <see cref="ArrayElementInfo{T}" /> values are not equal.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool operator !=(ArrayElementInfo<T> left, ArrayElementInfo<T> right) => !left.Equals(right);
-
-	/// <summary>
-	///     Implicitly converts the <see cref="ArrayElementInfo{T}" /> to a <see cref="bool" /> indicating whether the element
-	///     was found.
-	/// </summary>
-	/// <param name="info">The <see cref="ArrayElementInfo{T}" /> to convert.</param>
-	/// <returns><c>true</c> if the element was found; otherwise, <c>false</c>.</returns>
-	/// <example>
-	///     <code>
-	///     var info = ArrayElementInfo&lt;string&gt;.Found(0, "hello", 5);
-	///     if (info) // implicit conversion to bool
-	///     {
-	///         Console.WriteLine("Found!");
-	///     }
-	///     </code>
-	/// </example>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static implicit operator bool(ArrayElementInfo<T> info) => info.IsFound;
-
-	/// <summary>
-	///     Explicitly converts the <see cref="ArrayElementInfo{T}" /> to a nullable <see cref="uint" /> representing the
-	///     index.
-	/// </summary>
-	/// <param name="info">The <see cref="ArrayElementInfo{T}" /> to convert.</param>
-	/// <returns>The index if found; otherwise, <c>null</c>.</returns>
-	/// <example>
-	///     <code>
-	///     var info = ArrayElementInfo&lt;string&gt;.Found(2, "hello", 5);
-	///     uint? index = (uint?)info; // explicit conversion to uint?
-	///     </code>
-	/// </example>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static explicit operator uint?(ArrayElementInfo<T> info) => info.Index;
-
-	/// <summary>
-	///     Returns the element, or the default value of <typeparamref name="T" /> if not found.
-	/// </summary>
-	/// <returns>The element if found; otherwise, the default value of <typeparamref name="T" />.</returns>
-	/// <example>
-	///     <code>
-	///     var notFound = ArrayElementInfo&lt;int&gt;.NotFound(42, 5);
-	///     int value = notFound.GetElementOrDefault(); // returns 42 (the searched element is preserved)
-	///     </code>
-	/// </example>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public T? GetElementOrDefault() => Element;
-
-	/// <summary>
-	///     Returns the element if found, or the specified default value if not found.
-	/// </summary>
-	/// <param name="defaultValue">The value to return if the element was not found.</param>
-	/// <returns>The element if found; otherwise, <paramref name="defaultValue" />.</returns>
-	/// <example>
-	///     <code>
-	///     var notFound = ArrayElementInfo&lt;string&gt;.NotFound(null, 5);
-	///     string value = notFound.GetElementOrDefault("fallback"); // returns "fallback"
-	///     </code>
-	/// </example>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public T GetElementOrDefault(T defaultValue) => IsFound && Element is { } ? Element : defaultValue;
 
 	/// <summary>
 	///     Attempts to retrieve the element and its index.
@@ -284,6 +245,53 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 		return false;
 	}
 
+	/// <summary>
+	///     Returns the element if found, or the default value of <typeparamref name="T" /> if not found.
+	/// </summary>
+	/// <returns>The element if found; otherwise, <c>default(T)</c>.</returns>
+	/// <example>
+	///     <code>
+	///     var found = ArrayElementInfo&lt;int&gt;.Found(0, 42, 5);
+	///     int value = found.GetElementOrDefault(); // returns 42
+	///
+	///     var notFound = ArrayElementInfo&lt;int&gt;.NotFound(42, 5);
+	///     int missing = notFound.GetElementOrDefault(); // returns 0
+	///     </code>
+	/// </example>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public T? GetElementOrDefault() => IsFound ? Element : default;
+
+	/// <summary>
+	///     Returns the element if found, or the specified default value if not found.
+	/// </summary>
+	/// <param name="defaultValue">The value to return if the element was not found.</param>
+	/// <returns>The element if found; otherwise, <paramref name="defaultValue" />.</returns>
+	/// <example>
+	///     <code>
+	///     var notFound = ArrayElementInfo&lt;string&gt;.NotFound(null, 5);
+	///     string value = notFound.GetElementOrDefault("fallback"); // returns "fallback"
+	///     </code>
+	/// </example>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public T? GetElementOrDefault(T defaultValue) => IsFound ? Element : defaultValue;
+
+	/// <summary>Deconstructs the result into individual fields.</summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void Deconstruct(out uint? index, out T? element, out uint arrayLength)
+	{
+		index       = Index;
+		element     = Element;
+		arrayLength = ArrayLength;
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowIndexOutOfRange(uint? index, uint arrayLength) =>
+		throw new ArgumentOutOfRangeException(
+			nameof(index),
+			index,
+			$"Index must be less than array length: {arrayLength}."
+		);
+
 #if NET6_0_OR_GREATER
 	/// <summary>
 	///     Tries to format the value into the provided span of characters.
@@ -293,11 +301,15 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 	/// <param name="format">A span containing the characters that represent a standard or custom format string (unused).</param>
 	/// <param name="provider">An object that supplies culture-specific formatting information (unused).</param>
 	/// <returns><c>true</c> if the formatting was successful; otherwise, <c>false</c>.</returns>
-	public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+	public bool TryFormat(
+		Span<char>         destination,
+		out int            charsWritten,
+		ReadOnlySpan<char> format,
+		IFormatProvider?   provider)
 	{
 		charsWritten = 0;
 
-		var typeName = ElementType.Name;
+		string typeName = ElementType.Name;
 
 		if (IsFound)
 		{
@@ -311,7 +323,7 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 			if (!TryWriteString(destination, ref charsWritten, "> { Index = "))
 				return false;
 
-			if (!Index!.Value.TryFormat(destination[charsWritten..], out var indexWritten))
+			if (!Index!.Value.TryFormat(destination[charsWritten..], out int indexWritten))
 				return false;
 
 			charsWritten += indexWritten;
@@ -324,7 +336,7 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 			if (!TryWriteString(destination, ref charsWritten, ", ArrayLength = "))
 				return false;
 
-			if (!ArrayLength.TryFormat(destination[charsWritten..], out var lengthWritten))
+			if (!ArrayLength.TryFormat(destination[charsWritten..], out int lengthWritten))
 				return false;
 
 			charsWritten += lengthWritten;
@@ -343,13 +355,15 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 			if (!TryWriteString(destination, ref charsWritten, "> { NotFound, Element = "))
 				return false;
 
-			if (!TryWriteString(destination, ref charsWritten, Element is null ? "<null>" : Element.ToString() ?? "<null>"))
+			if (!TryWriteString(
+					destination, ref charsWritten, Element is null ? "<null>" : Element.ToString() ?? "<null>"
+				))
 				return false;
 
 			if (!TryWriteString(destination, ref charsWritten, ", ArrayLength = "))
 				return false;
 
-			if (!ArrayLength.TryFormat(destination[charsWritten..], out var lengthWritten))
+			if (!ArrayLength.TryFormat(destination[charsWritten..], out int lengthWritten))
 				return false;
 
 			charsWritten += lengthWritten;

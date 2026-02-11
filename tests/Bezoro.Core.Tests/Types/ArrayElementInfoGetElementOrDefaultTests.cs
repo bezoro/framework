@@ -17,11 +17,11 @@ public class ArrayElementInfoGetElementOrDefaultTests
 	}
 
 	[Fact]
-	public void WhenNotFound_ShouldReturnSearchedElement()
+	public void WhenNotFound_ShouldReturnDefault()
 	{
 		var info = ArrayElementInfo<int>.NotFound(42, 5);
 
-		info.GetElementOrDefault().Should().Be(42);
+		info.GetElementOrDefault().Should().Be(0);
 	}
 
 	[Fact]
@@ -33,11 +33,11 @@ public class ArrayElementInfoGetElementOrDefaultTests
 	}
 
 	[Fact]
-	public void WithDefaultValue_WhenFoundButElementIsNull_ShouldReturnDefaultValue()
+	public void WithDefaultValue_WhenFoundButElementIsNull_ShouldReturnNull()
 	{
 		var info = ArrayElementInfo<string>.Found(0, null!, 5);
 
-		info.GetElementOrDefault("fallback").Should().Be("fallback");
+		info.GetElementOrDefault("fallback").Should().BeNull();
 	}
 
 	[Fact]
