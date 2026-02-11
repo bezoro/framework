@@ -230,7 +230,7 @@ public class SingletonTests
 	}
 }
 
-internal abstract class AbstractSingleton : Singleton<AbstractSingleton> { }
+internal abstract class AbstractSingleton : Singleton<AbstractSingleton>;
 
 internal sealed class DefaultSingleton : Singleton<DefaultSingleton>, IDisposable
 {

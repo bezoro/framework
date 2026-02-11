@@ -1,4 +1,4 @@
 namespace Bezoro.ECS.Attributes;
 
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true)]
-public sealed class AllAttribute<T> : Attribute where T : struct { }
+public sealed class AllAttribute<T> : Attribute where T : struct;

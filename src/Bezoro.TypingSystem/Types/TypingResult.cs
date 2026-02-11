@@ -39,40 +39,29 @@ public enum TypingValidationStatus : byte
 /// <summary>
 ///     Represents the result of a typing validation operation.
 /// </summary>
-public readonly struct TypingResult
+/// <remarks>
+///     Initializes a new instance of the <see cref="TypingResult" /> struct.
+/// </remarks>
+public readonly struct TypingResult(
+	TypingValidationStatus status,
+	char                   expected,
+	byte                   position,
+	char                   input,
+	bool                   isCorrect,
+	bool                   isComplete,
+	byte                   nextPosition,
+	byte                   targetLength
+)
 {
-	/// <summary>
-	///     Initializes a new instance of the <see cref="TypingResult" /> struct.
-	/// </summary>
-	public TypingResult(
-		TypingValidationStatus status,
-		char                   expected,
-		byte                   position,
-		char                   input,
-		bool                   isCorrect,
-		bool                   isComplete,
-		byte                   nextPosition,
-		byte                   targetLength)
-	{
-		Status       = status;
-		Expected     = expected;
-		Position     = position;
-		Input        = input;
-		IsCorrect    = isCorrect;
-		IsComplete   = isComplete;
-		NextPosition = nextPosition;
-		TargetLength = targetLength;
-	}
-
 	/// <summary>
 	///     Gets a value indicating whether the typing operation is complete.
 	/// </summary>
-	public bool IsComplete { get; }
+	public bool IsComplete { get; } = isComplete;
 
 	/// <summary>
 	///     Gets a value indicating whether the input was correct.
 	/// </summary>
-	public bool IsCorrect { get; }
+	public bool IsCorrect { get; } = isCorrect;
 
 	/// <summary>
 	///     Gets a value indicating whether the validation failed due to an error (e.g., out of range).
@@ -83,32 +72,32 @@ public readonly struct TypingResult
 	/// <summary>
 	///     Gets the expected character at the validation position.
 	/// </summary>
-	public char Expected { get; }
+	public char Expected { get; } = expected;
 
 	/// <summary>
 	///     Gets the input character that was validated.
 	/// </summary>
-	public char Input { get; }
+	public char Input { get; } = input;
 
 	/// <summary>
 	///     Gets the next position to validate in the target sequence.
 	/// </summary>
-	public int NextPosition { get; }
+	public int NextPosition { get; } = nextPosition;
 
 	/// <summary>
 	///     Gets the position in the target sequence where the validation occurred.
 	/// </summary>
-	public int Position { get; }
+	public int Position { get; } = position;
 
 	/// <summary>
 	///     Gets the total length of the target sequence.
 	/// </summary>
-	public int TargetLength { get; }
+	public int TargetLength { get; } = targetLength;
 
 	/// <summary>
 	///     Gets the status of the validation.
 	/// </summary>
-	public TypingValidationStatus Status { get; }
+	public TypingValidationStatus Status { get; } = status;
 
 	internal static TypingResult Completed(char expected, byte position, char input, byte targetLength) =>
 		new(

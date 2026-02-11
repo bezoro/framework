@@ -5,9 +5,21 @@ namespace Bezoro.Events.Services;
 /// <summary>
 ///     Default implementation of <see cref="IUnityEventBuses" /> backed by <see cref="EventBus" /> instances.
 /// </summary>
-public sealed class UnityEventBuses : IUnityEventBuses
+/// <remarks>
+///     Creates Unity event buses backed by the provided <see cref="IEventBus" /> instances.
+/// </remarks>
+/// <param name="update">The Update bus.</param>
+/// <param name="fixedUpdate">The FixedUpdate bus.</param>
+/// <param name="lateUpdate">The LateUpdate bus.</param>
+/// <param name="ownsBuses">Whether this instance should dispose the provided buses.</param>
+public sealed class UnityEventBuses(
+	IEventBus update,
+	IEventBus fixedUpdate,
+	IEventBus lateUpdate,
+	bool      ownsBuses = true
+) : IUnityEventBuses
 {
-	private readonly bool _ownsBuses;
+	private readonly bool _ownsBuses = ownsBuses;
 
 	/// <summary>
 	///     Creates Unity event buses backed by new <see cref="EventBus" /> instances.
@@ -15,29 +27,14 @@ public sealed class UnityEventBuses : IUnityEventBuses
 	public UnityEventBuses()
 		: this(new EventBus(), new EventBus(), new EventBus()) { }
 
-	/// <summary>
-	///     Creates Unity event buses backed by the provided <see cref="IEventBus" /> instances.
-	/// </summary>
-	/// <param name="update">The Update bus.</param>
-	/// <param name="fixedUpdate">The FixedUpdate bus.</param>
-	/// <param name="lateUpdate">The LateUpdate bus.</param>
-	/// <param name="ownsBuses">Whether this instance should dispose the provided buses.</param>
-	public UnityEventBuses(IEventBus update, IEventBus fixedUpdate, IEventBus lateUpdate, bool ownsBuses = true)
-	{
-		Update      = update ?? throw new ArgumentNullException(nameof(update));
-		FixedUpdate = fixedUpdate ?? throw new ArgumentNullException(nameof(fixedUpdate));
-		LateUpdate  = lateUpdate ?? throw new ArgumentNullException(nameof(lateUpdate));
-		_ownsBuses  = ownsBuses;
-	}
+	/// <inheritdoc />
+	public IEventBus FixedUpdate { get; } = fixedUpdate ?? throw new ArgumentNullException(nameof(fixedUpdate));
 
 	/// <inheritdoc />
-	public IEventBus FixedUpdate { get; }
+	public IEventBus LateUpdate { get; } = lateUpdate ?? throw new ArgumentNullException(nameof(lateUpdate));
 
 	/// <inheritdoc />
-	public IEventBus LateUpdate { get; }
-
-	/// <inheritdoc />
-	public IEventBus Update { get; }
+	public IEventBus Update { get; } = update ?? throw new ArgumentNullException(nameof(update));
 
 	/// <inheritdoc />
 	public int FlushFixedUpdate() => FixedUpdate.FlushQueued();

@@ -5,4 +5,4 @@ namespace Bezoro.UCI.Tests.Attributes;
 ///     Use this instead of [Fact] for integration tests.
 ///     Automatically adds the "Category" trait with value "Integration".
 /// </summary>
-public class IntegrationTestAttribute : FactAttribute { }
+public class IntegrationTestAttribute : FactAttribute;

@@ -46,4 +46,4 @@ public class TypeExtensionsTests
 		AssertionExtensions.Should(t.IsStatic()).BeTrue();
 }
 
-internal sealed class Unit { }
+internal sealed class Unit;

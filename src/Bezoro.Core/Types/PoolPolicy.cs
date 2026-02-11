@@ -8,32 +8,25 @@ namespace Bezoro.Core.Types;
 ///     A flexible, delegate-based pool policy for common pooling scenarios.
 /// </summary>
 /// <typeparam name="T">The type of objects managed by the policy.</typeparam>
-public sealed class PoolPolicy<T> : IPoolPolicy<T> where T : class
+/// <remarks>
+///     Creates a policy with the specified factory and optional lifecycle delegates.
+/// </remarks>
+/// <param name="factory">Factory to create new instances.</param>
+/// <param name="reset">Optional reset delegate returning <c>true</c> if the object is reusable.</param>
+/// <param name="validate">Optional validation delegate returning <c>true</c> if the object is valid.</param>
+/// <param name="onDiscard">Optional callback invoked when an object is discarded.</param>
+/// <exception cref="ArgumentNullException">Thrown when <paramref name="factory" /> is <c>null</c>.</exception>
+public sealed class PoolPolicy<T>(
+	Func<T>        factory,
+	Func<T, bool>? reset     = null,
+	Func<T, bool>? validate  = null,
+	Action<T>?     onDiscard = null
+) : IPoolPolicy<T> where T : class
 {
-	private readonly Action<T>?     _onDiscard;
-	private readonly Func<T, bool>? _reset;
-	private readonly Func<T, bool>? _validate;
-	private readonly Func<T>        _factory;
-
-	/// <summary>
-	///     Creates a policy with the specified factory and optional lifecycle delegates.
-	/// </summary>
-	/// <param name="factory">Factory to create new instances.</param>
-	/// <param name="reset">Optional reset delegate returning <c>true</c> if the object is reusable.</param>
-	/// <param name="validate">Optional validation delegate returning <c>true</c> if the object is valid.</param>
-	/// <param name="onDiscard">Optional callback invoked when an object is discarded.</param>
-	/// <exception cref="ArgumentNullException">Thrown when <paramref name="factory" /> is <c>null</c>.</exception>
-	public PoolPolicy(
-		Func<T>        factory,
-		Func<T, bool>? reset     = null,
-		Func<T, bool>? validate  = null,
-		Action<T>?     onDiscard = null)
-	{
-		_factory   = factory.ThrowIfNull();
-		_reset     = reset;
-		_validate  = validate;
-		_onDiscard = onDiscard;
-	}
+	private readonly Action<T>?     _onDiscard = onDiscard;
+	private readonly Func<T, bool>? _reset     = reset;
+	private readonly Func<T, bool>? _validate  = validate;
+	private readonly Func<T>        _factory   = factory.ThrowIfNull();
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

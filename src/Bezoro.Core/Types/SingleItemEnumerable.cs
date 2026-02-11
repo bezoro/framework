@@ -12,19 +12,14 @@ namespace Bezoro.Core.Types;
 ///     created by <c>yield return</c>. When enumerated via <c>foreach</c>, the JIT can
 ///     optimize away the enumerator allocation entirely.
 /// </remarks>
-public readonly struct SingleItemEnumerable<T> : IEnumerable<T>, IReadOnlyList<T>
+/// <remarks>
+///     Initializes a new instance of the <see cref="SingleItemEnumerable{T}" /> struct.
+/// </remarks>
+/// <param name="item">The single item to enumerate.</param>
+[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+public readonly struct SingleItemEnumerable<T>(T item) : IEnumerable<T>, IReadOnlyList<T>
 {
-	private readonly T _item;
-
-	/// <summary>
-	///     Initializes a new instance of the <see cref="SingleItemEnumerable{T}" /> struct.
-	/// </summary>
-	/// <param name="item">The single item to enumerate.</param>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public SingleItemEnumerable(T item)
-	{
-		_item = item;
-	}
+	private readonly T _item = item;
 
 	/// <summary>
 	///     Gets the number of elements in the collection (always 1).

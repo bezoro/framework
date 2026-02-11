@@ -132,18 +132,13 @@ public class CodeWriter
 	/// <summary>
 	///     Helper type for automatically closing scopes (writes ending '}' when disposed).
 	/// </summary>
-	private class ScopeGuard : IDisposable
+	/// <remarks>
+	///     Constructs a new <see cref="ScopeGuard" /> for the specified writer.
+	/// </remarks>
+	/// <param name="writer">The writer for which to manage the scope.</param>
+	private class ScopeGuard(CodeWriter writer) : IDisposable
 	{
-		private readonly CodeWriter _writer;
-
-		/// <summary>
-		///     Constructs a new <see cref="ScopeGuard" /> for the specified writer.
-		/// </summary>
-		/// <param name="writer">The writer for which to manage the scope.</param>
-		public ScopeGuard(CodeWriter writer)
-		{
-			_writer = writer;
-		}
+		private readonly CodeWriter _writer = writer;
 
 		/// <summary>
 		///     Ends the current scope on the writer when disposed.
@@ -156,20 +151,14 @@ public class CodeWriter
 /// <summary>
 ///     Handles file output for generated C# code using the <see cref="CSharpCodeBuilder" />.
 /// </summary>
-public class CSharpFileGenerator
+/// <remarks>
+///     Constructs a new file generator for an output path.
+/// </remarks>
+/// <param name="outputPath">The file path where generated code will be written.</param>
+public class CSharpFileGenerator(string outputPath)
 {
-	private readonly CSharpCodeBuilder _builder;
-	private readonly string            _outputPath;
-
-	/// <summary>
-	///     Constructs a new file generator for an output path.
-	/// </summary>
-	/// <param name="outputPath">The file path where generated code will be written.</param>
-	public CSharpFileGenerator(string outputPath)
-	{
-		_outputPath = outputPath;
-		_builder    = new();
-	}
+	private readonly CSharpCodeBuilder _builder    = new();
+	private readonly string            _outputPath = outputPath;
 
 	/// <summary>
 	///     Returns the underlying <see cref="CSharpCodeBuilder" /> to be used for code construction.

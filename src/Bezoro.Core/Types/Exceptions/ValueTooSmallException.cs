@@ -6,13 +6,10 @@ namespace Bezoro.Core.Types.Exceptions;
 /// <remarks>
 ///     The exception message includes the offending value and the permitted minimum.
 /// </remarks>
-public class ValueTooSmallException : Exception
-{
-	/// <summary>
-	///     Initializes a new instance of the <see cref="ValueTooSmallException" /> class.
-	/// </summary>
-	/// <param name="value">The value that was too small.</param>
-	/// <param name="min">The minimum permitted value.</param>
-	public ValueTooSmallException(float value, float min)
-		: base($"Value '{value}' is smaller than the minimum allowed value '{min}'.") { }
-}
+/// <remarks>
+///     Initializes a new instance of the <see cref="ValueTooSmallException" /> class.
+/// </remarks>
+/// <param name="value">The value that was too small.</param>
+/// <param name="min">The minimum permitted value.</param>
+public class ValueTooSmallException(float value, float min)
+	: Exception($"Value '{value}' is smaller than the minimum allowed value '{min}'.");

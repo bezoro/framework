@@ -3,7 +3,10 @@ namespace Bezoro.Events.Types;
 /// <summary>
 ///     Lightweight handle identifying an event subscription.
 /// </summary>
-public readonly struct SubscriptionHandle : IEquatable<SubscriptionHandle>
+/// <remarks>
+///     Creates a new subscription handle with the specified id.
+/// </remarks>
+public readonly struct SubscriptionHandle(int id) : IEquatable<SubscriptionHandle>
 {
 	/// <summary>
 	///     Represents an invalid/uninitialized handle.
@@ -13,15 +16,7 @@ public readonly struct SubscriptionHandle : IEquatable<SubscriptionHandle>
 	/// <summary>
 	///     The unique identifier for this subscription.
 	/// </summary>
-	public readonly int Id;
-
-	/// <summary>
-	///     Creates a new subscription handle with the specified id.
-	/// </summary>
-	public SubscriptionHandle(int id)
-	{
-		Id = id;
-	}
+	public readonly int Id = id;
 
 	/// <summary>
 	///     Whether this handle represents a valid subscription.
