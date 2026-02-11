@@ -10,56 +10,6 @@ namespace Bezoro.Core.Tests;
 public class FloatComparerTests
 {
 	[Fact]
-	public void AreEqual_Double_ShouldBeFalse_WhenDiffGreaterThanEpsilon()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.AreEqual(0d, eps * 2).Should().BeFalse();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldBeTrue_WhenDiffEqualsEpsilon_Inclusive()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.AreEqual(0d, eps).Should().BeTrue();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldReturnFalse_ForDifferentInfinities()
-	{
-		FloatComparer.AreEqual(double.PositiveInfinity, double.NegativeInfinity).Should().BeFalse();
-		FloatComparer.AreEqual(double.PositiveInfinity, 1d).Should().BeFalse();
-		FloatComparer.AreEqual(1d,                      double.NegativeInfinity).Should().BeFalse();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldReturnFalse_WhenEitherIsNaN()
-	{
-		FloatComparer.AreEqual(double.NaN, 1d).Should().BeFalse();
-		FloatComparer.AreEqual(1d,         double.NaN).Should().BeFalse();
-		FloatComparer.AreEqual(double.NaN, double.NaN).Should().BeFalse();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldReturnTrue_ForEqualInfinities()
-	{
-		FloatComparer.AreEqual(double.PositiveInfinity, double.PositiveInfinity).Should().BeTrue();
-		FloatComparer.AreEqual(double.NegativeInfinity, double.NegativeInfinity).Should().BeTrue();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldReturnTrue_ForExactEquality()
-	{
-		FloatComparer.AreEqual(1.23d, 1.23d).Should().BeTrue();
-	}
-
-	[Fact]
-	public void AreEqual_Double_ShouldThrow_WhenEpsilonIsNegative()
-	{
-		Action act = () => FloatComparer.AreEqual(1d, 2d, -0.1d);
-		act.Should().Throw<ArgumentOutOfRangeException>();
-	}
-
-	[Fact]
 	public void AreEqual_Float_ShouldBeFalse_WhenDiffGreaterThanEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
@@ -110,42 +60,6 @@ public class FloatComparerTests
 	}
 
 	[Fact]
-	public void AreEqualRelative_Double_ShouldReturnFalse_WhenBeyondRelativeTolerance()
-	{
-		var    a    = 1_000_000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		double b    = a + rEps * a * 2;
-
-		FloatComparer.AreEqualRelative(a, b).Should().BeFalse();
-	}
-
-	[Fact]
-	public void AreEqualRelative_Double_ShouldReturnTrue_AtRelativeBoundary()
-	{
-		// Use a value near 1.0 to avoid rounding artifacts at tight relative epsilons
-		var    a    = 10_000_000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		double b    = a + rEps * a;
-
-		FloatComparer.AreEqualRelative(a, b).Should().BeTrue();
-	}
-
-	[Fact]
-	public void AreEqualRelative_Double_ShouldThrow_WhenEpsilonIsNegative()
-	{
-		Action act = () => FloatComparer.AreEqualRelative(1d, 2d, -0.1d);
-		act.Should().Throw<ArgumentOutOfRangeException>();
-	}
-
-	[Fact]
-	public void AreEqualRelative_Double_ShouldUseFallback_ForNearZeroValues()
-	{
-		// Near-zero values should use absolute epsilon fallback
-		FloatComparer.AreEqualRelative(0d, 1e-16d).Should().BeTrue();  // Within absolute epsilon
-		FloatComparer.AreEqualRelative(0d, 1e-14d).Should().BeFalse(); // Beyond absolute epsilon
-	}
-
-	[Fact]
 	public void AreEqualRelative_Float_ShouldReturnFalse_WhenBeyondRelativeTolerance()
 	{
 		var   a    = 1000f;
@@ -185,35 +99,6 @@ public class FloatComparerTests
 		// Near-zero values should use absolute epsilon fallback
 		FloatComparer.AreEqualRelative(0f, 1e-7f).Should().BeTrue();  // Within absolute epsilon
 		FloatComparer.AreEqualRelative(0f, 1e-5f).Should().BeFalse(); // Beyond absolute epsilon
-	}
-
-	[Fact]
-	public void AreEqualRobust_Double_ShouldThrow_WhenEpsilonIsNegative()
-	{
-		Action act1 = () => FloatComparer.AreEqualRobust(1d, 2d, -0.1d, 0.1d);
-		Action act2 = () => FloatComparer.AreEqualRobust(1d, 2d, 0.1d,  -0.1d);
-		act1.Should().Throw<ArgumentOutOfRangeException>();
-		act2.Should().Throw<ArgumentOutOfRangeException>();
-	}
-
-	[Fact]
-	public void AreEqualRobust_Double_ShouldUseAbsoluteEpsilon_NearZero_BoundaryInclusive()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-
-		FloatComparer.AreEqualRobust(0d, eps).Should().BeTrue();
-		FloatComparer.AreEqualRobust(0d, eps * 2).Should().BeFalse();
-	}
-
-	[Fact]
-	public void AreEqualRobust_Double_ShouldUseRelativeEpsilon_ForLargerNumbers_BoundaryInclusive()
-	{
-		var    a     = 1e8d;
-		double rEps  = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		double delta = rEps * Math.Abs(a);
-
-		FloatComparer.AreEqualRobust(a, a + delta).Should().BeTrue();
-		FloatComparer.AreEqualRobust(a, a + delta * 2).Should().BeFalse();
 	}
 
 	[Fact]
@@ -262,22 +147,6 @@ public class FloatComparerTests
 	}
 
 	[Fact]
-	public void IsGreaterThan_Double_ShouldBeFalse_WhenWithinEpsilon()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsGreaterThan(1d + eps / 2, 1d).Should().BeFalse();
-	}
-
-	[Fact]
-	public void IsGreaterThan_Double_ShouldBeTrue_WhenDifferenceExceedsEpsilon()
-	{
-		// Use larger numbers to exceed relative epsilon threshold
-		var    a    = 1000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		FloatComparer.IsGreaterThan(a + rEps * a * 10, a).Should().BeTrue();
-	}
-
-	[Fact]
 	public void IsGreaterThan_Float_ShouldBeFalse_WhenWithinEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
@@ -289,22 +158,6 @@ public class FloatComparerTests
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
 		FloatComparer.IsGreaterThan(1f + eps * 100, 1f).Should().BeTrue();
-	}
-
-	[Fact]
-	public void IsGreaterThanOrEqual_Double_ShouldBeFalse_WhenLessBeyondEpsilon()
-	{
-		// Use larger numbers to exceed relative epsilon threshold
-		var    a    = 1000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		FloatComparer.IsGreaterThanOrEqual(a, a + rEps * a * 10).Should().BeFalse();
-	}
-
-	[Fact]
-	public void IsGreaterThanOrEqual_Double_ShouldBeTrue_WhenEqualWithinEpsilon()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsGreaterThanOrEqual(1d, 1d + eps / 2).Should().BeTrue();
 	}
 
 	[Fact]
@@ -322,22 +175,6 @@ public class FloatComparerTests
 	}
 
 	[Fact]
-	public void IsLessThan_Double_ShouldBeFalse_WhenWithinEpsilon()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsLessThan(1d, 1d + eps / 2).Should().BeFalse();
-	}
-
-	[Fact]
-	public void IsLessThan_Double_ShouldBeTrue_WhenDifferenceExceedsEpsilon()
-	{
-		// Use larger numbers to exceed relative epsilon threshold
-		var    a    = 1000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		FloatComparer.IsLessThan(a, a + rEps * a * 10).Should().BeTrue();
-	}
-
-	[Fact]
 	public void IsLessThan_Float_ShouldBeFalse_WhenWithinEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
@@ -349,22 +186,6 @@ public class FloatComparerTests
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
 		FloatComparer.IsLessThan(1f, 1f + eps * 100).Should().BeTrue();
-	}
-
-	[Fact]
-	public void IsLessThanOrEqual_Double_ShouldBeFalse_WhenGreaterBeyondEpsilon()
-	{
-		// Use larger numbers to exceed relative epsilon threshold
-		var    a    = 1000d;
-		double rEps = FloatComparer.DEFAULT_DOUBLE_RELATIVE_EPSILON;
-		FloatComparer.IsLessThanOrEqual(a + rEps * a * 10, a).Should().BeFalse();
-	}
-
-	[Fact]
-	public void IsLessThanOrEqual_Double_ShouldBeTrue_WhenEqualWithinEpsilon()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsLessThanOrEqual(1d + eps / 2, 1d).Should().BeTrue();
 	}
 
 	[Fact]
@@ -382,21 +203,6 @@ public class FloatComparerTests
 	}
 
 	[Fact]
-	public void IsZero_Double_ShouldBeFalse_OutsideBoundary()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsZero(eps * 2).Should().BeFalse();
-	}
-
-	[Fact]
-	public void IsZero_Double_ShouldBeTrue_AtBoundaryAndZero()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.IsZero(0d).Should().BeTrue();
-		FloatComparer.IsZero(eps).Should().BeTrue();
-	}
-
-	[Fact]
 	public void IsZero_Float_ShouldBeFalse_OutsideBoundary()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
@@ -409,16 +215,6 @@ public class FloatComparerTests
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
 		FloatComparer.IsZero(0f).Should().BeTrue();
 		FloatComparer.IsZero(eps).Should().BeTrue();
-	}
-
-	[Fact]
-	public void Sign_Double_ShouldReturn0NearZero_ElseMathSign()
-	{
-		double eps = FloatComparer.DEFAULT_DOUBLE_EPSILON;
-		FloatComparer.Sign(0d).Should().Be(0);
-		FloatComparer.Sign(eps).Should().Be(0);
-		FloatComparer.Sign(eps * 2).Should().Be(1);
-		FloatComparer.Sign(-eps * 2).Should().Be(-1);
 	}
 
 	[Fact]

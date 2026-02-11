@@ -5,11 +5,111 @@ using Bezoro.Core.Types.Exceptions;
 namespace Bezoro.Core.Extensions;
 
 /// <summary>
-///     Provides extension methods for <see cref="float" /> values to enforce minimum and maximum bounds.
-///     Throws specific exceptions when constraints are violated.
+///     Provides extension methods for <see cref="float" /> values including bounds checking,
+///     mapping, and approximate floating-point comparisons via <see cref="FloatComparer" />.
 /// </summary>
 public static class FloatExtensions
 {
+	/// <summary>
+	///     Determines whether this value is approximately equal to <paramref name="other" /> using robust comparison.
+	/// </summary>
+	/// <param name="value">The value to compare.</param>
+	/// <param name="other">The value to compare against.</param>
+	/// <param name="absoluteEpsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if the values are considered equal within tolerance; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool ApproxEquals(
+		this float value,
+		float other,
+		float absoluteEpsilon = FloatComparer.DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = FloatComparer.DEFAULT_FLOAT_RELATIVE_EPSILON) =>
+		FloatComparer.AreEqualRobust(value, other, absoluteEpsilon, relativeEpsilon);
+
+	/// <summary>
+	///     Determines whether this value is approximately zero.
+	/// </summary>
+	/// <param name="value">The value to check.</param>
+	/// <param name="epsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if the value is effectively zero within tolerance; otherwise, <c>false</c>.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsApproxZero(this float value, float epsilon = FloatComparer.DEFAULT_FLOAT_EPSILON) =>
+		FloatComparer.IsZero(value, epsilon);
+
+	/// <summary>
+	///     Determines whether this value is approximately greater than <paramref name="other" />.
+	/// </summary>
+	/// <param name="value">The value to compare.</param>
+	/// <param name="other">The value to compare against.</param>
+	/// <param name="absoluteEpsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if this value is strictly greater than <paramref name="other" /> beyond tolerance.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsApproxGreaterThan(
+		this float value,
+		float other,
+		float absoluteEpsilon = FloatComparer.DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = FloatComparer.DEFAULT_FLOAT_RELATIVE_EPSILON) =>
+		FloatComparer.IsGreaterThan(value, other, absoluteEpsilon, relativeEpsilon);
+
+	/// <summary>
+	///     Determines whether this value is approximately greater than or equal to <paramref name="other" />.
+	/// </summary>
+	/// <param name="value">The value to compare.</param>
+	/// <param name="other">The value to compare against.</param>
+	/// <param name="absoluteEpsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if this value is greater than or approximately equal to <paramref name="other" />.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsApproxGreaterThanOrEqual(
+		this float value,
+		float other,
+		float absoluteEpsilon = FloatComparer.DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = FloatComparer.DEFAULT_FLOAT_RELATIVE_EPSILON) =>
+		FloatComparer.IsGreaterThanOrEqual(value, other, absoluteEpsilon, relativeEpsilon);
+
+	/// <summary>
+	///     Determines whether this value is approximately less than <paramref name="other" />.
+	/// </summary>
+	/// <param name="value">The value to compare.</param>
+	/// <param name="other">The value to compare against.</param>
+	/// <param name="absoluteEpsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if this value is strictly less than <paramref name="other" /> beyond tolerance.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsApproxLessThan(
+		this float value,
+		float other,
+		float absoluteEpsilon = FloatComparer.DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = FloatComparer.DEFAULT_FLOAT_RELATIVE_EPSILON) =>
+		FloatComparer.IsLessThan(value, other, absoluteEpsilon, relativeEpsilon);
+
+	/// <summary>
+	///     Determines whether this value is approximately less than or equal to <paramref name="other" />.
+	/// </summary>
+	/// <param name="value">The value to compare.</param>
+	/// <param name="other">The value to compare against.</param>
+	/// <param name="absoluteEpsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance. Must be non-negative.</param>
+	/// <returns><c>true</c> if this value is less than or approximately equal to <paramref name="other" />.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static bool IsApproxLessThanOrEqual(
+		this float value,
+		float other,
+		float absoluteEpsilon = FloatComparer.DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = FloatComparer.DEFAULT_FLOAT_RELATIVE_EPSILON) =>
+		FloatComparer.IsLessThanOrEqual(value, other, absoluteEpsilon, relativeEpsilon);
+
+	/// <summary>
+	///     Returns the sign of this value, treating values approximately zero as zero.
+	/// </summary>
+	/// <param name="value">The value to evaluate.</param>
+	/// <param name="epsilon">Absolute epsilon tolerance. Must be non-negative.</param>
+	/// <returns>-1, 0, or 1 indicating the approximate sign of the value.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static int ApproxSign(this float value, float epsilon = FloatComparer.DEFAULT_FLOAT_EPSILON) =>
+		FloatComparer.Sign(value, epsilon);
+
 	/// <summary>
 	///     Determines whether <paramref name="value" /> is within the inclusive range defined by <paramref name="min" /> and
 	///     <paramref name="max" />.
