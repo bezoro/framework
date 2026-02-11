@@ -45,8 +45,12 @@ internal sealed class SystemManager
 
 		var readSet  = new HashSet<int>();
 		var writeSet = new HashSet<int>();
+		var hasDeclaredAccessMetadata = false;
 
 		var accesses = system.Accesses ?? [];
+		if (accesses.Length > 0)
+			hasDeclaredAccessMetadata = true;
+
 		for (var i = 0; i < accesses.Length; i++)
 		{
 			var access = accesses[i];
@@ -60,6 +64,9 @@ internal sealed class SystemManager
 		bool isExclusive;
 		if (_metadataResolver.TryGet(type, out var metadata))
 		{
+			if (metadata.Reads.Length > 0 || metadata.Writes.Length > 0 || metadata.IsExclusive)
+				hasDeclaredAccessMetadata = true;
+
 			for (var i = 0; i < metadata.Reads.Length; i++)
 			{
 				var componentType = metadata.Reads[i];
@@ -80,6 +87,7 @@ internal sealed class SystemManager
 		}
 		else
 		{
+			var hasAttributeAccessMetadata = false;
 			foreach (object? attribute in type.GetCustomAttributes(true))
 			{
 				if (attribute is null) continue;
@@ -92,16 +100,23 @@ internal sealed class SystemManager
 				{
 					var componentType = attributeType.GetGenericArguments()[0];
 					AddReadType(world, readSet, writeSet, componentType);
+					hasAttributeAccessMetadata = true;
 				}
 				else if (generic == typeof(WritesAttribute<>))
 				{
 					var componentType = attributeType.GetGenericArguments()[0];
 					AddWriteType(world, readSet, writeSet, componentType);
+					hasAttributeAccessMetadata = true;
 				}
 			}
 
 			isExclusive = type.IsDefined(typeof(ExclusiveAttribute), true);
+			if (isExclusive || hasAttributeAccessMetadata)
+				hasDeclaredAccessMetadata = true;
 		}
+
+		if (!hasDeclaredAccessMetadata)
+			isExclusive = true;
 
 		var stage = explicitStage ?? system.Stage;
 		var state = new SystemState(system, stage, ToArray(readSet), ToArray(writeSet), isExclusive);

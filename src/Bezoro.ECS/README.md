@@ -113,6 +113,10 @@ world.Query()
 - Query matching is cached and incrementally updated when new archetypes are created.
 - Resources are stored separately from entity archetypes.
 - Relationship filters use target-parameterized synthetic component ids.
+- Calling any public `World` API after `Dispose()` throws `ObjectDisposedException`.
+- Re-entrant world updates (e.g., calling `Tick` from inside a system update) are rejected with `InvalidOperationException`.
+- `World.Deserialize` validates untrusted payloads with strict count/length limits and resolves types only from already loaded assemblies.
+- Systems without declared access metadata are treated as exclusive and scheduled serially by default.
 
 ## Build
 

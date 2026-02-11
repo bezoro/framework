@@ -11,6 +11,7 @@ public sealed partial class World
 
 	public IDisposable Observe<T>(Action<Entity, T> observer) where T : struct
 	{
+		ThrowIfDisposed();
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
 
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
@@ -26,6 +27,7 @@ public sealed partial class World
 
 	public IDisposable ObserveAdd<T>(OnAddObserver<T> observer) where T : struct
 	{
+		ThrowIfDisposed();
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
 
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
@@ -41,6 +43,7 @@ public sealed partial class World
 
 	public IDisposable ObserveRemove<T>(OnRemoveObserver<T> observer) where T : struct
 	{
+		ThrowIfDisposed();
 		if (observer is null) throw new ArgumentNullException(nameof(observer));
 
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();

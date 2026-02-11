@@ -70,6 +70,91 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Deserialize_WhenArchetypeCountExceedsLimit_ShouldThrowInvalidOperationException()
+	{
+		using var stream = new MemoryStream();
+		using var writer = new BinaryWriter(stream);
+		writer.Write(new byte[] { (byte)'B', (byte)'Z', (byte)'E', (byte)'C' });
+		writer.Write(1);
+		writer.Write(int.MaxValue);
+		writer.Flush();
+
+		var act = () => World.Deserialize(stream.ToArray());
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*archetype count*");
+	}
+
+	[Fact]
+	public void Deserialize_WhenComponentPayloadLengthExceedsLimit_ShouldThrowInvalidOperationException()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 9f, Y = 4f });
+		byte[] payload = world.Serialize();
+
+		using (var stream = new MemoryStream(payload, false))
+		{
+			using var reader = new BinaryReader(stream);
+			reader.ReadBytes(4); // magic
+			reader.ReadInt32(); // version
+			int archetypeCount = reader.ReadInt32();
+			archetypeCount.Should().BeGreaterThan(0);
+			int componentCount = reader.ReadInt32();
+			componentCount.Should().BeGreaterThan(0);
+			for (var i = 0; i < componentCount; i++)
+			{
+				_ = reader.ReadString();
+				_ = reader.ReadUInt64();
+				_ = reader.ReadByte();
+			}
+
+			int relationshipCount = reader.ReadInt32();
+			for (var i = 0; i < relationshipCount; i++)
+			{
+				_ = reader.ReadString();
+				_ = reader.ReadInt32();
+				_ = reader.ReadInt32();
+				_ = reader.ReadInt32();
+			}
+
+			int entityCount = reader.ReadInt32();
+			entityCount.Should().BeGreaterThan(0);
+			for (var i = 0; i < entityCount; i++)
+			{
+				_ = reader.ReadInt32();
+				_ = reader.ReadInt32();
+			}
+
+			var payloadLengthOffset = (int)stream.Position;
+			BitConverter.GetBytes(int.MaxValue).CopyTo(payload, payloadLengthOffset);
+		}
+
+		var act = () => World.Deserialize(payload);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*payload length*");
+	}
+
+	[Fact]
+	public void Deserialize_WhenTypeCannotBeResolvedFromLoadedAssemblies_ShouldThrowInvalidOperationException()
+	{
+		using var stream = new MemoryStream();
+		using var writer = new BinaryWriter(stream);
+		writer.Write(new byte[] { (byte)'B', (byte)'Z', (byte)'E', (byte)'C' });
+		writer.Write(1);
+		writer.Write(1); // archetype count
+		writer.Write(1); // component type count
+		writer.Write("Missing.Namespace.MissingType, Missing.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null");
+		writer.Flush();
+
+		var act = () => World.Deserialize(stream.ToArray());
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*could not be resolved*");
+	}
+
+	[Fact]
 	public void Despawn_WhenChunkCompactsBoolComponent_ShouldPreserveRemainingEntityValue()
 	{
 		var world  = new World(new WorldOptions { ChunkCapacity = 2 });
@@ -705,6 +790,73 @@ public class WorldApiContractTests
 		var world = new World("Main");
 
 		world.Name.Should().Be("Main");
+	}
+
+	[Fact]
+	public void World_WhenDisposed_GetDiagnostics_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.GetDiagnostics();
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_IsAlive_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		var entity = world.Spawn();
+		world.Dispose();
+
+		var act = () => world.IsAlive(entity);
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_ObserveAdd_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.ObserveAdd((Entity _, ref Health _) => { });
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_Query_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.Query();
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_Serialize_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.Serialize();
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_Spawn_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.Spawn();
+
+		act.Should().Throw<ObjectDisposedException>();
 	}
 
 	private struct BoolFlag	{

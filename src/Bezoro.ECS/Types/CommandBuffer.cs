@@ -47,6 +47,7 @@ public sealed class CommandBuffer : IDisposable
 	public Entity CreateEntity<T1>(in T1 component1)
 		where T1 : struct
 	{
+		_world.ThrowIfDisposed();
 		var archetype = _world.GetOrCreateArchetype<T1>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
@@ -60,6 +61,7 @@ public sealed class CommandBuffer : IDisposable
 		where T1 : struct
 		where T2 : struct
 	{
+		_world.ThrowIfDisposed();
 		var archetype = _world.GetOrCreateArchetype<T1, T2>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
@@ -75,6 +77,7 @@ public sealed class CommandBuffer : IDisposable
 		where T2 : struct
 		where T3 : struct
 	{
+		_world.ThrowIfDisposed();
 		var archetype = _world.GetOrCreateArchetype<T1, T2, T3>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
@@ -92,6 +95,7 @@ public sealed class CommandBuffer : IDisposable
 		where T3 : struct
 		where T4 : struct
 	{
+		_world.ThrowIfDisposed();
 		var archetype = _world.GetOrCreateArchetype<T1, T2, T3, T4>();
 		var entity    = CreateEntity(archetype);
 		SetComponent(entity, in component1);
@@ -111,6 +115,7 @@ public sealed class CommandBuffer : IDisposable
 	public Entity CreateEntity(Archetype archetype)
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 
 		_world.EnsureOwnedArchetype(archetype);
@@ -132,6 +137,7 @@ public sealed class CommandBuffer : IDisposable
 	public void AddComponent<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		int typeId     = _world.GetOrCreateComponentTypeId<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, true);
 		Enqueue(new(CommandType.AddComponent, entity, null, typeId, applicator));
@@ -175,6 +181,7 @@ public sealed class CommandBuffer : IDisposable
 	public void RemoveComponent<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
 		Enqueue(new(CommandType.RemoveComponent, entity, null, typeId, null));
 	}
@@ -188,6 +195,7 @@ public sealed class CommandBuffer : IDisposable
 	public void SetComponent<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		int typeId     = _world.GetOrCreateComponentTypeId<T>();
 		var applicator = new ComponentApplicator<T>(typeId, in component, false);
 		Enqueue(new(CommandType.SetComponent, entity, null, typeId, applicator));
@@ -196,6 +204,7 @@ public sealed class CommandBuffer : IDisposable
 	internal void PlaybackInternal(bool allowDuringUpdate)
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		if (_world.HasActiveQueryIteration)
 			throw new InvalidOperationException("Playback cannot run during query iteration.");
 
@@ -284,6 +293,7 @@ public sealed class CommandBuffer : IDisposable
 	private void Enqueue(Command command)
 	{
 		ThrowIfDisposed();
+		_world.ThrowIfDisposed();
 		lock (_sync)
 		{
 			_commands.Add(command);

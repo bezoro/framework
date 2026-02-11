@@ -13,6 +13,13 @@ namespace Bezoro.ECS.Services;
 internal static class WorldSerializer
 {
 	private const           int                   SNAPSHOT_FORMAT_VERSION = 1;
+	private const           int                   MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
+	private const           int                   MAX_ARCHETYPE_COUNT = 100_000;
+	private const           int                   MAX_COMPONENT_TYPES_PER_ARCHETYPE = 4_096;
+	private const           int                   MAX_RELATIONSHIPS_PER_ARCHETYPE = 4_096;
+	private const           int                   MAX_ENTITIES_PER_ARCHETYPE = 1_000_000;
+	private const           int                   MAX_RESOURCE_COUNT = 65_536;
+	private const           int                   MAX_PAYLOAD_LENGTH_BYTES = 4 * 1024 * 1024;
 	private static readonly byte[]                SnapshotMagic          = [(byte)'B', (byte)'Z', (byte)'E', (byte)'C'];
 	private static readonly JsonSerializerOptions SnapshotJsonOptions    = new() { IncludeFields = true };
 
@@ -159,6 +166,10 @@ internal static class WorldSerializer
 	internal static World Deserialize(byte[] bytes)
 	{
 		if (bytes is null) throw new ArgumentNullException(nameof(bytes));
+		if (bytes.Length > MAX_SNAPSHOT_BYTES)
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: snapshot size cannot exceed {MAX_SNAPSHOT_BYTES} bytes."
+			);
 
 		try
 		{
@@ -179,24 +190,19 @@ internal static class WorldSerializer
 			var world                = new World();
 			var entityMap            = new Dictionary<(int Id, int Version), Entity>();
 			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion)>();
-			int archetypeCount       = reader.ReadInt32();
-			if (archetypeCount < 0)
-				throw new InvalidOperationException("Invalid snapshot payload: archetype count cannot be negative.");
+			int archetypeCount       = ReadBoundedCount(reader, "archetype count", MAX_ARCHETYPE_COUNT);
 
 			for (var archetypeIndex = 0; archetypeIndex < archetypeCount; archetypeIndex++)
 			{
-				int componentTypeCount = reader.ReadInt32();
-				if (componentTypeCount < 0)
-					throw new InvalidOperationException(
-						"Invalid snapshot payload: component type count cannot be negative."
-					);
+				int componentTypeCount =
+					ReadBoundedCount(reader, "component type count", MAX_COMPONENT_TYPES_PER_ARCHETYPE);
 
 				var componentTypes = new Type[componentTypeCount];
 				var payloadKinds   = new SnapshotPayloadKind[componentTypeCount];
 				for (var typeIndex = 0; typeIndex < componentTypeCount; typeIndex++)
 				{
 					string typeName = reader.ReadString();
-					var type = Type.GetType(typeName, true) ??
+					var type = ResolveTypeFromLoadedAssemblies(typeName) ??
 							   throw new InvalidOperationException(
 								   $"Snapshot type '{typeName}' could not be resolved."
 							   );
@@ -218,11 +224,8 @@ internal static class WorldSerializer
 					payloadKinds[typeIndex]   = payloadKind;
 				}
 
-				int relationshipCount = reader.ReadInt32();
-				if (relationshipCount < 0)
-					throw new InvalidOperationException(
-						"Invalid snapshot payload: relationship count cannot be negative."
-					);
+				int relationshipCount =
+					ReadBoundedCount(reader, "relationship count", MAX_RELATIONSHIPS_PER_ARCHETYPE);
 
 				var relationshipDescriptors =
 					new (Type RelationType, int TargetId, int TargetVersion)[relationshipCount];
@@ -230,7 +233,7 @@ internal static class WorldSerializer
 				for (var relationshipIndex = 0; relationshipIndex < relationshipCount; relationshipIndex++)
 				{
 					string relationTypeName = reader.ReadString();
-					var relationType = Type.GetType(relationTypeName, true) ??
+					var relationType = ResolveTypeFromLoadedAssemblies(relationTypeName) ??
 									   throw new InvalidOperationException(
 										   $"Snapshot relation type '{relationTypeName}' could not be resolved."
 									   );
@@ -245,9 +248,7 @@ internal static class WorldSerializer
 									? world.EmptyArchetype
 									: world.GetOrCreateArchetype(componentTypes);
 
-				int entityCount = reader.ReadInt32();
-				if (entityCount < 0)
-					throw new InvalidOperationException("Invalid snapshot payload: entity count cannot be negative.");
+				int entityCount = ReadBoundedCount(reader, "entity count", MAX_ENTITIES_PER_ARCHETYPE);
 
 				var snapshotEntities = new (int Id, int Version)[entityCount];
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
@@ -269,11 +270,11 @@ internal static class WorldSerializer
 					var entity = entities[entityIndex];
 					for (var typeIndex = 0; typeIndex < componentTypes.Length; typeIndex++)
 					{
-						int length = reader.ReadInt32();
-						if (length < 0)
-							throw new InvalidOperationException(
-								"Invalid snapshot payload: component payload length cannot be negative."
-							);
+						int length = ReadBoundedLength(
+							reader,
+							"component payload length",
+							MAX_PAYLOAD_LENGTH_BYTES
+						);
 
 						byte[] payload = ReadBytesExact(reader, length);
 						var    componentType = componentTypes[typeIndex];
@@ -305,14 +306,12 @@ internal static class WorldSerializer
 				}
 			}
 
-			int resourceCount = reader.ReadInt32();
-			if (resourceCount < 0)
-				throw new InvalidOperationException("Invalid snapshot payload: resource count cannot be negative.");
+			int resourceCount = ReadBoundedCount(reader, "resource count", MAX_RESOURCE_COUNT);
 
 			for (var resourceIndex = 0; resourceIndex < resourceCount; resourceIndex++)
 			{
 				string typeName = reader.ReadString();
-				var type = Type.GetType(typeName, true) ??
+				var type = ResolveTypeFromLoadedAssemblies(typeName) ??
 						   throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
 
 				ulong expectedLayoutHash = reader.ReadUInt64();
@@ -328,11 +327,11 @@ internal static class WorldSerializer
 						$"Invalid snapshot payload: storage kind mismatch for '{type.FullName}'."
 					);
 
-				int length = reader.ReadInt32();
-				if (length < 0)
-					throw new InvalidOperationException(
-						"Invalid snapshot payload: resource payload length cannot be negative."
-					);
+				int length = ReadBoundedLength(
+					reader,
+					"resource payload length",
+					MAX_PAYLOAD_LENGTH_BYTES
+				);
 
 				byte[] payload = ReadBytesExact(reader, length);
 				object value   = DeserializeSnapshotValue(type, payloadKind, payload);
@@ -362,10 +361,38 @@ internal static class WorldSerializer
 			throw;
 		}
 		catch (Exception ex) when (ex is EndOfStreamException or IOException or JsonException or ArgumentException
-									     or NotSupportedException)
+									     or NotSupportedException or OverflowException)
 		{
 			throw new InvalidOperationException("Invalid snapshot payload.", ex);
 		}
+	}
+
+	private static int ReadBoundedCount(BinaryReader reader, string label, int maximum)
+	{
+		int value = reader.ReadInt32();
+		if (value < 0)
+			throw new InvalidOperationException($"Invalid snapshot payload: {label} cannot be negative.");
+
+		if (value > maximum)
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: {label} cannot exceed {maximum}."
+			);
+
+		return value;
+	}
+
+	private static int ReadBoundedLength(BinaryReader reader, string label, int maximum)
+	{
+		int value = reader.ReadInt32();
+		if (value < 0)
+			throw new InvalidOperationException($"Invalid snapshot payload: {label} cannot be negative.");
+
+		if (value > maximum)
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: {label} cannot exceed {maximum}."
+			);
+
+		return value;
 	}
 
 	private static byte[] ReadBytesExact(BinaryReader reader, int length)
@@ -376,6 +403,44 @@ internal static class WorldSerializer
 
 		return bytes;
 	}
+
+	private static Assembly? ResolveAssembly(AssemblyName assemblyName)
+	{
+		var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+		for (var i = 0; i < loadedAssemblies.Length; i++)
+		{
+			var loadedAssembly = loadedAssemblies[i];
+			if (AssemblyName.ReferenceMatchesDefinition(loadedAssembly.GetName(), assemblyName))
+				return loadedAssembly;
+		}
+
+		return null;
+	}
+
+	private static Type? ResolveType(Assembly? assembly, string typeName, bool ignoreCase)
+	{
+		if (assembly is not null)
+			return assembly.GetType(typeName, false, ignoreCase);
+
+		var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+		for (var i = 0; i < loadedAssemblies.Length; i++)
+		{
+			var resolved = loadedAssemblies[i].GetType(typeName, false, ignoreCase);
+			if (resolved is not null)
+				return resolved;
+		}
+
+		return null;
+	}
+
+	private static Type? ResolveTypeFromLoadedAssemblies(string typeName) =>
+		Type.GetType(
+			typeName,
+			ResolveAssembly,
+			ResolveType,
+			throwOnError: false,
+			ignoreCase: false
+		);
 
 	private static byte[] SerializeRawUnmanagedValue(Type type, object value)
 	{

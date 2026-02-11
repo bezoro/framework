@@ -25,9 +25,9 @@ public sealed partial class World : IWorld, IDisposable
 	private readonly SystemManager                                 _systemManager;
 
 	private          bool _disposed;
-	private volatile bool _isUpdating;
 	private          int  _activeCommandPlaybacks;
 	private          int  _activeQueryIterations;
+	private          int  _updateDepth;
 
 	public World() : this(new WorldOptions()) { }
 
@@ -69,8 +69,16 @@ public sealed partial class World : IWorld, IDisposable
 		ChangeVersion = 1;
 	}
 
-	public int    EntityCount => _entityManager.AliveCount;
-	public string Name        { get; }
+	public int EntityCount
+	{
+		get
+		{
+			ThrowIfDisposed();
+			return _entityManager.AliveCount;
+		}
+	}
+
+	public string Name { get; }
 
 	internal Archetype EmptyArchetype { get; }
 
@@ -78,7 +86,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	internal bool IsPlayingBackCommands => Volatile.Read(ref _activeCommandPlaybacks) > 0;
 
-	internal bool                  IsUpdating            => _isUpdating;
+	internal bool                  IsUpdating            => Volatile.Read(ref _updateDepth) > 0;
 	internal ComponentTypeRegistry ComponentTypeRegistry { get; } = new();
 
 	internal int MaxDegreeOfParallelism { get; }
@@ -98,6 +106,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public Archetype GetOrCreateArchetype(params Type[] componentTypes)
 	{
+		ThrowIfDisposed();
 		if (componentTypes is null) throw new ArgumentNullException(nameof(componentTypes));
 
 		if (componentTypes.Length == 0) return EmptyArchetype;
@@ -133,6 +142,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public Archetype GetOrCreateArchetype<T1>() where T1 : struct
 	{
+		ThrowIfDisposed();
 		int typeId = ComponentTypeRegistry.GetOrCreate<T1>();
 		if (_singleTypeArchetypes.TryGetValue(typeId, out var archetype))
 			return archetype;
@@ -144,6 +154,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public Archetype GetOrCreateArchetype<T1, T2>() where T1 : struct where T2 : struct
 	{
+		ThrowIfDisposed();
 		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
 		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
 		if (typeId1 == typeId2)
@@ -168,6 +179,7 @@ public sealed partial class World : IWorld, IDisposable
 	public Archetype GetOrCreateArchetype<T1, T2, T3>()
 		where T1 : struct where T2 : struct where T3 : struct
 	{
+		ThrowIfDisposed();
 		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
 		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
 		int typeId3 = ComponentTypeRegistry.GetOrCreate<T3>();
@@ -204,6 +216,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T3 : struct
 		where T4 : struct
 	{
+		ThrowIfDisposed();
 		int typeId1 = ComponentTypeRegistry.GetOrCreate<T1>();
 		int typeId2 = ComponentTypeRegistry.GetOrCreate<T2>();
 		int typeId3 = ComponentTypeRegistry.GetOrCreate<T3>();
@@ -240,15 +253,21 @@ public sealed partial class World : IWorld, IDisposable
 
 	public bool Has<T>(Entity entity) where T : struct
 	{
+		ThrowIfDisposed();
 		_entityManager.EnsureAlive(entity);
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		return HasComponent(typeId, entity);
 	}
 
-	public bool IsAlive(Entity entity) => _entityManager.IsAlive(entity);
+	public bool IsAlive(Entity entity)
+	{
+		ThrowIfDisposed();
+		return _entityManager.IsAlive(entity);
+	}
 
 	public bool TryGet<T>(Entity entity, out T component) where T : struct
 	{
+		ThrowIfDisposed();
 		_entityManager.EnsureAlive(entity);
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
@@ -261,18 +280,28 @@ public sealed partial class World : IWorld, IDisposable
 		return true;
 	}
 
-	public byte[] Serialize() => WorldSerializer.Serialize(this);
+	public byte[] Serialize()
+	{
+		ThrowIfDisposed();
+		return WorldSerializer.Serialize(this);
+	}
 
-	public CommandBuffer CreateCommandBuffer() => new(this);
+	public CommandBuffer CreateCommandBuffer()
+	{
+		ThrowIfDisposed();
+		return new(this);
+	}
 
 	public Entity Spawn()
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		return CreateEntityInternal(EmptyArchetype);
 	}
 
 	public Entity Spawn<T1>(in T1 component1) where T1 : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype<T1>();
 		var entity    = CreateEntityInternal(archetype);
@@ -284,6 +313,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T1 : struct
 		where T2 : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype<T1, T2>();
 		var entity    = CreateEntityInternal(archetype);
@@ -297,6 +327,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T2 : struct
 		where T3 : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype<T1, T2, T3>();
 		var entity    = CreateEntityInternal(archetype);
@@ -312,6 +343,7 @@ public sealed partial class World : IWorld, IDisposable
 		where T3 : struct
 		where T4 : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		var archetype = GetOrCreateArchetype<T1, T2, T3, T4>();
 		var entity    = CreateEntityInternal(archetype);
@@ -323,11 +355,15 @@ public sealed partial class World : IWorld, IDisposable
 	}
 
 
-	public Query Query() =>
-		new(this, null, new([], [], [], [], [], null, Entity.None));
+	public Query Query()
+	{
+		ThrowIfDisposed();
+		return new(this, null, new([], [], [], [], [], null, Entity.None));
+	}
 
 	public Query Query(Archetype archetype)
 	{
+		ThrowIfDisposed();
 		if (archetype is null) throw new ArgumentNullException(nameof(archetype));
 
 		EnsureOwnedArchetype(archetype);
@@ -336,6 +372,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public ref T Get<T>(Entity entity) where T : struct
 	{
+		ThrowIfDisposed();
 		_entityManager.EnsureAlive(entity);
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
@@ -346,6 +383,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public ref T GetResource<T>() where T : notnull
 	{
+		ThrowIfDisposed();
 		if (!_resources.TryGetValue(typeof(T), out object? boxed))
 			throw new KeyNotFoundException($"Resource of type {typeof(T).Name} was not found.");
 
@@ -354,12 +392,14 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void Add<T>(Entity entity) where T : struct
 	{
+		ThrowIfDisposed();
 		var component = default(T);
 		Add(entity, in component);
 	}
 
 	public void Add<T>(Entity entity, in T component) where T : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		ApplyAddComponentTyped(entity, typeId, in component);
@@ -367,6 +407,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void Add<TRelation>(Entity source, Entity target)
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		_entityManager.EnsureAlive(source);
 		if (!_entityManager.IsAlive(target) && target != Entity.Wildcard)
@@ -376,8 +417,11 @@ public sealed partial class World : IWorld, IDisposable
 		AddRelationshipWithMove(source, relationTypeId);
 	}
 
-	public void AddSystem(ISystem system, Stage stage = Stage.Tick) =>
+	public void AddSystem(ISystem system, Stage stage = Stage.Tick)
+	{
+		ThrowIfDisposed();
 		_systemManager.RegisterSystem(this, system, stage);
+	}
 
 	public void AddSystem<TSystem>(Stage stage = Stage.Tick)
 		where TSystem : ISystem, new() =>
@@ -385,6 +429,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void Clear()
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 
 		for (var i = 0; i < _archetypes.Count; i++)
@@ -395,6 +440,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void Despawn(Entity entity)
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		DestroyEntityInternal(entity);
 	}
@@ -427,6 +473,7 @@ public sealed partial class World : IWorld, IDisposable
 	/// <param name="deltaTime">Elapsed fixed-step time in seconds for this update.</param>
 	public void FixedTick(float deltaTime)
 	{
+		ThrowIfDisposed();
 		RunPhase(SystemLoopPhase.FixedTick, deltaTime);
 	}
 
@@ -436,11 +483,13 @@ public sealed partial class World : IWorld, IDisposable
 	/// <param name="deltaTime">Elapsed time in seconds for this late update.</param>
 	public void LateTick(float deltaTime)
 	{
+		ThrowIfDisposed();
 		RunPhase(SystemLoopPhase.LateTick, deltaTime);
 	}
 
 	public void Remove<T>(Entity entity) where T : struct
 	{
+		ThrowIfDisposed();
 		EnsureNotUpdating();
 		_entityManager.EnsureAlive(entity);
 
@@ -455,22 +504,27 @@ public sealed partial class World : IWorld, IDisposable
 	/// <param name="deltaTime">Elapsed time in seconds for this phase tick.</param>
 	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
 	{
-		if (_disposed) throw new ObjectDisposedException(nameof(World));
+		ThrowIfDisposed();
+		if (Interlocked.Increment(ref _updateDepth) != 1)
+		{
+			Interlocked.Decrement(ref _updateDepth);
+			throw new InvalidOperationException("Re-entrant world updates are not supported.");
+		}
 
 		BumpChangeVersion();
-		_isUpdating = true;
 		try
 		{
 			_systemManager.UpdatePhase(this, loopPhase, deltaTime);
 		}
 		finally
 		{
-			_isUpdating = false;
+			Interlocked.Decrement(ref _updateDepth);
 		}
 	}
 
 	public void Set<T>(Entity entity, in T component) where T : struct
 	{
+		ThrowIfDisposed();
 		_entityManager.EnsureAlive(entity);
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (TrySetComponentInPlace(entity, typeId, component))
@@ -480,7 +534,7 @@ public sealed partial class World : IWorld, IDisposable
 			return;
 		}
 
-		if (_isUpdating || HasActiveQueryIteration)
+		if (IsUpdating || HasActiveQueryIteration)
 			throw new InvalidOperationException(
 				"Structural changes are not allowed during update or query iteration. Use CommandBuffer."
 			);
@@ -492,6 +546,7 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void SetResource<T>(T resource) where T : notnull
 	{
+		ThrowIfDisposed();
 		_resources[typeof(T)] = new ResourceBox<T>(resource);
 	}
 
@@ -501,6 +556,7 @@ public sealed partial class World : IWorld, IDisposable
 	/// <param name="deltaTime">Elapsed time in seconds for this update.</param>
 	public void Tick(float deltaTime)
 	{
+		ThrowIfDisposed();
 		RunPhase(SystemLoopPhase.Tick, deltaTime);
 	}
 
@@ -513,6 +569,7 @@ public sealed partial class World : IWorld, IDisposable
 	/// <returns>World diagnostics snapshot.</returns>
 	public WorldDiagnostics GetDiagnostics()
 	{
+		ThrowIfDisposed();
 		var  archetypeDiagnostics = new ArchetypeDiagnostics[_archetypes.Count];
 		var  totalChunks          = 0;
 		long totalAllocatedBytes  = 0;
@@ -936,7 +993,7 @@ public sealed partial class World : IWorld, IDisposable
 	{
 		int typeId = ComponentTypeRegistry.GetOrCreate(componentType);
 
-		if (_isUpdating || HasActiveQueryIteration)
+		if (IsUpdating || HasActiveQueryIteration)
 			throw new InvalidOperationException("Structural changes are not allowed during update or query iteration.");
 
 		var location = _entityManager.GetLocation(entity);
@@ -1025,10 +1082,16 @@ public sealed partial class World : IWorld, IDisposable
 
 	private void EnsureNotUpdating()
 	{
-		if (_isUpdating || HasActiveQueryIteration)
+		if (IsUpdating || HasActiveQueryIteration)
 			throw new InvalidOperationException(
 				"Structural changes are not allowed during update or query iteration. Use CommandBuffer."
 			);
+	}
+
+	internal void ThrowIfDisposed()
+	{
+		if (_disposed)
+			throw new ObjectDisposedException(nameof(World));
 	}
 
 	private void MarkComponentChanged(Entity entity, int typeId)

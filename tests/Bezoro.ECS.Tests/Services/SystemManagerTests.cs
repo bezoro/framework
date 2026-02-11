@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
@@ -200,6 +201,59 @@ public class SystemManagerTests
 		world.SchedulerPlanBuildCount.Should().Be(2);
 	}
 
+	[Fact]
+	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunSequentially()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
+		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.MaxConcurrent.Should().Be(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+		world.AddSystem(new DeclaredReadProbeSystem(probe));
+		world.AddSystem(new DeclaredReadProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.MaxConcurrent.Should().BeGreaterThan(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemReentersTick_ShouldThrowInvalidOperationException()
+	{
+		var world = new World();
+		var system = new ReentrantTickSystem();
+		world.AddSystem(system);
+
+		world.Tick(1f / 60f);
+
+		system.ReentrantException.Should().BeOfType<InvalidOperationException>();
+		system.UpdateCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenReentrantTickAttemptFails_ShouldAllowSubsequentTicks()
+	{
+		var world = new World();
+		var system = new ReentrantTickSystem();
+		world.AddSystem(system);
+
+		world.Tick(1f / 60f);
+		world.Tick(1f / 60f);
+
+		system.ReentrantException.Should().BeOfType<InvalidOperationException>();
+		system.UpdateCount.Should().Be(2);
+	}
+
 	private sealed class CommandCaptureSystem : ISystem
 	{
 		public CommandBuffer? Captured { get; private set; }
@@ -259,6 +313,30 @@ public class SystemManagerTests
 		public void Update(IWorld world, in SystemContext context) { }
 	}
 
+	private sealed class ReentrantTickSystem : ISystem
+	{
+		private bool _attempted;
+
+		public Exception? ReentrantException { get; private set; }
+		public int UpdateCount { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			UpdateCount++;
+			if (_attempted) return;
+
+			_attempted = true;
+			try
+			{
+				((World)world).Tick(0f);
+			}
+			catch (Exception ex)
+			{
+				ReentrantException = ex;
+			}
+		}
+	}
+
 	private sealed class PhaseCounterSystem(SystemLoopPhase loopPhase, SystemUpdateSettings updateSettings) : ISystem
 	{
 		public SystemLoopPhase      LoopPhase      { get; } = loopPhase;
@@ -297,6 +375,20 @@ public class SystemManagerTests
 			throw new InvalidOperationException("system-fail");
 	}
 
+	private sealed class UndeclaredAccessProbeSystem(ConcurrencyProbe probe) : ISystem
+	{
+		public void Update(IWorld world, in SystemContext context) =>
+			probe.Enter();
+	}
+
+	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
+	{
+		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
+
+		public void Update(IWorld world, in SystemContext context) =>
+			probe.Enter();
+	}
+
 	private sealed class WriteCounterSystem(int value) : ISystem
 	{
 		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
@@ -310,6 +402,42 @@ public class SystemManagerTests
 				var counters = chunk.Components<Counter>();
 				for (var i = 0; i < chunk.Count; i++)
 					counters[i] = new() { Value = value };
+			}
+		}
+	}
+
+	private sealed class ConcurrencyProbe
+	{
+		private readonly ManualResetEventSlim _release = new(false);
+		private          int                  _maxConcurrent;
+		private          int                  _running;
+
+		public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
+
+		public void Enter()
+		{
+			int running = Interlocked.Increment(ref _running);
+			UpdateMax(running);
+
+			if (running == 1)
+				_release.Wait(TimeSpan.FromMilliseconds(200));
+			else
+				_release.Set();
+
+			Thread.Sleep(10);
+			Interlocked.Decrement(ref _running);
+		}
+
+		private void UpdateMax(int candidate)
+		{
+			while (true)
+			{
+				int current = Volatile.Read(ref _maxConcurrent);
+				if (candidate <= current)
+					return;
+
+				if (Interlocked.CompareExchange(ref _maxConcurrent, candidate, current) == current)
+					return;
 			}
 		}
 	}
