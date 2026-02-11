@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Bezoro.Core.Helpers;
 
 namespace Bezoro.Core.Types;
 
@@ -190,7 +191,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 	{
 		float sa   = src.Af, da = dst.Af;
 		float outA = sa + da * (1f - sa);
-		if (outA <= 0f) return Transparent;
+		if (FloatComparer.IsZero(outA)) return Transparent;
 
 		float r = (src.Rf * sa + dst.Rf * da * (1f - sa)) / outA;
 		float g = (src.Gf * sa + dst.Gf * da * (1f - sa)) / outA;
@@ -212,7 +213,7 @@ public readonly record struct Color(byte R, byte G, byte B, byte A)
 		float dR = ToLinear(dst.Rf), dG = ToLinear(dst.Gf), dB = ToLinear(dst.Bf), da = dst.Af;
 
 		float outA = sa + da * (1f - sa);
-		if (outA <= 0f) return Transparent;
+		if (FloatComparer.IsZero(outA)) return Transparent;
 
 		float r = (sR * sa + dR * da * (1f - sa)) / outA;
 		float g = (sG * sa + dG * da * (1f - sa)) / outA;

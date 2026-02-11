@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Bezoro.Core.Helpers;
 using Bezoro.Core.Types.Exceptions;
 
 namespace Bezoro.Core.Extensions;
@@ -45,7 +46,7 @@ public static class FloatExtensions
 	public static float Map(this float value, float fromMin, float fromMax, float toMin, float toMax)
 	{
 		float range = fromMax - fromMin;
-		if (range == 0f)
+		if (FloatComparer.IsZero(range))
 			throw new ArgumentException("Source range cannot be zero (fromMin equals fromMax).", nameof(fromMax));
 
 		return (value - fromMin) / range * (toMax - toMin) + toMin;

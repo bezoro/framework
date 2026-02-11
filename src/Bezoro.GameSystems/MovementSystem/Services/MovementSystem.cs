@@ -1,3 +1,4 @@
+using Bezoro.Core.Helpers;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Types;
@@ -46,7 +47,7 @@ public sealed class MovementSystem : ISystem
 	public void Update(IWorld world, in SystemContext context)
 	{
 		float deltaTime = context.DeltaTime;
-		if (deltaTime == 0f) return;
+		if (FloatComparer.IsZero(deltaTime)) return;
 
 		world.Query().All<Position>().All<Velocity>().ForEach((ref Position position, in Velocity velocity) =>
 			{
