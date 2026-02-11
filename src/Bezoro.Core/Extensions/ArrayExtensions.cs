@@ -15,10 +15,10 @@ public static class ArrayExtensions
 	///     Converts a two-dimensional array to a one-dimensional array.
 	/// </summary>
 	/// <typeparam name="T">The type of elements in the array.</typeparam>
-	/// <param name="from">The two-dimensional array to convert.</param>
+	/// <param name="array">The two-dimensional array to convert.</param>
 	/// <returns>A one-dimensional array containing all elements from the input array.</returns>
-	public static T[] To1D<T>(this T[,] from) =>
-		ArrayConverter.From2Dto1D(from);
+	public static T[] Flatten<T>(this T[,] array) =>
+		ArrayConverter.Flatten(array);
 
 	#endregion
 
