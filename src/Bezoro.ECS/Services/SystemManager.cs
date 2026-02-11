@@ -47,19 +47,6 @@ internal sealed class SystemManager
 		var writeSet = new HashSet<int>();
 		var hasDeclaredAccessMetadata = false;
 
-		var accesses = system.Accesses ?? [];
-		if (accesses.Length > 0)
-			hasDeclaredAccessMetadata = true;
-
-		for (var i = 0; i < accesses.Length; i++)
-		{
-			var access = accesses[i];
-			if (access.Mode == ComponentAccessMode.ReadWrite)
-				AddWriteType(world, readSet, writeSet, access.ComponentType);
-			else
-				AddReadType(world, readSet, writeSet, access.ComponentType);
-		}
-
 		var  type = system.GetType();
 		bool isExclusive;
 		if (_metadataResolver.TryGet(type, out var metadata))

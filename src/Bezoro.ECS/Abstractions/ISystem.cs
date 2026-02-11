@@ -10,12 +10,6 @@ namespace Bezoro.ECS.Abstractions;
 public interface ISystem
 {
 	/// <summary>
-	///     Gets the component access requirements for this system.
-	///     This allows the scheduler to run compatible systems in parallel safely.
-	/// </summary>
-	ComponentAccess[] Accesses => [];
-
-	/// <summary>
 	///     Gets the stage this system executes in.
 	/// </summary>
 	Stage Stage => Stage.Tick;

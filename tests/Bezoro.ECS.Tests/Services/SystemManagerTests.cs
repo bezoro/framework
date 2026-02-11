@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -295,8 +296,6 @@ public class SystemManagerTests
 
 	private sealed class FixedStepSystem : ISystem
 	{
-		public ComponentAccess[] Accesses => [];
-
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.FixedInterval(0.5f);
 		public float                LastDeltaTime  { get; private set; }
 		public int                  UpdateCount    { get; private set; }
@@ -351,10 +350,9 @@ public class SystemManagerTests
 		}
 	}
 
+	[Reads<Counter>]
 	private sealed class ReadCounterSystem : ISystem
 	{
-		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
-
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 		public int                  LastObserved   { get; private set; } = -1;
 
@@ -381,18 +379,16 @@ public class SystemManagerTests
 			probe.Enter();
 	}
 
+	[Reads<Counter>]
 	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
-		public ComponentAccess[] Accesses => [ComponentAccess.Read<Counter>()];
-
 		public void Update(IWorld world, in SystemContext context) =>
 			probe.Enter();
 	}
 
+	[Writes<Counter>]
 	private sealed class WriteCounterSystem(int value) : ISystem
 	{
-		public ComponentAccess[] Accesses => [ComponentAccess.Write<Counter>()];
-
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context)

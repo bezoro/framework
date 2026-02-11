@@ -1,5 +1,6 @@
 using System;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -208,10 +209,9 @@ public class CommandBufferTests
 		component.Y.Should().Be(8);
 	}
 
+	[Reads<Position>]
 	private sealed class AddVelocitySystem(Entity entity) : ISystem
 	{
-		public ComponentAccess[] Accesses => [ComponentAccess.Read<Position>()];
-
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context)
@@ -224,7 +224,6 @@ public class CommandBufferTests
 
 	private sealed class PlaybackDuringUpdateSystem : ISystem
 	{
-		public ComponentAccess[]    Accesses       => [];
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 		public void Update(IWorld world, in SystemContext context) => context.Commands.Playback();

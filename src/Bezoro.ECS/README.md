@@ -101,7 +101,8 @@ world.Query()
 - `OnCreate(World)` (optional)
 - `OnDestroy(World)` (optional)
 - `Update(IWorld, in SystemContext)` (required)
-- `LoopPhase`, `Stage`, `UpdateSettings`, and `Accesses` metadata (optional overrides)
+- `LoopPhase`, `Stage`, and `UpdateSettings` metadata (optional overrides)
+- `[Reads<T>]`, `[Writes<T>]`, and `[Exclusive]` attributes for scheduler metadata
 
 ## Design Notes
 
