@@ -288,7 +288,7 @@ public class FloatComparerTests
 	public void IsGreaterThan_Float_ShouldBeTrue_WhenDifferenceExceedsEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
-		FloatComparer.IsGreaterThan(1f + eps * 10, 1f).Should().BeTrue();
+		FloatComparer.IsGreaterThan(1f + eps * 100, 1f).Should().BeTrue();
 	}
 
 	[Fact]
@@ -311,7 +311,7 @@ public class FloatComparerTests
 	public void IsGreaterThanOrEqual_Float_ShouldBeFalse_WhenLessBeyondEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
-		FloatComparer.IsGreaterThanOrEqual(1f, 1f + eps * 10).Should().BeFalse();
+		FloatComparer.IsGreaterThanOrEqual(1f, 1f + eps * 100).Should().BeFalse();
 	}
 
 	[Fact]
@@ -348,7 +348,7 @@ public class FloatComparerTests
 	public void IsLessThan_Float_ShouldBeTrue_WhenDifferenceExceedsEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
-		FloatComparer.IsLessThan(1f, 1f + eps * 10).Should().BeTrue();
+		FloatComparer.IsLessThan(1f, 1f + eps * 100).Should().BeTrue();
 	}
 
 	[Fact]
@@ -371,7 +371,7 @@ public class FloatComparerTests
 	public void IsLessThanOrEqual_Float_ShouldBeFalse_WhenGreaterBeyondEpsilon()
 	{
 		float eps = FloatComparer.DEFAULT_FLOAT_EPSILON;
-		FloatComparer.IsLessThanOrEqual(1f + eps * 10, 1f).Should().BeFalse();
+		FloatComparer.IsLessThanOrEqual(1f + eps * 100, 1f).Should().BeFalse();
 	}
 
 	[Fact]

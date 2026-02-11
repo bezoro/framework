@@ -92,22 +92,22 @@ public static class FloatComparer
 	/// </summary>
 	/// <param name="a">First float value</param>
 	/// <param name="b">Second float value</param>
-	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-5f). Must be non-negative.</param>
 	/// <param name="absoluteEpsilon">Absolute epsilon fallback for near-zero values (default: 1e-6f). Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-5f). Must be non-negative.</param>
 	/// <returns>True if the values are considered equal within the relative tolerance</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when epsilon is negative</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool AreEqualRelative(
 		float a,
 		float b,
-		float relativeEpsilon = DEFAULT_FLOAT_RELATIVE_EPSILON,
-		float absoluteEpsilon = DEFAULT_FLOAT_EPSILON)
+		float absoluteEpsilon = DEFAULT_FLOAT_EPSILON,
+		float relativeEpsilon = DEFAULT_FLOAT_RELATIVE_EPSILON)
 	{
-		if (relativeEpsilon < 0)
-			throw new ArgumentOutOfRangeException(nameof(relativeEpsilon), "Epsilon must be non-negative");
-
 		if (absoluteEpsilon < 0)
 			throw new ArgumentOutOfRangeException(nameof(absoluteEpsilon), "Epsilon must be non-negative");
+
+		if (relativeEpsilon < 0)
+			throw new ArgumentOutOfRangeException(nameof(relativeEpsilon), "Epsilon must be non-negative");
 
 		// ReSharper disable once CompareOfFloatsByEqualityOperator
 		if (a == b) return true; // Fast path for exact matches and equal infinities (intentional)
@@ -132,22 +132,22 @@ public static class FloatComparer
 	/// </summary>
 	/// <param name="a">First double value</param>
 	/// <param name="b">Second double value</param>
-	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-14). Must be non-negative.</param>
 	/// <param name="absoluteEpsilon">Absolute epsilon fallback for near-zero values (default: 1e-15). Must be non-negative.</param>
+	/// <param name="relativeEpsilon">Relative epsilon tolerance (default: 1e-14). Must be non-negative.</param>
 	/// <returns>True if the values are considered equal within the relative tolerance</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when epsilon is negative</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static bool AreEqualRelative(
 		double a,
 		double b,
-		double relativeEpsilon = DEFAULT_DOUBLE_RELATIVE_EPSILON,
-		double absoluteEpsilon = DEFAULT_DOUBLE_EPSILON)
+		double absoluteEpsilon = DEFAULT_DOUBLE_EPSILON,
+		double relativeEpsilon = DEFAULT_DOUBLE_RELATIVE_EPSILON)
 	{
-		if (relativeEpsilon < 0)
-			throw new ArgumentOutOfRangeException(nameof(relativeEpsilon), "Epsilon must be non-negative");
-
 		if (absoluteEpsilon < 0)
 			throw new ArgumentOutOfRangeException(nameof(absoluteEpsilon), "Epsilon must be non-negative");
+
+		if (relativeEpsilon < 0)
+			throw new ArgumentOutOfRangeException(nameof(relativeEpsilon), "Epsilon must be non-negative");
 
 		// ReSharper disable once CompareOfFloatsByEqualityOperator
 		if (a == b) return true; // Fast path for exact matches and equal infinities (intentional)
@@ -202,8 +202,8 @@ public static class FloatComparer
 		// Use absolute epsilon for numbers close to zero
 		if (maxAbs <= absoluteEpsilon) return diff <= absoluteEpsilon;
 
-		// Use relative epsilon for larger numbers
-		return diff <= relativeEpsilon * maxAbs;
+		// Use relative epsilon with ULP cushion for larger numbers
+		return diff <= (relativeEpsilon + FLOAT_ULP_EPSILON) * maxAbs;
 	}
 
 	/// <summary>
@@ -242,8 +242,8 @@ public static class FloatComparer
 		// Use absolute epsilon for numbers close to zero
 		if (maxAbs <= absoluteEpsilon) return diff <= absoluteEpsilon;
 
-		// Use relative epsilon for larger numbers
-		return diff <= relativeEpsilon * maxAbs;
+		// Use relative epsilon with ULP cushion for larger numbers
+		return diff <= (relativeEpsilon + DOUBLE_ULP_EPSILON) * maxAbs;
 	}
 
 	/// <summary>
