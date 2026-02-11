@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -10,15 +11,28 @@ namespace Bezoro.ECS.Tests.Internal;
 public class ComponentTypeRegistryTests
 {
 	[Fact]
-	public void GetRelationshipIds_WhenNoNewRelationshipsAdded_ShouldReturnSameSnapshotReference()
+	public void GetRelationshipIds_WhenNoNewRelationshipsAdded_ShouldReturnEquivalentSnapshotValues()
 	{
 		var registry = new ComponentTypeRegistry();
 		_ = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
 
-		int[] firstSnapshot  = registry.GetRelationshipIds(typeof(RelatesTo));
-		int[] secondSnapshot = registry.GetRelationshipIds(typeof(RelatesTo));
+		ReadOnlySpan<int> firstSnapshot  = registry.GetRelationshipIds(typeof(RelatesTo));
+		ReadOnlySpan<int> secondSnapshot = registry.GetRelationshipIds(typeof(RelatesTo));
 
-		ReferenceEquals(firstSnapshot, secondSnapshot).Should().BeTrue();
+		firstSnapshot.ToArray().Should().Equal(secondSnapshot.ToArray());
+	}
+
+	[Fact]
+	public void GetRelationshipIds_WhenCallerMutatesCopiedSnapshot_ShouldNotCorruptInternalState()
+	{
+		var registry = new ComponentTypeRegistry();
+		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
+
+		int[] snapshot = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
+		snapshot[0] = -123;
+
+		ReadOnlySpan<int> secondRead = registry.GetRelationshipIds(typeof(RelatesTo));
+		secondRead.ToArray().Should().Equal(firstId);
 	}
 
 	[Fact]
@@ -26,10 +40,10 @@ public class ComponentTypeRegistryTests
 	{
 		var registry = new ComponentTypeRegistry();
 		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
-		int[] snapshotBeforeSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo));
+		int[] snapshotBeforeSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 
 		int secondId = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(2, 1));
-		int[] snapshotAfterSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo));
+		int[] snapshotAfterSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 
 		snapshotBeforeSecondRelationship.Should().Equal(firstId);
 		snapshotAfterSecondRelationship.Should().Contain(firstId).And.Contain(secondId);

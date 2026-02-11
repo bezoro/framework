@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 using FluentAssertions;
@@ -63,6 +64,20 @@ public class ChunkColumnStorageTests
 
 		column.UsesNativeAlignedAlloc.Should().BeTrue();
 		(column.AlignedAddress % (nuint)column.AlignmentBytes).Should().Be(0);
+	}
+
+	[Fact]
+	public void UnmanagedColumn_WhenDisposed_ShouldThrowWhenAccessingReference()
+	{
+		var column = ComponentColumn.Create(typeof(UnmanagedPosition), 8);
+		column.Dispose();
+
+		var act = () =>
+		{
+			_ = column.GetReference<UnmanagedPosition>(0);
+		};
+
+		act.Should().Throw<ObjectDisposedException>();
 	}
 }
 

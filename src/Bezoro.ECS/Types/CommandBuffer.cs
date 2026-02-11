@@ -322,24 +322,6 @@ public sealed class CommandBuffer : IDisposable
 			_resolvedTemporaryEntities.Clear();
 	}
 
-	internal void ActivateForReuse()
-	{
-		lock (_sync)
-		{
-			_disposed = false;
-			ResetStateUnsafe();
-		}
-	}
-
-	internal void DeactivateForPool()
-	{
-		lock (_sync)
-		{
-			ResetStateUnsafe();
-			_disposed = true;
-		}
-	}
-
 	private void ResetStateUnsafe()
 	{
 		_isPlayingBack = false;

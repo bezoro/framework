@@ -78,7 +78,7 @@ internal sealed class ComponentTypeRegistry
 		}
 	}
 
-	public int[] GetRelationshipIds(Type relationType)
+	public ReadOnlySpan<int> GetRelationshipIds(Type relationType)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 

@@ -143,6 +143,19 @@ public class SystemManagerTests
 	}
 
 	[Fact]
+	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
+	{
+		var world  = new World();
+		var system = new StaleCommandBufferReferenceSystem();
+		world.AddSystem(system);
+
+		world.Tick(1f / 60f);
+		world.Tick(1f / 60f);
+
+		system.ReuseException.Should().BeOfType<ObjectDisposedException>();
+	}
+
+	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
 	{
 		var world  = new World();
@@ -195,6 +208,30 @@ public class SystemManagerTests
 		{
 			Captured = context.Commands;
 			context.Commands.CreateEntity();
+		}
+	}
+
+	private sealed class StaleCommandBufferReferenceSystem : ISystem
+	{
+		private CommandBuffer? _previous;
+
+		public Exception? ReuseException { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			if (_previous is not null && ReuseException is null)
+			{
+				try
+				{
+					_previous.CreateEntity();
+				}
+				catch (Exception ex)
+				{
+					ReuseException = ex;
+				}
+			}
+
+			_previous = context.Commands;
 		}
 	}
 

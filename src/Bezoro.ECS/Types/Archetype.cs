@@ -77,7 +77,7 @@ public sealed class Archetype
 		return j == requiredTypeIds.Length;
 	}
 
-	internal bool ContainsAny(int[] typeIds)
+	internal bool ContainsAny(ReadOnlySpan<int> typeIds)
 	{
 		var i = 0;
 		var j = 0;

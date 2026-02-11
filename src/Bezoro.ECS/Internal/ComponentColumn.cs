@@ -131,6 +131,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 			return ref ((T[])_managedArray!)[index];
 		}
 
+		EnsureNotDisposed();
 		ValidateType<T>();
 		ValidateIndex(index);
 		return ref Unsafe.Add(ref Unsafe.AsRef<T>(_alignedPointer.ToPointer()), index);

@@ -859,7 +859,7 @@ public sealed partial class World : IWorld, IDisposable
 
 		if (spec.RelatedTarget == Entity.Wildcard)
 		{
-			int[] relationIds = ComponentTypeRegistry.GetRelationshipIds(spec.RelatedRelationType);
+			ReadOnlySpan<int> relationIds = ComponentTypeRegistry.GetRelationshipIds(spec.RelatedRelationType);
 			if (relationIds.Length == 0 || !archetype.ContainsAny(relationIds))
 				return false;
 		}
