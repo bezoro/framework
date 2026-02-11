@@ -31,7 +31,7 @@ public class ExceptionHelperTests
 		};
 
 		// Invoke and assert
-		var result = (string)method!.Invoke(null, parameters)!;
+		var result = (string)method.Invoke(null, parameters)!;
 
 		result.Should().Be(
 			"CustomException occurred in Dummy.Run for parameters [Int32, String, Unknown, DateTime]: Oops"

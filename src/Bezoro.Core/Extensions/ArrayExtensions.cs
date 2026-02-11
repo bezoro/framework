@@ -146,7 +146,7 @@ public static class ArrayExtensions
 			var t = array[i];
 			if (t.IsNull()) continue;
 
-			await action(t!);
+			await action(t);
 		}
 	}
 
@@ -165,7 +165,7 @@ public static class ArrayExtensions
 		{
 			if (t.IsNull()) continue;
 
-			action(t!);
+			action(t);
 		}
 	}
 
