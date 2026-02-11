@@ -3,118 +3,89 @@ using Bezoro.Core.Types;
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
-///     Default health implementation.
+///     Health component used by the ECS health simulation.
 /// </summary>
-/// <remarks>
-///     Immutable value type. Operations return updated instances.
-/// </remarks>
-public readonly record struct Health
+public struct Health
 {
-	private readonly UIntRange _range;
-
 	/// <summary>
-	///     Initializes a new health instance with current set to max.
+	///     Initializes a health component.
 	/// </summary>
-	/// <param name="max">The maximum health.</param>
-	public Health(uint max) : this(max, max) { }
-
-	/// <summary>
-	///     Initializes a new health instance.
-	/// </summary>
-	/// <param name="max">The maximum health.</param>
-	/// <param name="current">The current health.</param>
-	public Health(uint max, uint current)
+	/// <param name="max">Base health cap.</param>
+	/// <param name="current">Base health value.</param>
+	/// <param name="excessCurrent">Excess health value.</param>
+	/// <param name="excessMax">Excess health cap.</param>
+	public Health(uint max, uint current, uint excessCurrent = 0u, uint excessMax = 0u)
 	{
-		_range = new(max, current);
-	}
+		Max = max;
+		Current = current > max ? max : current;
+		ExcessMax = excessMax;
 
-	private Health(UIntRange range)
-	{
-		_range = range;
+		uint overflow = current > Max ? current - Max : 0u;
+		ulong totalExcess = (ulong)excessCurrent + overflow;
+		ExcessCurrent = ClampToExcessMax(totalExcess, excessMax);
 	}
 
 	/// <summary>
-	///     Gets whether the current health is empty.
+	///     Gets or sets current base health.
 	/// </summary>
-	public bool IsEmpty => _range.Current == _range.Min;
+	public uint Current;
 
 	/// <summary>
-	///     Gets whether the current health is full.
+	///     Gets or sets current excess health.
 	/// </summary>
-	public bool IsFull => _range.Current == _range.Max;
+	public uint ExcessCurrent;
 
 	/// <summary>
-	///     Gets the current health as a percentage of max.
+	///     Gets or sets excess health cap.
 	/// </summary>
-	public Percent Percentage => _range.Percentage;
+	public uint ExcessMax;
 
 	/// <summary>
-	///     Gets the current health value.
+	///     Gets or sets base health cap.
 	/// </summary>
-	public uint Current => _range.Current;
+	public uint Max;
 
 	/// <summary>
-	///     Gets the maximum health value.
+	///     Gets base health percentage.
 	/// </summary>
-	public uint Max => _range.Max;
+	public readonly Percent BasePercentage => new(Current, Max);
 
 	/// <summary>
-	///     Returns a new health with current decreased by the specified amount, clamped to zero.
+	///     Gets effective health used for damage processing.
 	/// </summary>
-	/// <param name="value">The amount to subtract from current.</param>
-	/// <returns>The updated health.</returns>
-	public Health DecreaseCurrentHealthBy(uint value) => new(_range.SubtractFromCurrent(value));
+	public readonly uint EffectiveCurrent => Saturate(Current, ExcessCurrent);
 
 	/// <summary>
-	///     Returns a new health with max decreased and current updated based on the chosen mode.
+	///     Gets excess health percentage.
 	/// </summary>
-	/// <param name="value">The amount to subtract from max.</param>
-	/// <param name="mode">How to update current relative to the new max.</param>
-	/// <returns>The updated health.</returns>
-	public Health DecreaseMaxHealthBy(uint value, MaxValueUpdateMode mode) =>
-		new(_range.DecreaseMax(value, mode));
+	public readonly Percent ExcessPercentage => new(ExcessCurrent, ExcessMax);
 
 	/// <summary>
-	///     Returns a new health with current set to zero.
+	///     Gets whether all health pools are empty.
 	/// </summary>
-	/// <returns>The updated health.</returns>
-	public Health DepleteCurrentHealth() => new(_range.SetCurrentToMinimum());
+	public readonly bool IsEmpty => Current == 0u && ExcessCurrent == 0u;
 
 	/// <summary>
-	///     Returns a new health with current fully restored to max.
+	///     Gets whether all health pools are full.
 	/// </summary>
-	/// <returns>The updated health.</returns>
-	public Health FullyRestoreCurrentHealth() => new(_range.MaximizeCurrent());
+	public readonly bool IsFull => Current == Max && ExcessCurrent == ExcessMax;
 
 	/// <summary>
-	///     Returns a new health with max increased and current updated based on the chosen mode.
+	///     Gets combined base + excess percentage.
 	/// </summary>
-	/// <param name="value">The amount to add to max.</param>
-	/// <param name="mode">How to update current relative to the new max.</param>
-	/// <returns>The updated health.</returns>
-	public Health IncreaseMaxHealthBy(uint value, MaxValueUpdateMode mode) =>
-		new(_range.IncreaseMax(value, mode));
+	public readonly Percent TotalPercentage => Percent.FromTotals((Current, Max), (ExcessCurrent, ExcessMax));
 
-	/// <summary>
-	///     Returns a new health with current restored by the specified amount, capped at max.
-	/// </summary>
-	/// <param name="value">The amount to restore.</param>
-	/// <returns>The updated health.</returns>
-	public Health RestoreCurrentHealthBy(uint value) => new(_range.AddToCurrent(value));
+	private static uint ClampToExcessMax(ulong value, uint excessMax)
+	{
+		if (excessMax == 0u || value == 0u)
+			return 0u;
 
-	/// <summary>
-	///     Returns a new health with current set to the specified value, clamped to max.
-	/// </summary>
-	/// <param name="value">The new current health.</param>
-	/// <returns>The updated health.</returns>
-	public Health SetCurrentHealthTo(uint value) => new(_range.SetCurrent(value));
+		return value >= excessMax ? excessMax : (uint)value;
+	}
 
-	/// <summary>
-	///     Returns a new health with max set and current updated based on the chosen mode.
-	/// </summary>
-	/// <param name="value">The new maximum health.</param>
-	/// <param name="mode">How to update current relative to the new max.</param>
-	/// <returns>The updated health.</returns>
-	public Health SetMaxHealthTo(uint value, MaxValueUpdateMode mode) =>
-		new(_range.SetMax(value, mode));
+	private static uint Saturate(uint left, uint right)
+	{
+		ulong sum = (ulong)left + right;
+		return sum >= uint.MaxValue ? uint.MaxValue : (uint)sum;
+	}
 }

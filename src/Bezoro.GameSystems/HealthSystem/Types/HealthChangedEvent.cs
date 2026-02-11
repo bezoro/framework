@@ -1,11 +1,12 @@
 using Bezoro.Core.Types;
+using Bezoro.ECS.Types;
 
 namespace Bezoro.GameSystems.HealthSystem.Types;
 
 /// <summary>
 ///     Event payload describing a health mutation and its before/after state.
 /// </summary>
-/// <param name="Target">The target associated with the change.</param>
+/// <param name="TargetEntity">Entity whose health was modified.</param>
 /// <param name="Kind">The kind of change that occurred.</param>
 /// <param name="Value">The value passed to the change operation.</param>
 /// <param name="MaxUpdateMode">The max update mode used for max changes.</param>
@@ -16,7 +17,7 @@ namespace Bezoro.GameSystems.HealthSystem.Types;
 /// <param name="NewMax">The max health after the change.</param>
 /// <param name="NewExcess">The excess health after the change.</param>
 public readonly record struct HealthChangedEvent(
-	object             Target,
+	Entity             TargetEntity,
 	HealthChangeKind   Kind,
 	uint               Value,
 	MaxValueUpdateMode MaxUpdateMode,

@@ -1,118 +1,84 @@
 # HealthSystem
 
-A health management system with optional overflow/shield (excess health) support and safe arithmetic that prevents `uint` overflow.
+ECS-native health simulation with deferred mutation requests and event queue integration.
 
 ## Types
 
-| Type                   | Description                                                       |
-|------------------------|-------------------------------------------------------------------|
-| `IDamageableHealth<T>` | Minimal health contract used by the DamageSystem                  |
-| `Health`               | Immutable record struct for base health only                      |
-| `HealthWithExcess`     | Immutable record struct with base + excess health                 |
-| `MaxValueUpdateMode`   | Controls how current health adjusts when max changes              |
-| `HealthChangedEvent`   | Event payload with before/after health values                     |
-| `HealthChangeKind`     | Enum describing the operation that caused the change              |
+| Type                    | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| `Health`                | ECS component for base + excess health values.                              |
+| `HealthMutationRequest` | Deferred mutation command component (`Damage`, `DirectDamage`, `Heal`, `IncreaseHealth`, `SetMax`). |
+| `HealthMutationKind`    | Request operation enum consumed by `HealthSystem`.                          |
+| `HealthSystem`          | ECS `ISystem` that consumes requests and mutates `Health`.                  |
+| `HealthChangedEvent`    | Event payload with before/after values and signed deltas.                   |
+| `HealthEventsResource`  | Pull-based world event queue for health mutation events.                    |
+| `HealthWorldExtensions` | Queue helpers for damage/heal variants and max-health updates.               |
 
 ## Quick Start
 
 ```csharp
+using Bezoro.ECS.Services;
+using Bezoro.GameSystems.HealthSystem.Extensions;
+using Bezoro.GameSystems.HealthSystem.Services;
 using Bezoro.GameSystems.HealthSystem.Types;
 
-var health = new Health(100u); // Max=100, Current=100
+var world = new World();
+var healthSystem = new HealthSystem();
+world.AddSystem(healthSystem);
 
-// Damage
-health = health.DecreaseCurrentHealthBy(30u); // Current=70
+var entity = world.Spawn(new Health(max: 100u, current: 100u, excessCurrent: 10u, excessMax: 25u));
 
-// Heal (capped at max)
-health = health.RestoreCurrentHealthBy(50u); // Current=100
-```
+world.QueueHealthDamage(entity, 15u);
+world.QueueHealthHeal(entity, 5u);
+world.QueueHealthIncreaseHealth(entity, 20u);
+world.Tick(0f);
 
-```csharp
-using Bezoro.GameSystems.HealthSystem.Types;
+var health = world.Get<Health>(entity);
+Console.WriteLine($"{health.Current}/{health.Max} + {health.ExcessCurrent} excess");
 
-// Health with excess/shield capacity
-var shielded = new HealthWithExcess(max: 100u, current: 100u, excess: 0u, excessMax: 50u);
-
-// Overheal (excess/shield)
-shielded = shielded.IncreaseCurrentHealthBy(20u); // Current=100, Excess=20
-
-// Damage consumes excess first
-shielded = shielded.DecreaseHealthBy(25u); // Excess=0, Current=95
+ref var events = ref world.GetResource<HealthEventsResource>();
+while (events.TryDequeue(out var evt))
+{
+    Console.WriteLine($"{evt.Kind}: dCurrent={evt.DeltaCurrent}, dExcess={evt.DeltaExcess}");
+}
 ```
 
 ## API Reference
 
-### IDamageableHealth<T>
-
-| Member                  | Description                                   |
-|-------------------------|-----------------------------------------------|
-| `uint EffectiveCurrent` | Current health used for damage calculations   |
-| `ApplyDamage(uint)`     | Applies damage and returns the updated health |
-
 ### Health
 
-| Member                          | Description                                         |
-|---------------------------------|-----------------------------------------------------|
-| `uint Current`                  | Current health value                                |
-| `uint Max`                      | Maximum health value                                |
-| `uint EffectiveCurrent`         | Effective current health (same as `Current`)        |
-| `Percent BasePercentage`        | Current health as a percentage                      |
-| `ApplyDamage(uint)`             | Applies damage (alias of `DecreaseCurrentHealthBy`) |
-| `DecreaseCurrentHealthBy(uint)` | Apply damage (clamped to zero)                      |
-| `RestoreCurrentHealthBy(uint)`  | Heal current health (capped at max)                 |
-| `DecreaseMaxHealthBy(uint)`     | Reduce maximum health                               |
-| `IncreaseMaxHealthBy(uint)`     | Increase maximum health                             |
-| `SetCurrentHealthTo(uint)`      | Set current to specific value (clamped to max)      |
-| `SetMaxHealthTo(uint)`          | Set maximum health                                  |
-| `DepleteCurrentHealth()`        | Set current health to zero                          |
-| `FullyRestoreCurrentHealth()`   | Set current health to max                           |
-
-### HealthWithExcess
-
-| Member                          | Description                                            |
-|---------------------------------|--------------------------------------------------------|
-| `uint ExcessCurrent`            | Current excess health                                  |
-| `uint ExcessMax`                | Maximum excess health                                  |
-| `uint EffectiveCurrent`         | Effective current health (base + excess, saturated)    |
-| `Percent ExcessPercentage`      | Excess health as a percentage of excess max            |
-| `Percent TotalPercentage`       | Combined health as a percentage of total max           |
-| `ApplyDamage(uint)`             | Applies damage (alias of `DecreaseHealthBy`)           |
-| `IncreaseCurrentHealthBy(uint)` | Heal current health, overflow into excess              |
-| `DecreaseHealthBy(uint)`        | Apply damage to excess first, then base health         |
-| `IncreaseExcessHealthBy(uint)`  | Add excess health                                      |
-| `DecreaseExcessHealthBy(uint)`  | Remove excess health                                   |
-| `SetExcessHealthTo(uint)`       | Set excess to specific value                           |
-| `DepleteExcessHealth()`         | Remove all excess health                               |
+| Member             | Description                                              |
+|--------------------|----------------------------------------------------------|
+| `Current`          | Base health value.                                       |
+| `Max`              | Base health cap.                                         |
+| `ExcessCurrent`    | Excess health value (shield/overheal pool).              |
+| `ExcessMax`        | Excess health cap.                                       |
+| `EffectiveCurrent` | `Current + ExcessCurrent`, saturated at `uint.MaxValue`. |
+| `BasePercentage`   | Base pool percentage.                                    |
+| `ExcessPercentage` | Excess pool percentage.                                  |
+| `TotalPercentage`  | Combined base + excess percentage.                       |
 
 ### MaxValueUpdateMode
 
 | Value                | Description                                                |
 |----------------------|------------------------------------------------------------|
-| `ClampCurrent`       | Clamp current health to new max (default)                  |
+| `ClampCurrent`       | Clamp current health to new max (default).                 |
 | `PreservePercentage` | Scale current health proportionally to maintain percentage |
 
-```csharp
-using Bezoro.Core.Types;
+### HealthWorldExtensions
 
-health.SetMaxHealthTo(50u, MaxValueUpdateMode.ClampCurrent);
-// If health was 80/100, it becomes 50/50 (clamped to new max)
-
-health.SetMaxHealthTo(200u, MaxValueUpdateMode.ClampCurrent);
-// If health was 50/100, it becomes 50/200
-
-health.SetMaxHealthTo(200u, MaxValueUpdateMode.PreservePercentage);
-// If health was 50/100 (50%), it becomes 100/200 (50%)
-```
-
-## Damage Integration
-
-DamageSystem uses `IDamageableHealth<T>` to compute applied damage from `EffectiveCurrent`.
-For `HealthWithExcess`, effective health includes excess, so damage absorbed by excess counts as applied damage.
+| Method                                                        | Description                         |
+|---------------------------------------------------------------|-------------------------------------|
+| `QueueHealthDamage(IWorld, Entity, uint)`                     | Queues excess-first damage.         |
+| `QueueHealthDirectDamage(IWorld, Entity, uint)`               | Queues direct base-health damage.   |
+| `QueueHealthHeal(IWorld, Entity, uint)`                       | Queues base-only heal (no overflow).|
+| `QueueHealthIncreaseHealth(IWorld, Entity, uint)`             | Queues heal with overflow to excess.|
+| `QueueSetHealthMax(IWorld, Entity, uint, MaxValueUpdateMode)` | Queues a max-health change request. |
 
 ## Design Notes
 
-- **Excess-first damage**: `HealthWithExcess.DecreaseHealthBy` drain excess before base health.
-- **Restore vs Increase**: Base health exposes `RestoreCurrentHealthBy` only; `HealthWithExcess.IncreaseCurrentHealthBy` overflows into excess while restore never creates excess.
-- **Overflow-safe arithmetic**: Additions use `ulong` intermediates and saturate at `uint.MaxValue`.
-- **Constructor overflow**: `Health` clamps current to max; `HealthWithExcess` moves overflow into excess (subject to `excessMax`).
-- **Excess capacity**: Excess is capped by `excessMax`; the default `excessMax = 0` disables excess capacity unless provided.
+- Mutations are deferred via request entities so gameplay code can enqueue operations safely.
+- `HealthSystem` consumes requests in queue order and despawns request entities after processing.
+- Damage supports both excess-first (`Damage`) and base-only (`DirectDamage`).
+- Healing supports both base-only (`Heal`) and overflow-to-excess (`IncreaseHealth`).
+- Events are emitted both through `HealthSystem.Changed` and `HealthEventsResource`.
