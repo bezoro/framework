@@ -21,6 +21,11 @@
 - **Thread Safety**: Favor immutability and lock-free designs.
 - **Threading Model**: Worker threads produce immutable results. Callbacks dispatch via configurable context. Framework remains engine-agnostic.
 
+## Codebase Scanning
+
+- **Exclude `bin/`, `obj/`, and `Debug/` directories** when searching or exploring the codebase unless they are directly relevant to the task (e.g., diagnosing build output or binary issues).
+- These folders contain generated artifacts and add noise to search results.
+
 ## Workflow
 
 ### 1. Analysis
