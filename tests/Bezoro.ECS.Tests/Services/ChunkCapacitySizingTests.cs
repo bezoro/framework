@@ -24,7 +24,8 @@ public class ChunkCapacitySizingTests
 
 		var archetype        = world.GetOrCreateArchetype(typeof(SizedPosition));
 		int elementSize      = Marshal.SizeOf(typeof(SizedPosition));
-		int expectedCapacity = Math.Max(1, 64 / elementSize);
+		int entitySize       = Marshal.SizeOf(typeof(Entity));
+		int expectedCapacity = Math.Max(1, 64 / (entitySize + elementSize));
 
 		archetype.ChunkCapacity.Should().Be(expectedCapacity);
 	}

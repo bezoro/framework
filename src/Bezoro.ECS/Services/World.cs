@@ -11,17 +11,21 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 public sealed partial class World : IWorld, IDisposable
 {
+	private const int MAX_QUERY_CACHE_ENTRIES = 1024;
+
 	private readonly Dictionary<ArchetypeKey, Archetype>           _archetypesByKey     = new();
 	private readonly Dictionary<int, Archetype>                    _singleTypeArchetypes = new();
 	private readonly Dictionary<TypeIdPairKey, Archetype>          _pairTypeArchetypes = new();
 	private readonly Dictionary<TypeIdTripleKey, Archetype>        _tripleTypeArchetypes = new();
 	private readonly Dictionary<TypeIdQuadKey, Archetype>          _quadTypeArchetypes = new();
 	private readonly Dictionary<QueryCacheKey, QueryCacheEntry>    _queryCache          = new();
+	private readonly Dictionary<QueryCacheKey, LinkedListNode<QueryCacheKey>> _queryCacheLruNodes = new();
 	private readonly Dictionary<Type, object>                      _resources           = new();
 	private readonly EntityManager                                 _entityManager;
 	private readonly int                                           _chunkCapacityOverride;
 	private readonly int                                           _chunkSizeInBytes;
 	private readonly List<Archetype>                               _archetypes = [];
+	private readonly LinkedList<QueryCacheKey>                     _queryCacheLru = [];
 	private readonly SystemManager                                 _systemManager;
 
 	private          bool _disposed;
@@ -90,6 +94,7 @@ public sealed partial class World : IWorld, IDisposable
 	internal ComponentTypeRegistry ComponentTypeRegistry { get; } = new();
 
 	internal int MaxDegreeOfParallelism { get; }
+	internal int QueryCacheCapacity     => MAX_QUERY_CACHE_ENTRIES;
 	internal int QueryCacheEntryCount   => _queryCache.Count;
 
 	internal int SchedulerPlanBuildCount => _systemManager.PlanBuildCount;
@@ -436,6 +441,8 @@ public sealed partial class World : IWorld, IDisposable
 			_archetypes[i].ClearChunks();
 
 		_entityManager.Clear();
+		ComponentTypeRegistry.ClearRelationships();
+		ClearQueryCache();
 	}
 
 	public void Despawn(Entity entity)
@@ -460,7 +467,7 @@ public sealed partial class World : IWorld, IDisposable
 		_pairTypeArchetypes.Clear();
 		_tripleTypeArchetypes.Clear();
 		_quadTypeArchetypes.Clear();
-		_queryCache.Clear();
+		ClearQueryCache();
 		_resources.Clear();
 		_onAddObservers.Clear();
 		_onAddRefObservers.Clear();
@@ -634,7 +641,10 @@ public sealed partial class World : IWorld, IDisposable
 	{
 		var key = spec.CacheKey;
 		if (_queryCache.TryGetValue(key, out var existing))
+		{
+			TouchQueryCacheEntry(key);
 			return existing.MatchingArchetypes;
+		}
 
 		var entry = new QueryCacheEntry(spec);
 		for (var i = 0; i < _archetypes.Count; i++)
@@ -644,7 +654,7 @@ public sealed partial class World : IWorld, IDisposable
 				entry.MatchingArchetypes.Add(archetype);
 		}
 
-		_queryCache[key] = entry;
+		AddQueryCacheEntry(key, entry);
 		return entry.MatchingArchetypes;
 	}
 
@@ -682,11 +692,12 @@ public sealed partial class World : IWorld, IDisposable
 	{
 		_entityManager.EnsureAlive(entity);
 		List<(int TypeId, object Value)>? removedComponents = null;
-		if (_onRemoveInObservers.Count > 0)
+		if (IsPlayingBackCommands && _onRemoveInObservers.Count > 0)
 			removedComponents = CaptureRemovedComponents(entity);
 
 		RemoveEntityFromArchetype(entity);
 		_entityManager.DestroyEntity(entity);
+		PruneRelationshipsTargeting(entity);
 
 		if (removedComponents is { })
 			for (var i = 0; i < removedComponents.Count; i++)
@@ -738,7 +749,12 @@ public sealed partial class World : IWorld, IDisposable
 
 		DecomposeLocation(source, location, out int sourceChunkIndex, out int sourceSlotIndex);
 		var    sourceChunk  = source.Chunks[sourceChunkIndex];
-		object removedValue = sourceChunk.GetValue(sourceIndex, sourceSlotIndex);
+		bool   shouldRaiseRemoved = IsPlayingBackCommands &&
+								  _onRemoveInObservers.TryGetValue(typeId, out var handlers) &&
+								  handlers.Count > 0;
+		object? removedValue = shouldRaiseRemoved
+								   ? sourceChunk.GetValue(sourceIndex, sourceSlotIndex)
+								   : null;
 
 		if (!source.TryGetRemoveEdge(typeId, out var target))
 		{
@@ -748,7 +764,8 @@ public sealed partial class World : IWorld, IDisposable
 		}
 
 		MoveEntity(entity, source, location, target);
-		RaiseOnRemove(entity, typeId, removedValue);
+		if (shouldRaiseRemoved)
+			RaiseOnRemove(entity, typeId, removedValue!);
 	}
 
 
@@ -974,12 +991,9 @@ public sealed partial class World : IWorld, IDisposable
 		if (_chunkCapacityOverride > 0)
 			return _chunkCapacityOverride;
 
-		var bytesPerEntity = 0;
-		if (componentTypes.Length == 0)
-			bytesPerEntity = ComponentSizeEstimator.GetSizeInBytes(typeof(Entity));
-		else
-			for (var i = 0; i < componentTypes.Length; i++)
-				bytesPerEntity += ComponentSizeEstimator.GetSizeInBytes(componentTypes[i]);
+		var bytesPerEntity = ComponentSizeEstimator.GetSizeInBytes(typeof(Entity));
+		for (var i = 0; i < componentTypes.Length; i++)
+			bytesPerEntity += ComponentSizeEstimator.GetSizeInBytes(componentTypes[i]);
 
 		if (bytesPerEntity <= 0)
 			bytesPerEntity = 1;
@@ -1150,10 +1164,124 @@ public sealed partial class World : IWorld, IDisposable
 		chunk.ClearSlot(last);
 
 		chunk.Count--;
-		archetype.NotifyChunkFreed(chunkIndex);
+		if (chunk.Count == 0)
+			ReleaseEmptyChunk(archetype, chunkIndex);
+		else
+			archetype.NotifyChunkFreed(chunkIndex);
 
 		if (clearLocation)
 			_entityManager.SetLocation(removedEntity, EntityLocation.Empty);
+	}
+
+	private void AddQueryCacheEntry(QueryCacheKey key, QueryCacheEntry entry)
+	{
+		_queryCache[key] = entry;
+
+		var node = _queryCacheLru.AddLast(key);
+		_queryCacheLruNodes[key] = node;
+		if (_queryCache.Count <= MAX_QUERY_CACHE_ENTRIES)
+			return;
+
+		var oldestNode = _queryCacheLru.First;
+		if (oldestNode is null)
+			return;
+
+		_queryCacheLru.RemoveFirst();
+		_queryCacheLruNodes.Remove(oldestNode.Value);
+		_queryCache.Remove(oldestNode.Value);
+	}
+
+	private void ClearQueryCache()
+	{
+		_queryCache.Clear();
+		_queryCacheLru.Clear();
+		_queryCacheLruNodes.Clear();
+	}
+
+	private void PruneRelationshipsTargeting(Entity target)
+	{
+		ReadOnlySpan<int> relationshipTypeIds = ComponentTypeRegistry.GetRelationshipIdsForTarget(target);
+		if (relationshipTypeIds.Length == 0)
+			return;
+
+		var relationshipsToRemove = new List<(Entity Source, int TypeId)>();
+		for (var relationIndex = 0; relationIndex < relationshipTypeIds.Length; relationIndex++)
+		{
+			int relationshipTypeId = relationshipTypeIds[relationIndex];
+			for (var archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
+			{
+				var archetype = _archetypes[archetypeIndex];
+				if (archetype.GetTypeIndex(relationshipTypeId) < 0)
+					continue;
+
+				for (var chunkIndex = 0; chunkIndex < archetype.Chunks.Count; chunkIndex++)
+				{
+					var chunk = archetype.Chunks[chunkIndex];
+					for (var row = 0; row < chunk.Count; row++)
+						relationshipsToRemove.Add((chunk.Entities[row], relationshipTypeId));
+				}
+			}
+		}
+
+		for (var i = 0; i < relationshipsToRemove.Count; i++)
+		{
+			(var source, int typeId) = relationshipsToRemove[i];
+			if (!_entityManager.IsAlive(source))
+				continue;
+
+			RemoveComponentById(source, typeId);
+		}
+
+		ComponentTypeRegistry.ReleaseRelationshipsForTarget(target);
+		ClearQueryCache();
+	}
+
+	private void ReleaseEmptyChunk(Archetype archetype, int chunkIndex)
+	{
+		var chunks = archetype.Chunks;
+		if ((uint)chunkIndex >= (uint)chunks.Count)
+			return;
+
+		var emptyChunk = chunks[chunkIndex];
+		if (emptyChunk.Count > 0)
+		{
+			archetype.NotifyChunkFreed(chunkIndex);
+			return;
+		}
+
+		int lastChunkIndex = chunks.Count - 1;
+		if (chunkIndex == lastChunkIndex)
+		{
+			emptyChunk.DisposeColumns();
+			chunks.RemoveAt(lastChunkIndex);
+			archetype.NotifyChunkFreed(chunkIndex);
+			return;
+		}
+
+		var movedChunk = chunks[lastChunkIndex];
+		chunks[chunkIndex] = movedChunk;
+		chunks.RemoveAt(lastChunkIndex);
+		emptyChunk.DisposeColumns();
+
+		for (var row = 0; row < movedChunk.Count; row++)
+		{
+			var movedEntity = movedChunk.Entities[row];
+			_entityManager.SetLocation(movedEntity, new(archetype.Id, ToRowIndex(archetype, chunkIndex, row)));
+		}
+
+		archetype.NotifyChunkFreed(chunkIndex);
+	}
+
+	private void TouchQueryCacheEntry(QueryCacheKey key)
+	{
+		if (!_queryCacheLruNodes.TryGetValue(key, out var node))
+			return;
+
+		if (ReferenceEquals(node, _queryCacheLru.Last))
+			return;
+
+		_queryCacheLru.Remove(node);
+		_queryCacheLru.AddLast(node);
 	}
 
 	internal void SetResourceObject(Type type, object value)

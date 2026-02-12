@@ -90,7 +90,7 @@ world.Query()
 | `Any<T1,T2>()` / `Any(params Type[])`                                                 | At least one component must exist.                                                                       |
 | `Optional<T>()`                                                                       | Optional component availability for chunk access.                                                        |
 | `Changed<T>()`                                                                        | Includes chunks changed in the current version window.                                                   |
-| `Related<TRelation>(Entity target)`                                                   | Relationship target filter (`Entity.Wildcard` for any target).                                           |
+| `Related<TRelation>(Entity target)`                                                   | Relationship target filter (`Entity.Wildcard` for any target); non-wildcard target must be alive.        |
 | `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T...>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style (arity 1-4), or parallel chunk iteration. |
 | `ChunkView.OptionalComponents<T>()`                                                   | Optional component span; returns `Span<T>.Empty` when missing in the current chunk.                      |
 
@@ -112,8 +112,11 @@ world.Query()
 - Command buffers are flushed at sync points during world updates.
 - Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
 - Query matching is cached and incrementally updated when new archetypes are created.
+- Query cache is size-bounded and LRU-evicted to avoid unbounded memory growth.
 - Resources are stored separately from entity archetypes.
 - Relationship filters use target-parameterized synthetic component ids.
+- Despawning an entity removes incoming relationships targeting that entity and recycles released relationship ids.
+- Empty chunks are compacted/released after structural removals to reduce retained memory.
 - Calling any public `World` API after `Dispose()` throws `ObjectDisposedException`.
 - Re-entrant world updates (e.g., calling `Tick` from inside a system update) are rejected with `InvalidOperationException`.
 - `World.Deserialize` validates untrusted payloads with strict count/length limits and resolves types only from already loaded assemblies.

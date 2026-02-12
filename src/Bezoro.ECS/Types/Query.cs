@@ -269,6 +269,7 @@ public sealed class Query
 				)
 			);
 
+		_world.EnsureEntityAlive(target);
 		int relationTypeId = _world.GetOrCreateRelationshipTypeId(typeof(TRelation), target);
 		var ids            = InsertSorted(relationTypeId, _spec.AllTypeIds);
 		if (ids is null) return this;

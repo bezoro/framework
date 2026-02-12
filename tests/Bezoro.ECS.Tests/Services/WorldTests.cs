@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
@@ -361,6 +362,108 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void QueryCache_WhenWorldCleared_ShouldResetEntries()
+	{
+		var world  = new World();
+		var entity = world.Spawn();
+		world.Add(entity, new Position { X = 1, Y = 1 });
+
+		foreach (var _ in world.Query().All<Position>()) { }
+
+		world.QueryCacheEntryCount.Should().Be(1);
+
+		world.Clear();
+
+		world.QueryCacheEntryCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void QueryCache_WhenManyRelationshipTargetsQueried_ShouldStayWithinCapacity()
+	{
+		var world = new World();
+		var targets = new Entity[world.QueryCacheCapacity + 32];
+		for (var i = 0; i < targets.Length; i++)
+			targets[i] = world.Spawn();
+
+		for (var i = 0; i < targets.Length; i++)
+			foreach (var _ in world.Query().Related<ChildOf>(targets[i])) { }
+
+		world.QueryCacheEntryCount.Should().Be(world.QueryCacheCapacity);
+	}
+
+	[Fact]
+	public void QueryRelated_WhenTargetIsDead_ShouldThrowInvalidOperationException()
+	{
+		var world  = new World();
+		var target = world.Spawn();
+		world.Despawn(target);
+
+		var act = () => world.Query().Related<ChildOf>(target);
+
+		act.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
+	public void Relationships_WhenTargetDespawns_ShouldRemoveIncomingEdgesAndReuseRelationshipTypeId()
+	{
+		var world  = new World();
+		var parent = world.Spawn();
+		var child  = world.Spawn();
+		world.Add<ChildOf>(child, parent);
+
+		int initialRelationTypeId = world.GetOrCreateRelationshipTypeId(typeof(ChildOf), parent);
+
+		world.Despawn(parent);
+
+		var wildcardMatches = 0;
+		foreach (var chunk in world.Query().Related<ChildOf>(Entity.Wildcard))
+			wildcardMatches += chunk.Count;
+
+		wildcardMatches.Should().Be(0);
+
+		var recycledParent = world.Spawn();
+		recycledParent.Id.Should().Be(parent.Id);
+		recycledParent.Version.Should().NotBe(parent.Version);
+
+		int recycledRelationTypeId = world.GetOrCreateRelationshipTypeId(typeof(ChildOf), recycledParent);
+		recycledRelationTypeId.Should().Be(initialRelationTypeId);
+
+		world.Add<ChildOf>(child, recycledParent);
+
+		var matches = 0;
+		foreach (var chunk in world.Query().Related<ChildOf>(recycledParent))
+			matches += chunk.Count;
+
+		matches.Should().Be(1);
+	}
+
+	[Fact]
+	public void Despawn_WhenChunksBecomeEmpty_ShouldReleaseUnusedChunks()
+	{
+		var world = new World(new WorldOptions { ChunkCapacity = 1 });
+		var entities = new Entity[12];
+		for (var i = 0; i < entities.Length; i++)
+			entities[i] = world.Spawn(new Position { X = i, Y = i });
+
+		for (var i = 0; i < entities.Length - 1; i++)
+			world.Despawn(entities[i]);
+
+		var diagnostics       = world.GetDiagnostics();
+		int positionChunkCount = -1;
+		for (var i = 0; i < diagnostics.Archetypes.Count; i++)
+		{
+			var archetype = diagnostics.Archetypes[i];
+			if (archetype.ComponentTypes.Count == 1 && archetype.ComponentTypes[0] == typeof(Position))
+			{
+				positionChunkCount = archetype.ChunkCount;
+				break;
+			}
+		}
+
+		positionChunkCount.Should().Be(1);
+	}
+
+	[Fact]
 	public void SetComponent_WhenEntityBelongsToDifferentWorld_ShouldThrow()
 	{
 		// Arrange
@@ -388,6 +491,8 @@ public class WorldTests
 		public float X;
 		public float Y;
 	}
+
+	private struct ChildOf;
 
 	private struct WorldAOnlyComponent;
 

@@ -20,6 +20,12 @@ internal static class WorldSerializer
 	private const           int                   MAX_ENTITIES_PER_ARCHETYPE = 1_000_000;
 	private const           int                   MAX_RESOURCE_COUNT = 65_536;
 	private const           int                   MAX_PAYLOAD_LENGTH_BYTES = 4 * 1024 * 1024;
+	private const           int                   MAX_TOTAL_ENTITY_COUNT = 2_000_000;
+	private const           int                   MIN_BYTES_PER_ARCHETYPE = sizeof(int) * 3;
+	private const           int                   MIN_BYTES_PER_COMPONENT_TYPE = 10;
+	private const           int                   MIN_BYTES_PER_RELATIONSHIP = 13;
+	private const           int                   MIN_BYTES_PER_ENTITY = sizeof(int) * 2;
+	private const           int                   MIN_BYTES_PER_RESOURCE = 14;
 	private static readonly byte[]                SnapshotMagic          = [(byte)'B', (byte)'Z', (byte)'E', (byte)'C'];
 	private static readonly JsonSerializerOptions SnapshotJsonOptions    = new() { IncludeFields = true };
 
@@ -171,6 +177,7 @@ internal static class WorldSerializer
 				$"Invalid snapshot payload: snapshot size cannot exceed {MAX_SNAPSHOT_BYTES} bytes."
 			);
 
+		World? world = null;
 		try
 		{
 			using var stream = new MemoryStream(bytes, false);
@@ -187,15 +194,18 @@ internal static class WorldSerializer
 			if (version != SNAPSHOT_FORMAT_VERSION)
 				throw new InvalidOperationException($"Invalid snapshot payload: unsupported version '{version}'.");
 
-			var world                = new World();
+			world                    = new World();
 			var entityMap            = new Dictionary<(int Id, int Version), Entity>();
 			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion)>();
 			int archetypeCount       = ReadBoundedCount(reader, "archetype count", MAX_ARCHETYPE_COUNT);
+			EnsureRemainingBytes(reader, "archetypes", archetypeCount, MIN_BYTES_PER_ARCHETYPE);
+			long totalEntityCount = 0;
 
 			for (var archetypeIndex = 0; archetypeIndex < archetypeCount; archetypeIndex++)
 			{
 				int componentTypeCount =
 					ReadBoundedCount(reader, "component type count", MAX_COMPONENT_TYPES_PER_ARCHETYPE);
+				EnsureRemainingBytes(reader, "component type metadata", componentTypeCount, MIN_BYTES_PER_COMPONENT_TYPE);
 
 				var componentTypes = new Type[componentTypeCount];
 				var payloadKinds   = new SnapshotPayloadKind[componentTypeCount];
@@ -226,6 +236,7 @@ internal static class WorldSerializer
 
 				int relationshipCount =
 					ReadBoundedCount(reader, "relationship count", MAX_RELATIONSHIPS_PER_ARCHETYPE);
+				EnsureRemainingBytes(reader, "relationship metadata", relationshipCount, MIN_BYTES_PER_RELATIONSHIP);
 
 				var relationshipDescriptors =
 					new (Type RelationType, int TargetId, int TargetVersion)[relationshipCount];
@@ -249,6 +260,14 @@ internal static class WorldSerializer
 									: world.GetOrCreateArchetype(componentTypes);
 
 				int entityCount = ReadBoundedCount(reader, "entity count", MAX_ENTITIES_PER_ARCHETYPE);
+				totalEntityCount += entityCount;
+				if (totalEntityCount > MAX_TOTAL_ENTITY_COUNT)
+					throw new InvalidOperationException(
+						$"Invalid snapshot payload: total entity count cannot exceed {MAX_TOTAL_ENTITY_COUNT}."
+					);
+
+				int minimumBytesPerEntity = checked(MIN_BYTES_PER_ENTITY + componentTypeCount * sizeof(int));
+				EnsureRemainingBytes(reader, "entity rows", entityCount, minimumBytesPerEntity);
 
 				var snapshotEntities = new (int Id, int Version)[entityCount];
 				for (var entityIndex = 0; entityIndex < entityCount; entityIndex++)
@@ -307,6 +326,7 @@ internal static class WorldSerializer
 			}
 
 			int resourceCount = ReadBoundedCount(reader, "resource count", MAX_RESOURCE_COUNT);
+			EnsureRemainingBytes(reader, "resource metadata", resourceCount, MIN_BYTES_PER_RESOURCE);
 
 			for (var resourceIndex = 0; resourceIndex < resourceCount; resourceIndex++)
 			{
@@ -358,11 +378,13 @@ internal static class WorldSerializer
 		}
 		catch (InvalidOperationException)
 		{
+			world?.Dispose();
 			throw;
 		}
 		catch (Exception ex) when (ex is EndOfStreamException or IOException or JsonException or ArgumentException
 									     or NotSupportedException or OverflowException)
 		{
+			world?.Dispose();
 			throw new InvalidOperationException("Invalid snapshot payload.", ex);
 		}
 	}
@@ -402,6 +424,19 @@ internal static class WorldSerializer
 			throw new InvalidOperationException("Invalid snapshot payload: unexpected end of data.");
 
 		return bytes;
+	}
+
+	private static void EnsureRemainingBytes(BinaryReader reader, string label, int itemCount, int minimumBytesPerItem)
+	{
+		if (itemCount <= 0 || minimumBytesPerItem <= 0)
+			return;
+
+		long remainingBytes = reader.BaseStream.Length - reader.BaseStream.Position;
+		long minimumBytes   = (long)itemCount * minimumBytesPerItem;
+		if (minimumBytes > remainingBytes)
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: insufficient data for {label}."
+			);
 	}
 
 	private static Assembly? ResolveAssembly(AssemblyName assemblyName)
