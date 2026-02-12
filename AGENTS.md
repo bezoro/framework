@@ -25,6 +25,7 @@
 
 - **Exclude `bin/`, `obj/`, and `Debug/` directories** when searching or exploring the codebase unless they are directly relevant to the task (e.g., diagnosing build output or binary issues).
 - These folders contain generated artifacts and add noise to search results.
+- **Use ripgrep (`rg`)** for codebase searches when relevant. It respects `.gitignore` by default and is significantly faster than recursive `grep` or `find`.
 
 ## Workflow
 
