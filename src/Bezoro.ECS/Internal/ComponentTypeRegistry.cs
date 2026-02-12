@@ -7,12 +7,12 @@ internal sealed class ComponentTypeRegistry
 {
 	private readonly ConcurrentDictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
 	private readonly ConcurrentDictionary<int, (Type relationType, int targetId, int targetVersion)> _relationKeyById = new();
-	private readonly ConcurrentDictionary<(int targetId, int targetVersion), int[]>                   _relationIdsByTarget = new();
-	private readonly ConcurrentDictionary<int, RelationshipInfo>                                     _relationshipInfoById = new();
-	private readonly ConcurrentDictionary<Type, int>                                                 _typeToId = new();
-	private readonly ConcurrentDictionary<Type, int[]>                                               _relationIdsByType = new();
-	private readonly object                                                                          _sync = new();
-	private readonly Stack<int>                                                                      _recycledRelationshipTypeIds = new();
+	private readonly ConcurrentDictionary<(int targetId, int targetVersion), int[]> _relationIdsByTarget = new();
+	private readonly ConcurrentDictionary<int, RelationshipInfo>                     _relationshipInfoById = new();
+	private readonly ConcurrentDictionary<Type, int>                                 _typeToId = new();
+	private readonly ConcurrentDictionary<Type, int[]>                               _relationIdsByType = new();
+	private readonly object                                                          _sync = new();
+	private readonly Stack<int>                                                      _recycledRelationshipTypeIds = new();
 
 	private Type[] _idToTypeArray = new Type[16];
 	private int    _idToTypeCount;
@@ -106,10 +106,9 @@ internal sealed class ComponentTypeRegistry
 
 		lock (_sync)
 		{
-			if (!_relationIdsByTarget.TryGetValue(targetKey, out ids) || ids.Length == 0)
+			if (!_relationIdsByTarget.TryRemove(targetKey, out ids) || ids.Length == 0)
 				return;
 
-			_relationIdsByTarget.TryRemove(targetKey, out _);
 			for (var i = 0; i < ids.Length; i++)
 			{
 				int id = ids[i];
@@ -172,7 +171,7 @@ internal sealed class ComponentTypeRegistry
 		var updated = new int[current.Length + 1];
 		Array.Copy(current, updated, current.Length);
 		updated[^1] = id;
-		map[key]    = updated;
+		map[key] = updated;
 	}
 
 	private static void RemoveId<TKey>(ConcurrentDictionary<TKey, int[]> map, TKey key, int id) where TKey : notnull

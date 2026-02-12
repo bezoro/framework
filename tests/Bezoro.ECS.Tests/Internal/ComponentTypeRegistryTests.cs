@@ -50,5 +50,22 @@ public class ComponentTypeRegistryTests
 		snapshotAfterSecondRelationship.Length.Should().Be(2);
 	}
 
+	[Fact]
+	public void GetRelationshipIds_WhenRelationshipRemoved_ShouldPreservePreviousSnapshotAndReturnNewOne()
+	{
+		var registry = new ComponentTypeRegistry();
+		var firstTarget = new Entity(1, 1);
+		var secondTarget = new Entity(2, 1);
+		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), firstTarget);
+		int secondId = registry.GetOrCreateRelationship(typeof(RelatesTo), secondTarget);
+		int[] snapshotBeforeRemoval = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
+
+		registry.ReleaseRelationshipsForTarget(firstTarget);
+		int[] snapshotAfterRemoval = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
+
+		snapshotBeforeRemoval.Should().Equal(firstId, secondId);
+		snapshotAfterRemoval.Should().Equal(secondId);
+	}
+
 	private readonly struct RelatesTo;
 }

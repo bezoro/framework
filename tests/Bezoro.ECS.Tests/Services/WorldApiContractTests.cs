@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
@@ -227,6 +228,36 @@ public class WorldApiContractTests
 		tracker.Created.Should().Be(1);
 		world.Dispose();
 		tracker.Destroyed.Should().Be(1);
+	}
+
+	[Fact]
+	public void Dispose_WhenResourcesImplementDisposable_ShouldDisposeResources()
+	{
+		var world            = new World();
+		var disposable       = new DisposableResource();
+		var asyncDisposable  = new AsyncDisposableResource();
+		world.SetResource(disposable);
+		world.SetResource(asyncDisposable);
+
+		world.Dispose();
+
+		disposable.DisposeCount.Should().Be(1);
+		asyncDisposable.DisposeCount.Should().Be(1);
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenResourcesImplementDisposable_ShouldDisposeResources()
+	{
+		var world           = new World();
+		var disposable      = new DisposableResource();
+		var asyncDisposable = new AsyncDisposableResource();
+		world.SetResource(disposable);
+		world.SetResource(asyncDisposable);
+
+		await world.DisposeAsync();
+
+		disposable.DisposeCount.Should().Be(1);
+		asyncDisposable.DisposeCount.Should().Be(1);
 	}
 
 	[Fact]
@@ -653,6 +684,48 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Serialize_WhenRoundTrippedWithReferenceResourceWithoutAllowlist_ShouldRejectDeserialization()
+	{
+		var world = new World();
+		world.SetResource(new ReferenceResourceState { Name = "alpha" });
+		byte[] data = world.Serialize();
+
+		var act = () => World.Deserialize(data);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*resource type*not allowed*");
+	}
+
+	[Fact]
+	public void Serialize_WhenRoundTrippedWithReferenceResourceAndAllowlist_ShouldRestoreResource()
+	{
+		var world = new World();
+		world.SetResource(new ReferenceResourceState { Name = "alpha" });
+		byte[] data = world.Serialize();
+
+		var options = new SnapshotDeserializationOptions
+		{
+			AllowedReferenceResourceTypes = [typeof(ReferenceResourceState)]
+		};
+
+		var clone = World.Deserialize(data, options);
+
+		clone.GetResource<ReferenceResourceState>().Name.Should().Be("alpha");
+	}
+
+	[Fact]
+	public void SnapshotDeserializationOptions_WhenReferenceResourceAllowlistIsNull_ShouldThrowArgumentNullException()
+	{
+		var act = () => new SnapshotDeserializationOptions
+		{
+			AllowedReferenceResourceTypes = null!
+		};
+
+		act.Should().Throw<ArgumentNullException>()
+		   .WithParameterName(nameof(SnapshotDeserializationOptions.AllowedReferenceResourceTypes));
+	}
+
+	[Fact]
 	public void Serialize_WhenRoundTripped_ShouldRestoreRelationships()
 	{
 		var world   = new World();
@@ -896,6 +969,24 @@ public class WorldApiContractTests
 		public int Destroyed;
 	}
 
+	private sealed class DisposableResource : IDisposable
+	{
+		public int DisposeCount { get; private set; }
+
+		public void Dispose() => DisposeCount++;
+	}
+
+	private sealed class AsyncDisposableResource : IAsyncDisposable
+	{
+		public int DisposeCount { get; private set; }
+
+		public ValueTask DisposeAsync()
+		{
+			DisposeCount++;
+			return ValueTask.CompletedTask;
+		}
+	}
+
 	private sealed class LoopPhaseRecorderSystem(SystemLoopPhase loopPhase) : ISystem
 	{
 		public SystemLoopPhase LoopPhase     { get; } = loopPhase;
@@ -927,6 +1018,11 @@ public class WorldApiContractTests
 	private struct Position	{
 		public float X;
 		public float Y;
+	}
+
+	private sealed class ReferenceResourceState
+	{
+		public string Name { get; set; } = string.Empty;
 	}
 
 	private sealed class StageRecorder(List<Stage> order) : ISystem

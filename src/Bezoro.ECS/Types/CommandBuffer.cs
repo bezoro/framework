@@ -8,14 +8,14 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public sealed class CommandBuffer : IDisposable
 {
-	private readonly Dictionary<int, Entity> _resolvedTemporaryEntities = [];
-	private readonly List<Command>           _commands                  = [];
-	private readonly object                  _sync                      = new();
-	private readonly World                   _world;
-	private          bool                    _disposed;
-	private          bool                    _isPlayingBack;
-	private          int                     _nextCommandIndex;
-	private          int                     _nextTemporaryId = -1;
+	private readonly object _sync = new();
+	private readonly World  _world;
+	private          Dictionary<int, Entity>? _resolvedTemporaryEntities;
+	private          List<Command>?           _commands;
+	private          bool                     _disposed;
+	private          bool                     _isPlayingBack;
+	private          int                      _nextCommandIndex;
+	private          int                      _nextTemporaryId = -1;
 
 	internal CommandBuffer(World world)
 	{
@@ -29,7 +29,19 @@ public sealed class CommandBuffer : IDisposable
 			ThrowIfDisposed();
 			lock (_sync)
 			{
-				return _commands.Count > _nextCommandIndex;
+				return _commands is { } commands && commands.Count > _nextCommandIndex;
+			}
+		}
+	}
+
+	internal bool HasAllocatedStorage
+	{
+		get
+		{
+			ThrowIfDisposed();
+			lock (_sync)
+			{
+				return _commands is not null || _resolvedTemporaryEntities is not null;
 			}
 		}
 	}
@@ -123,7 +135,7 @@ public sealed class CommandBuffer : IDisposable
 		lock (_sync)
 		{
 			var entity = new Entity(_nextTemporaryId--, 0);
-			_commands.Add(new(CommandType.CreateEntity, entity, archetype, -1, null));
+			(_commands ??= []).Add(new(CommandType.CreateEntity, entity, archetype, -1, null));
 			return entity;
 		}
 	}
@@ -218,12 +230,14 @@ public sealed class CommandBuffer : IDisposable
 			if (_isPlayingBack)
 				throw new InvalidOperationException("CommandBuffer playback is already in progress.");
 
-			int pendingCount = _commands.Count - _nextCommandIndex;
+			int pendingCount = (_commands?.Count ?? 0) - _nextCommandIndex;
 			if (pendingCount <= 0) return;
 
 			commands = new Command[pendingCount];
-			_commands.CopyTo(_nextCommandIndex, commands, 0, pendingCount);
-			tempEntities   = _resolvedTemporaryEntities.Count == 0 ? [] : new(_resolvedTemporaryEntities);
+			_commands!.CopyTo(_nextCommandIndex, commands, 0, pendingCount);
+			tempEntities = _resolvedTemporaryEntities is { Count: > 0 }
+							   ? new(_resolvedTemporaryEntities)
+							   : [];
 			_isPlayingBack = true;
 		}
 
@@ -296,13 +310,13 @@ public sealed class CommandBuffer : IDisposable
 		_world.ThrowIfDisposed();
 		lock (_sync)
 		{
-			_commands.Add(command);
+			(_commands ??= []).Add(command);
 		}
 	}
 
 	private void RemoveProcessedCommandsUnsafe(int processedCount)
 	{
-		if (processedCount <= 0 || _commands.Count == 0) return;
+		if (processedCount <= 0 || _commands is null || _commands.Count == 0) return;
 
 		_nextCommandIndex += processedCount;
 		if (_nextCommandIndex > _commands.Count)
@@ -324,19 +338,27 @@ public sealed class CommandBuffer : IDisposable
 
 	private void ReplaceResolvedTemporaryEntitiesUnsafe(Dictionary<int, Entity> source)
 	{
+		if (_resolvedTemporaryEntities is null)
+		{
+			if (source.Count == 0)
+				return;
+
+			_resolvedTemporaryEntities = new(source.Count);
+		}
+
 		_resolvedTemporaryEntities.Clear();
 		foreach (var entry in source)
 			_resolvedTemporaryEntities[entry.Key] = entry.Value;
 
-		if (_commands.Count == _nextCommandIndex)
+		if ((_commands?.Count ?? 0) == _nextCommandIndex)
 			_resolvedTemporaryEntities.Clear();
 	}
 
 	private void ResetStateUnsafe()
 	{
 		_isPlayingBack = false;
-		_commands.Clear();
-		_resolvedTemporaryEntities.Clear();
+		_commands?.Clear();
+		_resolvedTemporaryEntities?.Clear();
 		_nextCommandIndex = 0;
 		_nextTemporaryId  = -1;
 	}

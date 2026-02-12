@@ -145,6 +145,18 @@ public class SystemManagerTests
 	}
 
 	[Fact]
+	public void UpdateAll_WhenSystemDoesNotRecordCommands_ShouldKeepCommandStorageUnallocated()
+	{
+		var world  = new World();
+		var system = new CommandBufferAllocationProbeSystem();
+		world.AddSystem(system);
+
+		world.Tick(1f / 60f);
+
+		system.StorageAllocated.Should().BeFalse();
+	}
+
+	[Fact]
 	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
 	{
 		var world  = new World();
@@ -287,6 +299,16 @@ public class SystemManagerTests
 			}
 
 			_previous = context.Commands;
+		}
+	}
+
+	private sealed class CommandBufferAllocationProbeSystem : ISystem
+	{
+		public bool StorageAllocated { get; private set; }
+
+		public void Update(IWorld world, in SystemContext context)
+		{
+			StorageAllocated = context.Commands.HasAllocatedStorage;
 		}
 	}
 

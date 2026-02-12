@@ -9,7 +9,7 @@ namespace Bezoro.ECS.Services;
 /// <summary>
 ///     Main entry point for ECS state management.
 /// </summary>
-public sealed partial class World : IWorld, IDisposable
+public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 {
 	private const int MAX_QUERY_CACHE_ENTRIES = 1024;
 
@@ -107,7 +107,15 @@ public sealed partial class World : IWorld, IDisposable
 
 	internal uint ChangeVersion { get; private set; }
 
-	public static World Deserialize(byte[] bytes) => WorldSerializer.Deserialize(bytes);
+	public static World Deserialize(byte[] bytes) =>
+		WorldSerializer.Deserialize(bytes, SnapshotDeserializationOptions.Default);
+
+	public static World Deserialize(byte[] bytes, SnapshotDeserializationOptions options)
+	{
+		if (options is null) throw new ArgumentNullException(nameof(options));
+
+		return WorldSerializer.Deserialize(bytes, options);
+	}
 
 	public Archetype GetOrCreateArchetype(params Type[] componentTypes)
 	{
@@ -291,6 +299,14 @@ public sealed partial class World : IWorld, IDisposable
 		return WorldSerializer.Serialize(this);
 	}
 
+	public void Serialize(Stream destination)
+	{
+		ThrowIfDisposed();
+		if (destination is null) throw new ArgumentNullException(nameof(destination));
+
+		WorldSerializer.Serialize(this, destination);
+	}
+
 	public CommandBuffer CreateCommandBuffer()
 	{
 		ThrowIfDisposed();
@@ -454,24 +470,20 @@ public sealed partial class World : IWorld, IDisposable
 
 	public void Dispose()
 	{
-		if (_disposed) return;
+		if (!TryBeginDispose())
+			return;
 
-		_disposed = true;
-		_systemManager.Shutdown(this);
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].ClearChunks();
+		DisposeResources();
+		FinishDispose();
+	}
 
-		_archetypes.Clear();
-		_archetypesByKey.Clear();
-		_singleTypeArchetypes.Clear();
-		_pairTypeArchetypes.Clear();
-		_tripleTypeArchetypes.Clear();
-		_quadTypeArchetypes.Clear();
-		ClearQueryCache();
-		_resources.Clear();
-		_onAddObservers.Clear();
-		_onAddRefObservers.Clear();
-		_onRemoveInObservers.Clear();
+	public async ValueTask DisposeAsync()
+	{
+		if (!TryBeginDispose())
+			return;
+
+		await DisposeResourcesAsync().ConfigureAwait(false);
+		FinishDispose();
 	}
 
 	/// <summary>
@@ -554,7 +566,7 @@ public sealed partial class World : IWorld, IDisposable
 	public void SetResource<T>(T resource) where T : notnull
 	{
 		ThrowIfDisposed();
-		_resources[typeof(T)] = new ResourceBox<T>(resource);
+		SetResourceBox(typeof(T), new ResourceBox<T>(resource));
 	}
 
 	/// <summary>
@@ -1284,16 +1296,108 @@ public sealed partial class World : IWorld, IDisposable
 		_queryCacheLru.AddLast(node);
 	}
 
+	private void DisposeResources()
+	{
+		foreach (object boxed in _resources.Values)
+		{
+			if (boxed is IResourceBox resourceBox)
+				resourceBox.DisposeValue();
+		}
+
+		_resources.Clear();
+	}
+
+	private async ValueTask DisposeResourcesAsync()
+	{
+		foreach (object boxed in _resources.Values)
+		{
+			if (boxed is IResourceBox resourceBox)
+				await resourceBox.DisposeValueAsync().ConfigureAwait(false);
+		}
+
+		_resources.Clear();
+	}
+
+	private static bool IsSameResourceValue(IResourceBox left, IResourceBox right)
+	{
+		object leftValue  = left.ValueObject;
+		object rightValue = right.ValueObject;
+		if (leftValue.GetType().IsValueType || rightValue.GetType().IsValueType)
+			return false;
+
+		return ReferenceEquals(leftValue, rightValue);
+	}
+
+	private void SetResourceBox(Type type, IResourceBox resourceBox)
+	{
+		if (_resources.TryGetValue(type, out var existingBoxed) && existingBoxed is IResourceBox existingResourceBox &&
+			!IsSameResourceValue(existingResourceBox, resourceBox))
+			existingResourceBox.DisposeValue();
+
+		_resources[type] = resourceBox;
+	}
+
 	internal void SetResourceObject(Type type, object value)
 	{
 		var boxType = typeof(ResourceBox<>).MakeGenericType(type);
-		_resources[type] = Activator.CreateInstance(boxType, value)!;
+		if (Activator.CreateInstance(boxType, value) is not IResourceBox resourceBox)
+			throw new InvalidOperationException($"Resource box for type '{type.FullName}' is invalid.");
+
+		SetResourceBox(type, resourceBox);
 	}
 
 	private sealed class ResourceBox<T>(T value)
+		: IResourceBox
 		where T : notnull
 	{
 		public T Value = value;
+
+		object IResourceBox.ValueObject => Value;
+
+		void IResourceBox.DisposeValue()
+		{
+			if (Value is IDisposable disposable)
+				disposable.Dispose();
+			else if (Value is IAsyncDisposable asyncDisposable)
+				Task.Run(
+					async () => await asyncDisposable.DisposeAsync().ConfigureAwait(false)
+				).GetAwaiter().GetResult();
+		}
+
+		async ValueTask IResourceBox.DisposeValueAsync()
+		{
+			if (Value is IAsyncDisposable asyncDisposable)
+				await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+			else if (Value is IDisposable disposable)
+				disposable.Dispose();
+		}
+	}
+
+	private bool TryBeginDispose()
+	{
+		if (_disposed)
+			return false;
+
+		_disposed = true;
+		_systemManager.Shutdown(this);
+		for (var i = 0; i < _archetypes.Count; i++)
+			_archetypes[i].ClearChunks();
+
+		_archetypes.Clear();
+		_archetypesByKey.Clear();
+		_singleTypeArchetypes.Clear();
+		_pairTypeArchetypes.Clear();
+		_tripleTypeArchetypes.Clear();
+		_quadTypeArchetypes.Clear();
+		ClearQueryCache();
+		return true;
+	}
+
+	private void FinishDispose()
+	{
+		_onAddObservers.Clear();
+		_onAddRefObservers.Clear();
+		_onRemoveInObservers.Clear();
 	}
 
 }

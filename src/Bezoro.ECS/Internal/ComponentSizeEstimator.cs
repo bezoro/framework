@@ -1,12 +1,13 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.ECS.Internal;
 
 internal static class ComponentSizeEstimator
 {
-	private static readonly Dictionary<Type, int> SizeCache = new();
-	private static readonly object                Sync      = new();
+	private static readonly ConditionalWeakTable<Type, CacheEntry> SizeCache = new();
+	private static readonly object                                 Sync      = new();
 
 	public static int GetSizeInBytes(Type type)
 	{
@@ -14,13 +15,18 @@ internal static class ComponentSizeEstimator
 
 		lock (Sync)
 		{
-			if (SizeCache.TryGetValue(type, out int cached))
-				return cached;
+			if (SizeCache.TryGetValue(type, out var cached))
+				return cached.Value;
 
 			int computed = ComputeSizeInBytes(type);
-			SizeCache[type] = computed;
+			SizeCache.Add(type, new(computed));
 			return computed;
 		}
+	}
+
+	private sealed class CacheEntry(int value)
+	{
+		public int Value { get; } = value;
 	}
 
 	private static int ComputeSizeInBytes(Type type)

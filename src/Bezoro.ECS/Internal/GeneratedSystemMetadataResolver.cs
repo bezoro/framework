@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
@@ -6,8 +7,7 @@ namespace Bezoro.ECS.Internal;
 internal sealed class GeneratedSystemMetadataResolver
 {
 	private const    string METADATA_TYPE_NAME = "Bezoro.ECS.Generated.GeneratedSystemMetadata";
-	private readonly Dictionary<Assembly, IReadOnlyDictionary<Type, SystemMetadata>?> _cache = new();
-	private readonly object _sync = new();
+	private readonly ConditionalWeakTable<Assembly, CacheEntry> _cache = new();
 
 	public bool TryGet(Type systemType, out SystemMetadata metadata)
 	{
@@ -51,14 +51,12 @@ internal sealed class GeneratedSystemMetadataResolver
 
 	private IReadOnlyDictionary<Type, SystemMetadata>? GetOrCreateMap(Assembly assembly)
 	{
-		lock (_sync)
-		{
-			if (_cache.TryGetValue(assembly, out var existing))
-				return existing;
+		return _cache.GetValue(assembly, static key => new CacheEntry(CreateMap(key)))
+					 .Map;
+	}
 
-			var created = CreateMap(assembly);
-			_cache[assembly] = created;
-			return created;
-		}
+	private sealed class CacheEntry(IReadOnlyDictionary<Type, SystemMetadata>? map)
+	{
+		public IReadOnlyDictionary<Type, SystemMetadata>? Map { get; } = map;
 	}
 }

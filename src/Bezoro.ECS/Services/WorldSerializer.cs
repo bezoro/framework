@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Bezoro.ECS.Internal;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Services;
@@ -37,12 +38,23 @@ internal static class WorldSerializer
 	internal static byte[] Serialize(World world)
 	{
 		using var stream = new MemoryStream();
-		using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+		Serialize(world, stream);
+		return stream.ToArray();
+	}
+
+	internal static void Serialize(World world, Stream destination)
+	{
+		if (world is null) throw new ArgumentNullException(nameof(world));
+		if (destination is null) throw new ArgumentNullException(nameof(destination));
+		if (!destination.CanWrite)
+			throw new ArgumentException("Destination stream must be writable.", nameof(destination));
+
+		using var writer = new BinaryWriter(destination, Encoding.UTF8, true);
 
 		writer.Write(SnapshotMagic);
 		writer.Write(SNAPSHOT_FORMAT_VERSION);
 
-		var archetypes       = world.Archetypes;
+		var archetypes        = world.Archetypes;
 		var archetypesToWrite = new List<Archetype>();
 		for (var a = 0; a < archetypes.Count; a++)
 		{
@@ -106,50 +118,54 @@ internal static class WorldSerializer
 				writer.Write(0);
 			}
 
-			var rows = new List<(Chunk Chunk, int Row)>();
+			var entityCount = 0;
+			for (var c = 0; c < archetype.Chunks.Count; c++)
+			{
+				var chunk = archetype.Chunks[c];
+				entityCount += chunk.Count;
+			}
+
+			writer.Write(entityCount);
 			for (var c = 0; c < archetype.Chunks.Count; c++)
 			{
 				var chunk = archetype.Chunks[c];
 				for (var row = 0; row < chunk.Count; row++)
-					rows.Add((chunk, row));
-			}
-
-			writer.Write(rows.Count);
-			for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
-			{
-				var entry  = rows[rowIndex];
-				var entity = entry.Chunk.Entities[entry.Row];
-				writer.Write(entity.Id);
-				writer.Write(entity.Version);
-			}
-
-			for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
-			{
-				var entry = rows[rowIndex];
-				for (var typeIndex = 0; typeIndex < serializedTypeIds.Count; typeIndex++)
 				{
-					int    typeId         = serializedTypeIds[typeIndex];
-					int    componentIndex = archetype.GetTypeIndex(typeId);
-					var    type           = world.ComponentTypeRegistry.GetType(typeId);
-					var    payloadKind    = GetSnapshotPayloadKind(type);
-					object value          = entry.Chunk.GetValue(componentIndex, entry.Row);
-					byte[] payload        = SerializeSnapshotValue(type, value, payloadKind);
-					writer.Write(payload.Length);
-					writer.Write(payload);
+					var entity = chunk.Entities[row];
+					writer.Write(entity.Id);
+					writer.Write(entity.Version);
+				}
+			}
+
+			for (var c = 0; c < archetype.Chunks.Count; c++)
+			{
+				var chunk = archetype.Chunks[c];
+				for (var row = 0; row < chunk.Count; row++)
+				{
+					for (var typeIndex = 0; typeIndex < serializedTypeIds.Count; typeIndex++)
+					{
+						int    typeId         = serializedTypeIds[typeIndex];
+						int    componentIndex = archetype.GetTypeIndex(typeId);
+						var    type           = world.ComponentTypeRegistry.GetType(typeId);
+						var    payloadKind    = GetSnapshotPayloadKind(type);
+						object value          = chunk.GetValue(componentIndex, row);
+						byte[] payload        = SerializeSnapshotValue(type, value, payloadKind);
+						writer.Write(payload.Length);
+						writer.Write(payload);
+					}
 				}
 			}
 		}
 
 		var resources = world.Resources;
 		writer.Write(resources.Count);
-		foreach ((var resourceType, object? resourceBox) in resources)
+		foreach ((var resourceType, object resourceBoxed) in resources)
 		{
-			var payloadKind = GetSnapshotPayloadKind(resourceType);
-			var valueField = resourceBox.GetType().GetField("Value", BindingFlags.Instance | BindingFlags.Public) ??
-							 throw new InvalidOperationException("Resource box does not expose a value field.");
+			if (resourceBoxed is not IResourceBox resourceBox)
+				throw new InvalidOperationException("Resource box does not expose a value object.");
 
-			object value = valueField.GetValue(resourceBox) ??
-						   throw new InvalidOperationException("Resource value cannot be null.");
+			var payloadKind = GetSnapshotPayloadKind(resourceType);
+			object value = resourceBox.ValueObject;
 
 			byte[] payload = SerializeSnapshotValue(resourceType, value, payloadKind);
 
@@ -161,21 +177,23 @@ internal static class WorldSerializer
 		}
 
 		writer.Flush();
-		return stream.ToArray();
 	}
 
 	/// <summary>
 	///     Deserializes a binary snapshot into a new <see cref="World" /> instance.
 	/// </summary>
 	/// <param name="bytes">The binary snapshot data.</param>
+	/// <param name="options">Type validation and resolver options for snapshot materialization.</param>
 	/// <returns>A new world populated from the snapshot.</returns>
-	internal static World Deserialize(byte[] bytes)
+	internal static World Deserialize(byte[] bytes, SnapshotDeserializationOptions? options)
 	{
 		if (bytes is null) throw new ArgumentNullException(nameof(bytes));
 		if (bytes.Length > MAX_SNAPSHOT_BYTES)
 			throw new InvalidOperationException(
 				$"Invalid snapshot payload: snapshot size cannot exceed {MAX_SNAPSHOT_BYTES} bytes."
 			);
+
+		options ??= SnapshotDeserializationOptions.Default;
 
 		World? world = null;
 		try
@@ -212,10 +230,7 @@ internal static class WorldSerializer
 				for (var typeIndex = 0; typeIndex < componentTypeCount; typeIndex++)
 				{
 					string typeName = reader.ReadString();
-					var type = ResolveTypeFromLoadedAssemblies(typeName) ??
-							   throw new InvalidOperationException(
-								   $"Snapshot type '{typeName}' could not be resolved."
-							   );
+					var type = ResolveSnapshotType(typeName, options, requireValueType: true);
 
 					ulong expectedLayoutHash = reader.ReadUInt64();
 					ulong actualLayoutHash   = ComputeLayoutHash(type);
@@ -244,10 +259,7 @@ internal static class WorldSerializer
 				for (var relationshipIndex = 0; relationshipIndex < relationshipCount; relationshipIndex++)
 				{
 					string relationTypeName = reader.ReadString();
-					var relationType = ResolveTypeFromLoadedAssemblies(relationTypeName) ??
-									   throw new InvalidOperationException(
-										   $"Snapshot relation type '{relationTypeName}' could not be resolved."
-									   );
+					var relationType = ResolveSnapshotType(relationTypeName, options, requireValueType: false);
 
 					int targetId      = reader.ReadInt32();
 					int targetVersion = reader.ReadInt32();
@@ -331,8 +343,11 @@ internal static class WorldSerializer
 			for (var resourceIndex = 0; resourceIndex < resourceCount; resourceIndex++)
 			{
 				string typeName = reader.ReadString();
-				var type = ResolveTypeFromLoadedAssemblies(typeName) ??
-						   throw new InvalidOperationException($"Snapshot type '{typeName}' could not be resolved.");
+				var type = ResolveSnapshotType(typeName, options, requireValueType: false);
+				if (!options.IsReferenceResourceTypeAllowed(type))
+					throw new InvalidOperationException(
+						$"Invalid snapshot payload: resource type '{type.FullName}' is not allowed."
+					);
 
 				ulong expectedLayoutHash = reader.ReadUInt64();
 				ulong actualLayoutHash   = ComputeLayoutHash(type);
@@ -476,6 +491,30 @@ internal static class WorldSerializer
 			throwOnError: false,
 			ignoreCase: false
 		);
+
+	private static Type ResolveSnapshotType(
+		string                         typeName,
+		SnapshotDeserializationOptions options,
+		bool                           requireValueType)
+	{
+		var resolver = options.TypeResolver ?? ResolveTypeFromLoadedAssemblies;
+		var type = resolver(typeName) ??
+				   throw new InvalidOperationException(
+					   $"Snapshot type '{typeName}' could not be resolved."
+				   );
+
+		if (!options.IsTypeAllowed(type))
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: type '{type.FullName}' is not allowed."
+			);
+
+		if (requireValueType && !type.IsValueType)
+			throw new InvalidOperationException(
+				$"Invalid snapshot payload: component type '{type.FullName}' must be a value type."
+			);
+
+		return type;
+	}
 
 	private static byte[] SerializeRawUnmanagedValue(Type type, object value)
 	{

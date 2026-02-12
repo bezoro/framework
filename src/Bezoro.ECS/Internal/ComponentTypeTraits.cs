@@ -1,11 +1,12 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.ECS.Internal;
 
 internal static class ComponentTypeTraits
 {
-	private static readonly Dictionary<Type, bool> IsUnmanagedCache = new();
-	private static readonly object                 Sync             = new();
+	private static readonly ConditionalWeakTable<Type, CacheEntry> IsUnmanagedCache = new();
+	private static readonly object                                 Sync             = new();
 
 	public static bool IsUnmanaged(Type type)
 	{
@@ -13,13 +14,18 @@ internal static class ComponentTypeTraits
 
 		lock (Sync)
 		{
-			if (IsUnmanagedCache.TryGetValue(type, out bool cached))
-				return cached;
+			if (IsUnmanagedCache.TryGetValue(type, out var cached))
+				return cached.Value;
 
 			bool value = ComputeIsUnmanaged(type);
-			IsUnmanagedCache[type] = value;
+			IsUnmanagedCache.Add(type, new(value));
 			return value;
 		}
+	}
+
+	private sealed class CacheEntry(bool value)
+	{
+		public bool Value { get; } = value;
 	}
 
 	private static bool ComputeIsUnmanaged(Type type)
