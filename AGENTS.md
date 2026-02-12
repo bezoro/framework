@@ -23,9 +23,13 @@
 
 ## Codebase Scanning
 
+- **Never shell out for file operations.** Do not use `PowerShell`, `cmd`, `cat`, `head`, `tail`, `Get-Content`, `Select-String`, `find`, or `grep` via shell to read, search, or list files. These are slow and wasteful. Always use the dedicated tools instead:
+  - **Read files** → `Read` tool
+  - **Search file contents** → `Grep` tool (uses ripgrep internally)
+  - **Find files by name/pattern** → `Glob` tool
+  - **Run shell commands** → `Bash` tool, but **only** for build/test/git operations (e.g., `dotnet build`, `dotnet test`, `git status`)
 - **Exclude `bin/`, `obj/`, and `Debug/` directories** when searching or exploring the codebase unless they are directly relevant to the task (e.g., diagnosing build output or binary issues).
 - These folders contain generated artifacts and add noise to search results.
-- **Use ripgrep (`rg`)** for codebase searches when relevant. It respects `.gitignore` by default and is significantly faster than recursive `grep` or `find`.
 
 ## Workflow
 
