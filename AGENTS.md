@@ -23,7 +23,7 @@
 
 ## Codebase Scanning
 
-- **Never shell out for file operations.** Do not use `PowerShell`, `cmd`, `cat`, `head`, `tail`, `Get-Content`, `Select-String`, `find`, or `grep` via shell to read, search, or list files. These are slow and wasteful. Always use the dedicated tools instead:
+- **Never shell out for file operations.** Do not use `PowerShell`, `cmd`, `cat`, `head`, `tail`, `Get-Content`, `Select-String`, `find`, `grep`, or `rg` via shell to read, search, or list files. These commands are either unavailable or wasteful on this platform. Always use the dedicated tools instead — they work everywhere and are faster:
   - **Read files** → `Read` tool
   - **Search file contents** → `Grep` tool (uses ripgrep internally)
   - **Find files by name/pattern** → `Glob` tool
