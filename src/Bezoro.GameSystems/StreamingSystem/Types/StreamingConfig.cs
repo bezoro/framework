@@ -1,60 +1,30 @@
-using System;
 using System.Numerics;
-using System.Threading;
-using Bezoro.GameSystems.StreamingSystem.Abstractions;
 
 namespace Bezoro.GameSystems.StreamingSystem.Types;
 
 /// <summary>
-///     Configuration for the streaming system.
+///     Shared streaming configuration consumed by <see cref="Services.StreamingSystem" />.
 /// </summary>
-public readonly struct StreamingConfig(
-	Func<Vector3>           getReferencePosition,
-	float                   streamInDistance  = 100,
-	float                   streamOutDistance = 120,
-	int                     frameDelayMs      = 16,
-	int                     maxPerFrame       = 50,
-	SynchronizationContext? callbackContext   = null
-)
+public struct StreamingConfig
 {
 	/// <summary>
-	///     Distance at which entities should stream in.
-	///     Entities closer than this distance will be streamed in.
+	///     Gets or sets the reference position used for distance checks.
 	/// </summary>
-	public readonly float StreamInDistance = streamInDistance;
+	public Vector3 ReferencePosition;
 
 	/// <summary>
-	///     Distance at which entities should stream out.
-	///     Should be greater than <see cref="StreamInDistance" /> for hysteresis to prevent flickering.
+	///     Gets or sets the distance threshold for transitioning out to streamed-in.
 	/// </summary>
-	public readonly float StreamOutDistance = streamOutDistance;
-	/// <summary>
-	///     Delegate that returns the current reference position for distance calculations.
-	///     Called each processing iteration. Typically returns player/camera position.
-	/// </summary>
-	public readonly Func<Vector3> GetReferencePosition = getReferencePosition;
+	public float StreamInDistance;
 
 	/// <summary>
-	///     Delay in milliseconds between processing iterations.
+	///     Gets or sets the distance threshold for transitioning out of streamed-in.
 	/// </summary>
-	public readonly int FrameDelayMs = frameDelayMs;
+	public float StreamOutDistance;
 
 	/// <summary>
-	///     Maximum number of entities to process per iteration.
-	///     Helps spread processing load across multiple frames.
+	///     Gets or sets the maximum entities processed per tick.
+	///     Zero or negative values process all matching entities.
 	/// </summary>
-	public readonly int MaxPerFrame = maxPerFrame;
-
-	/// <summary>
-	///     Optional synchronization context for marshalling callbacks.
-	///     When set, <see cref="IStreamableEntity.OnStreamIn" /> and <see cref="IStreamableEntity.OnStreamOut" />
-	///     are posted to this context. When null (default), callbacks execute directly on the background thread.
-	/// </summary>
-	/// <example>
-	///     // In Unity, capture on main thread during initialization:
-	///     var mainThreadContext = SynchronizationContext.Current;
-	///     // Then use in config:
-	///     config.CallbackContext = mainThreadContext;
-	/// </example>
-	public readonly SynchronizationContext? CallbackContext = callbackContext;
+	public int MaxEntitiesPerTick;
 }
