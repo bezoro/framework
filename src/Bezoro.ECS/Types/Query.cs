@@ -270,12 +270,8 @@ public sealed class Query
 			);
 
 		_world.EnsureEntityAlive(target);
-		int relationTypeId = _world.GetOrCreateRelationshipTypeId(typeof(TRelation), target);
-		var ids            = InsertSorted(relationTypeId, _spec.AllTypeIds);
-		if (ids is null) return this;
-
 		return new(_world, _archetype, new(
-			ids, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds,
+			_spec.AllTypeIds, _spec.NoneTypeIds, _spec.AnyTypeIds, _spec.OptionalTypeIds, _spec.ChangedTypeIds,
 			typeof(TRelation), target
 		));
 	}

@@ -976,11 +976,13 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		}
 		else
 		{
-			int relationTypeId = ComponentTypeRegistry.GetOrCreateRelationship(
-				spec.RelatedRelationType, spec.RelatedTarget
-			);
+			if (!_entityManager.IsAlive(spec.RelatedTarget))
+				return false;
 
-			if (!archetype.ContainsAll([relationTypeId]))
+			if (!ComponentTypeRegistry.TryGetRelationship(spec.RelatedRelationType, spec.RelatedTarget, out int relationTypeId))
+				return false;
+
+			if (archetype.GetTypeIndex(relationTypeId) < 0)
 				return false;
 		}
 

@@ -88,6 +88,13 @@ internal sealed class ComponentTypeRegistry
 		}
 	}
 
+	public bool TryGetRelationship(Type relationType, Entity target, out int relationshipTypeId)
+	{
+		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
+
+		return _relationToId.TryGetValue((relationType, target.Id, target.Version), out relationshipTypeId);
+	}
+
 	public ReadOnlySpan<int> GetRelationshipIds(Type relationType)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));

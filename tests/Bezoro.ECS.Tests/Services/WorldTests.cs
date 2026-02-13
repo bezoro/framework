@@ -432,6 +432,38 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void RelatedQuery_WhenCreatedWithoutEnumeration_ShouldNotAllocateRelationshipTypeId()
+	{
+		var world  = new World();
+		var target = world.Spawn();
+
+		world.ComponentTypeRegistry.GetRelationshipIdsForTarget(target).Length.Should().Be(0);
+
+		_ = world.Query().Related<ChildOf>(target);
+
+		world.ComponentTypeRegistry.GetRelationshipIdsForTarget(target).Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void RelatedQuery_WhenReusedAfterTargetDespawn_ShouldNotRecreateRelationshipTypeIds()
+	{
+		var world  = new World();
+		var parent = world.Spawn();
+		var child  = world.Spawn();
+		world.Add<ChildOf>(child, parent);
+
+		var query = world.Query().Related<ChildOf>(parent);
+		foreach (var _ in query) { }
+
+		world.Despawn(parent);
+		world.ComponentTypeRegistry.GetRelationshipIdsForTarget(parent).Length.Should().Be(0);
+
+		foreach (var _ in query) { }
+
+		world.ComponentTypeRegistry.GetRelationshipIdsForTarget(parent).Length.Should().Be(0);
+	}
+
+	[Fact]
 	public void Relationships_WhenTargetDespawns_ShouldRemoveIncomingEdgesAndReuseRelationshipTypeId()
 	{
 		var world  = new World();
