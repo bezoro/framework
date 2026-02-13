@@ -2,6 +2,7 @@ using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Types;
+using System.Runtime.ExceptionServices;
 
 namespace Bezoro.ECS.Services;
 
@@ -114,8 +115,37 @@ internal sealed class SystemManager
 
 	public void Shutdown(World world)
 	{
-		for (int i = _systems.Count - 1; i >= 0; i--)
-			_systems[i].System.OnDestroy(world);
+		if (world is null) throw new ArgumentNullException(nameof(world));
+
+		List<Exception>? exceptions = null;
+		try
+		{
+			for (int i = _systems.Count - 1; i >= 0; i--)
+			{
+				try
+				{
+					_systems[i].System.OnDestroy(world);
+				}
+				catch (Exception ex)
+				{
+					(exceptions ??= []).Add(ex);
+				}
+			}
+		}
+		finally
+		{
+			_systems.Clear();
+			_phaseStagePlans.Clear();
+			_isPlanDirty = true;
+		}
+
+		if (exceptions is null)
+			return;
+
+		if (exceptions.Count == 1)
+			ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+
+		throw new AggregateException("One or more systems failed during shutdown.", exceptions);
 	}
 
 	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)

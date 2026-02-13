@@ -114,7 +114,9 @@ world.Query()
 - Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
 - Query matching is cached and incrementally updated when new archetypes are created.
 - Query cache is size-bounded and LRU-evicted to avoid unbounded memory growth.
+- `World.Clear()` fully resets archetype caches/transition graphs to the empty-archetype baseline, preventing retained archetype growth across repeated clear cycles.
 - Resources are stored separately from entity archetypes and disposed when replaced and when the world is disposed (`Dispose` / `DisposeAsync`) if they implement `IDisposable` or `IAsyncDisposable`.
+- `World.Dispose()` / `DisposeAsync()` attempt all cleanup steps (system teardown, chunk/resource cleanup), aggregate failures, and still mark the world as disposed.
 - Relationship filters use target-parameterized synthetic component ids.
 - Despawning an entity removes incoming relationships targeting that entity and recycles released relationship ids.
 - Empty chunks are compacted/released after structural removals to reduce retained memory.

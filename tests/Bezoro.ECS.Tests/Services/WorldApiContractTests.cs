@@ -261,6 +261,61 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void Dispose_WhenSystemOnDestroyThrows_ShouldDisposeResourcesAndMarkWorldDisposed()
+	{
+		var tracker      = new LifecycleTracker();
+		var world        = new World();
+		var disposable   = new DisposableResource();
+		var asyncDisposable = new AsyncDisposableResource();
+		world.SetResource(disposable);
+		world.SetResource(asyncDisposable);
+		world.AddSystem(new LifecycleSystem(tracker));
+		world.AddSystem(new ThrowingDestroySystem());
+
+		var act = () => world.Dispose();
+
+		act.Should().Throw<Exception>();
+		tracker.Destroyed.Should().Be(1);
+		disposable.DisposeCount.Should().Be(1);
+		asyncDisposable.DisposeCount.Should().Be(1);
+
+		var postDisposeAct = () => world.Spawn();
+		postDisposeAct.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void Dispose_WhenResourceDisposalThrows_ShouldDisposeRemainingResources()
+	{
+		var world             = new World();
+		var throwingResource  = new ThrowingDisposableResource();
+		var stableResource    = new DisposableResource();
+		world.SetResource(throwingResource);
+		world.SetResource(stableResource);
+
+		var act = () => world.Dispose();
+
+		act.Should().Throw<Exception>();
+		throwingResource.DisposeCount.Should().Be(1);
+		stableResource.DisposeCount.Should().Be(1);
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenResourceDisposalThrows_ShouldDisposeRemainingResources()
+	{
+		var world             = new World();
+		var throwingResource  = new ThrowingAsyncDisposableResource();
+		var stableResource    = new AsyncDisposableResource();
+		world.SetResource(throwingResource);
+		world.SetResource(stableResource);
+
+		Func<Task> act = async () => await world.DisposeAsync();
+
+		await act.Should().ThrowAsync<Exception>();
+		throwingResource.DisposeCount.Should().Be(1);
+		stableResource.DisposeCount.Should().Be(1);
+	}
+
+	[Fact]
 	public void ObserveAdd_WhenCreatingWithInitialComponentInPlayback_ShouldInvokeObserver()
 	{
 		var world = new World();
@@ -963,6 +1018,13 @@ public class WorldApiContractTests
 		public void Update(IWorld world, in SystemContext context) { }
 	}
 
+	private sealed class ThrowingDestroySystem : ISystem
+	{
+		public void OnDestroy(World world) => throw new InvalidOperationException("destroy-failed");
+
+		public void Update(IWorld world, in SystemContext context) { }
+	}
+
 	private sealed class LifecycleTracker
 	{
 		public int Created;
@@ -984,6 +1046,28 @@ public class WorldApiContractTests
 		{
 			DisposeCount++;
 			return ValueTask.CompletedTask;
+		}
+	}
+
+	private sealed class ThrowingDisposableResource : IDisposable
+	{
+		public int DisposeCount { get; private set; }
+
+		public void Dispose()
+		{
+			DisposeCount++;
+			throw new InvalidOperationException("resource-dispose-failed");
+		}
+	}
+
+	private sealed class ThrowingAsyncDisposableResource : IAsyncDisposable
+	{
+		public int DisposeCount { get; private set; }
+
+		public ValueTask DisposeAsync()
+		{
+			DisposeCount++;
+			throw new InvalidOperationException("resource-dispose-async-failed");
 		}
 	}
 

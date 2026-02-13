@@ -146,6 +146,12 @@ public sealed class Archetype
 			_firstAvailableChunkIndex = chunkIndex;
 	}
 
+	internal void ClearTransitions()
+	{
+		_addEdges.Clear();
+		_removeEdges.Clear();
+	}
+
 	internal void SetAddEdge(int typeId, Archetype archetype) => _addEdges[typeId] = archetype;
 
 	internal void SetRemoveEdge(int typeId, Archetype archetype) => _removeEdges[typeId] = archetype;

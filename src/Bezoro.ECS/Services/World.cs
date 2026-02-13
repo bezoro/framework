@@ -3,6 +3,7 @@ using Bezoro.ECS.Generated;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
+using System.Runtime.ExceptionServices;
 
 namespace Bezoro.ECS.Services;
 
@@ -29,6 +30,7 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 	private readonly SystemManager                                 _systemManager;
 
 	private          bool _disposed;
+	private          bool _disposing;
 	private          int  _activeCommandPlaybacks;
 	private          int  _activeQueryIterations;
 	private          int  _updateDepth;
@@ -453,9 +455,7 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		ThrowIfDisposed();
 		EnsureNotUpdating();
 
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].ClearChunks();
-
+		ResetArchetypes(preserveEmptyArchetype: true);
 		_entityManager.Clear();
 		ComponentTypeRegistry.ClearRelationships();
 		ClearQueryCache();
@@ -473,8 +473,19 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		if (!TryBeginDispose())
 			return;
 
-		DisposeResources();
-		FinishDispose();
+		List<Exception>? exceptions = null;
+		try
+		{
+			ExecuteDisposeStep(_systemManager.Shutdown, ref exceptions);
+			ExecuteDisposeStep(_ => CleanupWorldStateForDispose(), ref exceptions);
+			MergeExceptions(ref exceptions, DisposeResources());
+		}
+		finally
+		{
+			FinishDispose();
+		}
+
+		ThrowIfAny(exceptions);
 	}
 
 	public async ValueTask DisposeAsync()
@@ -482,8 +493,19 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		if (!TryBeginDispose())
 			return;
 
-		await DisposeResourcesAsync().ConfigureAwait(false);
-		FinishDispose();
+		List<Exception>? exceptions = null;
+		try
+		{
+			ExecuteDisposeStep(_systemManager.Shutdown, ref exceptions);
+			ExecuteDisposeStep(_ => CleanupWorldStateForDispose(), ref exceptions);
+			MergeExceptions(ref exceptions, await DisposeResourcesAsync().ConfigureAwait(false));
+		}
+		finally
+		{
+			FinishDispose();
+		}
+
+		ThrowIfAny(exceptions);
 	}
 
 	/// <summary>
@@ -726,6 +748,9 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 	{
 		if (!ReferenceEquals(archetype.Owner, this))
 			throw new InvalidOperationException("Archetype belongs to a different world.");
+
+		if ((uint)archetype.Id >= (uint)_archetypes.Count || !ReferenceEquals(_archetypes[archetype.Id], archetype))
+			throw new InvalidOperationException("Archetype does not belong to the current world state.");
 	}
 
 	internal void EnterCommandPlayback() =>
@@ -1210,6 +1235,29 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		_queryCacheLruNodes.Clear();
 	}
 
+	private void ResetArchetypes(bool preserveEmptyArchetype)
+	{
+		for (var i = 0; i < _archetypes.Count; i++)
+		{
+			var archetype = _archetypes[i];
+			archetype.ClearChunks();
+			archetype.ClearTransitions();
+		}
+
+		_archetypes.Clear();
+		_archetypesByKey.Clear();
+		_singleTypeArchetypes.Clear();
+		_pairTypeArchetypes.Clear();
+		_tripleTypeArchetypes.Clear();
+		_quadTypeArchetypes.Clear();
+
+		if (!preserveEmptyArchetype)
+			return;
+
+		_archetypes.Add(EmptyArchetype);
+		_archetypesByKey[new(EmptyArchetype.TypeIds)] = EmptyArchetype;
+	}
+
 	private void PruneRelationshipsTargeting(Entity target)
 	{
 		ReadOnlySpan<int> relationshipTypeIds = ComponentTypeRegistry.GetRelationshipIdsForTarget(target);
@@ -1296,26 +1344,48 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		_queryCacheLru.AddLast(node);
 	}
 
-	private void DisposeResources()
+	private List<Exception>? DisposeResources()
 	{
+		List<Exception>? exceptions = null;
 		foreach (object boxed in _resources.Values)
 		{
-			if (boxed is IResourceBox resourceBox)
+			if (boxed is not IResourceBox resourceBox)
+				continue;
+
+			try
+			{
 				resourceBox.DisposeValue();
+			}
+			catch (Exception ex)
+			{
+				RecordException(ref exceptions, ex);
+			}
 		}
 
 		_resources.Clear();
+		return exceptions;
 	}
 
-	private async ValueTask DisposeResourcesAsync()
+	private async ValueTask<List<Exception>?> DisposeResourcesAsync()
 	{
+		List<Exception>? exceptions = null;
 		foreach (object boxed in _resources.Values)
 		{
-			if (boxed is IResourceBox resourceBox)
+			if (boxed is not IResourceBox resourceBox)
+				continue;
+
+			try
+			{
 				await resourceBox.DisposeValueAsync().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				RecordException(ref exceptions, ex);
+			}
 		}
 
 		_resources.Clear();
+		return exceptions;
 	}
 
 	private static bool IsSameResourceValue(IResourceBox left, IResourceBox right)
@@ -1375,21 +1445,10 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 
 	private bool TryBeginDispose()
 	{
-		if (_disposed)
+		if (_disposed || _disposing)
 			return false;
 
-		_disposed = true;
-		_systemManager.Shutdown(this);
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].ClearChunks();
-
-		_archetypes.Clear();
-		_archetypesByKey.Clear();
-		_singleTypeArchetypes.Clear();
-		_pairTypeArchetypes.Clear();
-		_tripleTypeArchetypes.Clear();
-		_quadTypeArchetypes.Clear();
-		ClearQueryCache();
+		_disposing = true;
 		return true;
 	}
 
@@ -1398,6 +1457,57 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		_onAddObservers.Clear();
 		_onAddRefObservers.Clear();
 		_onRemoveInObservers.Clear();
+		_disposed  = true;
+		_disposing = false;
+	}
+
+	private void CleanupWorldStateForDispose()
+	{
+		ResetArchetypes(preserveEmptyArchetype: false);
+		_entityManager.Clear();
+		ComponentTypeRegistry.ClearRelationships();
+		ClearQueryCache();
+	}
+
+	private void ExecuteDisposeStep(Action<World> step, ref List<Exception>? exceptions)
+	{
+		try
+		{
+			step(this);
+		}
+		catch (Exception ex)
+		{
+			RecordException(ref exceptions, ex);
+		}
+	}
+
+	private static void RecordException(ref List<Exception>? exceptions, Exception exception) =>
+		(exceptions ??= []).Add(exception);
+
+	private static void MergeExceptions(ref List<Exception>? destination, List<Exception>? source)
+	{
+		if (source is null || source.Count == 0)
+			return;
+
+		if (destination is null)
+		{
+			destination = source;
+			return;
+		}
+
+		for (var i = 0; i < source.Count; i++)
+			destination.Add(source[i]);
+	}
+
+	private static void ThrowIfAny(List<Exception>? exceptions)
+	{
+		if (exceptions is null || exceptions.Count == 0)
+			return;
+
+		if (exceptions.Count == 1)
+			ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+
+		throw new AggregateException("One or more errors occurred while disposing world resources.", exceptions);
 	}
 
 }

@@ -84,6 +84,34 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Clear_WhenArchetypesWereCreated_ShouldResetToEmptyArchetypeOnly()
+	{
+		var world = new World();
+		world.Spawn(new Position { X = 1, Y = 1 });
+		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 3 });
+
+		world.GetDiagnostics().ArchetypeCount.Should().BeGreaterThan(1);
+
+		world.Clear();
+
+		var diagnostics = world.GetDiagnostics();
+		diagnostics.ArchetypeCount.Should().Be(1);
+		diagnostics.EntityCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void Query_WhenArchetypeWasCreatedBeforeClear_ShouldThrowInvalidOperationException()
+	{
+		var world     = new World();
+		var archetype = world.GetOrCreateArchetype(typeof(Position));
+		world.Clear();
+
+		var act = () => world.Query(archetype);
+
+		act.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
 	public void ComponentTypeIds_WhenDifferentWorldsRegisterDifferentTypes_ShouldRemainWorldScoped()
 	{
 		var worldA            = new World();
