@@ -400,7 +400,7 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
+	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldNotInvokeObserver()
 	{
 		var world = new World();
 		var calls = 0;
@@ -416,8 +416,58 @@ public class WorldApiContractTests
 		commands.SetComponent(entity, new Health { Current = 2, Max = 9 });
 		commands.Playback();
 
+		calls.Should().Be(0);
+		world.Get<Health>(entity).Current.Should().Be(2);
+	}
+
+	[Fact]
+	public void ObserveSet_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveSet((Entity _, ref Health health) =>
+			{
+				calls++;
+				health.Current = health.Max;
+			}
+		);
+
+		var entity   = world.Spawn(new Health { Current = 1, Max = 4 });
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 2, Max = 9 });
+		commands.Playback();
+
 		calls.Should().Be(1);
 		world.Get<Health>(entity).Current.Should().Be(9);
+	}
+
+	[Fact]
+	public void ObserveSet_WhenSetAddsMissingComponentInPlayback_ShouldNotInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveSet((Entity _, ref Health health) => calls++);
+
+		var entity   = world.Spawn();
+		var commands = world.CreateCommandBuffer();
+		commands.SetComponent(entity, new Health { Current = 1, Max = 6 });
+		commands.Playback();
+
+		calls.Should().Be(0);
+		world.Get<Health>(entity).Current.Should().Be(1);
+	}
+
+	[Fact]
+	public void ObserveSet_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
+	{
+		var world = new World();
+		var calls = 0;
+		world.ObserveSet((Entity _, ref Health health) => calls++);
+
+		var entity = world.Spawn(new Health { Current = 0, Max = 1 });
+		world.Set(entity, new Health { Current = 1, Max = 1 });
+
+		calls.Should().Be(0);
 	}
 
 	[Fact]
@@ -987,6 +1037,17 @@ public class WorldApiContractTests
 		world.Dispose();
 
 		var act = () => world.ObserveAdd((Entity _, ref Health _) => { });
+
+		act.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void World_WhenDisposed_ObserveSet_ShouldThrowObjectDisposedException()
+	{
+		var world = new World();
+		world.Dispose();
+
+		var act = () => world.ObserveSet((Entity _, ref Health _) => { });
 
 		act.Should().Throw<ObjectDisposedException>();
 	}

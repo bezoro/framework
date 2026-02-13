@@ -570,7 +570,7 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
 		if (TrySetComponentInPlace(entity, typeId, component))
 		{
-			RaiseOnAdd<T>(entity, typeId);
+			RaiseOnSet<T>(entity, typeId);
 			MarkComponentChanged(entity, typeId);
 			return;
 		}
@@ -712,7 +712,7 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 
 		if (TrySetComponentInPlace(entity, typeId, in component))
 		{
-			RaiseOnAdd<T>(entity, typeId);
+			RaiseOnSet<T>(entity, typeId);
 			MarkComponentChanged(entity, typeId);
 			return;
 		}

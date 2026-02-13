@@ -60,9 +60,8 @@ public sealed class CommandBuffer : IDisposable
 		where T1 : struct
 	{
 		_world.ThrowIfDisposed();
-		var archetype = _world.GetOrCreateArchetype<T1>();
-		var entity    = CreateEntity(archetype);
-		SetComponent(entity, in component1);
+		var entity = CreateEntity();
+		AddComponent(entity, in component1);
 		return entity;
 	}
 
@@ -74,10 +73,9 @@ public sealed class CommandBuffer : IDisposable
 		where T2 : struct
 	{
 		_world.ThrowIfDisposed();
-		var archetype = _world.GetOrCreateArchetype<T1, T2>();
-		var entity    = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
+		var entity = CreateEntity();
+		AddComponent(entity, in component1);
+		AddComponent(entity, in component2);
 		return entity;
 	}
 
@@ -90,11 +88,10 @@ public sealed class CommandBuffer : IDisposable
 		where T3 : struct
 	{
 		_world.ThrowIfDisposed();
-		var archetype = _world.GetOrCreateArchetype<T1, T2, T3>();
-		var entity    = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
-		SetComponent(entity, in component3);
+		var entity = CreateEntity();
+		AddComponent(entity, in component1);
+		AddComponent(entity, in component2);
+		AddComponent(entity, in component3);
 		return entity;
 	}
 
@@ -108,12 +105,11 @@ public sealed class CommandBuffer : IDisposable
 		where T4 : struct
 	{
 		_world.ThrowIfDisposed();
-		var archetype = _world.GetOrCreateArchetype<T1, T2, T3, T4>();
-		var entity    = CreateEntity(archetype);
-		SetComponent(entity, in component1);
-		SetComponent(entity, in component2);
-		SetComponent(entity, in component3);
-		SetComponent(entity, in component4);
+		var entity = CreateEntity();
+		AddComponent(entity, in component1);
+		AddComponent(entity, in component2);
+		AddComponent(entity, in component3);
+		AddComponent(entity, in component4);
 		return entity;
 	}
 

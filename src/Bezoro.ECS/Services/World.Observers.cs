@@ -9,6 +9,7 @@ public sealed partial class World
 	private readonly Dictionary<int, List<WeakObserver>>           _onRemoveInObservers = new();
 	private readonly Dictionary<int, List<WeakObserver>>           _onAddObservers      = new();
 	private readonly Dictionary<int, List<WeakObserver>>           _onAddRefObservers   = new();
+	private readonly Dictionary<int, List<WeakObserver>>           _onSetRefObservers   = new();
 
 	public IDisposable Observe<T>(Action<Entity, T> observer) where T : struct
 	{
@@ -47,6 +48,17 @@ public sealed partial class World
 		var weakObserver = new WeakObserver(wrapped);
 		AddObserver(_onRemoveInObservers, typeId, weakObserver);
 		return new ObserverSubscription(() => RemoveObserver(_onRemoveInObservers, typeId, weakObserver), wrapped);
+	}
+
+	public IDisposable ObserveSet<T>(OnSetObserver<T> observer) where T : struct
+	{
+		ThrowIfDisposed();
+		if (observer is null) throw new ArgumentNullException(nameof(observer));
+
+		int typeId = ComponentTypeRegistry.GetOrCreate<T>();
+		var weakObserver = new WeakObserver(observer);
+		AddObserver(_onSetRefObservers, typeId, weakObserver);
+		return new ObserverSubscription(() => RemoveObserver(_onSetRefObservers, typeId, weakObserver), observer);
 	}
 
 	private List<(int TypeId, object Value)> CaptureRemovedComponents(Entity entity)
@@ -107,6 +119,23 @@ public sealed partial class World
 
 		for (var i = 0; i < handlers.Count; i++)
 			handlers[i](entity, removedValue);
+	}
+
+	private void RaiseOnSet<T>(Entity entity, int typeId) where T : struct
+	{
+		if (!IsPlayingBackCommands)
+			return;
+
+		var handlers = SnapshotObservers<OnSetObserver<T>>(_onSetRefObservers, typeId);
+		if (handlers is null || handlers.Count == 0)
+			return;
+
+		if (!TryGetComponentArray(entity, typeId, out var chunk, out int slot, out int componentIndex))
+			return;
+
+		ref var component = ref chunk.GetReference<T>(componentIndex, slot);
+		for (var i = 0; i < handlers.Count; i++)
+			handlers[i](entity, ref component);
 	}
 
 	private void AddObserver(
@@ -186,6 +215,7 @@ public sealed partial class World
 		{
 			_onAddObservers.Clear();
 			_onAddRefObservers.Clear();
+			_onSetRefObservers.Clear();
 			_onRemoveInObservers.Clear();
 		}
 	}
