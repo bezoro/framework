@@ -1454,9 +1454,7 @@ public sealed partial class World : IWorld, IDisposable, IAsyncDisposable
 
 	private void FinishDispose()
 	{
-		_onAddObservers.Clear();
-		_onAddRefObservers.Clear();
-		_onRemoveInObservers.Clear();
+		ClearObservers();
 		_disposed  = true;
 		_disposing = false;
 	}

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
@@ -439,6 +440,42 @@ public class WorldApiContractTests
 
 		addCalls.Should().Be(0);
 		removeCalls.Should().Be(0);
+	}
+
+	[Fact]
+	public void ObserveAdd_WhenSubscriptionIsGarbageCollected_ShouldStopReceivingPlaybackEvents()
+	{
+		var world = new World();
+		var calls = 0;
+
+		var subscriptionReference = RegisterObserver();
+		WaitForCollection(subscriptionReference);
+		subscriptionReference.IsAlive.Should().BeFalse();
+
+		var entity   = world.Spawn();
+		var commands = world.CreateCommandBuffer();
+		commands.AddComponent(entity, new Health { Current = 1, Max = 2 });
+		commands.Playback();
+
+		calls.Should().Be(0);
+		return;
+
+		WeakReference RegisterObserver()
+		{
+			var subscription = world.ObserveAdd((Entity _, ref Health _) => calls++);
+			return new(subscription);
+		}
+
+		static void WaitForCollection(WeakReference reference)
+		{
+			for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+			{
+				GC.Collect();
+				GC.WaitForPendingFinalizers();
+				GC.Collect();
+				Thread.Sleep(10);
+			}
+		}
 	}
 
 	[Fact]
