@@ -1,9 +1,9 @@
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Configures fixed capacities and overflow policy for <see cref="Services.WorldV2" />.
+/// Configures fixed capacities and overflow policy for <see cref="Services.World" />.
 /// </summary>
-public sealed class WorldV2Config
+public sealed class WorldConfig
 {
 	/// <summary>
 	/// Maximum number of alive + recyclable entity slots.
@@ -31,14 +31,14 @@ public sealed class WorldV2Config
 	public int QueryResultCapacity { get; init; } = 131_072;
 
 	/// <summary>
-	/// Number of entity rows per archetype chunk in <see cref="Services.WorldV2" />.
+	/// Number of entity rows per archetype chunk in <see cref="Services.World" />.
 	/// </summary>
 	public int ChunkCapacity { get; init; } = 256;
 
 	/// <summary>
 	/// Overflow policy used by fixed-capacity buffers.
 	/// </summary>
-	public WorldV2OverflowPolicy OverflowPolicy { get; init; } = WorldV2OverflowPolicy.FailFast;
+	public WorldOverflowPolicy OverflowPolicy { get; init; } = WorldOverflowPolicy.FailFast;
 
 	internal void Validate()
 	{
@@ -63,3 +63,4 @@ public sealed class WorldV2Config
 			throw new ArgumentOutOfRangeException(nameof(ChunkCapacity), "Chunk capacity must be positive.");
 	}
 }
+

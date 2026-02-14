@@ -1,6 +1,6 @@
 using Bezoro.ECS.Types;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal readonly struct RecordedCommand(
 	RecordedCommandType type,

@@ -6,18 +6,18 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-public class EcsV2ComponentAccessBenchmarks
+public class EcsWorldComponentAccessBenchmarks
 {
 	private ComponentAccessor<Position>                _positionAccessor;
 	private QueryHandle<PositionQuerySpec>             _positionQueryHandle = default;
 	private Entity[]                                   _entities = null!;
 	private QueryHandle<PositionVelocityQuerySpec> _queryHandle = default;
-	private WorldV2                                    _world = null!;
+	private World                                    _world = null!;
 
 	[Params(100_000)]
 	public int EntityCount { get; set; }
 
-	[Benchmark(Description = "WorldV2 sequential component read via TryGet<T>")]
+	[Benchmark(Description = "World sequential component read via TryGet<T>")]
 	public float SequentialTryGetRead()
 	{
 		var sum = 0f;
@@ -30,7 +30,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "WorldV2 accessor sequential component read via TryGet")]
+	[Benchmark(Description = "World accessor sequential component read via TryGet")]
 	public float SequentialAccessorTryGetRead()
 	{
 		var sum = 0f;
@@ -43,7 +43,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "WorldV2 sequential component ref-write via Get<T>")]
+	[Benchmark(Description = "World sequential component ref-write via Get<T>")]
 	public float SequentialGetWrite()
 	{
 		var sum = 0f;
@@ -58,7 +58,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "WorldV2 accessor sequential component ref-write via Get")]
+	[Benchmark(Description = "World accessor sequential component ref-write via Get")]
 	public float SequentialAccessorGetWrite()
 	{
 		var sum = 0f;
@@ -73,7 +73,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "WorldV2 query cursor struct-job run")]
+	[Benchmark(Description = "World query cursor struct-job run")]
 	public int QueryCursorRun()
 	{
 		using var cursor = _world.Execute(_queryHandle);
@@ -84,7 +84,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return _world.EntityCount;
 	}
 
-	[Benchmark(Description = "WorldV2 query cursor sequential Get<T> write")]
+	[Benchmark(Description = "World query cursor sequential Get<T> write")]
 	public float QueryCursorSequentialGetWrite()
 	{
 		using var cursor = _world.Execute(_positionQueryHandle);
@@ -103,7 +103,7 @@ public class EcsV2ComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "WorldV2 direct compiled query struct-job run")]
+	[Benchmark(Description = "World direct compiled query struct-job run")]
 	public int QueryDirectRun()
 	{
 		_world.Run<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(_queryHandle, new(0.016f));
@@ -179,3 +179,4 @@ public class EcsV2ComponentAccessBenchmarks
 		public float Y;
 	}
 }
+

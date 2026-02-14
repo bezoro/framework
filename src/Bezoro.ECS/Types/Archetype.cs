@@ -12,7 +12,7 @@ public sealed class Archetype
 	private readonly Dictionary<int, Archetype> _removeEdges = new();
 	private          int                        _firstAvailableChunkIndex;
 
-	internal Archetype(World owner, int id, int[] typeIds, Type[] types, int chunkCapacity)
+	internal Archetype(WorldV1 owner, int id, int[] typeIds, Type[] types, int chunkCapacity)
 	{
 		Owner         = owner;
 		Id            = id;
@@ -46,7 +46,7 @@ public sealed class Archetype
 
 	internal Type[] Types { get; }
 
-	internal World Owner { get; }
+	internal WorldV1 Owner { get; }
 
 	internal bool ContainsAll(int[] requiredTypeIds)
 	{

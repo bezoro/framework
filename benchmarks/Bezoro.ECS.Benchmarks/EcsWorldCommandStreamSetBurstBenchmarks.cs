@@ -6,16 +6,16 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-public class EcsV2CommandStreamSetBurstBenchmarks
+public class EcsWorldCommandStreamSetBurstBenchmarks
 {
 	private CommandStream _commands = null!;
 	private Entity[]      _entities = null!;
-	private WorldV2       _world    = null!;
+	private World       _world    = null!;
 
 	[Params(50_000)]
 	public int BurstSize { get; set; }
 
-	[Benchmark(Description = "WorldV2 CommandStream large set burst (record+playback on existing component)")]
+	[Benchmark(Description = "World CommandStream large set burst (record+playback on existing component)")]
 	public int CommandStreamSetBurst()
 	{
 		for (var i = 0; i < BurstSize; i++)
@@ -71,3 +71,4 @@ public class EcsV2CommandStreamSetBurstBenchmarks
 		public float Y;
 	}
 }
+

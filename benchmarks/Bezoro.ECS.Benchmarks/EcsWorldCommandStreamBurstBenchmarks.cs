@@ -5,15 +5,15 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-public class EcsV2CommandStreamBurstBenchmarks
+public class EcsWorldCommandStreamBurstBenchmarks
 {
 	private CommandStream _commands = null!;
-	private WorldV2       _world    = null!;
+	private World       _world    = null!;
 
 	[Params(50_000)]
 	public int BurstSize { get; set; }
 
-	[Benchmark(Description = "WorldV2 CommandStream large create burst (record+playback+reset)")]
+	[Benchmark(Description = "World CommandStream large create burst (record+playback+reset)")]
 	public int CommandStreamCreateBurst()
 	{
 		for (var i = 0; i < BurstSize; i++)
@@ -52,3 +52,4 @@ public class EcsV2CommandStreamBurstBenchmarks
 		public float Y;
 	}
 }
+

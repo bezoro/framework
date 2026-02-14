@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
-internal sealed class CommandPayloadStore<T>(int capacity, WorldV2OverflowPolicy overflowPolicy)
+internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy overflowPolicy)
 	: ICommandPayloadStore
 	where T : struct
 {
@@ -21,7 +21,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldV2OverflowPolicy
 
 		if (_count >= _capacity)
 		{
-			if (overflowPolicy == WorldV2OverflowPolicy.FailFast)
+			if (overflowPolicy == WorldOverflowPolicy.FailFast)
 				throw new InvalidOperationException(
 					$"Command payload capacity of {_capacity} was exceeded for '{typeof(T).Name}'."
 				);
@@ -36,7 +36,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldV2OverflowPolicy
 		return true;
 	}
 
-	public void Apply(WorldV2 world, Entity entity, int payloadIndex)
+	public void Apply(World world, Entity entity, int payloadIndex)
 	{
 		ThrowIfDisposed();
 
@@ -49,7 +49,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldV2OverflowPolicy
 	}
 
 	public void ApplyBatch(
-		WorldV2 world,
+		World world,
 		int[]   entityIds,
 		int     entityOffset,
 		int     count,
@@ -112,3 +112,4 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldV2OverflowPolicy
 			throw new ObjectDisposedException(nameof(CommandPayloadStore<T>));
 	}
 }
+

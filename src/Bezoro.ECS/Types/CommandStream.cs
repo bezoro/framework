@@ -1,19 +1,19 @@
 using System.Buffers;
-using Bezoro.ECS.Internal.V2;
+using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Fixed-capacity deferred command stream for structural mutations in <see cref="WorldV2" />.
+/// Fixed-capacity deferred command stream for structural mutations in <see cref="World" />.
 /// </summary>
 public sealed class CommandStream : IDisposable
 {
-	private readonly WorldV2                     _world;
+	private readonly World                     _world;
 	private readonly int                         _commandCapacity;
 	private readonly int                         _componentTypeCapacity;
 	private readonly int                         _payloadCapacityPerType;
-	private readonly WorldV2OverflowPolicy       _overflowPolicy;
+	private readonly WorldOverflowPolicy       _overflowPolicy;
 	private readonly RecordedCommand[]           _commands;
 	private          ICommandPayloadStore?[]?    _payloadStoresByTypeId;
 	private          Entity[]?                   _resolvedTemporaryEntities;
@@ -34,11 +34,11 @@ public sealed class CommandStream : IDisposable
 	private          int                         _temporaryResolveGeneration = 1;
 
 	internal CommandStream(
-		WorldV2               world,
+		World               world,
 		int                   commandCapacity,
 		int                   componentTypeCapacity,
 		int                   payloadCapacityPerType,
-		WorldV2OverflowPolicy overflowPolicy)
+		WorldOverflowPolicy overflowPolicy)
 	{
 		_world                   = world;
 		_commandCapacity         = commandCapacity;
@@ -48,7 +48,7 @@ public sealed class CommandStream : IDisposable
 		_commands                = ArrayPool<RecordedCommand>.Shared.Rent(commandCapacity);
 	}
 
-	internal WorldV2 Owner => _world;
+	internal World Owner => _world;
 
 	/// <summary>
 	/// Indicates whether commands are currently recorded.
@@ -513,7 +513,7 @@ public sealed class CommandStream : IDisposable
 		if (_commandCount >= _commandCapacity)
 		{
 			_overflowCount++;
-			if (_overflowPolicy == WorldV2OverflowPolicy.FailFast)
+			if (_overflowPolicy == WorldOverflowPolicy.FailFast)
 				throw new InvalidOperationException(
 					$"Command capacity '{_commandCapacity}' exceeded for this command stream."
 				);
@@ -535,7 +535,7 @@ public sealed class CommandStream : IDisposable
 			return true;
 
 		_overflowCount++;
-		if (_overflowPolicy == WorldV2OverflowPolicy.FailFast)
+		if (_overflowPolicy == WorldOverflowPolicy.FailFast)
 			throw new InvalidOperationException(
 				$"Command capacity '{_commandCapacity}' exceeded for this command stream."
 			);
@@ -670,3 +670,4 @@ public sealed class CommandStream : IDisposable
 			throw new ObjectDisposedException(nameof(CommandStream));
 	}
 }
+

@@ -3,7 +3,7 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Services;
 
-public sealed partial class World
+public sealed partial class WorldV1
 {
 	private readonly object                                        _observerGate        = new();
 	private readonly Dictionary<int, List<WeakObserver>>           _onRemoveInObservers = new();

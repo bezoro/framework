@@ -16,7 +16,7 @@ public class CommandBufferTests
 	public void AddComponent_WhenComponentAlreadyExists_ShouldThrowOnPlayback()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 		var commands = world.CreateCommandBuffer();
@@ -37,7 +37,7 @@ public class CommandBufferTests
 	public void CommandBuffer_ShouldDeferStructuralChangesUntilAfterUpdate()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 		world.AddSystem(new AddVelocitySystem(entity));
@@ -54,7 +54,7 @@ public class CommandBufferTests
 	public void CommandBuffer_WhenDisposed_ShouldRejectFurtherUsage()
 	{
 		// Arrange
-		var world    = new World();
+		var world    = new WorldV1();
 		var commands = world.CreateCommandBuffer();
 
 		// Act
@@ -71,7 +71,7 @@ public class CommandBufferTests
 	public void CreateEntity_WhenGivenInitialComponents_ShouldCreateEntityWithValuesOnPlayback()
 	{
 		// Arrange
-		var world    = new World();
+		var world    = new WorldV1();
 		var commands = world.CreateCommandBuffer();
 		commands.CreateEntity(
 			new Position { X = 10, Y = 20 },
@@ -102,7 +102,7 @@ public class CommandBufferTests
 	public void Playback_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 0, Y = 0 });
 
@@ -125,7 +125,7 @@ public class CommandBufferTests
 	public void Playback_WhenCalledDuringUpdate_ShouldThrow()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		world.AddSystem(new PlaybackDuringUpdateSystem());
 
 		// Act
@@ -140,7 +140,7 @@ public class CommandBufferTests
 	public void Playback_WhenFailing_ShouldKeepUnprocessedCommandsForRetry()
 	{
 		// Arrange
-		var world    = new World();
+		var world    = new WorldV1();
 		var existing = world.Spawn();
 		world.Add(existing, new Position { X = 1, Y = 1 });
 
@@ -176,7 +176,7 @@ public class CommandBufferTests
 	public void RemoveComponent_WhenEntityIsNotAlive_ShouldThrowOnPlayback()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Despawn(entity);
 
@@ -194,7 +194,7 @@ public class CommandBufferTests
 	public void SetComponent_WhenComponentAlreadyExists_ShouldUpdateOnPlayback()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 		var commands = world.CreateCommandBuffer();
@@ -212,7 +212,7 @@ public class CommandBufferTests
 	[Fact]
 	public void Playback_WhenLargeBatchCompletes_ShouldRetainCommandStorageForReuse()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var commands = world.CreateCommandBuffer();
 
 		for (var i = 0; i < 50_000; i++)
@@ -227,7 +227,7 @@ public class CommandBufferTests
 	[Fact]
 	public void Record_WhenLargeBatchRunsRepeatedly_ShouldAllocateLessOnSecondRecordingPass()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var commands = world.CreateCommandBuffer();
 
 		RecordCreateBurst(commands, count: 256);
@@ -249,7 +249,7 @@ public class CommandBufferTests
 	[Fact]
 	public void CreateEntity_WhenComponentContainsManagedReference_ShouldApplyDuringPlayback()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var commands = world.CreateCommandBuffer();
 		var payload  = new object();
 		commands.CreateEntity(new ManagedPayload { Value = payload });

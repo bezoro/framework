@@ -1,4 +1,4 @@
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal interface IComponentPool
 {

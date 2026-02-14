@@ -16,7 +16,7 @@ public static class ActivationWorldExtensions
 	/// </summary>
 	/// <param name="world">The ECS world.</param>
 	/// <returns>The activation command queue resource.</returns>
-	public static ActivationCommandQueue GetOrCreateActivationCommandQueue(this World world)
+	public static ActivationCommandQueue GetOrCreateActivationCommandQueue(this WorldV1 world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));
@@ -37,7 +37,7 @@ public static class ActivationWorldExtensions
 	///     Registers activation systems with their declared stage ordering.
 	/// </summary>
 	/// <param name="world">The ECS world.</param>
-	public static void AddActivationPipeline(this World world)
+	public static void AddActivationPipeline(this WorldV1 world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));

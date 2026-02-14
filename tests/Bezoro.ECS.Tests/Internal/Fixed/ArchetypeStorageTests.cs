@@ -1,10 +1,10 @@
 using System;
-using Bezoro.ECS.Internal.V2;
+using Bezoro.ECS.Internal.Fixed;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.ECS.Tests.Internal.V2;
+namespace Bezoro.ECS.Tests.Internal.Fixed;
 
 [TestSubject(typeof(ArchetypeStorage))]
 public class ArchetypeStorageTests

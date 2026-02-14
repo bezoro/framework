@@ -16,7 +16,7 @@ public sealed class InputIngestionSystem : ISystem
 
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
-	public void OnCreate(World world)
+	public void OnCreate(WorldV1 world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));

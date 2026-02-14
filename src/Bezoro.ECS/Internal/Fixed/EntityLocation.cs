@@ -1,4 +1,4 @@
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal readonly struct EntityLocation(int archetypeId, int chunkIndex, int rowIndex)
 {

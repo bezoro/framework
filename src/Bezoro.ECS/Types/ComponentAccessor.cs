@@ -11,12 +11,12 @@ namespace Bezoro.ECS.Types;
 public struct ComponentAccessor<T>
 	where T : unmanaged
 {
-	private readonly WorldV2 _world;
+	private readonly World _world;
 	private readonly int     _typeId;
 	private          int     _cachedArchetypeId;
 	private          int     _cachedColumnIndex;
 
-	internal ComponentAccessor(WorldV2 world, int typeId)
+	internal ComponentAccessor(World world, int typeId)
 	{
 		_world = world ?? throw new ArgumentNullException(nameof(world));
 		_typeId = typeId;
@@ -79,3 +79,4 @@ public struct ComponentAccessor<T>
 			ref _cachedColumnIndex
 		);
 }
+

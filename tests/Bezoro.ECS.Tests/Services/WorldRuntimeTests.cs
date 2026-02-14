@@ -8,13 +8,13 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(WorldV2))]
-public class WorldV2Tests
+[TestSubject(typeof(World))]
+public class WorldRuntimeTests
 {
 	[Fact]
 	public void Playback_WhenCommandStreamCreatesTemporaryEntity_ShouldResolveAndApplyComponents()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -39,7 +39,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenCreateEntityWithComponentIsUsed_ShouldCreateEntityInSingleCommand()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -64,7 +64,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Execute_WhenCompiledQueryUsesAllAndNone_ShouldReturnExpectedEntities()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 64,
 			ComponentTypeCapacity         = 16,
@@ -92,7 +92,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Execute_WhenCompiledQueryIsCachedBeforeMatchingArchetypeExists_ShouldRefreshAfterStructuralChange()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -122,7 +122,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Compile_WhenDifferentSpecTypesAreCached_ShouldKeepDistinctQueryPlans()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -153,7 +153,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_ForEach_WhenMutatingSequentially_ShouldUpdateComponentsInPlace()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -192,7 +192,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_Get_WhenResultSpansMultipleChunks_ShouldResolveEachEntityIndex()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -231,7 +231,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_Get_WhenSwitchingTypesAndTraversingBackward_ShouldResolveCorrectComponents()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -285,7 +285,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_ForEach3_WhenMutatingWithTwoReadonlyInputs_ShouldUpdateComponentsInPlace()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -327,7 +327,7 @@ public class WorldV2Tests
 	[Fact]
 	public void ForEach_WhenUsingCompiledHandleDirectly_ShouldMutateWithoutCursorMaterialization()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -366,7 +366,7 @@ public class WorldV2Tests
 	[Fact]
 	public void ForEach_WhenCursorIsActive_ShouldThrow()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -397,7 +397,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_Run_WhenUsingStructJob_ShouldMutateComponents()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -433,7 +433,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -468,7 +468,7 @@ public class WorldV2Tests
 	[Fact]
 	public void GetAccessor_WhenReadingAndWritingSequentially_ShouldMirrorGetAndTryGet()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 64,
 			ComponentTypeCapacity         = 16,
@@ -516,7 +516,7 @@ public class WorldV2Tests
 	[Fact]
 	public void GetAccessor_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocate()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -569,7 +569,7 @@ public class WorldV2Tests
 	[Fact]
 	public void GetAccessor_Has_WhenComponentRemoved_ShouldReflectStructuralState()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -605,7 +605,7 @@ public class WorldV2Tests
 	[Fact]
 	public void GetAccessor_WhenSwitchingAcrossArchetypes_ShouldResolvePresencePerEntityWithoutStaleCache()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -655,7 +655,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Run_WhenExecutingRepeatedHotPathAfterWarmup_ShouldNotAllocate()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -692,7 +692,7 @@ public class WorldV2Tests
 	[Fact]
 	public void QueryCursor_ForEach_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocate()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -751,7 +751,7 @@ public class WorldV2Tests
 	public void QueryCursor_Get_WhenExecutingSequentiallyAfterWarmup_ShouldNotAllocate()
 	{
 		const int entityCount = 256;
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -815,7 +815,7 @@ public class WorldV2Tests
 	[Fact]
 	public void ForEach_WhenExecutingRepeatedHotPathAfterWarmup_ShouldNotAllocate()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -861,7 +861,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenReusingCommandStreamForSetBurstAfterWarmup_ShouldNotAllocate()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 512,
 			ComponentTypeCapacity         = 16,
@@ -912,7 +912,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenRemoveCommandRecorded_ShouldRemoveComponentFromEntity()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -946,7 +946,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenSetCommandsTargetSameEntity_ShouldApplyLastValue()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -980,7 +980,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenRemoveCommandsTargetSameEntity_ShouldRemainWithoutComponent()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -1017,7 +1017,7 @@ public class WorldV2Tests
 	{
 		const int entityCount = 80;
 		const int batchSize = 16;
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 160,
 			ComponentTypeCapacity         = 16,
@@ -1071,7 +1071,7 @@ public class WorldV2Tests
 	public void Playback_WhenDenseRemoveFullyMarksAChunk_ShouldKeepOtherChunkLocationsStable()
 	{
 		const int entityCount = 8;
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -1123,7 +1123,7 @@ public class WorldV2Tests
 	public void Playback_WhenDenseRemovePartiallyMarksChunk_ShouldKeepSurvivorLocationsValid()
 	{
 		const int entityCount = 8;
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -1178,7 +1178,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenDenseRemoveMovesEntireSourceArchetypeIntoPartiallyFilledTarget_ShouldKeepLocationsStable()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 24,
 			ComponentTypeCapacity         = 16,
@@ -1241,7 +1241,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenSetRunContainsDifferentTransitions_ShouldApplyAllCommands()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 16,
 			ComponentTypeCapacity         = 16,
@@ -1293,7 +1293,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Execute_WhenCompiledQueryUsesAny_ShouldMatchEntitiesWithAtLeastOneType()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 32,
 			ComponentTypeCapacity         = 16,
@@ -1326,7 +1326,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenEntityCapacityExceeded_ShouldThrow()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 1,
 			ComponentTypeCapacity         = 8,
@@ -1347,14 +1347,14 @@ public class WorldV2Tests
 	[Fact]
 	public void CommandStream_WhenOverflowPolicyDropsNewest_ShouldTrackOverflowAndHighWatermark()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
 			CommandCapacity               = 1,
 			CommandPayloadCapacityPerType = 8,
 			QueryResultCapacity           = 8,
-			OverflowPolicy                = WorldV2OverflowPolicy.DropNewest
+			OverflowPolicy                = WorldOverflowPolicy.DropNewest
 		});
 
 		using var commands = world.CreateCommandStream();
@@ -1371,7 +1371,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenManagedLaneComponentIsRecorded_ShouldBeReadableViaManagedApi()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -1397,7 +1397,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenReusingCommandStreamAcrossManagedBatches_ShouldApplyLatestBatch()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -1431,7 +1431,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Reset_WhenCalled_ShouldInvalidatePreviousEntitiesAndClearComponentData()
 	{
-		using var world = new WorldV2(new()
+		using var world = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -1464,7 +1464,7 @@ public class WorldV2Tests
 	[Fact]
 	public void Playback_WhenStreamBelongsToDifferentWorld_ShouldThrow()
 	{
-		using var worldA = new WorldV2(new()
+		using var worldA = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -1472,7 +1472,7 @@ public class WorldV2Tests
 			CommandPayloadCapacityPerType = 8,
 			QueryResultCapacity           = 8
 		});
-		using var worldB = new WorldV2(new()
+		using var worldB = new World(new()
 		{
 			EntityCapacity                = 8,
 			ComponentTypeCapacity         = 8,
@@ -1569,3 +1569,4 @@ public class WorldV2Tests
 		public Payload? Payload;
 	}
 }
+

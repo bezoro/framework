@@ -9,13 +9,13 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(World))]
+[TestSubject(typeof(WorldV1))]
 public class ChunkCapacitySizingTests
 {
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenChunkSizeBytesConfigured_ShouldUseByteBudget()
 	{
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkSizeInBytes = 64
@@ -33,7 +33,7 @@ public class ChunkCapacitySizingTests
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenExplicitChunkCapacityConfigured_ShouldOverrideByteBudget()
 	{
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkSizeInBytes = 64,
@@ -49,7 +49,7 @@ public class ChunkCapacitySizingTests
 	[Fact]
 	public void ArchetypeChunkCapacity_WhenNoComponents_ShouldUseByteBudgetWithEntitySize()
 	{
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkSizeInBytes = 64

@@ -18,7 +18,7 @@ public class InputMovementSystemsTests
 	public void FixedTick_WhenControlsAreDifferent_ShouldDriveEachEntityIndependently()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
 		world.AddSystem(new InputIngestionSystem(), Stage.Input);
@@ -61,7 +61,7 @@ public class InputMovementSystemsTests
 	public void FixedTick_WhenInputIsWithinHoldWindow_ShouldReuseLastInput()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
 		world.AddSystem(new InputIngestionSystem(), Stage.Input);
@@ -94,7 +94,7 @@ public class InputMovementSystemsTests
 	public void FixedTick_WhenInputExpires_ShouldZeroVelocity()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
 		world.AddSystem(new InputIngestionSystem(), Stage.Input);
@@ -129,7 +129,7 @@ public class InputMovementSystemsTests
 	public void FixedTick_WhenNewInputArrivesAfterExpiry_ShouldResumeMovement()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
 		world.AddSystem(new InputIngestionSystem(), Stage.Input);
@@ -164,7 +164,7 @@ public class InputMovementSystemsTests
 	public void FixedTick_WhenOlderSequenceArrives_ShouldKeepNewestInput()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
 		world.AddSystem(new InputIngestionSystem(), Stage.Input);

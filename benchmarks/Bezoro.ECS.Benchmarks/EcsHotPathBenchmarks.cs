@@ -10,7 +10,7 @@ namespace Bezoro.ECS.Benchmarks;
 public class EcsHotPathBenchmarks
 {
 	private Entity[] _entities = null!;
-	private World    _world    = null!;
+	private WorldV1    _world    = null!;
 
 	[Params(100_000)]
 	public int EntityCount { get; set; }

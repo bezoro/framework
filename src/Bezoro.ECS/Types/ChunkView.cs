@@ -15,7 +15,7 @@ public readonly struct ChunkView
 	private readonly int[]             _typeIndexById;
 	private readonly uint              _currentVersion;
 	private readonly uint[]            _componentVersions;
-	private readonly World             _world;
+	private readonly WorldV1             _world;
 
 	internal ChunkView(
 		Entity[]          entities,
@@ -26,7 +26,7 @@ public readonly struct ChunkView
 		uint              currentVersion,
 		bool              trackWrites,
 		Chunk?            chunk,
-		World             world)
+		WorldV1             world)
 	{
 		_entities          = entities;
 		_columns           = columns;

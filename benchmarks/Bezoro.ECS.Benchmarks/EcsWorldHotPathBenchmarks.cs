@@ -6,10 +6,10 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-public class EcsV2HotPathBenchmarks
+public class EcsWorldHotPathBenchmarks
 {
 	private QueryHandle<PositionVelocityQuerySpec> _handle;
-	private WorldV2 _world = null!;
+	private World _world = null!;
 
 	[Params(100_000)]
 	public int EntityCount { get; set; }
@@ -44,7 +44,7 @@ public class EcsV2HotPathBenchmarks
 		_world.Dispose();
 	}
 
-	[Benchmark(Description = "V2 compiled query sequential ref/in ForEach")]
+	[Benchmark(Description = "World compiled query sequential ref/in ForEach")]
 	public void QueryForEach()
 	{
 		using var cursor = _world.Execute(_handle);
@@ -54,7 +54,7 @@ public class EcsV2HotPathBenchmarks
 		cursor.Run<IntegrateJob, Position, Velocity>(new(0.016f));
 	}
 
-	[Benchmark(Description = "V2 direct compiled query ref/in ForEach")]
+	[Benchmark(Description = "World direct compiled query ref/in ForEach")]
 	public void QueryForEachDirect()
 	{
 		_world.Run<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(_handle, new(0.016f));
@@ -90,3 +90,4 @@ public class EcsV2HotPathBenchmarks
 		}
 	}
 }
+

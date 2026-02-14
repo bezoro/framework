@@ -1,14 +1,14 @@
-using Bezoro.ECS.Internal.V2;
+using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Builds a compiled query plan for <see cref="WorldV2" />.
+/// Builds a compiled query plan for <see cref="World" />.
 /// </summary>
 public struct QueryBuilder
 {
-	private readonly WorldV2 _world;
+	private readonly World _world;
 	private          int[]   _allTypeIds;
 	private          int[]   _anyTypeIds;
 	private          int[]   _noneTypeIds;
@@ -16,7 +16,7 @@ public struct QueryBuilder
 	private          int     _anyCount;
 	private          int     _noneCount;
 
-	internal QueryBuilder(WorldV2 world)
+	internal QueryBuilder(World world)
 	{
 		_world       = world;
 		_allTypeIds  = new int[4];
@@ -98,3 +98,4 @@ public struct QueryBuilder
 		return copy;
 	}
 }
+

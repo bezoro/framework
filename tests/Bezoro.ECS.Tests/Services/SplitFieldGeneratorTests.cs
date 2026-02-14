@@ -6,13 +6,13 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(World))]
+[TestSubject(typeof(WorldV1))]
 public class SplitFieldGeneratorTests
 {
 	[Fact]
 	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var first  = world.Spawn();
 		var second = world.Spawn();
 
@@ -39,7 +39,7 @@ public class SplitFieldGeneratorTests
 	[Fact]
 	public void SplitGeneratedHelpers_WhenAddingSplitComponent_ShouldStoreAndRehydrateGroups()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		var input = new SplitTransform
 		{

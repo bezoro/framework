@@ -10,7 +10,7 @@ namespace Bezoro.ECS.Types;
 public sealed class CommandBuffer : IDisposable
 {
 	private readonly object _sync = new();
-	private readonly World  _world;
+	private readonly WorldV1  _world;
 	private          Dictionary<int, IComponentPayloadStore>? _componentPayloadStores;
 	private          HashSet<int>? _referencedTemporaryEntities;
 	private          Dictionary<int, Entity>? _resolvedTemporaryEntities;
@@ -20,7 +20,7 @@ public sealed class CommandBuffer : IDisposable
 	private          int                      _nextCommandIndex;
 	private          int                      _nextTemporaryId = -1;
 
-	internal CommandBuffer(World world)
+	internal CommandBuffer(WorldV1 world)
 	{
 		_world = world;
 	}
@@ -187,7 +187,7 @@ public sealed class CommandBuffer : IDisposable
 	///     Applies all recorded commands to the world.
 	/// </summary>
 	/// <remarks>
-	///     Playback is not allowed while systems are executing inside <see cref="World.Tick" />.
+	///     Playback is not allowed while systems are executing inside <see cref="WorldV1.Tick" />.
 	///     If playback fails, successfully processed commands are removed and unprocessed commands stay queued for retry.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">Thrown when playback is invoked during world update.</exception>
@@ -464,7 +464,7 @@ public sealed class CommandBuffer : IDisposable
 
 	private interface IComponentPayloadStore
 	{
-		void Apply(World world, Entity entity, int payloadIndex, bool addOnly);
+		void Apply(WorldV1 world, Entity entity, int payloadIndex, bool addOnly);
 
 		void Clear();
 	}
@@ -479,7 +479,7 @@ public sealed class CommandBuffer : IDisposable
 			return _payloads.Count - 1;
 		}
 
-		public void Apply(World world, Entity entity, int payloadIndex, bool addOnly)
+		public void Apply(WorldV1 world, Entity entity, int payloadIndex, bool addOnly)
 		{
 			if ((uint)payloadIndex >= (uint)_payloads.Count)
 				throw new InvalidOperationException($"Command payload index {payloadIndex} was out of range.");

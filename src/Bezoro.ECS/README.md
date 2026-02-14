@@ -7,25 +7,27 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | Type                                                            | Description                                                                                          |
 |-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
 | `World`                                                         | ECS root for entities, components, resources, systems, queries, and snapshots.                       |
-| `WorldV2`                                                       | Fixed-capacity ECS runtime with compiled queries and deferred structural command streams.            |
+| `World`                                                       | Fixed-capacity ECS runtime with compiled queries and deferred structural command streams.            |
+| `WorldV3`                                                       | Fixed-capacity ECS runtime with parallel wave system scheduling and deterministic deferred playback. |
 | `Entity`                                                        | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`.                  |
 | `Archetype`                                                     | Exact component-set storage identity backed by chunked columns.                                      |
 | `Query`                                                         | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters.                         |
 | `IQuery`                                                        | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints.                  |
 | `ChunkView`                                                     | Span-based access to entities and component columns in a chunk.                                      |
 | `CommandBuffer`                                                 | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback.                     |
-| `CommandStream`                                                 | V2 fixed-capacity deferred structural stream (`Create/Destroy/Set`) with reusable buffers.           |
-| `ComponentAccessor<T>`                                          | Cached typed component accessor for hot sequential per-entity `Get/TryGet/Has` loops in `WorldV2`.   |
-| `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`     | V2 compiled-query contracts and execution primitives.                                                |
+| `CommandStream`                                                 | Fixed-capacity deferred structural stream (`Create/Destroy/Set`) with reusable buffers.           |
+| `ComponentAccessor<T>`                                          | Cached typed component accessor for hot sequential per-entity `Get/TryGet/Has` loops in `World`.   |
+| `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`     | Compiled-query contracts and execution primitives.                                                |
 | `IForEach<T...>`                                                | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
 | `[SplitFields]` / `[SplitGroup]`                                | Opt-in split storage annotations consumed by source-generated split helpers.                         |
 | `OnAddObserver<T>` / `OnSetObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/set/remove hooks with `ref`/`in` semantics.                         |
-| `WorldDiagnostics` / `ArchetypeDiagnostics`                     | Snapshot diagnostics for archetype/chunk/entity memory usage.                                        |
+| `WorldV1Diagnostics` / `ArchetypeDiagnostics`                     | Snapshot diagnostics for archetype/chunk/entity memory usage.                                        |
 | `SystemContext`                                                 | Per-system execution context (`DeltaTime`, `Stage`, `Commands`).                                     |
 | `SystemLoopPhase`                                               | Host loop routing: `Tick`, `FixedTick`, `LateTick`.                                                  |
 | `Stage`                                                         | System stage ordering: `Input`, `PreTick`, `Tick`, `PostTick`, `Render`.                             |
 | `SnapshotDeserializationOptions`                                | Snapshot type-resolution and reference-resource allowlist options for secure deserialization.        |
 | `ISystem`                                                       | System contract with optional lifecycle hooks and stage metadata.                                    |
+| `ISystemV3` / `SystemContextV3`                                 | V3 system contract and context (`WorldV3`, `DeltaTime`, per-system deferred command stream).         |
 | `IWorld`                                                        | Restricted world contract for systems.                                                               |
 
 ## Quick Start
@@ -65,14 +67,14 @@ world.Query()
     });
 ```
 
-## V2 Quick Start
+## Fixed-Capacity Quick Start
 
 ```csharp
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-var world = new WorldV2(new WorldV2Config
+var world = new World(new WorldConfig
 {
     EntityCapacity = 100_000,
     ComponentTypeCapacity = 256,
@@ -132,11 +134,11 @@ struct Position
 | `GetDiagnostics()`                                                                                                                               | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot.                                                                               |
 | `Serialize()` / `Serialize(Stream)` / `World.Deserialize(byte[])` / `World.Deserialize(byte[], SnapshotDeserializationOptions)`                  | Snapshot round-trip using the `BZEC` v1 binary format with configurable deserialization policy.                                                               |
 
-### WorldV2
+### World
 
 | Member                                                                 | Description                                                                                                            |
 |------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `WorldV2(WorldV2Config)`                                               | Creates a fixed-capacity world with explicit budgets.                                                                  |
+| `World(WorldConfig)`                                               | Creates a fixed-capacity world with explicit budgets.                                                                  |
 | `CreateCommandStream()` / `BeginCommands()`                            | Creates a reusable deferred command stream for structural mutations.                                                   |
 | `Playback(CommandStream)`                                              | Applies deferred commands; rejects streams from other worlds.                                                          |
 | `Compile<TSpec>()`                                                     | Compiles and caches a query plan from `ICompiledQuerySpec`.                                                            |
@@ -149,19 +151,47 @@ struct Position
 | `Reset()`                                                              | Clears entities/components while retaining allocated buffers and compiled plans for reuse.                             |
 | `GetDiagnostics()`                                                     | Returns arena diagnostics (entity slots, component type catalog usage, query result buffer high-water marks).          |
 
-### WorldV2Config
+### WorldV3
+
+| Member                                                                            | Description                                                                                         |
+|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| `WorldV3(WorldV3Config)`                                                          | Creates a fixed-capacity world with explicit memory budgets and parallel scheduler settings.        |
+| `CreateEntity()` / `Destroy(Entity)`                                              | Immediate entity lifecycle operations on fixed-capacity storage.                                    |
+| `Set<T>(Entity, in T)` / `Remove<T>(Entity)`                                      | Immediate structural/component mutation helpers for setup and controlled mutation points.           |
+| `CreateCommandStream()` / `Playback(CommandStream)`                               | Deferred structural pipeline with deterministic playback ordering.                                  |
+| `Compile<TSpec>()` / `Execute<TSpec>(QueryHandle<TSpec>)`                         | Compiled query plan caching and cursor execution.                                                   |
+| `Run<TSpec,TJob,T...>(QueryHandle<TSpec>, TJob)`                                  | Allocation-free hot-path query execution using struct jobs.                                         |
+| `AddSystem(ISystemV3)` / `Tick(float)`                                            | Registers V3 systems and executes them in conflict-aware parallel waves.                            |
+| `GetSchedulerDiagnostics()`                                                       | Returns scheduler diagnostics (registered systems, wave count, max wave width, plan rebuild count). |
+| `Get<T>(Entity)` / `TryGet<T>(Entity,out T)` / `TryGetManaged<T>(...)` / `Has<T>` | Component access helpers over unmanaged and managed-lane data.                                      |
+| `Reset()`                                                                         | Clears entity/component state and resets persistent per-system command streams.                     |
+
+### WorldConfig
 
 | Member                          | Description                                                 |
 |---------------------------------|-------------------------------------------------------------|
 | `EntityCapacity`                | Maximum alive + recyclable entity slots.                    |
 | `ComponentTypeCapacity`         | Maximum registered component types.                         |
-| `ChunkCapacity`                 | Rows per archetype chunk in the V2 chunked storage backend. |
+| `ChunkCapacity`                 | Rows per archetype chunk in the fixed-capacity chunked storage backend. |
 | `CommandCapacity`               | Maximum commands recorded in one `CommandStream`.           |
 | `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream.   |
 | `QueryResultCapacity`           | Maximum entities materialized by one `Execute`.             |
 | `OverflowPolicy`                | Overflow behavior (`FailFast` or `DropNewest`).             |
 
-### CommandStream (WorldV2)
+### WorldV3Config
+
+| Member                          | Description                                                                 |
+|---------------------------------|-----------------------------------------------------------------------------|
+| `EntityCapacity`                | Maximum alive + recyclable entity slots.                                    |
+| `ComponentTypeCapacity`         | Maximum registered component types.                                         |
+| `ChunkCapacity`                 | Rows per archetype chunk in the V3 chunked storage backend.                 |
+| `CommandCapacity`               | Maximum commands recorded in one command stream.                            |
+| `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream.                   |
+| `QueryResultCapacity`           | Maximum entities materialized by one `Execute`.                             |
+| `OverflowPolicy`                | Overflow behavior (`FailFast` or `DropNewest`).                             |
+| `ParallelWorkerCount`           | Maximum worker threads used by V3 wave execution.                           |
+
+### CommandStream (World)
 
 | Member                                                 | Description                                                               |
 |--------------------------------------------------------|---------------------------------------------------------------------------|
@@ -170,7 +200,7 @@ struct Position
 | `Remove<T>(Entity)` / `Destroy(Entity)`                | Defers component removal and entity destruction.                          |
 | `GetDiagnostics()`                                     | Per-stream command capacity usage, high-watermark, and overflow counters. |
 
-### QueryCursor (WorldV2)
+### QueryCursor (World)
 
 | Member                                                                | Description                                                                            |
 |-----------------------------------------------------------------------|----------------------------------------------------------------------------------------|
@@ -209,12 +239,13 @@ struct Position
 - Structural changes move entities between archetypes and maintain dense chunk packing.
 - Command buffers are flushed at sync points during world updates.
 - Command buffers retain internal recording buffers between playbacks to reduce GC churn in repeated burst workloads.
-- `WorldV2.CommandStream` rents command and payload buffers from array pools, uses fixed component-type-indexed payload stores, and clears managed payload references between playbacks.
-- `WorldV2.ForEach<TSpec,T...>` provides direct compiled-query loops for tighter sequential update paths than cursor materialization.
-- `WorldV2.Run<TSpec,TJob,T...>` and `QueryCursor.Run<TJob,T...>` support struct jobs for allocation-free hot loops without delegate captures.
-- `WorldV2.GetAccessor<T>()` caches the component type lane once and exposes fast repeated per-entity `Get/TryGet/Has` access for tight external loops.
-- `WorldV2` stores entities in archetype chunks and resolves structural changes through archetype transitions.
-- `WorldV2` chunk columns use native-aligned unmanaged storage for unmanaged components and managed arrays for managed-lane components, reducing GC pressure on hot paths.
+- `World.CommandStream` rents command and payload buffers from array pools, uses fixed component-type-indexed payload stores, and clears managed payload references between playbacks.
+- `World.ForEach<TSpec,T...>` provides direct compiled-query loops for tighter sequential update paths than cursor materialization.
+- `World.Run<TSpec,TJob,T...>` and `QueryCursor.Run<TJob,T...>` support struct jobs for allocation-free hot loops without delegate captures.
+- `World.GetAccessor<T>()` caches the component type lane once and exposes fast repeated per-entity `Get/TryGet/Has` access for tight external loops.
+- `WorldV3` reuses the fixed-capacity storage and compiled-query hot paths while adding an always-parallel wave scheduler with deterministic per-wave command playback ordering.
+- `World` stores entities in archetype chunks and resolves structural changes through archetype transitions.
+- `World` chunk columns use native-aligned unmanaged storage for unmanaged components and managed arrays for managed-lane components, reducing GC pressure on hot paths.
 - `QueryCursor` iterates matched chunks directly for `ForEach/Run` and materializes `Current` entities lazily only when requested.
 - Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
 - `ObserveAdd` fires for structural component attachments; `ObserveSet` fires when an existing component value is replaced.

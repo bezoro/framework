@@ -12,7 +12,7 @@ public sealed class Query
 {
 	private readonly Archetype? _archetype;
 	private readonly QuerySpec  _spec;
-	private readonly World      _world;
+	private readonly WorldV1      _world;
 
 	/// <summary>
 	///     A delegate that receives two components by mutable reference.
@@ -55,7 +55,7 @@ public sealed class Query
 		where T1 : struct
 		where T2 : struct;
 
-	internal Query(World world, Archetype? archetype, QuerySpec spec)
+	internal Query(WorldV1 world, Archetype? archetype, QuerySpec spec)
 	{
 		_world     = world;
 		_archetype = archetype;
@@ -507,7 +507,7 @@ public sealed class Query
 	/// </summary>
 	/// <param name="action">The action to invoke for each matching chunk.</param>
 	/// <param name="maxDegreeOfParallelism">
-	///     The maximum number of concurrent threads. Defaults to <see cref="World.MaxDegreeOfParallelism" />.
+	///     The maximum number of concurrent threads. Defaults to <see cref="WorldV1.MaxDegreeOfParallelism" />.
 	/// </param>
 	public void ForEachParallel(Action<ChunkView> action, int? maxDegreeOfParallelism = null)
 	{

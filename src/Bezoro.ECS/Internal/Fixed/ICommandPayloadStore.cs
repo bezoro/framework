@@ -1,14 +1,14 @@
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal interface ICommandPayloadStore
 {
-	void Apply(WorldV2 world, Entity entity, int payloadIndex);
+	void Apply(World world, Entity entity, int payloadIndex);
 
 	void ApplyBatch(
-		WorldV2 world,
+		World world,
 		int[]   entityIds,
 		int     entityOffset,
 		int     count,
@@ -23,3 +23,4 @@ internal interface ICommandPayloadStore
 
 	void Dispose();
 }
+

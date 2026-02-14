@@ -28,13 +28,13 @@ public interface ISystem
 	///     Called once when the system is added to a world.
 	/// </summary>
 	/// <param name="world">The owning world.</param>
-	void OnCreate(World world) { }
+	void OnCreate(WorldV1 world) { }
 
 	/// <summary>
 	///     Called once when the system is removed or the world is disposed.
 	/// </summary>
 	/// <param name="world">The owning world.</param>
-	void OnDestroy(World world) { }
+	void OnDestroy(WorldV1 world) { }
 
 	/// <summary>
 	///     Performs the update logic for this system.

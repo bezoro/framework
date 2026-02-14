@@ -33,7 +33,7 @@ internal sealed class SystemManager
 
 	internal int PlanBuildCount { get; private set; }
 
-	public void RegisterSystem(World world, ISystem system, Stage? explicitStage = null)
+	public void RegisterSystem(WorldV1 world, ISystem system, Stage? explicitStage = null)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (system is null) throw new ArgumentNullException(nameof(system));
@@ -113,7 +113,7 @@ internal sealed class SystemManager
 		system.OnCreate(world);
 	}
 
-	public void Shutdown(World world)
+	public void Shutdown(WorldV1 world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
@@ -148,7 +148,7 @@ internal sealed class SystemManager
 		throw new AggregateException("One or more systems failed during shutdown.", exceptions);
 	}
 
-	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
+	public void UpdatePhase(WorldV1 world, SystemLoopPhase loopPhase, float deltaTime)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
@@ -307,21 +307,21 @@ internal sealed class SystemManager
 		return batches;
 	}
 
-	private static void AddReadType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddReadType(WorldV1 world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
 		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		if (!writeSet.Contains(typeId))
 			readSet.Add(typeId);
 	}
 
-	private static void AddWriteType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddWriteType(WorldV1 world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
 		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		writeSet.Add(typeId);
 		readSet.Remove(typeId);
 	}
 
-	private void ExecuteSystem(SystemExecution execution, World world, CommandBuffer[] buffers, int index)
+	private void ExecuteSystem(SystemExecution execution, WorldV1 world, CommandBuffer[] buffers, int index)
 	{
 		var buffer = new CommandBuffer(world);
 		buffers[index] = buffer;
@@ -351,7 +351,7 @@ internal sealed class SystemManager
 		}
 	}
 
-	private CommandBuffer[] ExecuteBatch(SystemBatch batch, World world)
+	private CommandBuffer[] ExecuteBatch(SystemBatch batch, WorldV1 world)
 	{
 		if (batch.Systems.Count == 0) return [];
 

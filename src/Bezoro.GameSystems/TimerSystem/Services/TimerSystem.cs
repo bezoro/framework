@@ -51,7 +51,7 @@ public sealed class TimerSystem : ISystem
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
-	public void OnCreate(World world)
+	public void OnCreate(WorldV1 world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureEventsResource(world);

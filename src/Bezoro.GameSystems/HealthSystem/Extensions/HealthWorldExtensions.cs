@@ -14,7 +14,7 @@ public static class HealthWorldExtensions
 	/// <summary>
 	///     Queues a damage request for the target entity.
 	/// </summary>
-	/// <param name="world">World containing the target entity.</param>
+	/// <param name="world">WorldV1 containing the target entity.</param>
 	/// <param name="targetEntity">Entity to damage.</param>
 	/// <param name="amount">Damage amount.</param>
 	/// <returns><c>true</c> when queued; otherwise <c>false</c>.</returns>
@@ -24,7 +24,7 @@ public static class HealthWorldExtensions
 	/// <summary>
 	///     Queues a heal request for the target entity.
 	/// </summary>
-	/// <param name="world">World containing the target entity.</param>
+	/// <param name="world">WorldV1 containing the target entity.</param>
 	/// <param name="targetEntity">Entity to heal.</param>
 	/// <param name="amount">Heal amount applied to base health only.</param>
 	/// <returns><c>true</c> when queued; otherwise <c>false</c>.</returns>
@@ -34,7 +34,7 @@ public static class HealthWorldExtensions
 	/// <summary>
 	///     Queues a direct damage request that ignores excess health.
 	/// </summary>
-	/// <param name="world">World containing the target entity.</param>
+	/// <param name="world">WorldV1 containing the target entity.</param>
 	/// <param name="targetEntity">Entity to damage.</param>
 	/// <param name="amount">Damage amount applied to base health only.</param>
 	/// <returns><c>true</c> when queued; otherwise <c>false</c>.</returns>
@@ -44,7 +44,7 @@ public static class HealthWorldExtensions
 	/// <summary>
 	///     Queues an increase-health request that can overflow into excess.
 	/// </summary>
-	/// <param name="world">World containing the target entity.</param>
+	/// <param name="world">WorldV1 containing the target entity.</param>
 	/// <param name="targetEntity">Entity to heal.</param>
 	/// <param name="amount">Heal amount that can overflow from base health into excess.</param>
 	/// <returns><c>true</c> when queued; otherwise <c>false</c>.</returns>
@@ -54,7 +54,7 @@ public static class HealthWorldExtensions
 	/// <summary>
 	///     Queues a max-health change request for the target entity.
 	/// </summary>
-	/// <param name="world">World containing the target entity.</param>
+	/// <param name="world">WorldV1 containing the target entity.</param>
 	/// <param name="targetEntity">Entity whose max health should be changed.</param>
 	/// <param name="maxHealth">New max health value.</param>
 	/// <param name="mode">How current health should be updated.</param>

@@ -11,12 +11,12 @@ public struct QueryEnumerator : IDisposable
 	private readonly Archetype?               _archetype;
 	private readonly IReadOnlyList<Archetype> _matches;
 	private readonly QuerySpec                _spec;
-	private readonly World                    _world;
+	private readonly WorldV1                    _world;
 	private          bool                     _entered;
 	private          int                      _archetypeIndex;
 	private          int                      _chunkIndex;
 
-	internal QueryEnumerator(World world, Archetype? archetype, QuerySpec spec)
+	internal QueryEnumerator(WorldV1 world, Archetype? archetype, QuerySpec spec)
 	{
 		_world          = world;
 		_archetype      = archetype;

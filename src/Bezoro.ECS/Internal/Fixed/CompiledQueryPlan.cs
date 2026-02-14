@@ -1,9 +1,9 @@
 using Bezoro.ECS.Services;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal sealed class CompiledQueryPlan(
-	WorldV2 owner,
+	World owner,
 	int[]   allTypeIds,
 	int[]   noneTypeIds,
 	int[]   anyTypeIds,
@@ -18,7 +18,7 @@ internal sealed class CompiledQueryPlan(
 	private int[] _matchingArchetypeIds = [];
 	private int   _matchingArchetypeCount;
 
-	public WorldV2 Owner { get; } = owner;
+	public World Owner { get; } = owner;
 
 	public int[] AllTypeIds { get; } = allTypeIds;
 
@@ -52,3 +52,4 @@ internal sealed class CompiledQueryPlan(
 		set => _matchingArchetypeCount = value < 0 ? 0 : value;
 	}
 }
+

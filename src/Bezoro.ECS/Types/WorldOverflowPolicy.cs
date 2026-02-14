@@ -1,9 +1,9 @@
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Defines overflow handling behavior for fixed-capacity V2 buffers.
+/// Defines overflow handling behavior for fixed-capacity world buffers.
 /// </summary>
-public enum WorldV2OverflowPolicy
+public enum WorldOverflowPolicy
 {
 	/// <summary>
 	/// Throws immediately when a configured capacity is exceeded.

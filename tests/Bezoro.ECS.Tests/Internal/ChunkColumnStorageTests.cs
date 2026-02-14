@@ -13,7 +13,7 @@ public class ChunkColumnStorageTests
 	[Fact]
 	public void ColumnStorage_WhenComponentContainsReferences_ShouldUseManagedColumnAndPreserveData()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new ManagedPayload { Name = "alpha" });
 
@@ -29,7 +29,7 @@ public class ChunkColumnStorageTests
 	[Fact]
 	public void ColumnStorage_WhenComponentIsUnmanaged_ShouldUseUnmanagedColumn()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new UnmanagedPosition { X = 1, Y = 2 });
 
@@ -44,7 +44,7 @@ public class ChunkColumnStorageTests
 	[Fact]
 	public void ColumnStorage_WhenComponentContainsBoolField_ShouldUseManagedColumn()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new BoolPayload { IsEnabled = true });
 

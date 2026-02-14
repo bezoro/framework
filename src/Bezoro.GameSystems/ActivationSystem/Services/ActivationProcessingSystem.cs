@@ -25,7 +25,7 @@ public sealed class ActivationProcessingSystem : ISystem
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />
-	public void OnCreate(World world)
+	public void OnCreate(WorldV1 world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);

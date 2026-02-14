@@ -1,5 +1,5 @@
 using Bezoro.ECS.Abstractions;
-using Bezoro.ECS.Internal.V2;
+using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Services;
 using System.Runtime.CompilerServices;
 
@@ -30,7 +30,7 @@ public struct QueryCursor : IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged;
 
-	private readonly WorldV2          _world;
+	private readonly World          _world;
 	private readonly QueryChunkMatch[] _chunkMatches;
 	private readonly int               _chunkMatchCount;
 	private readonly Entity[]          _entities;
@@ -45,7 +45,7 @@ public struct QueryCursor : IDisposable
 	private          ArchetypeStorage? _cachedGetArchetype;
 
 	internal QueryCursor(
-		WorldV2           world,
+		World           world,
 		QueryChunkMatch[] chunkMatches,
 		int               chunkMatchCount,
 		Entity[]          entities,
@@ -546,3 +546,4 @@ public struct QueryCursor : IDisposable
 		_entitiesMaterialized = true;
 	}
 }
+

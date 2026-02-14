@@ -18,7 +18,7 @@ public class SystemManagerTests
 	public void UpdateAll_Should_Respect_Update_Frequency()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -36,7 +36,7 @@ public class SystemManagerTests
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		var world  = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var entity = world.Spawn();
 		world.Add(entity, new Counter { Value = 1 });
 
@@ -60,7 +60,7 @@ public class SystemManagerTests
 	public void UpdateAll_When_DeltaTime_Is_Large_Should_Cap_Catch_Up_Ticks()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -78,7 +78,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
 	{
-		var world        = new World();
+		var world        = new WorldV1();
 		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Tick,      SystemUpdateSettings.FixedInterval(0.5f));
 		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.FixedInterval(0.5f));
 
@@ -99,7 +99,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		world.AddSystem(new NoOpSystem());
 		world.AddSystem(new ThrowingSystem());
 
@@ -113,7 +113,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenPlanIsDirty_ShouldBuildPlanOnceAndReuseAcrossFrames()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		world.AddSystem(new ReadCounterSystem());
 		world.AddSystem(new WriteCounterSystem(3));
 
@@ -132,7 +132,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new CommandCaptureSystem();
 		world.AddSystem(system);
 
@@ -147,7 +147,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDoesNotRecordCommands_ShouldKeepCommandStorageUnallocated()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new CommandBufferAllocationProbeSystem();
 		world.AddSystem(system);
 
@@ -159,7 +159,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new StaleCommandBufferReferenceSystem();
 		world.AddSystem(system);
 
@@ -172,7 +172,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -184,7 +184,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new PhaseCounterSystem(SystemLoopPhase.LateTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -200,7 +200,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		world.AddSystem(new ReadCounterSystem());
 		world.Tick(1f / 60f);
 		world.SchedulerPlanBuildCount.Should().Be(1);
@@ -217,7 +217,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunSequentially()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -230,7 +230,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
@@ -243,7 +243,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemReentersTick_ShouldThrowInvalidOperationException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -256,7 +256,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenReentrantTickAttemptFails_ShouldAllowSubsequentTicks()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -349,7 +349,7 @@ public class SystemManagerTests
 			_attempted = true;
 			try
 			{
-				((World)world).Tick(0f);
+				((WorldV1)world).Tick(0f);
 			}
 			catch (Exception ex)
 			{

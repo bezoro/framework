@@ -9,7 +9,7 @@ using Bezoro.ECS.Types;
 namespace Bezoro.ECS.Services;
 
 /// <summary>
-///     Handles binary serialization and deserialization of <see cref="World" /> state snapshots.
+///     Handles binary serialization and deserialization of <see cref="WorldV1" /> state snapshots.
 /// </summary>
 internal static class WorldSerializer
 {
@@ -35,14 +35,14 @@ internal static class WorldSerializer
 	/// </summary>
 	/// <param name="world">The world to serialize.</param>
 	/// <returns>A byte array containing the serialized snapshot.</returns>
-	internal static byte[] Serialize(World world)
+	internal static byte[] Serialize(WorldV1 world)
 	{
 		using var stream = new MemoryStream();
 		Serialize(world, stream);
 		return stream.ToArray();
 	}
 
-	internal static void Serialize(World world, Stream destination)
+	internal static void Serialize(WorldV1 world, Stream destination)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
@@ -180,12 +180,12 @@ internal static class WorldSerializer
 	}
 
 	/// <summary>
-	///     Deserializes a binary snapshot into a new <see cref="World" /> instance.
+	///     Deserializes a binary snapshot into a new <see cref="WorldV1" /> instance.
 	/// </summary>
 	/// <param name="bytes">The binary snapshot data.</param>
 	/// <param name="options">Type validation and resolver options for snapshot materialization.</param>
 	/// <returns>A new world populated from the snapshot.</returns>
-	internal static World Deserialize(byte[] bytes, SnapshotDeserializationOptions? options)
+	internal static WorldV1 Deserialize(byte[] bytes, SnapshotDeserializationOptions? options)
 	{
 		if (bytes is null) throw new ArgumentNullException(nameof(bytes));
 		if (bytes.Length > MAX_SNAPSHOT_BYTES)
@@ -195,7 +195,7 @@ internal static class WorldSerializer
 
 		options ??= SnapshotDeserializationOptions.Default;
 
-		World? world = null;
+		WorldV1? world = null;
 		try
 		{
 			using var stream = new MemoryStream(bytes, false);
@@ -212,7 +212,7 @@ internal static class WorldSerializer
 			if (version != SNAPSHOT_FORMAT_VERSION)
 				throw new InvalidOperationException($"Invalid snapshot payload: unsupported version '{version}'.");
 
-			world                    = new World();
+			world                    = new WorldV1();
 			var entityMap            = new Dictionary<(int Id, int Version), Entity>();
 			var pendingRelationships = new List<(Entity Source, Type RelationType, int TargetId, int TargetVersion)>();
 			int archetypeCount       = ReadBoundedCount(reader, "archetype count", MAX_ARCHETYPE_COUNT);

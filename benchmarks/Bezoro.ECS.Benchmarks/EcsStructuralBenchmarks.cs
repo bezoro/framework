@@ -13,7 +13,7 @@ public class EcsStructuralBenchmarks
 	[Benchmark(Description = "Add component to existing entities (structural move)")]
 	public int AddComponentToEntities()
 	{
-		using var world    = new World();
+		using var world    = new WorldV1();
 		var       entities = new Entity[EntityCount];
 		for (var i = 0; i < EntityCount; i++)
 			entities[i] = world.Spawn(new Position { X = i, Y = i });
@@ -27,7 +27,7 @@ public class EcsStructuralBenchmarks
 	[Benchmark(Description = "Create entities (Spawn with 2 components)")]
 	public int CreateEntities()
 	{
-		using var world = new World();
+		using var world = new WorldV1();
 		for (var i = 0; i < EntityCount; i++)
 			world.Spawn(new Position { X = i, Y = i }, new Velocity { X = 1f, Y = 1f });
 
@@ -37,7 +37,7 @@ public class EcsStructuralBenchmarks
 	[Benchmark(Description = "Destroy entities (Despawn)")]
 	public int DestroyEntities()
 	{
-		using var world    = new World();
+		using var world    = new WorldV1();
 		var       entities = new Entity[EntityCount];
 		for (var i = 0; i < EntityCount; i++)
 			entities[i] = world.Spawn(new Position { X = i, Y = i });

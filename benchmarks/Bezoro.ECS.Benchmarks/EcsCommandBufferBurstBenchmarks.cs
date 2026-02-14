@@ -8,7 +8,7 @@ namespace Bezoro.ECS.Benchmarks;
 public class EcsCommandBufferBurstBenchmarks
 {
 	private CommandBuffer _commands = null!;
-	private World         _world    = null!;
+	private WorldV1         _world    = null!;
 
 	[Params(50_000)]
 	public int BurstSize { get; set; }

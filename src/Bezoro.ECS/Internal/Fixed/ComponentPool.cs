@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal sealed class ComponentPool<T>(int entityCapacity) : IComponentPool where T : struct
 {

@@ -1,5 +1,5 @@
 using Bezoro.ECS.Abstractions;
-using Bezoro.ECS.Internal.V2;
+using Bezoro.ECS.Internal.Fixed;
 
 namespace Bezoro.ECS.Types;
 

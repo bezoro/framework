@@ -1,7 +1,7 @@
 using Bezoro.ECS.Internal;
 using System.Runtime.CompilerServices;
 
-namespace Bezoro.ECS.Internal.V2;
+namespace Bezoro.ECS.Internal.Fixed;
 
 internal sealed class ArchetypeStorage : IDisposable
 {

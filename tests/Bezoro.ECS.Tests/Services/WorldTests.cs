@@ -10,14 +10,14 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(World))]
+[TestSubject(typeof(WorldV1))]
 public class WorldTests
 {
 	[Fact]
 	public void AddComponent_Should_BeQueryable()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		var input  = new Position { X = 1, Y = 2 };
 
@@ -34,7 +34,7 @@ public class WorldTests
 	public void AddComponent_WhenCalledDuringQueryIteration_ShouldThrow()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 1 });
 
@@ -54,7 +54,7 @@ public class WorldTests
 	public void Clear_ShouldNotRevalidatePreviousEntityHandle()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var stale = world.Spawn();
 
 		// Act
@@ -71,7 +71,7 @@ public class WorldTests
 	public void Clear_ShouldResetEntityCount_And_InvalidateExistingEntities()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var first  = world.Spawn();
 		var second = world.Spawn();
 
@@ -87,7 +87,7 @@ public class WorldTests
 	[Fact]
 	public void Clear_WhenArchetypesWereCreated_ShouldResetToEmptyArchetypeOnly()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Spawn(new Position { X = 1, Y = 1 });
 		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 3 });
 
@@ -103,7 +103,7 @@ public class WorldTests
 	[Fact]
 	public void Query_WhenArchetypeWasCreatedBeforeClear_ShouldThrowInvalidOperationException()
 	{
-		var world     = new World();
+		var world     = new WorldV1();
 		var archetype = world.GetOrCreateArchetype(typeof(Position));
 		world.Clear();
 
@@ -115,10 +115,10 @@ public class WorldTests
 	[Fact]
 	public void ComponentTypeIds_WhenDifferentWorldsRegisterDifferentTypes_ShouldRemainWorldScoped()
 	{
-		var worldA            = new World();
+		var worldA            = new WorldV1();
 		int worldAFirstCustom = worldA.GetOrCreateComponentTypeId<WorldAOnlyComponent>();
 
-		var worldB = new World();
+		var worldB = new WorldV1();
 		worldB.GetOrCreateComponentTypeId<WorldBOnlyComponent>();
 		worldB.GetOrCreateComponentTypeId<WorldBSecondOnlyComponent>();
 
@@ -130,7 +130,7 @@ public class WorldTests
 	[Fact]
 	public void CreateEntity_WhenIdIsRecycled_ShouldBumpEntityVersion()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var original = world.Spawn();
 		world.Despawn(original);
 
@@ -144,7 +144,7 @@ public class WorldTests
 	public void GetOrCreateArchetype_ShouldReturnSameInstance_WhenSameComponentSet()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 
 		// Act
 		var first  = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
@@ -158,8 +158,8 @@ public class WorldTests
 	public void IsAlive_WhenEntityBelongsToDifferentWorld_ShouldBeFalse()
 	{
 		// Arrange
-		var worldA  = new World();
-		var worldB  = new World();
+		var worldA  = new WorldV1();
+		var worldB  = new WorldV1();
 		var foreign = worldA.Spawn();
 		worldB.Spawn();
 
@@ -173,7 +173,7 @@ public class WorldTests
 	[Fact]
 	public void Query_ForEachParallel_WhenActionThrows_ShouldRethrowOriginalException()
 	{
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkCapacity          = 1,
@@ -198,7 +198,7 @@ public class WorldTests
 	public void Query_ForEachParallel_WhenManyChunks_ShouldProcessEveryEntityExactlyOnce()
 	{
 		// Arrange
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkCapacity          = 1,
@@ -241,7 +241,7 @@ public class WorldTests
 	public void Query_ShouldReturnAllEntities_WithPositionAndVelocity()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		var e1    = world.Spawn();
 		world.Add(e1, new Position { X = 1, Y    = 1 });
 		world.Add(e1, new Velocity { X = 0.5f, Y = 0.25f });
@@ -265,7 +265,7 @@ public class WorldTests
 	[Fact]
 	public void Query_WithAnyTypeArrayFilter_ShouldMatchEntitiesWithAtLeastOneRequestedComponent()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var positionOnly = world.Spawn();
 		world.Add(positionOnly, new Position { X = 1, Y = 1 });
@@ -290,7 +290,7 @@ public class WorldTests
 	public void Query_WithArchetypeFilter_ShouldReturnOnlyExactArchetype()
 	{
 		// Arrange
-		var world             = new World();
+		var world             = new WorldV1();
 		var baseArchetype     = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity));
 		var extendedArchetype = world.GetOrCreateArchetype(typeof(Position), typeof(Velocity), typeof(Health));
 
@@ -315,7 +315,7 @@ public class WorldTests
 	public void Query_WithWithoutFilter_ShouldExcludeEntitiesWithExcludedComponents()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 
 		var posOnly = world.Spawn();
 		world.Add(posOnly, new Position { X = 1, Y = 1 });
@@ -346,7 +346,7 @@ public class WorldTests
 	public void Query_WithWithoutFilter_ShouldWorkInParallelPath()
 	{
 		// Arrange
-		var world = new World(
+		var world = new WorldV1(
 			new WorldOptions
 			{
 				ChunkCapacity          = 1,
@@ -377,7 +377,7 @@ public class WorldTests
 	[Fact]
 	public void QueryCache_WhenOnlyChangedFilterDiffers_ShouldReuseArchetypeMatchCache()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 1 });
 
@@ -393,7 +393,7 @@ public class WorldTests
 	[Fact]
 	public void QueryCache_WhenWorldCleared_ShouldResetEntries()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 1 });
 
@@ -409,7 +409,7 @@ public class WorldTests
 	[Fact]
 	public void QueryCache_WhenManyRelationshipTargetsQueried_ShouldStayWithinCapacity()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var targets = new Entity[world.QueryCacheCapacity + 32];
 		for (var i = 0; i < targets.Length; i++)
 			targets[i] = world.Spawn();
@@ -423,7 +423,7 @@ public class WorldTests
 	[Fact]
 	public void QueryRelated_WhenTargetIsDead_ShouldThrowInvalidOperationException()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var target = world.Spawn();
 		world.Despawn(target);
 
@@ -435,7 +435,7 @@ public class WorldTests
 	[Fact]
 	public void RelatedQuery_WhenCreatedWithoutEnumeration_ShouldNotAllocateRelationshipTypeId()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var target = world.Spawn();
 
 		world.ComponentTypeRegistry.GetRelationshipIdsForTarget(target).Length.Should().Be(0);
@@ -448,7 +448,7 @@ public class WorldTests
 	[Fact]
 	public void RelatedQuery_WhenReusedAfterTargetDespawn_ShouldNotRecreateRelationshipTypeIds()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var parent = world.Spawn();
 		var child  = world.Spawn();
 		world.Add<ChildOf>(child, parent);
@@ -467,7 +467,7 @@ public class WorldTests
 	[Fact]
 	public void Relationships_WhenTargetDespawns_ShouldRemoveIncomingEdgesAndReuseRelationshipTypeId()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var parent = world.Spawn();
 		var child  = world.Spawn();
 		world.Add<ChildOf>(child, parent);
@@ -501,7 +501,7 @@ public class WorldTests
 	[Fact]
 	public void Despawn_WhenChunksBecomeEmpty_ShouldReleaseUnusedChunks()
 	{
-		var world = new World(new WorldOptions { ChunkCapacity = 1 });
+		var world = new WorldV1(new WorldOptions { ChunkCapacity = 1 });
 		var entities = new Entity[12];
 		for (var i = 0; i < entities.Length; i++)
 			entities[i] = world.Spawn(new Position { X = i, Y = i });
@@ -527,7 +527,7 @@ public class WorldTests
 	[Fact]
 	public void Despawn_WhenManagedComponentReferencesObject_ShouldReleaseReferenceForCollection()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var payloadReference = SpawnAndDespawnManagedPayload(world);
 
 		ForceCollection(payloadReference);
@@ -539,8 +539,8 @@ public class WorldTests
 	public void SetComponent_WhenEntityBelongsToDifferentWorld_ShouldThrow()
 	{
 		// Arrange
-		var worldA  = new World();
-		var worldB  = new World();
+		var worldA  = new WorldV1();
+		var worldB  = new WorldV1();
 		var foreign = worldA.Spawn();
 		var local   = worldB.Spawn();
 
@@ -589,7 +589,7 @@ public class WorldTests
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static WeakReference SpawnAndDespawnManagedPayload(World world)
+	private static WeakReference SpawnAndDespawnManagedPayload(WorldV1 world)
 	{
 		var payload          = new object();
 		var payloadReference = new WeakReference(payload);

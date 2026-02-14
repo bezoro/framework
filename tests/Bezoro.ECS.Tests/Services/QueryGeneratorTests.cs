@@ -13,7 +13,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedForEachJobExtension_WhenUsingJobStruct_ShouldApplyUpdatesWithoutGenericArguments()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 		world.Add(entity, new Velocity { X = 3, Y = 4 });
@@ -28,7 +28,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedForEachJobExtension_WhenUsingNestedJobStruct_ShouldApplyUpdatesWithoutGenericArguments()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 2, Y = 3 });
 		world.Add(entity, new Velocity { X = 1, Y = -2 });
@@ -43,7 +43,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedForEachJobExtension_WhenUsingSingleComponentJob_ShouldApplyUpdates()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
 
@@ -57,7 +57,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedForEachJobExtension_WhenUsingThreeComponentJob_ShouldApplyUpdates()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X     = 1, Y = 2 });
 		world.Add(entity, new Velocity { X     = 3, Y = 4 });
@@ -73,7 +73,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedQuery_WhenQueryStructOmitsIQuery_ShouldStillSupportWorldEntryPoint()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Spawn(new Position { X = 1, Y = 1 });
 		world.Spawn();
 
@@ -87,7 +87,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedQuery_WhenUsingWorldQueryDefinitionEntryPoint_ShouldMatchExpectedEntities()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var e1 = world.Spawn();
 		world.Add(e1, new Position { X = 1, Y = 1 });
@@ -112,7 +112,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedQueryCreate_WhenUsingAttributeFilters_ShouldMatchExpectedEntities()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var e1 = world.Spawn();
 		world.Add(e1, new Position { X = 1, Y = 1 });
@@ -138,7 +138,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedQueryForEach_WhenUsingTypedDelegate_ShouldApplyComponentUpdates()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });
@@ -160,7 +160,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void GeneratedQueryForEachRw_WhenUsingTwoWritableComponents_ShouldApplyMutations()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1, Y = 2 });

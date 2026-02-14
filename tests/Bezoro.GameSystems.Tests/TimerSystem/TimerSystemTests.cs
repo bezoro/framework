@@ -16,7 +16,7 @@ public class TimerSystemTests
 	public void Tick_WhenOneShotTimerCompletes_ShouldRaiseFinishedAndDespawn()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new TimerSystemType();
 		world.AddSystem(system);
 
@@ -39,7 +39,7 @@ public class TimerSystemTests
 	public void Tick_WhenRunningTimersExist_ShouldIncrementElapsedByDeltaTime()
 	{
 		// Arrange
-		var world = new World();
+		var world = new WorldV1();
 		world.AddSystem(new TimerSystemType());
 
 		var e1 = world.Spawn(
@@ -64,7 +64,7 @@ public class TimerSystemTests
 	public void Tick_WhenTimerCompletes_ShouldSetCompletedAndPublishFinishedEvent()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new TimerSystemType();
 		world.AddSystem(system);
 
@@ -97,7 +97,7 @@ public class TimerSystemTests
 	public void Tick_WhenPausedTimerIsResumed_ShouldRaiseResumedAndContinueProgress()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new TimerSystemType();
 		world.AddSystem(system);
 
@@ -123,7 +123,7 @@ public class TimerSystemTests
 	public void Tick_WhenRestartRequested_ShouldRaiseRestartedWithoutStarted()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new TimerSystemType();
 		world.AddSystem(system);
 
@@ -152,7 +152,7 @@ public class TimerSystemTests
 	public void Tick_WhenStartPauseStopAreRequested_ShouldEmitMatchingLifecycleCallbacks()
 	{
 		// Arrange
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new TimerSystemType();
 		world.AddSystem(system);
 

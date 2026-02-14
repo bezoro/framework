@@ -9,7 +9,7 @@ public class EcsMemoryChurnBenchmarks
 {
 	private Entity[]  _entities = null!;
 	private Payload[] _payloads = null!;
-	private World     _world    = null!;
+	private WorldV1     _world    = null!;
 
 	[Params(50_000)]
 	public int EntityCount { get; set; }

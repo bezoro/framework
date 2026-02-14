@@ -14,13 +14,13 @@ using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(World))]
+[TestSubject(typeof(WorldV1))]
 public class WorldApiContractTests
 {
 	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 
 		world.Add<Health>(entity);
@@ -32,7 +32,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Deserialize_WhenComponentLayoutHashDoesNotMatch_ShouldThrowInvalidOperationException()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 9f, Y = 4f });
 		byte[] payload = world.Serialize();
@@ -54,7 +54,7 @@ public class WorldApiContractTests
 			}
 		}
 
-		var act = () => World.Deserialize(payload);
+		var act = () => WorldV1.Deserialize(payload);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*layout mismatch*");
@@ -65,7 +65,7 @@ public class WorldApiContractTests
 	{
 		var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
 
-		var act = () => World.Deserialize(payload);
+		var act = () => WorldV1.Deserialize(payload);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*snapshot*");
@@ -81,7 +81,7 @@ public class WorldApiContractTests
 		writer.Write(int.MaxValue);
 		writer.Flush();
 
-		var act = () => World.Deserialize(stream.ToArray());
+		var act = () => WorldV1.Deserialize(stream.ToArray());
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*archetype count*");
@@ -90,7 +90,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Deserialize_WhenComponentPayloadLengthExceedsLimit_ShouldThrowInvalidOperationException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 9f, Y = 4f });
 		byte[] payload = world.Serialize();
@@ -132,7 +132,7 @@ public class WorldApiContractTests
 			BitConverter.GetBytes(int.MaxValue).CopyTo(payload, payloadLengthOffset);
 		}
 
-		var act = () => World.Deserialize(payload);
+		var act = () => WorldV1.Deserialize(payload);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*payload length*");
@@ -150,7 +150,7 @@ public class WorldApiContractTests
 		writer.Write("Missing.Namespace.MissingType, Missing.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null");
 		writer.Flush();
 
-		var act = () => World.Deserialize(stream.ToArray());
+		var act = () => WorldV1.Deserialize(stream.ToArray());
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*could not be resolved*");
@@ -159,7 +159,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Despawn_WhenChunkCompactsBoolComponent_ShouldPreserveRemainingEntityValue()
 	{
-		var world  = new World(new WorldOptions { ChunkCapacity = 2 });
+		var world  = new WorldV1(new WorldOptions { ChunkCapacity = 2 });
 		var first  = world.Spawn(new BoolFlag { IsSet           = false });
 		var second = world.Spawn(new BoolFlag { IsSet           = true });
 
@@ -172,7 +172,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Diagnostics_WhenWorldContainsMultipleArchetypes_ShouldReportChunkAndMemoryTotals()
 	{
-		var world = new World(new WorldOptions { ChunkCapacity = 2 });
+		var world = new WorldV1(new WorldOptions { ChunkCapacity = 2 });
 		world.Spawn(new Position { X = 1f, Y = 1f });
 		world.Spawn(new Position { X = 2f, Y = 2f });
 		world.Spawn(new Position { X = 3f, Y = 3f });
@@ -223,7 +223,7 @@ public class WorldApiContractTests
 	public void Dispose_WhenSystemRegistered_ShouldInvokeOnDestroy()
 	{
 		var tracker = new LifecycleTracker();
-		var world   = new World();
+		var world   = new WorldV1();
 		world.AddSystem(new LifecycleSystem(tracker));
 
 		tracker.Created.Should().Be(1);
@@ -234,7 +234,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Dispose_WhenResourcesImplementDisposable_ShouldDisposeResources()
 	{
-		var world            = new World();
+		var world            = new WorldV1();
 		var disposable       = new DisposableResource();
 		var asyncDisposable  = new AsyncDisposableResource();
 		world.SetResource(disposable);
@@ -249,7 +249,7 @@ public class WorldApiContractTests
 	[Fact]
 	public async Task DisposeAsync_WhenResourcesImplementDisposable_ShouldDisposeResources()
 	{
-		var world           = new World();
+		var world           = new WorldV1();
 		var disposable      = new DisposableResource();
 		var asyncDisposable = new AsyncDisposableResource();
 		world.SetResource(disposable);
@@ -265,7 +265,7 @@ public class WorldApiContractTests
 	public void Dispose_WhenSystemOnDestroyThrows_ShouldDisposeResourcesAndMarkWorldDisposed()
 	{
 		var tracker      = new LifecycleTracker();
-		var world        = new World();
+		var world        = new WorldV1();
 		var disposable   = new DisposableResource();
 		var asyncDisposable = new AsyncDisposableResource();
 		world.SetResource(disposable);
@@ -287,7 +287,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Dispose_WhenResourceDisposalThrows_ShouldDisposeRemainingResources()
 	{
-		var world             = new World();
+		var world             = new WorldV1();
 		var throwingResource  = new ThrowingDisposableResource();
 		var stableResource    = new DisposableResource();
 		world.SetResource(throwingResource);
@@ -303,7 +303,7 @@ public class WorldApiContractTests
 	[Fact]
 	public async Task DisposeAsync_WhenResourceDisposalThrows_ShouldDisposeRemainingResources()
 	{
-		var world             = new World();
+		var world             = new WorldV1();
 		var throwingResource  = new ThrowingAsyncDisposableResource();
 		var stableResource    = new AsyncDisposableResource();
 		world.SetResource(throwingResource);
@@ -319,7 +319,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenCreatingWithInitialComponentInPlayback_ShouldInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveAdd((Entity _, ref Health health) =>
 			{
@@ -346,7 +346,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveAdd((Entity _, ref Health health) => calls++);
 
@@ -360,7 +360,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenRegistered_ShouldAllowMutatingStoredComponentDuringPlayback()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.ObserveAdd((Entity _, ref Health health) => health.Current = health.Max);
 
 		var commands = world.CreateCommandBuffer();
@@ -381,7 +381,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenSetAddsMissingComponentInPlayback_ShouldInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveAdd((Entity _, ref Health health) =>
 			{
@@ -402,7 +402,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenSettingExistingComponentInPlayback_ShouldNotInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveAdd((Entity _, ref Health health) =>
 			{
@@ -423,7 +423,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveSet_WhenSettingExistingComponentInPlayback_ShouldInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveSet((Entity _, ref Health health) =>
 			{
@@ -444,7 +444,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveSet_WhenSetAddsMissingComponentInPlayback_ShouldNotInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveSet((Entity _, ref Health health) => calls++);
 
@@ -460,7 +460,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveSet_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveSet((Entity _, ref Health health) => calls++);
 
@@ -473,7 +473,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAddAndRemove_WhenSubscriptionDisposed_ShouldStopReceivingPlaybackEvents()
 	{
-		var world              = new World();
+		var world              = new WorldV1();
 		var addCalls           = 0;
 		var removeCalls        = 0;
 		var addSubscription    = world.ObserveAdd((Entity    _, ref Health health) => addCalls++);
@@ -495,7 +495,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveAdd_WhenSubscriptionIsGarbageCollected_ShouldStopReceivingPlaybackEvents()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 
 		var subscriptionReference = RegisterObserver();
@@ -531,7 +531,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveRemove_WhenDirectMutationOccurs_ShouldNotInvokeObserver()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveRemove((Entity _, in Velocity velocity) => calls++);
 
@@ -544,7 +544,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveRemove_WhenEntityIsDespawnedInPlayback_ShouldReceiveRemovedComponentValue()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var removedX = 0f;
 		var calls    = 0;
 		world.ObserveRemove((Entity _, in Velocity velocity) =>
@@ -566,7 +566,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveRemove_WhenRegistered_ShouldInvokeExactlyOncePerPlaybackRemoval()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var calls = 0;
 		world.ObserveRemove((Entity _, in Velocity velocity) => calls++);
 
@@ -581,7 +581,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void ObserveRemove_WhenRegistered_ShouldReceiveRemovedComponentValueDuringPlayback()
 	{
-		var world    = new World();
+		var world    = new WorldV1();
 		var removedX = 0f;
 		world.ObserveRemove((Entity _, in Velocity velocity) => removedX = velocity.X);
 
@@ -596,7 +596,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryChanged_WhenChunkWritten_ShouldMatchChangedChunk()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
 		world.Tick(0f);
@@ -624,7 +624,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryChanged_WhenComponentAddedThroughWorldApi_ShouldMatchChangedChunk()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Tick(0f);
 
@@ -640,7 +640,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryChanged_WhenComponentSetThroughWorldApi_ShouldMatchChangedChunk()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
 		world.Tick(0f);
@@ -662,7 +662,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryJob_WhenUsingIForEachOverload_ShouldApplyUpdates()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var entity = world.Spawn(
 			new Position { X = 1f, Y = 2f },
 			new Velocity { X = 3f, Y = 4f }
@@ -679,7 +679,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryOptional_WhenComponentMissing_ShouldExposeEmptySpan()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Spawn(new Position { X = 1, Y = 1 });
 		world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 4 });
 
@@ -704,7 +704,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void QueryTyped_WhenUsingGenericWorldEntryPoint_ShouldMatchRequestedComponents()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Spawn(new Position { X = 1, Y = 1 }, new Velocity { X = 1, Y = 0 });
 		world.Spawn(new Position { X = 2, Y = 2 });
 
@@ -718,7 +718,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Relationships_WhenQueriedByTarget_ShouldMatchCorrectEntities()
 	{
-		var world   = new World();
+		var world   = new WorldV1();
 		var parentA = world.Spawn();
 		var parentB = world.Spawn();
 		var childA  = world.Spawn();
@@ -742,7 +742,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Relationships_WhenTargetIdIsReusedWithDifferentVersion_ShouldUseCorrectQueryCacheEntry()
 	{
-		var world          = new World();
+		var world          = new WorldV1();
 		var originalParent = world.Spawn();
 		var originalChild  = world.Spawn();
 		world.Add<ChildOf>(originalChild, originalParent);
@@ -772,7 +772,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Resources_WhenSet_ShouldBeReadableByReference()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.SetResource(new GameTime { DeltaTime = 0.5f });
 
 		ref var resource = ref world.GetResource<GameTime>();
@@ -784,7 +784,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenCalled_ShouldProduceBinarySnapshotHeader()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 1f, Y = 2f });
 
@@ -801,14 +801,14 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenRoundTripped_ShouldRestoreComponentsAndResources()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.SetResource(new GameTime { DeltaTime = 0.25f });
 		var entity = world.Spawn();
 		world.Add(entity, new Position { X = 3f, Y = 4f });
 		world.Add(entity, new Velocity { X = 2f, Y = 1f });
 
 		byte[] data  = world.Serialize();
-		var    clone = World.Deserialize(data);
+		var    clone = WorldV1.Deserialize(data);
 
 		clone.EntityCount.Should().Be(1);
 		clone.GetResource<GameTime>().DeltaTime.Should().Be(0.25f);
@@ -828,11 +828,11 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenRoundTrippedWithReferenceResourceWithoutAllowlist_ShouldRejectDeserialization()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.SetResource(new ReferenceResourceState { Name = "alpha" });
 		byte[] data = world.Serialize();
 
-		var act = () => World.Deserialize(data);
+		var act = () => WorldV1.Deserialize(data);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*resource type*not allowed*");
@@ -841,7 +841,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenRoundTrippedWithReferenceResourceAndAllowlist_ShouldRestoreResource()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.SetResource(new ReferenceResourceState { Name = "alpha" });
 		byte[] data = world.Serialize();
 
@@ -850,7 +850,7 @@ public class WorldApiContractTests
 			AllowedReferenceResourceTypes = [typeof(ReferenceResourceState)]
 		};
 
-		var clone = World.Deserialize(data, options);
+		var clone = WorldV1.Deserialize(data, options);
 
 		clone.GetResource<ReferenceResourceState>().Name.Should().Be("alpha");
 	}
@@ -870,7 +870,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Serialize_WhenRoundTripped_ShouldRestoreRelationships()
 	{
-		var world   = new World();
+		var world   = new WorldV1();
 		var parentA = world.Spawn(new ParentTag { Id = 1 });
 		var parentB = world.Spawn(new ParentTag { Id = 2 });
 		var childA  = world.Spawn();
@@ -880,7 +880,7 @@ public class WorldApiContractTests
 		world.Add<ChildOf>(childB, parentB);
 
 		byte[] data  = world.Serialize();
-		var    clone = World.Deserialize(data);
+		var    clone = WorldV1.Deserialize(data);
 
 		var cloneParentA = Entity.None;
 		var cloneParentB = Entity.None;
@@ -917,7 +917,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Spawn_WhenCalled_ShouldCreateAliveEntity()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var entity = world.Spawn();
 
 		world.IsAlive(entity).Should().BeTrue();
@@ -926,7 +926,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Spawn_WhenGivenComponents_ShouldCreateEntityWithInferredArchetypeAndValues()
 	{
-		var world = new World();
+		var world = new WorldV1();
 
 		var entity = world.Spawn(
 			new Position { X = 2f, Y   = 3f },
@@ -943,7 +943,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Systems_WhenAddedUsingGenericOverload_ShouldInstantiateAndRun()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		GenericUpdateSystem.RunCount = 0;
 
 		world.AddSystem<GenericUpdateSystem>();
@@ -955,7 +955,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Systems_WhenAddedWithStages_ShouldRunInStageOrder()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var order = new List<Stage>();
 
 		world.AddSystem(new StageRecorder(order), Stage.Render);
@@ -972,7 +972,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Systems_WhenLoopPhaseIsFixedUpdate_ShouldRunOnlyDuringFixedUpdate()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.FixedTick);
 		world.AddSystem(system);
 
@@ -987,7 +987,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Systems_WhenLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
-		var world  = new World();
+		var world  = new WorldV1();
 		var system = new LoopPhaseRecorderSystem(SystemLoopPhase.LateTick);
 		world.AddSystem(system);
 
@@ -1002,7 +1002,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenCreatedWithName_ShouldExposeConfiguredName()
 	{
-		var world = new World("Main");
+		var world = new WorldV1("Main");
 
 		world.Name.Should().Be("Main");
 	}
@@ -1010,7 +1010,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_GetDiagnostics_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.GetDiagnostics();
@@ -1021,7 +1021,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_IsAlive_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		var entity = world.Spawn();
 		world.Dispose();
 
@@ -1033,7 +1033,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_ObserveAdd_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.ObserveAdd((Entity _, ref Health _) => { });
@@ -1044,7 +1044,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_ObserveSet_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.ObserveSet((Entity _, ref Health _) => { });
@@ -1055,7 +1055,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_Query_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.Query();
@@ -1066,7 +1066,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_Serialize_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.Serialize();
@@ -1077,7 +1077,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void World_WhenDisposed_Spawn_ShouldThrowObjectDisposedException()
 	{
-		var world = new World();
+		var world = new WorldV1();
 		world.Dispose();
 
 		var act = () => world.Spawn();
@@ -1110,15 +1110,15 @@ public class WorldApiContractTests
 
 	private sealed class LifecycleSystem(LifecycleTracker tracker) : ISystem
 	{
-		public void OnCreate(World  world) => tracker.Created++;
-		public void OnDestroy(World world) => tracker.Destroyed++;
+		public void OnCreate(WorldV1  world) => tracker.Created++;
+		public void OnDestroy(WorldV1 world) => tracker.Destroyed++;
 
 		public void Update(IWorld world, in SystemContext context) { }
 	}
 
 	private sealed class ThrowingDestroySystem : ISystem
 	{
-		public void OnDestroy(World world) => throw new InvalidOperationException("destroy-failed");
+		public void OnDestroy(WorldV1 world) => throw new InvalidOperationException("destroy-failed");
 
 		public void Update(IWorld world, in SystemContext context) { }
 	}
