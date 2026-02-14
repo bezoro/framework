@@ -215,6 +215,9 @@ appsettings.Local.json
 # Claude Code settings
 .claude/
 
+# .NET SDK local files
+.dotnet/
+
 # Logs
 [Ll]ogs/
 
