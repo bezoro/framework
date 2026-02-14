@@ -209,6 +209,67 @@ public class CommandBufferTests
 		component.Y.Should().Be(8);
 	}
 
+	[Fact]
+	public void Playback_WhenLargeBatchCompletes_ShouldRetainCommandStorageForReuse()
+	{
+		var world    = new World();
+		var commands = world.CreateCommandBuffer();
+
+		for (var i = 0; i < 50_000; i++)
+			commands.CreateEntity(new Position { X = i, Y = i });
+
+		commands.Playback();
+
+		commands.HasCommands.Should().BeFalse();
+		commands.HasAllocatedStorage.Should().BeTrue();
+	}
+
+	[Fact]
+	public void Record_WhenLargeBatchRunsRepeatedly_ShouldAllocateLessOnSecondRecordingPass()
+	{
+		var world    = new World();
+		var commands = world.CreateCommandBuffer();
+
+		RecordCreateBurst(commands, count: 256);
+		commands.Playback();
+		world.Clear();
+
+		const int BURST_SIZE = 50_000;
+		long firstPassAllocatedBytes  = MeasureRecordCreateBurstAllocation(commands, BURST_SIZE);
+		commands.Playback();
+		world.Clear();
+
+		long secondPassAllocatedBytes = MeasureRecordCreateBurstAllocation(commands, BURST_SIZE);
+		commands.Playback();
+		world.Clear();
+
+		secondPassAllocatedBytes.Should().BeLessThan(firstPassAllocatedBytes / 4);
+	}
+
+	[Fact]
+	public void CreateEntity_WhenComponentContainsManagedReference_ShouldApplyDuringPlayback()
+	{
+		var world    = new World();
+		var commands = world.CreateCommandBuffer();
+		var payload  = new object();
+		commands.CreateEntity(new ManagedPayload { Value = payload });
+
+		commands.Playback();
+
+		var found = false;
+		foreach (var chunk in world.Query().All<ManagedPayload>())
+		{
+			var payloads = chunk.Components<ManagedPayload>();
+			for (var i = 0; i < chunk.Count; i++)
+			{
+				payloads[i].Value.Should().BeSameAs(payload);
+				found = true;
+			}
+		}
+
+		found.Should().BeTrue();
+	}
+
 	[Reads<Position>]
 	private sealed class AddVelocitySystem(Entity entity) : ISystem
 	{
@@ -237,5 +298,24 @@ public class CommandBufferTests
 	private struct Velocity	{
 		public float X;
 		public float Y;
+	}
+
+	private struct ManagedPayload
+	{
+		public object? Value;
+	}
+
+	private static void RecordCreateBurst(CommandBuffer commands, int count)
+	{
+		for (var i = 0; i < count; i++)
+			commands.CreateEntity(new Position { X = i, Y = i });
+	}
+
+	private static long MeasureRecordCreateBurstAllocation(CommandBuffer commands, int count)
+	{
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		RecordCreateBurst(commands, count);
+		long after = GC.GetAllocatedBytesForCurrentThread();
+		return after - before;
 	}
 }

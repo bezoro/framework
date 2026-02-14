@@ -7,13 +7,15 @@ internal readonly struct Command(
 	Entity                entity,
 	Archetype?            archetype,
 	int                   componentTypeId,
-	IComponentApplicator? applicator
+	int                   payloadIndex,
+	bool                  addOnly
 )
 {
 	public Archetype? Archetype { get; } = archetype;
 
 	public CommandType           Type            { get; } = type;
 	public Entity                Entity          { get; } = entity;
-	public IComponentApplicator? Applicator      { get; } = applicator;
 	public int                   ComponentTypeId { get; } = componentTypeId;
+	public int                   PayloadIndex    { get; } = payloadIndex;
+	public bool                  AddOnly         { get; } = addOnly;
 }

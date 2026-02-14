@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
@@ -524,6 +525,17 @@ public class WorldTests
 	}
 
 	[Fact]
+	public void Despawn_WhenManagedComponentReferencesObject_ShouldReleaseReferenceForCollection()
+	{
+		var world = new World();
+		var payloadReference = SpawnAndDespawnManagedPayload(world);
+
+		ForceCollection(payloadReference);
+		payloadReference.IsAlive.Should().BeFalse();
+		GC.KeepAlive(world);
+	}
+
+	[Fact]
 	public void SetComponent_WhenEntityBelongsToDifferentWorld_ShouldThrow()
 	{
 		// Arrange
@@ -552,6 +564,11 @@ public class WorldTests
 		public float Y;
 	}
 
+	private struct ManagedPayload
+	{
+		public object? Value;
+	}
+
 	private struct ChildOf;
 
 	private struct WorldAOnlyComponent;
@@ -559,4 +576,27 @@ public class WorldTests
 	private struct WorldBOnlyComponent;
 
 	private struct WorldBSecondOnlyComponent;
+
+	private static void ForceCollection(WeakReference reference)
+	{
+		for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			GC.Collect();
+			Thread.Sleep(10);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static WeakReference SpawnAndDespawnManagedPayload(World world)
+	{
+		var payload          = new object();
+		var payloadReference = new WeakReference(payload);
+		var entity           = world.Spawn(new ManagedPayload { Value = payload });
+		payload = null!;
+
+		world.Despawn(entity);
+		return payloadReference;
+	}
 }
