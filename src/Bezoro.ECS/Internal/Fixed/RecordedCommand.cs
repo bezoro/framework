@@ -9,11 +9,10 @@ internal readonly struct RecordedCommand(
 	int                 payloadIndex
 )
 {
-	public RecordedCommandType Type { get; } = type;
-
 	public Entity Entity { get; } = entity;
 
 	public int ComponentTypeId { get; } = componentTypeId;
 
-	public int PayloadIndex { get; } = payloadIndex;
+	public int                 PayloadIndex { get; } = payloadIndex;
+	public RecordedCommandType Type         { get; } = type;
 }

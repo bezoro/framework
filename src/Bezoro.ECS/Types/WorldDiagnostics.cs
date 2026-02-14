@@ -1,7 +1,7 @@
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Point-in-time diagnostics for <see cref="Services.World" /> memory arenas.
+///     Point-in-time diagnostics for <see cref="Services.World" /> memory arenas.
 /// </summary>
 public sealed class WorldDiagnostics(
 	ArenaDiagnostics entityArena,
@@ -10,18 +10,17 @@ public sealed class WorldDiagnostics(
 )
 {
 	/// <summary>
-	/// Entity slot diagnostics.
-	/// </summary>
-	public ArenaDiagnostics EntityArena { get; } = entityArena;
-
-	/// <summary>
-	/// Registered component type diagnostics.
+	///     Registered component type diagnostics.
 	/// </summary>
 	public ArenaDiagnostics ComponentTypeArena { get; } = componentTypeArena;
 
 	/// <summary>
-	/// Query result buffer diagnostics.
+	///     Entity slot diagnostics.
+	/// </summary>
+	public ArenaDiagnostics EntityArena { get; } = entityArena;
+
+	/// <summary>
+	///     Query result buffer diagnostics.
 	/// </summary>
 	public ArenaDiagnostics QueryResultArena { get; } = queryResultArena;
 }
-

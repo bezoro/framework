@@ -1,174 +1,63 @@
-using Bezoro.ECS.Internal;
 using System.Runtime.CompilerServices;
 
 namespace Bezoro.ECS.Internal.Fixed;
 
 internal sealed class ArchetypeStorage : IDisposable
 {
-	private const int UnknownTransition = int.MinValue;
+	private const int UNKNOWN_TRANSITION = int.MinValue;
 
-	private readonly int[]   _addTransitionByTypeId;
-	private readonly int[]   _columnIndexByTypeId;
-	private readonly bool[]  _columnIsManagedLane;
-	private readonly int[]   _removeTransitionByTypeId;
-	private readonly Type[]  _columnTypes;
-	private readonly int     _chunkCapacity;
-	private          Chunk[] _chunks;
-	private          int     _chunkCount;
-	private          int     _firstAvailableChunkIndex;
+	private readonly bool[] _columnIsManagedLane;
+	private readonly int    _chunkCapacity;
+	private readonly int[]  _addTransitionByTypeId;
+	private readonly int[]  _columnIndexByTypeId;
+	private readonly int[]  _removeTransitionByTypeId;
+	private readonly Type[] _columnTypes;
+
+	private Chunk[] _chunks;
+	private int     _firstAvailableChunkIndex;
 
 	public ArchetypeStorage(
-		int    id,
-		int[]  typeIds,
+		int     id,
+		int[]   typeIds,
 		ulong[] maskWords,
-		Type[] columnTypes,
-		bool[] columnIsManagedLane,
-		int    componentTypeCapacity,
-		int    chunkCapacity)
+		Type[]  columnTypes,
+		bool[]  columnIsManagedLane,
+		int     componentTypeCapacity,
+		int     chunkCapacity)
 	{
-		Id = id;
-		TypeIds = typeIds;
-		MaskWords = maskWords;
-		_columnTypes = columnTypes;
+		Id                   = id;
+		TypeIds              = typeIds;
+		MaskWords            = maskWords;
+		_columnTypes         = columnTypes;
 		_columnIsManagedLane = columnIsManagedLane;
-		_chunkCapacity = chunkCapacity;
+		_chunkCapacity       = chunkCapacity;
 
 		_columnIndexByTypeId = new int[componentTypeCapacity];
 		Array.Fill(_columnIndexByTypeId, -1);
 		for (var i = 0; i < typeIds.Length; i++)
 			_columnIndexByTypeId[typeIds[i]] = i;
 
-		_addTransitionByTypeId = new int[componentTypeCapacity];
+		_addTransitionByTypeId    = new int[componentTypeCapacity];
 		_removeTransitionByTypeId = new int[componentTypeCapacity];
-		Array.Fill(_addTransitionByTypeId, UnknownTransition);
-		Array.Fill(_removeTransitionByTypeId, UnknownTransition);
+		Array.Fill(_addTransitionByTypeId,    UNKNOWN_TRANSITION);
+		Array.Fill(_removeTransitionByTypeId, UNKNOWN_TRANSITION);
 
 		_chunks = new Chunk[4];
 	}
 
 	public int Id { get; }
 
-	public int EntityCount { get; private set; }
+	public int[] TypeIds { get; }
 
 	public ulong[] MaskWords { get; }
 
-	public int[] TypeIds { get; }
+	public int ChunkCount { get; private set; }
 
-	public int ChunkCount => _chunkCount;
+	public int EntityCount { get; private set; }
 
 	public bool HasType(int typeId) =>
 		(uint)typeId < (uint)_columnIndexByTypeId.Length &&
 		_columnIndexByTypeId[typeId] >= 0;
-
-	public int GetKnownAddTransition(int typeId) =>
-		(uint)typeId < (uint)_addTransitionByTypeId.Length
-			? _addTransitionByTypeId[typeId]
-			: UnknownTransition;
-
-	public int GetKnownRemoveTransition(int typeId) =>
-		(uint)typeId < (uint)_removeTransitionByTypeId.Length
-			? _removeTransitionByTypeId[typeId]
-			: UnknownTransition;
-
-	public void SetKnownAddTransition(int typeId, int targetArchetypeId)
-	{
-		if ((uint)typeId >= (uint)_addTransitionByTypeId.Length)
-			return;
-
-		_addTransitionByTypeId[typeId] = targetArchetypeId;
-	}
-
-	public void SetKnownRemoveTransition(int typeId, int targetArchetypeId)
-	{
-		if ((uint)typeId >= (uint)_removeTransitionByTypeId.Length)
-			return;
-
-		_removeTransitionByTypeId[typeId] = targetArchetypeId;
-	}
-
-	public bool TryGetColumnIndex(int typeId, out int columnIndex)
-	{
-		if ((uint)typeId < (uint)_columnIndexByTypeId.Length)
-		{
-			columnIndex = _columnIndexByTypeId[typeId];
-			return columnIndex >= 0;
-		}
-
-		columnIndex = -1;
-		return false;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public int GetColumnIndexOrNegative(int typeId) =>
-		(uint)typeId < (uint)_columnIndexByTypeId.Length
-			? _columnIndexByTypeId[typeId]
-			: -1;
-
-	public Chunk GetChunk(int chunkIndex)
-	{
-		if ((uint)chunkIndex >= (uint)_chunkCount)
-			throw new ArgumentOutOfRangeException(nameof(chunkIndex));
-
-		return _chunks[chunkIndex];
-	}
-
-	public Chunk GetChunkUnchecked(int chunkIndex) => _chunks[chunkIndex];
-
-	public void AllocateRow(int entityId, out int chunkIndex, out int rowIndex)
-	{
-		_ = ReserveRows(1, out chunkIndex, out rowIndex);
-		_chunks[chunkIndex].EntityIds[rowIndex] = entityId;
-	}
-
-	public int ReserveRows(int requestedCount, out int chunkIndex, out int rowStart)
-	{
-		if (requestedCount <= 0)
-			throw new ArgumentOutOfRangeException(nameof(requestedCount));
-
-		for (var i = _firstAvailableChunkIndex; i < _chunkCount; i++)
-		{
-			var candidate = _chunks[i];
-			int available = _chunkCapacity - candidate.Count;
-			if (available <= 0)
-				continue;
-
-			rowStart = candidate.Count;
-			int reserved = Math.Min(requestedCount, available);
-			candidate.Count += reserved;
-			EntityCount += reserved;
-			chunkIndex = i;
-			if (candidate.Count >= _chunkCapacity && i == _firstAvailableChunkIndex)
-			{
-				_firstAvailableChunkIndex = i + 1;
-				while (_firstAvailableChunkIndex < _chunkCount &&
-					   _chunks[_firstAvailableChunkIndex].Count >= _chunkCapacity)
-					_firstAvailableChunkIndex++;
-			}
-
-			return reserved;
-		}
-
-		if (_chunkCount == _chunks.Length)
-			Array.Resize(ref _chunks, _chunks.Length * 2);
-
-		var chunk = new Chunk(_chunkCapacity, _columnTypes);
-		_chunks[_chunkCount] = chunk;
-		chunkIndex = _chunkCount++;
-		rowStart = 0;
-		int reservedRows = Math.Min(requestedCount, _chunkCapacity);
-		chunk.Count = reservedRows;
-		EntityCount += reservedRows;
-		_firstAvailableChunkIndex = chunkIndex;
-		if (chunk.Count >= _chunkCapacity)
-		{
-			_firstAvailableChunkIndex++;
-			while (_firstAvailableChunkIndex < _chunkCount &&
-				   _chunks[_firstAvailableChunkIndex].Count >= _chunkCapacity)
-				_firstAvailableChunkIndex++;
-		}
-
-		return reservedRows;
-	}
 
 	public bool RemoveAt(int chunkIndex, int rowIndex, out int movedEntityId)
 	{
@@ -176,11 +65,11 @@ internal sealed class ArchetypeStorage : IDisposable
 		if ((uint)rowIndex >= (uint)chunk.Count)
 			throw new ArgumentOutOfRangeException(nameof(rowIndex));
 
-		var lastRowIndex = chunk.Count - 1;
+		int lastRowIndex = chunk.Count - 1;
 		movedEntityId = -1;
 		if (rowIndex != lastRowIndex)
 		{
-			movedEntityId = chunk.EntityIds[lastRowIndex];
+			movedEntityId             = chunk.EntityIds[lastRowIndex];
 			chunk.EntityIds[rowIndex] = movedEntityId;
 
 			for (var c = 0; c < chunk.Columns.Length; c++)
@@ -198,7 +87,179 @@ internal sealed class ArchetypeStorage : IDisposable
 		EntityCount--;
 		if (chunk.Count < _chunkCapacity && chunkIndex < _firstAvailableChunkIndex)
 			_firstAvailableChunkIndex = chunkIndex;
+
 		return movedEntityId >= 0;
+	}
+
+	public bool TryGetColumnIndex(int typeId, out int columnIndex)
+	{
+		if ((uint)typeId < (uint)_columnIndexByTypeId.Length)
+		{
+			columnIndex = _columnIndexByTypeId[typeId];
+			return columnIndex >= 0;
+		}
+
+		columnIndex = -1;
+		return false;
+	}
+
+	public bool TryGetValue<T>(int chunkIndex, int rowIndex, int typeId, out T value) where T : struct
+	{
+		value = default;
+		int columnIndex = GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			return false;
+
+		var chunk = GetChunk(chunkIndex);
+		if ((uint)rowIndex >= (uint)chunk.Count)
+			return false;
+
+		value = chunk.Columns[columnIndex].GetReference<T>(rowIndex);
+		return true;
+	}
+
+	public Chunk GetChunk(int chunkIndex)
+	{
+		if ((uint)chunkIndex >= (uint)ChunkCount)
+			throw new ArgumentOutOfRangeException(nameof(chunkIndex));
+
+		return _chunks[chunkIndex];
+	}
+
+	public Chunk GetChunkUnchecked(int chunkIndex) => _chunks[chunkIndex];
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public int GetColumnIndexOrNegative(int typeId) =>
+		(uint)typeId < (uint)_columnIndexByTypeId.Length
+			? _columnIndexByTypeId[typeId]
+			: -1;
+
+	public int GetKnownAddTransition(int typeId) =>
+		(uint)typeId < (uint)_addTransitionByTypeId.Length
+			? _addTransitionByTypeId[typeId]
+			: UNKNOWN_TRANSITION;
+
+	public int GetKnownRemoveTransition(int typeId) =>
+		(uint)typeId < (uint)_removeTransitionByTypeId.Length
+			? _removeTransitionByTypeId[typeId]
+			: UNKNOWN_TRANSITION;
+
+	public int ReserveRows(int requestedCount, out int chunkIndex, out int rowStart)
+	{
+		if (requestedCount <= 0)
+			throw new ArgumentOutOfRangeException(nameof(requestedCount));
+
+		for (int i = _firstAvailableChunkIndex; i < ChunkCount; i++)
+		{
+			var candidate = _chunks[i];
+			int available = _chunkCapacity - candidate.Count;
+			if (available <= 0)
+				continue;
+
+			rowStart = candidate.Count;
+			int reserved = Math.Min(requestedCount, available);
+			candidate.Count += reserved;
+			EntityCount     += reserved;
+			chunkIndex      =  i;
+			if (candidate.Count >= _chunkCapacity && i == _firstAvailableChunkIndex)
+			{
+				_firstAvailableChunkIndex = i + 1;
+				while (_firstAvailableChunkIndex < ChunkCount &&
+					   _chunks[_firstAvailableChunkIndex].Count >= _chunkCapacity)
+					_firstAvailableChunkIndex++;
+			}
+
+			return reserved;
+		}
+
+		if (ChunkCount == _chunks.Length)
+			Array.Resize(ref _chunks, _chunks.Length * 2);
+
+		var chunk = new Chunk(_chunkCapacity, _columnTypes);
+		_chunks[ChunkCount] = chunk;
+		chunkIndex          = ChunkCount++;
+		rowStart            = 0;
+		int reservedRows = Math.Min(requestedCount, _chunkCapacity);
+		chunk.Count               =  reservedRows;
+		EntityCount               += reservedRows;
+		_firstAvailableChunkIndex =  chunkIndex;
+		if (chunk.Count >= _chunkCapacity)
+		{
+			_firstAvailableChunkIndex++;
+			while (_firstAvailableChunkIndex < ChunkCount &&
+				   _chunks[_firstAvailableChunkIndex].Count >= _chunkCapacity)
+				_firstAvailableChunkIndex++;
+		}
+
+		return reservedRows;
+	}
+
+	public ReadOnlySpan<T> GetReadOnlySpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
+	{
+		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		return chunk.Columns[columnIndex].GetReadOnlySpan<T>(chunk.Count);
+	}
+
+	public Span<T> GetSpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
+	{
+		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		return chunk.Columns[columnIndex].GetSpan<T>(chunk.Count);
+	}
+
+	public ref T GetRef<T>(int chunkIndex, int rowIndex, int typeId) where T : struct
+	{
+		int columnIndex = GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			throw new KeyNotFoundException($"Type id '{typeId}' does not exist in archetype '{Id}'.");
+
+		var chunk = GetChunk(chunkIndex);
+		if ((uint)rowIndex >= (uint)chunk.Count)
+			throw new ArgumentOutOfRangeException(nameof(rowIndex));
+
+		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
+	}
+
+	public ref T GetRefByIndex<T>(Chunk chunk, int columnIndex, int rowIndex) where T : struct
+	{
+		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		if ((uint)rowIndex >= (uint)chunk.Count)
+			throw new ArgumentOutOfRangeException(nameof(rowIndex));
+
+		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
+	}
+
+	public void AllocateRow(int entityId, out int chunkIndex, out int rowIndex)
+	{
+		_                                       = ReserveRows(1, out chunkIndex, out rowIndex);
+		_chunks[chunkIndex].EntityIds[rowIndex] = entityId;
+	}
+
+	public void Clear()
+	{
+		for (var chunkIndex = 0; chunkIndex < ChunkCount; chunkIndex++)
+		{
+			var chunk = _chunks[chunkIndex];
+			if (chunk.Count == 0)
+				continue;
+
+			for (var columnIndex = 0; columnIndex < chunk.Columns.Length; columnIndex++)
+			{
+				if (_columnIsManagedLane[columnIndex])
+					chunk.Columns[columnIndex].Clear(0, chunk.Count);
+			}
+
+			Array.Clear(chunk.EntityIds, 0, chunk.Count);
+			chunk.Count = 0;
+		}
+
+		EntityCount               = 0;
+		_firstAvailableChunkIndex = 0;
 	}
 
 	public void ClearChunk(int chunkIndex)
@@ -215,33 +276,9 @@ internal sealed class ArchetypeStorage : IDisposable
 		}
 
 		Array.Clear(chunk.EntityIds, 0, count);
-		chunk.Count = 0;
+		chunk.Count =  0;
 		EntityCount -= count;
 		if (chunkIndex < _firstAvailableChunkIndex)
-			_firstAvailableChunkIndex = chunkIndex;
-	}
-
-	public void FinalizeChunkCompaction(int chunkIndex, int newCount)
-	{
-		var chunk = GetChunk(chunkIndex);
-		int oldCount = chunk.Count;
-		if ((uint)newCount > (uint)oldCount)
-			throw new ArgumentOutOfRangeException(nameof(newCount));
-
-		if (newCount == oldCount)
-			return;
-
-		int removedCount = oldCount - newCount;
-		for (var c = 0; c < chunk.Columns.Length; c++)
-		{
-			if (_columnIsManagedLane[c])
-				chunk.Columns[c].Clear(newCount, removedCount);
-		}
-
-		Array.Clear(chunk.EntityIds, newCount, removedCount);
-		chunk.Count = newCount;
-		EntityCount -= removedCount;
-		if (newCount < _chunkCapacity && chunkIndex < _firstAvailableChunkIndex)
 			_firstAvailableChunkIndex = chunkIndex;
 	}
 
@@ -254,7 +291,7 @@ internal sealed class ArchetypeStorage : IDisposable
 	{
 		for (var i = 0; i < TypeIds.Length; i++)
 		{
-			int typeId = TypeIds[i];
+			int typeId            = TypeIds[i];
 			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
 			if (sourceColumnIndex < 0)
 				continue;
@@ -309,56 +346,49 @@ internal sealed class ArchetypeStorage : IDisposable
 		}
 	}
 
-	public ref T GetRef<T>(int chunkIndex, int rowIndex, int typeId) where T : struct
+	public void Dispose()
 	{
-		int columnIndex = GetColumnIndexOrNegative(typeId);
-		if (columnIndex < 0)
-			throw new KeyNotFoundException($"Type id '{typeId}' does not exist in archetype '{Id}'.");
+		for (var i = 0; i < ChunkCount; i++)
+			_chunks[i].DisposeColumns();
 
-		var chunk = GetChunk(chunkIndex);
-		if ((uint)rowIndex >= (uint)chunk.Count)
-			throw new ArgumentOutOfRangeException(nameof(rowIndex));
-
-		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
+		_chunks                   = [];
+		ChunkCount                = 0;
+		_firstAvailableChunkIndex = 0;
+		EntityCount               = 0;
 	}
 
-	public bool TryGetValue<T>(int chunkIndex, int rowIndex, int typeId, out T value) where T : struct
+	public void FinalizeChunkCompaction(int chunkIndex, int newCount)
 	{
-		value = default;
-		int columnIndex = GetColumnIndexOrNegative(typeId);
-		if (columnIndex < 0)
-			return false;
+		var chunk    = GetChunk(chunkIndex);
+		int oldCount = chunk.Count;
+		if ((uint)newCount > (uint)oldCount)
+			throw new ArgumentOutOfRangeException(nameof(newCount));
 
-		var chunk = GetChunk(chunkIndex);
-		if ((uint)rowIndex >= (uint)chunk.Count)
-			return false;
+		if (newCount == oldCount)
+			return;
 
-		value = chunk.Columns[columnIndex].GetReference<T>(rowIndex);
-		return true;
-	}
+		int removedCount = oldCount - newCount;
+		for (var c = 0; c < chunk.Columns.Length; c++)
+		{
+			if (_columnIsManagedLane[c])
+				chunk.Columns[c].Clear(newCount, removedCount);
+		}
 
-	public Span<T> GetSpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
-	{
-		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
-			throw new ArgumentOutOfRangeException(nameof(columnIndex));
-
-		return chunk.Columns[columnIndex].GetSpan<T>(chunk.Count);
-	}
-
-	public ReadOnlySpan<T> GetReadOnlySpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
-	{
-		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
-			throw new ArgumentOutOfRangeException(nameof(columnIndex));
-
-		return chunk.Columns[columnIndex].GetReadOnlySpan<T>(chunk.Count);
+		Array.Clear(chunk.EntityIds, newCount, removedCount);
+		chunk.Count =  newCount;
+		EntityCount -= removedCount;
+		if (newCount < _chunkCapacity && chunkIndex < _firstAvailableChunkIndex)
+			_firstAvailableChunkIndex = chunkIndex;
 	}
 
 	public void MoveRowRangeWithinChunk(Chunk chunk, int sourceRowIndex, int destinationRowIndex, int rowCount)
 	{
 		if (rowCount == 0 || sourceRowIndex == destinationRowIndex)
 			return;
+
 		if (sourceRowIndex < 0 || sourceRowIndex + rowCount > chunk.Count)
 			throw new ArgumentOutOfRangeException(nameof(sourceRowIndex));
+
 		if (destinationRowIndex < 0 || destinationRowIndex + rowCount > chunk.Count)
 			throw new ArgumentOutOfRangeException(nameof(destinationRowIndex));
 
@@ -374,47 +404,20 @@ internal sealed class ArchetypeStorage : IDisposable
 		}
 	}
 
-	public ref T GetRefByIndex<T>(Chunk chunk, int columnIndex, int rowIndex) where T : struct
+	public void SetKnownAddTransition(int typeId, int targetArchetypeId)
 	{
-		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
-			throw new ArgumentOutOfRangeException(nameof(columnIndex));
-		if ((uint)rowIndex >= (uint)chunk.Count)
-			throw new ArgumentOutOfRangeException(nameof(rowIndex));
+		if ((uint)typeId >= (uint)_addTransitionByTypeId.Length)
+			return;
 
-		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
+		_addTransitionByTypeId[typeId] = targetArchetypeId;
 	}
 
-	public void Clear()
+	public void SetKnownRemoveTransition(int typeId, int targetArchetypeId)
 	{
-		for (var chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
-		{
-			var chunk = _chunks[chunkIndex];
-			if (chunk.Count == 0)
-				continue;
+		if ((uint)typeId >= (uint)_removeTransitionByTypeId.Length)
+			return;
 
-			for (var columnIndex = 0; columnIndex < chunk.Columns.Length; columnIndex++)
-			{
-				if (_columnIsManagedLane[columnIndex])
-					chunk.Columns[columnIndex].Clear(0, chunk.Count);
-			}
-
-			Array.Clear(chunk.EntityIds, 0, chunk.Count);
-			chunk.Count = 0;
-		}
-
-		EntityCount = 0;
-		_firstAvailableChunkIndex = 0;
-	}
-
-	public void Dispose()
-	{
-		for (var i = 0; i < _chunkCount; i++)
-			_chunks[i].DisposeColumns();
-
-		_chunks = [];
-		_chunkCount = 0;
-		_firstAvailableChunkIndex = 0;
-		EntityCount = 0;
+		_removeTransitionByTypeId[typeId] = targetArchetypeId;
 	}
 
 	internal sealed class Chunk
@@ -422,16 +425,16 @@ internal sealed class ArchetypeStorage : IDisposable
 		public Chunk(int chunkCapacity, Type[] columnTypes)
 		{
 			EntityIds = new int[chunkCapacity];
-			Columns = new ComponentColumn[columnTypes.Length];
+			Columns   = new ComponentColumn[columnTypes.Length];
 			for (var i = 0; i < columnTypes.Length; i++)
 				Columns[i] = ComponentColumn.Create(columnTypes[i], chunkCapacity);
 		}
 
 		public ComponentColumn[] Columns { get; }
 
-		public int Count { get; set; }
-
 		public int[] EntityIds { get; }
+
+		public int Count { get; set; }
 
 		public void DisposeColumns()
 		{

@@ -15,11 +15,6 @@ namespace Bezoro.ECS.Types;
 public readonly struct SystemContext(float deltaTime, Stage stage, World world, CommandStream commands)
 {
 	/// <summary>
-	///     Gets the world instance executing this context.
-	/// </summary>
-	public World World { get; } = world;
-
-	/// <summary>
 	///     Gets the command stream for deferred structural changes.
 	/// </summary>
 	public CommandStream Commands { get; } = commands;
@@ -33,4 +28,9 @@ public readonly struct SystemContext(float deltaTime, Stage stage, World world, 
 	///     Gets the stage currently being executed.
 	/// </summary>
 	public Stage Stage { get; } = stage;
+
+	/// <summary>
+	///     Gets the world instance executing this context.
+	/// </summary>
+	public World World { get; } = world;
 }

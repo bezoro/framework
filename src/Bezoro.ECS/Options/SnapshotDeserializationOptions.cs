@@ -7,12 +7,24 @@ namespace Bezoro.ECS.Options;
 /// </summary>
 public sealed class SnapshotDeserializationOptions
 {
-	private Type[] _allowedReferenceResourceTypes = [];
+	private readonly Type[] _allowedReferenceResourceTypes = [];
 
 	/// <summary>
 	///     Gets the default options.
 	/// </summary>
 	public static SnapshotDeserializationOptions Default { get; } = new();
+
+	/// <summary>
+	///     Gets or initializes the type resolver used for snapshot type names.
+	///     When null, the runtime loaded-assembly resolver is used.
+	/// </summary>
+	public Func<string, Type?>? TypeResolver { get; init; }
+
+	/// <summary>
+	///     Gets or initializes an additional type validator predicate.
+	///     Returning false rejects the type.
+	/// </summary>
+	public Func<Type, bool>? TypeValidator { get; init; }
 
 	/// <summary>
 	///     Gets or initializes explicit reference-type resource allowlist entries.
@@ -26,18 +38,6 @@ public sealed class SnapshotDeserializationOptions
 													 nameof(AllowedReferenceResourceTypes)
 												 );
 	}
-
-	/// <summary>
-	///     Gets or initializes the type resolver used for snapshot type names.
-	///     When null, the runtime loaded-assembly resolver is used.
-	/// </summary>
-	public Func<string, Type?>? TypeResolver { get; init; }
-
-	/// <summary>
-	///     Gets or initializes an additional type validator predicate.
-	///     Returning false rejects the type.
-	/// </summary>
-	public Func<Type, bool>? TypeValidator { get; init; }
 
 	internal bool IsReferenceResourceTypeAllowed(Type type)
 	{
@@ -66,7 +66,9 @@ public sealed class SnapshotDeserializationOptions
 		if (type.IsPointer || type.IsByRef || type.ContainsGenericParameters || type.IsGenericTypeDefinition)
 			return false;
 
-		if (type == typeof(Type) || typeof(MemberInfo).IsAssignableFrom(type) || typeof(Delegate).IsAssignableFrom(type))
+		if (type == typeof(Type) ||
+			typeof(MemberInfo).IsAssignableFrom(type) ||
+			typeof(Delegate).IsAssignableFrom(type))
 			return false;
 
 		return true;

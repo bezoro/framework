@@ -12,9 +12,9 @@ internal readonly struct QueryChunkMatch(
 
 	public int ChunkIndex { get; } = chunkIndex;
 
-	public int RowStart { get; } = rowStart;
-
 	public int Count { get; } = count;
 
 	public int EntityStartIndex { get; } = entityStartIndex;
+
+	public int RowStart { get; } = rowStart;
 }

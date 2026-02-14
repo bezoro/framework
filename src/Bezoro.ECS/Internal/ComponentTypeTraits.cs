@@ -23,11 +23,6 @@ internal static class ComponentTypeTraits
 		}
 	}
 
-	private sealed class CacheEntry(bool value)
-	{
-		public bool Value { get; } = value;
-	}
-
 	private static bool ComputeIsUnmanaged(Type type)
 	{
 		if (type.IsPointer)
@@ -53,5 +48,10 @@ internal static class ComponentTypeTraits
 		}
 
 		return true;
+	}
+
+	private sealed class CacheEntry(bool value)
+	{
+		public bool Value { get; } = value;
 	}
 }

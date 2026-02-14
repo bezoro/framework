@@ -15,6 +15,8 @@ internal readonly struct TypeIdTripleKey : IEquatable<TypeIdTripleKey>
 
 	public int Third { get; }
 
+	#region Equality
+
 	public bool Equals(TypeIdTripleKey other) =>
 		First == other.First &&
 		Second == other.Second &&
@@ -23,6 +25,8 @@ internal readonly struct TypeIdTripleKey : IEquatable<TypeIdTripleKey>
 	public override bool Equals(object? obj) => obj is TypeIdTripleKey other && Equals(other);
 
 	public override int GetHashCode() => HashCode.Combine(First, Second, Third);
+
+	#endregion
 
 	private static int Max(int first, int second, int third)
 	{

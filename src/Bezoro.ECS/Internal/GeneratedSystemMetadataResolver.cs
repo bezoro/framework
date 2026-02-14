@@ -51,7 +51,7 @@ internal sealed class GeneratedSystemMetadataResolver
 
 	private IReadOnlyDictionary<Type, SystemMetadata>? GetOrCreateMap(Assembly assembly)
 	{
-		return _cache.GetValue(assembly, static key => new CacheEntry(CreateMap(key)))
+		return _cache.GetValue(assembly, static key => new(CreateMap(key)))
 					 .Map;
 	}
 

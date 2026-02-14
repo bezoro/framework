@@ -5,11 +5,11 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed unsafe class ComponentColumn : IDisposable
 {
-	private const int ALIGNMENT_BYTES = 64;
+	private const    int    ALIGNMENT_BYTES = 64;
+	private readonly Array? _managedArray;
+	private readonly bool   _isManaged;
 
 	private readonly int    _elementSize;
-	private readonly bool   _isManaged;
-	private readonly Array? _managedArray;
 	private readonly IntPtr _alignedPointer;
 	private readonly IntPtr _allocatedPointer;
 	private          bool   _disposed;
@@ -38,7 +38,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 
 			var byteLength = checked((nuint)((ulong)_elementSize * (ulong)capacity));
 #if NET9_0
-			void* native = NativeMemory.AlignedAlloc(byteLength, ALIGNMENT_BYTES);
+			var native = NativeMemory.AlignedAlloc(byteLength, ALIGNMENT_BYTES);
 			if (native is null)
 				throw new OutOfMemoryException("Failed to allocate unmanaged component buffer.");
 
@@ -62,6 +62,14 @@ internal sealed unsafe class ComponentColumn : IDisposable
 		}
 	}
 
+	public static ComponentColumn Create(Type componentType, int capacity)
+	{
+		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+
+		bool isManaged = !ComponentTypeTraits.IsUnmanaged(componentType);
+		return new(componentType, capacity, isManaged);
+	}
+
 	~ComponentColumn()
 	{
 		Dispose(false);
@@ -75,17 +83,9 @@ internal sealed unsafe class ComponentColumn : IDisposable
 
 	internal bool UsesNativeAlignedAlloc { get; }
 
-	internal nuint AlignedAddress => (nuint)_alignedPointer.ToPointer();
-
 	internal int AlignmentBytes => ALIGNMENT_BYTES;
 
-	public static ComponentColumn Create(Type componentType, int capacity)
-	{
-		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
-
-		bool isManaged = !ComponentTypeTraits.IsUnmanaged(componentType);
-		return new ComponentColumn(componentType, capacity, isManaged);
-	}
+	internal nuint AlignedAddress => (nuint)_alignedPointer.ToPointer();
 
 	public object GetValue(int index)
 	{
@@ -184,6 +184,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 	{
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
 		if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
+
 		if (length == 0)
 			return;
 
@@ -198,7 +199,10 @@ internal sealed unsafe class ComponentColumn : IDisposable
 			int sourceOffset = checked(sourceIndex * _elementSize);
 			int destinationOffset = checked(destinationIndex * destination._elementSize);
 			var sourceBytes = new ReadOnlySpan<byte>((byte*)_alignedPointer.ToPointer() + sourceOffset, byteLength);
-			var targetBytes = new Span<byte>((byte*)destination._alignedPointer.ToPointer() + destinationOffset, byteLength);
+			var targetBytes = new Span<byte>(
+				(byte*)destination._alignedPointer.ToPointer() + destinationOffset, byteLength
+			);
+
 			sourceBytes.CopyTo(targetBytes);
 			return;
 		}
@@ -236,10 +240,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 		Marshal.StructureToPtr(value, new(GetPointer(index)), false);
 	}
 
-	private byte* GetPointer(int index)
-	{
-		return (byte*)_alignedPointer.ToPointer() + index * _elementSize;
-	}
+	private byte* GetPointer(int index) => (byte*)_alignedPointer.ToPointer() + index * _elementSize;
 
 	private void Dispose(bool disposing)
 	{

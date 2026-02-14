@@ -9,18 +9,17 @@ internal interface ICommandPayloadStore
 
 	void ApplyBatch(
 		World world,
-		int[]   entityIds,
-		int     entityOffset,
-		int     count,
-		int[]   payloadIndices,
-		int     payloadOffset,
-		int     componentTypeId,
-		int     sourceArchetypeId,
-		int     targetArchetypeId
+		int[] entityIds,
+		int   entityOffset,
+		int   count,
+		int[] payloadIndices,
+		int   payloadOffset,
+		int   componentTypeId,
+		int   sourceArchetypeId,
+		int   targetArchetypeId
 	);
 
 	void Clear();
 
 	void Dispose();
 }
-

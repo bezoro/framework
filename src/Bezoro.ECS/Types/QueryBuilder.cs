@@ -4,17 +4,17 @@ using Bezoro.ECS.Services;
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Builds a compiled query plan for <see cref="World" />.
+///     Builds a compiled query plan for <see cref="World" />.
 /// </summary>
 public struct QueryBuilder
 {
 	private readonly World _world;
-	private          int[]   _allTypeIds;
-	private          int[]   _anyTypeIds;
-	private          int[]   _noneTypeIds;
-	private          int     _allCount;
-	private          int     _anyCount;
-	private          int     _noneCount;
+	private          int   _allCount;
+	private          int   _anyCount;
+	private          int   _noneCount;
+	private          int[] _allTypeIds;
+	private          int[] _anyTypeIds;
+	private          int[] _noneTypeIds;
 
 	internal QueryBuilder(World world)
 	{
@@ -27,50 +27,39 @@ public struct QueryBuilder
 		_noneCount   = 0;
 	}
 
+	internal CompiledQueryPlan Build() =>
+		BuildPlan();
+
 	/// <summary>
-	/// Requires component type <typeparamref name="T" />.
+	///     Requires component type <typeparamref name="T" />.
 	/// </summary>
 	/// <typeparam name="T">Component type.</typeparam>
 	public void All<T>() where T : struct =>
 		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _allTypeIds, ref _allCount);
 
 	/// <summary>
-	/// Excludes component type <typeparamref name="T" />.
-	/// </summary>
-	/// <typeparam name="T">Component type.</typeparam>
-	public void None<T>() where T : struct =>
-		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _noneTypeIds, ref _noneCount);
-
-	/// <summary>
-	/// Requires at least one of the registered <c>Any</c> component types.
+	///     Requires at least one of the registered <c>Any</c> component types.
 	/// </summary>
 	/// <typeparam name="T">Component type.</typeparam>
 	public void Any<T>() where T : struct =>
 		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _anyTypeIds, ref _anyCount);
 
-	internal CompiledQueryPlan Build() =>
-		BuildPlan();
+	/// <summary>
+	///     Excludes component type <typeparamref name="T" />.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	public void None<T>() where T : struct =>
+		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _noneTypeIds, ref _noneCount);
 
-	private CompiledQueryPlan BuildPlan()
+	private static int[] FinalizeTypeIds(int[] buffer, int count)
 	{
-		var allTypeIds  = FinalizeTypeIds(_allTypeIds,  _allCount);
-		var noneTypeIds = FinalizeTypeIds(_noneTypeIds, _noneCount);
-		var anyTypeIds  = FinalizeTypeIds(_anyTypeIds,  _anyCount);
-		var allMaskWords = _world.BuildMaskWords(allTypeIds);
-		var noneMaskWords = _world.BuildMaskWords(noneTypeIds);
-		var anyMaskWords = _world.BuildMaskWords(anyTypeIds);
-		return new(
-			_world,
-			allTypeIds,
-			noneTypeIds,
-			anyTypeIds,
-			allMaskWords,
-			noneMaskWords,
-			anyMaskWords,
-			_world.BuildMaskWordIndices(allMaskWords),
-			_world.BuildMaskWordIndices(noneMaskWords),
-			_world.BuildMaskWordIndices(anyMaskWords)
-		);
+		if (count == 0)
+			return [];
+
+		var copy = new int[count];
+		Array.Copy(buffer, copy, count);
+		Array.Sort(copy);
+		return copy;
 	}
 
 	private static void AddTypeId(int typeId, ref int[] buffer, ref int count)
@@ -87,15 +76,25 @@ public struct QueryBuilder
 		buffer[count++] = typeId;
 	}
 
-	private static int[] FinalizeTypeIds(int[] buffer, int count)
+	private CompiledQueryPlan BuildPlan()
 	{
-		if (count == 0)
-			return [];
-
-		var copy = new int[count];
-		Array.Copy(buffer, copy, count);
-		Array.Sort(copy);
-		return copy;
+		int[]   allTypeIds    = FinalizeTypeIds(_allTypeIds,  _allCount);
+		int[]   noneTypeIds   = FinalizeTypeIds(_noneTypeIds, _noneCount);
+		int[]   anyTypeIds    = FinalizeTypeIds(_anyTypeIds,  _anyCount);
+		ulong[] allMaskWords  = _world.BuildMaskWords(allTypeIds);
+		ulong[] noneMaskWords = _world.BuildMaskWords(noneTypeIds);
+		ulong[] anyMaskWords  = _world.BuildMaskWords(anyTypeIds);
+		return new(
+			_world,
+			allTypeIds,
+			noneTypeIds,
+			anyTypeIds,
+			allMaskWords,
+			noneMaskWords,
+			anyMaskWords,
+			_world.BuildMaskWordIndices(allMaskWords),
+			_world.BuildMaskWordIndices(noneMaskWords),
+			_world.BuildMaskWordIndices(anyMaskWords)
+		);
 	}
 }
-

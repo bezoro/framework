@@ -3,7 +3,7 @@ using Bezoro.ECS.Services;
 namespace Bezoro.ECS.Internal.Fixed;
 
 internal sealed class CompiledQueryPlan(
-	World owner,
+	World   owner,
 	int[]   allTypeIds,
 	int[]   noneTypeIds,
 	int[]   anyTypeIds,
@@ -15,41 +15,40 @@ internal sealed class CompiledQueryPlan(
 	int[]   anyMaskWordIndices
 )
 {
-	private int[] _matchingArchetypeIds = [];
 	private int   _matchingArchetypeCount;
-
-	public World Owner { get; } = owner;
-
-	public int[] AllTypeIds { get; } = allTypeIds;
-
-	public int[] NoneTypeIds { get; } = noneTypeIds;
-
-	public int[] AnyTypeIds { get; } = anyTypeIds;
-
-	public ulong[] AllMaskWords { get; } = allMaskWords;
-
-	public ulong[] NoneMaskWords { get; } = noneMaskWords;
-
-	public ulong[] AnyMaskWords { get; } = anyMaskWords;
+	private int[] _matchingArchetypeIds = [];
 
 	public int[] AllMaskWordIndices { get; } = allMaskWordIndices;
 
-	public int[] NoneMaskWordIndices { get; } = noneMaskWordIndices;
+	public int[] AllTypeIds { get; } = allTypeIds;
 
 	public int[] AnyMaskWordIndices { get; } = anyMaskWordIndices;
 
-	public int ArchetypeCacheVersion { get; set; } = -1;
+	public int[] AnyTypeIds { get; } = anyTypeIds;
 
-	public int[] MatchingArchetypeIds
-	{
-		get => _matchingArchetypeIds;
-		set => _matchingArchetypeIds = value ?? [];
-	}
+	public int[] NoneMaskWordIndices { get; } = noneMaskWordIndices;
+
+	public int[] NoneTypeIds { get; } = noneTypeIds;
+
+	public ulong[] AllMaskWords { get; } = allMaskWords;
+
+	public ulong[] AnyMaskWords { get; } = anyMaskWords;
+
+	public ulong[] NoneMaskWords { get; } = noneMaskWords;
+
+	public World Owner { get; } = owner;
+
+	public int ArchetypeCacheVersion { get; set; } = -1;
 
 	public int MatchingArchetypeCount
 	{
 		get => _matchingArchetypeCount;
 		set => _matchingArchetypeCount = value < 0 ? 0 : value;
 	}
-}
 
+	public int[] MatchingArchetypeIds
+	{
+		get => _matchingArchetypeIds;
+		set => _matchingArchetypeIds = value ?? [];
+	}
+}

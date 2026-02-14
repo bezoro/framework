@@ -1,8 +1,8 @@
+using System.Runtime.ExceptionServices;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Types;
-using System.Runtime.ExceptionServices;
 
 namespace Bezoro.ECS.Services;
 
@@ -44,8 +44,8 @@ internal sealed class SystemManager
 				throw new InvalidOperationException("System is already registered.");
 		}
 
-		var readSet  = new HashSet<int>();
-		var writeSet = new HashSet<int>();
+		var readSet                   = new HashSet<int>();
+		var writeSet                  = new HashSet<int>();
 		var hasDeclaredAccessMetadata = false;
 
 		var  type = system.GetType();
@@ -321,36 +321,6 @@ internal sealed class SystemManager
 		readSet.Remove(typeId);
 	}
 
-	private void ExecuteSystem(SystemExecution execution, World world, CommandStream[] streams, int index)
-	{
-		var stream = world.CreateCommandStream();
-		streams[index] = stream;
-		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, stream);
-		execution.State.System.Update(in context);
-	}
-
-	private void FlushStreams(World world, CommandStream[] streams)
-	{
-		for (var i = 0; i < streams.Length; i++)
-		{
-			var stream = streams[i];
-			if (stream is null)
-				continue;
-
-			try
-			{
-				if (!stream.HasCommands)
-					continue;
-
-				world.Playback(stream);
-			}
-			finally
-			{
-				stream.Dispose();
-			}
-		}
-	}
-
 	private CommandStream[] ExecuteBatch(SystemBatch batch, World world)
 	{
 		if (batch.Systems.Count == 0) return [];
@@ -383,6 +353,36 @@ internal sealed class SystemManager
 		}
 
 		return batch;
+	}
+
+	private void ExecuteSystem(SystemExecution execution, World world, CommandStream[] streams, int index)
+	{
+		var stream = world.CreateCommandStream();
+		streams[index] = stream;
+		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, stream);
+		execution.State.System.Update(in context);
+	}
+
+	private void FlushStreams(World world, CommandStream[] streams)
+	{
+		for (var i = 0; i < streams.Length; i++)
+		{
+			var stream = streams[i];
+			if (stream is null)
+				continue;
+
+			try
+			{
+				if (!stream.HasCommands)
+					continue;
+
+				world.Playback(stream);
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
 	}
 
 	private void RebuildExecutionPlan()

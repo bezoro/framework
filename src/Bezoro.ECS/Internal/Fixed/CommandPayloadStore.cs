@@ -9,9 +9,9 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 	: ICommandPayloadStore
 	where T : struct
 {
-	private readonly int  _capacity = capacity;
 	private readonly bool _containsReferences = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-	private readonly T[]  _payloads = ArrayPool<T>.Shared.Rent(capacity);
+	private readonly int  _capacity           = capacity;
+	private readonly T[]  _payloads           = ArrayPool<T>.Shared.Rent(capacity);
 	private          bool _disposed;
 	private          int  _count;
 
@@ -30,7 +30,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 			return false;
 		}
 
-		payloadIndex       = _count;
+		payloadIndex      = _count;
 		_payloads[_count] = payload;
 		_count++;
 		return true;
@@ -50,14 +50,14 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 
 	public void ApplyBatch(
 		World world,
-		int[]   entityIds,
-		int     entityOffset,
-		int     count,
-		int[]   payloadIndices,
-		int     payloadOffset,
-		int     componentTypeId,
-		int     sourceArchetypeId,
-		int     targetArchetypeId
+		int[] entityIds,
+		int   entityOffset,
+		int   count,
+		int[] payloadIndices,
+		int   payloadOffset,
+		int   componentTypeId,
+		int   sourceArchetypeId,
+		int   targetArchetypeId
 	)
 	{
 		ThrowIfDisposed();
@@ -67,6 +67,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 		if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
 		if (entityOffset < 0 || entityOffset + count > entityIds.Length)
 			throw new ArgumentOutOfRangeException(nameof(entityOffset));
+
 		if (payloadOffset < 0 || payloadOffset + count > payloadIndices.Length)
 			throw new ArgumentOutOfRangeException(nameof(payloadOffset));
 
@@ -101,7 +102,7 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 		if (_containsReferences)
 			Array.Clear(_payloads, 0, _payloads.Length);
 
-		ArrayPool<T>.Shared.Return(_payloads, clearArray: false);
+		ArrayPool<T>.Shared.Return(_payloads);
 		_disposed = true;
 		_count    = 0;
 	}
@@ -112,4 +113,3 @@ internal sealed class CommandPayloadStore<T>(int capacity, WorldOverflowPolicy o
 			throw new ObjectDisposedException(nameof(CommandPayloadStore<T>));
 	}
 }
-

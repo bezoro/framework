@@ -7,8 +7,6 @@ internal sealed class SystemState(ISystem system, Stage stage, int[] readIds, in
 {
 	public bool IsExclusive { get; } = isExclusive;
 
-	public SystemLoopPhase LoopPhase { get; } = system.LoopPhase;
-
 	public int[] ReadIds { get; } = readIds;
 
 	public int[] WriteIds { get; } = writeIds;
@@ -16,6 +14,8 @@ internal sealed class SystemState(ISystem system, Stage stage, int[] readIds, in
 	public ISystem System { get; } = system;
 
 	public Stage Stage { get; } = stage;
+
+	public SystemLoopPhase LoopPhase { get; } = system.LoopPhase;
 
 	public float Accumulator { get; set; }
 }

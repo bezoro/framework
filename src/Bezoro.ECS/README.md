@@ -54,6 +54,5 @@ struct Position { public float X; public float Y; }
 
 ## Design Notes
 - Default runtime is `src/Bezoro.ECS/Services/World.cs`.
-- `WorldV1` and legacy query/command-buffer APIs were removed from the default path.
 - The hot path is data-oriented with fixed-capacity buffers and explicit command playback to minimize allocations.
 - Compiled queries are intended for sequential, cache-friendly component access in gameplay loops.

@@ -5,21 +5,30 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class ComponentTypeRegistry
 {
-	private readonly ConcurrentDictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId = new();
-	private readonly ConcurrentDictionary<int, (Type relationType, int targetId, int targetVersion)> _relationKeyById = new();
 	private readonly ConcurrentDictionary<(int targetId, int targetVersion), int[]> _relationIdsByTarget = new();
-	private readonly ConcurrentDictionary<int, RelationshipInfo>                     _relationshipInfoById = new();
-	private readonly ConcurrentDictionary<Type, int>                                 _typeToId = new();
-	private readonly ConcurrentDictionary<Type, int[]>                               _relationIdsByType = new();
-	private readonly object                                                          _sync = new();
-	private readonly Stack<int>                                                      _recycledRelationshipTypeIds = new();
+	private readonly ConcurrentDictionary<(Type relationType, int targetId, int targetVersion), int> _relationToId =
+		new();
+	private readonly ConcurrentDictionary<int, (Type relationType, int targetId, int targetVersion)> _relationKeyById =
+		new();
+	private readonly ConcurrentDictionary<int, RelationshipInfo> _relationshipInfoById        = new();
+	private readonly ConcurrentDictionary<Type, int[]>           _relationIdsByType           = new();
+	private readonly ConcurrentDictionary<Type, int>             _typeToId                    = new();
+	private readonly object                                      _sync                        = new();
+	private readonly Stack<int>                                  _recycledRelationshipTypeIds = new();
+	private          int                                         _idToTypeCount;
 
 	private Type[] _idToTypeArray = new Type[16];
-	private int    _idToTypeCount;
 
 	public int Count => Volatile.Read(ref _idToTypeCount);
 
 	public bool IsRelationship(int id) => _relationshipInfoById.ContainsKey(id);
+
+	public bool TryGetRelationship(Type relationType, Entity target, out int relationshipTypeId)
+	{
+		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
+
+		return _relationToId.TryGetValue((relationType, target.Id, target.Version), out relationshipTypeId);
+	}
 
 	public bool TryGetRelationshipInfo(int id, out RelationshipInfo info) =>
 		_relationshipInfoById.TryGetValue(id, out info);
@@ -67,7 +76,7 @@ internal sealed class ComponentTypeRegistry
 			int id;
 			if (_recycledRelationshipTypeIds.Count > 0)
 			{
-				id = _recycledRelationshipTypeIds.Pop();
+				id                 = _recycledRelationshipTypeIds.Pop();
 				_idToTypeArray[id] = typeof(RelationMarker);
 			}
 			else
@@ -78,37 +87,58 @@ internal sealed class ComponentTypeRegistry
 				Volatile.Write(ref _idToTypeCount, id + 1);
 			}
 
-			_relationToId[key]            = id;
-			_relationKeyById[id]          = key;
-			_relationshipInfoById[id]     = new(relationType, target);
-			AppendId(_relationIdsByType, relationType, id);
+			_relationToId[key]        = id;
+			_relationKeyById[id]      = key;
+			_relationshipInfoById[id] = new(relationType, target);
+			AppendId(_relationIdsByType,   relationType,                id);
 			AppendId(_relationIdsByTarget, (target.Id, target.Version), id);
 
 			return id;
 		}
 	}
 
-	public bool TryGetRelationship(Type relationType, Entity target, out int relationshipTypeId)
-	{
-		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
-
-		return _relationToId.TryGetValue((relationType, target.Id, target.Version), out relationshipTypeId);
-	}
-
 	public ReadOnlySpan<int> GetRelationshipIds(Type relationType)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
 
-		return _relationIdsByType.TryGetValue(relationType, out var ids) ? ids : [];
+		return _relationIdsByType.TryGetValue(relationType, out int[]? ids) ? ids : [];
 	}
 
 	public ReadOnlySpan<int> GetRelationshipIdsForTarget(Entity target) =>
-		_relationIdsByTarget.TryGetValue((target.Id, target.Version), out var ids) ? ids : [];
+		_relationIdsByTarget.TryGetValue((target.Id, target.Version), out int[]? ids) ? ids : [];
+
+	public Type GetType(int id)
+	{
+		int count = Volatile.Read(ref _idToTypeCount);
+		if ((uint)id >= (uint)count)
+			throw new ArgumentOutOfRangeException(nameof(id));
+
+		return _idToTypeArray[id];
+	}
+
+	public void ClearRelationships()
+	{
+		lock (_sync)
+		{
+			_relationToId.Clear();
+			_relationKeyById.Clear();
+			_relationshipInfoById.Clear();
+			_relationIdsByType.Clear();
+			_relationIdsByTarget.Clear();
+			_recycledRelationshipTypeIds.Clear();
+
+			for (var id = 0; id < _idToTypeCount; id++)
+			{
+				if (_idToTypeArray[id] == typeof(RelationMarker))
+					_recycledRelationshipTypeIds.Push(id);
+			}
+		}
+	}
 
 	public void ReleaseRelationshipsForTarget(Entity target)
 	{
 		var targetKey = (target.Id, target.Version);
-		if (!_relationIdsByTarget.TryGetValue(targetKey, out var ids) || ids.Length == 0)
+		if (!_relationIdsByTarget.TryGetValue(targetKey, out int[]? ids) || ids.Length == 0)
 			return;
 
 		lock (_sync)
@@ -131,62 +161,21 @@ internal sealed class ComponentTypeRegistry
 		}
 	}
 
-	public void ClearRelationships()
-	{
-		lock (_sync)
-		{
-			_relationToId.Clear();
-			_relationKeyById.Clear();
-			_relationshipInfoById.Clear();
-			_relationIdsByType.Clear();
-			_relationIdsByTarget.Clear();
-			_recycledRelationshipTypeIds.Clear();
-
-			for (var id = 0; id < _idToTypeCount; id++)
-			{
-				if (_idToTypeArray[id] == typeof(RelationMarker))
-					_recycledRelationshipTypeIds.Push(id);
-			}
-		}
-	}
-
-	public Type GetType(int id)
-	{
-		int count = Volatile.Read(ref _idToTypeCount);
-		if ((uint)id >= (uint)count)
-			throw new ArgumentOutOfRangeException(nameof(id));
-
-		return _idToTypeArray[id];
-	}
-
-	private void EnsureIdToTypeCapacity(int required)
-	{
-		if (required <= _idToTypeArray.Length) return;
-
-		int newCapacity = _idToTypeArray.Length;
-		while (newCapacity < required)
-			newCapacity *= 2;
-
-		var newArray = new Type[newCapacity];
-		Array.Copy(_idToTypeArray, newArray, _idToTypeCount);
-		_idToTypeArray = newArray;
-	}
-
 	private static void AppendId<TKey>(ConcurrentDictionary<TKey, int[]> map, TKey key, int id) where TKey : notnull
 	{
-		var current = map.TryGetValue(key, out var ids) ? ids : [];
-		var updated = new int[current.Length + 1];
+		int[] current = map.TryGetValue(key, out int[]? ids) ? ids : [];
+		var   updated = new int[current.Length + 1];
 		Array.Copy(current, updated, current.Length);
 		updated[^1] = id;
-		map[key] = updated;
+		map[key]    = updated;
 	}
 
 	private static void RemoveId<TKey>(ConcurrentDictionary<TKey, int[]> map, TKey key, int id) where TKey : notnull
 	{
-		if (!map.TryGetValue(key, out var ids) || ids.Length == 0)
+		if (!map.TryGetValue(key, out int[]? ids) || ids.Length == 0)
 			return;
 
-		var index = -1;
+		int index = -1;
 		for (var i = 0; i < ids.Length; i++)
 		{
 			if (ids[i] != id) continue;
@@ -207,8 +196,23 @@ internal sealed class ComponentTypeRegistry
 		var updated = new int[ids.Length - 1];
 		if (index > 0)
 			Array.Copy(ids, 0, updated, 0, index);
+
 		if (index < ids.Length - 1)
 			Array.Copy(ids, index + 1, updated, index, ids.Length - index - 1);
+
 		map[key] = updated;
+	}
+
+	private void EnsureIdToTypeCapacity(int required)
+	{
+		if (required <= _idToTypeArray.Length) return;
+
+		int newCapacity = _idToTypeArray.Length;
+		while (newCapacity < required)
+			newCapacity *= 2;
+
+		var newArray = new Type[newCapacity];
+		Array.Copy(_idToTypeArray, newArray, _idToTypeCount);
+		_idToTypeArray = newArray;
 	}
 }

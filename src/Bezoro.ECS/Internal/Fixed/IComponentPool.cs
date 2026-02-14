@@ -2,15 +2,14 @@ namespace Bezoro.ECS.Internal.Fixed;
 
 internal interface IComponentPool
 {
-	int Population { get; }
-
 	bool IsManagedLane { get; }
+	int  Population    { get; }
 
 	bool Has(int entityId);
 
-	void Remove(int entityId);
+	ReadOnlySpan<int> GetDenseEntities();
 
 	void Clear();
 
-	ReadOnlySpan<int> GetDenseEntities();
+	void Remove(int entityId);
 }

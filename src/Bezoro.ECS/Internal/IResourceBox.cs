@@ -4,7 +4,7 @@ internal interface IResourceBox
 {
 	object ValueObject { get; }
 
-	void DisposeValue();
-
 	ValueTask DisposeValueAsync();
+
+	void DisposeValue();
 }

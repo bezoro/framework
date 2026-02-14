@@ -1,6 +1,6 @@
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Bezoro.ECS.Internal;
 
@@ -22,11 +22,6 @@ internal static class ComponentSizeEstimator
 			SizeCache.Add(type, new(computed));
 			return computed;
 		}
-	}
-
-	private sealed class CacheEntry(int value)
-	{
-		public int Value { get; } = value;
 	}
 
 	private static int ComputeSizeInBytes(Type type)
@@ -67,5 +62,10 @@ internal static class ComponentSizeEstimator
 		}
 
 		return Math.Max(1, total);
+	}
+
+	private sealed class CacheEntry(int value)
+	{
+		public int Value { get; } = value;
 	}
 }

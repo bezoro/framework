@@ -4,7 +4,7 @@ using Bezoro.ECS.Internal.Fixed;
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-/// Immutable handle for a compiled query specification.
+///     Immutable handle for a compiled query specification.
 /// </summary>
 /// <typeparam name="TSpec">Query specification type.</typeparam>
 public readonly struct QueryHandle<TSpec> where TSpec : struct, ICompiledQuerySpec

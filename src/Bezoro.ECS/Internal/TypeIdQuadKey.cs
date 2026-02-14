@@ -4,9 +4,9 @@ internal readonly struct TypeIdQuadKey : IEquatable<TypeIdQuadKey>
 {
 	public TypeIdQuadKey(int first, int second, int third, int fourth)
 	{
-		SortPair(ref first, ref second);
-		SortPair(ref third, ref fourth);
-		SortPair(ref first, ref third);
+		SortPair(ref first,  ref second);
+		SortPair(ref third,  ref fourth);
+		SortPair(ref first,  ref third);
 		SortPair(ref second, ref fourth);
 		SortPair(ref second, ref third);
 
@@ -18,11 +18,13 @@ internal readonly struct TypeIdQuadKey : IEquatable<TypeIdQuadKey>
 
 	public int First { get; }
 
+	public int Fourth { get; }
+
 	public int Second { get; }
 
 	public int Third { get; }
 
-	public int Fourth { get; }
+	#region Equality
 
 	public bool Equals(TypeIdQuadKey other) =>
 		First == other.First &&
@@ -33,6 +35,8 @@ internal readonly struct TypeIdQuadKey : IEquatable<TypeIdQuadKey>
 	public override bool Equals(object? obj) => obj is TypeIdQuadKey other && Equals(other);
 
 	public override int GetHashCode() => HashCode.Combine(First, Second, Third, Fourth);
+
+	#endregion
 
 	private static void SortPair(ref int left, ref int right)
 	{
