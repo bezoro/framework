@@ -187,6 +187,7 @@ The solution targets both `net9.0` and `netstandard2.1`. Runtime APIs that are n
 - `// TODO(user): description`
 - `// HACK: reason + issue link`
 - No commented-out code
+- **Add `// TODO:` comments** where appropriate to flag future improvements, optimizations, or known limitations discovered during implementation. Keep them actionable and specific.
 
 ### README (Required per Project)
 
