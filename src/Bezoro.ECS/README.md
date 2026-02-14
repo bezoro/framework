@@ -7,7 +7,7 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | Type                                                            | Description                                                                                          |
 |-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
 | `World`                                                         | ECS root for entities, components, resources, systems, queries, and snapshots.                       |
-| `WorldV2`                                                       | Fixed-capacity ECS runtime with compiled queries and deferred structural command streams.             |
+| `WorldV2`                                                       | Fixed-capacity ECS runtime with compiled queries and deferred structural command streams.            |
 | `Entity`                                                        | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`.                  |
 | `Archetype`                                                     | Exact component-set storage identity backed by chunked columns.                                      |
 | `Query`                                                         | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters.                         |
@@ -15,7 +15,8 @@ Bezoro.ECS is an archetype-based Entity Component System focused on staged syste
 | `ChunkView`                                                     | Span-based access to entities and component columns in a chunk.                                      |
 | `CommandBuffer`                                                 | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback.                     |
 | `CommandStream`                                                 | V2 fixed-capacity deferred structural stream (`Create/Destroy/Set`) with reusable buffers.           |
-| `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`    | V2 compiled-query contracts and execution primitives.                                                 |
+| `ComponentAccessor<T>`                                          | Cached typed component accessor for hot sequential per-entity `Get/TryGet/Has` loops in `WorldV2`.   |
+| `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`     | V2 compiled-query contracts and execution primitives.                                                |
 | `IForEach<T...>`                                                | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
 | `[SplitFields]` / `[SplitGroup]`                                | Opt-in split storage annotations consumed by source-generated split helpers.                         |
 | `OnAddObserver<T>` / `OnSetObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/set/remove hooks with `ref`/`in` semantics.                         |
@@ -133,49 +134,50 @@ struct Position
 
 ### WorldV2
 
-| Member                                                                 | Description                                                                                                      |
-|------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| `WorldV2(WorldV2Config)`                                               | Creates a fixed-capacity world with explicit budgets.                                                            |
-| `CreateCommandStream()` / `BeginCommands()`                            | Creates a reusable deferred command stream for structural mutations.                                             |
-| `Playback(CommandStream)`                                               | Applies deferred commands; rejects streams from other worlds.                                                    |
-| `Compile<TSpec>()`                                                      | Compiles and caches a query plan from `ICompiledQuerySpec`.                                                      |
-| `Execute<TSpec>(QueryHandle<TSpec>)`                                   | Executes a compiled query and returns a `QueryCursor` over matching entities.                                    |
-| `ForEach<TSpec,T...>(QueryHandle<TSpec>, ...)`                          | Executes compiled-query hot-path loops directly without cursor/result materialization.                            |
-| `Run<TSpec,TJob,T...>(QueryHandle<TSpec>, TJob)`                        | Executes compiled-query struct jobs (`IForEach`) to avoid delegate allocations on hot loops.                     |
-| `Get<T>(Entity)` / `TryGet<T>(Entity,out T)` / `TryGetManaged<T>(...)` | Fast unmanaged component access plus explicit managed-lane access.                                               |
-| `Has<T>(Entity)` / `IsAlive(Entity)`                                   | Entity/component presence checks.                                                                                |
-| `Reset()`                                                               | Clears entities/components while retaining allocated buffers and compiled plans for reuse.                        |
-| `GetDiagnostics()`                                                      | Returns arena diagnostics (entity slots, component type catalog usage, query result buffer high-water marks).   |
+| Member                                                                 | Description                                                                                                            |
+|------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `WorldV2(WorldV2Config)`                                               | Creates a fixed-capacity world with explicit budgets.                                                                  |
+| `CreateCommandStream()` / `BeginCommands()`                            | Creates a reusable deferred command stream for structural mutations.                                                   |
+| `Playback(CommandStream)`                                              | Applies deferred commands; rejects streams from other worlds.                                                          |
+| `Compile<TSpec>()`                                                     | Compiles and caches a query plan from `ICompiledQuerySpec`.                                                            |
+| `Execute<TSpec>(QueryHandle<TSpec>)`                                   | Executes a compiled query and returns a `QueryCursor` over matching entities.                                          |
+| `ForEach<TSpec,T...>(QueryHandle<TSpec>, ...)`                         | Executes compiled-query hot-path loops directly without cursor/result materialization.                                 |
+| `Run<TSpec,TJob,T...>(QueryHandle<TSpec>, TJob)`                       | Executes compiled-query struct jobs (`IForEach`) to avoid delegate allocations on hot loops.                           |
+| `Get<T>(Entity)` / `TryGet<T>(Entity,out T)` / `TryGetManaged<T>(...)` | Fast unmanaged component access plus explicit managed-lane access.                                                     |
+| `GetAccessor<T>()`                                                     | Returns a cached typed accessor for repeated sequential component `Get/TryGet/Has` calls without per-call type lookup. |
+| `Has<T>(Entity)` / `IsAlive(Entity)`                                   | Entity/component presence checks.                                                                                      |
+| `Reset()`                                                              | Clears entities/components while retaining allocated buffers and compiled plans for reuse.                             |
+| `GetDiagnostics()`                                                     | Returns arena diagnostics (entity slots, component type catalog usage, query result buffer high-water marks).          |
 
 ### WorldV2Config
 
-| Member | Description |
-|---|---|
-| `EntityCapacity` | Maximum alive + recyclable entity slots. |
-| `ComponentTypeCapacity` | Maximum registered component types. |
-| `ChunkCapacity` | Rows per archetype chunk in the V2 chunked storage backend. |
-| `CommandCapacity` | Maximum commands recorded in one `CommandStream`. |
-| `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream. |
-| `QueryResultCapacity` | Maximum entities materialized by one `Execute`. |
-| `OverflowPolicy` | Overflow behavior (`FailFast` or `DropNewest`). |
+| Member                          | Description                                                 |
+|---------------------------------|-------------------------------------------------------------|
+| `EntityCapacity`                | Maximum alive + recyclable entity slots.                    |
+| `ComponentTypeCapacity`         | Maximum registered component types.                         |
+| `ChunkCapacity`                 | Rows per archetype chunk in the V2 chunked storage backend. |
+| `CommandCapacity`               | Maximum commands recorded in one `CommandStream`.           |
+| `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream.   |
+| `QueryResultCapacity`           | Maximum entities materialized by one `Execute`.             |
+| `OverflowPolicy`                | Overflow behavior (`FailFast` or `DropNewest`).             |
 
 ### CommandStream (WorldV2)
 
-| Member | Description |
-|---|---|
-| `CreateEntity()` / `CreateEntity<T>(in T)` | Defers entity creation (optional single-component fused create command). |
-| `Set<T>(Entity, in T)` / `SetManaged<T>(Entity, in T)` | Defers component writes for unmanaged or managed-lane components. |
-| `Remove<T>(Entity)` / `Destroy(Entity)` | Defers component removal and entity destruction. |
-| `GetDiagnostics()` | Per-stream command capacity usage, high-watermark, and overflow counters. |
+| Member                                                 | Description                                                               |
+|--------------------------------------------------------|---------------------------------------------------------------------------|
+| `CreateEntity()` / `CreateEntity<T>(in T)`             | Defers entity creation (optional single-component fused create command).  |
+| `Set<T>(Entity, in T)` / `SetManaged<T>(Entity, in T)` | Defers component writes for unmanaged or managed-lane components.         |
+| `Remove<T>(Entity)` / `Destroy(Entity)`                | Defers component removal and entity destruction.                          |
+| `GetDiagnostics()`                                     | Per-stream command capacity usage, high-watermark, and overflow counters. |
 
 ### QueryCursor (WorldV2)
 
-| Member | Description |
-|---|---|
-| `MoveNext()` / `Current` | Advances to and exposes the current result batch of entities. |
-| `Get<T>(int index)` | Gets a mutable unmanaged component reference for one matched entity. |
-| `ForEach<T1>(...)` / `ForEach<T1,T2>(...)` / `ForEach<T1,T2,T3>(...)` | Sequential no-allocation hot-path iteration helpers with `ref/in` component access. |
-| `Run<TJob,T...>(TJob)` | Struct-job iteration (`IForEach`) over matched entities to avoid delegate allocations. |
+| Member                                                                | Description                                                                            |
+|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `MoveNext()` / `Current`                                              | Advances to and exposes the current result batch of entities.                          |
+| `Get<T>(int index)`                                                   | Gets a mutable unmanaged component reference for one matched entity.                   |
+| `ForEach<T1>(...)` / `ForEach<T1,T2>(...)` / `ForEach<T1,T2,T3>(...)` | Sequential no-allocation hot-path iteration helpers with `ref/in` component access.    |
+| `Run<TJob,T...>(TJob)`                                                | Struct-job iteration (`IForEach`) over matched entities to avoid delegate allocations. |
 
 ### Query
 
@@ -210,7 +212,9 @@ struct Position
 - `WorldV2.CommandStream` rents command and payload buffers from array pools, uses fixed component-type-indexed payload stores, and clears managed payload references between playbacks.
 - `WorldV2.ForEach<TSpec,T...>` provides direct compiled-query loops for tighter sequential update paths than cursor materialization.
 - `WorldV2.Run<TSpec,TJob,T...>` and `QueryCursor.Run<TJob,T...>` support struct jobs for allocation-free hot loops without delegate captures.
-- `WorldV2` stores entities in archetype chunks (columnar per-archetype arrays) and resolves structural changes through archetype transitions.
+- `WorldV2.GetAccessor<T>()` caches the component type lane once and exposes fast repeated per-entity `Get/TryGet/Has` access for tight external loops.
+- `WorldV2` stores entities in archetype chunks and resolves structural changes through archetype transitions.
+- `WorldV2` chunk columns use native-aligned unmanaged storage for unmanaged components and managed arrays for managed-lane components, reducing GC pressure on hot paths.
 - `QueryCursor` iterates matched chunks directly for `ForEach/Run` and materializes `Current` entities lazily only when requested.
 - Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
 - `ObserveAdd` fires for structural component attachments; `ObserveSet` fires when an existing component value is replaced.

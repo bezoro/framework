@@ -1,6 +1,7 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal.V2;
 using Bezoro.ECS.Services;
+using System.Runtime.CompilerServices;
 
 namespace Bezoro.ECS.Types;
 
@@ -136,15 +137,18 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				action(ref col1[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+				action(ref Unsafe.Add(ref c1Start, offset));
 		}
 	}
 
@@ -173,15 +177,18 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				job.Execute(ref col1[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+				job.Execute(ref Unsafe.Add(ref c1Start, offset));
 		}
 	}
 
@@ -213,18 +220,26 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId2, out cachedColumnIndex2))
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			var col2 = cachedArchetype.GetColumnByIndex<T2>(chunk, cachedColumnIndex2);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				action(ref col1[row], in col2[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				action(ref c1, in c2);
+			}
 		}
 	}
 
@@ -257,18 +272,26 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId2, out cachedColumnIndex2))
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			var col2 = cachedArchetype.GetColumnByIndex<T2>(chunk, cachedColumnIndex2);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				job.Execute(ref col1[row], in col2[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				job.Execute(ref c1, in c2);
+			}
 		}
 	}
 
@@ -304,21 +327,31 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId2, out cachedColumnIndex2))
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId3, out cachedColumnIndex3))
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			var col2 = cachedArchetype.GetColumnByIndex<T2>(chunk, cachedColumnIndex2);
-			var col3 = cachedArchetype.GetColumnByIndex<T3>(chunk, cachedColumnIndex3);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				action(ref col1[row], in col2[row], in col3[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				action(ref c1, in c2, in c3);
+			}
 		}
 	}
 
@@ -355,21 +388,31 @@ public struct QueryCursor : IDisposable
 			{
 				cachedArchetypeId = match.ArchetypeId;
 				cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-				if (!cachedArchetype.TryGetColumnIndex(typeId1, out cachedColumnIndex1))
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId2, out cachedColumnIndex2))
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'.");
-				if (!cachedArchetype.TryGetColumnIndex(typeId3, out cachedColumnIndex3))
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
 					throw new KeyNotFoundException($"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'.");
 			}
 
 			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			var col1 = cachedArchetype.GetColumnByIndex<T1>(chunk, cachedColumnIndex1);
-			var col2 = cachedArchetype.GetColumnByIndex<T2>(chunk, cachedColumnIndex2);
-			var col3 = cachedArchetype.GetColumnByIndex<T3>(chunk, cachedColumnIndex3);
-			int rowEnd = match.RowStart + match.Count;
-			for (var row = match.RowStart; row < rowEnd; row++)
-				job.Execute(ref col1[row], in col2[row], in col3[row]);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				job.Execute(ref c1, in c2, in c3);
+			}
 		}
 	}
 

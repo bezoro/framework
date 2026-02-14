@@ -16,6 +16,7 @@ BenchmarkDotNet suite for core ECS performance targets.
 | `EcsV2CommandStreamRemoveBurstBenchmarks` | WorldV2 fixed-capacity command-stream remove bursts over existing components to track structural transition throughput. |
 | `EcsQueryCachePressureBenchmarks` | High-cardinality relationship-target queries to stress query-cache pressure scenarios. |
 | `EcsV2HotPathBenchmarks` | WorldV2 compiled-query hot paths comparing cursor and direct struct-job (`Run`) loops on unmanaged components. |
+| `EcsV2ComponentAccessBenchmarks` | WorldV2 sequential component access paths (`TryGet`/`Get`, cached accessor variants, and sequential `QueryCursor.Get`), plus cursor vs direct query struct-job loop comparison. |
 
 ## Run
 
@@ -23,12 +24,16 @@ BenchmarkDotNet suite for core ECS performance targets.
 dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj
 ```
 
-By default, this runs with BenchmarkDotNet `ShortRun` so local iterations finish quickly.
-
-For lower-noise local comparisons, pass `--reliable` to use `MediumRun`:
+By default, this runs with BenchmarkDotNet `MediumRun` (`--reliable` remains accepted as an alias):
 
 ```bash
 dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj -- --reliable
+```
+
+For quick local checks, pass `--fast` to use `ShortRun`:
+
+```bash
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj -- --fast
 ```
 
 For exhaustive runs with BenchmarkDotNet default job settings, pass `--full`:

@@ -176,6 +176,43 @@ internal sealed unsafe class ComponentColumn : IDisposable
 		destination.SetValue(destinationIndex, GetValue(sourceIndex));
 	}
 
+	public void CopyRangeTo(
+		int             sourceIndex,
+		ComponentColumn destination,
+		int             destinationIndex,
+		int             length)
+	{
+		if (destination is null) throw new ArgumentNullException(nameof(destination));
+		if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
+		if (length == 0)
+			return;
+
+		ValidateRange(sourceIndex, length);
+		destination.ValidateRange(destinationIndex, length);
+
+		if (!_isManaged && !destination._isManaged && destination.ComponentType == ComponentType)
+		{
+			EnsureNotDisposed();
+			destination.EnsureNotDisposed();
+			int byteLength = checked(_elementSize * length);
+			int sourceOffset = checked(sourceIndex * _elementSize);
+			int destinationOffset = checked(destinationIndex * destination._elementSize);
+			var sourceBytes = new ReadOnlySpan<byte>((byte*)_alignedPointer.ToPointer() + sourceOffset, byteLength);
+			var targetBytes = new Span<byte>((byte*)destination._alignedPointer.ToPointer() + destinationOffset, byteLength);
+			sourceBytes.CopyTo(targetBytes);
+			return;
+		}
+
+		if (_isManaged && destination._isManaged && destination.ComponentType == ComponentType)
+		{
+			Array.Copy(_managedArray!, sourceIndex, destination._managedArray!, destinationIndex, length);
+			return;
+		}
+
+		for (var i = 0; i < length; i++)
+			destination.SetValue(destinationIndex + i, GetValue(sourceIndex + i));
+	}
+
 	public void Dispose()
 	{
 		Dispose(true);

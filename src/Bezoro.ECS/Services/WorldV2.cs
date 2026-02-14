@@ -149,7 +149,7 @@ public sealed class WorldV2 : IDisposable
 	{
 		ThrowIfDisposed();
 		component = default;
-		if (!IsAlive(entity))
+		if (!IsAliveUnchecked(entity))
 			return false;
 
 		int typeId = GetOrCreateComponentTypeId<T>();
@@ -160,17 +160,24 @@ public sealed class WorldV2 : IDisposable
 	{
 		ThrowIfDisposed();
 		component = default;
-		if (!IsAlive(entity))
+		if (!IsAliveUnchecked(entity))
 			return false;
 
 		int typeId = GetOrCreateComponentTypeId<T>();
 		return TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
 
+	public ComponentAccessor<T> GetAccessor<T>() where T : unmanaged
+	{
+		ThrowIfDisposed();
+		int typeId = GetOrCreateComponentTypeId<T>();
+		return new(this, typeId);
+	}
+
 	public bool Has<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
-		if (!IsAlive(entity))
+		if (!IsAliveUnchecked(entity))
 			return false;
 
 		int typeId = GetOrCreateComponentTypeId<T>();
@@ -181,10 +188,7 @@ public sealed class WorldV2 : IDisposable
 	public bool IsAlive(Entity entity)
 	{
 		ThrowIfDisposed();
-		return entity.Id >= 0 &&
-			   entity.Id < _aliveByEntityId.Length &&
-			   _aliveByEntityId[entity.Id] &&
-			   _versionByEntityId[entity.Id] == entity.Version;
+		return IsAliveUnchecked(entity);
 	}
 
 	public WorldV2Diagnostics GetDiagnostics()
@@ -228,7 +232,7 @@ public sealed class WorldV2 : IDisposable
 			return;
 
 		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].Clear();
+			_archetypes[i].Dispose();
 
 		_typeToId.Clear();
 		_compiledPlansBySpecType.Clear();
@@ -663,9 +667,12 @@ public sealed class WorldV2 : IDisposable
 				int runLength = readRow - runStart;
 				if (writeRow != runStart)
 				{
-					Array.Copy(chunk.EntityIds, runStart, chunk.EntityIds, writeRow, runLength);
-					for (var c = 0; c < chunk.Columns.Length; c++)
-						Array.Copy(chunk.Columns[c], runStart, chunk.Columns[c], writeRow, runLength);
+					sourceArchetype.MoveRowRangeWithinChunk(
+						chunk,
+						runStart,
+						writeRow,
+						runLength
+					);
 
 					int runWriteEnd = writeRow + runLength;
 					for (var row = writeRow; row < runWriteEnd; row++)
@@ -855,13 +862,14 @@ public sealed class WorldV2 : IDisposable
 		var sourceArchetype = _archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 		{
-			if (!sourceArchetype.TryGetColumnIndex(typeId, out int sourceColumnIndex))
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
 				throw new InvalidOperationException(
 					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
 				);
 
 			var cachedChunkIndex = -1;
-			T[]? cachedColumn = null;
+			Span<T> cachedColumn = default;
 			for (var i = 0; i < count; i++)
 			{
 				int payloadIndex = payloadIndices[payloadOffset + i];
@@ -871,10 +879,10 @@ public sealed class WorldV2 : IDisposable
 				{
 					cachedChunkIndex = location.ChunkIndex;
 					var sourceChunk = sourceArchetype.GetChunkUnchecked(cachedChunkIndex);
-					cachedColumn = sourceArchetype.GetColumnByIndex<T>(sourceChunk, sourceColumnIndex);
+					cachedColumn = sourceArchetype.GetSpanByIndex<T>(sourceChunk, sourceColumnIndex);
 				}
 
-				cachedColumn![location.RowIndex] = payloads[payloadIndex];
+				cachedColumn[location.RowIndex] = payloads[payloadIndex];
 			}
 
 			return;
@@ -908,20 +916,114 @@ public sealed class WorldV2 : IDisposable
 		return ref _archetypes[location.ArchetypeId].GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
 	}
 
-	internal T[] GetChunkColumnForCursor<T>(int archetypeId, int chunkIndex, int typeId) where T : struct
-	{
-		if ((uint)archetypeId >= (uint)_archetypes.Count)
-			throw new ArgumentOutOfRangeException(nameof(archetypeId));
-
-		return _archetypes[archetypeId].GetColumn<T>(chunkIndex, typeId);
-	}
-
 	internal ArchetypeStorage GetArchetypeForCursor(int archetypeId)
 	{
 		if ((uint)archetypeId >= (uint)_archetypes.Count)
 			throw new ArgumentOutOfRangeException(nameof(archetypeId));
 
 		return _archetypes[archetypeId];
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void ResolveAccessorLocation(
+		Entity entity,
+		int    typeId,
+		Type   componentType,
+		ref int cachedArchetypeId,
+		ref int cachedColumnIndex,
+		out ArchetypeStorage archetype,
+		out int chunkIndex,
+		out int rowIndex)
+	{
+		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+		ThrowIfDisposed();
+		if (!IsAliveUnchecked(entity))
+			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
+
+		var location = _locationByEntityId[entity.Id];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
+
+		archetype = _archetypes[location.ArchetypeId];
+		if (!TryResolveAccessorColumnIndex(
+				archetype,
+				location.ArchetypeId,
+				typeId,
+				ref cachedArchetypeId,
+				ref cachedColumnIndex
+			))
+			throw new KeyNotFoundException(
+				$"Component '{componentType.Name}' was not found for entity '{entity.Id}:{entity.Version}'."
+			);
+
+		chunkIndex = location.ChunkIndex;
+		rowIndex = location.RowIndex;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryGetComponentForAccessor<T>(
+		Entity entity,
+		int    typeId,
+		ref int cachedArchetypeId,
+		ref int cachedColumnIndex,
+		out T component)
+		where T : unmanaged
+	{
+		ThrowIfDisposed();
+		if (!IsAliveUnchecked(entity))
+		{
+			component = default;
+			return false;
+		}
+
+		var location = _locationByEntityId[entity.Id];
+		if (!location.IsValid)
+		{
+			component = default;
+			return false;
+		}
+
+		var archetype = _archetypes[location.ArchetypeId];
+		if (!TryResolveAccessorColumnIndex(
+				archetype,
+				location.ArchetypeId,
+				typeId,
+				ref cachedArchetypeId,
+				ref cachedColumnIndex
+			))
+		{
+			component = default;
+			return false;
+		}
+
+		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		component = archetype.GetRefByIndex<T>(chunk, cachedColumnIndex, location.RowIndex);
+		return true;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool HasComponentForAccessor(
+		Entity entity,
+		int    typeId,
+		ref int cachedArchetypeId,
+		ref int cachedColumnIndex)
+	{
+		ThrowIfDisposed();
+		if (!IsAliveUnchecked(entity))
+			return false;
+
+		var location = _locationByEntityId[entity.Id];
+		if (!location.IsValid)
+			return false;
+
+		var archetype = _archetypes[location.ArchetypeId];
+		return TryResolveAccessorColumnIndex(
+			archetype,
+			location.ArchetypeId,
+			typeId,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex
+		);
 	}
 
 	internal int ResolveEntityIdForCursorIndex(
@@ -935,12 +1037,23 @@ public sealed class WorldV2 : IDisposable
 
 		if ((uint)chunkMatchHint < (uint)chunkMatchCount)
 		{
-			var hintedMatch = chunkMatches[chunkMatchHint];
-			int hintedOffset = index - hintedMatch.EntityStartIndex;
-			if ((uint)hintedOffset < (uint)hintedMatch.Count)
+			if (TryResolveEntityIdFromChunkMatch(chunkMatches[chunkMatchHint], index, out int hintedEntityId))
+				return hintedEntityId;
+
+			int nextHint = chunkMatchHint + 1;
+			if ((uint)nextHint < (uint)chunkMatchCount &&
+				TryResolveEntityIdFromChunkMatch(chunkMatches[nextHint], index, out int nextEntityId))
 			{
-				var hintedChunk = _archetypes[hintedMatch.ArchetypeId].GetChunk(hintedMatch.ChunkIndex);
-				return hintedChunk.EntityIds[hintedMatch.RowStart + hintedOffset];
+				chunkMatchHint = nextHint;
+				return nextEntityId;
+			}
+
+			int previousHint = chunkMatchHint - 1;
+			if (previousHint >= 0 &&
+				TryResolveEntityIdFromChunkMatch(chunkMatches[previousHint], index, out int previousEntityId))
+			{
+				chunkMatchHint = previousHint;
+				return previousEntityId;
 			}
 		}
 
@@ -965,11 +1078,26 @@ public sealed class WorldV2 : IDisposable
 			}
 
 			chunkMatchHint = middle;
-			var chunk = _archetypes[match.ArchetypeId].GetChunk(match.ChunkIndex);
+			var chunk = _archetypes[match.ArchetypeId].GetChunkUnchecked(match.ChunkIndex);
 			return chunk.EntityIds[match.RowStart + offset];
 		}
 
 		throw new ArgumentOutOfRangeException(nameof(index));
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryResolveEntityIdFromChunkMatch(in QueryChunkMatch match, int index, out int entityId)
+	{
+		int offset = index - match.EntityStartIndex;
+		if ((uint)offset >= (uint)match.Count)
+		{
+			entityId = default;
+			return false;
+		}
+
+		var chunk = _archetypes[match.ArchetypeId].GetChunkUnchecked(match.ChunkIndex);
+		entityId = chunk.EntityIds[match.RowStart + offset];
+		return true;
 	}
 
 	internal void MaterializeQueryEntities(
@@ -1005,11 +1133,36 @@ public sealed class WorldV2 : IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.ForEach(action);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+				action(ref Unsafe.Add(ref c1Start, offset));
+		}
 	}
 
 	public void ForEach<TSpec, T1, T2>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2> action)
@@ -1020,11 +1173,48 @@ public sealed class WorldV2 : IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.ForEach(action);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		var cachedColumnIndex2 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				action(ref c1, in c2);
+			}
+		}
 	}
 
 	public void ForEach<TSpec, T1, T2, T3>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2, T3> action)
@@ -1036,11 +1226,57 @@ public sealed class WorldV2 : IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.ForEach(action);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		int typeId3 = GetOrCreateComponentTypeId<T3>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		var cachedColumnIndex2 = -1;
+		var cachedColumnIndex3 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				action(ref c1, in c2, in c3);
+			}
+		}
 	}
 
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
@@ -1050,11 +1286,36 @@ public sealed class WorldV2 : IDisposable
 	{
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.Run<TJob, T1>(job);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+				job.Execute(ref Unsafe.Add(ref c1Start, offset));
+		}
 	}
 
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
@@ -1065,11 +1326,48 @@ public sealed class WorldV2 : IDisposable
 	{
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.Run<TJob, T1, T2>(job);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		var cachedColumnIndex2 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				job.Execute(ref c1, in c2);
+			}
+		}
 	}
 
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
@@ -1081,11 +1379,57 @@ public sealed class WorldV2 : IDisposable
 	{
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
 			return;
 
-		cursor.Run<TJob, T1, T2, T3>(job);
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		int typeId3 = GetOrCreateComponentTypeId<T3>();
+		var cachedArchetypeId = int.MinValue;
+		ArchetypeStorage? cachedArchetype = null;
+		var cachedColumnIndex1 = -1;
+		var cachedColumnIndex2 = -1;
+		var cachedColumnIndex3 = -1;
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = _queryChunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId = match.ArchetypeId;
+				cachedArchetype = _archetypes[match.ArchetypeId];
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			if (match.Count == 0)
+				continue;
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				job.Execute(ref c1, in c2, in c3);
+			}
+		}
 	}
 
 	private int FillQueryResults(CompiledQueryPlan plan, out int chunkMatchCount)
@@ -1425,7 +1769,7 @@ done:
 		for (var i = 0; i < targetArchetype.TypeIds.Length; i++)
 		{
 			int typeId = targetArchetype.TypeIds[i];
-			if (sourceArchetype.TryGetColumnIndex(typeId, out _))
+			if (sourceArchetype.GetColumnIndexOrNegative(typeId) >= 0)
 				sharedColumnCount++;
 		}
 
@@ -1434,7 +1778,8 @@ done:
 		for (var i = 0; i < targetArchetype.TypeIds.Length; i++)
 		{
 			int typeId = targetArchetype.TypeIds[i];
-			if (!sourceArchetype.TryGetColumnIndex(typeId, out int sourceColumnIndex))
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
 				continue;
 
 			pairs[pairIndex++] = sourceColumnIndex;
@@ -1504,12 +1849,14 @@ done:
 			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
 
 		var archetype = _archetypes[location.ArchetypeId];
-		if (!archetype.HasType(typeId))
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
 			throw new KeyNotFoundException(
 				$"Component '{typeof(T).Name}' was not found for entity '{entityId}:{_versionByEntityId[entityId]}'."
 			);
 
-		return ref archetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
+		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		return ref archetype.GetRefByIndex<T>(chunk, columnIndex, location.RowIndex);
 	}
 
 	private bool TryGetComponentUnchecked<T>(int entityId, int typeId, out T component) where T : struct
@@ -1521,12 +1868,23 @@ done:
 			return false;
 		}
 
-		return _archetypes[location.ArchetypeId].TryGetValue(
-			location.ChunkIndex,
-			location.RowIndex,
-			typeId,
-			out component
-		);
+		var archetype = _archetypes[location.ArchetypeId];
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+		{
+			component = default;
+			return false;
+		}
+
+		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		if ((uint)location.RowIndex >= (uint)chunk.Count)
+		{
+			component = default;
+			return false;
+		}
+
+		component = archetype.GetRefByIndex<T>(chunk, columnIndex, location.RowIndex);
+		return true;
 	}
 
 	private static int GetMaskWordCount(int componentTypeCapacity) =>
@@ -1543,8 +1901,40 @@ done:
 
 	private void EnsureAlive(Entity entity)
 	{
-		if (!IsAlive(entity))
+		if (!IsAliveUnchecked(entity))
 			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool IsAliveUnchecked(Entity entity)
+	{
+		return entity.Id >= 0 &&
+			   entity.Id < _aliveByEntityId.Length &&
+			   _aliveByEntityId[entity.Id] &&
+			   _versionByEntityId[entity.Id] == entity.Version;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool TryResolveAccessorColumnIndex(
+		ArchetypeStorage archetype,
+		int              archetypeId,
+		int              typeId,
+		ref int          cachedArchetypeId,
+		ref int          cachedColumnIndex)
+	{
+		if (cachedArchetypeId == archetypeId)
+			return cachedColumnIndex >= 0;
+
+		cachedArchetypeId = archetypeId;
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex >= 0)
+		{
+			cachedColumnIndex = columnIndex;
+			return true;
+		}
+
+		cachedColumnIndex = -1;
+		return false;
 	}
 
 	private void ThrowIfDisposed()

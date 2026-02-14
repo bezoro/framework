@@ -1,6 +1,9 @@
+using Bezoro.ECS.Internal;
+using System.Runtime.CompilerServices;
+
 namespace Bezoro.ECS.Internal.V2;
 
-internal sealed class ArchetypeStorage
+internal sealed class ArchetypeStorage : IDisposable
 {
 	private const int UnknownTransition = int.MinValue;
 
@@ -95,6 +98,12 @@ internal sealed class ArchetypeStorage
 		return false;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public int GetColumnIndexOrNegative(int typeId) =>
+		(uint)typeId < (uint)_columnIndexByTypeId.Length
+			? _columnIndexByTypeId[typeId]
+			: -1;
+
 	public Chunk GetChunk(int chunkIndex)
 	{
 		if ((uint)chunkIndex >= (uint)_chunkCount)
@@ -175,13 +184,13 @@ internal sealed class ArchetypeStorage
 			chunk.EntityIds[rowIndex] = movedEntityId;
 
 			for (var c = 0; c < chunk.Columns.Length; c++)
-				Array.Copy(chunk.Columns[c], lastRowIndex, chunk.Columns[c], rowIndex, 1);
+				chunk.Columns[c].CopyElementTo(lastRowIndex, chunk.Columns[c], rowIndex);
 		}
 
 		for (var c = 0; c < chunk.Columns.Length; c++)
 		{
 			if (_columnIsManagedLane[c])
-				Array.Clear(chunk.Columns[c], lastRowIndex, 1);
+				chunk.Columns[c].Clear(lastRowIndex, 1);
 		}
 
 		chunk.EntityIds[lastRowIndex] = 0;
@@ -202,7 +211,7 @@ internal sealed class ArchetypeStorage
 		for (var c = 0; c < chunk.Columns.Length; c++)
 		{
 			if (_columnIsManagedLane[c])
-				Array.Clear(chunk.Columns[c], 0, count);
+				chunk.Columns[c].Clear(0, count);
 		}
 
 		Array.Clear(chunk.EntityIds, 0, count);
@@ -226,7 +235,7 @@ internal sealed class ArchetypeStorage
 		for (var c = 0; c < chunk.Columns.Length; c++)
 		{
 			if (_columnIsManagedLane[c])
-				Array.Clear(chunk.Columns[c], newCount, removedCount);
+				chunk.Columns[c].Clear(newCount, removedCount);
 		}
 
 		Array.Clear(chunk.EntityIds, newCount, removedCount);
@@ -246,15 +255,14 @@ internal sealed class ArchetypeStorage
 		for (var i = 0; i < TypeIds.Length; i++)
 		{
 			int typeId = TypeIds[i];
-			if (!sourceArchetype.TryGetColumnIndex(typeId, out int sourceColumnIndex))
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
 				continue;
 
-			Array.Copy(
-				sourceChunk.Columns[sourceColumnIndex],
+			sourceChunk.Columns[sourceColumnIndex].CopyElementTo(
 				sourceRowIndex,
 				targetChunk.Columns[i],
-				targetRowIndex,
-				1
+				targetRowIndex
 			);
 		}
 	}
@@ -292,8 +300,7 @@ internal sealed class ArchetypeStorage
 			int sourceColumnIndex = sourceTargetColumnPairs[i];
 			int targetColumnIndex = sourceTargetColumnPairs[i + 1];
 
-			Array.Copy(
-				sourceChunk.Columns[sourceColumnIndex],
+			sourceChunk.Columns[sourceColumnIndex].CopyRangeTo(
 				sourceRowIndex,
 				targetChunk.Columns[targetColumnIndex],
 				targetRowIndex,
@@ -304,53 +311,77 @@ internal sealed class ArchetypeStorage
 
 	public ref T GetRef<T>(int chunkIndex, int rowIndex, int typeId) where T : struct
 	{
-		if (!TryGetColumnIndex(typeId, out int columnIndex))
+		int columnIndex = GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
 			throw new KeyNotFoundException($"Type id '{typeId}' does not exist in archetype '{Id}'.");
 
 		var chunk = GetChunk(chunkIndex);
 		if ((uint)rowIndex >= (uint)chunk.Count)
 			throw new ArgumentOutOfRangeException(nameof(rowIndex));
 
-		return ref ((T[])chunk.Columns[columnIndex])[rowIndex];
+		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
 	}
 
 	public bool TryGetValue<T>(int chunkIndex, int rowIndex, int typeId, out T value) where T : struct
 	{
 		value = default;
-		if (!TryGetColumnIndex(typeId, out int columnIndex))
+		int columnIndex = GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
 			return false;
 
 		var chunk = GetChunk(chunkIndex);
 		if ((uint)rowIndex >= (uint)chunk.Count)
 			return false;
 
-		value = ((T[])chunk.Columns[columnIndex])[rowIndex];
+		value = chunk.Columns[columnIndex].GetReference<T>(rowIndex);
 		return true;
 	}
 
-	public T[] GetColumn<T>(int chunkIndex, int typeId) where T : struct
-	{
-		if (!TryGetColumnIndex(typeId, out int columnIndex))
-			throw new KeyNotFoundException($"Type id '{typeId}' does not exist in archetype '{Id}'.");
-
-		return (T[])GetChunk(chunkIndex).Columns[columnIndex];
-	}
-
-	public T[] GetColumnByIndex<T>(int chunkIndex, int columnIndex) where T : struct
-	{
-		var chunk = GetChunk(chunkIndex);
-		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
-			throw new ArgumentOutOfRangeException(nameof(columnIndex));
-
-		return (T[])chunk.Columns[columnIndex];
-	}
-
-	public T[] GetColumnByIndex<T>(Chunk chunk, int columnIndex) where T : struct
+	public Span<T> GetSpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
 	{
 		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
 			throw new ArgumentOutOfRangeException(nameof(columnIndex));
 
-		return (T[])chunk.Columns[columnIndex];
+		return chunk.Columns[columnIndex].GetSpan<T>(chunk.Count);
+	}
+
+	public ReadOnlySpan<T> GetReadOnlySpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
+	{
+		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		return chunk.Columns[columnIndex].GetReadOnlySpan<T>(chunk.Count);
+	}
+
+	public void MoveRowRangeWithinChunk(Chunk chunk, int sourceRowIndex, int destinationRowIndex, int rowCount)
+	{
+		if (rowCount == 0 || sourceRowIndex == destinationRowIndex)
+			return;
+		if (sourceRowIndex < 0 || sourceRowIndex + rowCount > chunk.Count)
+			throw new ArgumentOutOfRangeException(nameof(sourceRowIndex));
+		if (destinationRowIndex < 0 || destinationRowIndex + rowCount > chunk.Count)
+			throw new ArgumentOutOfRangeException(nameof(destinationRowIndex));
+
+		Array.Copy(chunk.EntityIds, sourceRowIndex, chunk.EntityIds, destinationRowIndex, rowCount);
+		for (var i = 0; i < chunk.Columns.Length; i++)
+		{
+			chunk.Columns[i].CopyRangeTo(
+				sourceRowIndex,
+				chunk.Columns[i],
+				destinationRowIndex,
+				rowCount
+			);
+		}
+	}
+
+	public ref T GetRefByIndex<T>(Chunk chunk, int columnIndex, int rowIndex) where T : struct
+	{
+		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+		if ((uint)rowIndex >= (uint)chunk.Count)
+			throw new ArgumentOutOfRangeException(nameof(rowIndex));
+
+		return ref chunk.Columns[columnIndex].GetReference<T>(rowIndex);
 	}
 
 	public void Clear()
@@ -364,7 +395,7 @@ internal sealed class ArchetypeStorage
 			for (var columnIndex = 0; columnIndex < chunk.Columns.Length; columnIndex++)
 			{
 				if (_columnIsManagedLane[columnIndex])
-					Array.Clear(chunk.Columns[columnIndex], 0, chunk.Count);
+					chunk.Columns[columnIndex].Clear(0, chunk.Count);
 			}
 
 			Array.Clear(chunk.EntityIds, 0, chunk.Count);
@@ -375,20 +406,37 @@ internal sealed class ArchetypeStorage
 		_firstAvailableChunkIndex = 0;
 	}
 
+	public void Dispose()
+	{
+		for (var i = 0; i < _chunkCount; i++)
+			_chunks[i].DisposeColumns();
+
+		_chunks = [];
+		_chunkCount = 0;
+		_firstAvailableChunkIndex = 0;
+		EntityCount = 0;
+	}
+
 	internal sealed class Chunk
 	{
 		public Chunk(int chunkCapacity, Type[] columnTypes)
 		{
 			EntityIds = new int[chunkCapacity];
-			Columns = new Array[columnTypes.Length];
+			Columns = new ComponentColumn[columnTypes.Length];
 			for (var i = 0; i < columnTypes.Length; i++)
-				Columns[i] = Array.CreateInstance(columnTypes[i], chunkCapacity);
+				Columns[i] = ComponentColumn.Create(columnTypes[i], chunkCapacity);
 		}
 
-		public Array[] Columns { get; }
+		public ComponentColumn[] Columns { get; }
 
 		public int Count { get; set; }
 
 		public int[] EntityIds { get; }
+
+		public void DisposeColumns()
+		{
+			for (var i = 0; i < Columns.Length; i++)
+				Columns[i].Dispose();
+		}
 	}
 }
