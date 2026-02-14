@@ -26,7 +26,7 @@ public class ActivationPipelineTests
 	[Fact]
 	public void Tick_WhenActivationCompletes_ShouldPublishCompletionOncePerCompletionEdge()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		world.SetResource(new ActivationConfig(maxActivationsPerTick: 2));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
@@ -49,7 +49,7 @@ public class ActivationPipelineTests
 	[Fact]
 	public void Tick_WhenCancellationWasQueuedBeforeProcessing_ShouldNotInvokeCallback()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
 		var invoked = false;
@@ -69,7 +69,7 @@ public class ActivationPipelineTests
 	public void Tick_WhenCallbacksAreDispatchedThroughConfiguredDispatcher_ShouldDeferInvocationToDispatcher()
 	{
 		var dispatched = new List<Action>();
-		var world = new WorldV1();
+		var world = new World();
 		world.SetResource(new ActivationConfig(callbackDispatcher: callback => dispatched.Add(callback)));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
@@ -88,7 +88,7 @@ public class ActivationPipelineTests
 	[Fact]
 	public void Tick_WhenMaxActivationsPerTickIsLimited_ShouldRespectBudgetPerTick()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		world.SetResource(new ActivationConfig(maxActivationsPerTick: 2));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
@@ -111,7 +111,7 @@ public class ActivationPipelineTests
 	public void Tick_WhenPrioritiesDiffer_ShouldActivateInPriorityThenRegistrationOrder()
 	{
 		var order = new List<string>();
-		var world = new WorldV1();
+		var world = new World();
 		world.SetResource(new ActivationConfig(maxActivationsPerTick: 1));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();

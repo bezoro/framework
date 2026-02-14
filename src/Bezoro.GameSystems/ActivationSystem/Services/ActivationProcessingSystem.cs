@@ -15,6 +15,9 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 [Reads<ActivationCancellationRequest>]
 public sealed class ActivationProcessingSystem : ISystem
 {
+	private QueryHandle<ActivationEntryQuerySpec> _entryQuery;
+	private QueryHandle<ActivationCancellationQuerySpec> _cancellationQuery;
+
 	/// <summary>
 	///     Raised when all pending entries have been activated.
 	/// </summary>
@@ -25,22 +28,25 @@ public sealed class ActivationProcessingSystem : ISystem
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
+		_entryQuery = world.Compile<ActivationEntryQuerySpec>();
+		_cancellationQuery = world.Compile<ActivationCancellationQuerySpec>();
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
-		var entriesByHandle = BuildEntryIndex(world);
-		ApplyCancellations(world, context.Commands, entriesByHandle);
+		var entriesByHandle = BuildEntryIndex(world, _entryQuery);
+		ApplyCancellations(world, context.Commands, entriesByHandle, _cancellationQuery);
 
-		var pendingEntries = CollectPendingEntries(world, out var activatedCount);
+		var pendingEntries = CollectPendingEntries(world, _entryQuery, out var activatedCount);
 		ref var runtime = ref world.GetResource<ActivationRuntimeState>();
 		if (pendingEntries.Count > 0)
 			runtime.CompletionPublished = false;
@@ -86,7 +92,7 @@ public sealed class ActivationProcessingSystem : ISystem
 		PublishCompletionIfNeeded(world, runtime);
 	}
 
-	private void PublishCompletionIfNeeded(IWorld world, ActivationRuntimeState runtime)
+	private void PublishCompletionIfNeeded(World world, ActivationRuntimeState runtime)
 	{
 		if (runtime.PendingCount == 0 && runtime.ActivatedCount > 0)
 		{
@@ -114,111 +120,91 @@ public sealed class ActivationProcessingSystem : ISystem
 	}
 
 	private static List<PendingActivationCandidate> CollectPendingEntries(
-		IWorld world,
+		World world,
+		QueryHandle<ActivationEntryQuerySpec> queryHandle,
 		out int activatedCount)
 	{
 		var pendingEntries = new List<PendingActivationCandidate>();
 		activatedCount = 0;
 
-		var enumerator = world.Query().All<ActivationEntry>().GetEnumerator();
-		try
+		using var cursor = world.Execute(queryHandle);
+		if (!cursor.MoveNext())
+			return pendingEntries;
+
+		var entities = cursor.Current;
+		for (var i = 0; i < entities.Length; i++)
 		{
-			while (enumerator.MoveNext())
+			if (!world.TryGet(entities[i], out ActivationEntry entry))
+				continue;
+
+			if (entry.State == ActivationState.Activated)
 			{
-				var chunk = enumerator.Current;
-				var entities = chunk.Entities;
-				var entries = chunk.ReadOnlyComponents<ActivationEntry>();
-				for (var i = 0; i < chunk.Count; i++)
-				{
-					ref readonly var entry = ref entries[i];
-					if (entry.State == ActivationState.Activated)
-					{
-						activatedCount++;
-						continue;
-					}
-
-					if (entry.State != ActivationState.Pending)
-						continue;
-
-					pendingEntries.Add(new(entities[i], entry.Priority, entry.Handle.Id));
-				}
+				activatedCount++;
+				continue;
 			}
-		}
-		finally
-		{
-			enumerator.Dispose();
+
+			if (entry.State != ActivationState.Pending)
+				continue;
+
+			pendingEntries.Add(new(entities[i], entry.Priority, entry.Handle.Id));
 		}
 
 		return pendingEntries;
 	}
 
-	private static Dictionary<int, Entity> BuildEntryIndex(IWorld world)
+	private static Dictionary<int, Entity> BuildEntryIndex(
+		World world,
+		QueryHandle<ActivationEntryQuerySpec> queryHandle)
 	{
 		var entriesByHandle = new Dictionary<int, Entity>();
-		var enumerator = world.Query().All<ActivationEntry>().GetEnumerator();
-		try
-		{
-			while (enumerator.MoveNext())
-			{
-				var chunk = enumerator.Current;
-				var entities = chunk.Entities;
-				var entries = chunk.ReadOnlyComponents<ActivationEntry>();
-				for (var i = 0; i < chunk.Count; i++)
-				{
-					ref readonly var entry = ref entries[i];
-					if (!entry.Handle.IsValid)
-						continue;
+		using var cursor = world.Execute(queryHandle);
+		if (!cursor.MoveNext())
+			return entriesByHandle;
 
-					entriesByHandle[entry.Handle.Id] = entities[i];
-				}
-			}
-		}
-		finally
+		var entities = cursor.Current;
+		for (var i = 0; i < entities.Length; i++)
 		{
-			enumerator.Dispose();
+			if (!world.TryGet(entities[i], out ActivationEntry entry))
+				continue;
+
+			if (!entry.Handle.IsValid)
+				continue;
+
+			entriesByHandle[entry.Handle.Id] = entities[i];
 		}
 
 		return entriesByHandle;
 	}
 
 	private static void ApplyCancellations(
-		IWorld                  world,
-		CommandBuffer           commands,
-		IReadOnlyDictionary<int, Entity> entriesByHandle)
+		World                  world,
+		CommandStream          commands,
+		IReadOnlyDictionary<int, Entity> entriesByHandle,
+		QueryHandle<ActivationCancellationQuerySpec> queryHandle)
 	{
-		var enumerator = world.Query().All<ActivationCancellationRequest>().GetEnumerator();
-		try
+		using var cursor = world.Execute(queryHandle);
+		if (!cursor.MoveNext())
+			return;
+
+		var entities = cursor.Current;
+		for (var i = 0; i < entities.Length; i++)
 		{
-			while (enumerator.MoveNext())
+			var requestEntity = entities[i];
+			var request = cursor.Get<ActivationCancellationRequest>(i);
+
+			if (entriesByHandle.TryGetValue(request.Handle.Id, out var entryEntity) &&
+				world.TryGet(entryEntity, out ActivationEntry entry) &&
+				entry.State == ActivationState.Pending)
 			{
-				var chunk = enumerator.Current;
-				var entities = chunk.Entities;
-				var requests = chunk.ReadOnlyComponents<ActivationCancellationRequest>();
-
-				for (var i = 0; i < chunk.Count; i++)
-				{
-					var requestEntity = entities[i];
-					ref readonly var request = ref requests[i];
-
-					if (entriesByHandle.TryGetValue(request.Handle.Id, out var entryEntity) &&
-						world.TryGet(entryEntity, out ActivationEntry entry) &&
-						entry.State == ActivationState.Pending)
-					{
-						entry.State = ActivationState.Cancelled;
-						world.Set(entryEntity, in entry);
-					}
-
-					commands.DestroyEntity(requestEntity);
-				}
+				entry.State = ActivationState.Cancelled;
+				world.Set(entryEntity, in entry);
 			}
-		}
-		finally
-		{
-			enumerator.Dispose();
+
+			commands.Destroy(requestEntity);
 		}
 	}
 
-	private static void EnsureResources(IWorld world)
+	private static void EnsureResources(World world)
 	{
 		try
 		{
@@ -255,6 +241,16 @@ public sealed class ActivationProcessingSystem : ISystem
 		{
 			world.SetResource(new ActivationDispatchQueueResource());
 		}
+	}
+
+	private readonly struct ActivationEntryQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<ActivationEntry>();
+	}
+
+	private readonly struct ActivationCancellationQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<ActivationCancellationRequest>();
 	}
 
 }

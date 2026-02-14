@@ -1,5 +1,5 @@
 using System;
-using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using Bezoro.GameSystems.TimerSystem.Types;
 
@@ -13,10 +13,10 @@ public static class TimerWorldExtensions
 	/// <summary>
 	///     Transitions a timer from stopped to running and requests a started callback.
 	/// </summary>
-	/// <param name="world">WorldV1 containing the timer entity.</param>
+	/// <param name="world">World containing the timer entity.</param>
 	/// <param name="timerEntity">Target timer entity.</param>
 	/// <returns><c>true</c> when the transition was applied.</returns>
-	public static bool StartTimer(this IWorld world, Entity timerEntity)
+	public static bool StartTimer(this World world, Entity timerEntity)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (!TryGetTimer(world, timerEntity, out var timer))
@@ -34,10 +34,10 @@ public static class TimerWorldExtensions
 	/// <summary>
 	///     Transitions a timer from running to paused and requests a paused callback.
 	/// </summary>
-	/// <param name="world">WorldV1 containing the timer entity.</param>
+	/// <param name="world">World containing the timer entity.</param>
 	/// <param name="timerEntity">Target timer entity.</param>
 	/// <returns><c>true</c> when the transition was applied.</returns>
-	public static bool PauseTimer(this IWorld world, Entity timerEntity)
+	public static bool PauseTimer(this World world, Entity timerEntity)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (!TryGetTimer(world, timerEntity, out var timer))
@@ -55,10 +55,10 @@ public static class TimerWorldExtensions
 	/// <summary>
 	///     Transitions a timer to stopped and requests a stopped callback.
 	/// </summary>
-	/// <param name="world">WorldV1 containing the timer entity.</param>
+	/// <param name="world">World containing the timer entity.</param>
 	/// <param name="timerEntity">Target timer entity.</param>
 	/// <returns><c>true</c> when the transition was applied.</returns>
-	public static bool StopTimer(this IWorld world, Entity timerEntity)
+	public static bool StopTimer(this World world, Entity timerEntity)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (!TryGetTimer(world, timerEntity, out var timer))
@@ -76,10 +76,10 @@ public static class TimerWorldExtensions
 	/// <summary>
 	///     Transitions a timer from paused to running and requests a resumed callback.
 	/// </summary>
-	/// <param name="world">WorldV1 containing the timer entity.</param>
+	/// <param name="world">World containing the timer entity.</param>
 	/// <param name="timerEntity">Target timer entity.</param>
 	/// <returns><c>true</c> when the transition was applied.</returns>
-	public static bool ResumeTimer(this IWorld world, Entity timerEntity)
+	public static bool ResumeTimer(this World world, Entity timerEntity)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (!TryGetTimer(world, timerEntity, out var timer))
@@ -97,10 +97,10 @@ public static class TimerWorldExtensions
 	/// <summary>
 	///     Resets elapsed time to zero, starts running, and requests a restarted callback.
 	/// </summary>
-	/// <param name="world">WorldV1 containing the timer entity.</param>
+	/// <param name="world">World containing the timer entity.</param>
 	/// <param name="timerEntity">Target timer entity.</param>
 	/// <returns><c>true</c> when the transition was applied.</returns>
-	public static bool RestartTimer(this IWorld world, Entity timerEntity)
+	public static bool RestartTimer(this World world, Entity timerEntity)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (!TryGetTimer(world, timerEntity, out var timer))
@@ -113,7 +113,7 @@ public static class TimerWorldExtensions
 		return true;
 	}
 
-	private static bool TryGetTimer(IWorld world, Entity timerEntity, out Timer timer)
+	private static bool TryGetTimer(World world, Entity timerEntity, out Timer timer)
 	{
 		if (!world.IsAlive(timerEntity))
 		{

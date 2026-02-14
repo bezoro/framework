@@ -18,7 +18,7 @@ public class SystemManagerTests
 	public void UpdateAll_Should_Respect_Update_Frequency()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -36,7 +36,7 @@ public class SystemManagerTests
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		var world  = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var entity = world.Spawn();
 		world.Add(entity, new Counter { Value = 1 });
 
@@ -60,7 +60,7 @@ public class SystemManagerTests
 	public void UpdateAll_When_DeltaTime_Is_Large_Should_Cap_Catch_Up_Ticks()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -78,7 +78,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
 	{
-		var world        = new WorldV1();
+		var world        = new World();
 		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Tick,      SystemUpdateSettings.FixedInterval(0.5f));
 		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.FixedInterval(0.5f));
 
@@ -99,7 +99,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
 	{
-		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		world.AddSystem(new NoOpSystem());
 		world.AddSystem(new ThrowingSystem());
 
@@ -113,7 +113,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenPlanIsDirty_ShouldBuildPlanOnceAndReuseAcrossFrames()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new ReadCounterSystem());
 		world.AddSystem(new WriteCounterSystem(3));
 
@@ -132,7 +132,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new CommandCaptureSystem();
 		world.AddSystem(system);
 
@@ -147,19 +147,19 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDoesNotRecordCommands_ShouldKeepCommandStorageUnallocated()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new CommandBufferAllocationProbeSystem();
 		world.AddSystem(system);
 
 		world.Tick(1f / 60f);
 
-		system.StorageAllocated.Should().BeFalse();
+		system.RecordedCommands.Should().Be(0);
 	}
 
 	[Fact]
 	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new StaleCommandBufferReferenceSystem();
 		world.AddSystem(system);
 
@@ -172,7 +172,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -184,7 +184,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new PhaseCounterSystem(SystemLoopPhase.LateTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -200,7 +200,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new ReadCounterSystem());
 		world.Tick(1f / 60f);
 		world.SchedulerPlanBuildCount.Should().Be(1);
@@ -217,7 +217,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunSequentially()
 	{
-		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -230,7 +230,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
 	{
-		var world = new WorldV1(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
@@ -243,7 +243,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemReentersTick_ShouldThrowInvalidOperationException()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -256,7 +256,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenReentrantTickAttemptFails_ShouldAllowSubsequentTicks()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -269,9 +269,9 @@ public class SystemManagerTests
 
 	private sealed class CommandCaptureSystem : ISystem
 	{
-		public CommandBuffer? Captured { get; private set; }
+		public CommandStream? Captured { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
 			Captured = context.Commands;
 			context.Commands.CreateEntity();
@@ -280,11 +280,11 @@ public class SystemManagerTests
 
 	private sealed class StaleCommandBufferReferenceSystem : ISystem
 	{
-		private CommandBuffer? _previous;
+		private CommandStream? _previous;
 
 		public Exception? ReuseException { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
 			if (_previous is not null && ReuseException is null)
 			{
@@ -304,11 +304,11 @@ public class SystemManagerTests
 
 	private sealed class CommandBufferAllocationProbeSystem : ISystem
 	{
-		public bool StorageAllocated { get; private set; }
+		public int RecordedCommands { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
-			StorageAllocated = context.Commands.HasAllocatedStorage;
+			RecordedCommands = context.Commands.GetDiagnostics().RecordedCommands;
 		}
 	}
 
@@ -322,7 +322,7 @@ public class SystemManagerTests
 		public float                LastDeltaTime  { get; private set; }
 		public int                  UpdateCount    { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
 			UpdateCount++;
 			LastDeltaTime = context.DeltaTime;
@@ -331,7 +331,7 @@ public class SystemManagerTests
 
 	private sealed class NoOpSystem : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context) { }
+		public void Update(in SystemContext context) { }
 	}
 
 	private sealed class ReentrantTickSystem : ISystem
@@ -341,7 +341,7 @@ public class SystemManagerTests
 		public Exception? ReentrantException { get; private set; }
 		public int UpdateCount { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
 			UpdateCount++;
 			if (_attempted) return;
@@ -349,7 +349,7 @@ public class SystemManagerTests
 			_attempted = true;
 			try
 			{
-				((WorldV1)world).Tick(0f);
+				context.World.Tick(0f);
 			}
 			catch (Exception ex)
 			{
@@ -365,7 +365,7 @@ public class SystemManagerTests
 		public float                LastDeltaTime  { get; private set; }
 		public int                  UpdateCount    { get; private set; }
 
-		public void Update(IWorld world, in SystemContext context)
+		public void Update(in SystemContext context)
 		{
 			UpdateCount++;
 			LastDeltaTime = context.DeltaTime;
@@ -375,53 +375,73 @@ public class SystemManagerTests
 	[Reads<Counter>]
 	private sealed class ReadCounterSystem : ISystem
 	{
+		private QueryHandle<CounterQuerySpec> _query;
+
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 		public int                  LastObserved   { get; private set; } = -1;
 
-		public void Update(IWorld world, in SystemContext context)
+		public void OnCreate(World world)
 		{
-			foreach (var chunk in world.Query().All<Counter>())
-			{
-				var counters = chunk.Components<Counter>();
-				if (chunk.Count > 0)
-					LastObserved = counters[0].Value;
-			}
+			if (world is null) throw new ArgumentNullException(nameof(world));
+			_query = world.Compile<CounterQuerySpec>();
+		}
+
+		public void Update(in SystemContext context)
+		{
+			using var cursor = context.World.Execute(_query);
+			if (!cursor.MoveNext() || cursor.Current.Length == 0)
+				return;
+
+			LastObserved = cursor.Get<Counter>(0).Value;
 		}
 	}
 
 	private sealed class ThrowingSystem : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context) =>
+		public void Update(in SystemContext context) =>
 			throw new InvalidOperationException("system-fail");
 	}
 
 	private sealed class UndeclaredAccessProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context) =>
+		public void Update(in SystemContext context) =>
 			probe.Enter();
 	}
 
 	[Reads<Counter>]
 	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context) =>
+		public void Update(in SystemContext context) =>
 			probe.Enter();
 	}
 
 	[Writes<Counter>]
 	private sealed class WriteCounterSystem(int value) : ISystem
 	{
+		private QueryHandle<CounterQuerySpec> _query;
+
 		public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
-		public void Update(IWorld world, in SystemContext context)
+		public void OnCreate(World world)
 		{
-			foreach (var chunk in world.Query().All<Counter>())
-			{
-				var counters = chunk.Components<Counter>();
-				for (var i = 0; i < chunk.Count; i++)
-					counters[i] = new() { Value = value };
-			}
+			if (world is null) throw new ArgumentNullException(nameof(world));
+			_query = world.Compile<CounterQuerySpec>();
 		}
+
+		public void Update(in SystemContext context)
+		{
+			using var cursor = context.World.Execute(_query);
+			if (!cursor.MoveNext())
+				return;
+
+			for (var i = 0; i < cursor.Current.Length; i++)
+				cursor.Get<Counter>(i) = new() { Value = value };
+		}
+	}
+
+	private readonly struct CounterQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<Counter>();
 	}
 
 	private sealed class ConcurrencyProbe

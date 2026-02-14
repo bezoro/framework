@@ -16,6 +16,8 @@ namespace Bezoro.GameSystems.HealthSystem.Services;
 [Reads<HealthMutationRequest>]
 public sealed class HealthSystem : ISystem
 {
+	private QueryHandle<HealthMutationRequestQuerySpec> _requestQuery;
+
 	/// <summary>
 	///     Raised when a request changes health values.
 	/// </summary>
@@ -28,43 +30,35 @@ public sealed class HealthSystem : ISystem
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureEventsResource(world);
+		_requestQuery = world.Compile<HealthMutationRequestQuerySpec>();
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureEventsResource(world);
 
-		var enumerator = world.Query().All<HealthMutationRequest>().GetEnumerator();
-		try
-		{
-			while (enumerator.MoveNext())
-			{
-				var chunk = enumerator.Current;
-				var entities = chunk.Entities;
-				var requests = chunk.ReadOnlyComponents<HealthMutationRequest>();
-				for (var i = 0; i < chunk.Count; i++)
-				{
-					Entity requestEntity = entities[i];
-					ref readonly var request = ref requests[i];
+		using var cursor = world.Execute(_requestQuery);
+		if (!cursor.MoveNext())
+			return;
 
-					ProcessRequest(world, request);
-					context.Commands.DestroyEntity(requestEntity);
-				}
-			}
-		}
-		finally
+		var entities = cursor.Current;
+		for (var i = 0; i < entities.Length; i++)
 		{
-			enumerator.Dispose();
+			var requestEntity = entities[i];
+			var request = cursor.Get<HealthMutationRequest>(i);
+			ProcessRequest(world, request);
+			context.Commands.Destroy(requestEntity);
 		}
 	}
 
-	private void ProcessRequest(IWorld world, in HealthMutationRequest request)
+	private void ProcessRequest(World world, in HealthMutationRequest request)
 	{
 		if (!world.IsAlive(request.TargetEntity))
 			return;
@@ -202,7 +196,7 @@ public sealed class HealthSystem : ISystem
 		return scaled > newMax ? newMax : scaled;
 	}
 
-	private static void EnsureEventsResource(IWorld world)
+	private static void EnsureEventsResource(World world)
 	{
 		try
 		{
@@ -212,5 +206,10 @@ public sealed class HealthSystem : ISystem
 		{
 			world.SetResource(new HealthEventsResource());
 		}
+	}
+
+	private readonly struct HealthMutationRequestQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<HealthMutationRequest>();
 	}
 }

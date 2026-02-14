@@ -1,18 +1,20 @@
 using Bezoro.ECS.Attributes;
+using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
-[TestSubject(typeof(WorldV1))]
+[TestSubject(typeof(World))]
 public class SplitFieldGeneratorTests
 {
 	[Fact]
 	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var first  = world.Spawn();
 		var second = world.Spawn();
 
@@ -24,14 +26,17 @@ public class SplitFieldGeneratorTests
 			world, second, new() { PositionX = 5f, PositionY = 6f, RotationZ = 7f, Scale = 8f }
 		);
 
+		var handle = world.Compile<SplitGroup0QuerySpec>();
 		var sum = 0f;
-		world.Query().All<SplitTransformSplitGenerated.Group0>().ForEach((ref SplitTransformSplitGenerated.Group0 group) =>
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			for (var i = 0; i < cursor.Current.Length; i++)
 			{
-				sum += group.PositionX +
-					   group.PositionY +
-					   group.RotationZ;
+				ref var group = ref cursor.Get<SplitTransformSplitGenerated.Group0>(i);
+				sum += group.PositionX + group.PositionY + group.RotationZ;
 			}
-		);
+		}
 
 		sum.Should().Be(24f);
 	}
@@ -39,7 +44,7 @@ public class SplitFieldGeneratorTests
 	[Fact]
 	public void SplitGeneratedHelpers_WhenAddingSplitComponent_ShouldStoreAndRehydrateGroups()
 	{
-		var world  = new WorldV1();
+		var world  = new World();
 		var entity = world.Spawn();
 		var input = new SplitTransform
 		{
@@ -55,6 +60,11 @@ public class SplitFieldGeneratorTests
 		world.Has<SplitTransformSplitGenerated.Group1>(entity).Should().BeTrue();
 		SplitTransformSplitGenerated.TryGet(world, entity, out var restored).Should().BeTrue();
 		restored.Should().BeEquivalentTo(input);
+	}
+
+	private readonly struct SplitGroup0QuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<SplitTransformSplitGenerated.Group0>();
 	}
 }
 

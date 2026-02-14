@@ -3,11 +3,12 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal.Fixed;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Services;
 
-public class World : IDisposable
+public class World : IWorld, IDisposable
 {
 	private static readonly Dictionary<Type, bool> ContainsReferencesByType = [];
 	private static readonly MethodInfo ContainsReferencesMethod = typeof(World).GetMethod(
@@ -33,6 +34,8 @@ public class World : IDisposable
 		new(ArchetypeTypeSetKeyComparer.Instance);
 	private readonly Dictionary<Type, CompiledQueryPlan> _compiledPlansBySpecType = [];
 	private readonly Dictionary<long, int[]>             _transitionCopyMapByPair = [];
+	private readonly Dictionary<Type, object>            _resources = [];
+	private readonly SystemManager                       _systemManager;
 	private readonly int                                 _emptyArchetypeId;
 	private readonly int                                 _instanceId;
 
@@ -49,8 +52,13 @@ public class World : IDisposable
 	private int  _queryOverflowCount;
 	private int  _registeredTypeHighWatermark;
 	private int  _typeCount;
+	private int  _updateDepth;
 
-	public World() : this(new())
+	public World() : this(new WorldConfig())
+	{
+	}
+
+	public World(WorldOptions options) : this(ToWorldConfig(options))
 	{
 	}
 
@@ -59,6 +67,7 @@ public class World : IDisposable
 		_instanceId = Interlocked.Increment(ref _nextInstanceId);
 		_config = config ?? throw new ArgumentNullException(nameof(config));
 		_config.Validate();
+		_systemManager = new(_config.MaxDegreeOfParallelism);
 
 		_aliveByEntityId = new bool[_config.EntityCapacity];
 		_versionByEntityId = new int[_config.EntityCapacity];
@@ -86,6 +95,151 @@ public class World : IDisposable
 	}
 
 	internal int EntityCapacity => _config.EntityCapacity;
+	internal int SchedulerPlanBuildCount => _systemManager.PlanBuildCount;
+
+	public Entity Spawn()
+	{
+		ThrowIfDisposed();
+		return CreateEntityInternal();
+	}
+
+	public Entity Spawn<T1>(in T1 component1) where T1 : struct
+	{
+		ThrowIfDisposed();
+		var entity = CreateEntityInternal();
+		ApplySetFromCommand(entity, in component1);
+		return entity;
+	}
+
+	public Entity Spawn<T1, T2>(in T1 component1, in T2 component2)
+		where T1 : struct
+		where T2 : struct
+	{
+		ThrowIfDisposed();
+		var entity = CreateEntityInternal();
+		ApplySetFromCommand(entity, in component1);
+		ApplySetFromCommand(entity, in component2);
+		return entity;
+	}
+
+	public Entity Spawn<T1, T2, T3>(in T1 component1, in T2 component2, in T3 component3)
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+	{
+		ThrowIfDisposed();
+		var entity = CreateEntityInternal();
+		ApplySetFromCommand(entity, in component1);
+		ApplySetFromCommand(entity, in component2);
+		ApplySetFromCommand(entity, in component3);
+		return entity;
+	}
+
+	public Entity Spawn<T1, T2, T3, T4>(in T1 component1, in T2 component2, in T3 component3, in T4 component4)
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
+	{
+		ThrowIfDisposed();
+		var entity = CreateEntityInternal();
+		ApplySetFromCommand(entity, in component1);
+		ApplySetFromCommand(entity, in component2);
+		ApplySetFromCommand(entity, in component3);
+		ApplySetFromCommand(entity, in component4);
+		return entity;
+	}
+
+	public void Despawn(Entity entity)
+	{
+		ThrowIfDisposed();
+		DestroyEntityInternal(entity);
+	}
+
+	public void Add<T>(Entity entity) where T : struct
+	{
+		ThrowIfDisposed();
+		var component = default(T);
+		ApplySetFromCommand(entity, in component);
+	}
+
+	public void Add<T>(Entity entity, in T component) where T : struct
+	{
+		ThrowIfDisposed();
+		ApplySetFromCommand(entity, in component);
+	}
+
+	public void Set<T>(Entity entity, in T component) where T : struct
+	{
+		ThrowIfDisposed();
+		ApplySetFromCommand(entity, in component);
+	}
+
+	public void Remove<T>(Entity entity) where T : struct
+	{
+		ThrowIfDisposed();
+		int typeId = GetOrCreateComponentTypeId<T>();
+		RemoveComponentFromCommand(entity, typeId);
+	}
+
+	public void Clear()
+	{
+		ThrowIfDisposed();
+		Reset();
+		_resources.Clear();
+	}
+
+	public ref T GetResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+			throw new KeyNotFoundException($"Resource of type {typeof(T).Name} was not found.");
+
+		return ref ((ResourceBox<T>)boxed).Value;
+	}
+
+	public void SetResource<T>(T resource) where T : notnull
+	{
+		ThrowIfDisposed();
+		if (_resources.TryGetValue(typeof(T), out object? existing) && existing is IResourceBox existingBox)
+			existingBox.DisposeValue();
+		_resources[typeof(T)] = new ResourceBox<T>(resource);
+	}
+
+	public void AddSystem(ISystem system, Stage stage = Stage.Tick)
+	{
+		ThrowIfDisposed();
+		_systemManager.RegisterSystem(this, system, stage);
+	}
+
+	public void AddSystem<TSystem>(Stage stage = Stage.Tick)
+		where TSystem : ISystem, new() =>
+		AddSystem(new TSystem(), stage);
+
+	public void Tick(float deltaTime) => RunPhase(SystemLoopPhase.Tick, deltaTime);
+
+	public void FixedTick(float deltaTime) => RunPhase(SystemLoopPhase.FixedTick, deltaTime);
+
+	public void LateTick(float deltaTime) => RunPhase(SystemLoopPhase.LateTick, deltaTime);
+
+	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
+	{
+		ThrowIfDisposed();
+		if (Interlocked.Increment(ref _updateDepth) != 1)
+		{
+			Interlocked.Decrement(ref _updateDepth);
+			throw new InvalidOperationException("Re-entrant world updates are not supported.");
+		}
+
+		try
+		{
+			_systemManager.UpdatePhase(this, loopPhase, deltaTime);
+		}
+		finally
+		{
+			Interlocked.Decrement(ref _updateDepth);
+		}
+	}
 
 	public CommandStream CreateCommandStream()
 	{
@@ -141,7 +295,7 @@ public class World : IDisposable
 		return new(this, _queryChunkMatches, chunkMatchCount, _queryEntities, matchCount);
 	}
 
-	public ref T Get<T>(Entity entity) where T : unmanaged
+	public ref T Get<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
 		EnsureAlive(entity);
@@ -149,7 +303,7 @@ public class World : IDisposable
 		return ref GetComponentRefUnchecked<T>(entity.Id, typeId);
 	}
 
-	public bool TryGet<T>(Entity entity, out T component) where T : unmanaged
+	public bool TryGet<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
 		component = default;
@@ -235,6 +389,8 @@ public class World : IDisposable
 		if (_disposed)
 			return;
 
+		_systemManager.Shutdown(this);
+
 		for (var i = 0; i < _archetypes.Count; i++)
 			_archetypes[i].Dispose();
 
@@ -242,6 +398,7 @@ public class World : IDisposable
 		_compiledPlansBySpecType.Clear();
 		_archetypeByTypeSet.Clear();
 		_archetypes.Clear();
+		DisposeResources();
 		_disposed = true;
 	}
 
@@ -2129,6 +2286,17 @@ done:
 	private static int GetMaskWordCount(int componentTypeCapacity) =>
 		Math.Max(1, (componentTypeCapacity + 63) / 64);
 
+	private static WorldConfig ToWorldConfig(WorldOptions options)
+	{
+		if (options is null) throw new ArgumentNullException(nameof(options));
+
+		return new()
+		{
+			ChunkCapacity = options.ChunkCapacity > 0 ? options.ChunkCapacity : 256,
+			MaxDegreeOfParallelism = options.MaxDegreeOfParallelism
+		};
+	}
+
 	private void ThrowIfDirectIterationUnavailable<TSpec>(QueryHandle<TSpec> handle)
 		where TSpec : struct, ICompiledQuerySpec
 	{
@@ -2176,6 +2344,19 @@ done:
 		return false;
 	}
 
+	private void DisposeResources()
+	{
+		foreach (object boxed in _resources.Values)
+		{
+			if (boxed is not IResourceBox resourceBox)
+				continue;
+
+			resourceBox.DisposeValue();
+		}
+
+		_resources.Clear();
+	}
+
 	private void ThrowIfDisposed()
 	{
 		if (_disposed)
@@ -2197,6 +2378,22 @@ done:
 
 	private static bool ContainsReferencesGeneric<T>() where T : struct =>
 		RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+
+	private interface IResourceBox
+	{
+		void DisposeValue();
+	}
+
+	private sealed class ResourceBox<T>(T value) : IResourceBox where T : notnull
+	{
+		public T Value = value;
+
+		public void DisposeValue()
+		{
+			if (Value is IDisposable disposable)
+				disposable.Dispose();
+		}
+	}
 
 	private static class ComponentTypeIdCache<T> where T : struct
 	{

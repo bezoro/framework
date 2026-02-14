@@ -16,7 +16,7 @@ public sealed class InputIngestionSystem : ISystem
 
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));
@@ -32,8 +32,9 @@ public sealed class InputIngestionSystem : ISystem
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		ref var queue = ref world.GetResource<InputCommandQueue>();
 		queue.AdvanceTime(context.DeltaTime);
 		queue.Drain();

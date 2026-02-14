@@ -17,7 +17,7 @@ public class EcsWorldHotPathBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
-		_world = new(new()
+		_world = new(new WorldConfig()
 		{
 			EntityCapacity                = EntityCount + 16,
 			ComponentTypeCapacity         = 64,

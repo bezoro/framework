@@ -1,3 +1,5 @@
+using Bezoro.ECS.Services;
+
 namespace Bezoro.ECS.Types;
 
 /// <summary>
@@ -8,13 +10,19 @@ namespace Bezoro.ECS.Types;
 /// </remarks>
 /// <param name="deltaTime">The elapsed time passed to this system update.</param>
 /// <param name="stage">The stage executing this context.</param>
-/// <param name="commands">The command buffer for deferred structural changes.</param>
-public readonly struct SystemContext(float deltaTime, Stage stage, CommandBuffer commands)
+/// <param name="world">The world instance executing this context.</param>
+/// <param name="commands">The command stream for deferred structural changes.</param>
+public readonly struct SystemContext(float deltaTime, Stage stage, World world, CommandStream commands)
 {
 	/// <summary>
-	///     Gets the command buffer for deferred structural changes.
+	///     Gets the world instance executing this context.
 	/// </summary>
-	public CommandBuffer Commands { get; } = commands;
+	public World World { get; } = world;
+
+	/// <summary>
+	///     Gets the command stream for deferred structural changes.
+	/// </summary>
+	public CommandStream Commands { get; } = commands;
 
 	/// <summary>
 	///     Gets the elapsed time passed to this system update.

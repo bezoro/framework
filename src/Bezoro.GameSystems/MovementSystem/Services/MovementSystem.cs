@@ -1,6 +1,8 @@
+using System;
 using Bezoro.Core.Helpers;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
+using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using Bezoro.GameSystems.MovementSystem.Types;
 
@@ -16,6 +18,8 @@ namespace Bezoro.GameSystems.MovementSystem.Services;
 [Reads<Velocity>]
 public sealed class MovementSystem : ISystem
 {
+	private QueryHandle<MovementQuerySpec> _query;
+
 	/// <summary>
 	///     Initializes a new instance of the <see cref="MovementSystem" /> class.
 	/// </summary>
@@ -42,19 +46,33 @@ public sealed class MovementSystem : ISystem
 	/// <summary>
 	///     Performs the movement update for all matching entities.
 	/// </summary>
-	/// <param name="world">The world context this system operates on.</param>
 	/// <param name="context">The update context for this execution.</param>
-	public void Update(IWorld world, in SystemContext context)
+	public void OnCreate(World world)
+	{
+		if (world is null) throw new ArgumentNullException(nameof(world));
+		_query = world.Compile<MovementQuerySpec>();
+	}
+
+	public void Update(in SystemContext context)
 	{
 		float deltaTime = context.DeltaTime;
 		if (FloatComparer.IsZero(deltaTime)) return;
 
-		world.Query().All<Position>().All<Velocity>().ForEach((ref Position position, in Velocity velocity) =>
+		context.World.ForEach(_query, (ref Position position, in Velocity velocity) =>
 			{
 				position.X += velocity.X * deltaTime;
 				position.Y += velocity.Y * deltaTime;
 				position.Z += velocity.Z * deltaTime;
 			}
 		);
+	}
+
+	private readonly struct MovementQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.All<Velocity>();
+		}
 	}
 }

@@ -69,11 +69,11 @@ while (events.TryDequeue(out var evt))
 
 | Method                                                        | Description                         |
 |---------------------------------------------------------------|-------------------------------------|
-| `QueueHealthDamage(IWorld, Entity, uint)`                     | Queues excess-first damage.         |
-| `QueueHealthDirectDamage(IWorld, Entity, uint)`               | Queues direct base-health damage.   |
-| `QueueHealthHeal(IWorld, Entity, uint)`                       | Queues base-only heal (no overflow).|
-| `QueueHealthIncreaseHealth(IWorld, Entity, uint)`             | Queues heal with overflow to excess.|
-| `QueueSetHealthMax(IWorld, Entity, uint, MaxValueUpdateMode)` | Queues a max-health change request. |
+| `QueueHealthDamage(World, Entity, uint)`                     | Queues excess-first damage.         |
+| `QueueHealthDirectDamage(World, Entity, uint)`               | Queues direct base-health damage.   |
+| `QueueHealthHeal(World, Entity, uint)`                       | Queues base-only heal (no overflow).|
+| `QueueHealthIncreaseHealth(World, Entity, uint)`             | Queues heal with overflow to excess.|
+| `QueueSetHealthMax(World, Entity, uint, MaxValueUpdateMode)` | Queues a max-health change request. |
 
 ## Design Notes
 

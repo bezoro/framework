@@ -1,100 +1,34 @@
 # Bezoro.ECS
-
-Bezoro.ECS is an archetype-based Entity Component System focused on staged system execution, chunk queries, and deferred structural changes.
+High-performance ECS runtime centered on `World`, `CommandStream`, and compiled queries.
 
 ## Types
-
-| Type                                                            | Description                                                                                          |
-|-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `World`                                                         | ECS root for entities, components, resources, systems, queries, and snapshots.                       |
-| `World`                                                       | Fixed-capacity ECS runtime with compiled queries and deferred structural command streams.            |
-| `WorldV3`                                                       | Fixed-capacity ECS runtime with parallel wave system scheduling and deterministic deferred playback. |
-| `Entity`                                                        | 8-byte versioned handle (`Id`, `Version`) with `Entity.None` and `Entity.Wildcard`.                  |
-| `Archetype`                                                     | Exact component-set storage identity backed by chunked columns.                                      |
-| `Query`                                                         | Cached archetype query with `All/None/Any/Optional/Changed/Related` filters.                         |
-| `IQuery`                                                        | Source-generated query definition contract for `world.Query<TQuery>()` entrypoints.                  |
-| `ChunkView`                                                     | Span-based access to entities and component columns in a chunk.                                      |
-| `CommandBuffer`                                                 | Deferred structural changes (`Create/Destroy/Add/Set/Remove`) for safe playback.                     |
-| `CommandStream`                                                 | Fixed-capacity deferred structural stream (`Create/Destroy/Set`) with reusable buffers.           |
-| `ComponentAccessor<T>`                                          | Cached typed component accessor for hot sequential per-entity `Get/TryGet/Has` loops in `World`.   |
-| `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`     | Compiled-query contracts and execution primitives.                                                |
-| `IForEach<T...>`                                                | Job-style query executor contracts for arity 1-4 (`ref` first component, `in` remaining components). |
-| `[SplitFields]` / `[SplitGroup]`                                | Opt-in split storage annotations consumed by source-generated split helpers.                         |
-| `OnAddObserver<T>` / `OnSetObserver<T>` / `OnRemoveObserver<T>` | Typed observer delegates for add/set/remove hooks with `ref`/`in` semantics.                         |
-| `WorldV1Diagnostics` / `ArchetypeDiagnostics`                     | Snapshot diagnostics for archetype/chunk/entity memory usage.                                        |
-| `SystemContext`                                                 | Per-system execution context (`DeltaTime`, `Stage`, `Commands`).                                     |
-| `SystemLoopPhase`                                               | Host loop routing: `Tick`, `FixedTick`, `LateTick`.                                                  |
-| `Stage`                                                         | System stage ordering: `Input`, `PreTick`, `Tick`, `PostTick`, `Render`.                             |
-| `SnapshotDeserializationOptions`                                | Snapshot type-resolution and reference-resource allowlist options for secure deserialization.        |
-| `ISystem`                                                       | System contract with optional lifecycle hooks and stage metadata.                                    |
-| `ISystemV3` / `SystemContextV3`                                 | V3 system contract and context (`WorldV3`, `DeltaTime`, per-system deferred command stream).         |
-| `IWorld`                                                        | Restricted world contract for systems.                                                               |
+| Type                                                                         | Description                                                                                                     |
+|------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `World`                                                                      | Default ECS runtime (`Services/World.cs`) for entity/component storage, system scheduling, and query execution. |
+| `WorldConfig`                                                                | Fixed-capacity runtime configuration (entity/component/query/command capacities and overflow policy).           |
+| `WorldOptions`                                                               | Compatibility configuration surface (maps to `WorldConfig` for migration scenarios).                            |
+| `Entity`                                                                     | Stable entity handle (`id`, `version`).                                                                         |
+| `CommandStream`                                                              | Fixed-capacity deferred structural mutation stream (`CreateEntity/Set/Remove/Destroy`) with explicit playback.  |
+| `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor` | No-allocation compiled query pipeline and iteration APIs.                                                       |
+| `ISystem` / `SystemContext` / `SystemUpdateSettings`                         | System contract and scheduling context for `Tick`/`FixedTick`/`LateTick` execution.                             |
 
 ## Quick Start
-
 ```csharp
-using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
-var world = new World("Main");
-
-public struct Position : IComponent { public float X; public float Y; }
-public struct Velocity : IComponent { public float X; public float Y; }
-public readonly struct ChildOf;
-
-var parent = world.Spawn();
-var child = world.Spawn();
-
-world.Add(child, new Position { X = 1, Y = 2 });
-world.Add(child, new Velocity { X = 0.5f, Y = 0.25f });
-world.Add<ChildOf>(child, parent);
-
-world.Query()
-    .All<Position>()
-    .All<Velocity>()
-    .Related<ChildOf>(parent)
-    .ForEach(chunk =>
-    {
-        var positions = chunk.Components<Position>();
-        var velocities = chunk.Components<Velocity>();
-
-        for (var i = 0; i < chunk.Count; i++)
-        {
-            positions[i].X += velocities[i].X;
-            positions[i].Y += velocities[i].Y;
-        }
-    });
-```
-
-## Fixed-Capacity Quick Start
-
-```csharp
-using Bezoro.ECS.Abstractions;
-using Bezoro.ECS.Services;
-using Bezoro.ECS.Types;
-
-var world = new World(new WorldConfig
-{
-    EntityCapacity = 100_000,
-    ComponentTypeCapacity = 256,
-    ChunkCapacity = 256,
-    CommandCapacity = 200_000,
-    CommandPayloadCapacityPerType = 200_000,
-    QueryResultCapacity = 100_000
-});
+var world = new World(new WorldConfig { EntityCapacity = 1024, QueryResultCapacity = 1024 });
 
 using var commands = world.CreateCommandStream();
-var e = commands.CreateEntity();
-commands.Set(e, new Position { X = 1, Y = 2 });
+var entity = commands.CreateEntity();
+commands.Set(entity, new Position { X = 1, Y = 2 });
 world.Playback(commands);
 
 var handle = world.Compile<PositionQuery>();
 using var cursor = world.Execute(handle);
 if (cursor.MoveNext())
 {
-    var entities = cursor.Current;
-    for (var i = 0; i < entities.Length; i++)
+    for (var i = 0; i < cursor.Current.Length; i++)
     {
         ref var position = ref cursor.Get<Position>(i);
         position.X += 10;
@@ -106,172 +40,20 @@ readonly struct PositionQuery : ICompiledQuerySpec
     public void Build(ref QueryBuilder builder) => builder.All<Position>();
 }
 
-struct Position
-{
-    public float X;
-    public float Y;
-}
+struct Position { public float X; public float Y; }
 ```
 
 ## API Reference
-
-### World
-
-| Member                                                                                                                                           | Description                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Spawn()` / `Spawn<T1..T4>(...)`                                                                                                                 | Creates an entity in the empty archetype or inferred archetype from initial components.                                                                       |
-| `Despawn(Entity)`                                                                                                                                | Removes entity and recycles id/version.                                                                                                                       |
-| `Has<T>(Entity)` / `Get<T>(Entity)` / `TryGet<T>(Entity, out T)`                                                                                 | Component lookups.                                                                                                                                            |
-| `Add<T>(Entity)` / `Add<T>(Entity, in T)` / `Set<T>(Entity, in T)` / `Remove<T>(Entity)`                                                         | Component mutation APIs.                                                                                                                                      |
-| `Add<TRelation>(Entity source, Entity target)`                                                                                                   | Adds a relationship edge using target-parameterized relation ids.                                                                                             |
-| `Query()` / `Query<T1..T4>()` / `Query(Archetype)`                                                                                               | Builds cached chunk queries.                                                                                                                                  |
-| `Query<TQuery>()`                                                                                                                                | Builds a query from a `[Query]` definition struct implementing `IQuery`.                                                                                      |
-| `SetResource<T>(T)` / `GetResource<T>()`                                                                                                         | Singleton/resource storage.                                                                                                                                   |
-| `Observe<T>(Action<Entity,T>)` / `ObserveAdd<T>(OnAddObserver<T>)` / `ObserveSet<T>(OnSetObserver<T>)` / `ObserveRemove<T>(OnRemoveObserver<T>)` | Subscribes to component lifecycle hooks dispatched during `CommandBuffer` playback; keep/dispose the returned `IDisposable` subscription to control lifetime. |
-| `AddSystem(ISystem, Stage)` / `AddSystem<TSystem>(Stage)`                                                                                        | Adds systems to stage pipeline.                                                                                                                               |
-| `Tick(float)` / `FixedTick(float)` / `LateTick(float)` / `RunPhase(SystemLoopPhase, float)`                                                      | Runs systems for the selected loop phase by stage with sync-point command playback.                                                                           |
-| `CreateCommandBuffer()`                                                                                                                          | Creates manual deferred mutation buffer.                                                                                                                      |
-| `GetDiagnostics()`                                                                                                                               | Returns per-archetype and world-level chunk/entity/memory diagnostics snapshot.                                                                               |
-| `Serialize()` / `Serialize(Stream)` / `World.Deserialize(byte[])` / `World.Deserialize(byte[], SnapshotDeserializationOptions)`                  | Snapshot round-trip using the `BZEC` v1 binary format with configurable deserialization policy.                                                               |
-
-### World
-
-| Member                                                                 | Description                                                                                                            |
-|------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `World(WorldConfig)`                                               | Creates a fixed-capacity world with explicit budgets.                                                                  |
-| `CreateCommandStream()` / `BeginCommands()`                            | Creates a reusable deferred command stream for structural mutations.                                                   |
-| `Playback(CommandStream)`                                              | Applies deferred commands; rejects streams from other worlds.                                                          |
-| `Compile<TSpec>()`                                                     | Compiles and caches a query plan from `ICompiledQuerySpec`.                                                            |
-| `Execute<TSpec>(QueryHandle<TSpec>)`                                   | Executes a compiled query and returns a `QueryCursor` over matching entities.                                          |
-| `ForEach<TSpec,T...>(QueryHandle<TSpec>, ...)`                         | Executes compiled-query hot-path loops directly without cursor/result materialization.                                 |
-| `Run<TSpec,TJob,T...>(QueryHandle<TSpec>, TJob)`                       | Executes compiled-query struct jobs (`IForEach`) to avoid delegate allocations on hot loops.                           |
-| `Get<T>(Entity)` / `TryGet<T>(Entity,out T)` / `TryGetManaged<T>(...)` | Fast unmanaged component access plus explicit managed-lane access.                                                     |
-| `GetAccessor<T>()`                                                     | Returns a cached typed accessor for repeated sequential component `Get/TryGet/Has` calls without per-call type lookup. |
-| `Has<T>(Entity)` / `IsAlive(Entity)`                                   | Entity/component presence checks.                                                                                      |
-| `Reset()`                                                              | Clears entities/components while retaining allocated buffers and compiled plans for reuse.                             |
-| `GetDiagnostics()`                                                     | Returns arena diagnostics (entity slots, component type catalog usage, query result buffer high-water marks).          |
-
-### WorldV3
-
-| Member                                                                            | Description                                                                                         |
-|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `WorldV3(WorldV3Config)`                                                          | Creates a fixed-capacity world with explicit memory budgets and parallel scheduler settings.        |
-| `CreateEntity()` / `Destroy(Entity)`                                              | Immediate entity lifecycle operations on fixed-capacity storage.                                    |
-| `Set<T>(Entity, in T)` / `Remove<T>(Entity)`                                      | Immediate structural/component mutation helpers for setup and controlled mutation points.           |
-| `CreateCommandStream()` / `Playback(CommandStream)`                               | Deferred structural pipeline with deterministic playback ordering.                                  |
-| `Compile<TSpec>()` / `Execute<TSpec>(QueryHandle<TSpec>)`                         | Compiled query plan caching and cursor execution.                                                   |
-| `Run<TSpec,TJob,T...>(QueryHandle<TSpec>, TJob)`                                  | Allocation-free hot-path query execution using struct jobs.                                         |
-| `AddSystem(ISystemV3)` / `Tick(float)`                                            | Registers V3 systems and executes them in conflict-aware parallel waves.                            |
-| `GetSchedulerDiagnostics()`                                                       | Returns scheduler diagnostics (registered systems, wave count, max wave width, plan rebuild count). |
-| `Get<T>(Entity)` / `TryGet<T>(Entity,out T)` / `TryGetManaged<T>(...)` / `Has<T>` | Component access helpers over unmanaged and managed-lane data.                                      |
-| `Reset()`                                                                         | Clears entity/component state and resets persistent per-system command streams.                     |
-
-### WorldConfig
-
-| Member                          | Description                                                 |
-|---------------------------------|-------------------------------------------------------------|
-| `EntityCapacity`                | Maximum alive + recyclable entity slots.                    |
-| `ComponentTypeCapacity`         | Maximum registered component types.                         |
-| `ChunkCapacity`                 | Rows per archetype chunk in the fixed-capacity chunked storage backend. |
-| `CommandCapacity`               | Maximum commands recorded in one `CommandStream`.           |
-| `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream.   |
-| `QueryResultCapacity`           | Maximum entities materialized by one `Execute`.             |
-| `OverflowPolicy`                | Overflow behavior (`FailFast` or `DropNewest`).             |
-
-### WorldV3Config
-
-| Member                          | Description                                                                 |
-|---------------------------------|-----------------------------------------------------------------------------|
-| `EntityCapacity`                | Maximum alive + recyclable entity slots.                                    |
-| `ComponentTypeCapacity`         | Maximum registered component types.                                         |
-| `ChunkCapacity`                 | Rows per archetype chunk in the V3 chunked storage backend.                 |
-| `CommandCapacity`               | Maximum commands recorded in one command stream.                            |
-| `CommandPayloadCapacityPerType` | Maximum payload entries per component type in one stream.                   |
-| `QueryResultCapacity`           | Maximum entities materialized by one `Execute`.                             |
-| `OverflowPolicy`                | Overflow behavior (`FailFast` or `DropNewest`).                             |
-| `ParallelWorkerCount`           | Maximum worker threads used by V3 wave execution.                           |
-
-### CommandStream (World)
-
-| Member                                                 | Description                                                               |
-|--------------------------------------------------------|---------------------------------------------------------------------------|
-| `CreateEntity()` / `CreateEntity<T>(in T)`             | Defers entity creation (optional single-component fused create command).  |
-| `Set<T>(Entity, in T)` / `SetManaged<T>(Entity, in T)` | Defers component writes for unmanaged or managed-lane components.         |
-| `Remove<T>(Entity)` / `Destroy(Entity)`                | Defers component removal and entity destruction.                          |
-| `GetDiagnostics()`                                     | Per-stream command capacity usage, high-watermark, and overflow counters. |
-
-### QueryCursor (World)
-
-| Member                                                                | Description                                                                            |
-|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `MoveNext()` / `Current`                                              | Advances to and exposes the current result batch of entities.                          |
-| `Get<T>(int index)`                                                   | Gets a mutable unmanaged component reference for one matched entity.                   |
-| `ForEach<T1>(...)` / `ForEach<T1,T2>(...)` / `ForEach<T1,T2,T3>(...)` | Sequential no-allocation hot-path iteration helpers with `ref/in` component access.    |
-| `Run<TJob,T...>(TJob)`                                                | Struct-job iteration (`IForEach`) over matched entities to avoid delegate allocations. |
-
-### Query
-
-| Member                                                                                | Description                                                                                              |
-|---------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `All<T>()`                                                                            | Required component filter.                                                                               |
-| `None<T>()`                                                                           | Excluded component filter.                                                                               |
-| `Any<T1,T2>()` / `Any(params Type[])`                                                 | At least one component must exist.                                                                       |
-| `Optional<T>()`                                                                       | Optional component availability for chunk access.                                                        |
-| `Changed<T>()`                                                                        | Includes chunks changed in the current version window.                                                   |
-| `Related<TRelation>(Entity target)`                                                   | Relationship target filter (`Entity.Wildcard` for any target); non-wildcard target must be alive.        |
-| `ForEach(...)` / `ForEach(job)` / `ForEach<TJob,T...>(TJob)` / `ForEachParallel(...)` | Serial, source-generated job-style, explicit generic job-style (arity 1-4), or parallel chunk iteration. |
-| `ChunkView.OptionalComponents<T>()`                                                   | Optional component span; returns `Span<T>.Empty` when missing in the current chunk.                      |
-
-### ISystem
-
-`ISystem` supports:
-
-- `OnCreate(World)` (optional)
-- `OnDestroy(World)` (optional)
-- `Update(IWorld, in SystemContext)` (required)
-- `LoopPhase`, `Stage`, and `UpdateSettings` metadata (optional overrides)
-- `[Reads<T>]`, `[Writes<T>]`, and `[Exclusive]` attributes for scheduler metadata
+| Member                                                                        | Description                                                  |
+|-------------------------------------------------------------------------------|--------------------------------------------------------------|
+| `Spawn`, `Despawn`, `Add`, `Set`, `Remove`, `Get`, `TryGet`, `Has`, `IsAlive` | Core entity/component operations.                            |
+| `CreateCommandStream`, `Playback`                                             | Deferred mutation recording and deterministic apply stage.   |
+| `Compile<TSpec>`, `Execute<TSpec>`, `ForEach(...)`, `Run(...)`                | Compiled query plan creation and hot-path iteration helpers. |
+| `AddSystem`, `Tick`, `FixedTick`, `LateTick`, `RunPhase`                      | System registration and phase-based scheduling.              |
+| `GetResource<T>`, `SetResource<T>`                                            | Type-indexed resource storage.                               |
 
 ## Design Notes
-
-- Archetypes are cached by sorted component type ids.
-- Chunk columns use aligned unmanaged buffers for unmanaged component structs and managed arrays for structs containing references.
-- Structural changes move entities between archetypes and maintain dense chunk packing.
-- Command buffers are flushed at sync points during world updates.
-- Command buffers retain internal recording buffers between playbacks to reduce GC churn in repeated burst workloads.
-- `World.CommandStream` rents command and payload buffers from array pools, uses fixed component-type-indexed payload stores, and clears managed payload references between playbacks.
-- `World.ForEach<TSpec,T...>` provides direct compiled-query loops for tighter sequential update paths than cursor materialization.
-- `World.Run<TSpec,TJob,T...>` and `QueryCursor.Run<TJob,T...>` support struct jobs for allocation-free hot loops without delegate captures.
-- `World.GetAccessor<T>()` caches the component type lane once and exposes fast repeated per-entity `Get/TryGet/Has` access for tight external loops.
-- `WorldV3` reuses the fixed-capacity storage and compiled-query hot paths while adding an always-parallel wave scheduler with deterministic per-wave command playback ordering.
-- `World` stores entities in archetype chunks and resolves structural changes through archetype transitions.
-- `World` chunk columns use native-aligned unmanaged storage for unmanaged components and managed arrays for managed-lane components, reducing GC pressure on hot paths.
-- `QueryCursor` iterates matched chunks directly for `ForEach/Run` and materializes `Current` entities lazily only when requested.
-- Observer callbacks are dispatched only during command buffer playback, keeping direct mutation calls side-effect free.
-- `ObserveAdd` fires for structural component attachments; `ObserveSet` fires when an existing component value is replaced.
-- Observer registrations are weakly retained by the world; dropping/collecting the subscription token automatically unsubscribes.
-- Query matching is cached and incrementally updated when new archetypes are created.
-- Query cache is size-bounded and LRU-evicted to avoid unbounded memory growth.
-- `World.Clear()` fully resets archetype caches/transition graphs to the empty-archetype baseline, preventing retained archetype growth across repeated clear cycles.
-- Resources are stored separately from entity archetypes and disposed when replaced and when the world is disposed (`Dispose` / `DisposeAsync`) if they implement `IDisposable` or `IAsyncDisposable`.
-- `World.Dispose()` / `DisposeAsync()` attempt all cleanup steps (system teardown, chunk/resource cleanup), aggregate failures, and still mark the world as disposed.
-- Relationship filters use target-parameterized synthetic component ids.
-- `Query.Related<TRelation>(target)` does not allocate synthetic relationship ids on query creation and stale related queries do not recreate ids for dead targets.
-- Despawning an entity removes incoming relationships targeting that entity and recycles released relationship ids.
-- Empty chunks are compacted/released after structural removals to reduce retained memory.
-- Calling any public `World` API after `Dispose()` throws `ObjectDisposedException`.
-- Re-entrant world updates (e.g., calling `Tick` from inside a system update) are rejected with `InvalidOperationException`.
-- `World.Deserialize` validates untrusted payloads with strict count/length limits, runtime type safety checks, and optional reference-resource allowlists.
-- Systems without declared access metadata are treated as exclusive and scheduled serially by default.
-
-## Build
-
-```bash
-dotnet build bezoro.framework.sln
-dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
-```
-
-## Target Frameworks
-
-- `.NET 9.0`
-- `.NET Standard 2.1`
+- Default runtime is `src/Bezoro.ECS/Services/World.cs`.
+- `WorldV1` and legacy query/command-buffer APIs were removed from the default path.
+- The hot path is data-oriented with fixed-capacity buffers and explicit command playback to minimize allocations.
+- Compiled queries are intended for sequential, cache-friendly component access in gameplay loops.

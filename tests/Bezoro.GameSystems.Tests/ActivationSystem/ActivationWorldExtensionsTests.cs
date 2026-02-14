@@ -12,7 +12,7 @@ public class ActivationWorldExtensionsTests
 	[Fact]
 	public void GetOrCreateActivationCommandQueue_WhenCalledMultipleTimes_ShouldReturnSameInstance()
 	{
-		var world = new WorldV1();
+		var world = new World();
 
 		var first = world.GetOrCreateActivationCommandQueue();
 		var second = world.GetOrCreateActivationCommandQueue();
@@ -23,7 +23,7 @@ public class ActivationWorldExtensionsTests
 	[Fact]
 	public void AddActivationPipeline_WhenInvoked_ShouldWireSystemsForEndToEndActivation()
 	{
-		var world = new WorldV1();
+		var world = new World();
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
 		var called = false;

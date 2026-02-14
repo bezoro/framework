@@ -17,15 +17,16 @@ public sealed class ActivationDispatchSystem : ISystem
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
@@ -50,7 +51,7 @@ public sealed class ActivationDispatchSystem : ISystem
 		}
 	}
 
-	private static void EnsureResources(IWorld world)
+	private static void EnsureResources(World world)
 	{
 		try
 		{

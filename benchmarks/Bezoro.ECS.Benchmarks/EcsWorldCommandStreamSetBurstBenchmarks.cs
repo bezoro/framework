@@ -35,7 +35,7 @@ public class EcsWorldCommandStreamSetBurstBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
-		_world = new(new()
+		_world = new(new WorldConfig()
 		{
 			EntityCapacity                = BurstSize + 32,
 			ComponentTypeCapacity         = 32,

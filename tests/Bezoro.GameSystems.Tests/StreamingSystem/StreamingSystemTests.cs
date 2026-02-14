@@ -32,7 +32,7 @@ public class StreamingSystemTests
 	public void Tick_WhenEntityIsWithinStreamInDistance_ShouldMarkEntityStreamedInAndPublishEvent()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new StreamingSystemType();
 		world.AddSystem(system);
 		world.SetResource(
@@ -72,7 +72,7 @@ public class StreamingSystemTests
 	public void Tick_WhenEntityStartsInHysteresisZoneAndIsNotStreamedIn_ShouldRemainStreamedOut()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 		world.SetResource(
 			new StreamingConfig
@@ -104,7 +104,7 @@ public class StreamingSystemTests
 	public void Tick_WhenEntityMovesIntoHysteresisZoneAfterStreamingIn_ShouldRemainStreamedIn()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 		world.SetResource(
 			new StreamingConfig
@@ -142,7 +142,7 @@ public class StreamingSystemTests
 	public void Tick_WhenEntityMovesBeyondStreamOutDistance_ShouldMarkEntityStreamedOutAndPublishEvent()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 		world.SetResource(
 			new StreamingConfig
@@ -185,7 +185,7 @@ public class StreamingSystemTests
 	public void Tick_WhenMaxEntitiesPerTickIsLimited_ShouldProcessEntitiesInRoundRobinOrder()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 		world.SetResource(
 			new StreamingConfig
@@ -226,7 +226,7 @@ public class StreamingSystemTests
 	public void Tick_WhenStreamOutDistanceIsLessThanStreamInDistance_ShouldThrow()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 		world.SetResource(
 			new StreamingConfig
@@ -250,7 +250,7 @@ public class StreamingSystemTests
 	public void Tick_WhenNoEntitiesMatchQuery_ShouldNotThrow()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new StreamingSystemType());
 
 		// Act
@@ -260,7 +260,7 @@ public class StreamingSystemTests
 		act.Should().NotThrow();
 	}
 
-	private static int CountStreamedIn(WorldV1 world, IReadOnlyList<Entity> entities)
+	private static int CountStreamedIn(World world, IReadOnlyList<Entity> entities)
 	{
 		var count = 0;
 		for (var i = 0; i < entities.Count; i++)

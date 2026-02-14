@@ -32,10 +32,6 @@ public interface IWorld
 		where T3 : struct
 		where T4 : struct;
 
-	Query Query();
-
-	Query Query(Archetype archetype);
-
 	ref T Get<T>(Entity entity) where T : struct;
 
 	ref T GetResource<T>() where T : notnull;

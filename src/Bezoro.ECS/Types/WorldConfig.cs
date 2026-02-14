@@ -1,3 +1,5 @@
+using System;
+
 namespace Bezoro.ECS.Types;
 
 /// <summary>
@@ -40,6 +42,11 @@ public sealed class WorldConfig
 	/// </summary>
 	public WorldOverflowPolicy OverflowPolicy { get; init; } = WorldOverflowPolicy.FailFast;
 
+	/// <summary>
+	/// Maximum degree of parallelism for system execution.
+	/// </summary>
+	public int MaxDegreeOfParallelism { get; init; } = Environment.ProcessorCount;
+
 	internal void Validate()
 	{
 		if (EntityCapacity <= 0)
@@ -61,6 +68,11 @@ public sealed class WorldConfig
 
 		if (ChunkCapacity <= 0)
 			throw new ArgumentOutOfRangeException(nameof(ChunkCapacity), "Chunk capacity must be positive.");
+
+		if (MaxDegreeOfParallelism <= 0)
+			throw new ArgumentOutOfRangeException(
+				nameof(MaxDegreeOfParallelism), "Parallelism must be positive."
+			);
 	}
 }
 

@@ -20,15 +20,16 @@ public sealed class ActivationIngestionSystem : ISystem
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureCommandQueue(world);
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureCommandQueue(world);
 
@@ -55,7 +56,7 @@ public sealed class ActivationIngestionSystem : ISystem
 		}
 	}
 
-	private static void EnsureCommandQueue(IWorld world)
+	private static void EnsureCommandQueue(World world)
 	{
 		try
 		{

@@ -51,27 +51,16 @@ public class GeneratedSystemMetadataResolverTests
 	}
 
 	[Fact]
-	public void TryGet_WhenSystemUsesForEachQuery_ShouldInferReadAndWriteSets()
+	public void TryGet_WhenSystemHasNoAttributes_ShouldReturnEmptyMetadata()
 	{
 		var  resolver = new GeneratedSystemMetadataResolver();
-		bool result   = resolver.TryGet(typeof(ResolverInferredForEachSystem), out var metadata);
+		bool result   = resolver.TryGet(typeof(ResolverUnknownSystem), out var metadata);
 
 		result.Should().BeTrue();
-		metadata.Reads.Should().Contain(typeof(ResolverInferredVelocity));
-		metadata.Writes.Should().Contain(typeof(ResolverInferredPosition));
-	}
-
-	[Fact]
-	public void TryGet_WhenSystemUsesForEachRwQuery_ShouldInferBothAsWrites()
-	{
-		var  resolver = new GeneratedSystemMetadataResolver();
-		bool result   = resolver.TryGet(typeof(ResolverInferredForEachRwSystem), out var metadata);
-
-		result.Should().BeTrue();
-		metadata.Reads.Should().NotContain(typeof(ResolverInferredPosition));
-		metadata.Reads.Should().NotContain(typeof(ResolverInferredVelocity));
-		metadata.Writes.Should().Contain(typeof(ResolverInferredPosition));
-		metadata.Writes.Should().Contain(typeof(ResolverInferredVelocity));
+		metadata.SystemType.Should().Be(typeof(ResolverUnknownSystem));
+		metadata.Reads.Should().BeEmpty();
+		metadata.Writes.Should().BeEmpty();
+		metadata.IsExclusive.Should().BeFalse();
 	}
 }
 
@@ -79,31 +68,13 @@ public class GeneratedSystemMetadataResolverTests
 [Exclusive]
 internal abstract class ResolverBaseSystem : ISystem
 {
-	public abstract void Update(IWorld world, in SystemContext context);
+	public abstract void Update(in SystemContext context);
 }
 
 [Writes<ResolverWriteComponent>]
 internal sealed class ResolverDerivedSystem : ResolverBaseSystem
 {
-	public override void Update(IWorld world, in SystemContext context) { }
-}
-
-internal sealed class ResolverInferredForEachRwSystem : ISystem
-{
-	public void Update(IWorld world, in SystemContext context)
-	{
-		world.Query().All<ResolverInferredPosition>().All<ResolverInferredVelocity>()
-			 .ForEachRW((ref ResolverInferredPosition position, ref ResolverInferredVelocity velocity) => { });
-	}
-}
-
-internal sealed class ResolverInferredForEachSystem : ISystem
-{
-	public void Update(IWorld world, in SystemContext context)
-	{
-		world.Query().All<ResolverInferredPosition>().All<ResolverInferredVelocity>()
-			 .ForEach((ref ResolverInferredPosition position, in ResolverInferredVelocity velocity) => { });
-	}
+	public override void Update(in SystemContext context) { }
 }
 
 internal static class ResolverNestedSystems
@@ -112,13 +83,9 @@ internal static class ResolverNestedSystems
 	[Writes<ResolverWriteComponent>]
 	internal sealed class NestedSystem : ISystem
 	{
-		public void Update(IWorld world, in SystemContext context) { }
+		public void Update(in SystemContext context) { }
 	}
 }
-
-internal struct ResolverInferredPosition;
-
-internal struct ResolverInferredVelocity;
 
 internal struct ResolverReadComponent;
 
@@ -127,7 +94,12 @@ internal struct ResolverReadComponent;
 [Exclusive]
 internal struct ResolverStructSystem : ISystem
 {
-	public void Update(IWorld world, in SystemContext context) { }
+	public void Update(in SystemContext context) { }
+}
+
+internal struct ResolverUnknownSystem : ISystem
+{
+	public void Update(in SystemContext context) { }
 }
 
 internal struct ResolverWriteComponent;

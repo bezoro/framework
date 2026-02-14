@@ -28,7 +28,7 @@ public class HealthSystemTests
 	public void QueueHealthDamage_WhenEntityDoesNotHaveHealth_ShouldReturnFalse()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var entity = world.Spawn();
 
 		// Act
@@ -42,7 +42,7 @@ public class HealthSystemTests
 	public void Tick_WhenDamageRequestIsQueued_ShouldConsumeExcessBeforeCurrentAndPublishEvent()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new HealthSystemType();
 		world.AddSystem(system);
 
@@ -76,7 +76,7 @@ public class HealthSystemTests
 	public void Tick_WhenHealRequestIsQueued_ShouldFillCurrentWithoutOverflowIntoExcess()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new HealthSystemType());
 
 		var entity = world.Spawn(
@@ -97,7 +97,7 @@ public class HealthSystemTests
 	public void Tick_WhenIncreaseHealthRequestIsQueued_ShouldOverflowIntoExcess()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new HealthSystemType());
 
 		var entity = world.Spawn(
@@ -118,7 +118,7 @@ public class HealthSystemTests
 	public void Tick_WhenDirectDamageRequestIsQueued_ShouldIgnoreExcess()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new HealthSystemType());
 
 		var entity = world.Spawn(
@@ -139,7 +139,7 @@ public class HealthSystemTests
 	public void Tick_WhenMultipleRequestsAreQueued_ShouldApplyInQueueOrder()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new HealthSystemType());
 		var entity = world.Spawn(new Health(max: 100u, current: 50u));
 
@@ -168,7 +168,7 @@ public class HealthSystemTests
 	public void Tick_WhenSetMaxRequestedWithPreservePercentage_ShouldScaleCurrent()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new HealthSystemType());
 		var entity = world.Spawn(new Health(max: 100u, current: 25u));
 

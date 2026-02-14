@@ -17,7 +17,6 @@ BenchmarkDotNet suite for core ECS performance targets.
 | `EcsQueryCachePressureBenchmarks` | High-cardinality relationship-target queries to stress query-cache pressure scenarios. |
 | `EcsWorldHotPathBenchmarks` | World compiled-query hot paths comparing cursor and direct struct-job (`Run`) loops on unmanaged components. |
 | `EcsWorldComponentAccessBenchmarks` | World sequential component access paths (`TryGet`/`Get`, cached accessor variants, and sequential `QueryCursor.Get`), plus cursor vs direct query struct-job loop comparison. |
-| `EcsV3VsWorldHotPathBenchmarks` | Side-by-side World vs WorldV3 sequential accessor read/write and direct compiled-query struct-job throughput comparison. |
 
 ## Run
 

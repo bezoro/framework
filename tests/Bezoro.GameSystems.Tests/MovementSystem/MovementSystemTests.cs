@@ -16,7 +16,7 @@ public class MovementSystemTests
 	public void FixedTick_WhenEntitiesHavePositionAndVelocity_ShouldAdvancePositions()
 	{
 		// Arrange
-		var world = new WorldV1();
+		var world = new World();
 		world.AddSystem(new MovementSystemType());
 
 		var e1 = world.Spawn(
@@ -48,7 +48,7 @@ public class MovementSystemTests
 	public void FixedTick_WhenFixedInterval_ShouldAccumulateAndApplyStep()
 	{
 		// Arrange
-		var world  = new WorldV1();
+		var world  = new World();
 		var system = new MovementSystemType(SystemUpdateSettings.FixedInterval(0.5f));
 		world.AddSystem(system);
 

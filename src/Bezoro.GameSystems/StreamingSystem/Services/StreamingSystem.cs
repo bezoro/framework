@@ -20,6 +20,7 @@ public sealed class StreamingSystem : ISystem
 	private const float DefaultStreamInDistance  = 100f;
 	private const float DefaultStreamOutDistance = 120f;
 	private const int   DefaultMaxEntitiesPerTick = 50;
+	private QueryHandle<StreamingQuerySpec> _streamingQuery;
 
 	/// <summary>
 	///     Raised when an entity changes streaming state.
@@ -43,22 +44,24 @@ public sealed class StreamingSystem : ISystem
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
-	public void OnCreate(WorldV1 world)
+	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
+		_streamingQuery = world.Compile<StreamingQuerySpec>();
 	}
 
 	/// <inheritdoc />
-	public void Update(IWorld world, in SystemContext context)
+	public void Update(in SystemContext context)
 	{
+		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
 		ref var config = ref world.GetResource<StreamingConfig>();
 		ValidateConfig(in config);
 
-		int total = CountStreamables(world);
+		int total = CountStreamables(world, _streamingQuery);
 		if (total == 0)
 		{
 			ref var emptyRuntime = ref world.GetResource<StreamingRuntimeState>();
@@ -83,6 +86,7 @@ public sealed class StreamingSystem : ISystem
 
 		ApplyStreamingTransitions(
 			world,
+			_streamingQuery,
 			referencePosition,
 			inDistanceSquared,
 			outDistanceSquared,
@@ -97,7 +101,8 @@ public sealed class StreamingSystem : ISystem
 	}
 
 	private void ApplyStreamingTransitions(
-		IWorld   world,
+		World   world,
+		QueryHandle<StreamingQuerySpec> queryHandle,
 		Vector3  referencePosition,
 		float    inDistanceSquared,
 		float    outDistanceSquared,
@@ -105,41 +110,36 @@ public sealed class StreamingSystem : ISystem
 		bool     wraps,
 		int      endExclusive)
 	{
-		var globalIndex = 0;
-		var query       = world.Query().All<Position>().All<StreamState>();
-		foreach (var chunk in query)
+		using var cursor = world.Execute(queryHandle);
+		if (!cursor.MoveNext())
+			return;
+
+		var entities = cursor.Current;
+		for (var i = 0; i < entities.Length; i++)
 		{
-			var entities = chunk.Entities;
-			var positions = chunk.ReadOnlyComponents<Position>();
-			var states = chunk.Components<StreamState>();
-			for (var i = 0; i < chunk.Count; i++)
+			if (!IsSelectedIndex(i, startIndex, wraps, endExclusive))
 			{
-				if (!IsSelectedIndex(globalIndex, startIndex, wraps, endExclusive))
-				{
-					globalIndex++;
-					continue;
-				}
-
-				ref var state = ref states[i];
-				float distanceSquared = GetDistanceSquared(referencePosition, in positions[i]);
-
-				StreamingTransition? transition = TryTransition(
-					ref state,
-					distanceSquared,
-					inDistanceSquared,
-					outDistanceSquared
-				);
-
-				if (transition.HasValue)
-					Publish(world, entities[i], transition.Value, distanceSquared);
-
-				globalIndex++;
+				continue;
 			}
+
+			var position = cursor.Get<Position>(i);
+			ref var state = ref cursor.Get<StreamState>(i);
+			float distanceSquared = GetDistanceSquared(referencePosition, in position);
+
+			StreamingTransition? transition = TryTransition(
+				ref state,
+				distanceSquared,
+				inDistanceSquared,
+				outDistanceSquared
+			);
+
+			if (transition.HasValue)
+				Publish(world, entities[i], transition.Value, distanceSquared);
 		}
 	}
 
 	private void Publish(
-		IWorld               world,
+		World               world,
 		Entity               targetEntity,
 		StreamingTransition  transition,
 		float                distanceSquared)
@@ -212,14 +212,13 @@ public sealed class StreamingSystem : ISystem
 		return startIndex;
 	}
 
-	private static int CountStreamables(IWorld world)
+	private static int CountStreamables(World world, QueryHandle<StreamingQuerySpec> queryHandle)
 	{
-		var total = 0;
-		var query = world.Query().All<Position>().All<StreamState>();
-		foreach (var chunk in query)
-			total += chunk.Count;
+		using var cursor = world.Execute(queryHandle);
+		if (!cursor.MoveNext())
+			return 0;
 
-		return total;
+		return cursor.Current.Length;
 	}
 
 	private static void ValidateConfig(in StreamingConfig config)
@@ -236,7 +235,7 @@ public sealed class StreamingSystem : ISystem
 			);
 	}
 
-	private static void EnsureResources(IWorld world)
+	private static void EnsureResources(World world)
 	{
 		try
 		{
@@ -271,6 +270,15 @@ public sealed class StreamingSystem : ISystem
 		catch (KeyNotFoundException)
 		{
 			world.SetResource(new StreamingEventsResource());
+		}
+	}
+
+	private readonly struct StreamingQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.All<StreamState>();
 		}
 	}
 }

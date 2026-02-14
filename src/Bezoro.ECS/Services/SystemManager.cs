@@ -33,7 +33,7 @@ internal sealed class SystemManager
 
 	internal int PlanBuildCount { get; private set; }
 
-	public void RegisterSystem(WorldV1 world, ISystem system, Stage? explicitStage = null)
+	public void RegisterSystem(World world, ISystem system, Stage? explicitStage = null)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		if (system is null) throw new ArgumentNullException(nameof(system));
@@ -113,7 +113,7 @@ internal sealed class SystemManager
 		system.OnCreate(world);
 	}
 
-	public void Shutdown(WorldV1 world)
+	public void Shutdown(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
@@ -148,7 +148,7 @@ internal sealed class SystemManager
 		throw new AggregateException("One or more systems failed during shutdown.", exceptions);
 	}
 
-	public void UpdatePhase(WorldV1 world, SystemLoopPhase loopPhase, float deltaTime)
+	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
@@ -172,8 +172,8 @@ internal sealed class SystemManager
 				if (batch.Systems.Count == 0)
 					continue;
 
-				var buffers = ExecuteBatch(batch, world);
-				FlushBuffers(buffers);
+				var streams = ExecuteBatch(batch, world);
+				FlushStreams(world, streams);
 			}
 		}
 	}
@@ -307,67 +307,67 @@ internal sealed class SystemManager
 		return batches;
 	}
 
-	private static void AddReadType(WorldV1 world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddReadType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
 		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		if (!writeSet.Contains(typeId))
 			readSet.Add(typeId);
 	}
 
-	private static void AddWriteType(WorldV1 world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
+	private static void AddWriteType(World world, HashSet<int> readSet, HashSet<int> writeSet, Type componentType)
 	{
 		int typeId = world.GetOrCreateComponentTypeId(componentType);
 		writeSet.Add(typeId);
 		readSet.Remove(typeId);
 	}
 
-	private void ExecuteSystem(SystemExecution execution, WorldV1 world, CommandBuffer[] buffers, int index)
+	private void ExecuteSystem(SystemExecution execution, World world, CommandStream[] streams, int index)
 	{
-		var buffer = new CommandBuffer(world);
-		buffers[index] = buffer;
-		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, buffer);
-		execution.State.System.Update(world, in context);
+		var stream = world.CreateCommandStream();
+		streams[index] = stream;
+		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, stream);
+		execution.State.System.Update(in context);
 	}
 
-	private void FlushBuffers(CommandBuffer[] buffers)
+	private void FlushStreams(World world, CommandStream[] streams)
 	{
-		for (var i = 0; i < buffers.Length; i++)
+		for (var i = 0; i < streams.Length; i++)
 		{
-			var buffer = buffers[i];
-			if (buffer is null)
+			var stream = streams[i];
+			if (stream is null)
 				continue;
 
 			try
 			{
-				if (!buffer.HasCommands)
+				if (!stream.HasCommands)
 					continue;
 
-				buffer.PlaybackInternal(true);
+				world.Playback(stream);
 			}
 			finally
 			{
-				buffer.Dispose();
+				stream.Dispose();
 			}
 		}
 	}
 
-	private CommandBuffer[] ExecuteBatch(SystemBatch batch, WorldV1 world)
+	private CommandStream[] ExecuteBatch(SystemBatch batch, World world)
 	{
 		if (batch.Systems.Count == 0) return [];
 
-		var buffers = new CommandBuffer[batch.Systems.Count];
+		var streams = new CommandStream[batch.Systems.Count];
 
 		if (_maxDegreeOfParallelism == 1 || batch.Systems.Count == 1)
 			for (var i = 0; i < batch.Systems.Count; i++)
-				ExecuteSystem(batch.Systems[i], world, buffers, i);
+				ExecuteSystem(batch.Systems[i], world, streams, i);
 		else
 			ParallelWorkScheduler.Execute(
 				batch.Systems.Count,
 				_maxDegreeOfParallelism,
-				i => ExecuteSystem(batch.Systems[i], world, buffers, i)
+				i => ExecuteSystem(batch.Systems[i], world, streams, i)
 			);
 
-		return buffers;
+		return streams;
 	}
 
 	private SystemBatch BuildExecutionBatch(SystemState[] batchStates, float deltaTime)

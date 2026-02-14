@@ -16,7 +16,7 @@ public static class InputWorldExtensions
 	/// </summary>
 	/// <param name="world">The ECS world.</param>
 	/// <returns>The input command queue resource.</returns>
-	public static InputCommandQueue GetOrCreateInputCommandQueue(this WorldV1 world)
+	public static InputCommandQueue GetOrCreateInputCommandQueue(this World world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));
@@ -37,7 +37,7 @@ public static class InputWorldExtensions
 	///     Registers fixed-tick input systems with their declared stage ordering.
 	/// </summary>
 	/// <param name="world">The ECS world.</param>
-	public static void AddMovementInputPipeline(this WorldV1 world)
+	public static void AddMovementInputPipeline(this World world)
 	{
 		if (world is null)
 			throw new ArgumentNullException(nameof(world));
