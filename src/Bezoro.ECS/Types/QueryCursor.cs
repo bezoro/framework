@@ -39,6 +39,10 @@ public struct QueryCursor : IDisposable
 	private          bool              _moved;
 	private          bool              _entitiesMaterialized;
 	private          int               _chunkMatchHint;
+	private          int               _cachedGetTypeId;
+	private          int               _cachedGetArchetypeId;
+	private          int               _cachedGetColumnIndex;
+	private          ArchetypeStorage? _cachedGetArchetype;
 
 	internal QueryCursor(
 		WorldV2           world,
@@ -57,6 +61,10 @@ public struct QueryCursor : IDisposable
 		_moved = false;
 		_entitiesMaterialized = false;
 		_chunkMatchHint = -1;
+		_cachedGetTypeId = int.MinValue;
+		_cachedGetArchetypeId = int.MinValue;
+		_cachedGetColumnIndex = -1;
+		_cachedGetArchetype = null;
 	}
 
 	/// <summary>
@@ -104,14 +112,37 @@ public struct QueryCursor : IDisposable
 		if ((uint)index >= (uint)_count)
 			throw new ArgumentOutOfRangeException(nameof(index));
 
-		int entityId = _world.ResolveEntityIdForCursorIndex(
-			_chunkMatches,
-			_chunkMatchCount,
-			index,
-			ref _chunkMatchHint
-		);
 		int typeId = _world.GetOrCreateComponentTypeId<T>();
-		return ref _world.GetComponentRefForCursorUnchecked<T>(entityId, typeId);
+		if (typeId != _cachedGetTypeId)
+		{
+			_cachedGetTypeId = typeId;
+			_cachedGetArchetypeId = int.MinValue;
+			_cachedGetColumnIndex = -1;
+			_cachedGetArchetype = null;
+		}
+
+		if (!TryResolveChunkMatchForIndex(index, out var match, out int matchOffset))
+			throw new ArgumentOutOfRangeException(nameof(index));
+
+		if (match.ArchetypeId != _cachedGetArchetypeId)
+		{
+			var archetype = _world.GetArchetypeForCursor(match.ArchetypeId);
+			int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+			if (columnIndex < 0)
+				throw new KeyNotFoundException($"Type id '{typeId}' does not exist in archetype '{match.ArchetypeId}'.");
+
+			_cachedGetArchetypeId = match.ArchetypeId;
+			_cachedGetColumnIndex = columnIndex;
+			_cachedGetArchetype = archetype;
+		}
+
+		var cachedArchetype = _cachedGetArchetype!;
+		var chunk = cachedArchetype.GetChunkUnchecked(match.ChunkIndex);
+		return ref cachedArchetype.GetRefByIndex<T>(
+			chunk,
+			_cachedGetColumnIndex,
+			match.RowStart + matchOffset
+		);
 	}
 
 	/// <summary>
@@ -429,6 +460,81 @@ public struct QueryCursor : IDisposable
 	{
 		if (_disposed)
 			throw new ObjectDisposedException(nameof(QueryCursor));
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryResolveChunkMatchForIndex(int index, out QueryChunkMatch match, out int matchOffset)
+	{
+		if ((uint)_chunkMatchHint < (uint)_chunkMatchCount)
+		{
+			var hintedMatch = _chunkMatches[_chunkMatchHint];
+			if (TryResolveMatchOffset(hintedMatch, index, out matchOffset))
+			{
+				match = hintedMatch;
+				return true;
+			}
+
+			int nextHint = _chunkMatchHint + 1;
+			if ((uint)nextHint < (uint)_chunkMatchCount)
+			{
+				var nextMatch = _chunkMatches[nextHint];
+				if (TryResolveMatchOffset(nextMatch, index, out matchOffset))
+				{
+					_chunkMatchHint = nextHint;
+					match = nextMatch;
+					return true;
+				}
+			}
+
+			int previousHint = _chunkMatchHint - 1;
+			if (previousHint >= 0)
+			{
+				var previousMatch = _chunkMatches[previousHint];
+				if (TryResolveMatchOffset(previousMatch, index, out matchOffset))
+				{
+					_chunkMatchHint = previousHint;
+					match = previousMatch;
+					return true;
+				}
+			}
+		}
+
+		var low = 0;
+		var high = _chunkMatchCount - 1;
+		while (low <= high)
+		{
+			int middle = low + ((high - low) >> 1);
+			var middleMatch = _chunkMatches[middle];
+			int start = middleMatch.EntityStartIndex;
+			int offset = index - start;
+			if (offset < 0)
+			{
+				high = middle - 1;
+				continue;
+			}
+
+			if ((uint)offset >= (uint)middleMatch.Count)
+			{
+				low = middle + 1;
+				continue;
+			}
+
+			_chunkMatchHint = middle;
+			match = middleMatch;
+			matchOffset = offset;
+			return true;
+		}
+
+		match = default;
+		matchOffset = default;
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool TryResolveMatchOffset(in QueryChunkMatch match, int index, out int matchOffset)
+	{
+		matchOffset = index - match.EntityStartIndex;
+		return (uint)matchOffset < (uint)match.Count;
 	}
 
 	private void EnsureEntitiesMaterialized()

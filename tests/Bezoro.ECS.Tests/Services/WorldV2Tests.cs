@@ -229,6 +229,60 @@ public class WorldV2Tests
 	}
 
 	[Fact]
+	public void QueryCursor_Get_WhenSwitchingTypesAndTraversingBackward_ShouldResolveCorrectComponents()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 32,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 96,
+			CommandPayloadCapacityPerType = 96,
+			QueryResultCapacity           = 32,
+			ChunkCapacity                 = 2
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = 100 + i, Y = i });
+			commands.Set(entity, new Velocity { X = 10 + i, Y = -10 - i });
+		}
+
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = 200 + i, Y = i });
+			commands.Set(entity, new Velocity { X = 20 + i, Y = -20 - i });
+			commands.Set(entity, new Acceleration { X = 1, Y = 1 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(6);
+
+		int[] indexOrder = [0, 1, 2, 3, 2, 1, 4, 5, 4, 0];
+		for (var i = 0; i < indexOrder.Length; i++)
+		{
+			int index = indexOrder[i];
+			var entity = cursor.Current[index];
+
+			ref var velocity = ref cursor.Get<Velocity>(index);
+			var expectedVelocity = world.Get<Velocity>(entity);
+			velocity.X.Should().Be(expectedVelocity.X);
+			velocity.Y.Should().Be(expectedVelocity.Y);
+
+			ref var position = ref cursor.Get<Position>(index);
+			var expectedPosition = world.Get<Position>(entity);
+			position.X.Should().Be(expectedPosition.X);
+			position.Y.Should().Be(expectedPosition.Y);
+		}
+	}
+
+	[Fact]
 	public void QueryCursor_ForEach3_WhenMutatingWithTwoReadonlyInputs_ShouldUpdateComponentsInPlace()
 	{
 		using var world = new WorldV2(new()
