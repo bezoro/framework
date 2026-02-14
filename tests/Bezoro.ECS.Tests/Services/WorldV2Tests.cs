@@ -1,0 +1,1073 @@
+using System;
+using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
+using FluentAssertions;
+using JetBrains.Annotations;
+using Xunit;
+
+namespace Bezoro.ECS.Tests.Services;
+
+[TestSubject(typeof(WorldV2))]
+public class WorldV2Tests
+{
+	[Fact]
+	public void Playback_WhenCommandStreamCreatesTemporaryEntity_ShouldResolveAndApplyComponents()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 32,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 32
+		});
+
+		using var commands = world.CreateCommandStream();
+		var temporary = commands.CreateEntity();
+		commands.Set(temporary, new Position { X = 4, Y = 9 });
+
+		world.Playback(commands);
+
+		var query = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(query);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(1);
+		cursor.Get<Position>(0).Should().Be(new Position { X = 4, Y = 9 });
+	}
+
+	[Fact]
+	public void Playback_WhenCreateEntityWithComponentIsUsed_ShouldCreateEntityInSingleCommand()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		commands.CreateEntity(new Position { X = 11, Y = -3 });
+		commands.GetDiagnostics().RecordedCommands.Should().Be(1);
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(1);
+		cursor.Get<Position>(0).Should().Be(new Position { X = 11, Y = -3 });
+	}
+
+	[Fact]
+	public void Execute_WhenCompiledQueryUsesAllAndNone_ShouldReturnExpectedEntities()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 64,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 128,
+			CommandPayloadCapacityPerType = 128,
+			QueryResultCapacity           = 64
+		});
+
+		using var commands = world.CreateCommandStream();
+		var first = commands.CreateEntity();
+		commands.Set(first, new Position { X = 1, Y = 1 });
+
+		var second = commands.CreateEntity();
+		commands.Set(second, new Position { X = 2, Y = 2 });
+		commands.Set(second, new Velocity { X = 9, Y = 9 });
+		world.Playback(commands);
+
+		var query = world.Compile<PositionWithoutVelocityQuerySpec>();
+		using var cursor = world.Execute(query);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(1);
+		cursor.Get<Position>(0).Should().Be(new Position { X = 1, Y = 1 });
+	}
+
+	[Fact]
+	public void Execute_WhenCompiledQueryIsCachedBeforeMatchingArchetypeExists_ShouldRefreshAfterStructuralChange()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 32,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 32
+		});
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using (var before = world.Execute(handle))
+		{
+			before.MoveNext().Should().BeTrue();
+			before.Current.Length.Should().Be(0);
+		}
+
+		using var commands = world.CreateCommandStream();
+		var created = commands.CreateEntity();
+		commands.Set(created, new Position { X = 42, Y = -7 });
+		world.Playback(commands);
+
+		using var after = world.Execute(handle);
+		after.MoveNext().Should().BeTrue();
+		after.Current.Length.Should().Be(1);
+		world.Get<Position>(after.Current[0]).Should().Be(new Position { X = 42, Y = -7 });
+	}
+
+	[Fact]
+	public void Compile_WhenDifferentSpecTypesAreCached_ShouldKeepDistinctQueryPlans()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		var entity = commands.CreateEntity();
+		commands.Set(entity, new Position { X = 1, Y = 1 });
+		world.Playback(commands);
+
+		var positionOnly = world.Compile<PositionQuerySpec>();
+		var positionAndVelocity = world.Compile<PositionAndVelocityQuerySpec>();
+
+		using (var positionCursor = world.Execute(positionOnly))
+		{
+			positionCursor.MoveNext().Should().BeTrue();
+			positionCursor.Current.Length.Should().Be(1);
+		}
+
+		using var positionVelocityCursor = world.Execute(positionAndVelocity);
+		positionVelocityCursor.MoveNext().Should().BeTrue();
+		positionVelocityCursor.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void QueryCursor_ForEach_WhenMutatingSequentially_ShouldUpdateComponentsInPlace()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 10, Y = -2 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.ForEach<Position, Velocity>((ref Position position, in Velocity velocity) =>
+		{
+			position.X += velocity.X;
+			position.Y += velocity.Y;
+		});
+
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(i + 10);
+			updated.Y.Should().Be(i - 2);
+		}
+	}
+
+	[Fact]
+	public void QueryCursor_Get_WhenResultSpansMultipleChunks_ShouldResolveEachEntityIndex()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16,
+			ChunkCapacity                 = 2
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 5; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(5);
+
+		var seen = new bool[5];
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var position = cursor.Get<Position>(i);
+			int index = (int)position.X;
+			index.Should().BeInRange(0, 4);
+			seen[index] = true;
+		}
+
+		seen.Should().OnlyContain(static value => value);
+	}
+
+	[Fact]
+	public void QueryCursor_ForEach3_WhenMutatingWithTwoReadonlyInputs_ShouldUpdateComponentsInPlace()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 48,
+			CommandPayloadCapacityPerType = 48,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 2, Y = 3 });
+			commands.Set(entity, new Acceleration { X = 1, Y = -1 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionVelocityAccelerationQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.ForEach<Position, Velocity, Acceleration>(
+			(ref Position position, in Velocity velocity, in Acceleration acceleration) =>
+			{
+				position.X += velocity.X + acceleration.X;
+				position.Y += velocity.Y + acceleration.Y;
+			}
+		);
+
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(i + 3);
+			updated.Y.Should().Be(i + 2);
+		}
+	}
+
+	[Fact]
+	public void ForEach_WhenUsingCompiledHandleDirectly_ShouldMutateWithoutCursorMaterialization()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 48,
+			CommandPayloadCapacityPerType = 48,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 5, Y = -1 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		world.ForEach(handle, (ref Position position, in Velocity velocity) =>
+		{
+			position.X += velocity.X;
+			position.Y += velocity.Y;
+		});
+
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(i + 5);
+			updated.Y.Should().Be(i - 1);
+		}
+	}
+
+	[Fact]
+	public void ForEach_WhenCursorIsActive_ShouldThrow()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		using var commands = world.CreateCommandStream();
+		var entity = commands.CreateEntity();
+		commands.Set(entity, new Position { X = 1, Y = 1 });
+		commands.Set(entity, new Velocity { X = 1, Y = 1 });
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+
+		var act = () => world.ForEach(handle, (ref Position position, in Velocity velocity) =>
+		{
+			position.X += velocity.X;
+		});
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*query cursor is active*");
+	}
+
+	[Fact]
+	public void QueryCursor_Run_WhenUsingStructJob_ShouldMutateComponents()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 48,
+			CommandPayloadCapacityPerType = 48,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 2, Y = -1 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+
+		cursor.Run<IntegrateJob, Position, Velocity>(new(3f));
+
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(i + 6);
+			updated.Y.Should().Be(i - 3);
+		}
+	}
+
+	[Fact]
+	public void Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 48,
+			CommandPayloadCapacityPerType = 48,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 1, Y = 2 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		world.Run<PositionAndVelocityQuerySpec, IntegrateJob, Position, Velocity>(handle, new(2f));
+
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(i + 2);
+			updated.Y.Should().Be(i + 4);
+		}
+	}
+
+	[Fact]
+	public void Playback_WhenRemoveCommandRecorded_ShouldRemoveComponentFromEntity()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		using var createCommands = world.CreateCommandStream();
+		var tempEntity = createCommands.CreateEntity();
+		createCommands.Set(tempEntity, new Position { X = 1, Y = 1 });
+		createCommands.Set(tempEntity, new Velocity { X = 2, Y = 2 });
+		world.Playback(createCommands);
+
+		var query = world.Compile<PositionAndVelocityQuerySpec>();
+		Entity entity;
+		using (var cursor = world.Execute(query))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			entity = cursor.Current[0];
+		}
+
+		using var removeCommands = world.CreateCommandStream();
+		removeCommands.Remove<Velocity>(entity);
+		world.Playback(removeCommands);
+
+		world.Has<Velocity>(entity).Should().BeFalse();
+		world.Has<Position>(entity).Should().BeTrue();
+	}
+
+	[Fact]
+	public void Playback_WhenSetCommandsTargetSameEntity_ShouldApplyLastValue()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		using var create = world.CreateCommandStream();
+		var temporary = create.CreateEntity();
+		create.Set(temporary, new Position { X = 1, Y = 1 });
+		world.Playback(create);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		Entity entity;
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			entity = cursor.Current[0];
+		}
+
+		using var updates = world.CreateCommandStream();
+		updates.Set(entity, new Position { X = 5, Y = 8 });
+		updates.Set(entity, new Position { X = 9, Y = 3 });
+		world.Playback(updates);
+
+		var position = world.Get<Position>(entity);
+		position.Should().Be(new Position { X = 9, Y = 3 });
+	}
+
+	[Fact]
+	public void Playback_WhenRemoveCommandsTargetSameEntity_ShouldRemainWithoutComponent()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		using var create = world.CreateCommandStream();
+		var temporary = create.CreateEntity();
+		create.Set(temporary, new Position { X = 1, Y = 1 });
+		create.Set(temporary, new Velocity { X = 2, Y = 2 });
+		world.Playback(create);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		Entity entity;
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			entity = cursor.Current[0];
+		}
+
+		using var remove = world.CreateCommandStream();
+		remove.Remove<Velocity>(entity);
+		remove.Remove<Velocity>(entity);
+		world.Playback(remove);
+
+		world.Has<Velocity>(entity).Should().BeFalse();
+		world.Has<Position>(entity).Should().BeTrue();
+	}
+
+	[Fact]
+	public void Playback_WhenDenseRemoveUsesCollidingEntityIds_ShouldRemoveMarkedComponentsOnly()
+	{
+		const int entityCount = 80;
+		const int batchSize = 16;
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 160,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 160
+		});
+
+		using var create = world.CreateCommandStream();
+		for (var batchStart = 0; batchStart < entityCount; batchStart += batchSize)
+		{
+			for (var i = batchStart; i < batchStart + batchSize; i++)
+			{
+				var temporary = create.CreateEntity(new Position { X = i, Y = i });
+				create.Set(temporary, new Velocity { X = 1, Y = -1 });
+			}
+
+			world.Playback(create);
+		}
+
+		var handle = world.Compile<PositionQuerySpec>();
+		var entitiesByIndex = new Entity[entityCount];
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Current.Length.Should().Be(entityCount);
+			for (var i = 0; i < cursor.Current.Length; i++)
+			{
+				var entity = cursor.Current[i];
+				int index = (int)world.Get<Position>(entity).X;
+				entitiesByIndex[index] = entity;
+			}
+		}
+
+		using var remove = world.CreateCommandStream();
+		for (var i = 0; i < 16; i++)
+			remove.Remove<Velocity>(entitiesByIndex[i]);
+		for (var i = 64; i < 80; i++)
+			remove.Remove<Velocity>(entitiesByIndex[i]);
+		world.Playback(remove);
+
+		for (var i = 0; i < entityCount; i++)
+		{
+			bool shouldBeRemoved = i < 16 || i >= 64;
+			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
+			world.Has<Position>(entitiesByIndex[i]).Should().BeTrue();
+		}
+	}
+
+	[Fact]
+	public void Playback_WhenDenseRemoveFullyMarksAChunk_ShouldKeepOtherChunkLocationsStable()
+	{
+		const int entityCount = 8;
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16,
+			ChunkCapacity                 = 4
+		});
+
+		using var create = world.CreateCommandStream();
+		for (var i = 0; i < entityCount; i++)
+		{
+			var temporary = create.CreateEntity(new Position { X = i, Y = i });
+			create.Set(temporary, new Velocity { X = 1, Y = -1 });
+		}
+
+		world.Playback(create);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		var entitiesByIndex = new Entity[entityCount];
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Current.Length.Should().Be(entityCount);
+			for (var i = 0; i < cursor.Current.Length; i++)
+			{
+				var entity = cursor.Current[i];
+				int index = (int)world.Get<Position>(entity).X;
+				entitiesByIndex[index] = entity;
+			}
+		}
+
+		using var removeFirstChunk = world.CreateCommandStream();
+		for (var i = 0; i < 4; i++)
+			removeFirstChunk.Remove<Velocity>(entitiesByIndex[i]);
+		world.Playback(removeFirstChunk);
+
+		for (var i = 0; i < entityCount; i++)
+		{
+			bool shouldBeRemoved = i < 4;
+			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
+			world.Has<Position>(entitiesByIndex[i]).Should().BeTrue();
+		}
+
+		world.EntityCount.Should().Be(entityCount);
+	}
+
+	[Fact]
+	public void Playback_WhenDenseRemovePartiallyMarksChunk_ShouldKeepSurvivorLocationsValid()
+	{
+		const int entityCount = 8;
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16,
+			ChunkCapacity                 = 8
+		});
+
+		using var create = world.CreateCommandStream();
+		for (var i = 0; i < entityCount; i++)
+		{
+			var temporary = create.CreateEntity(new Position { X = i, Y = i });
+			create.Set(temporary, new Velocity { X = i, Y = -i });
+		}
+
+		world.Playback(create);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		var entitiesByIndex = new Entity[entityCount];
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Current.Length.Should().Be(entityCount);
+			for (var i = 0; i < cursor.Current.Length; i++)
+			{
+				var entity = cursor.Current[i];
+				int index = (int)world.Get<Position>(entity).X;
+				entitiesByIndex[index] = entity;
+			}
+		}
+
+		using var remove = world.CreateCommandStream();
+		remove.Remove<Velocity>(entitiesByIndex[0]);
+		remove.Remove<Velocity>(entitiesByIndex[3]);
+		remove.Remove<Velocity>(entitiesByIndex[7]);
+		world.Playback(remove);
+
+		for (var i = 0; i < entityCount; i++)
+		{
+			bool shouldBeRemoved = i is 0 or 3 or 7;
+			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
+			world.Get<Position>(entitiesByIndex[i]).Should().Be(new Position { X = i, Y = i });
+		}
+
+		using var set = world.CreateCommandStream();
+		set.Set(entitiesByIndex[1], new Velocity { X = 99, Y = 42 });
+		world.Playback(set);
+		world.Get<Velocity>(entitiesByIndex[1]).Should().Be(new Velocity { X = 99, Y = 42 });
+	}
+
+	[Fact]
+	public void Playback_WhenDenseRemoveMovesEntireSourceArchetypeIntoPartiallyFilledTarget_ShouldKeepLocationsStable()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 24,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 24,
+			ChunkCapacity                 = 4
+		});
+
+		using var create = world.CreateCommandStream();
+		var positionOnlyEntities = new Entity[2];
+		for (var i = 0; i < positionOnlyEntities.Length; i++)
+			positionOnlyEntities[i] = create.CreateEntity(new Position { X = 1_000 + i, Y = 1_000 + i });
+
+		var positionVelocityEntities = new Entity[8];
+		for (var i = 0; i < positionVelocityEntities.Length; i++)
+		{
+			var temporary = create.CreateEntity(new Position { X = i, Y = i });
+			create.Set(temporary, new Velocity { X = i + 10, Y = -i });
+			positionVelocityEntities[i] = temporary;
+		}
+
+		world.Playback(create);
+
+		var allPositionHandle = world.Compile<PositionQuerySpec>();
+		var entitiesByPositionX = new Entity[1_002];
+		using (var cursor = world.Execute(allPositionHandle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Current.Length.Should().Be(10);
+			for (var i = 0; i < cursor.Current.Length; i++)
+			{
+				var entity = cursor.Current[i];
+				int key = (int)world.Get<Position>(entity).X;
+				entitiesByPositionX[key] = entity;
+			}
+		}
+
+		using var remove = world.CreateCommandStream();
+		for (var i = 0; i < positionVelocityEntities.Length; i++)
+			remove.Remove<Velocity>(entitiesByPositionX[i]);
+
+		world.Playback(remove);
+
+		for (var i = 0; i < 8; i++)
+		{
+			var entity = entitiesByPositionX[i];
+			world.Get<Position>(entity).Should().Be(new Position { X = i, Y = i });
+			world.Has<Velocity>(entity).Should().BeFalse();
+		}
+
+		for (var i = 0; i < positionOnlyEntities.Length; i++)
+		{
+			var entity = entitiesByPositionX[1_000 + i];
+			world.Get<Position>(entity).Should().Be(new Position { X = 1_000 + i, Y = 1_000 + i });
+			world.Has<Velocity>(entity).Should().BeFalse();
+		}
+	}
+
+	[Fact]
+	public void Playback_WhenSetRunContainsDifferentTransitions_ShouldApplyAllCommands()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 16
+		});
+
+		using var create = world.CreateCommandStream();
+		var firstTemporary = create.CreateEntity();
+		create.Set(firstTemporary, new Position { X = 1, Y = 1 });
+
+		var secondTemporary = create.CreateEntity();
+		create.Set(secondTemporary, new Position { X = 2, Y = 2 });
+		create.Set(secondTemporary, new Velocity { X = 3, Y = 4 });
+		world.Playback(create);
+
+		var positionOnly = world.Compile<PositionQuerySpec>();
+		Entity first = default;
+		Entity second = default;
+		using (var cursor = world.Execute(positionOnly))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			for (var i = 0; i < cursor.Current.Length; i++)
+			{
+				var entity = cursor.Current[i];
+				var position = world.Get<Position>(entity);
+				if (position.X == 1)
+					first = entity;
+				else if (position.X == 2)
+					second = entity;
+			}
+		}
+
+		world.IsAlive(first).Should().BeTrue();
+		world.IsAlive(second).Should().BeTrue();
+
+		using var set = world.CreateCommandStream();
+		set.Set(first, new Velocity { X = 10, Y = 20 });
+		set.Set(second, new Velocity { X = 30, Y = 40 });
+		world.Playback(set);
+
+		world.Get<Velocity>(first).Should().Be(new Velocity { X = 10, Y = 20 });
+		world.Get<Velocity>(second).Should().Be(new Velocity { X = 30, Y = 40 });
+		world.Get<Position>(first).Should().Be(new Position { X = 1, Y = 1 });
+		world.Get<Position>(second).Should().Be(new Position { X = 2, Y = 2 });
+	}
+
+	[Fact]
+	public void Execute_WhenCompiledQueryUsesAny_ShouldMatchEntitiesWithAtLeastOneType()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 32,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 32
+		});
+
+		using var commands = world.CreateCommandStream();
+		var first = commands.CreateEntity();
+		commands.Set(first, new Position { X = 1, Y = 0 });
+
+		var second = commands.CreateEntity();
+		commands.Set(second, new Velocity { X = 1, Y = 0 });
+
+		var third = commands.CreateEntity();
+		commands.Set(third, new Position { X = 1, Y = 0 });
+		commands.Set(third, new Velocity { X = 1, Y = 0 });
+
+		var fourth = commands.CreateEntity();
+		commands.SetManaged(fourth, new ManagedTag { Payload = new Payload("x") });
+		world.Playback(commands);
+
+		var handle = world.Compile<AnyPositionOrVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(3);
+	}
+
+	[Fact]
+	public void Playback_WhenEntityCapacityExceeded_ShouldThrow()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 1,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 8,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 1
+		});
+
+		using var commands = world.CreateCommandStream();
+		commands.CreateEntity();
+		commands.CreateEntity();
+
+		var act = () => world.Playback(commands);
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*Entity capacity*");
+	}
+
+	[Fact]
+	public void CommandStream_WhenOverflowPolicyDropsNewest_ShouldTrackOverflowAndHighWatermark()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 1,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8,
+			OverflowPolicy                = WorldV2OverflowPolicy.DropNewest
+		});
+
+		using var commands = world.CreateCommandStream();
+		_ = commands.CreateEntity();
+		commands.Destroy(new Entity(0, 0));
+
+		var diagnostics = commands.GetDiagnostics();
+		diagnostics.CommandCapacity.Should().Be(1);
+		diagnostics.RecordedCommands.Should().Be(1);
+		diagnostics.HighWatermark.Should().Be(1);
+		diagnostics.OverflowCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Playback_WhenManagedLaneComponentIsRecorded_ShouldBeReadableViaManagedApi()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		using var commands = world.CreateCommandStream();
+		var entity = commands.CreateEntity();
+		var payload = new Payload("alpha");
+		commands.SetManaged(entity, new ManagedTag { Payload = payload });
+		world.Playback(commands);
+
+		var positionQuery = world.Compile<ManagedTagQuerySpec>();
+		using var cursor = world.Execute(positionQuery);
+		cursor.MoveNext().Should().BeTrue();
+
+		world.TryGetManaged(cursor.Current[0], out ManagedTag resolved).Should().BeTrue();
+		resolved.Payload.Should().BeSameAs(payload);
+	}
+
+	[Fact]
+	public void Playback_WhenReusingCommandStreamAcrossManagedBatches_ShouldApplyLatestBatch()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		using var commands = world.CreateCommandStream();
+
+		var firstPayload = new Payload("first");
+		var firstEntity = commands.CreateEntity();
+		commands.SetManaged(firstEntity, new ManagedTag { Payload = firstPayload });
+		world.Playback(commands);
+
+		var secondPayload = new Payload("second");
+		var secondEntity = commands.CreateEntity();
+		commands.SetManaged(secondEntity, new ManagedTag { Payload = secondPayload });
+		world.Playback(commands);
+
+		var query = world.Compile<ManagedTagQuerySpec>();
+		using var cursor = world.Execute(query);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(2);
+		world.TryGetManaged(cursor.Current[0], out ManagedTag firstResolved).Should().BeTrue();
+		world.TryGetManaged(cursor.Current[1], out ManagedTag secondResolved).Should().BeTrue();
+		firstResolved.Payload.Should().BeSameAs(firstPayload);
+		secondResolved.Payload.Should().BeSameAs(secondPayload);
+	}
+
+	[Fact]
+	public void Reset_WhenCalled_ShouldInvalidatePreviousEntitiesAndClearComponentData()
+	{
+		using var world = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		using var commands = world.CreateCommandStream();
+		var entity = commands.CreateEntity();
+		commands.Set(entity, new Position { X = 7, Y = 3 });
+		world.Playback(commands);
+
+		var query = world.Compile<PositionQuerySpec>();
+		using (var beforeReset = world.Execute(query))
+		{
+			beforeReset.MoveNext().Should().BeTrue();
+			beforeReset.Current.Length.Should().Be(1);
+		}
+
+		var aliveBeforeReset = query;
+		world.Reset();
+
+		using var afterReset = world.Execute(aliveBeforeReset);
+		afterReset.MoveNext().Should().BeTrue();
+		afterReset.Current.Length.Should().Be(0);
+		world.IsAlive(entity).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Playback_WhenStreamBelongsToDifferentWorld_ShouldThrow()
+	{
+		using var worldA = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 8,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8
+		});
+		using var worldB = new WorldV2(new()
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 8,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8
+		});
+
+		using var foreign = worldA.CreateCommandStream();
+		var act = () => worldB.Playback(foreign);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*different world*");
+	}
+
+	private readonly struct PositionQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<Position>();
+	}
+
+	private readonly struct PositionWithoutVelocityQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.None<Velocity>();
+		}
+	}
+
+	private readonly struct PositionAndVelocityQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.All<Velocity>();
+		}
+	}
+
+	private readonly struct PositionVelocityAccelerationQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.All<Velocity>();
+			builder.All<Acceleration>();
+		}
+	}
+
+	private readonly struct AnyPositionOrVelocityQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.Any<Position>();
+			builder.Any<Velocity>();
+		}
+	}
+
+	private readonly struct ManagedTagQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<ManagedTag>();
+	}
+
+	private struct Position
+	{
+		public float X;
+		public float Y;
+	}
+
+	private struct Velocity
+	{
+		public float X;
+		public float Y;
+	}
+
+	private struct Acceleration
+	{
+		public float X;
+		public float Y;
+	}
+
+	private sealed record Payload(string Name);
+
+	private struct IntegrateJob(float dt) : IForEach<Position, Velocity>
+	{
+		public void Execute(ref Position component1, in Velocity component2)
+		{
+			component1.X += component2.X * dt;
+			component1.Y += component2.Y * dt;
+		}
+	}
+
+	private struct ManagedTag
+	{
+		public Payload? Payload;
+	}
+}
