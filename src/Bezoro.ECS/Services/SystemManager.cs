@@ -104,7 +104,7 @@ internal sealed class SystemManager
 		}
 
 		if (!hasDeclaredAccessMetadata)
-			isExclusive = true;
+			isExclusive = false;
 
 		var stage = explicitStage ?? system.Stage;
 		var state = new SystemState(system, stage, ToArray(readSet), ToArray(writeSet), isExclusive);
@@ -290,7 +290,19 @@ internal sealed class SystemManager
 			}
 
 			if (selectedIndices.Count == 0)
-				throw new InvalidOperationException("System dependency graph contains a cycle.");
+			{
+				var stuck = new System.Text.StringBuilder();
+				for (var i = 0; i < count; i++)
+				{
+					if (processed[i]) continue;
+					if (stuck.Length > 0) stuck.Append(", ");
+					stuck.Append(stageSystems[i].System.GetType().Name);
+				}
+
+				throw new InvalidOperationException(
+					$"System dependency graph contains a cycle. Stuck systems: {stuck}"
+				);
+			}
 
 			batches.Add([.. selectedStates]);
 			remaining -= selectedIndices.Count;

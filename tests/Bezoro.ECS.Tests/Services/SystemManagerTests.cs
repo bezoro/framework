@@ -215,8 +215,9 @@ public class SystemManagerTests
 	}
 
 	[Fact]
-	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunSequentially()
+	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunInParallel()
 	{
+		// Systems with no declared access metadata default to non-exclusive and may run concurrently.
 		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -224,7 +225,7 @@ public class SystemManagerTests
 
 		world.Tick(1f / 60f);
 
-		probe.MaxConcurrent.Should().Be(1);
+		probe.MaxConcurrent.Should().BeGreaterThan(1);
 	}
 
 	[Fact]
@@ -237,6 +238,39 @@ public class SystemManagerTests
 
 		world.Tick(1f / 60f);
 
+		probe.MaxConcurrent.Should().BeGreaterThan(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenExclusiveSystemIsRegistered_ShouldRunAloneEvenAlongsideUndeclaredSystems()
+	{
+		// [Exclusive] systems must still run alone; fix 2a only affects undeclared systems.
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+
+		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
+		world.AddSystem(new ExclusiveProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		// The exclusive system forces a batch break, so no two systems run at the same time.
+		probe.MaxConcurrent.Should().Be(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenUndeclaredAndDeclaredReadSystemsShareStage_ShouldBatchTogether()
+	{
+		// After fix 2a: undeclared systems default to isExclusive=false.
+		// An undeclared system and a [Reads<Counter>] system have no conflicts, so they run in the same batch.
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+
+		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
+		world.AddSystem(new DeclaredReadProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		// Both systems have no write conflicts and neither is exclusive, so they should run concurrently.
 		probe.MaxConcurrent.Should().BeGreaterThan(1);
 	}
 
@@ -410,6 +444,13 @@ public class SystemManagerTests
 
 	[Reads<Counter>]
 	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context) =>
+			probe.Enter();
+	}
+
+	[Exclusive]
+	private sealed class ExclusiveProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context) =>
 			probe.Enter();

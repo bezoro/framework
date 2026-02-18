@@ -1488,6 +1488,243 @@ public class WorldRuntimeTests
 		   .WithMessage("*different world*");
 	}
 
+	// ── 4a: Entity lifecycle ─────────────────────────────────────────────────
+
+	[Fact]
+	public void IsAlive_WhenEntityDespawned_ShouldReturnFalseForOldHandle()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		var entity = world.Spawn();
+		world.IsAlive(entity).Should().BeTrue();
+
+		world.Despawn(entity);
+		world.IsAlive(entity).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Spawn_AfterDespawn_ShouldReuseSlotWithIncrementedVersion()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		var first = world.Spawn();
+		world.Despawn(first);
+
+		var second = world.Spawn();
+		second.Id.Should().Be(first.Id);
+		second.Version.Should().BeGreaterThan(first.Version);
+		world.IsAlive(first).Should().BeFalse();
+		world.IsAlive(second).Should().BeTrue();
+	}
+
+	[Fact]
+	public void IsAlive_WhenEntityRespawnedMultipleTimes_ShouldAlwaysInvalidatePreviousHandle()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 16,
+			CommandPayloadCapacityPerType = 16,
+			QueryResultCapacity           = 8
+		});
+
+		var first = world.Spawn();
+		world.Despawn(first);
+
+		var second = world.Spawn();
+		world.Despawn(second);
+
+		var third = world.Spawn();
+		world.IsAlive(first).Should().BeFalse();
+		world.IsAlive(second).Should().BeFalse();
+		world.IsAlive(third).Should().BeTrue();
+		third.Version.Should().BeGreaterThan(second.Version);
+	}
+
+	// ── 4b: CommandStream overflow silent drops ───────────────────────────
+
+	[Fact]
+	public void Destroy_WhenCommandStreamFull_ShouldIncrementOverflowAndNotReplay()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 1,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8,
+			OverflowPolicy                = WorldOverflowPolicy.DropNewest
+		});
+
+		// Fill the stream (one create exhausts capacity of 1)
+		using var commands = world.CreateCommandStream();
+		commands.CreateEntity();
+
+		var existing = new Entity(0, 0);
+		commands.Destroy(existing);
+
+		var diag = commands.GetDiagnostics();
+		diag.RecordedCommands.Should().Be(1);
+		diag.OverflowCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Remove_WhenCommandStreamFull_ShouldIncrementOverflowAndNotReplay()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 1,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8,
+			OverflowPolicy                = WorldOverflowPolicy.DropNewest
+		});
+
+		using var commands = world.CreateCommandStream();
+		commands.CreateEntity();
+
+		var existing = new Entity(0, 0);
+		commands.Remove<Position>(existing);
+
+		var diag = commands.GetDiagnostics();
+		diag.RecordedCommands.Should().Be(1);
+		diag.OverflowCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Set_WhenCommandStreamFull_ShouldIncrementOverflowAndNotReplay()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 8,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 1,
+			CommandPayloadCapacityPerType = 8,
+			QueryResultCapacity           = 8,
+			OverflowPolicy                = WorldOverflowPolicy.DropNewest
+		});
+
+		using var commands = world.CreateCommandStream();
+		commands.CreateEntity();
+
+		var existing = new Entity(0, 0);
+		commands.Set(existing, new Position { X = 1, Y = 2 });
+
+		var diag = commands.GetDiagnostics();
+		diag.RecordedCommands.Should().Be(1);
+		diag.OverflowCount.Should().Be(1);
+	}
+
+	// ── 4c: CommandStream batch marker boundary (EntityCapacity = 32) ─────
+
+	[Fact]
+	public void Playback_WhenEntityCapacityIs32_ShouldUseSingleMarkerWordWithoutOverflow()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 32,
+			ComponentTypeCapacity         = 8,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 32
+		});
+
+		// Spawn 32 entities with a component, then use a Set batch command to exercise marker bits
+		var entities = new Entity[32];
+		using var create = world.CreateCommandStream();
+		for (var i = 0; i < 32; i++)
+		{
+			entities[i] = create.CreateEntity();
+			create.Set(entities[i], new Position { X = i, Y = i });
+		}
+
+		world.Playback(create);
+
+		// Resolve temporary entities via query
+		var handle = world.Compile<PositionQuerySpec>();
+		var resolved = new Entity[32];
+		using (var cursor = world.Execute(handle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Current.Length.Should().Be(32);
+			cursor.Current.CopyTo(resolved);
+		}
+
+		// Now batch-set all 32 entities — exercises the boundary where exactly 1 marker word (32 bits) is needed
+		using var updates = world.CreateCommandStream();
+		for (var i = 0; i < 32; i++)
+			updates.Set(resolved[i], new Position { X = i + 100, Y = i + 100 });
+
+		world.Playback(updates);
+
+		using var verify = world.Execute(handle);
+		verify.MoveNext().Should().BeTrue();
+		verify.Current.Length.Should().Be(32);
+		for (var i = 0; i < 32; i++)
+			world.Get<Position>(resolved[i]).X.Should().BeGreaterThanOrEqualTo(100);
+	}
+
+	// ── 4e: 4-component ForEach ───────────────────────────────────────────
+
+	[Fact]
+	public void QueryCursor_ForEach4_WhenMutatingWithThreeReadonlyInputs_ShouldUpdateComponentsInPlace()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 64,
+			CommandPayloadCapacityPerType = 64,
+			QueryResultCapacity           = 16
+		});
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position     { X = i,  Y = i  });
+			commands.Set(entity, new Velocity     { X = 1,  Y = 2  });
+			commands.Set(entity, new Acceleration { X = 10, Y = 20 });
+			commands.Set(entity, new Scale        { Value = 3       });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionVelocityAccelerationScaleQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.ForEach<Position, Velocity, Acceleration, Scale>(
+			(ref Position pos, in Velocity vel, in Acceleration acc, in Scale scale) =>
+			{
+				pos.X = vel.X + acc.X + scale.Value;
+				pos.Y = vel.Y + acc.Y + scale.Value;
+			}
+		);
+
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.X.Should().Be(14); // 1 + 10 + 3
+			updated.Y.Should().Be(25); // 2 + 20 + 3
+		}
+	}
+
 	private readonly struct PositionQuerySpec : ICompiledQuerySpec
 	{
 		public void Build(ref QueryBuilder builder) => builder.All<Position>();
@@ -1521,6 +1758,17 @@ public class WorldRuntimeTests
 		}
 	}
 
+	private readonly struct PositionVelocityAccelerationScaleQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.All<Velocity>();
+			builder.All<Acceleration>();
+			builder.All<Scale>();
+		}
+	}
+
 	private readonly struct AnyPositionOrVelocityQuerySpec : ICompiledQuerySpec
 	{
 		public void Build(ref QueryBuilder builder)
@@ -1551,6 +1799,11 @@ public class WorldRuntimeTests
 	{
 		public float X;
 		public float Y;
+	}
+
+	private struct Scale
+	{
+		public float Value;
 	}
 
 	private sealed record Payload(string Name);

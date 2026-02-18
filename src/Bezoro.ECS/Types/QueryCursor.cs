@@ -39,6 +39,19 @@ public struct QueryCursor : IDisposable
 		where T3 : unmanaged;
 
 	/// <summary>
+	///     Delegate invoked with one mutable and three read-only unmanaged components.
+	/// </summary>
+	public delegate void RefInAction<T1, T2, T3, T4>(
+		ref T1 component1,
+		in  T2 component2,
+		in  T3 component3,
+		in  T4 component4)
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged;
+
+	/// <summary>
 	///     Delegate invoked with one mutable and one read-only unmanaged component.
 	/// </summary>
 	public delegate void RefInAction<T1, T2>(ref T1 component1, in T2 component2)
@@ -85,9 +98,10 @@ public struct QueryCursor : IDisposable
 	}
 
 	/// <summary>
-	///     Advances to the only available batch.
+	///     Unlocks access to the single result batch and signals that the cursor is ready to use.
+	///     This cursor exposes exactly one batch; subsequent calls return <c>false</c> without advancing.
 	/// </summary>
-	/// <returns><c>true</c> on first call; otherwise <c>false</c>.</returns>
+	/// <returns><c>true</c> on the first call; <c>false</c> on all subsequent calls.</returns>
 	public bool MoveNext()
 	{
 		ThrowIfDisposed();
@@ -322,6 +336,86 @@ public struct QueryCursor : IDisposable
 	}
 
 	/// <summary>
+	///     Executes a no-allocation sequential loop over one mutable and three read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="action">Per-entity callback.</param>
+	public void ForEach<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		if (action is null) throw new ArgumentNullException(nameof(action));
+		if (!_moved)
+			throw new InvalidOperationException("Call MoveNext before enumerating components.");
+
+		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
+		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
+		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
+		int               cachedArchetypeId  = int.MinValue;
+		ArchetypeStorage? cachedArchetype    = null;
+		int               cachedColumnIndex1 = -1;
+		int               cachedColumnIndex2 = -1;
+		int               cachedColumnIndex3 = -1;
+		int               cachedColumnIndex4 = -1;
+		for (var i = 0; i < _chunkMatchCount; i++)
+		{
+			var match = _chunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId  = match.ArchetypeId;
+				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
+				if (cachedColumnIndex4 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+				action(ref c1, in c2, in c3, in c4);
+			}
+		}
+	}
+
+	/// <summary>
 	///     Executes a no-allocation sequential struct job over one mutable unmanaged component.
 	/// </summary>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1}" />.</typeparam>
@@ -485,6 +579,87 @@ public struct QueryCursor : IDisposable
 				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
 				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
 				job.Execute(ref c1, in c2, in c3);
+			}
+		}
+	}
+
+	/// <summary>
+	///     Executes a no-allocation sequential struct job over one mutable and three read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="job">Job instance.</param>
+	public void Run<TJob, T1, T2, T3, T4>(TJob job)
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		if (!_moved)
+			throw new InvalidOperationException("Call MoveNext before enumerating components.");
+
+		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
+		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
+		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
+		int               cachedArchetypeId  = int.MinValue;
+		ArchetypeStorage? cachedArchetype    = null;
+		int               cachedColumnIndex1 = -1;
+		int               cachedColumnIndex2 = -1;
+		int               cachedColumnIndex3 = -1;
+		int               cachedColumnIndex4 = -1;
+		for (var i = 0; i < _chunkMatchCount; i++)
+		{
+			var match = _chunkMatches[i];
+			if (match.ArchetypeId != cachedArchetypeId)
+			{
+				cachedArchetypeId  = match.ArchetypeId;
+				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
+				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
+				if (cachedColumnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
+				if (cachedColumnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
+				if (cachedColumnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
+				if (cachedColumnIndex4 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+			}
+
+			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+			if (match.Count == 0)
+				continue;
+
+			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
+			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
+			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
+			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
+			for (var offset = 0; offset < match.Count; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+				job.Execute(ref c1, in c2, in c3, in c4);
 			}
 		}
 	}

@@ -122,6 +122,10 @@ public sealed class CommandStream : IDisposable
 	/// <summary>
 	///     Records a deferred destroy command.
 	/// </summary>
+	/// <remarks>
+	///     If the stream is full the command is silently dropped and the overflow counter is incremented.
+	///     Use <see cref="GetDiagnostics" /> to detect lost commands.
+	/// </remarks>
 	/// <param name="entity">Entity to destroy.</param>
 	public void Destroy(Entity entity)
 	{
@@ -188,6 +192,10 @@ public sealed class CommandStream : IDisposable
 	/// <summary>
 	///     Records a deferred component removal command.
 	/// </summary>
+	/// <remarks>
+	///     If the stream is full the command is silently dropped and the overflow counter is incremented.
+	///     Use <see cref="GetDiagnostics" /> to detect lost commands.
+	/// </remarks>
 	/// <typeparam name="T">Component type to remove.</typeparam>
 	/// <param name="entity">Entity to modify.</param>
 	public void Remove<T>(Entity entity) where T : struct
@@ -212,6 +220,10 @@ public sealed class CommandStream : IDisposable
 	/// <summary>
 	///     Records a deferred unmanaged component set command.
 	/// </summary>
+	/// <remarks>
+	///     If the stream or payload store is full the command is silently dropped and the overflow counter is incremented.
+	///     Use <see cref="GetDiagnostics" /> to detect lost commands.
+	/// </remarks>
 	/// <typeparam name="T">Unmanaged component type.</typeparam>
 	/// <param name="entity">Entity to modify.</param>
 	/// <param name="component">Component value.</param>
@@ -232,6 +244,10 @@ public sealed class CommandStream : IDisposable
 	/// <summary>
 	///     Records a deferred managed-lane component set command.
 	/// </summary>
+	/// <remarks>
+	///     If the stream or payload store is full the command is silently dropped and the overflow counter is incremented.
+	///     Use <see cref="GetDiagnostics" /> to detect lost commands.
+	/// </remarks>
 	/// <typeparam name="T">Managed-lane component type.</typeparam>
 	/// <param name="entity">Entity to modify.</param>
 	/// <param name="component">Component value.</param>
@@ -421,10 +437,14 @@ public sealed class CommandStream : IDisposable
 		int[]? resolvedTemporaryGenerationByIndex = _resolvedTemporaryGenerationByIndex;
 		var    resolvedTemporaryEntities          = _resolvedTemporaryEntities;
 		if (resolvedTemporaryGenerationByIndex is null || resolvedTemporaryEntities is null)
-			throw new InvalidOperationException($"Temporary entity '{entity.Id}' has not been created yet.");
+			throw new InvalidOperationException(
+				$"Temporary entity '{entity.Id}' cannot be resolved: no CreateEntity command has been recorded yet."
+			);
 
 		if (resolvedTemporaryGenerationByIndex[index] != _temporaryResolveGeneration)
-			throw new InvalidOperationException($"Temporary entity '{entity.Id}' has not been created yet.");
+			throw new InvalidOperationException(
+				$"Temporary entity '{entity.Id}' cannot be resolved: it was created in a previous playback generation and is no longer valid."
+			);
 
 		return resolvedTemporaryEntities[index];
 	}
@@ -617,7 +637,7 @@ public sealed class CommandStream : IDisposable
 
 		if (_batchEntityMarkerBits is null || _batchTouchedMarkerWordIndices is null)
 		{
-			int markerWordCount = Owner.EntityCapacity + 31 >> 5;
+			int markerWordCount = (Owner.EntityCapacity + 31) >> 5;
 			_batchEntityMarkerBits = ArrayPool<uint>.Shared.Rent(markerWordCount);
 			Array.Clear(_batchEntityMarkerBits, 0, markerWordCount);
 			_batchTouchedMarkerWordIndices = ArrayPool<int>.Shared.Rent(markerWordCount);
