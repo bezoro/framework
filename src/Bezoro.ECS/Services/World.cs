@@ -1005,6 +1005,446 @@ public class World : IWorld, IDisposable
 		}
 	}
 
+	/// <summary>
+	///     Executes a struct job in parallel over one mutable unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1}" />.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">
+	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
+	/// </param>
+	public void RunParallel<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
+			return;
+
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
+		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+			chunkMatchCount,
+			parallelism,
+			index =>
+			{
+				var match = _queryChunkMatches[index];
+				if (match.Count == 0)
+					return;
+
+				var archetype = _archetypes[match.ArchetypeId];
+				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+				if (columnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+				var     local   = job;
+				for (var offset = 0; offset < match.Count; offset++)
+					local.Execute(ref Unsafe.Add(ref c1Start, offset));
+			}
+		);
+	}
+
+	/// <summary>
+	///     Executes a struct job in parallel over one mutable and one read-only unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2}" />.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">
+	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
+	/// </param>
+	public void RunParallel<TSpec, TJob, T1, T2>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
+			return;
+
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+			chunkMatchCount,
+			parallelism,
+			index =>
+			{
+				var match = _queryChunkMatches[index];
+				if (match.Count == 0)
+					return;
+
+				var archetype = _archetypes[match.ArchetypeId];
+				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+				if (columnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+				if (columnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+				var     local   = job;
+				for (var offset = 0; offset < match.Count; offset++)
+				{
+					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+					local.Execute(ref c1, in c2);
+				}
+			}
+		);
+	}
+
+	/// <summary>
+	///     Executes a struct job in parallel over one mutable and two read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3}" />.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">
+	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
+	/// </param>
+	public void RunParallel<TSpec, TJob, T1, T2, T3>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
+			return;
+
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		int typeId3 = GetOrCreateComponentTypeId<T3>();
+		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+			chunkMatchCount,
+			parallelism,
+			index =>
+			{
+				var match = _queryChunkMatches[index];
+				if (match.Count == 0)
+					return;
+
+				var archetype = _archetypes[match.ArchetypeId];
+				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+				if (columnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+				if (columnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+				if (columnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+				ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+				var     local   = job;
+				for (var offset = 0; offset < match.Count; offset++)
+				{
+					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+					ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+					local.Execute(ref c1, in c2, in c3);
+				}
+			}
+		);
+	}
+
+	/// <summary>
+	///     Executes a struct job in parallel over one mutable and three read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">
+	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
+	/// </param>
+	public void RunParallel<TSpec, TJob, T1, T2, T3, T4>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
+		if (entityCount == 0)
+			return;
+
+		int typeId1 = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
+		int typeId2 = GetOrCreateComponentTypeId<T2>();
+		int typeId3 = GetOrCreateComponentTypeId<T3>();
+		int typeId4 = GetOrCreateComponentTypeId<T4>();
+		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+			chunkMatchCount,
+			parallelism,
+			index =>
+			{
+				var match = _queryChunkMatches[index];
+				if (match.Count == 0)
+					return;
+
+				var archetype = _archetypes[match.ArchetypeId];
+				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+				if (columnIndex1 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+				if (columnIndex2 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+				if (columnIndex3 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				int columnIndex4 = archetype.GetColumnIndexOrNegative(typeId4);
+				if (columnIndex4 < 0)
+					throw new KeyNotFoundException(
+						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
+					);
+
+				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+				ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+				ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, columnIndex4, match.RowStart);
+				var     local   = job;
+				for (var offset = 0; offset < match.Count; offset++)
+				{
+					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+					ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+					ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+					local.Execute(ref c1, in c2, in c3, in c4);
+				}
+			}
+		);
+	}
+
+	/// <summary>
+	///     Captures a snapshot payload and forwards it to <paramref name="writer" />.
+	/// </summary>
+	/// <typeparam name="TSnapshotWriter">Writer type receiving the captured payload.</typeparam>
+	/// <param name="writer">Snapshot writer receiving the captured payload.</param>
+	public void CaptureSnapshot<TSnapshotWriter>(ref TSnapshotWriter writer)
+		where TSnapshotWriter : struct, IWorldSnapshotWriter
+	{
+		ThrowIfDisposed();
+		if (_activeQueryCursors > 0)
+			throw new InvalidOperationException("Snapshot capture cannot run while a query cursor is active.");
+
+		var resources = new List<SnapshotResourceRecord>(_resources.Count);
+		foreach (object resourceBox in _resources.Values)
+		{
+			if (resourceBox is not IResourceBox box)
+				continue;
+
+			resources.Add(new(box.ResourceType, box.BoxedValue));
+		}
+
+		var entities = new List<SnapshotEntityRecord>(_aliveCount);
+		var relations = new List<SnapshotRelationRecord>();
+		for (var entityId = 0; entityId < _nextEntityId; entityId++)
+		{
+			if (!_aliveByEntityId[entityId])
+				continue;
+
+			var entity = new Entity(entityId, _versionByEntityId[entityId]);
+			var location = _locationByEntityId[entityId];
+			if (!location.IsValid)
+				continue;
+
+			var archetype = _archetypes[location.ArchetypeId];
+			var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+			var components = new List<SnapshotComponentRecord>(archetype.TypeIds.Length);
+			for (var typeIndex = 0; typeIndex < archetype.TypeIds.Length; typeIndex++)
+			{
+				int typeId = archetype.TypeIds[typeIndex];
+				if (_relationInfoByTypeId.TryGetValue(typeId, out var relationInfo))
+				{
+					relations.Add(new SnapshotRelationRecord(relationInfo.RelationType, entity, relationInfo.Target));
+					continue;
+				}
+
+				Type componentType = _typeById[typeId] ??
+				                     throw new InvalidOperationException(
+					                     $"Component type id '{typeId}' is not registered."
+				                     );
+				object component = chunk.Columns[typeIndex].GetValue(location.RowIndex);
+				components.Add(new(componentType, component));
+			}
+
+			entities.Add(new(entity, components.ToArray()));
+		}
+
+		var snapshot = new WorldSnapshot(resources.ToArray(), entities.ToArray(), relations.ToArray());
+		writer.Write(in snapshot);
+	}
+
+	/// <summary>
+	///     Restores world state from snapshot payload supplied by <paramref name="reader" />.
+	/// </summary>
+	/// <typeparam name="TSnapshotReader">Reader type providing the snapshot payload.</typeparam>
+	/// <param name="reader">Snapshot reader providing restore payload.</param>
+	/// <param name="options">Optional type-allowlist and validation options.</param>
+	public void RestoreSnapshot<TSnapshotReader>(
+		ref TSnapshotReader              reader,
+		SnapshotDeserializationOptions? options = null)
+		where TSnapshotReader : struct, IWorldSnapshotReader
+	{
+		ThrowIfDisposed();
+		if (_activeQueryCursors > 0)
+			throw new InvalidOperationException("Snapshot restore cannot run while a query cursor is active.");
+
+		options ??= SnapshotDeserializationOptions.Default;
+		var snapshot = reader.Read() ?? throw new InvalidOperationException("Snapshot reader returned null payload.");
+		Clear();
+		var entityMap = new Dictionary<Entity, Entity>(snapshot.Entities.Length);
+		for (var i = 0; i < snapshot.Entities.Length; i++)
+		{
+			var captured = snapshot.Entities[i];
+			if (!captured.Entity.Equals(Entity.None))
+				entityMap[captured.Entity] = Spawn();
+		}
+
+		for (var i = 0; i < snapshot.Resources.Length; i++)
+		{
+			var resource = snapshot.Resources[i];
+			ValidateSnapshotResource(resource, options);
+			SetResourceBoxed(resource.ResourceType, resource.Value);
+		}
+
+		for (var i = 0; i < snapshot.Entities.Length; i++)
+		{
+			var captured = snapshot.Entities[i];
+			if (!entityMap.TryGetValue(captured.Entity, out Entity restored))
+				continue;
+
+			for (var componentIndex = 0; componentIndex < captured.Components.Length; componentIndex++)
+			{
+				var component = captured.Components[componentIndex];
+				ValidateSnapshotComponent(component, options);
+				SetComponentFromSnapshot(restored, component.ComponentType, component.Value);
+			}
+		}
+
+		for (var i = 0; i < snapshot.Relations.Length; i++)
+		{
+			var relation = snapshot.Relations[i];
+			ValidateSnapshotRelation(relation, options);
+			if (!entityMap.TryGetValue(relation.Source, out Entity source))
+				throw new InvalidOperationException(
+					$"Snapshot relation source '{relation.Source.Id}:{relation.Source.Version}' was not restored."
+				);
+
+			if (!entityMap.TryGetValue(relation.Target, out Entity target))
+				throw new InvalidOperationException(
+					$"Snapshot relation target '{relation.Target.Id}:{relation.Target.Version}' was not restored."
+				);
+
+			AddRelationFromSnapshot(relation.RelationType, source, target);
+		}
+	}
+
+	/// <summary>
+	///     Returns diagnostics for one compiled query handle.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <returns>Query diagnostics snapshot.</returns>
+	public QueryDiagnostics GetQueryDiagnostics<TSpec>(QueryHandle<TSpec> handle)
+		where TSpec : struct, ICompiledQuerySpec
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		var plan = handle.Plan;
+		int matchingArchetypeCount = GetOrRefreshMatchingArchetypes(plan);
+		int matchingEntityCount = FillQueryResults(plan, out int matchingChunkCount, false);
+		return new(
+			matchingArchetypeCount,
+			matchingChunkCount,
+			matchingEntityCount,
+			plan.ArchetypeCacheVersion,
+			plan.ArchetypeCacheVersion == _archetypeVersion,
+			ResolveTypes(plan.AllTypeIds),
+			ResolveTypes(plan.AnyTypeIds),
+			ResolveTypes(plan.NoneTypeIds),
+			ResolveTypes(plan.OptionalTypeIds),
+			ResolveTypes(plan.AddedTypeIds),
+			ResolveTypes(plan.ChangedTypeIds),
+			plan.RelatedRelationType,
+			plan.RelatedTarget
+		);
+	}
+
 	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
 	{
 		ThrowIfDisposed();
@@ -2632,7 +3072,159 @@ public class World : IWorld, IDisposable
 		return true;
 	}
 
-	private int FillQueryResults(CompiledQueryPlan plan, out int chunkMatchCount)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private int ResolveDegreeOfParallelism(int? degreeOfParallelism)
+	{
+		if (degreeOfParallelism is <= 0)
+			throw new ArgumentOutOfRangeException(
+				nameof(degreeOfParallelism),
+				"Degree of parallelism must be greater than zero."
+			);
+
+		return degreeOfParallelism ?? _config.MaxDegreeOfParallelism;
+	}
+
+	private Type[] ResolveTypes(int[] typeIds)
+	{
+		if (typeIds.Length == 0)
+			return [];
+
+		var resolved = new Type[typeIds.Length];
+		for (var i = 0; i < typeIds.Length; i++)
+		{
+			int typeId = typeIds[i];
+			resolved[i] = _typeById[typeId] ??
+						  throw new InvalidOperationException(
+							  $"Component type id '{typeId}' is not registered."
+						  );
+		}
+
+		return resolved;
+	}
+
+	private void ValidateSnapshotResource(
+		in SnapshotResourceRecord       resource,
+		SnapshotDeserializationOptions options)
+	{
+		if (resource.ResourceType is null)
+			throw new InvalidOperationException("Snapshot resource type cannot be null.");
+
+		if (resource.Value is null)
+			throw new InvalidOperationException(
+				$"Snapshot resource '{resource.ResourceType.FullName}' contains a null value."
+			);
+
+		if (!resource.ResourceType.IsInstanceOfType(resource.Value))
+			throw new InvalidOperationException(
+				$"Snapshot resource value type '{resource.Value.GetType().FullName}' does not match declared type '{resource.ResourceType.FullName}'."
+			);
+
+		if (!options.IsTypeAllowed(resource.ResourceType))
+			throw new InvalidOperationException(
+				$"Snapshot resource type '{resource.ResourceType.FullName}' is not allowed."
+			);
+
+		if (!options.IsReferenceResourceTypeAllowed(resource.ResourceType))
+			throw new InvalidOperationException(
+				$"Snapshot reference resource type '{resource.ResourceType.FullName}' must be allow-listed."
+			);
+	}
+
+	private void ValidateSnapshotComponent(
+		in SnapshotComponentRecord      component,
+		SnapshotDeserializationOptions options)
+	{
+		if (component.ComponentType is null)
+			throw new InvalidOperationException("Snapshot component type cannot be null.");
+
+		if (!component.ComponentType.IsValueType)
+			throw new InvalidOperationException(
+				$"Snapshot component type '{component.ComponentType.FullName}' must be a value type."
+			);
+
+		if (component.Value is null)
+			throw new InvalidOperationException(
+				$"Snapshot component '{component.ComponentType.FullName}' contains a null value."
+			);
+
+		if (component.Value.GetType() != component.ComponentType)
+			throw new InvalidOperationException(
+				$"Snapshot component value type '{component.Value.GetType().FullName}' does not match declared type '{component.ComponentType.FullName}'."
+			);
+
+		if (!options.IsTypeAllowed(component.ComponentType))
+			throw new InvalidOperationException(
+				$"Snapshot component type '{component.ComponentType.FullName}' is not allowed."
+			);
+	}
+
+	private void ValidateSnapshotRelation(
+		in SnapshotRelationRecord       relation,
+		SnapshotDeserializationOptions options)
+	{
+		if (relation.RelationType is null)
+			throw new InvalidOperationException("Snapshot relation type cannot be null.");
+
+		if (!relation.RelationType.IsValueType)
+			throw new InvalidOperationException(
+				$"Snapshot relation type '{relation.RelationType.FullName}' must be a value type."
+			);
+
+		if (!options.IsTypeAllowed(relation.RelationType))
+			throw new InvalidOperationException(
+				$"Snapshot relation type '{relation.RelationType.FullName}' is not allowed."
+			);
+	}
+
+	private void SetResourceBoxed(Type resourceType, object value)
+	{
+		if (resourceType is null) throw new ArgumentNullException(nameof(resourceType));
+		if (value is null) throw new ArgumentNullException(nameof(value));
+		if (!resourceType.IsInstanceOfType(value))
+			throw new ArgumentException(
+				$"Resource value type '{value.GetType().FullName}' is not assignable to '{resourceType.FullName}'.",
+				nameof(value)
+			);
+
+		if (_resources.TryGetValue(resourceType, out object? existing) && existing is IResourceBox existingBox)
+			existingBox.DisposeValue();
+
+		var boxType = typeof(ResourceBox<>).MakeGenericType(resourceType);
+		_resources[resourceType] = Activator.CreateInstance(boxType, value) ??
+								  throw new InvalidOperationException(
+									  $"Failed to create resource box for type '{resourceType.FullName}'."
+								  );
+	}
+
+	private void SetComponentFromSnapshot(Entity entity, Type componentType, object value)
+	{
+		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+		if (value is null) throw new ArgumentNullException(nameof(value));
+		if (!componentType.IsValueType)
+			throw new ArgumentException("Components must be value types.", nameof(componentType));
+
+		EnsureAlive(entity);
+		int typeId = GetOrCreateComponentTypeId(componentType);
+		SetComponentInternalBoxed(entity.Id, typeId, componentType, value);
+	}
+
+	private void AddRelationFromSnapshot(Type relationType, Entity source, Entity target)
+	{
+		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
+		if (target == Entity.Wildcard || target == Entity.None)
+			throw new ArgumentException("Snapshot relation target must be a concrete entity.", nameof(target));
+
+		EnsureAlive(source);
+		EnsureAlive(target);
+		int relationTypeId = GetOrCreateRelationTypeId(relationType, target);
+		var marker = default(RelationMarker);
+		SetComponentInternal(source.Id, relationTypeId, in marker);
+	}
+
+	private int FillQueryResults(
+		CompiledQueryPlan plan,
+		out int           chunkMatchCount,
+		bool              advanceObservedChangeVersion = true)
 	{
 		var count = 0;
 		chunkMatchCount = 0;
@@ -2692,7 +3284,8 @@ public class World : IWorld, IDisposable
 		}
 
 		done:
-		plan.LastObservedChangeVersion = queryVersion;
+		if (advanceObservedChangeVersion)
+			plan.LastObservedChangeVersion = queryVersion;
 		if (count > _queryHighWatermark)
 			_queryHighWatermark = count;
 
@@ -3160,6 +3753,110 @@ public class World : IWorld, IDisposable
 		);
 	}
 
+	private void MoveEntityToArchetypeWithSetBoxed(
+		int              entityId,
+		EntityLocation   sourceLocation,
+		ArchetypeStorage sourceArchetype,
+		int              targetArchetypeId,
+		int              setTypeId,
+		Type             setComponentType,
+		object           setComponent)
+	{
+		if (targetArchetypeId == sourceArchetype.Id)
+		{
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(setTypeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{setTypeId}' does not exist in archetype '{sourceArchetype.Id}'."
+				);
+
+			var sourceChunk = sourceArchetype.GetChunkUnchecked(sourceLocation.ChunkIndex);
+			sourceChunk.Columns[sourceColumnIndex].SetValue(sourceLocation.RowIndex, setComponent);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entityId, setTypeId, changeVersion);
+			return;
+		}
+
+		bool setWasAdded = sourceArchetype.GetColumnIndexOrNegative(setTypeId) < 0;
+		var sourceChunkForMove = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
+		var targetArchetype = _archetypes[targetArchetypeId];
+		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
+		targetArchetype.AllocateRow(entityId, out int targetChunkIndex, out int targetRowIndex);
+		var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
+		targetArchetype.CopySharedColumnsFromWithPairs(
+			sourceChunkForMove,
+			sourceLocation.RowIndex,
+			targetChunk,
+			targetRowIndex,
+			sourceTargetColumnPairs
+		);
+
+		int targetColumnIndex = targetArchetype.GetColumnIndexOrNegative(setTypeId);
+		if (targetColumnIndex < 0)
+			throw new InvalidOperationException(
+				$"Type id '{setTypeId}' does not exist in archetype '{targetArchetype.Id}'."
+			);
+
+		// TODO: Cache boxed snapshot set delegates by component type to reduce reflection-heavy restore overhead.
+		if (targetChunk.Columns[targetColumnIndex].ComponentType != setComponentType)
+			throw new InvalidOperationException(
+				$"Snapshot component type '{setComponentType.FullName}' does not match runtime column type '{targetChunk.Columns[targetColumnIndex].ComponentType.FullName}'."
+			);
+
+		targetChunk.Columns[targetColumnIndex].SetValue(targetRowIndex, setComponent);
+		uint targetChangeVersion = AdvanceComponentChangeVersion();
+		targetArchetype.MarkComponentChanged(targetChunk, targetColumnIndex, targetChangeVersion);
+		MarkComponentChanged(entityId, setTypeId, targetChangeVersion);
+		if (setWasAdded)
+			MarkComponentAdded(entityId, setTypeId, targetChangeVersion);
+
+		_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
+		if (sourceArchetype.RemoveAt(sourceLocation.ChunkIndex, sourceLocation.RowIndex, out int movedEntityId))
+			UpdateMovedEntityLocation(
+				sourceArchetype.Id, sourceLocation.ChunkIndex, sourceLocation.RowIndex, movedEntityId
+			);
+	}
+
+	private void SetComponentInternalBoxed(
+		int    entityId,
+		int    typeId,
+		Type   componentType,
+		object component)
+	{
+		var location = _locationByEntityId[entityId];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+
+		var sourceArchetype = _archetypes[location.ArchetypeId];
+		if (sourceArchetype.HasType(typeId))
+		{
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{typeId}' does not exist in archetype '{sourceArchetype.Id}'."
+				);
+
+			var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+			sourceChunk.Columns[sourceColumnIndex].SetValue(location.RowIndex, component);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entityId, typeId, changeVersion);
+			return;
+		}
+
+		int targetArchetypeId = GetOrCreateAddTransition(sourceArchetype, typeId);
+		MoveEntityToArchetypeWithSetBoxed(
+			entityId,
+			location,
+			sourceArchetype,
+			targetArchetypeId,
+			typeId,
+			componentType,
+			component
+		);
+	}
+
 	private void SetComponentInternal<T>(int entityId, int typeId, in T component) where T : struct
 	{
 		var location = _locationByEntityId[entityId];
@@ -3220,12 +3917,20 @@ public class World : IWorld, IDisposable
 
 	private interface IResourceBox
 	{
+		object BoxedValue { get; }
+
+		Type ResourceType { get; }
+
 		void DisposeValue();
 	}
 
 	private sealed class ResourceBox<T>(T value) : IResourceBox where T : notnull
 	{
 		public T Value = value;
+
+		public object BoxedValue => Value;
+
+		public Type ResourceType => typeof(T);
 
 		public void DisposeValue()
 		{
@@ -3234,4 +3939,6 @@ public class World : IWorld, IDisposable
 		}
 	}
 }
+
+
 
