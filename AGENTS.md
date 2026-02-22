@@ -96,6 +96,8 @@ dotnet test --filter "FullyQualifiedName~ClassName"
 dotnet test --filter "FullyQualifiedName~MethodName"
 ```
 
+> **Do not set or use `DOTNET_CLI_HOME`.** This environment variable is not needed and must not be passed to any `dotnet` invocation or shell environment.
+
 ## Build Configuration
 
 .NET 9.0 + .NET Standard 2.1 (Unity) | Warnings as errors | Nullable enabled | XML docs generated
