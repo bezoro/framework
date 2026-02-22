@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -95,29 +96,8 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		return true;
 	}
 
-	private static bool IsQueryForEachMethod(IMethodSymbol method, IMethodSymbol originalMethod)
-	{
-		if (!IsForEachMethodName(method.Name) &&
-			!IsForEachMethodName(originalMethod.Name))
-			return false;
-
-		if (method.ContainingType.ToDisplayString() == "Bezoro.ECS.Types.Query")
-			return true;
-
-		if (originalMethod.ContainingType.ToDisplayString() == "Bezoro.ECS.Types.Query")
-			return true;
-
-		if (!originalMethod.IsExtensionMethod || originalMethod.Parameters.Length == 0)
-			return false;
-
-		return originalMethod.Parameters[0].Type.ToDisplayString() == "Bezoro.ECS.Types.Query";
-	}
-
 	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
 		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
-
-	private static bool IsForEachMethodName(string methodName) =>
-		methodName == "ForEach" || methodName == "ForEachRw" || methodName == "ForEachRW";
 
 	private static bool TryGetForEachComponentAccess(
 		IMethodSymbol     method,
@@ -128,7 +108,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		componentTypes = [];
 		var originalMethod = method.ReducedFrom ?? method;
 
-		if (!IsQueryForEachMethod(method, originalMethod))
+		if (!TryResolveIterationTarget(method, originalMethod, out var target))
 			return false;
 
 		if (IsReadWriteForEachMethodName(method.Name) || IsReadWriteForEachMethodName(originalMethod.Name))
@@ -143,28 +123,152 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			return false;
 		}
 
-		if (method.Name != "ForEach" && originalMethod.Name != "ForEach")
+		if (TryGetComponentTypesFromGenericArguments(method, target, out componentTypes))
+			return true;
+
+		return TryGetComponentTypesFromJobParameter(method, originalMethod, out componentTypes);
+	}
+
+	private static bool IsReadWriteForEachMethodName(string methodName) =>
+		methodName == "ForEachRw" || methodName == "ForEachRW";
+
+	private static bool TryResolveIterationTarget(
+		IMethodSymbol method,
+		IMethodSymbol originalMethod,
+		out IterationTarget target)
+	{
+		target = IterationTarget.None;
+		if (!IsIterationMethodName(method.Name) && !IsIterationMethodName(originalMethod.Name))
 			return false;
 
-		if (method.TypeArguments.Length > 0)
+		if (IsTypeName(method.ContainingType, "Bezoro.ECS.Types.Query") ||
+			IsTypeName(originalMethod.ContainingType, "Bezoro.ECS.Types.Query"))
 		{
-			var typeArguments = method.TypeArguments;
-			bool isJobGenericOverload = method.TypeParameters.Length > 0 &&
-										string.Equals(method.TypeParameters[0].Name, "TJob", StringComparison.Ordinal);
-
-			if (isJobGenericOverload)
-			{
-				if (typeArguments.Length <= 1)
-					return false;
-
-				componentTypes = typeArguments.Skip(1).ToArray();
-				return true;
-			}
-
-			componentTypes = typeArguments.ToArray();
+			target = IterationTarget.LegacyQuery;
 			return true;
 		}
 
+		if (IsTypeName(method.ContainingType, "Bezoro.ECS.Types.QueryCursor") ||
+			IsTypeName(originalMethod.ContainingType, "Bezoro.ECS.Types.QueryCursor"))
+		{
+			target = IterationTarget.QueryCursor;
+			return true;
+		}
+
+		if (IsTypeName(method.ContainingType, "Bezoro.ECS.Services.World") ||
+			IsTypeName(originalMethod.ContainingType, "Bezoro.ECS.Services.World"))
+		{
+			target = IterationTarget.World;
+			return true;
+		}
+
+		if (!originalMethod.IsExtensionMethod || originalMethod.Parameters.Length == 0)
+			return false;
+
+		var receiverType = originalMethod.Parameters[0].Type;
+		if (IsTypeName(receiverType, "Bezoro.ECS.Types.Query"))
+		{
+			target = IterationTarget.LegacyQuery;
+			return true;
+		}
+
+		if (IsTypeName(receiverType, "Bezoro.ECS.Types.QueryCursor"))
+		{
+			target = IterationTarget.QueryCursor;
+			return true;
+		}
+
+		if (IsTypeName(receiverType, "Bezoro.ECS.Services.World"))
+		{
+			target = IterationTarget.World;
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool TryGetComponentTypesFromGenericArguments(
+		IMethodSymbol      method,
+		IterationTarget    target,
+		out ITypeSymbol[]  componentTypes)
+	{
+		componentTypes = [];
+		if (method.TypeArguments.Length == 0)
+			return false;
+
+		if (target == IterationTarget.LegacyQuery)
+		{
+			if (IsReadWriteForEachMethodName(method.Name))
+			{
+				if (method.TypeArguments.Length == 2)
+				{
+					componentTypes = [method.TypeArguments[0], method.TypeArguments[1]];
+					return true;
+				}
+
+				return false;
+			}
+
+			if (method.Name == "Run" && method.TypeArguments.Length > 1)
+			{
+				componentTypes = SkipTypeArguments(method.TypeArguments, 1);
+				return true;
+			}
+
+			if (method.Name == "ForEach")
+			{
+				bool isJobGenericOverload = method.TypeParameters.Length > 0 &&
+										string.Equals(method.TypeParameters[0].Name, "TJob", StringComparison.Ordinal);
+				componentTypes = isJobGenericOverload
+									 ? SkipTypeArguments(method.TypeArguments, 1)
+									 : method.TypeArguments.ToArray();
+				return componentTypes.Length > 0;
+			}
+
+			return false;
+		}
+
+		if (target == IterationTarget.QueryCursor)
+		{
+			if (method.Name == "ForEach")
+			{
+				componentTypes = method.TypeArguments.ToArray();
+				return componentTypes.Length > 0;
+			}
+
+			if (method.Name == "Run" && method.TypeArguments.Length > 1)
+			{
+				componentTypes = SkipTypeArguments(method.TypeArguments, 1);
+				return componentTypes.Length > 0;
+			}
+
+			return false;
+		}
+
+		if (target == IterationTarget.World)
+		{
+			if (method.Name == "ForEach" && method.TypeArguments.Length > 1)
+			{
+				componentTypes = SkipTypeArguments(method.TypeArguments, 1);
+				return componentTypes.Length > 0;
+			}
+
+			if (method.Name == "Run" && method.TypeArguments.Length > 2)
+			{
+				componentTypes = SkipTypeArguments(method.TypeArguments, 2);
+				return componentTypes.Length > 0;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool TryGetComponentTypesFromJobParameter(
+		IMethodSymbol     method,
+		IMethodSymbol     originalMethod,
+		out ITypeSymbol[] componentTypes)
+	{
+		componentTypes = [];
 		var jobType = GetPotentialJobType(method, originalMethod);
 		if (jobType is null)
 			return false;
@@ -177,31 +281,61 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		return true;
 	}
 
-	private static bool IsReadWriteForEachMethodName(string methodName) =>
-		methodName == "ForEachRw" || methodName == "ForEachRW";
-
 	private static ITypeSymbol? GetPotentialJobType(IMethodSymbol method, IMethodSymbol originalMethod)
 	{
-		if (originalMethod.IsExtensionMethod)
+		for (var i = 0; i < method.Parameters.Length; i++)
 		{
-			// Reduced extension methods drop the first "this Query" parameter.
-			if (method.Parameters.Length >= 1)
-				return method.Parameters[0].Type;
+			var type = method.Parameters[i].Type;
+			if (type.TypeKind == TypeKind.Delegate || IsQueryHandleType(type))
+				continue;
 
-			if (originalMethod.Parameters.Length >= 2)
-				return originalMethod.Parameters[1].Type;
-
-			return null;
+			if (InferJobComponentTypes(type).Length > 0)
+				return type;
 		}
 
-		if (method.Parameters.Length == 0)
-			return null;
+		var start = originalMethod.IsExtensionMethod ? 1 : 0;
+		for (var i = start; i < originalMethod.Parameters.Length; i++)
+		{
+			var type = originalMethod.Parameters[i].Type;
+			if (type.TypeKind == TypeKind.Delegate || IsQueryHandleType(type))
+				continue;
 
-		var parameter = method.Parameters[0];
-		if (parameter.Type.TypeKind == TypeKind.Delegate)
-			return null;
+			if (InferJobComponentTypes(type).Length > 0)
+				return type;
+		}
 
-		return parameter.Type;
+		return null;
+	}
+
+	private static bool IsIterationMethodName(string methodName) =>
+		methodName == "ForEach" || methodName == "ForEachRw" || methodName == "ForEachRW" || methodName == "Run";
+
+	private static bool IsQueryHandleType(ITypeSymbol type) =>
+		type is INamedTypeSymbol named &&
+		named.Name == "QueryHandle" &&
+		named.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types";
+
+	private static bool IsTypeName(ITypeSymbol? type, string expected) =>
+		type is { } && type.ToDisplayString() == expected;
+
+	private static ITypeSymbol[] SkipTypeArguments(ImmutableArray<ITypeSymbol> typeArguments, int skipCount)
+	{
+		if (skipCount >= typeArguments.Length)
+			return [];
+
+		var result = new ITypeSymbol[typeArguments.Length - skipCount];
+		for (var i = skipCount; i < typeArguments.Length; i++)
+			result[i - skipCount] = typeArguments[i];
+
+		return result;
+	}
+
+	private enum IterationTarget
+	{
+		None,
+		LegacyQuery,
+		QueryCursor,
+		World
 	}
 
 	private static ITypeSymbol[] InferJobComponentTypes(ITypeSymbol jobType)

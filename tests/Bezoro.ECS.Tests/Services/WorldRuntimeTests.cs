@@ -1324,6 +1324,252 @@ public class WorldRuntimeTests
 	}
 
 	[Fact]
+	public void Execute_WhenCompiledQueryUsesOptional_ShouldMatchEntitiesWithAndWithoutOptionalType()
+	{
+		using var world = new World(new WorldConfig()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		var first = world.Spawn(new Position { X = 1, Y = 1 });
+		var second = world.Spawn(new Position { X = 2, Y = 2 }, new Velocity { X = 3, Y = 4 });
+		_ = world.Spawn(new Velocity { X = 9, Y = 9 });
+
+		var handle = world.Compile<PositionWithOptionalVelocityQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(2);
+		var entities = cursor.Current.ToArray();
+		entities.Should().Contain(first);
+		entities.Should().Contain(second);
+	}
+
+	[Fact]
+	public void Execute_WhenCompiledQueryUsesChanged_ShouldTrackChangesAcrossExecutions()
+	{
+		using var world = new World(new WorldConfig()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		var first = world.Spawn(new Position { X = 1, Y = 1 });
+		_ = world.Spawn(new Position { X = 2, Y = 2 });
+		_ = world.Spawn(new Velocity { X = 7, Y = 7 });
+
+		var handle = world.Compile<ChangedPositionQuerySpec>();
+		using (var initial = world.Execute(handle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(2);
+		}
+
+		using (var unchanged = world.Execute(handle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		world.Set(first, new Position { X = 11, Y = 12 });
+		using var changed = world.Execute(handle);
+		changed.MoveNext().Should().BeTrue();
+		changed.Current.Length.Should().Be(1);
+		changed.Current[0].Should().Be(first);
+	}
+
+	[Fact]
+	public void Execute_WhenCompiledQueryUsesAdded_ShouldTrackOnlyNewAdditionsAcrossExecutions()
+	{
+		using var world = new World(new WorldConfig()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 16,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		var first = world.Spawn(new Position { X = 1, Y = 1 });
+		var second = world.Spawn(new Velocity { X = 5, Y = 5 });
+
+		var handle = world.Compile<AddedPositionQuerySpec>();
+		using (var initial = world.Execute(handle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(first);
+		}
+
+		using (var unchanged = world.Execute(handle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		world.Set(first, new Position { X = 11, Y = 12 });
+		world.Add(second, new Position { X = 20, Y = 21 });
+		using var added = world.Execute(handle);
+		added.MoveNext().Should().BeTrue();
+		added.Current.Length.Should().Be(1);
+		added.Current[0].Should().Be(second);
+	}
+
+	[Fact]
+	public void Execute_WhenUsingMutableRefApis_ShouldTrackChangesForChangedFilter()
+	{
+		using var world = new World(new WorldConfig()
+		{
+			EntityCapacity                = 16,
+			ComponentTypeCapacity         = 32,
+			CommandCapacity               = 32,
+			CommandPayloadCapacityPerType = 32,
+			QueryResultCapacity           = 16
+		});
+
+		var entity        = world.Spawn(new Position { X = 1, Y = 1 });
+		var changedHandle = world.Compile<ChangedPositionQuerySpec>();
+		var positionHandle = world.Compile<PositionQuerySpec>();
+
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+		}
+
+		void AssertOnlyChangedEntity()
+		{
+			using var changed = world.Execute(changedHandle);
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.Length.Should().Be(1);
+			changed.Current[0].Should().Be(entity);
+		}
+
+		void ClearChangedWindow()
+		{
+			using var unchanged = world.Execute(changedHandle);
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		ClearChangedWindow();
+		ref var fromWorldGet = ref world.Get<Position>(entity);
+		fromWorldGet.X += 1;
+		AssertOnlyChangedEntity();
+
+		ClearChangedWindow();
+		var accessor = world.GetAccessor<Position>();
+		ref var fromAccessor = ref accessor.Get(entity);
+		fromAccessor.Y += 1;
+		AssertOnlyChangedEntity();
+
+		ClearChangedWindow();
+		using (var cursor = world.Execute(positionHandle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.Get<Position>(0).X += 1;
+		}
+
+		AssertOnlyChangedEntity();
+
+		ClearChangedWindow();
+		world.ForEach<PositionQuerySpec, Position>(positionHandle, (ref Position position) => position.X += 1);
+		AssertOnlyChangedEntity();
+
+		ClearChangedWindow();
+		using (var cursor = world.Execute(positionHandle))
+		{
+			cursor.MoveNext().Should().BeTrue();
+			cursor.ForEach<Position>((ref Position position) => position.Y += 1);
+		}
+
+		AssertOnlyChangedEntity();
+	}
+
+	[Fact]
+	public void RelationApi_WhenAddingAndRemovingRelation_ShouldUpdateHasRelationState()
+	{
+		using var world = new World();
+		var target = world.Spawn();
+		var source = world.Spawn();
+
+		world.HasRelation<Follows>(source, target).Should().BeFalse();
+
+		world.AddRelation<Follows>(source, target);
+		world.HasRelation<Follows>(source, target).Should().BeTrue();
+		world.HasRelation<Follows>(source, Entity.Wildcard).Should().BeTrue();
+
+		world.RemoveRelation<Follows>(source, target).Should().BeTrue();
+		world.HasRelation<Follows>(source, target).Should().BeFalse();
+		world.RemoveRelation<Follows>(source, target).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Execute_WhenQueryUsesSpecificRelatedFilter_ShouldMatchOnlyEntitiesRelatedToTarget()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity = 32,
+			ComponentTypeCapacity = 64,
+			QueryResultCapacity = 32
+		});
+
+		var targetA = world.Spawn();
+		var targetB = world.Spawn();
+		var first = world.Spawn(new Position { X = 1, Y = 1 });
+		var second = world.Spawn(new Position { X = 2, Y = 2 });
+		_ = world.Spawn(new Position { X = 3, Y = 3 });
+
+		world.AddRelation<Follows>(first, targetA);
+		world.AddRelation<Follows>(second, targetB);
+
+		var specificHandle = world.Compile<PositionRelatedToEntityZeroQuerySpec>();
+		using (var specific = world.Execute(specificHandle))
+		{
+			specific.MoveNext().Should().BeTrue();
+			specific.Current.ToArray().Should().ContainSingle().Which.Should().Be(first);
+		}
+
+		var wildcardHandle = world.Compile<PositionRelatedToAnyFollowsQuerySpec>();
+		using var wildcard = world.Execute(wildcardHandle);
+		wildcard.MoveNext().Should().BeTrue();
+		var wildcardEntities = wildcard.Current.ToArray();
+		wildcardEntities.Length.Should().Be(2);
+		wildcardEntities.Should().Contain(first);
+		wildcardEntities.Should().Contain(second);
+	}
+
+	[Fact]
+	public void Execute_WhenRelationTargetIsDespawned_ShouldRemoveRelationAndNoLongerMatchRelatedQueries()
+	{
+		using var world = new World(new WorldConfig
+		{
+			EntityCapacity = 16,
+			ComponentTypeCapacity = 64,
+			QueryResultCapacity = 16
+		});
+
+		var target = world.Spawn();
+		var source = world.Spawn(new Position { X = 1, Y = 1 });
+		world.AddRelation<Follows>(source, target);
+
+		world.HasRelation<Follows>(source, target).Should().BeTrue();
+		world.Despawn(target);
+		world.HasRelation<Follows>(source, target).Should().BeFalse();
+
+		var wildcardHandle = world.Compile<PositionRelatedToAnyFollowsQuerySpec>();
+		using var wildcard = world.Execute(wildcardHandle);
+		wildcard.MoveNext().Should().BeTrue();
+		wildcard.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
 	public void Playback_WhenEntityCapacityExceeded_ShouldThrow()
 	{
 		using var world = new World(new WorldConfig()
@@ -1783,6 +2029,43 @@ public class WorldRuntimeTests
 		public void Build(ref QueryBuilder builder) => builder.All<ManagedTag>();
 	}
 
+	private readonly struct PositionWithOptionalVelocityQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.Optional<Velocity>();
+		}
+	}
+
+	private readonly struct ChangedPositionQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.Changed<Position>();
+	}
+
+	private readonly struct AddedPositionQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.Added<Position>();
+	}
+
+	private readonly struct PositionRelatedToEntityZeroQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.Related<Follows>(new(0, 0));
+		}
+	}
+
+	private readonly struct PositionRelatedToAnyFollowsQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder)
+		{
+			builder.All<Position>();
+			builder.Related<Follows>();
+		}
+	}
+
 	private struct Position
 	{
 		public float X;
@@ -1821,5 +2104,7 @@ public class WorldRuntimeTests
 	{
 		public Payload? Payload;
 	}
+
+	private struct Follows;
 }
 

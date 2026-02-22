@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,6 +13,14 @@ namespace Bezoro.ECS.SourceGen.Generators;
 public sealed class QuerySourceGenerator : IIncrementalGenerator
 {
 	private const string QUERY_ATTRIBUTE_NAME = "Bezoro.ECS.Attributes.QueryAttribute";
+	private static readonly DiagnosticDescriptor UnsupportedQueryAttributeDescriptor = new(
+		"BECSG001",
+		"Unsupported query attribute",
+		"Query attribute '{0}' is not supported by generated compiled-query specs and will be ignored",
+		"Usage",
+		DiagnosticSeverity.Warning,
+		true
+	);
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
@@ -27,6 +36,20 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		context.RegisterSourceOutput(
 			queryModels, static (productionContext, model) =>
 			{
+				for (var i = 0; i < model.UnsupportedAttributeNames.Length; i++)
+				{
+					productionContext.ReportDiagnostic(
+						Diagnostic.Create(
+							UnsupportedQueryAttributeDescriptor,
+							model.DeclarationLocation,
+							model.UnsupportedAttributeNames[i]
+						)
+					);
+				}
+
+				if (!model.IsPartial || model.IsNested)
+					return;
+
 				string source = BuildSource(model);
 				productionContext.AddSource(model.HintName, SourceText.From(source, Encoding.UTF8));
 			}
@@ -53,65 +76,86 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		if (symbol.TypeKind != TypeKind.Struct)
 			return null;
 
-		var filters = new FilterModel([], [], [], [], []);
+		var all         = new HashSet<string>(StringComparer.Ordinal);
+		var none        = new HashSet<string>(StringComparer.Ordinal);
+		var any         = new HashSet<string>(StringComparer.Ordinal);
+		var optional    = new HashSet<string>(StringComparer.Ordinal);
+		var added       = new HashSet<string>(StringComparer.Ordinal);
+		var changed     = new HashSet<string>(StringComparer.Ordinal);
+		var unsupported = new HashSet<string>(StringComparer.Ordinal);
 
 		foreach (var attribute in symbol.GetAttributes())
 		{
 			var attributeClass = attribute.AttributeClass;
 			if (attributeClass is null) continue;
 
-			string namespaceName = attributeClass.ContainingNamespace.ToDisplayString();
-			if (namespaceName != "Bezoro.ECS.Attributes")
+			if (attributeClass.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Attributes")
 				continue;
 
 			if (attributeClass.Name == "AllAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
-					filters.All.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+					all.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 			}
 			else if (attributeClass.Name == "NoneAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
-					filters.None.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+					none.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 			}
 			else if (attributeClass.Name == "AnyAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 2)
-					filters.AnyPairs.Add(
-						(
-							ToFullyQualified(attributeClass.TypeArguments[0]),
-							ToFullyQualified(attributeClass.TypeArguments[1]))
-					);
+				{
+					any.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+					any.Add(ToFullyQualified(attributeClass.TypeArguments[1]));
+				}
 			}
 			else if (attributeClass.Name == "OptionalAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
-					filters.Optional.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+					optional.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 			}
 			else if (attributeClass.Name == "ChangedAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
-					filters.Changed.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+					changed.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+			}
+			else if (attributeClass.Name == "AddedAttribute")
+			{
+				if (attributeClass.TypeArguments.Length == 1)
+					added.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+			}
+			else if (attributeClass.Name != "QueryAttribute")
+			{
+				unsupported.Add(attributeClass.Name);
 			}
 		}
 
 		string typeNamespace = symbol.ContainingNamespace.IsGlobalNamespace
 								   ? string.Empty
 								   : symbol.ContainingNamespace.ToDisplayString();
-
-		bool   isPartial         = IsPartial(symbol);
-		bool   isReadOnly        = symbol.IsReadOnly;
-		string accessibility     = ToAccessibilityKeyword(symbol.DeclaredAccessibility);
-		string generatedTypeName = symbol.Name + "Generated";
 		string hintName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
 								.Replace("global::", string.Empty)
 								.Replace('<',        '_')
 								.Replace('>',        '_')
 								.Replace('.',        '_') +
-						  ".Query.g.cs";
+						  ".CompiledQuery.g.cs";
 
 		return new(
-			typeNamespace, symbol.Name, generatedTypeName, hintName, filters, isPartial, isReadOnly, accessibility
+			typeNamespace,
+			symbol.Name,
+			hintName,
+			all.ToArray(),
+			none.ToArray(),
+			any.ToArray(),
+			optional.ToArray(),
+			added.ToArray(),
+			changed.ToArray(),
+			unsupported.OrderBy(static name => name, StringComparer.Ordinal).ToArray(),
+			symbol.Locations.FirstOrDefault() ?? Location.None,
+			IsPartial(symbol),
+			symbol.IsReadOnly,
+			symbol.ContainingType is { }
 		);
 	}
 
@@ -119,8 +163,6 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 	{
 		var builder = new StringBuilder();
 		builder.AppendLine("// <auto-generated />");
-		builder.AppendLine("using Bezoro.ECS.Abstractions;");
-		builder.AppendLine("using Bezoro.ECS.Types;");
 
 		if (!string.IsNullOrEmpty(model.Namespace))
 		{
@@ -128,175 +170,78 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			builder.AppendLine();
 		}
 
-		builder.Append("public static class ").Append(model.GeneratedTypeName).AppendLine();
+		builder.Append(model.IsReadOnly ? "readonly partial struct " : "partial struct ")
+			   .Append(model.TypeName)
+			   .AppendLine(" : global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
 		builder.AppendLine("{");
-		builder.Append("    public static global::Bezoro.ECS.Types.Query Create(IWorld world)").AppendLine();
-		builder.AppendLine("    {");
-		builder.AppendLine("        if (world is null) throw new System.ArgumentNullException(nameof(world));");
-		builder.AppendLine("        var query = world.Query();");
-
-		foreach (string? typeName in model.Filters.All.Distinct())
-			builder.Append("        query = query.All<").Append(typeName).AppendLine(">();");
-
-		foreach (string? typeName in model.Filters.None.Distinct())
-			builder.Append("        query = query.None<").Append(typeName).AppendLine(">();");
-
-		foreach (var pair in model.Filters.AnyPairs.Distinct())
-		{
-			builder.Append("        query = query.Any<").Append(pair.First).Append(", ").Append(pair.Second)
-				   .AppendLine(">();");
-		}
-
-		foreach (string? typeName in model.Filters.Optional.Distinct())
-			builder.Append("        query = query.Optional<").Append(typeName).AppendLine(">();");
-
-		foreach (string? typeName in model.Filters.Changed.Distinct())
-			builder.Append("        query = query.Changed<").Append(typeName).AppendLine(">();");
-
-		builder.AppendLine("        return query;");
-		builder.AppendLine("    }");
-		builder.AppendLine();
 		builder.AppendLine(
-			"    public static void ForEach<T1>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1> action)"
+			"    void global::Bezoro.ECS.Abstractions.ICompiledQuerySpec.Build(ref global::Bezoro.ECS.Types.QueryBuilder builder)"
 		);
-
-		builder.AppendLine("        where T1 : struct");
 		builder.AppendLine("    {");
-		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
-		builder.AppendLine("        var query = Create(world).All<T1>();");
-		builder.AppendLine("        query.ForEach(action);");
-		builder.AppendLine("    }");
-		builder.AppendLine();
-		builder.AppendLine(
-			"    public static void ForEach<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2> action)"
-		);
 
-		builder.AppendLine("        where T1 : struct");
-		builder.AppendLine("        where T2 : struct");
-		builder.AppendLine("    {");
-		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
-		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
-		builder.AppendLine("        query.ForEach(action);");
-		builder.AppendLine("    }");
-		builder.AppendLine();
-		builder.AppendLine(
-			"    public static void ForEach<T1, T2, T3>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3> action)"
-		);
+		var sortedAll = model.All.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedAll.Length; i++)
+			builder.Append("        builder.All<").Append(sortedAll[i]).AppendLine(">();");
 
-		builder.AppendLine("        where T1 : struct");
-		builder.AppendLine("        where T2 : struct");
-		builder.AppendLine("        where T3 : struct");
-		builder.AppendLine("    {");
-		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
-		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>().All<T3>();");
-		builder.AppendLine("        query.ForEach(action);");
-		builder.AppendLine("    }");
-		builder.AppendLine();
-		builder.AppendLine(
-			"    public static void ForEach<T1, T2, T3, T4>(IWorld world, global::Bezoro.ECS.Types.Query.RefInAction<T1, T2, T3, T4> action)"
-		);
+		var sortedNone = model.None.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedNone.Length; i++)
+			builder.Append("        builder.None<").Append(sortedNone[i]).AppendLine(">();");
 
-		builder.AppendLine("        where T1 : struct");
-		builder.AppendLine("        where T2 : struct");
-		builder.AppendLine("        where T3 : struct");
-		builder.AppendLine("        where T4 : struct");
-		builder.AppendLine("    {");
-		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
-		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>().All<T3>().All<T4>();");
-		builder.AppendLine("        query.ForEach(action);");
-		builder.AppendLine("    }");
-		builder.AppendLine();
-		builder.AppendLine(
-			"    public static void ForEachRW<T1, T2>(IWorld world, global::Bezoro.ECS.Types.Query.RefAction<T1, T2> action)"
-		);
+		var sortedAny = model.Any.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedAny.Length; i++)
+			builder.Append("        builder.Any<").Append(sortedAny[i]).AppendLine(">();");
 
-		builder.AppendLine("        where T1 : struct");
-		builder.AppendLine("        where T2 : struct");
-		builder.AppendLine("    {");
-		builder.AppendLine("        if (action is null) throw new System.ArgumentNullException(nameof(action));");
-		builder.AppendLine("        var query = Create(world).All<T1>().All<T2>();");
-		builder.AppendLine("        query.ForEachRW(action);");
+		var sortedOptional = model.Optional.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedOptional.Length; i++)
+			builder.Append("        builder.Optional<").Append(sortedOptional[i]).AppendLine(">();");
+
+		var sortedChanged = model.Changed.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedChanged.Length; i++)
+			builder.Append("        builder.Changed<").Append(sortedChanged[i]).AppendLine(">();");
+
+		var sortedAdded = model.Added.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
+		for (var i = 0; i < sortedAdded.Length; i++)
+			builder.Append("        builder.Added<").Append(sortedAdded[i]).AppendLine(">();");
+
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
-
-		if (model.IsPartial)
-		{
-			builder.AppendLine();
-			builder.Append(model.Accessibility).Append(' ');
-			if (model.IsReadOnly)
-				builder.Append("readonly ");
-
-			builder.Append("partial struct ").Append(model.TypeName).Append(" : global::Bezoro.ECS.Abstractions.IQuery")
-				   .AppendLine();
-
-			builder.AppendLine("{");
-			builder.AppendLine(
-				"    public static global::Bezoro.ECS.Types.Query Create(global::Bezoro.ECS.Abstractions.IWorld world) =>"
-			);
-
-			builder.Append("        ").Append(model.GeneratedTypeName).AppendLine(".Create(world);");
-			builder.AppendLine();
-			builder.AppendLine(
-				"    global::Bezoro.ECS.Types.Query global::Bezoro.ECS.Abstractions.IQuery.Create(global::Bezoro.ECS.Abstractions.IWorld world) =>"
-			);
-
-			builder.AppendLine("        Create(world);");
-			builder.AppendLine("}");
-		}
-
 		return builder.ToString();
 	}
-
-	private static string ToAccessibilityKeyword(Accessibility accessibility) =>
-		accessibility switch
-		{
-			Accessibility.Public               => "public",
-			Accessibility.Internal             => "internal",
-			Accessibility.Private              => "private",
-			Accessibility.Protected            => "protected",
-			Accessibility.ProtectedAndInternal => "private protected",
-			Accessibility.ProtectedOrInternal  => "protected internal",
-			_                                  => "internal"
-		};
 
 	private static string ToFullyQualified(ITypeSymbol symbol) =>
 		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-	private sealed class FilterModel(
-		List<string>                        all,
-		List<string>                        none,
-		List<(string First, string Second)> anyPairs,
-		List<string>                        optional,
-		List<string>                        changed
-	)
-	{
-		public List<(string First, string Second)> AnyPairs { get; } = anyPairs;
-
-		public List<string> All      { get; } = all;
-		public List<string> Changed  { get; } = changed;
-		public List<string> None     { get; } = none;
-		public List<string> Optional { get; } = optional;
-	}
-
 	private sealed class QueryModel(
 		string      typeNamespace,
 		string      typeName,
-		string      generatedTypeName,
 		string      hintName,
-		FilterModel filters,
+		string[]    all,
+		string[]    none,
+		string[]    any,
+		string[]    optional,
+		string[]    added,
+		string[]    changed,
+		string[]    unsupportedAttributeNames,
+		Location    declarationLocation,
 		bool        isPartial,
 		bool        isReadOnly,
-		string      accessibility
+		bool        isNested
 	)
 	{
-		public bool        IsPartial         { get; } = isPartial;
-		public bool        IsReadOnly        { get; } = isReadOnly;
-		public FilterModel Filters           { get; } = filters;
-		public string      Accessibility     { get; } = accessibility;
-		public string      GeneratedTypeName { get; } = generatedTypeName;
-		public string      HintName          { get; } = hintName;
+		public bool IsNested   { get; } = isNested;
+		public bool IsPartial  { get; } = isPartial;
+		public bool IsReadOnly { get; } = isReadOnly;
 
-		public string Namespace { get; } = typeNamespace;
-		public string TypeName  { get; } = typeName;
+		public string[] All                { get; } = all;
+		public string[] Added              { get; } = added;
+		public string[] Any                { get; } = any;
+		public string[] Changed            { get; } = changed;
+		public string[] UnsupportedAttributeNames { get; } = unsupportedAttributeNames;
+		public Location DeclarationLocation { get; } = declarationLocation;
+		public string   HintName           { get; } = hintName;
+		public string[] None               { get; } = none;
+		public string[] Optional           { get; } = optional;
+		public string   TypeName           { get; } = typeName;
+		public string   Namespace          { get; } = typeNamespace;
 	}
 }

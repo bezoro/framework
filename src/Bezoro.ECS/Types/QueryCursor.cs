@@ -155,6 +155,7 @@ public struct QueryCursor : IDisposable
 
 		var cachedArchetype = _cachedGetArchetype!;
 		var chunk           = cachedArchetype.GetChunkUnchecked(match.ChunkIndex);
+		_world.TrackPotentialCursorRefWrite(chunk, _cachedGetColumnIndex, typeId, match.RowStart + matchOffset);
 		return ref cachedArchetype.GetRefByIndex<T>(
 				   chunk,
 				   _cachedGetColumnIndex,
@@ -184,6 +185,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
 		int               cachedColumnIndex1 = -1;
@@ -227,6 +229,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
@@ -285,6 +288,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
 		int               cachedArchetypeId  = int.MinValue;
@@ -355,6 +359,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
 		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
@@ -430,6 +435,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
 		int               cachedColumnIndex1 = -1;
@@ -474,6 +480,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
@@ -533,6 +540,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
 		int               cachedArchetypeId  = int.MinValue;
@@ -604,6 +612,7 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
+		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
 		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
 		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();

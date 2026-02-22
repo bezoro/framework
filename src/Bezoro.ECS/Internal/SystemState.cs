@@ -3,8 +3,21 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal sealed class SystemState(ISystem system, Stage stage, int[] readIds, int[] writeIds, bool isExclusive)
+internal sealed class SystemState(
+	ISystem system,
+	Stage   stage,
+	int[]   readIds,
+	int[]   writeIds,
+	bool    isExclusive,
+	Type[]  beforeSystemTypes,
+	Type[]  afterSystemTypes,
+	Type[]  systemSetTypes,
+	ISystemRunCondition[] runConditions)
 {
+	public Type[] AfterSystemTypes { get; } = afterSystemTypes;
+
+	public Type[] BeforeSystemTypes { get; } = beforeSystemTypes;
+
 	public bool IsExclusive { get; } = isExclusive;
 
 	public int[] ReadIds { get; } = readIds;
@@ -18,4 +31,8 @@ internal sealed class SystemState(ISystem system, Stage stage, int[] readIds, in
 	public SystemLoopPhase LoopPhase { get; } = system.LoopPhase;
 
 	public float Accumulator { get; set; }
+
+	public ISystemRunCondition[] RunConditions { get; } = runConditions;
+
+	public Type[] SystemSetTypes { get; } = systemSetTypes;
 }

@@ -75,6 +75,7 @@ public struct ComponentAccessor<T>
 		);
 
 		var chunk = archetype.GetChunkUnchecked(chunkIndex);
+		_world.TrackPotentialAccessorRefWrite(chunk, _cachedColumnIndex, _typeId, rowIndex);
 		return ref archetype.GetRefByIndex<T>(chunk, _cachedColumnIndex, rowIndex);
 	}
 }

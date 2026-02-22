@@ -4,6 +4,8 @@ using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
+using RelationMarker = Bezoro.ECS.Internal.RelationMarker;
+using RelationshipInfo = Bezoro.ECS.Internal.RelationshipInfo;
 
 namespace Bezoro.ECS.Services;
 
@@ -23,7 +25,13 @@ public class World : IWorld, IDisposable
 	private readonly        bool[] _typeIsManagedLane;
 	private readonly Dictionary<ArchetypeTypeSetKey, int> _archetypeByTypeSet =
 		new(ArchetypeTypeSetKeyComparer.Instance);
+	private readonly Dictionary<long, uint>              _addedVersionByEntityType = [];
+	private readonly Dictionary<(Type relationType, int targetId, int targetVersion), int> _relationTypeIdByKey = [];
+	private readonly Dictionary<(int targetId, int targetVersion), int[]> _relationTypeIdsByTarget = [];
+	private readonly Dictionary<Type, int[]>           _relationTypeIdsByRelationType = [];
+	private readonly Dictionary<int, RelationshipInfo> _relationInfoByTypeId = [];
 	private readonly Dictionary<long, int[]>             _transitionCopyMapByPair = [];
+	private readonly Dictionary<long, uint>              _changeVersionByEntityType = [];
 	private readonly Dictionary<Type, CompiledQueryPlan> _compiledPlansBySpecType = [];
 	private readonly Dictionary<Type, int>               _typeToId                = [];
 	private readonly Dictionary<Type, object>            _resources               = [];
@@ -55,6 +63,8 @@ public class World : IWorld, IDisposable
 	private int  _registeredTypeHighWatermark;
 	private int  _typeCount;
 	private int  _updateDepth;
+	private uint _componentChangeVersion;
+	private bool _trackRefWriteChanges;
 
 	public World() : this(new WorldConfig()) { }
 
@@ -243,6 +253,9 @@ public class World : IWorld, IDisposable
 		var spec    = default(TSpec);
 		spec.Build(ref builder);
 		var plan = builder.Build();
+		if (plan.ChangedTypeIds.Length > 0 || plan.AddedTypeIds.Length > 0)
+			_trackRefWriteChanges = true;
+
 		_compiledPlansBySpecType[specType] = plan;
 		return new(plan);
 	}
@@ -252,7 +265,9 @@ public class World : IWorld, IDisposable
 		ThrowIfDisposed();
 		EnsureAlive(entity);
 		int typeId = GetOrCreateComponentTypeId<T>();
-		return ref GetComponentRefUnchecked<T>(entity.Id, typeId);
+		ref var component = ref GetComponentRefUnchecked<T>(entity.Id, typeId);
+		TrackPotentialSingleRefWrite(entity.Id, typeId);
+		return ref component;
 	}
 
 	public ref T GetResource<T>() where T : notnull
@@ -277,6 +292,20 @@ public class World : IWorld, IDisposable
 		ApplySetFromCommand(entity, in component);
 	}
 
+	public void AddRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct
+	{
+		ThrowIfDisposed();
+		EnsureAlive(source);
+		if (target == Entity.Wildcard)
+			throw new ArgumentException("Cannot add a relation with Entity.Wildcard as the target.", nameof(target));
+
+		EnsureAlive(target);
+		int relationTypeId = GetOrCreateRelationTypeId(typeof(TRelation), target);
+		var marker = default(RelationMarker);
+		SetComponentInternal(source.Id, relationTypeId, in marker);
+	}
+
 	public void AddSystem(ISystem system, Stage stage = Stage.Tick)
 	{
 		ThrowIfDisposed();
@@ -286,6 +315,67 @@ public class World : IWorld, IDisposable
 	public void AddSystem<TSystem>(Stage stage = Stage.Tick)
 		where TSystem : ISystem, new() =>
 		AddSystem(new TSystem(), stage);
+
+	public bool HasRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct
+	{
+		ThrowIfDisposed();
+		if (!IsAliveUnchecked(source))
+			return false;
+
+		if (target == Entity.None)
+			return false;
+
+		var sourceLocation = _locationByEntityId[source.Id];
+		if (!sourceLocation.IsValid)
+			return false;
+
+		var sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+		if (target == Entity.Wildcard)
+		{
+			int[] relationTypeIds = GetRelationTypeIds(typeof(TRelation));
+			for (var i = 0; i < relationTypeIds.Length; i++)
+			{
+				if (sourceArchetype.HasType(relationTypeIds[i]))
+					return true;
+			}
+
+			return false;
+		}
+
+		if (!IsAliveUnchecked(target))
+			return false;
+
+		return TryGetRelationTypeId(typeof(TRelation), target, out int relationTypeId) &&
+			   sourceArchetype.HasType(relationTypeId);
+	}
+
+	public bool IsSystemSetEnabled<TSet>()
+	{
+		ThrowIfDisposed();
+		return _systemManager.IsSystemSetEnabled(typeof(TSet));
+	}
+
+	public void SetSystemSetEnabled<TSet>(bool enabled)
+	{
+		ThrowIfDisposed();
+		_systemManager.SetSystemSetEnabled(typeof(TSet), enabled);
+	}
+
+	public void SetSystemSetRunCondition<TSet>(ISystemRunCondition runCondition)
+	{
+		ThrowIfDisposed();
+		if (runCondition is null)
+			throw new ArgumentNullException(nameof(runCondition));
+
+		_systemManager.SetSystemSetRunCondition(typeof(TSet), runCondition);
+	}
+
+	public void ClearSystemSetRunCondition<TSet>()
+	{
+		ThrowIfDisposed();
+		_systemManager.ClearSystemSetRunCondition(typeof(TSet));
+	}
 
 	public void Clear()
 	{
@@ -300,6 +390,53 @@ public class World : IWorld, IDisposable
 		DestroyEntityInternal(entity);
 	}
 
+	public bool RemoveRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct
+	{
+		ThrowIfDisposed();
+		if (!IsAliveUnchecked(source))
+			return false;
+
+		var sourceLocation = _locationByEntityId[source.Id];
+		if (!sourceLocation.IsValid)
+			return false;
+
+		var sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+		if (target == Entity.Wildcard)
+		{
+			var removedAny        = false;
+			int[] relationTypeIds = GetRelationTypeIds(typeof(TRelation));
+			for (var i = 0; i < relationTypeIds.Length; i++)
+			{
+				int relationTypeId = relationTypeIds[i];
+				sourceLocation = _locationByEntityId[source.Id];
+				if (!sourceLocation.IsValid)
+					return removedAny;
+
+				sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+				if (!sourceArchetype.HasType(relationTypeId))
+					continue;
+
+				RemoveComponentFromCommand(source, relationTypeId);
+				removedAny = true;
+			}
+
+			return removedAny;
+		}
+
+		if (target == Entity.None)
+			return false;
+
+		if (!TryGetRelationTypeId(typeof(TRelation), target, out int relationId))
+			return false;
+
+		if (!sourceArchetype.HasType(relationId))
+			return false;
+
+		RemoveComponentFromCommand(source, relationId);
+		return true;
+	}
+
 	public void Dispose()
 	{
 		if (_disposed)
@@ -312,6 +449,10 @@ public class World : IWorld, IDisposable
 
 		_typeToId.Clear();
 		_compiledPlansBySpecType.Clear();
+		_relationTypeIdByKey.Clear();
+		_relationTypeIdsByTarget.Clear();
+		_relationTypeIdsByRelationType.Clear();
+		_relationInfoByTypeId.Clear();
 		_archetypeByTypeSet.Clear();
 		_archetypes.Clear();
 		DisposeResources();
@@ -333,6 +474,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
 		int               cachedColumnIndex1 = -1;
@@ -374,6 +516,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
@@ -429,6 +572,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = GetOrCreateComponentTypeId<T3>();
 		int               cachedArchetypeId  = int.MinValue;
@@ -507,6 +651,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = GetOrCreateComponentTypeId<T3>();
 		int               typeId4            = GetOrCreateComponentTypeId<T4>();
@@ -606,6 +751,12 @@ public class World : IWorld, IDisposable
 		_freeCount          = 0;
 		_nextEntityId       = 0;
 		_activeQueryCursors = 0;
+		_addedVersionByEntityType.Clear();
+		_changeVersionByEntityType.Clear();
+		_relationTypeIdByKey.Clear();
+		_relationTypeIdsByTarget.Clear();
+		_relationTypeIdsByRelationType.Clear();
+		_relationInfoByTypeId.Clear();
 	}
 
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
@@ -620,6 +771,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
 		int               cachedColumnIndex1 = -1;
@@ -660,6 +812,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               cachedArchetypeId  = int.MinValue;
 		ArchetypeStorage? cachedArchetype    = null;
@@ -714,6 +867,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = GetOrCreateComponentTypeId<T3>();
 		int               cachedArchetypeId  = int.MinValue;
@@ -790,6 +944,7 @@ public class World : IWorld, IDisposable
 			return;
 
 		int               typeId1            = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
 		int               typeId2            = GetOrCreateComponentTypeId<T2>();
 		int               typeId3            = GetOrCreateComponentTypeId<T3>();
 		int               typeId4            = GetOrCreateComponentTypeId<T4>();
@@ -900,6 +1055,12 @@ public class World : IWorld, IDisposable
 			),
 			new("QueryResults", _config.QueryResultCapacity, 0, _queryHighWatermark, _queryOverflowCount)
 		);
+	}
+
+	public ScheduleDiagnostics GetScheduleDiagnostics()
+	{
+		ThrowIfDisposed();
+		return _systemManager.GetDiagnostics();
 	}
 
 	internal ArchetypeStorage GetArchetypeForCursor(int archetypeId)
@@ -1227,6 +1388,19 @@ public class World : IWorld, IDisposable
 			throw new ArgumentOutOfRangeException(nameof(payloadOffset));
 
 		var sourceArchetype = _archetypes[sourceArchetypeId];
+		int sourceColumnIndex = -1;
+		uint changeVersion = 0;
+		if (targetArchetypeId == sourceArchetypeId)
+		{
+			sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
+				);
+
+			changeVersion = AdvanceComponentChangeVersion();
+		}
+
 		for (var i = 0; i < count; i++)
 		{
 			int payloadIndex = payloadIndices[payloadOffset + i];
@@ -1248,6 +1422,9 @@ public class World : IWorld, IDisposable
 			{
 				ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
 				existing = component;
+				var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+				sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+				MarkComponentChanged(entityId, typeId, changeVersion);
 				continue;
 			}
 
@@ -1280,6 +1457,7 @@ public class World : IWorld, IDisposable
 		var sourceArchetype = _archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 		{
+			uint changeVersion = AdvanceComponentChangeVersion();
 			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
 			if (sourceColumnIndex < 0)
 				throw new InvalidOperationException(
@@ -1298,9 +1476,11 @@ public class World : IWorld, IDisposable
 					cachedChunkIndex = location.ChunkIndex;
 					var sourceChunk = sourceArchetype.GetChunkUnchecked(cachedChunkIndex);
 					cachedColumn = sourceArchetype.GetSpanByIndex<T>(sourceChunk, sourceColumnIndex);
+					sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
 				}
 
 				cachedColumn[location.RowIndex] = payloads[payloadIndex];
+				MarkComponentChanged(entityId, typeId, changeVersion);
 			}
 
 			return;
@@ -1353,6 +1533,16 @@ public class World : IWorld, IDisposable
 		{
 			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
 			existing = component;
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
+				);
+
+			var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entity.Id, typeId, changeVersion);
 			return;
 		}
 
@@ -1401,6 +1591,7 @@ public class World : IWorld, IDisposable
 	internal void DestroyEntityInternal(Entity entity)
 	{
 		EnsureAlive(entity);
+		ReleaseRelationsForTarget(entity);
 		int entityId  = entity.Id;
 		var location  = _locationByEntityId[entityId];
 		var archetype = _archetypes[location.ArchetypeId];
@@ -1412,6 +1603,11 @@ public class World : IWorld, IDisposable
 		_versionByEntityId[entityId]++;
 		_freeEntityIds[_freeCount++] = entityId;
 		_aliveCount--;
+		for (var typeId = 0; typeId < _typeCount; typeId++)
+		{
+			_addedVersionByEntityType.Remove(ComposeEntityTypeKey(entityId, typeId));
+			_changeVersionByEntityType.Remove(ComposeEntityTypeKey(entityId, typeId));
+		}
 	}
 
 	internal void ExitQueryCursor()
@@ -1697,6 +1893,58 @@ public class World : IWorld, IDisposable
 		rowIndex   = location.RowIndex;
 	}
 
+	internal void TrackPotentialAccessorRefWrite(
+		ArchetypeStorage.Chunk chunk,
+		int                    columnIndex,
+		int                    typeId,
+		int                    rowIndex)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		if ((uint)rowIndex >= (uint)chunk.Count)
+			return;
+
+		uint changeVersion = AdvanceComponentChangeVersion();
+		chunk.ComponentChangeVersions[columnIndex] = changeVersion;
+		MarkComponentChanged(chunk.EntityIds[rowIndex], typeId, changeVersion);
+	}
+
+	internal void TrackPotentialChunkMatchRefWrites(
+		QueryChunkMatch[] chunkMatches,
+		int               chunkMatchCount,
+		int               typeId)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		for (var i = 0; i < chunkMatchCount; i++)
+		{
+			var match = chunkMatches[i];
+			if (match.Count == 0)
+				continue;
+
+			var archetype = _archetypes[match.ArchetypeId];
+			int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+			if (columnIndex < 0)
+				continue;
+
+			var  chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			chunk.ComponentChangeVersions[columnIndex] = changeVersion;
+			int rowEnd = match.RowStart + match.Count;
+			for (var row = match.RowStart; row < rowEnd; row++)
+				MarkComponentChanged(chunk.EntityIds[row], typeId, changeVersion);
+		}
+	}
+
+	internal void TrackPotentialCursorRefWrite(
+		ArchetypeStorage.Chunk chunk,
+		int                    columnIndex,
+		int                    typeId,
+		int                    rowIndex) =>
+		TrackPotentialAccessorRefWrite(chunk, columnIndex, typeId, rowIndex);
+
 	internal void RunDirectFast<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
@@ -1710,6 +1958,7 @@ public class World : IWorld, IDisposable
 
 		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
 		int   typeId1              = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialDirectFastRefWrites(matchingArchetypeIds, matchCount, typeId1);
 		var   processedEntityCount = 0;
 		// TODO: Cache per-plan column indices per archetype for typed run signatures to remove these lookups.
 		for (var i = 0; i < matchCount; i++)
@@ -1779,6 +2028,7 @@ public class World : IWorld, IDisposable
 
 		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
 		int   typeId1              = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialDirectFastRefWrites(matchingArchetypeIds, matchCount, typeId1);
 		int   typeId2              = GetOrCreateComponentTypeId<T2>();
 		var   processedEntityCount = 0;
 		for (var i = 0; i < matchCount; i++)
@@ -1860,6 +2110,7 @@ public class World : IWorld, IDisposable
 
 		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
 		int   typeId1              = GetOrCreateComponentTypeId<T1>();
+		TrackPotentialDirectFastRefWrites(matchingArchetypeIds, matchCount, typeId1);
 		int   typeId2              = GetOrCreateComponentTypeId<T2>();
 		int   typeId3              = GetOrCreateComponentTypeId<T3>();
 		var   processedEntityCount = 0;
@@ -2030,6 +2281,143 @@ public class World : IWorld, IDisposable
 		return result;
 	}
 
+	private int GetOrCreateRelationTypeId(Type relationType, Entity target)
+	{
+		if (relationType is null)
+			throw new ArgumentNullException(nameof(relationType));
+
+		var key = (relationType, target.Id, target.Version);
+		if (_relationTypeIdByKey.TryGetValue(key, out int existing))
+			return existing;
+
+		if (_typeCount >= _typeById.Length)
+		{
+			_componentTypeOverflowCount++;
+			throw new InvalidOperationException(
+				$"Component type capacity '{_config.ComponentTypeCapacity}' was exceeded."
+			);
+		}
+
+		int typeId = _typeCount++;
+		_typeById[typeId]          = typeof(RelationMarker);
+		_typeIsManagedLane[typeId] = false;
+		if (_typeCount > _registeredTypeHighWatermark)
+			_registeredTypeHighWatermark = _typeCount;
+
+		_relationTypeIdByKey[key]     = typeId;
+		_relationInfoByTypeId[typeId] = new(relationType, target);
+		AppendRelationTypeId(_relationTypeIdsByRelationType, relationType,               typeId);
+		AppendRelationTypeId(_relationTypeIdsByTarget,      (target.Id, target.Version), typeId);
+		return typeId;
+	}
+
+	private int[] GetRelationTypeIds(Type relationType)
+	{
+		if (relationType is null)
+			throw new ArgumentNullException(nameof(relationType));
+
+		return _relationTypeIdsByRelationType.TryGetValue(relationType, out int[]? ids) ? ids : [];
+	}
+
+	private bool TryGetRelationTypeId(Type relationType, Entity target, out int relationTypeId)
+	{
+		if (relationType is null)
+			throw new ArgumentNullException(nameof(relationType));
+
+		return _relationTypeIdByKey.TryGetValue((relationType, target.Id, target.Version), out relationTypeId);
+	}
+
+	private void ReleaseRelationsForTarget(Entity target)
+	{
+		if (!_relationTypeIdsByTarget.TryGetValue((target.Id, target.Version), out int[]? relationTypeIds) ||
+			relationTypeIds.Length == 0)
+			return;
+
+		_relationTypeIdsByTarget.Remove((target.Id, target.Version));
+		for (var i = 0; i < relationTypeIds.Length; i++)
+		{
+			int relationTypeId = relationTypeIds[i];
+			RemoveRelationTypeFromAllSources(relationTypeId);
+			if (!_relationInfoByTypeId.TryGetValue(relationTypeId, out var info))
+				continue;
+
+			_relationInfoByTypeId.Remove(relationTypeId);
+			_relationTypeIdByKey.Remove((info.RelationType, info.Target.Id, info.Target.Version));
+			RemoveRelationTypeId(
+				_relationTypeIdsByRelationType,
+				info.RelationType,
+				relationTypeId
+			);
+		}
+	}
+
+	private void RemoveRelationTypeFromAllSources(int relationTypeId)
+	{
+		if (relationTypeId < 0)
+			return;
+
+		for (var entityId = 0; entityId < _nextEntityId; entityId++)
+		{
+			if (!_aliveByEntityId[entityId])
+				continue;
+
+			var location = _locationByEntityId[entityId];
+			if (!location.IsValid)
+				continue;
+
+			var archetype = _archetypes[location.ArchetypeId];
+			if (!archetype.HasType(relationTypeId))
+				continue;
+
+			RemoveComponentFromCommand(new(entityId, _versionByEntityId[entityId]), relationTypeId);
+		}
+	}
+
+	private static void AppendRelationTypeId<TKey>(Dictionary<TKey, int[]> map, TKey key, int relationTypeId)
+		where TKey : notnull
+	{
+		int[] current = map.TryGetValue(key, out int[]? existing) ? existing : [];
+		var updated = new int[current.Length + 1];
+		Array.Copy(current, updated, current.Length);
+		updated[current.Length] = relationTypeId;
+		map[key]                = updated;
+	}
+
+	private static void RemoveRelationTypeId<TKey>(Dictionary<TKey, int[]> map, TKey key, int relationTypeId)
+		where TKey : notnull
+	{
+		if (!map.TryGetValue(key, out int[]? existing) || existing.Length == 0)
+			return;
+
+		int index = -1;
+		for (var i = 0; i < existing.Length; i++)
+		{
+			if (existing[i] != relationTypeId)
+				continue;
+
+			index = i;
+			break;
+		}
+
+		if (index < 0)
+			return;
+
+		if (existing.Length == 1)
+		{
+			map.Remove(key);
+			return;
+		}
+
+		var updated = new int[existing.Length - 1];
+		if (index > 0)
+			Array.Copy(existing, 0, updated, 0, index);
+
+		if (index < existing.Length - 1)
+			Array.Copy(existing, index + 1, updated, index, existing.Length - index - 1);
+
+		map[key] = updated;
+	}
+
 	private static WorldConfig ToWorldConfig(WorldOptions options)
 	{
 		if (options is null) throw new ArgumentNullException(nameof(options));
@@ -2071,6 +2459,29 @@ public class World : IWorld, IDisposable
 		return false;
 	}
 
+	private bool ArchetypeMatchesRelationFilter(CompiledQueryPlan plan, ArchetypeStorage archetype)
+	{
+		Type? relationType = plan.RelatedRelationType;
+		if (relationType is null)
+			return true;
+
+		Entity target = plan.RelatedTarget;
+		if (target == Entity.Wildcard)
+		{
+			int[] relationTypeIds = GetRelationTypeIds(relationType);
+			for (var i = 0; i < relationTypeIds.Length; i++)
+			{
+				if (archetype.HasType(relationTypeIds[i]))
+					return true;
+			}
+
+			return false;
+		}
+
+		return TryGetRelationTypeId(relationType, target, out int relationTypeId) &&
+			   archetype.HasType(relationTypeId);
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool IsAliveUnchecked(Entity entity) =>
 		entity.Id >= 0 &&
@@ -2105,6 +2516,46 @@ public class World : IWorld, IDisposable
 
 		_queryChunkMatches[chunkMatchCount++] = chunkMatch;
 		return true;
+	}
+
+	private bool TryAppendQueryRange(
+		int refArchetypeId,
+		int chunkIndex,
+		int rowStart,
+		int rowCount,
+		ref int count,
+		ref int chunkMatchCount)
+	{
+		int remaining = _queryEntities.Length - count;
+		if (remaining <= 0)
+		{
+			_queryOverflowCount++;
+			if (_config.OverflowPolicy == WorldOverflowPolicy.FailFast)
+				throw new InvalidOperationException(
+					$"Query result capacity '{_config.QueryResultCapacity}' was exceeded."
+				);
+
+			return false;
+		}
+
+		int rowsToAppend = Math.Min(remaining, rowCount);
+		if (!TryAppendQueryChunk(
+				new(refArchetypeId, chunkIndex, rowStart, rowsToAppend, count),
+				ref chunkMatchCount
+			))
+			return false;
+
+		count += rowsToAppend;
+		if (rowsToAppend >= rowCount)
+			return true;
+
+		_queryOverflowCount++;
+		if (_config.OverflowPolicy == WorldOverflowPolicy.FailFast)
+			throw new InvalidOperationException(
+				$"Query result capacity '{_config.QueryResultCapacity}' was exceeded."
+			);
+
+		return false;
 	}
 
 	private bool TryGetComponentUnchecked<T>(int entityId, int typeId, out T component) where T : struct
@@ -2150,12 +2601,45 @@ public class World : IWorld, IDisposable
 		return true;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static long ComposeEntityTypeKey(int entityId, int typeId) => (long)entityId << 32 | (uint)typeId;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool EntityMatchesChangedFilters(CompiledQueryPlan plan, int entityId)
+	{
+		// TODO: Track ref-based writes from direct/component-access APIs in change metadata without regressing hot loops.
+		uint lastObservedVersion = plan.LastObservedChangeVersion;
+		for (var i = 0; i < plan.AddedTypeIds.Length; i++)
+		{
+			long key = ComposeEntityTypeKey(entityId, plan.AddedTypeIds[i]);
+			if (!_addedVersionByEntityType.TryGetValue(key, out uint addedVersion))
+				return false;
+
+			if (addedVersion <= lastObservedVersion)
+				return false;
+		}
+
+		for (var i = 0; i < plan.ChangedTypeIds.Length; i++)
+		{
+			long key = ComposeEntityTypeKey(entityId, plan.ChangedTypeIds[i]);
+			if (!_changeVersionByEntityType.TryGetValue(key, out uint changeVersion))
+				return false;
+
+			if (changeVersion <= lastObservedVersion)
+				return false;
+		}
+
+		return true;
+	}
+
 	private int FillQueryResults(CompiledQueryPlan plan, out int chunkMatchCount)
 	{
 		var count = 0;
 		chunkMatchCount = 0;
-		int   matchCount = GetOrRefreshMatchingArchetypes(plan);
-		int[] matches    = plan.MatchingArchetypeIds;
+		uint  queryVersion = _componentChangeVersion;
+		int   matchCount   = GetOrRefreshMatchingArchetypes(plan);
+		int[] matches      = plan.MatchingArchetypeIds;
+		bool requiresChangedFilter = plan.ChangedTypeIds.Length > 0 || plan.AddedTypeIds.Length > 0;
 		for (var i = 0; i < matchCount; i++)
 		{
 			var archetype = _archetypes[matches[i]];
@@ -2165,40 +2649,50 @@ public class World : IWorld, IDisposable
 				if (chunk.Count == 0)
 					continue;
 
-				int remaining = _queryEntities.Length - count;
-				if (remaining <= 0)
+				if (!requiresChangedFilter)
 				{
-					_queryOverflowCount++;
-					if (_config.OverflowPolicy == WorldOverflowPolicy.FailFast)
-						throw new InvalidOperationException(
-							$"Query result capacity '{_config.QueryResultCapacity}' was exceeded."
-						);
+					if (!TryAppendQueryRange(
+							matches[i],
+							chunkIndex,
+							0,
+							chunk.Count,
+							ref count,
+							ref chunkMatchCount
+						))
+						goto done;
 
-					goto done;
+					continue;
 				}
 
-				int rowsToAppend = Math.Min(remaining, chunk.Count);
-				if (!TryAppendQueryChunk(
-						new(matches[i], chunkIndex, 0, rowsToAppend, count),
-						ref chunkMatchCount
-					))
-					goto done;
-
-				count += rowsToAppend;
-				if (rowsToAppend < chunk.Count)
+				var row = 0;
+				while (row < chunk.Count)
 				{
-					_queryOverflowCount++;
-					if (_config.OverflowPolicy == WorldOverflowPolicy.FailFast)
-						throw new InvalidOperationException(
-							$"Query result capacity '{_config.QueryResultCapacity}' was exceeded."
-						);
+					while (row < chunk.Count && !EntityMatchesChangedFilters(plan, chunk.EntityIds[row]))
+						row++;
 
-					goto done;
+					if (row >= chunk.Count)
+						break;
+
+					int runStart = row;
+					row++;
+					while (row < chunk.Count && EntityMatchesChangedFilters(plan, chunk.EntityIds[row]))
+						row++;
+
+					if (!TryAppendQueryRange(
+							matches[i],
+							chunkIndex,
+							runStart,
+							row - runStart,
+							ref count,
+							ref chunkMatchCount
+						))
+						goto done;
 				}
 			}
 		}
 
 		done:
+		plan.LastObservedChangeVersion = queryVersion;
 		if (count > _queryHighWatermark)
 			_queryHighWatermark = count;
 
@@ -2222,6 +2716,80 @@ public class World : IWorld, IDisposable
 		_archetypes[target].SetKnownRemoveTransition(typeId, sourceArchetype.Id);
 		return target;
 	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private uint AdvanceComponentChangeVersion()
+	{
+		_componentChangeVersion++;
+		if (_componentChangeVersion == 0)
+			_componentChangeVersion = 1;
+
+		return _componentChangeVersion;
+	}
+
+	private void TrackPotentialDirectFastRefWrites(int[] matchingArchetypeIds, int matchCount, int typeId)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		for (var i = 0; i < matchCount; i++)
+		{
+			var archetype = _archetypes[matchingArchetypeIds[i]];
+			int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+			if (columnIndex < 0)
+				continue;
+
+			for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+			{
+				var chunk = archetype.GetChunkUnchecked(chunkIndex);
+				if (chunk.Count == 0)
+					continue;
+
+				uint changeVersion = AdvanceComponentChangeVersion();
+				chunk.ComponentChangeVersions[columnIndex] = changeVersion;
+				for (var row = 0; row < chunk.Count; row++)
+					MarkComponentChanged(chunk.EntityIds[row], typeId, changeVersion);
+			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void TrackPotentialSingleRefWrite(int entityId, int typeId)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		var location = _locationByEntityId[entityId];
+		if (!location.IsValid)
+			return;
+
+		var archetype = _archetypes[location.ArchetypeId];
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			return;
+
+		var  chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		uint changeVersion = AdvanceComponentChangeVersion();
+		chunk.ComponentChangeVersions[columnIndex] = changeVersion;
+		MarkComponentChanged(entityId, typeId, changeVersion);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void TrackPotentialQueryChunkMatchRefWrites(int chunkMatchCount, int typeId)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		TrackPotentialChunkMatchRefWrites(_queryChunkMatches, chunkMatchCount, typeId);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void MarkComponentChanged(int entityId, int typeId, uint version) =>
+		_changeVersionByEntityType[ComposeEntityTypeKey(entityId, typeId)] = version;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void MarkComponentAdded(int entityId, int typeId, uint version) =>
+		_addedVersionByEntityType[ComposeEntityTypeKey(entityId, typeId)] = version;
 
 	private int GetOrCreateArchetype(int[] sortedTypeIds)
 	{
@@ -2313,7 +2881,11 @@ public class World : IWorld, IDisposable
 		var count = 0;
 		for (var i = 0; i < _archetypes.Count; i++)
 		{
-			if (!ArchetypeMatches(plan, _archetypes[i].MaskWords))
+			var archetype = _archetypes[i];
+			if (!ArchetypeMatches(plan, archetype.MaskWords))
+				continue;
+
+			if (!ArchetypeMatchesRelationFilter(plan, archetype))
 				continue;
 
 			matches[count++] = i;
@@ -2499,6 +3071,16 @@ public class World : IWorld, IDisposable
 							  );
 
 			current = setComponent;
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(setTypeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{setTypeId}' does not exist in archetype '{sourceArchetype.Id}'."
+				);
+
+			var sourceChunk = sourceArchetype.GetChunkUnchecked(sourceLocation.ChunkIndex);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entityId, setTypeId, changeVersion);
 			return;
 		}
 
@@ -2525,6 +3107,7 @@ public class World : IWorld, IDisposable
 		in T             setComponent)
 		where T : struct
 	{
+		bool setWasAdded = sourceArchetype.GetColumnIndexOrNegative(setTypeId) < 0;
 		var sourceChunk = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
 		targetArchetype.AllocateRow(entityId, out int targetChunkIndex, out int targetRowIndex);
 		var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
@@ -2538,6 +3121,18 @@ public class World : IWorld, IDisposable
 
 		ref var setRef = ref targetArchetype.GetRef<T>(targetChunkIndex, targetRowIndex, setTypeId);
 		setRef                        = setComponent;
+		int targetColumnIndex = targetArchetype.GetColumnIndexOrNegative(setTypeId);
+		if (targetColumnIndex < 0)
+			throw new InvalidOperationException(
+				$"Type id '{setTypeId}' does not exist in archetype '{targetArchetype.Id}'."
+			);
+
+		uint changeVersion = AdvanceComponentChangeVersion();
+		targetArchetype.MarkComponentChanged(targetChunk, targetColumnIndex, changeVersion);
+		MarkComponentChanged(entityId, setTypeId, changeVersion);
+		if (setWasAdded)
+			MarkComponentAdded(entityId, setTypeId, changeVersion);
+
 		_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
 
 		if (sourceArchetype.RemoveAt(sourceLocation.ChunkIndex, sourceLocation.RowIndex, out int movedEntityId))
@@ -2576,6 +3171,16 @@ public class World : IWorld, IDisposable
 		{
 			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
 			existing = component;
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{typeId}' does not exist in archetype '{sourceArchetype.Id}'."
+				);
+
+			var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entityId, typeId, changeVersion);
 			return;
 		}
 
@@ -2629,3 +3234,4 @@ public class World : IWorld, IDisposable
 		}
 	}
 }
+

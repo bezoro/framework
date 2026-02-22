@@ -242,6 +242,32 @@ public class SystemManagerTests
 	}
 
 	[Fact]
+	public void UpdateAll_WhenSystemsDeclareResourceReadMetadata_ShouldAllowParallelExecution()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+		world.AddSystem(new ResourceReadProbeSystem(probe));
+		world.AddSystem(new ResourceReadProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.MaxConcurrent.Should().BeGreaterThan(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemWritesResourceAndAnotherReadsResource_ShouldSerializeExecution()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		var probe = new ConcurrencyProbe();
+		world.AddSystem(new ResourceWriteProbeSystem(probe));
+		world.AddSystem(new ResourceReadProbeSystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.MaxConcurrent.Should().Be(1);
+	}
+
+	[Fact]
 	public void UpdateAll_WhenExclusiveSystemIsRegistered_ShouldRunAloneEvenAlongsideUndeclaredSystems()
 	{
 		// [Exclusive] systems must still run alone; fix 2a only affects undeclared systems.
@@ -299,6 +325,134 @@ public class SystemManagerTests
 
 		system.ReentrantException.Should().BeOfType<InvalidOperationException>();
 		system.UpdateCount.Should().Be(2);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemDeclaresAfterDependency_ShouldRunAfterTargetEvenWhenRegisteredFirst()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		var probe = new OrderingProbe();
+		world.AddSystem(new AfterDependencySystem(probe));
+		world.AddSystem(new AnchorDependencySystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.AnchorOrder.Should().Be(1);
+		probe.AfterOrder.Should().Be(2);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemDeclaresBeforeDependency_ShouldRunBeforeTargetEvenWhenRegisteredLast()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		var probe = new OrderingProbe();
+		world.AddSystem(new BeforeTargetSystem(probe));
+		world.AddSystem(new BeforeDependencySystem(probe));
+
+		world.Tick(1f / 60f);
+
+		probe.BeforeOrder.Should().Be(1);
+		probe.TargetOrder.Should().Be(2);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenDependenciesFormCycle_ShouldThrowInvalidOperationException()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		world.AddSystem(new CyclicAfterSystemA());
+		world.AddSystem(new CyclicAfterSystemB());
+
+		var act = () => world.Tick(1f / 60f);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*contains a cycle*");
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemSetIsDisabled_ShouldSkipSystemsInSet()
+	{
+		var world            = new World();
+		var setSystem        = new SetCounterSystem();
+		var alwaysRunSystem  = new NoSetCounterSystem();
+		world.AddSystem(setSystem);
+		world.AddSystem(alwaysRunSystem);
+
+		world.Tick(1f / 60f);
+		world.SetSystemSetEnabled<SimulationSystemSet>(false);
+		world.Tick(1f / 60f);
+		world.SetSystemSetEnabled<SimulationSystemSet>(true);
+		world.Tick(1f / 60f);
+
+		setSystem.UpdateCount.Should().Be(2);
+		alwaysRunSystem.UpdateCount.Should().Be(3);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSystemRunConditionIsFalse_ShouldSkipSystemUntilConditionBecomesTrue()
+	{
+		var world  = new World();
+		world.SetResource(new SchedulerGateResource { Enabled = false });
+		var system = new ConditionallyEnabledCounterSystem();
+		world.AddSystem(system);
+
+		world.Tick(1f / 60f);
+		world.GetResource<SchedulerGateResource>().Enabled = true;
+		world.Tick(1f / 60f);
+
+		system.UpdateCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void UpdateAll_WhenSetRunConditionIsFalse_ShouldSkipAllSystemsInSetUntilConditionBecomesTrue()
+	{
+		var world = new World();
+		world.SetResource(new SchedulerGateResource { Enabled = false });
+		world.SetSystemSetRunCondition<SimulationSystemSet>(new SchedulerGateRunCondition());
+
+		var first  = new SetCounterSystem();
+		var second = new SecondarySetCounterSystem();
+		world.AddSystem(first);
+		world.AddSystem(second);
+
+		world.Tick(1f / 60f);
+		world.GetResource<SchedulerGateResource>().Enabled = true;
+		world.Tick(1f / 60f);
+
+		first.UpdateCount.Should().Be(1);
+		second.UpdateCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void GetScheduleDiagnostics_WhenNoSystemsRegistered_ShouldReturnEmptyPlan()
+	{
+		var world       = new World();
+		var diagnostics = world.GetScheduleDiagnostics();
+
+		diagnostics.RegisteredSystemCount.Should().Be(0);
+		diagnostics.PlanBuildCount.Should().Be(0);
+		diagnostics.Phases.Should().BeEmpty();
+	}
+
+	[Fact]
+	public void GetScheduleDiagnostics_WhenSystemsConflict_ShouldExposeSerializedBatches()
+	{
+		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		world.AddSystem(new ReadCounterSystem());
+		world.AddSystem(new WriteCounterSystem(42));
+
+		var diagnostics = world.GetScheduleDiagnostics();
+
+		diagnostics.RegisteredSystemCount.Should().Be(2);
+		diagnostics.PlanBuildCount.Should().Be(1);
+		var tickPhase = diagnostics.Phases.Should().ContainSingle(phase => phase.LoopPhase == SystemLoopPhase.Tick)
+								   .Subject;
+		var tickStage = tickPhase.Stages.Should().ContainSingle(stage => stage.Stage == Stage.Tick)
+								  .Subject;
+		tickStage.Batches.Should().HaveCount(2);
+		tickStage.Batches[0].SystemTypes.Should().ContainSingle()
+				 .Which.Should().Be(typeof(ReadCounterSystem));
+		tickStage.Batches[1].SystemTypes.Should().ContainSingle()
+				 .Which.Should().Be(typeof(WriteCounterSystem));
 	}
 
 	private sealed class CommandCaptureSystem : ISystem
@@ -406,6 +560,112 @@ public class SystemManagerTests
 		}
 	}
 
+	private sealed class OrderingProbe
+	{
+		private int _step;
+
+		public int AfterOrder  { get; set; }
+		public int AnchorOrder { get; set; }
+		public int BeforeOrder { get; set; }
+		public int TargetOrder { get; set; }
+
+		public int NextOrder() => Interlocked.Increment(ref _step);
+	}
+
+	[After<AnchorDependencySystem>]
+	private sealed class AfterDependencySystem(OrderingProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context)
+		{
+			probe.AfterOrder = probe.NextOrder();
+		}
+	}
+
+	private sealed class AnchorDependencySystem(OrderingProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context)
+		{
+			probe.AnchorOrder = probe.NextOrder();
+		}
+	}
+
+	[Before<BeforeTargetSystem>]
+	private sealed class BeforeDependencySystem(OrderingProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context)
+		{
+			probe.BeforeOrder = probe.NextOrder();
+		}
+	}
+
+	private sealed class BeforeTargetSystem(OrderingProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context)
+		{
+			probe.TargetOrder = probe.NextOrder();
+		}
+	}
+
+	[After<CyclicAfterSystemB>]
+	private sealed class CyclicAfterSystemA : ISystem
+	{
+		public void Update(in SystemContext context) { }
+	}
+
+	[After<CyclicAfterSystemA>]
+	private sealed class CyclicAfterSystemB : ISystem
+	{
+		public void Update(in SystemContext context) { }
+	}
+
+	private sealed class SimulationSystemSet;
+
+	private sealed class SchedulerGateResource
+	{
+		public bool Enabled { get; set; }
+	}
+
+	private sealed class SchedulerGateRunCondition : ISystemRunCondition
+	{
+		public bool ShouldRun(in SystemRunConditionContext context) =>
+			context.World.GetResource<SchedulerGateResource>().Enabled;
+	}
+
+	[SystemSet<SimulationSystemSet>]
+	private sealed class SetCounterSystem : ISystem
+	{
+		public int UpdateCount { get; private set; }
+
+		public void Update(in SystemContext context) =>
+			UpdateCount++;
+	}
+
+	[SystemSet<SimulationSystemSet>]
+	private sealed class SecondarySetCounterSystem : ISystem
+	{
+		public int UpdateCount { get; private set; }
+
+		public void Update(in SystemContext context) =>
+			UpdateCount++;
+	}
+
+	private sealed class NoSetCounterSystem : ISystem
+	{
+		public int UpdateCount { get; private set; }
+
+		public void Update(in SystemContext context) =>
+			UpdateCount++;
+	}
+
+	[RunIf<SchedulerGateRunCondition>]
+	private sealed class ConditionallyEnabledCounterSystem : ISystem
+	{
+		public int UpdateCount { get; private set; }
+
+		public void Update(in SystemContext context) =>
+			UpdateCount++;
+	}
+
 	[Reads<Counter>]
 	private sealed class ReadCounterSystem : ISystem
 	{
@@ -444,6 +704,22 @@ public class SystemManagerTests
 
 	[Reads<Counter>]
 	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context) =>
+			probe.Enter();
+	}
+
+	private sealed class SchedulerResource;
+
+	[ReadsResource<SchedulerResource>]
+	private sealed class ResourceReadProbeSystem(ConcurrencyProbe probe) : ISystem
+	{
+		public void Update(in SystemContext context) =>
+			probe.Enter();
+	}
+
+	[WritesResource<SchedulerResource>]
+	private sealed class ResourceWriteProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context) =>
 			probe.Enter();

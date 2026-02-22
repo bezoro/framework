@@ -56,11 +56,30 @@ public interface IWorld
 	/// <summary>Adds component <typeparamref name="T" /> with the given value to <paramref name="entity" />.</summary>
 	void Add<T>(Entity entity, in T component) where T : struct;
 
+	/// <summary>
+	///     Adds a relation of type <typeparamref name="TRelation" /> from <paramref name="source" /> to <paramref name="target" />.
+	/// </summary>
+	void AddRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct;
+
 	/// <summary>Destroys <paramref name="entity" /> and invalidates its handle.</summary>
 	void Despawn(Entity entity);
 
+	/// <summary>
+	///     Returns <c>true</c> when <paramref name="source" /> has relation <typeparamref name="TRelation" /> to <paramref name="target" />.
+	/// </summary>
+	bool HasRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct;
+
 	/// <summary>Removes component <typeparamref name="T" /> from <paramref name="entity" />.</summary>
 	void Remove<T>(Entity entity) where T : struct;
+
+	/// <summary>
+	///     Removes relation <typeparamref name="TRelation" /> from <paramref name="source" /> to <paramref name="target" />.
+	/// </summary>
+	/// <returns><c>true</c> when a relation existed and was removed; otherwise <c>false</c>.</returns>
+	bool RemoveRelation<TRelation>(Entity source, Entity target)
+		where TRelation : struct;
 
 	/// <summary>Sets component <typeparamref name="T" /> on <paramref name="entity" /> to <paramref name="component" />.</summary>
 	void Set<T>(Entity entity, in T component) where T : struct;

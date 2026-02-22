@@ -110,16 +110,27 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 		builder.Append("internal static class ").Append(model.GeneratedTypeName).AppendLine();
 		builder.AppendLine("{");
-		builder.Append("    public static void ForEach(this global::Bezoro.ECS.Types.Query query, ")
+		builder.Append("    public static void Run(this global::Bezoro.ECS.Types.QueryCursor cursor, ")
 			   .Append(model.JobType).AppendLine(" job)");
-
 		builder.AppendLine("    {");
-		builder.AppendLine("        if (query is null) throw new global::System.ArgumentNullException(nameof(query));");
-		builder.Append("        query.Run<").Append(model.JobType);
+		builder.Append("        cursor.Run<").Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
 
 		builder.AppendLine(">(job);");
+		builder.AppendLine("    }");
+		builder.AppendLine();
+		builder.Append(
+			"    public static void Run<TSpec>(this global::Bezoro.ECS.Services.World world, global::Bezoro.ECS.Types.QueryHandle<TSpec> handle, "
+		).Append(model.JobType).AppendLine(" job)");
+
+		builder.AppendLine("        where TSpec : struct, global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
+		builder.AppendLine("    {");
+		builder.Append("        world.Run<TSpec, ").Append(model.JobType);
+		for (var i = 0; i < model.ComponentTypes.Length; i++)
+			builder.Append(", ").Append(model.ComponentTypes[i]);
+
+		builder.AppendLine(">(handle, job);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
 

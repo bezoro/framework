@@ -1,4 +1,5 @@
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal.Fixed;
 
@@ -7,12 +8,17 @@ internal sealed class CompiledQueryPlan(
 	int[]   allTypeIds,
 	int[]   noneTypeIds,
 	int[]   anyTypeIds,
+	int[]   optionalTypeIds,
+	int[]   addedTypeIds,
+	int[]   changedTypeIds,
 	ulong[] allMaskWords,
 	ulong[] noneMaskWords,
 	ulong[] anyMaskWords,
 	int[]   allMaskWordIndices,
 	int[]   noneMaskWordIndices,
-	int[]   anyMaskWordIndices
+	int[]   anyMaskWordIndices,
+	Type?   relatedRelationType,
+	Entity  relatedTarget
 )
 {
 	private int   _matchingArchetypeCount;
@@ -26,9 +32,15 @@ internal sealed class CompiledQueryPlan(
 
 	public int[] AnyTypeIds { get; } = anyTypeIds;
 
+	public int[] AddedTypeIds { get; } = addedTypeIds;
+
+	public int[] ChangedTypeIds { get; } = changedTypeIds;
+
 	public int[] NoneMaskWordIndices { get; } = noneMaskWordIndices;
 
 	public int[] NoneTypeIds { get; } = noneTypeIds;
+
+	public int[] OptionalTypeIds { get; } = optionalTypeIds;
 
 	public ulong[] AllMaskWords { get; } = allMaskWords;
 
@@ -38,7 +50,13 @@ internal sealed class CompiledQueryPlan(
 
 	public World Owner { get; } = owner;
 
+	public Type? RelatedRelationType { get; } = relatedRelationType;
+
+	public Entity RelatedTarget { get; } = relatedTarget;
+
 	public int ArchetypeCacheVersion { get; set; } = -1;
+
+	public uint LastObservedChangeVersion { get; set; }
 
 	public int MatchingArchetypeCount
 	{

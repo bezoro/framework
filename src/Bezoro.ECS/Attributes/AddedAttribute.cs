@@ -1,0 +1,4 @@
+namespace Bezoro.ECS.Attributes;
+
+[AttributeUsage(AttributeTargets.Struct, AllowMultiple = true)]
+public sealed class AddedAttribute<T> : Attribute where T : struct;

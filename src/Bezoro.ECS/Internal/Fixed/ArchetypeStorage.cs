@@ -202,12 +202,30 @@ internal sealed class ArchetypeStorage : IDisposable
 		return chunk.Columns[columnIndex].GetReadOnlySpan<T>(chunk.Count);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public uint GetComponentChangeVersion(Chunk chunk, int columnIndex)
+	{
+		if ((uint)columnIndex >= (uint)chunk.ComponentChangeVersions.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		return chunk.ComponentChangeVersions[columnIndex];
+	}
+
 	public Span<T> GetSpanByIndex<T>(Chunk chunk, int columnIndex) where T : struct
 	{
 		if ((uint)columnIndex >= (uint)chunk.Columns.Length)
 			throw new ArgumentOutOfRangeException(nameof(columnIndex));
 
 		return chunk.Columns[columnIndex].GetSpan<T>(chunk.Count);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void MarkComponentChanged(Chunk chunk, int columnIndex, uint version)
+	{
+		if ((uint)columnIndex >= (uint)chunk.ComponentChangeVersions.Length)
+			throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+		chunk.ComponentChangeVersions[columnIndex] = version;
 	}
 
 	public ref T GetRef<T>(int chunkIndex, int rowIndex, int typeId) where T : struct
@@ -255,6 +273,7 @@ internal sealed class ArchetypeStorage : IDisposable
 			}
 
 			Array.Clear(chunk.EntityIds, 0, chunk.Count);
+			Array.Clear(chunk.ComponentChangeVersions, 0, chunk.ComponentChangeVersions.Length);
 			chunk.Count = 0;
 		}
 
@@ -276,6 +295,7 @@ internal sealed class ArchetypeStorage : IDisposable
 		}
 
 		Array.Clear(chunk.EntityIds, 0, count);
+		Array.Clear(chunk.ComponentChangeVersions, 0, chunk.ComponentChangeVersions.Length);
 		chunk.Count =  0;
 		EntityCount -= count;
 		if (chunkIndex < _firstAvailableChunkIndex)
@@ -301,6 +321,10 @@ internal sealed class ArchetypeStorage : IDisposable
 				targetChunk.Columns[i],
 				targetRowIndex
 			);
+
+			uint sourceVersion = sourceChunk.ComponentChangeVersions[sourceColumnIndex];
+			if (targetChunk.ComponentChangeVersions[i] < sourceVersion)
+				targetChunk.ComponentChangeVersions[i] = sourceVersion;
 		}
 	}
 
@@ -343,6 +367,10 @@ internal sealed class ArchetypeStorage : IDisposable
 				targetRowIndex,
 				rowCount
 			);
+
+			uint sourceVersion = sourceChunk.ComponentChangeVersions[sourceColumnIndex];
+			if (targetChunk.ComponentChangeVersions[targetColumnIndex] < sourceVersion)
+				targetChunk.ComponentChangeVersions[targetColumnIndex] = sourceVersion;
 		}
 	}
 
@@ -375,6 +403,9 @@ internal sealed class ArchetypeStorage : IDisposable
 		}
 
 		Array.Clear(chunk.EntityIds, newCount, removedCount);
+		if (newCount == 0)
+			Array.Clear(chunk.ComponentChangeVersions, 0, chunk.ComponentChangeVersions.Length);
+
 		chunk.Count =  newCount;
 		EntityCount -= removedCount;
 		if (newCount < _chunkCapacity && chunkIndex < _firstAvailableChunkIndex)
@@ -424,13 +455,16 @@ internal sealed class ArchetypeStorage : IDisposable
 	{
 		public Chunk(int chunkCapacity, Type[] columnTypes)
 		{
-			EntityIds = new int[chunkCapacity];
-			Columns   = new ComponentColumn[columnTypes.Length];
+			EntityIds                = new int[chunkCapacity];
+			Columns                  = new ComponentColumn[columnTypes.Length];
+			ComponentChangeVersions = new uint[columnTypes.Length];
 			for (var i = 0; i < columnTypes.Length; i++)
 				Columns[i] = ComponentColumn.Create(columnTypes[i], chunkCapacity);
 		}
 
 		public ComponentColumn[] Columns { get; }
+
+		public uint[] ComponentChangeVersions { get; }
 
 		public int[] EntityIds { get; }
 
