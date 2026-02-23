@@ -1,4 +1,4 @@
-namespace Bezoro.Events.Tests;
+namespace Bezoro.Events.Tests.Services.Fixtures;
 
 public readonly record struct TestEventA(int Value);
 
