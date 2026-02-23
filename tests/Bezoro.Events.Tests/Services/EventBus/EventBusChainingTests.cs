@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 

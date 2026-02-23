@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 
@@ -16,6 +16,13 @@ public class EventBusFlushQueuedTests
 		bus.Enqueue(new TestEventA(1));
 		bus.FlushQueued();
 		bus.QueuedCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void FlushQueued_WhenEmpty_ShouldReturnZero()
+	{
+		using var bus = new Events.Services.EventBus();
+		bus.FlushQueued().Should().Be(0);
 	}
 
 	[Fact]
@@ -52,12 +59,5 @@ public class EventBusFlushQueuedTests
 		bus.Enqueue(new TestEventA(2));
 		bus.Enqueue(new TestEventB("x"));
 		bus.FlushQueued().Should().Be(3);
-	}
-
-	[Fact]
-	public void FlushQueued_WhenEmpty_ShouldReturnZero()
-	{
-		using var bus = new Events.Services.EventBus();
-		bus.FlushQueued().Should().Be(0);
 	}
 }

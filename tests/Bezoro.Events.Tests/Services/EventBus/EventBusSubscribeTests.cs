@@ -1,26 +1,14 @@
 using System;
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 
 [TestSubject(typeof(Events.Services.EventBus))]
 public class EventBusSubscribeTests
 {
-	[Fact]
-	public void Subscribe_WhenCalledMultipleTimes_ShouldReturnUniqueHandles()
-	{
-		using var bus = new Events.Services.EventBus();
-		var       h1  = bus.Subscribe<TestEventA>(_ => { });
-		var       h2  = bus.Subscribe<TestEventA>(_ => { });
-		var       h3  = bus.Subscribe<TestEventB>(_ => { });
-
-		h1.Should().NotBe(h2);
-		h2.Should().NotBe(h3);
-	}
-
 	[Fact]
 	public void Subscribe_WhenCalled_ShouldIncrementSubscriptionCount()
 	{
@@ -36,6 +24,18 @@ public class EventBusSubscribeTests
 		using var bus    = new Events.Services.EventBus();
 		var       handle = bus.Subscribe<TestEventA>(_ => { });
 		handle.IsValid.Should().BeTrue();
+	}
+
+	[Fact]
+	public void Subscribe_WhenCalledMultipleTimes_ShouldReturnUniqueHandles()
+	{
+		using var bus = new Events.Services.EventBus();
+		var       h1  = bus.Subscribe<TestEventA>(_ => { });
+		var       h2  = bus.Subscribe<TestEventA>(_ => { });
+		var       h3  = bus.Subscribe<TestEventB>(_ => { });
+
+		h1.Should().NotBe(h2);
+		h2.Should().NotBe(h3);
 	}
 
 	[Fact]

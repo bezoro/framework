@@ -1,8 +1,8 @@
+using Bezoro.Events.Tests.Services.Fixtures;
 using Bezoro.Events.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Types;
 

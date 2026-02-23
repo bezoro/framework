@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.UnityEventBuses;
 
@@ -13,7 +13,7 @@ public class UnityEventBusesTests
 	[Fact]
 	public void Dispose_WhenOwningBuses_ShouldDisposeAll()
 	{
-		var buses = new global::Bezoro.Events.Services.UnityEventBuses();
+		var buses = new Events.Services.UnityEventBuses();
 		buses.Dispose();
 
 		var act = () => buses.Update.Enqueue(new TestEventA(1));
@@ -23,7 +23,7 @@ public class UnityEventBusesTests
 	[Fact]
 	public void FlushFixedUpdate_WhenCalled_ShouldNotDispatchOtherQueues()
 	{
-		using var buses          = new global::Bezoro.Events.Services.UnityEventBuses();
+		using var buses          = new Events.Services.UnityEventBuses();
 		var       fixedReceived  = new List<int>();
 		var       updateReceived = new List<int>();
 		buses.FixedUpdate.Subscribe<TestEventA>(ctx => fixedReceived.Add(ctx.Data.Value));
@@ -40,7 +40,7 @@ public class UnityEventBusesTests
 	[Fact]
 	public void FlushUpdate_WhenCalled_ShouldDispatchUpdateQueue()
 	{
-		using var buses    = new global::Bezoro.Events.Services.UnityEventBuses();
+		using var buses    = new Events.Services.UnityEventBuses();
 		var       received = new List<int>();
 		buses.Update.Subscribe<TestEventA>(ctx => received.Add(ctx.Data.Value));
 		buses.Update.Enqueue(new TestEventA(1));

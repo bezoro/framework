@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 
@@ -21,6 +21,18 @@ public class EventBusPriorityTests
 	}
 
 	[Fact]
+	public void Publish_WhenHandlersSharePriority_ShouldRunInSubscriptionOrder()
+	{
+		using var bus   = new Events.Services.EventBus();
+		var       order = new List<string>();
+		bus.Subscribe<TestEventA>(_ => order.Add("first"),  5);
+		bus.Subscribe<TestEventA>(_ => order.Add("second"), 5);
+		bus.Subscribe<TestEventA>(_ => order.Add("third"),  5);
+		bus.Publish(new TestEventA(1));
+		order.Should().ContainInOrder("first", "second", "third");
+	}
+
+	[Fact]
 	public void Publish_WhenHandlersUseMultiplePriorities_ShouldRunInPriorityOrder()
 	{
 		using var bus   = new Events.Services.EventBus();
@@ -31,17 +43,5 @@ public class EventBusPriorityTests
 		bus.Subscribe<TestEventA>(_ => order.Add(-10), -10);
 		bus.Publish(new TestEventA(1));
 		order.Should().ContainInOrder(100, 50, 1, -10);
-	}
-
-	[Fact]
-	public void Publish_WhenHandlersSharePriority_ShouldRunInSubscriptionOrder()
-	{
-		using var bus   = new Events.Services.EventBus();
-		var       order = new List<string>();
-		bus.Subscribe<TestEventA>(_ => order.Add("first"),  5);
-		bus.Subscribe<TestEventA>(_ => order.Add("second"), 5);
-		bus.Subscribe<TestEventA>(_ => order.Add("third"),  5);
-		bus.Publish(new TestEventA(1));
-		order.Should().ContainInOrder("first", "second", "third");
 	}
 }

@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Events.Tests.Services.Fixtures;
 using Bezoro.Events.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 
@@ -37,6 +37,17 @@ public class EventBusConcurrencyTests
 	}
 
 	[Fact]
+	public void Subscribe_WhenCalledConcurrently_ShouldNotLoseSubscriptions()
+	{
+		using var bus   = new Events.Services.EventBus();
+		const int COUNT = 100;
+
+		Parallel.For(0, COUNT, _ => bus.Subscribe<TestEventA>(_ => { }));
+
+		bus.SubscriptionCount.Should().Be(COUNT);
+	}
+
+	[Fact]
 	public void SubscribeAndPublish_WhenCalledConcurrently_ShouldNotThrow()
 	{
 		using var bus     = new Events.Services.EventBus();
@@ -61,16 +72,5 @@ public class EventBusConcurrencyTests
 		);
 
 		act.Should().NotThrow();
-	}
-
-	[Fact]
-	public void Subscribe_WhenCalledConcurrently_ShouldNotLoseSubscriptions()
-	{
-		using var bus   = new Events.Services.EventBus();
-		const int COUNT = 100;
-
-		Parallel.For(0, COUNT, _ => bus.Subscribe<TestEventA>(_ => { }));
-
-		bus.SubscriptionCount.Should().Be(COUNT);
 	}
 }

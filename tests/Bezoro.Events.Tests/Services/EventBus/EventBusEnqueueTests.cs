@@ -1,23 +1,13 @@
+using Bezoro.Events.Tests.Services.Fixtures;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
-using Bezoro.Events.Tests.Services.Fixtures;
 
 namespace Bezoro.Events.Tests.Services.EventBus;
 
 [TestSubject(typeof(Events.Services.EventBus))]
 public class EventBusEnqueueTests
 {
-	[Fact]
-	public void Enqueue_WhenCalledMultipleTimes_ShouldTrackCount()
-	{
-		using var bus = new Events.Services.EventBus();
-		bus.Enqueue(new TestEventA(1));
-		bus.Enqueue(new TestEventB("hello"));
-		bus.Enqueue(new TestEventA(2));
-		bus.QueuedCount.Should().Be(3);
-	}
-
 	[Fact]
 	public void Enqueue_WhenCalled_ShouldIncrementQueuedCount()
 	{
@@ -34,5 +24,15 @@ public class EventBusEnqueueTests
 		bus.Subscribe<TestEventA>(_ => called = true);
 		bus.Enqueue(new TestEventA(1));
 		called.Should().BeFalse();
+	}
+
+	[Fact]
+	public void Enqueue_WhenCalledMultipleTimes_ShouldTrackCount()
+	{
+		using var bus = new Events.Services.EventBus();
+		bus.Enqueue(new TestEventA(1));
+		bus.Enqueue(new TestEventB("hello"));
+		bus.Enqueue(new TestEventA(2));
+		bus.QueuedCount.Should().Be(3);
 	}
 }
