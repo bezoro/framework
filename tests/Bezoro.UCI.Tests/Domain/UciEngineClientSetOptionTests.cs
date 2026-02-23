@@ -8,7 +8,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientSetOptionTests
 {
 	[Fact]
-	public async Task WhenNameIsWhitespace_ShouldNotSendCommand()
+	public async Task SetOptionAsync_WhenNameIsWhitespace_ShouldNotSendCommand()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -22,7 +22,7 @@ public class UciEngineClientSetOptionTests
 	}
 
 	[Fact]
-	public async Task WhenNoValue_ShouldSendCorrectUciCommand()
+	public async Task SetOptionAsync_WhenValueIsNull_ShouldSendNameOnlyCommand()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -36,7 +36,7 @@ public class UciEngineClientSetOptionTests
 	}
 
 	[Fact]
-	public async Task WhenValueContainsSpaces_ShouldSendVerbatimValue()
+	public async Task SetOptionAsync_WhenValueContainsSpaces_ShouldSendVerbatimValue()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -51,7 +51,7 @@ public class UciEngineClientSetOptionTests
 	}
 
 	[Fact]
-	public async Task WhenValueProvided_ShouldSendCorrectUciCommand()
+	public async Task SetOptionAsync_WhenValueIsProvided_ShouldSendNameAndValueCommand()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -64,3 +64,4 @@ public class UciEngineClientSetOptionTests
 		await transport.Received(1).WriteLineAsync("setoption name Hash value 256", ct);
 	}
 }
+

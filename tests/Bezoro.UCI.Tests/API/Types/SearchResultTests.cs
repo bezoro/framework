@@ -8,7 +8,7 @@ namespace Bezoro.UCI.Tests.API.Types;
 public class SearchResultTests
 {
 	[Fact]
-	public void ContainsMove_And_GetVariationMethods_Work_ForLowercasedUci()
+	public void ContainsMove_WhenInputIsMixedCase_ShouldFindMoveAndVariations()
 	{
 		var pv1 = new PrincipalVariation(
 			5,
@@ -56,7 +56,7 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void MateScore_PicksShortestMateByAbsoluteValue_AndKeepsSign()
+	public void MateScore_WhenMultipleMateScoresExist_ShouldKeepShortestMateSign()
 	{
 		var pv1 = new PrincipalVariation(
 			10,
@@ -117,7 +117,7 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void TryParse_WhenLineWithScoreMate_ReturnsTrueAndValidObject()
+	public void TryParse_WhenLineWithScoreMate_ShouldReturnTrueAndValidObject()
 	{
 		const string LINE =
 			"info depth 8 seldepth 12 multipv 1 score mate 5 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
@@ -141,7 +141,7 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void TryParse_WhenValidLine_ReturnsTrueAndValidObject()
+	public void TryParse_WhenValidLine_ShouldReturnTrueAndValidObject()
 	{
 		const string LINE =
 			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
@@ -165,7 +165,7 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void TryParse_WithMultiplePvs_AggregatesAndComputesExpectedTotals()
+	public void TryParse_WhenMultiplePvsAreProvided_ShouldAggregateAndComputeExpectedTotals()
 	{
 		string[] lines =
 		[
@@ -188,3 +188,4 @@ public class SearchResultTests
 		result.PonderMove.Should().Be("e7e5");
 	}
 }
+

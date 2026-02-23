@@ -8,7 +8,7 @@ namespace Bezoro.UCI.Tests.API.Types;
 public class PrincipalVariationTests
 {
 	[Fact]
-	public void TryParse_WithCpScore_ParsesFieldsAndMoves()
+	public void TryParse_WhenWithCpScore_ShouldParseFieldsAndMoves()
 	{
 		const string LINE =
 			"info depth 12 seldepth 20 multipv 1 score cp 34 nodes 123456 nps 2500000 tbhits 0 time 123 pv e2e4 e7e5 g1f3";
@@ -30,7 +30,7 @@ public class PrincipalVariationTests
 	}
 
 	[Fact]
-	public void TryParse_WithMateScore_ParsesMateAndNoCp()
+	public void TryParse_WhenWithMateScore_ShouldParseMateAndNoCp()
 	{
 		const string LINE =
 			"info depth 8 seldepth 12 multipv 2 score mate -3 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5";
@@ -44,7 +44,7 @@ public class PrincipalVariationTests
 	}
 
 	[Fact]
-	public void TryParse_WithoutPv_ReturnsFalse()
+	public void TryParse_WhenWithoutPv_ShouldReturnFalse()
 	{
 		const string LINE = "info depth 10 seldepth 10 multipv 1 score cp 10 nodes 1";
 

@@ -1,4 +1,4 @@
-﻿using Bezoro.Core.Extensions;
+using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
@@ -6,13 +6,14 @@ using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Domain;
+namespace Bezoro.UCI.Tests.Domain.Engines;
 
 [TestSubject(typeof(QuickInfoEngine))]
+[Trait("Category", "Integration")]
 public class QuickInfoEngineTests
 {
 	[Fact]
-	public async Task Dispose_WhenCalled_DisposesTheEngine()
+	public async Task Dispose_WhenCalled_ShouldDisposeEngine()
 	{
 		var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -26,7 +27,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenCalled_DisposesTheEngine()
+	public async Task DisposeAsync_WhenCalled_ShouldDisposeEngine()
 	{
 		var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -40,7 +41,7 @@ public class QuickInfoEngineTests
 
 
 	[Fact]
-	public async Task GetCurrentFenAsync_WhenCalled_GetsCurrentFen()
+	public async Task GetCurrentFenAsync_WhenCalled_ShouldGetCurrentFen()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -52,7 +53,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task GetCurrentFenAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task GetCurrentFenAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -76,7 +77,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesAsync_WhenCalled_GetsLegalMoves()
+	public async Task GetLegalMovesAsync_WhenCalled_ShouldGetLegalMoves()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -88,7 +89,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task GetLegalMovesAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -112,7 +113,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task QuickEvalAsync_AfterNewGame_ClearsEvalCache()
+	public async Task QuickEvalAsync_WhenCalledAfterNewGame_ShouldClearEvalCache()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -134,7 +135,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task QuickEvalAsync_AfterSetPosition_ClearsEvalCache()
+	public async Task QuickEvalAsync_WhenCalledAfterSetPosition_ShouldClearEvalCache()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -159,7 +160,7 @@ public class QuickInfoEngineTests
 
 
 	[Fact]
-	public async Task QuickEvalAsync_WhenCalled_ReturnsValidSearchResult()
+	public async Task QuickEvalAsync_WhenCalled_ShouldReturnValidSearchResult()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -174,7 +175,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task QuickEvalAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task QuickEvalAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -200,7 +201,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task SetPositionAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task SetPositionAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -232,7 +233,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenCalled_StartsEngine()
+	public async Task StartAsync_WhenCalled_ShouldStartEngine()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 
@@ -244,7 +245,7 @@ public class QuickInfoEngineTests
 	}
 
 	[Fact]
-	public async Task StopAsync_WhenCalled_StopsEngine()
+	public async Task StopAsync_WhenCalled_ShouldStopEngine()
 	{
 		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -255,3 +256,4 @@ public class QuickInfoEngineTests
 		engine.Status.Should().Be(TransportStatus.Stopped);
 	}
 }
+

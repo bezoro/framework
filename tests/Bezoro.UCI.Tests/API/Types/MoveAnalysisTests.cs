@@ -8,7 +8,7 @@ namespace Bezoro.UCI.Tests.API.Types;
 public class MoveAnalysisTests
 {
 	[Fact]
-	public void Analyze_WhenBlackQueensideCastling_SetsIsCastlingTrue()
+	public void Analyze_WhenBlackQueensideCastling_ShouldSetIsCastlingTrue()
 	{
 		var fen = Fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
 		fen.Should().NotBeNull();
@@ -23,7 +23,7 @@ public class MoveAnalysisTests
 	}
 
 	[Fact]
-	public void Analyze_WhenCapturingPiece_SetsCaptureFlagAndMovingPiece()
+	public void Analyze_WhenCapturingPiece_ShouldSetCaptureFlagAndMovingPiece()
 	{
 		var captureFen = Fen.Parse("rnbqkbnr/pppppppp/3P4/8/8/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1");
 		captureFen.Should().NotBeNull();
@@ -40,7 +40,7 @@ public class MoveAnalysisTests
 	}
 
 	[Fact]
-	public void Analyze_WhenPieceMissingOnFromSquare_Throws()
+	public void Analyze_WhenSourceSquareHasNoPiece_ShouldThrowArgumentException()
 	{
 		var afterE4 = Fen.Parse("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
 		afterE4.Should().NotBeNull();
@@ -55,7 +55,7 @@ public class MoveAnalysisTests
 	}
 
 	[Fact]
-	public void Analyze_WhenWhiteKingsideCastling_SetsIsCastlingTrue()
+	public void Analyze_WhenWhiteKingsideCastling_ShouldSetIsCastlingTrue()
 	{
 		var board = BoardState.FromFen(Fen.Default);
 		board.Should().NotBeNull();
@@ -66,3 +66,4 @@ public class MoveAnalysisTests
 		analysis.IsNormal.Should().BeFalse();
 	}
 }
+

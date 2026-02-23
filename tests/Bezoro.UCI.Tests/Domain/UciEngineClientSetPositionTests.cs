@@ -10,7 +10,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientSetPositionTests
 {
 	[Fact]
-	public async Task WhenInvalidFen_ShouldThrow()
+	public async Task SetPositionAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -24,7 +24,7 @@ public class UciEngineClientSetPositionTests
 	}
 
 	[Fact]
-	public async Task WithValidFenWithMoves_ShouldSendCommandWithMoves()
+	public async Task SetPositionAsync_WhenFenAndMovesAreProvided_ShouldSendPositionCommandWithMoves()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -39,7 +39,7 @@ public class UciEngineClientSetPositionTests
 	}
 
 	[Fact]
-	public async Task WithValidFenWithoutMoves_ShouldSendCommand()
+	public async Task SetPositionAsync_WhenOnlyFenIsProvided_ShouldSendPositionCommandWithoutMoves()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -56,3 +56,4 @@ public class UciEngineClientSetPositionTests
 		);
 	}
 }
+

@@ -10,7 +10,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 {
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldFilterInvalidMoves()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldFilterInvalidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -30,7 +30,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldHandleMixedValidAndInvalidMoves()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldHandleMixedValidAndInvalidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -53,7 +53,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldParseMultipleValidMoves()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParseMultipleValidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -73,7 +73,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldParsePromotionMoves()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParsePromotionMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -93,7 +93,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldParseValidMove()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParseValidMove()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -112,7 +112,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_ShouldSendGoPerftCommand()
+	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldSendGoPerftCommand()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();

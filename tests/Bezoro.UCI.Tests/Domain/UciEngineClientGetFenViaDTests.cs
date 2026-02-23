@@ -10,7 +10,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientGetFenViaDTests
 {
 	[Fact(Timeout = 4000)]
-	public async Task GetFenViaDAsync_ShouldReturnCheckersWhenPresent()
+	public async Task GetFenViaDAsync_WhenCalled_ShouldReturnCheckersWhenPresent()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -35,7 +35,7 @@ public class UciEngineClientGetFenViaDTests
 	}
 
 	[Fact(Timeout = 4000)]
-	public async Task GetFenViaDAsync_ShouldReturnFen()
+	public async Task GetFenViaDAsync_WhenCalled_ShouldReturnFen()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();

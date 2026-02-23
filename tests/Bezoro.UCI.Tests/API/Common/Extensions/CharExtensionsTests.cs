@@ -15,7 +15,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('b', true)]
 	[InlineData('P', false)]
 	[InlineData('p', false)]
-	public void IsBishop_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsBishop_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsBishop with char: {0}", pieceChar);
 		bool result = pieceChar.IsBishop();
@@ -36,7 +36,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('r', true)]
 	[InlineData('q', true)]
 	[InlineData('k', true)]
-	public void IsBlack_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsBlack_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsBlack with char: {0}", pieceChar);
 		bool result = pieceChar.IsBlack();
@@ -49,7 +49,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('k', true)]
 	[InlineData('P', false)]
 	[InlineData('p', false)]
-	public void IsKing_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsKing_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsKing with char: {0}", pieceChar);
 		bool result = pieceChar.IsKing();
@@ -62,7 +62,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('n', true)]
 	[InlineData('P', false)]
 	[InlineData('p', false)]
-	public void IsKnight_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsKnight_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsKnight with char: {0}", pieceChar);
 		bool result = pieceChar.IsKnight();
@@ -75,7 +75,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('p', true)]
 	[InlineData('N', false)]
 	[InlineData('n', false)]
-	public void IsPawn_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsPawn_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsPawn with char: {0}", pieceChar);
 		bool result = pieceChar.IsPawn();
@@ -88,7 +88,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('q', true)]
 	[InlineData('P', false)]
 	[InlineData('p', false)]
-	public void IsQueen_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsQueen_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsQueen with char: {0}", pieceChar);
 		bool result = pieceChar.IsQueen();
@@ -101,7 +101,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('r', true)]
 	[InlineData('P', false)]
 	[InlineData('p', false)]
-	public void IsRook_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsRook_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsRook with char: {0}", pieceChar);
 		bool result = pieceChar.IsRook();
@@ -156,7 +156,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('r', false)]
 	[InlineData('q', false)]
 	[InlineData('k', false)]
-	public void IsWhite_ShouldReturnCorrectResult(char pieceChar, bool expected)
+	public void IsWhite_WhenCalled_ShouldReturnCorrectResult(char pieceChar, bool expected)
 	{
 		Log("Testing IsWhite with char: {0}", pieceChar);
 		bool result = pieceChar.IsWhite();
@@ -190,7 +190,7 @@ public class CharExtensionsTests(ITestOutputHelper output) : UnitTestBase(output
 	[InlineData('r', PieceType.Rook)]
 	[InlineData('q', PieceType.Queen)]
 	[InlineData('k', PieceType.King)]
-	public void ToPieceType_ShouldReturnCorrectPieceType(char pieceChar, PieceType expected)
+	public void ToPieceType_WhenCalled_ShouldReturnCorrectPieceType(char pieceChar, PieceType expected)
 	{
 		Log("Testing ToPieceType with char: {0}", pieceChar);
 		var result = pieceChar.ToPieceType();

@@ -11,6 +11,7 @@ using static Bezoro.UCI.Tests.TestHelpers.TestDataBuilders;
 namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(ProcessUciTransport))]
+[Trait("Category", "Integration")]
 [Collection("Stockfish")]
 public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputHelper output)
 	: IntegrationTestBase(fixture, output)
@@ -77,7 +78,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	}
 
 	[Fact]
-	public async Task ReadLinesAsync_WithSecondConcurrentReader_ShouldThrowInvalidOperationException()
+	public async Task ReadLinesAsync_WithSecondConcurrentReader_WhenCalled_ShouldThrowInvalidOperationException()
 	{
 		Log("Starting test: ReadLinesAsync_WithSecondConcurrentReader_ShouldThrowInvalidOperationException");
 		await using var process = Transport().Build();
@@ -93,7 +94,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	}
 
 	[Fact]
-	public async Task ReadLinesAsync_WithSingleReader_WhenFirstDisposed_ReleasesGateForSecondReader()
+	public async Task ReadLinesAsync_WithSingleReader_WhenFirstDisposed_ShouldReleaseGateForSecondReader()
 	{
 		Log("Starting test: ReadLinesAsync_WithSingleReader_WhenFirstDisposed_ReleasesGateForSecondReader");
 		await using var process = Transport().Build();
@@ -122,7 +123,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	}
 
 	[Fact]
-	public async Task ReadLinesAsync_WithSingleReaderFalse_AllowsConcurrentEnumerators()
+	public async Task ReadLinesAsync_WhenSingleReaderIsDisabled_ShouldAllowConcurrentEnumerators()
 	{
 		Log("Starting test: ReadLinesAsync_WithSingleReaderFalse_AllowsConcurrentEnumerators");
 		await using var process = ProcessUciTransportBuilder.ForMultipleReaders().Build();
@@ -145,7 +146,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	}
 
 	[Fact]
-	public async Task ReadLinesAsync_WithUtf8Encoding_ShouldReadUnicodeCorrectly()
+	public async Task ReadLinesAsync_WithUtf8Encoding_WhenCalled_ShouldReadUnicodeCorrectly()
 	{
 		Log("Starting test: ReadLinesAsync_WithUtf8Encoding_ShouldReadUnicodeCorrectly");
 		await using var transport = Transport()
@@ -231,3 +232,4 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 		received!.Trim().Should().Be("marker");
 	}
 }
+

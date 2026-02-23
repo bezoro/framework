@@ -11,6 +11,7 @@ using static Bezoro.UCI.Tests.TestHelpers.TestDataBuilders;
 namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(ProcessUciTransport))]
+[Trait("Category", "Integration")]
 [Collection("Stockfish")]
 public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutputHelper output)
 	: IntegrationTestBase(fixture, output)
@@ -370,7 +371,7 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task StderrReceived_WithUtf8Encoding_ShouldHandleUnicodeCorrectly()
+	public async Task StderrReceived_WithUtf8Encoding_WhenCalled_ShouldHandleUnicodeCorrectly()
 	{
 		Log("Starting test: StderrReceived_WithUtf8Encoding_ShouldHandleUnicodeCorrectly");
 		string cmdPath = TryResolveCmdPath();

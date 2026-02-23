@@ -10,6 +10,7 @@ using static Bezoro.UCI.Tests.TestHelpers.TestDataBuilders;
 namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(ProcessUciTransport))]
+[Trait("Category", "Integration")]
 [Collection("Stockfish")]
 public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutputHelper output)
 	: IntegrationTestBase(fixture, output)
@@ -218,7 +219,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task TryWriteLineAsync_WithMessageExceedingMaxLength_ShouldThrowArgumentException()
+	public async Task TryWriteLineAsync_WithMessageExceedingMaxLength_WhenCalled_ShouldThrowArgumentException()
 	{
 		Log("Starting test: TryWriteLineAsync_WithMessageExceedingMaxLength_ShouldThrowArgumentException");
 		await using var transport = Transport()
@@ -422,7 +423,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithCarriageReturn_ShouldThrowArgumentException()
+	public async Task WriteLineAsync_WithCarriageReturn_WhenCalled_ShouldThrowArgumentException()
 	{
 		Log("Starting test: WriteLineAsync_WithCarriageReturn_ShouldThrowArgumentException");
 		await using var process = Transport().Build();
@@ -434,7 +435,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithFlushBatchSize_ShouldRespectBatching()
+	public async Task WriteLineAsync_WithFlushBatchSize_WhenCalled_ShouldRespectBatching()
 	{
 		Log("Starting test: WriteLineAsync_WithFlushBatchSize_ShouldRespectBatching");
 		await using var transport = Transport()
@@ -458,7 +459,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithMessageAtMaxLength_ShouldSucceed()
+	public async Task WriteLineAsync_WithMessageAtMaxLength_WhenCalled_ShouldSucceed()
 	{
 		Log("Starting test: WriteLineAsync_WithMessageAtMaxLength_ShouldSucceed");
 		await using var transport = Transport()
@@ -475,7 +476,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithMessageExceedingMaxLength_ShouldThrowArgumentException()
+	public async Task WriteLineAsync_WithMessageExceedingMaxLength_WhenCalled_ShouldThrowArgumentException()
 	{
 		Log("Starting test: WriteLineAsync_WithMessageExceedingMaxLength_ShouldThrowArgumentException");
 		await using var transport = Transport()
@@ -493,7 +494,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithOutgoingSingleWriterFalse_ShouldAllowConcurrentWrites()
+	public async Task WriteLineAsync_WithOutgoingSingleWriterFalse_WhenCalled_ShouldAllowConcurrentWrites()
 	{
 		Log("Starting test: WriteLineAsync_WithOutgoingSingleWriterFalse_ShouldAllowConcurrentWrites");
 		await using var transport = Transport()
@@ -515,7 +516,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithOutgoingSingleWriterTrue_ShouldOptimizeForSingleWriter()
+	public async Task WriteLineAsync_WithOutgoingSingleWriterTrue_WhenCalled_ShouldOptimizeForSingleWriter()
 	{
 		Log("Starting test: WriteLineAsync_WithOutgoingSingleWriterTrue_ShouldOptimizeForSingleWriter");
 		await using var transport = Transport()
@@ -535,7 +536,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithSpecialCharacters_ShouldHandleCorrectly()
+	public async Task WriteLineAsync_WithSpecialCharacters_WhenCalled_ShouldHandleCorrectly()
 	{
 		Log("Starting test: WriteLineAsync_WithSpecialCharacters_ShouldHandleCorrectly");
 		await using var transport = Transport()
@@ -552,7 +553,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithUnicodeCharacters_ShouldHandleCorrectly()
+	public async Task WriteLineAsync_WithUnicodeCharacters_WhenCalled_ShouldHandleCorrectly()
 	{
 		Log("Starting test: WriteLineAsync_WithUnicodeCharacters_ShouldHandleCorrectly");
 		await using var transport = Transport()
@@ -574,7 +575,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	}
 
 	[Fact]
-	public async Task WriteLineAsync_WithUtf8Encoding_ShouldHandleUnicodeCorrectly()
+	public async Task WriteLineAsync_WithUtf8Encoding_WhenCalled_ShouldHandleUnicodeCorrectly()
 	{
 		Log("Starting test: WriteLineAsync_WithUtf8Encoding_ShouldHandleUnicodeCorrectly");
 		await using var transport = Transport()

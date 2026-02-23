@@ -10,6 +10,7 @@ using static Bezoro.UCI.Tests.TestHelpers.TestDataBuilders;
 namespace Bezoro.UCI.Tests.Domain;
 
 [TestSubject(typeof(ProcessUciTransport))]
+[Trait("Category", "Integration")]
 [Collection("Stockfish")]
 public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOutputHelper output)
 	: IntegrationTestBase(fixture, output)
@@ -105,7 +106,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_AfterStop_ShouldNotThrow()
+	public async Task DisposeAsync_AfterStop_WhenCalled_ShouldNotThrow()
 	{
 		Log("Starting test: DisposeAsync_AfterStop_ShouldNotThrow");
 		var process = Transport().Build();
@@ -150,9 +151,9 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenDisposed_IsHealthyShouldReturnFalse()
+	public async Task DisposeAsync_WhenDisposed_ShouldSetIsHealthyToFalse()
 	{
-		Log("Starting test: DisposeAsync_WhenDisposed_IsHealthyShouldReturnFalse");
+		Log("Starting test: DisposeAsync_WhenDisposed_ShouldSetIsHealthyToFalse");
 		var process = Transport().Build();
 		await process.StartAsync();
 
@@ -176,7 +177,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenNormalDisposal_ErrorEventShouldNotBeRaised()
+	public async Task DisposeAsync_WhenNormalDisposal_ShouldNotRaiseErrorEvent()
 	{
 		Log("Starting test: DisposeAsync_WhenNormalDisposal_ErrorEventShouldNotBeRaised");
 		var process = Transport().Build();
@@ -232,7 +233,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhileStarting_ShouldWaitForStartThenDispose()
+	public async Task DisposeAsync_WhileStarting_WhenCalled_ShouldWaitForStartThenDispose()
 	{
 		Log("Starting test: DisposeAsync_WhileStarting_ShouldWaitForStartThenDispose");
 		var process = Transport().Build();
@@ -247,7 +248,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhileStopping_ShouldWaitForStopThenComplete()
+	public async Task DisposeAsync_WhileStopping_WhenCalled_ShouldWaitForStopThenComplete()
 	{
 		Log("Starting test: DisposeAsync_WhileStopping_ShouldWaitForStopThenComplete");
 		var process = Transport().Build();
@@ -262,7 +263,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WithActiveReader_ShouldCompleteReaderGracefully()
+	public async Task DisposeAsync_WithActiveReader_WhenCalled_ShouldCompleteReaderGracefully()
 	{
 		Log("Starting test: DisposeAsync_WithActiveReader_ShouldCompleteReaderGracefully");
 		var process = Transport().Build();
@@ -281,7 +282,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WithActiveWriter_ShouldCloseChannelAndThrowOnWrite()
+	public async Task DisposeAsync_WithActiveWriter_WhenCalled_ShouldCloseChannelAndThrowOnWrite()
 	{
 		Log("Starting test: DisposeAsync_WithActiveWriter_ShouldCloseChannelAndThrowOnWrite");
 		var process = Transport().Build();
@@ -303,7 +304,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WithExitedProcess_ShouldCompleteImmediately()
+	public async Task DisposeAsync_WithExitedProcess_WhenCalled_ShouldCompleteImmediately()
 	{
 		Log("Starting test: DisposeAsync_WithExitedProcess_ShouldCompleteImmediately");
 		string cmdPath = TryResolveCmdPath();
@@ -336,7 +337,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WithShortTeardownTimeout_ShouldCompleteWithinTimeout()
+	public async Task DisposeAsync_WithShortTeardownTimeout_WhenCalled_ShouldCompleteWithinTimeout()
 	{
 		Log("Starting test: DisposeAsync_WithShortTeardownTimeout_ShouldCompleteWithinTimeout");
 		await using var transport = Transport()
@@ -548,7 +549,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task StartAsync_WithInvalidWorkingDirectory_ShouldThrowArgumentException()
+	public async Task StartAsync_WithInvalidWorkingDirectory_WhenCalled_ShouldThrowArgumentException()
 	{
 		Log("Starting test: StartAsync_WithInvalidWorkingDirectory_ShouldThrowArgumentException");
 		string invalidDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -563,7 +564,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task StartAsync_WithMissingPath_ShouldThrowAndCleanup()
+	public async Task StartAsync_WithMissingPath_WhenCalled_ShouldThrowAndCleanup()
 	{
 		Log("Starting test: StartAsync_WithMissingPath_ShouldThrowAndCleanup");
 		string missing = Path.Combine(
@@ -666,3 +667,4 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		transport.Status.Should().Be(TransportStatus.Stopped);
 	}
 }
+

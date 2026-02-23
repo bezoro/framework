@@ -21,7 +21,7 @@ public class PieceTypeExtensionsTests
 	[InlineData(PieceType.Rook,   PieceColor.Black, 'r')]
 	[InlineData(PieceType.Queen,  PieceColor.Black, 'q')]
 	[InlineData(PieceType.King,   PieceColor.Black, 'k')]
-	public void ToChar_ShouldReturnCorrectCharacter_ForValidPieceTypeAndColor(
+	public void ToChar_WhenCalled_ShouldReturnCorrectCharacter_ForValidPieceTypeAndColor(
 		PieceType  type,
 		PieceColor color,
 		char       expected)
@@ -34,7 +34,7 @@ public class PieceTypeExtensionsTests
 	}
 
 	[Fact]
-	public void ToChar_ShouldThrowArgumentOutOfRangeException_ForEmptyPieceType()
+	public void ToChar_WhenCalled_ShouldThrowArgumentOutOfRangeException_ForEmptyPieceType()
 	{
 		// Arrange
 		var type = PieceType.Empty;

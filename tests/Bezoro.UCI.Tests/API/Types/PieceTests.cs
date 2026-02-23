@@ -9,7 +9,7 @@ namespace Bezoro.UCI.Tests.API.Types;
 public class PieceTests
 {
 	[Fact]
-	public void FromChar_WhenValidParameters_ReturnsExpectedPiece()
+	public void FromChar_WhenValidParameters_ShouldReturnExpectedPiece()
 	{
 		// Arrange & Act
 		var blackPawn   = Piece.FromChar('p');

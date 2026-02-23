@@ -9,7 +9,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientGoFireAndForgetTests
 {
 	[Fact]
-	public async Task ShouldWriteCommandAndSetActivityToSearching()
+	public async Task GoFireAndForgetAsync_WhenCalled_ShouldWriteCommandAndSetActivityToSearching()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -23,7 +23,7 @@ public class UciEngineClientGoFireAndForgetTests
 	}
 
 	[Fact]
-	public async Task WithPonder_ShouldSetActivityToPondering()
+	public async Task GoFireAndForgetAsync_WhenPonderIsEnabled_ShouldSetActivityToPondering()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -39,3 +39,4 @@ public class UciEngineClientGoFireAndForgetTests
 		);
 	}
 }
+

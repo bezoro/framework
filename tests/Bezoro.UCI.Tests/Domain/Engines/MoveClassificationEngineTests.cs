@@ -1,16 +1,17 @@
-﻿using Bezoro.UCI.API.Types;
+using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Domain;
+namespace Bezoro.UCI.Tests.Domain.Engines;
 
 [TestSubject(typeof(MoveClassificationEngine))]
+[Trait("Category", "Integration")]
 public class MoveClassificationEngineTests
 {
 	[Fact]
-	public async Task Classify_FullTurn_WhiteThenBlack_WorksForBothSides()
+	public async Task ClassifyMoveAsync_WhenFullTurnIsPlayed_ShouldWorkForBothSides()
 	{
 		var start = Fen.Default;
 
@@ -45,7 +46,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_FromStartPosition_ContainsKnownLegalMoveE2E4()
+	public async Task ClassifyAsync_WhenFromStartPosition_ShouldContainKnownLegalMoveE2E4()
 	{
 		var fen = Fen.Default;
 
@@ -68,7 +69,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_WhenCalled_ReturnsClassifiedMovesStream()
+	public async Task ClassifyAsync_WhenCalled_ShouldReturnClassifiedMovesStream()
 	{
 		var fen = Fen.Default;
 
@@ -92,7 +93,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	public async Task ClassifyAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -103,7 +104,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_WhenMateInOne_MoveIsFlaggedAsMateAndCheck()
+	public async Task ClassifyAsync_WhenMateInOne_ShouldFlagMoveAsMateAndCheck()
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
 		// Move f7g7 is checkmate.
@@ -127,7 +128,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_WhenStalemateInOne_MoveIsFlaggedAsStalemate()
+	public async Task ClassifyAsync_WhenStalemateInOne_ShouldFlagMoveAsStalemate()
 	{
 		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
 		// Move b7b6 stalemates Black.
@@ -151,7 +152,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyAsync_WhileIsCheckmateAsyncRunning_NoInterference()
+	public async Task ClassifyAsync_WhenIsCheckmateAsyncRunsConcurrently_ShouldNotInterfere()
 	{
 		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		fen.Should().NotBeNull();
@@ -192,7 +193,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task ClassifyMoveAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		var fen = Fen.Default;
 
@@ -221,7 +222,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ThrowsArgumentException()
+	public async Task ClassifyMoveAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -230,7 +231,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenIllegalMove_Throws()
+	public async Task ClassifyMoveAsync_WhenIllegalMove_ShouldThrow()
 	{
 		// Starting position: "e2e5" is illegal.
 		var fen = Fen.Default;
@@ -242,7 +243,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenLegalMoveFromStart_ReturnsResult()
+	public async Task ClassifyMoveAsync_WhenLegalMoveFromStart_ShouldReturnResult()
 	{
 		// Starting position: "e2e4" is legal.
 		var fen = Fen.Default;
@@ -260,7 +261,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenMateInOne_MoveIsFlaggedAsMateAndCheck()
+	public async Task ClassifyMoveAsync_WhenMateInOne_ShouldFlagMoveAsMateAndCheck()
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
 		// Move f7g7 is checkmate.
@@ -279,7 +280,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task ClassifyMoveAsync_WhenStalemateInOne_MoveIsFlaggedAsStalemate()
+	public async Task ClassifyMoveAsync_WhenStalemateInOne_ShouldFlagMoveAsStalemate()
 	{
 		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
 		// Move b7b6 stalemates Black.
@@ -297,7 +298,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsCheckmateAsync_AfterConcurrentOperations_PositionRestored()
+	public async Task IsCheckmateAsync_WhenCalledAfterConcurrentOperations_ShouldRestorePosition()
 	{
 		var fen1 = Fen.Default;
 		var fen2 = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -327,7 +328,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsCheckmateAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task IsCheckmateAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		var fen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		fen.Should().NotBeNull();
@@ -355,7 +356,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsCheckmateAsync_WhenMateInOne_ReturnsTrue()
+	public async Task IsCheckmateAsync_WhenMateInOne_ShouldReturnTrue()
 	{
 		// Position: Black king on h8, White queen on f7, White king on h6 (white to move).
 		// Move f7g7 is checkmate.
@@ -370,7 +371,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsCheckmateAsync_WhenNotMate_ReturnsFalse()
+	public async Task IsCheckmateAsync_WhenNotMate_ShouldReturnFalse()
 	{
 		var fen = Fen.Default;
 
@@ -383,7 +384,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsStalemateAsync_WhenCalledConcurrently_ThreadSafe()
+	public async Task IsStalemateAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		var fen = Fen.Parse(TestConstants.STALEMATE_FEN);
 		fen.Should().NotBeNull();
@@ -411,7 +412,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsStalemateAsync_WhenNotStalemate_ReturnsFalse()
+	public async Task IsStalemateAsync_WhenNotStalemate_ShouldReturnFalse()
 	{
 		var fen = Fen.Default;
 
@@ -424,7 +425,7 @@ public class MoveClassificationEngineTests
 	}
 
 	[Fact]
-	public async Task IsStalemateAsync_WhenStalemateInOne_ReturnsTrue()
+	public async Task IsStalemateAsync_WhenStalemateInOne_ShouldReturnTrue()
 	{
 		// Position: Black king on a8, White queen on b7, White king on c7 (white to move).
 		// Move b7b6 stalemates Black.
@@ -438,3 +439,4 @@ public class MoveClassificationEngineTests
 		isStalemate.Should().BeTrue();
 	}
 }
+

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Bezoro.UCI.API;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
@@ -10,11 +10,12 @@ using JetBrains.Annotations;
 namespace Bezoro.UCI.Tests.API;
 
 [TestSubject(typeof(UciCoordinator))]
+[Trait("Category", "Integration")]
 public class UciCoordinatorTests
 {
 	[IntegrationTest]
 	[Trait("Requires", "Stockfish")]
-	public async Task AnalysisStream_WhenStarted_YieldsPvWithScore()
+	public async Task AnalysisStream_WhenStarted_ShouldYieldPvWithScore()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -37,7 +38,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task BestSearch_StartStop_RestartsCleanly()
+	public async Task BestSearch_WhenStartedAndStopped_ShouldRestartCleanly()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -85,7 +86,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task ClearState_WhenCalled_CancelsClassificationTokenSource()
+	public async Task ClearState_WhenCalled_ShouldCancelClassificationTokenSource()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -115,7 +116,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task ClearState_WhenCalledConcurrently_IsThreadSafe()
+	public async Task ClearState_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -165,7 +166,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task CurrentLegalMoves_WhenAccessedConcurrently_IsThreadSafe()
+	public async Task CurrentLegalMoves_WhenAccessedConcurrently_ShouldBeThreadSafe()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -225,7 +226,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_DisposesAllCancellationTokenSources()
+	public async Task DisposeAsync_WhenCalledAfterSearchAndClassification_ShouldNotThrow()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -246,7 +247,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenCalled_UnsubscribesFromEngineEvents()
+	public async Task DisposeAsync_WhenCalled_ShouldUnsubscribeFromEngineEvents()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -276,7 +277,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenCalledWithActiveSearches_DisposesAllTokenSourcesSafely()
+	public async Task DisposeAsync_WhenCalledWithActiveSearches_ShouldDisposeAllTokenSourcesSafely()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -339,7 +340,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task FullGame_ScholarMate_ValidatesFlow()
+	public async Task FullGame_WhenScholarMate_ShouldValidateFlow()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -412,7 +413,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task FullTurn_WhiteE2E4_ThenBlackResponse_ValidatesApi()
+	public async Task UpdatePositionAsync_WhenApplyingWhiteE2E4_ShouldProvideBlackResponsesAndClassifiedMove()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -488,7 +489,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesAsync_ReturnsParsedMoves()
+	public async Task UpdatePositionAsync_WhenCalledWithDefaultFen_ShouldPopulateLegalMoves()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -505,7 +506,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task NewGameAsync_ResetsState_And_AllowsRestart()
+	public async Task NewGameAsync_WhenCalledAfterSearch_ShouldResetStateAndAllowRestart()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -542,7 +543,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartAsync_Then_GetCurrentFenAsync_ReturnsFen()
+	public async Task StartAsync_WhenCompleted_ShouldAllowGetCurrentFenAsync()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -554,7 +555,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartAsync_WithFen_ImmediatelyStartsSearches_And_BroadcastsLegalMovesAndBest()
+	public async Task StartAsync_WhenFenIsProvided_ShouldStartSearchAndBroadcastLegalMovesAndBestMove()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 
@@ -592,7 +593,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartPonderAsync_RaisesBestLineUpdated_FromSingleEngineStream()
+	public async Task StartPonderAsync_WhenBestLineIsUpdated_ShouldRaiseBestMoveFromSingleEngineStream()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -618,7 +619,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartPonderAsync_ThenStop_RaisesPonderBestMove()
+	public async Task StartPonderAsync_WhenStopped_ShouldRaisePonderBestMove()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -650,7 +651,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartPonderAsync_WhenCalled_RaisesPonderInfo()
+	public async Task StartPonderAsync_WhenCalled_ShouldRaisePonderInfo()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -672,7 +673,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartPonderAsync_WithInvalidFen_ThrowsArgumentException()
+	public async Task StartPonderAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -681,7 +682,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_And_StopSearchAsync_WhenCalledConcurrently_IsThreadSafe()
+	public async Task StartSearchAsyncAndStopSearchAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -742,7 +743,7 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StreamClassifiedMovesAsync_YieldsMovesAsTheyAreClassified()
+	public async Task StreamClassifiedMovesAsync_WhenPositionIsSet_ShouldYieldClassifiedMoves()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
@@ -770,3 +771,4 @@ public class UciCoordinatorTests
 		await coordinator.StopAsync();
 	}
 }
+

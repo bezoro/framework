@@ -8,21 +8,21 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientBuildGoCommandTests
 {
 	[Fact]
-	public void ShouldAddDefaultDepthWhenNoLimits()
+	public void BuildGoCommand_WhenNoLimitsAreProvided_ShouldAddDefaultDepth()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(new());
 		cmd.Should().Be("go depth 6", "default depth should be 6");
 	}
 
 	[Fact]
-	public void ShouldCombinePonderAndInfiniteFlags()
+	public void BuildGoCommand_WhenPonderAndInfiniteAreEnabled_ShouldCombineFlags()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(new() { Ponder = true, Infinite = true });
 		cmd.Should().Be("go ponder infinite", "ponder and infinite flags should be combined");
 	}
 
 	[Fact]
-	public void ShouldFilterAndLowercaseSearchmoves()
+	public void BuildGoCommand_WhenSearchMovesAreProvided_ShouldFilterAndLowercaseMoves()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(
 			new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] }
@@ -32,7 +32,7 @@ public class UciEngineClientBuildGoCommandTests
 	}
 
 	[Fact]
-	public void ShouldFormatTimeControlsCorrectly()
+	public void BuildGoCommand_WhenTimeControlsAreProvided_ShouldFormatCommandCorrectly()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(
 			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, WhiteIncrementMs = 10, BlackIncrementMs = 20 }
@@ -45,7 +45,7 @@ public class UciEngineClientBuildGoCommandTests
 	}
 
 	[Fact]
-	public void ShouldIncludeNodesDepthMate()
+	public void BuildGoCommand_WhenNodesDepthAndMateAreProvided_ShouldIncludeAllLimits()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(new() { Nodes = 123, Depth = 7, Mate = 2 });
 		cmd.Should().Be("go nodes 123 depth 7 mate 2", "nodes, depth, and mate should be included");

@@ -9,7 +9,7 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientIsReadyTests
 {
 	[Fact]
-	public async Task WhenCancelled_ShouldThrowOperationCanceledException()
+	public async Task IsReadyAsync_WhenCancelled_ShouldThrowOperationCanceledException()
 	{
 		// Arrange
 		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
@@ -22,3 +22,4 @@ public class UciEngineClientIsReadyTests
 			  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
 	}
 }
+

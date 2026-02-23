@@ -1,17 +1,18 @@
-﻿using Bezoro.UCI.API.Types;
+using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.UCI.Tests.Domain;
+namespace Bezoro.UCI.Tests.Domain.Engines;
 
 [TestSubject(typeof(PonderEngine))]
+[Trait("Category", "Integration")]
 public class PonderEngineTests
 {
 	[Fact]
-	public async Task BestMove_EmitsParsedBestAndPonderMatchingPv()
+	public async Task BestMove_WhenInfoPvContainsBestAndPonderMoves_ShouldMatchParsedPvMoves()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -76,7 +77,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task BestMove_WhenConcurrentInfoPvReceived_ThreadSafe()
+	public async Task BestMove_WhenInfoPvIsReceivedConcurrently_ShouldBeThreadSafe()
 	{
 		// Arrange
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -114,7 +115,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task BestMove_WhenCpScoreImproves_RaisesBestMove()
+	public async Task BestMove_WhenCpScoreImproves_ShouldRaiseBestMove()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -140,7 +141,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task BestMove_WhenMateScoreFound_RaisesBestMove()
+	public async Task BestMove_WhenMateScoreIsFound_ShouldRaiseBestMove()
 	{
 		// Test with a mate-in-one position to verify mate score handling
 		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -169,7 +170,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task Dispose_WhenCalled_DisposesTheEngine()
+	public async Task Dispose_WhenCalled_ShouldDisposeEngine()
 	{
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -183,7 +184,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenCalled_DisposesTheEngine()
+	public async Task DisposeAsync_WhenCalled_ShouldDisposeEngine()
 	{
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -196,7 +197,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task NewGameAsync_WhilePondering_StopsSearch_And_AllowsRestart()
+	public async Task NewGameAsync_WhenCalledWhilePondering_ShouldStopSearchAndAllowRestart()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -228,7 +229,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task SetOptionAsync_MultiPv2_EmitsMultipv2InInfoStream()
+	public async Task SetOptionAsync_WhenMultiPv2_ShouldEmitMultipv2InInfoStream()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -253,7 +254,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenCalled_StartsEngine()
+	public async Task StartAsync_WhenCalled_ShouldStartEngine()
 	{
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 
@@ -265,7 +266,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_RaisesInfo_And_ActivityTransitions()
+	public async Task StartSearchAsync_WhenInfoIsRaised_ShouldUpdateActivityTransitions()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -283,7 +284,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_ThenStopAsync_RaisesBestMove()
+	public async Task StartSearchAsync_WhenStopped_ShouldRaiseBestMove()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -309,7 +310,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_Twice_RemainsSearching()
+	public async Task StartSearchAsync_WhenCalledTwice_ShouldRemainSearching()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -329,7 +330,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenCalled_RaisesInfoPv()
+	public async Task StartSearchAsync_WhenCalled_ShouldRaiseInfoPv()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -345,7 +346,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WithInvalidFen_ThrowsArgumentException()
+	public async Task StartSearchAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -354,7 +355,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StopAsync_WhenCalled_StopsEngine()
+	public async Task StopAsync_WhenCalled_ShouldStopEngine()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -366,7 +367,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StopSearchAsync_StopsSearch_Twice()
+	public async Task StopSearchAsync_WhenCalledTwice_ShouldStopSearchWithoutThrowing()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -383,7 +384,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StopSearchAsync_WhenCalled_StopsTheSearch()
+	public async Task StopSearchAsync_WhenCalled_ShouldStopTheSearch()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		await engine.StartAsync();
@@ -395,7 +396,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenNegativeMateScoreImproves_RaisesBestMove()
+	public void BestMove_WhenNegativeMateScoreImproves_ShouldRaiseBestMove()
 	{
 		// Arrange: mate in -1 (better) vs mate in -5 (worse)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -432,7 +433,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenPositiveMateScoreImproves_RaisesBestMove()
+	public void BestMove_WhenPositiveMateScoreImproves_ShouldRaiseBestMove()
 	{
 		// Arrange: mate in 1 (better) vs mate in 5 (worse)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -469,7 +470,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenTransitioningFromCpToMate_RaisesBestMove()
+	public void BestMove_WhenTransitioningFromCpToMate_ShouldRaiseBestMove()
 	{
 		// Arrange: cp score → mate score (mate is always better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -499,7 +500,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenTransitioningFromNegativeMateToNegativeCp_ComparesCorrectly()
+	public void BestMove_WhenTransitioningFromNegativeMateToNegativeCp_ShouldCompareScoresCorrectly()
 	{
 		// Arrange: negative mate → negative cp (both losing, compare cp values)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -543,7 +544,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenTransitioningFromNegativeMateToPositiveCp_RaisesBestMove()
+	public void BestMove_WhenTransitioningFromNegativeMateToPositiveCp_ShouldRaiseBestMove()
 	{
 		// Arrange: negative mate (losing) → positive cp (winning cp is better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -572,7 +573,7 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public void BestMove_WhenTransitioningFromPositiveMateToCp_DoesNotRaiseBestMove()
+	public void BestMove_WhenTransitioningFromPositiveMateToCp_ShouldNotRaiseBestMove()
 	{
 		// Arrange: positive mate (winning) → cp (mate is always better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -600,3 +601,5 @@ public class PonderEngineTests
 		bestMoveCount.Should().Be(1, "Transition from positive mate to cp should NOT raise BestMove");
 	}
 }
+
+
