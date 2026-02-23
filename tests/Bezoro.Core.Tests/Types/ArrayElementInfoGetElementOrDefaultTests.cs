@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoGetElementOrDefaultTests
 {
 	[Fact]
-	public void WhenFound_ShouldReturnElement()
+	public void WhenFound_WhenCalled_ShouldReturnElement()
 	{
 		var info = ArrayElementInfo<string>.Found(0, "hello", 5);
 
@@ -17,7 +17,7 @@ public class ArrayElementInfoGetElementOrDefaultTests
 	}
 
 	[Fact]
-	public void WhenNotFound_ShouldReturnDefault()
+	public void WhenNotFound_WhenCalled_ShouldReturnDefault()
 	{
 		var info = ArrayElementInfo<int>.NotFound(42, 5);
 

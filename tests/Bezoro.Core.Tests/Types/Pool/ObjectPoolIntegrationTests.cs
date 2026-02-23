@@ -29,7 +29,7 @@ public class ObjectPoolIntegrationTests
 	}
 
 	[Fact]
-	public async Task ConcurrentRentReturn_WithAsyncWait_ShouldMaintainConsistency()
+	public async Task ConcurrentRentReturn_WhenWithAsyncWait_ShouldMaintainConsistency()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),

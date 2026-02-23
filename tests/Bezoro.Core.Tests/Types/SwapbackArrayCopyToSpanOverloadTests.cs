@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayCopyToSpanOverloadTests
 {
 	[Fact]
-	public void WhenDestinationIsTooSmall_ShouldThrow()
+	public void WhenDestinationIsTooSmall_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -20,7 +20,7 @@ public class SwapbackArrayCopyToSpanOverloadTests
 	}
 
 	[Fact]
-	public void WhenDestinationIsValid_ShouldCopyAllItems()
+	public void WhenDestinationIsValid_WhenCalled_ShouldCopyAllItems()
 	{
 		int[] values      = [1, 2, 3, 4];
 		var   arr         = new SwapbackArray<int>(values);

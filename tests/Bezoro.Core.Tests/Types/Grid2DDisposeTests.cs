@@ -3,13 +3,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Grid2D<>))]
 public class Grid2DDisposeTests
 {
 	[Fact]
-	public void WhenCalledMultipleTimes_DoesNotThrow()
+	public void Grid2DDispose_WhenCalled_ShouldWhenCalledMultipleTimes_DoesNotThrow()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(10, 10, true);
@@ -25,7 +25,7 @@ public class Grid2DDisposeTests
 	}
 
 	[Fact]
-	public void WhenNotUsingPooling_DisposesWithoutException()
+	public void Grid2DDispose_WhenCalled_ShouldWhenNotUsingPooling_DisposesWithoutException()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(10, 10);
@@ -36,7 +36,7 @@ public class Grid2DDisposeTests
 	}
 
 	[Fact]
-	public void WhenUsingPooling_DisposesWithoutException()
+	public void Grid2DDispose_WhenCalled_ShouldWhenUsingPooling_DisposesWithoutException()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(10, 10, true);
@@ -47,3 +47,4 @@ public class Grid2DDisposeTests
 		act.Should().NotThrow();
 	}
 }
+

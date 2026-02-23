@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayGetEnumeratorTests
 {
 	[Fact]
-	public void WhenArrayIsEmpty_ShouldNotIterate()
+	public void WhenArrayIsEmpty_WhenCalled_ShouldNotIterate()
 	{
 		var arr   = new SwapbackArray<int>();
 		var count = 0;
@@ -22,7 +22,7 @@ public class SwapbackArrayGetEnumeratorTests
 	}
 
 	[Fact]
-	public void WhenCollectionModifiedDuringEnumeration_ShouldThrow()
+	public void WhenCollectionModifiedDuringEnumeration_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 

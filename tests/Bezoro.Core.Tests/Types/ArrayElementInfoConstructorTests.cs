@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoConstructorTests
 {
 	[Fact]
-	public void WhenArrayLengthZeroAndIndexNull_ShouldSucceed()
+	public void WhenArrayLengthZeroAndIndexNull_WhenCalled_ShouldSucceed()
 	{
 		var info = new ArrayElementInfo<int>(null, 0, 0);
 
@@ -21,7 +21,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenArrayLengthZeroAndIndexZero_ShouldThrow()
+	public void WhenArrayLengthZeroAndIndexZero_WhenCalled_ShouldThrow()
 	{
 		var act = () => new ArrayElementInfo<int>(0, 42, 0);
 
@@ -30,7 +30,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenFoundElementIsNull_ShouldPreserveNull()
+	public void WhenFoundElementIsNull_WhenCalled_ShouldPreserveNull()
 	{
 		var info = new ArrayElementInfo<string>(2, null, 5);
 
@@ -40,7 +40,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenIndexEqualsArrayLength_ShouldThrow()
+	public void WhenIndexEqualsArrayLength_WhenCalled_ShouldThrow()
 	{
 		var act = () => new ArrayElementInfo<int>(5, 42, 5);
 
@@ -49,7 +49,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenIndexGreaterThanArrayLength_ShouldThrow()
+	public void WhenIndexGreaterThanArrayLength_WhenCalled_ShouldThrow()
 	{
 		var act = () => new ArrayElementInfo<string>(10, "x", 3);
 
@@ -58,7 +58,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenIndexIsMaxValueMinusOne_ShouldSucceed()
+	public void WhenIndexIsMaxValueMinusOne_WhenCalled_ShouldSucceed()
 	{
 		var info = new ArrayElementInfo<int>(uint.MaxValue - 1, 42, uint.MaxValue);
 
@@ -68,7 +68,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenReferenceType_ShouldSetProperties()
+	public void WhenReferenceType_WhenCalled_ShouldSetProperties()
 	{
 		var info = new ArrayElementInfo<string>(2, "x", 3);
 
@@ -81,7 +81,7 @@ public class ArrayElementInfoConstructorTests
 	}
 
 	[Fact]
-	public void WhenValueType_ShouldSetProperties()
+	public void WhenValueType_WhenCalled_ShouldSetProperties()
 	{
 		var info = new ArrayElementInfo<int>(0, 42, 10);
 

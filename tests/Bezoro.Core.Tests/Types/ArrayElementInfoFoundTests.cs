@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoFoundTests
 {
 	[Fact]
-	public void WhenFound_ShouldCreateFoundInstance()
+	public void WhenFound_WhenCalled_ShouldCreateFoundInstance()
 	{
 		var info = ArrayElementInfo<string>.Found(2, "hello", 10);
 
@@ -21,7 +21,7 @@ public class ArrayElementInfoFoundTests
 	}
 
 	[Fact]
-	public void WhenIndexOutOfRange_ShouldThrow()
+	public void WhenIndexOutOfRange_WhenCalled_ShouldThrow()
 	{
 		var act = () => ArrayElementInfo<string>.Found(10, "test", 5);
 

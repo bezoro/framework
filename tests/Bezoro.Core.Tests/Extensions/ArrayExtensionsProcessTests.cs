@@ -14,7 +14,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class ArrayExtensionsSearchTests
 {
 	[Fact]
-	public async Task Process_Should_Stop_When_Cancelled()
+	public async Task Process_WhenCalled_ShouldStop_When_Cancelled()
 	{
 		// Arrange
 		int[,]    array             = new[,] { { 1, 2 }, { 3, 4 } };
@@ -37,7 +37,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public async Task Process_ShouldProcess_AllElements()
+	public async Task Process_WhenCalled_ShouldProcess_AllElements()
 	{
 		// Arrange
 		int[,] array             = new[,] { { 1, 2 }, { 3, 4 } };
@@ -58,7 +58,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public async Task Process_ShouldSkip_NullElements()
+	public async Task Process_WhenCalled_ShouldSkip_NullElements()
 	{
 		// Arrange
 		string?[,] array             = new[,] { { "1", null }, { "3", "4" } };
@@ -79,7 +79,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public async Task ProcessArrayAsync_Should_ProcessAllNonNullElements()
+	public async Task ProcessArrayAsync_WhenCalled_ShouldProcessAllNonNullElements()
 	{
 		// Arrange
 		string?[] array             = ["1", null, "3", "4"];
@@ -98,7 +98,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public async Task ProcessArrayAsync_Should_ThrowArgumentNullException_WhenArrayIsNull()
+	public async Task ProcessArrayAsync_WhenCalled_ShouldThrowArgumentNullException_WhenArrayIsNull()
 	{
 		// Arrange
 		string?[] array = null!;
@@ -111,7 +111,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public void ProcessArray_Should_ProcessAllNonNullElements()
+	public void ProcessArray_WhenCalled_ShouldProcessAllNonNullElements()
 	{
 		// Arrange
 		string?[] array             = ["1", null, "3", "4"];
@@ -125,7 +125,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public void ProcessArray_Should_ProcessAllNonNullElements_WithIProcessable()
+	public void ProcessArray_WhenCalled_ShouldProcessAllNonNullElements_WithIProcessable()
 	{
 		// Arrange
 		var items = new[]
@@ -144,7 +144,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public void ProcessArray_Should_ThrowArgumentNullException_WhenArrayIsNull()
+	public void ProcessArray_WhenCalled_ShouldThrowArgumentNullException_WhenArrayIsNull()
 	{
 		// Arrange
 		string?[] array = null!;
@@ -157,7 +157,7 @@ public class ArrayExtensionsSearchTests
 	}
 
 	[Fact]
-	public void ProcessArray_Should_ThrowArgumentNullException_WhenArrayIsNull_WithIProcessable()
+	public void ProcessArray_WhenCalled_ShouldThrowArgumentNullException_WhenArrayIsNull_WithIProcessable()
 	{
 		// Arrange
 		ProcessableItem?[] array = null!;

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolRentHandleTests
 {
 	[Fact]
-	public void ShouldReturnHandle()
+	public void ObjectPoolRentHandle_WhenCalled_ShouldShouldReturnHandle()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -19,7 +19,7 @@ public class ObjectPoolRentHandleTests
 	}
 
 	[Fact]
-	public void WhenDisposed_ShouldReturnToPool()
+	public void WhenDisposed_WhenCalled_ShouldReturnToPool()
 	{
 		var    pool = new ObjectPool<object>(() => new());
 		object rentedItem;

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentToStringTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnPercentString()
+	public void WhenCalled_WhenCalled_ShouldReturnPercentString()
 	{
 		var p = new Percent(10);
 
@@ -17,13 +17,13 @@ public class PercentToStringTests
 	}
 
 	[Fact]
-	public void WhenFull_ShouldReturn100Percent()
+	public void WhenFull_WhenCalled_ShouldReturn100Percent()
 	{
 		Percent.Full.ToString().Should().Be("100%");
 	}
 
 	[Fact]
-	public void WhenZero_ShouldReturnZeroPercent()
+	public void WhenZero_WhenCalled_ShouldReturnZeroPercent()
 	{
 		Percent.Zero.ToString().Should().Be("0%");
 	}

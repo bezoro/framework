@@ -6,13 +6,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Try))]
-public class TryTests
+public class TryCancellationTests
 {
 	[Fact]
-	public async Task DoAsync_WithCancellationToken_WhenCancelled_ThrowsOperationCanceledException()
+	public async Task DoAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldThrowOperationCanceledException()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -27,7 +27,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task DoAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -45,7 +45,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task DoAsync_WithCancellationToken_WithException_TransformsException()
+	public async Task TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithException_TransformsException()
 	{
 		using var cts   = new CancellationTokenSource();
 		var       token = cts.Token;
@@ -63,7 +63,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task DoAsync_WithCancellationToken_WithNullAction_ThrowsArgumentNullException()
+	public async Task DoAsyncWithCancellationTokenWithNullAction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<CancellationToken, Task>? nullAction = null;
 		var                            action     = () => Try.DoAsync(nullAction!);
@@ -71,7 +71,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task DoAsync_WithCancellationToken_WithValidAction_ExecutesSuccessfully()
+	public async Task TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithValidAction_ExecutesSuccessfully()
 	{
 		var       executed = false;
 		using var cts      = new CancellationTokenSource();
@@ -89,30 +89,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task DoAsync_WithNullAction_ThrowsArgumentNullException()
-	{
-		Func<Task>? nullAction = null;
-		var         action     = () => Try.DoAsync(nullAction!);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task DoAsync_WithValidAction_ExecutesSuccessfully()
-	{
-		var executed = false;
-		var taskFunc = () =>
-		{
-			executed = true;
-			return Task.CompletedTask;
-		};
-
-		await Try.DoAsync(taskFunc);
-
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task GetAsync_WithCancellationToken_WhenCancelled_ThrowsOperationCanceledException()
+	public async Task GetAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldThrowOperationCanceledException()
 	{
 		using var cts   = new CancellationTokenSource();
 		var       token = cts.Token;
@@ -132,7 +109,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task TryCancellation_WhenCalled_ShouldGetAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -150,7 +127,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetAsync_WithCancellationToken_WithException_TransformsException()
+	public async Task TryCancellation_WhenCalled_ShouldGetAsync_WithCancellationToken_WithException_TransformsException()
 	{
 		using var cts   = new CancellationTokenSource();
 		var       token = cts.Token;
@@ -168,7 +145,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetAsync_WithCancellationToken_WithNullFunction_ThrowsArgumentNullException()
+	public async Task GetAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<CancellationToken, Task<int>>? nullFunc = null;
 		var                                 action   = () => Try.GetAsync(nullFunc!);
@@ -176,7 +153,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetAsync_WithCancellationToken_WithValidFunction_ReturnsResult()
+	public async Task GetAsyncWithCancellationTokenWithValidFunction_WhenCalled_ShouldReturnResult()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -193,23 +170,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetAsync_WithNullFunction_ThrowsArgumentNullException()
-	{
-		Func<Task<int>>? nullFunc = null;
-		var              action   = () => Try.GetAsync(nullFunc!);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task GetAsync_WithValidFunction_ReturnsResult()
-	{
-		var func   = () => Task.FromResult(42);
-		int result = await Try.GetAsync(func);
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WhenCancelled_ReturnsDefault()
+	public async Task GetOrDefaultAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnDefault()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -228,7 +189,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -246,7 +207,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithFactory_WhenCancelled_CallsFactory()
+	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WhenCancelled_CallsFactory()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -265,7 +226,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithFactory_WithFailingFunction_CallsFactory()
+	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WithFailingFunction_CallsFactory()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -298,7 +259,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithFactory_WithSuccessfulFunction_ReturnsValue()
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithFactoryWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -316,7 +277,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithFailingFunction_ReturnsDefault()
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithFailingFunction_WhenCalled_ShouldReturnDefault()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -330,7 +291,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithNullFunction_ThrowsArgumentNullException()
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<CancellationToken, Task<int>>? nullFunc = null;
 		var                                 action   = () => Try.GetOrDefaultAsync(nullFunc!, 0);
@@ -338,7 +299,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithCancellationToken_WithSuccessfulFunction_ReturnsValue()
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -356,37 +317,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task GetOrDefaultAsync_WithFactory_WithFailingFunction_CallsFactory()
-	{
-		int result = await Try.GetOrDefaultAsync(
-						 () => Task.FromException<int>(new InvalidOperationException()),
-						 () => 99
-					 );
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsync_WithFailingFunction_ReturnsDefault()
-	{
-		int result = await Try.GetOrDefaultAsync(
-						 () => Task.FromException<int>(new InvalidOperationException()),
-						 99
-					 );
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsync_WithSuccessfulFunction_ReturnsValue()
-	{
-		int result = await Try.GetOrDefaultAsync(() => Task.FromResult(42), 0);
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task TryDoAsync_WithCancellationToken_WhenCancelled_ReturnsFalse()
+	public async Task TryDoAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnFalse()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -400,7 +331,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryDoAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task TryCancellation_WhenCalled_ShouldTryDoAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -417,7 +348,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryDoAsync_WithCancellationToken_WithFailingAction_ReturnsFalse()
+	public async Task TryDoAsyncWithCancellationTokenWithFailingAction_WhenCalled_ShouldReturnFalse()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -430,7 +361,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryDoAsync_WithCancellationToken_WithNullAction_ThrowsArgumentNullException()
+	public async Task TryDoAsyncWithCancellationTokenWithNullAction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<CancellationToken, Task>? nullAction = null;
 		var                            action     = () => Try.TryDoAsync(nullAction!);
@@ -438,7 +369,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryDoAsync_WithCancellationToken_WithSuccessfulAction_ReturnsTrue()
+	public async Task TryDoAsyncWithCancellationTokenWithSuccessfulAction_WhenCalled_ShouldReturnTrue()
 	{
 		var       executed = false;
 		using var cts      = new CancellationTokenSource();
@@ -457,30 +388,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryDoAsync_WithFailingAction_ReturnsFalse()
-	{
-		bool result = await Try.TryDoAsync(() => Task.FromException(new InvalidOperationException()));
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task TryDoAsync_WithSuccessfulAction_ReturnsTrue()
-	{
-		var executed = false;
-		bool result = await Try.TryDoAsync(() =>
-						  {
-							  executed = true;
-							  return Task.CompletedTask;
-						  }
-					  );
-
-		result.Should().BeTrue();
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task TryGetAsync_WithCancellationToken_WhenCancelled_ReturnsFailureAndDefault()
+	public async Task TryGetAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnFailureAndDefault()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -499,7 +407,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryGetAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task TryCancellation_WhenCalled_ShouldTryGetAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -517,7 +425,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryGetAsync_WithCancellationToken_WithFailingFunction_ReturnsFailureAndDefault()
+	public async Task TryGetAsyncWithCancellationTokenWithFailingFunction_WhenCalled_ShouldReturnFailureAndDefault()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -531,7 +439,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryGetAsync_WithCancellationToken_WithNullFunction_ThrowsArgumentNullException()
+	public async Task TryGetAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<CancellationToken, Task<int>>? nullFunc = null;
 		var                                 action   = () => Try.TryGetAsync(nullFunc!);
@@ -539,7 +447,7 @@ public class TryTests
 	}
 
 	[Fact]
-	public async Task TryGetAsync_WithCancellationToken_WithSuccessfulFunction_ReturnsSuccessAndValue()
+	public async Task TryGetAsyncWithCancellationTokenWithSuccessfulFunction_WhenCalled_ShouldReturnSuccessAndValue()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -556,192 +464,5 @@ public class TryTests
 		value.Should().Be(42);
 	}
 
-	[Fact]
-	public async Task TryGetAsync_WithFailingFunction_ReturnsFailureAndDefault()
-	{
-		(bool success, int value) =
-			await Try.TryGetAsync(() => Task.FromException<int>(new InvalidOperationException()));
-
-		success.Should().BeFalse();
-		value.Should().Be(0);
-	}
-
-	[Fact]
-	public async Task TryGetAsync_WithSuccessfulFunction_ReturnsSuccessAndValue()
-	{
-		(bool success, int value) = await Try.TryGetAsync(() => Task.FromResult(42));
-
-		success.Should().BeTrue();
-		value.Should().Be(42);
-	}
-
-	[Fact]
-	public void Do_WithNullAction_ThrowsArgumentNullException()
-	{
-		var action = () => Try.Do(null!);
-		action.Should().Throw<ArgumentNullException>();
-	}
-
-	[Fact]
-	public void Do_WithValidAction_ExecutesSuccessfully()
-	{
-		var executed = false;
-		Try.Do(() => executed = true);
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
-	public void Get_WithExceptionCallback_InvokesCallback()
-	{
-		Exception? capturedException = null;
-		var action = () => Try.Get<int>(
-			() => throw new InvalidOperationException("Test"),
-			onException: ex => capturedException = ex
-		);
-
-		action.Should().Throw<InvalidOperationException>();
-		capturedException.Should().NotBeNull();
-		capturedException!.Message.Should().Be("Test");
-	}
-
-	[Fact]
-	public void Get_WithExceptionTransform_ThrowsTransformedException()
-	{
-		var action = () => Try.Get<int>(
-			() => throw new InvalidOperationException("Original"),
-			ex => new ApplicationException("Transformed", ex)
-		);
-
-		action.Should().Throw<ApplicationException>()
-			  .WithMessage("Transformed")
-			  .WithInnerException<InvalidOperationException>()
-			  .WithMessage("Original");
-	}
-
-	[Fact]
-	public void Get_WithNullFunction_ThrowsArgumentNullException()
-	{
-		var action = () => Try.Get<int>(null!);
-		action.Should().Throw<ArgumentNullException>();
-	}
-
-	[Fact]
-	public void Get_WithValidFunction_ReturnsResult()
-	{
-		int result = Try.Get(() => 42);
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public void GetOrDefault_WithFactory_WithFailingFunction_CallsFactory()
-	{
-		int result = Try.GetOrDefault(() => throw new InvalidOperationException(), () => 99);
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public void GetOrDefault_WithFactory_WithSuccessfulFunction_ReturnsValue()
-	{
-		int result = Try.GetOrDefault(() => 42, () => 0);
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public void GetOrDefault_WithFailingFunction_ReturnsDefault()
-	{
-		int result = Try.GetOrDefault(() => throw new InvalidOperationException(), 99);
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public void GetOrDefault_WithSuccessfulFunction_ReturnsValue()
-	{
-		int result = Try.GetOrDefault(() => 42, 0);
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public void ShouldCatch_DoesNotCatchOutOfMemoryException()
-	{
-		var action = () => Try.TryDo(() => throw new OutOfMemoryException());
-
-		action.Should().Throw<OutOfMemoryException>();
-	}
-
-	[Fact]
-	public void ShouldCatch_DoesNotCatchStackOverflowException()
-	{
-		var action = () => Try.TryDo(() => throw new StackOverflowException());
-
-		action.Should().Throw<StackOverflowException>();
-	}
-
-	[Fact]
-	public void TryDo_WithFailingAction_InvokesCallback()
-	{
-		Exception? capturedException = null;
-		bool result = Try.TryDo(
-			() => throw new InvalidOperationException("Test error"),
-			ex => capturedException = ex
-		);
-
-		result.Should().BeFalse();
-		capturedException.Should().NotBeNull();
-		capturedException.Should().BeOfType<InvalidOperationException>();
-		capturedException!.Message.Should().Be("Test error");
-	}
-
-	[Fact]
-	public void TryDo_WithFailingAction_ReturnsFalse()
-	{
-		bool result = Try.TryDo(() => throw new InvalidOperationException());
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void TryDo_WithSuccessfulAction_ReturnsTrue()
-	{
-		var  executed = false;
-		bool result   = Try.TryDo(() => executed = true);
-
-		result.Should().BeTrue();
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
-	public void TryGet_WithFailingFunction_InvokesCallback()
-	{
-		Exception? capturedException = null;
-		(bool success, int _) = Try.TryGet<int>(
-			() => throw new InvalidOperationException("Test error"),
-			ex => capturedException = ex
-		);
-
-		success.Should().BeFalse();
-		capturedException.Should().NotBeNull();
-		capturedException!.Message.Should().Be("Test error");
-	}
-
-	[Fact]
-	public void TryGet_WithFailingFunction_ReturnsFailureAndDefault()
-	{
-		(bool success, int value) = Try.TryGet<int>(() => throw new InvalidOperationException());
-
-		success.Should().BeFalse();
-		value.Should().Be(0);
-	}
-
-	[Fact]
-	public void TryGet_WithSuccessfulFunction_ReturnsSuccessAndValue()
-	{
-		(bool success, int value) = Try.TryGet(() => 42);
-
-		success.Should().BeTrue();
-		value.Should().Be(42);
-	}
 }
+

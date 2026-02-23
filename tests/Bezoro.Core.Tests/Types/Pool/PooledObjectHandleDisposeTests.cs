@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PooledObjectHandleDisposeTests
 {
 	[Fact]
-	public void ShouldReturnObjectToPool()
+	public void PooledObjectHandleDispose_WhenCalled_ShouldShouldReturnObjectToPool()
 	{
 		var    pool = new ObjectPool<object>(() => new());
 		object rentedItem;
@@ -25,7 +25,7 @@ public class PooledObjectHandleDisposeTests
 	}
 
 	[Fact]
-	public void ShouldSetIsDisposedToTrue()
+	public void PooledObjectHandleDispose_WhenCalled_ShouldShouldSetIsDisposedToTrue()
 	{
 		var pool   = new ObjectPool<object>(() => new());
 		var handle = pool.RentHandle();
@@ -36,7 +36,7 @@ public class PooledObjectHandleDisposeTests
 	}
 
 	[Fact]
-	public void WhenCalledMultipleTimes_ShouldNotThrow()
+	public void WhenCalledMultipleTimes_WhenCalled_ShouldNotThrow()
 	{
 		var pool   = new ObjectPool<object>(() => new());
 		var handle = pool.RentHandle();
@@ -48,7 +48,7 @@ public class PooledObjectHandleDisposeTests
 	}
 
 	[Fact]
-	public void WhenCalledMultipleTimes_ShouldOnlyReturnOnce()
+	public void WhenCalledMultipleTimes_WhenCalled_ShouldOnlyReturnOnce()
 	{
 		var pool   = new ObjectPool<object>(() => new());
 		var handle = pool.RentHandle();

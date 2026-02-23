@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayTrimExcessTests
 {
 	[Fact]
-	public void WhenAtMinimumCapacity_ShouldNotShrink()
+	public void WhenAtMinimumCapacity_WhenCalled_ShouldNotShrink()
 	{
 		var arr = new SwapbackArray<int> { 1 };
 
@@ -19,7 +19,7 @@ public class SwapbackArrayTrimExcessTests
 	}
 
 	[Fact]
-	public void WhenUtilizationAtOrAboveTrimThreshold_ShouldNotTrim()
+	public void WhenUtilizationAtOrAboveTrimThreshold_WhenCalled_ShouldNotTrim()
 	{
 		const uint INITIAL_CAPACITY = 100u;
 		var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
@@ -32,7 +32,7 @@ public class SwapbackArrayTrimExcessTests
 	}
 
 	[Fact]
-	public void WhenUtilizationBelowShrinkThreshold_ShouldTrim()
+	public void WhenUtilizationBelowShrinkThreshold_WhenCalled_ShouldTrim()
 	{
 		const uint INITIAL_CAPACITY = 100u;
 		var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);

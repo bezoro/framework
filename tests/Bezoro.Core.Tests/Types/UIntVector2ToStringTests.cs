@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2ToStringTests
 {
 	[Fact]
-	public void WhenCalled_ShouldFormatAsExpected()
+	public void WhenCalled_WhenCalled_ShouldFormatAsExpected()
 	{
 		var u = new UIntVector2(3u, 4u);
 

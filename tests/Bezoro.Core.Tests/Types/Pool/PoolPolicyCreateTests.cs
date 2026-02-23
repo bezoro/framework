@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PoolPolicyCreateTests
 {
 	[Fact]
-	public void ShouldInvokeFactory()
+	public void PoolPolicyCreate_WhenCalled_ShouldShouldInvokeFactory()
 	{
 		var invoked = false;
 		var policy = new PoolPolicy<object>(() =>
@@ -26,7 +26,7 @@ public class PoolPolicyCreateTests
 	}
 
 	[Fact]
-	public void ShouldReturnNewInstanceEachTime()
+	public void PoolPolicyCreate_WhenCalled_ShouldShouldReturnNewInstanceEachTime()
 	{
 		var policy = new PoolPolicy<object>(() => new());
 

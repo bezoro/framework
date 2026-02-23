@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayToArrayTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnArrayWithSameLengthAsArray()
+	public void WhenCalled_WhenCalled_ShouldReturnArrayWithSameLengthAsArray()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -20,7 +20,7 @@ public class SwapbackArrayToArrayTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldReturnArrayWithSameValuesAsArray()
+	public void WhenCalled_WhenCalled_ShouldReturnArrayWithSameValuesAsArray()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -31,7 +31,7 @@ public class SwapbackArrayToArrayTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldReturnCopyOfArray()
+	public void WhenCalled_WhenCalled_ShouldReturnCopyOfArray()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -42,7 +42,7 @@ public class SwapbackArrayToArrayTests
 	}
 
 	[Fact]
-	public void WhenEmpty_ShouldReturnEmptyArray()
+	public void WhenEmpty_WhenCalled_ShouldReturnEmptyArray()
 	{
 		var arr = new SwapbackArray<int>();
 

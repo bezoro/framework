@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoToStringTests
 {
 	[Fact]
-	public void WhenNullElement_ShouldFormatAsNullString()
+	public void WhenNullElement_WhenCalled_ShouldFormatAsNullString()
 	{
 		var info = new ArrayElementInfo<string>(null, null, 5);
 
@@ -17,7 +17,7 @@ public class ArrayElementInfoToStringTests
 	}
 
 	[Fact]
-	public void WhenValidElements_ShouldFormatAsExpected()
+	public void WhenValidElements_WhenCalled_ShouldFormatAsExpected()
 	{
 		var info = new ArrayElementInfo<string>(1, "foo", 5);
 

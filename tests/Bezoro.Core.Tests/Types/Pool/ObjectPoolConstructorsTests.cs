@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolConstructorsTests
 {
 	[Fact]
-	public void WithFactory_ShouldCreatePool()
+	public void WithFactory_WhenCalled_ShouldCreatePool()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -21,7 +21,7 @@ public class ObjectPoolConstructorsTests
 	}
 
 	[Fact]
-	public void WithFactoryAndOptions_ShouldRespectOptions()
+	public void WithFactoryAndOptions_WhenCalled_ShouldRespectOptions()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -34,7 +34,7 @@ public class ObjectPoolConstructorsTests
 	}
 
 	[Fact]
-	public void WithInitialCapacity_ShouldPrewarm()
+	public void WithInitialCapacity_WhenCalled_ShouldPrewarm()
 	{
 		var createCount = 0;
 		var pool = new ObjectPool<object>(
@@ -51,7 +51,7 @@ public class ObjectPoolConstructorsTests
 	}
 
 	[Fact]
-	public void WithNullFactory_ShouldThrow()
+	public void WithNullFactory_WhenCalled_ShouldThrow()
 	{
 		var act = () => new ObjectPool<object>(null!);
 
@@ -59,7 +59,7 @@ public class ObjectPoolConstructorsTests
 	}
 
 	[Fact]
-	public void WithNullPolicy_ShouldThrow()
+	public void WithNullPolicy_WhenCalled_ShouldThrow()
 	{
 		var act = () => new ObjectPool<object>((IPoolPolicy<object>)null!);
 

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentImplicitCastToByteTests
 {
 	[Fact]
-	public void WhenCast_ShouldReturnValue()
+	public void WhenCast_WhenCalled_ShouldReturnValue()
 	{
 		var p = new Percent(42);
 

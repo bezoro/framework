@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayRemoveTests
 {
 	[Fact]
-	public void WhenItemFound_ShouldRemoveItem()
+	public void WhenItemFound_WhenCalled_ShouldRemoveItem()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 		arr.Remove(2);
@@ -19,7 +19,7 @@ public class SwapbackArrayRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemNotFound_ShouldThrow()
+	public void WhenItemNotFound_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 		var act = () => arr.Remove(4);

@@ -10,7 +10,7 @@ public class PercentToStringWithFormatTests
 {
 #if NET6_0_OR_GREATER
 	[Fact]
-	public void WhenCalled_ShouldReturnPercentString()
+	public void WhenCalled_WhenCalled_ShouldReturnPercentString()
 	{
 		var p = new Percent(42);
 

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayTryIndexOfTests
 {
 	[Fact]
-	public void WhenItemDoesNotExist_ShouldReturnFalseAndNullIndex()
+	public void WhenItemDoesNotExist_WhenCalled_ShouldReturnFalseAndNullIndex()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -20,7 +20,7 @@ public class SwapbackArrayTryIndexOfTests
 	}
 
 	[Fact]
-	public void WhenItemExists_ShouldReturnTrueAndIndex()
+	public void WhenItemExists_WhenCalled_ShouldReturnTrueAndIndex()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -31,7 +31,7 @@ public class SwapbackArrayTryIndexOfTests
 	}
 
 	[Fact]
-	public void WhenReferenceType_ShouldReturnTrueAndIndex()
+	public void WhenReferenceType_WhenCalled_ShouldReturnTrueAndIndex()
 	{
 		var obj1 = new object();
 		var obj2 = new object();

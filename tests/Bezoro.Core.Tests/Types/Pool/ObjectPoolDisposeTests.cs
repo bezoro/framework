@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolDisposeTests
 {
 	[Fact]
-	public void ShouldDisposeAllPooledItems()
+	public void ObjectPoolDispose_WhenCalled_ShouldShouldDisposeAllPooledItems()
 	{
 		var pool = new ObjectPool<DisposableObject>(
 			() => new(),
@@ -32,7 +32,7 @@ public class ObjectPoolDisposeTests
 	}
 
 	[Fact]
-	public void ShouldPreventFurtherRent()
+	public void ObjectPoolDispose_WhenCalled_ShouldShouldPreventFurtherRent()
 	{
 		var pool = new ObjectPool<object>(() => new());
 		pool.Dispose();
@@ -43,7 +43,7 @@ public class ObjectPoolDisposeTests
 	}
 
 	[Fact]
-	public void WhenCalledMultipleTimes_ShouldBeIdempotent()
+	public void WhenCalledMultipleTimes_WhenCalled_ShouldBeIdempotent()
 	{
 		var pool = new ObjectPool<object>(() => new());
 

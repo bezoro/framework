@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2ToVector2Tests
 {
 	[Fact]
-	public void WhenCalled_ShouldProduceSameComponents()
+	public void WhenCalled_WhenCalled_ShouldProduceSameComponents()
 	{
 		var u = new UIntVector2(5u, 6u);
 

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentEqualityOperatorTests
 {
 	[Fact]
-	public void WhenEqual_ShouldReturnTrue()
+	public void WhenEqual_WhenCalled_ShouldReturnTrue()
 	{
 		var a = new Percent(50);
 		var b = new Percent(50);
@@ -18,7 +18,7 @@ public class PercentEqualityOperatorTests
 	}
 
 	[Fact]
-	public void WhenNotEqual_ShouldReturnFalse()
+	public void WhenNotEqual_WhenCalled_ShouldReturnFalse()
 	{
 		var a = new Percent(50);
 		var b = new Percent(75);

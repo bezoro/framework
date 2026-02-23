@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolStatisticsTests
 {
 	[Fact]
-	public void WhenTrackingDisabled_ShouldNotRecordStatistics()
+	public void WhenTrackingDisabled_WhenCalled_ShouldNotRecordStatistics()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -25,7 +25,7 @@ public class ObjectPoolStatisticsTests
 	}
 
 	[Fact]
-	public void WhenTrackingEnabled_ShouldRecordStatistics()
+	public void WhenTrackingEnabled_WhenCalled_ShouldRecordStatistics()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),

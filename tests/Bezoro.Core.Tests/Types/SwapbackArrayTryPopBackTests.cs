@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayTryPopBackTests
 {
 	[Fact]
-	public void WhenEmpty_ShouldReturnFalse()
+	public void WhenEmpty_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -17,7 +17,7 @@ public class SwapbackArrayTryPopBackTests
 	}
 
 	[Fact]
-	public void WhenNotEmpty_ShouldReturnLastItem()
+	public void WhenNotEmpty_WhenCalled_ShouldReturnLastItem()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 

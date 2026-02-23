@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Grid2D<>))]
 public class Grid2DConstructorTests
 {
 	[Fact]
-	public void WhenCalledWithDefaultValue_ThenInitializesAllCells()
+	public void Grid2DConstructor_WhenCalledWithDefaultValue_ShouldInitializesAllCells()
 	{
 		// Arrange
 		const int    WIDTH         = 3;
@@ -36,7 +36,7 @@ public class Grid2DConstructorTests
 	[InlineData(10, 0,  0)]
 	[InlineData(-1, 10, 0)]
 	[InlineData(10, -5, 0)]
-	public void WhenCalledWithDefaultValueAndInvalidDimensions_ThenThrowsArgumentException(
+	public void Grid2DConstructor_WhenCalledWithDefaultValueAndInvalidDimensions_ShouldThrowsArgumentException(
 		int width,
 		int height,
 		int defaultValue)
@@ -51,7 +51,7 @@ public class Grid2DConstructorTests
 	[InlineData(10, 0)]
 	[InlineData(-1, 10)]
 	[InlineData(10, -5)]
-	public void WhenDimensionsAreInvalid_ThenThrowsArgumentException(int width, int height)
+	public void Grid2DConstructor_WhenDimensionsAreInvalid_ShouldThrowsArgumentException(int width, int height)
 	{
 		// Act & Assert
 		var act = () => new Grid2D<int>(width, height);
@@ -59,7 +59,7 @@ public class Grid2DConstructorTests
 	}
 
 	[Fact]
-	public void WhenDimensionsAreValid_ThenInitializesCorrectly()
+	public void Grid2DConstructor_WhenDimensionsAreValid_ShouldInitializesCorrectly()
 	{
 		// Arrange
 		const int WIDTH  = 5;
@@ -75,7 +75,7 @@ public class Grid2DConstructorTests
 	}
 
 	[Fact]
-	public void WhenUsingPooling_ThenDoesNotThrow()
+	public void Grid2DConstructor_WhenUsingPooling_ShouldDoesNotThrow()
 	{
 		// Act
 		using var grid = new Grid2D<int>(10, 10, true);
@@ -85,3 +85,4 @@ public class Grid2DConstructorTests
 		grid.Height.Should().Be(10);
 	}
 }
+

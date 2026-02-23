@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolClearTests
 {
 	[Fact]
-	public void ShouldRemoveAllItems()
+	public void ObjectPoolClear_WhenCalled_ShouldShouldRemoveAllItems()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -24,7 +24,7 @@ public class ObjectPoolClearTests
 	}
 
 	[Fact]
-	public void WithDisposeTrue_ShouldDisposeItems()
+	public void WithDisposeTrue_WhenCalled_ShouldDisposeItems()
 	{
 		var pool = new ObjectPool<DisposableObject>(
 			() => new(),

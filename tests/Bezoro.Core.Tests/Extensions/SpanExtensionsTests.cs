@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class SpanExtensionsTests
 {
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlySpanHasItems_ReturnsSpan()
+	public void ThrowIfEmptyWhenReadOnlySpanHasItems_WhenCalled_ShouldReturnSpan()
 	{
 		int[]             data   = { 4, 5, 6 };
 		ReadOnlySpan<int> span   = data.AsSpan();
@@ -20,7 +20,7 @@ public class SpanExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlySpanIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenReadOnlySpanIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		Action action = () => ReadOnlySpan<int>.Empty.ThrowIfEmpty();
 
@@ -28,7 +28,7 @@ public class SpanExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenSpanHasItems_ReturnsSpan()
+	public void ThrowIfEmptyWhenSpanHasItems_WhenCalled_ShouldReturnSpan()
 	{
 		int[] data   = { 1, 2, 3 };
 		var   span   = data.AsSpan();
@@ -38,7 +38,7 @@ public class SpanExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenSpanIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenSpanIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		Action action = () => Span<int>.Empty.ThrowIfEmpty();
 

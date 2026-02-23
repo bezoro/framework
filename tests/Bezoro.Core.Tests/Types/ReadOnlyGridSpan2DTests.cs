@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(ReadOnlyGridSpan2D<>))]
 public class ReadOnlyGridSpan2DTests
 {
 	[Fact]
-	public void GetRow_ReturnsCorrectReadOnlyRow()
+	public void GetRow_WhenCalled_ShouldReturnCorrectReadOnlyRow()
 	{
 		// Arrange
 		ReadOnlySpan<int> data = stackalloc int[] { 1, 2, 3, 4, 5, 6 };
@@ -27,7 +27,7 @@ public class ReadOnlyGridSpan2DTests
 	}
 
 	[Fact]
-	public void IsInBounds_ReturnsCorrectResult()
+	public void IsInBounds_WhenCalled_ShouldReturnCorrectResult()
 	{
 		// Arrange
 		ReadOnlySpan<int> data = stackalloc int[9];
@@ -40,7 +40,7 @@ public class ReadOnlyGridSpan2DTests
 	}
 
 	[Fact]
-	public void WhenCreated_ThenCanReadButNotWrite()
+	public void ReadOnlyGridSpan2D_WhenCreated_ShouldCanReadButNotWrite()
 	{
 		// Arrange
 		ReadOnlySpan<int> data = stackalloc int[] { 1, 2, 3, 4, 5, 6 };
@@ -53,3 +53,4 @@ public class ReadOnlyGridSpan2DTests
 		grid[2, 1].Should().Be(6);
 	}
 }
+

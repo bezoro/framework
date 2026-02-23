@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayConstructorsCollectionOverloadTests
 {
 	[Fact]
-	public void WhenEmpty_ShouldUseMinimumCapacity()
+	public void WhenEmpty_WhenCalled_ShouldUseMinimumCapacity()
 	{
 		var arr = new SwapbackArray<int>(Array.Empty<int>());
 
@@ -19,7 +19,7 @@ public class SwapbackArrayConstructorsCollectionOverloadTests
 	}
 
 	[Fact]
-	public void WhenNull_ShouldThrow()
+	public void WhenNull_WhenCalled_ShouldThrow()
 	{
 		var act = () => new SwapbackArray<int>(null!);
 
@@ -27,7 +27,7 @@ public class SwapbackArrayConstructorsCollectionOverloadTests
 	}
 
 	[Fact]
-	public void WhenValid_ShouldCopyElements()
+	public void WhenValid_WhenCalled_ShouldCopyElements()
 	{
 		int[] values = [1, 2, 3, 4];
 

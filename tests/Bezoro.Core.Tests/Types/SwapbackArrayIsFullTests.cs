@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayIsFullTests
 {
 	[Fact]
-	public void WhenArrayIsFull_ShouldReturnTrue()
+	public void WhenArrayIsFull_WhenCalled_ShouldReturnTrue()
 	{
 		var arr = new SwapbackArray<int>(10);
 
@@ -19,7 +19,7 @@ public class SwapbackArrayIsFullTests
 	}
 
 	[Fact]
-	public void WhenArrayIsNotFull_ShouldReturnFalse()
+	public void WhenArrayIsNotFull_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int>(10);
 

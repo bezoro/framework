@@ -12,7 +12,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayConstructorsEnumerableOverloadTests
 {
 	[Fact]
-	public void WhenEmpty_ShouldCreateEmptyArray()
+	public void WhenEmpty_WhenCalled_ShouldCreateEmptyArray()
 	{
 		var values = GetNonCollectionEnumerable();
 		var arr    = new SwapbackArray<int>(values);
@@ -22,7 +22,7 @@ public class SwapbackArrayConstructorsEnumerableOverloadTests
 	}
 
 	[Fact]
-	public void WhenLargeEnumerable_ShouldGrowCapacityAsNeeded()
+	public void WhenLargeEnumerable_WhenCalled_ShouldGrowCapacityAsNeeded()
 	{
 		var values = GetNonCollectionEnumerable(Enumerable.Range(0, 100).ToArray());
 		var arr    = new SwapbackArray<int>(values);
@@ -32,7 +32,7 @@ public class SwapbackArrayConstructorsEnumerableOverloadTests
 	}
 
 	[Fact]
-	public void WhenNull_ShouldThrow()
+	public void WhenNull_WhenCalled_ShouldThrow()
 	{
 		var act = () => new SwapbackArray<int>((IEnumerable<int>)null!);
 
@@ -40,7 +40,7 @@ public class SwapbackArrayConstructorsEnumerableOverloadTests
 	}
 
 	[Fact]
-	public void WhenValid_ShouldCopyElements()
+	public void WhenValid_WhenCalled_ShouldCopyElements()
 	{
 		var values = GetNonCollectionEnumerable(1, 2, 3, 4);
 		var arr    = new SwapbackArray<int>(values);

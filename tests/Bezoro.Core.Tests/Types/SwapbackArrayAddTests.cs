@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAddTests
 {
 	[Fact]
-	public void WhenArrayIsFull_ShouldDoubleCapacity()
+	public void WhenArrayIsFull_WhenCalled_ShouldDoubleCapacity()
 	{
 		const uint INITIAL_CAPACITY = 5u;
 		var        arr              = new SwapbackArray<int>(INITIAL_CAPACITY);
@@ -21,7 +21,7 @@ public class SwapbackArrayAddTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_ShouldAppendItem()
+	public void WhenSuccessful_WhenCalled_ShouldAppendItem()
 	{
 		int[] startingValues = [1, 2, 3];
 		// ReSharper disable once UseObjectOrCollectionInitializer
@@ -34,7 +34,7 @@ public class SwapbackArrayAddTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_ShouldIncrementVersion()
+	public void WhenSuccessful_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int>();
 		uint initialVersion = arr.Version;

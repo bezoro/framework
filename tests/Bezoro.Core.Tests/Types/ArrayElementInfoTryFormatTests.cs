@@ -11,7 +11,7 @@ public class ArrayElementInfoTryFormatTests
 {
 #if NET6_0_OR_GREATER
 	[Fact]
-	public void WhenFound_ShouldFormatCorrectly()
+	public void WhenFound_WhenCalled_ShouldFormatCorrectly()
 	{
 		var        info   = ArrayElementInfo<string>.Found(1, "foo", 5);
 		Span<char> buffer = stackalloc char[256];
@@ -24,7 +24,7 @@ public class ArrayElementInfoTryFormatTests
 	}
 
 	[Fact]
-	public void WhenNotFound_ShouldFormatCorrectly()
+	public void WhenNotFound_WhenCalled_ShouldFormatCorrectly()
 	{
 		var        info   = ArrayElementInfo<string>.NotFound(null, 5);
 		Span<char> buffer = stackalloc char[256];
@@ -37,7 +37,7 @@ public class ArrayElementInfoTryFormatTests
 	}
 
 	[Fact]
-	public void WhenBufferTooSmall_ShouldReturnFalse()
+	public void WhenBufferTooSmall_WhenCalled_ShouldReturnFalse()
 	{
 		var        info   = ArrayElementInfo<string>.Found(1, "foo", 5);
 		Span<char> buffer = stackalloc char[10];
@@ -48,7 +48,7 @@ public class ArrayElementInfoTryFormatTests
 	}
 
 	[Fact]
-	public void ToStringWithFormat_ShouldReturnSameAsToString()
+	public void ToStringWithFormat_WhenCalled_ShouldReturnSameAsToString()
 	{
 		var info = ArrayElementInfo<string>.Found(1, "foo", 5);
 

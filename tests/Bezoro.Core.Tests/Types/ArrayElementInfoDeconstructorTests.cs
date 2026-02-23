@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoDeconstructorTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnFields()
+	public void WhenCalled_WhenCalled_ShouldReturnFields()
 	{
 		var info = new ArrayElementInfo<int>(3, 7, 11);
 

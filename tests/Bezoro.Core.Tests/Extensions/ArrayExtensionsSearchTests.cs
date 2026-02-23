@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class ArrayExtensionsProcessTests
 {
 	[Fact]
-	public void Contains_WhenElementDoesNotExist_ReturnsFalse()
+	public void ContainsWhenElementDoesNotExist_WhenCalled_ShouldReturnFalse()
 	{
 		string[] array = ["first", "second", "third"];
 		array.Contains("fourth", out int index).Should().BeFalse();
@@ -17,7 +17,7 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void Contains_WhenElementExists_ReturnsTrue()
+	public void ContainsWhenElementExists_WhenCalled_ShouldReturnTrue()
 	{
 		string[] array = ["first", "second", "third"];
 		array.Contains("second", out int index).Should().BeTrue();
@@ -25,7 +25,7 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void ContainsStruct_WhenElementDoesNotExist_ReturnsFalse()
+	public void ContainsStructWhenElementDoesNotExist_WhenCalled_ShouldReturnFalse()
 	{
 		int[] array = [1, 2, 3];
 		array.ContainsStruct(4, out int index).Should().BeFalse();
@@ -33,7 +33,7 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void ContainsStruct_WhenElementExists_ReturnsTrue()
+	public void ContainsStructWhenElementExists_WhenCalled_ShouldReturnTrue()
 	{
 		int[] array = [1, 2, 3];
 		array.ContainsStruct(2, out int index).Should().BeTrue();
@@ -41,14 +41,14 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void CountEmptyIndices_ReturnsCorrectCount()
+	public void CountEmptyIndices_WhenCalled_ShouldReturnCorrectCount()
 	{
 		string?[] array = ["first", null, "third", null];
 		array.CountEmptyIndices().Should().Be(2);
 	}
 
 	[Fact]
-	public void CountEmptyIndices_WithValidSize_ReturnsCorrectCount()
+	public void CountEmptyIndicesWithValidSize_WhenCalled_ShouldReturnCorrectCount()
 	{
 		var array = new string[5];
 		array[0] = "first";
@@ -57,14 +57,14 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void CountFilledIndices_ReturnsCorrectCount()
+	public void CountFilledIndices_WhenCalled_ShouldReturnCorrectCount()
 	{
 		string?[] array = ["first", null, "third", null];
 		array.CountFilledIndices().Should().Be(2);
 	}
 
 	[Fact]
-	public void TryFindFirstEmptyIndex_WhenEmptyElementExists_ReturnsTrue()
+	public void TryFindFirstEmptyIndexWhenEmptyElementExists_WhenCalled_ShouldReturnTrue()
 	{
 		string?[] array = ["first", null, "third"];
 		array.TryFindFirstEmptyIndex(out int index).Should().BeTrue();
@@ -72,7 +72,7 @@ public class ArrayExtensionsProcessTests
 	}
 
 	[Fact]
-	public void TryFindFirstEmptyIndex_WhenNoEmptyElement_ReturnsFalse()
+	public void TryFindFirstEmptyIndexWhenNoEmptyElement_WhenCalled_ShouldReturnFalse()
 	{
 		string[] array = ["first", "second", "third"];
 		array.TryFindFirstEmptyIndex(out int index).Should().BeFalse();

@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Helpers;
 public class ArrayHelperTests
 {
 	[Fact]
-	public void Add_ShouldPlaceItemInFirstNullSlot()
+	public void Add_WhenCalled_ShouldPlaceItemInFirstNullSlot()
 	{
 		var arr = new string?[] { null, null };
 
@@ -27,7 +27,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void Add_ShouldThrow_WhenArrayIsEmpty()
+	public void Add_WhenCalled_ShouldThrow_WhenArrayIsEmpty()
 	{
 		string?[] arr = [];
 
@@ -37,7 +37,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void Add_ShouldThrow_WhenArrayIsFull()
+	public void Add_WhenCalled_ShouldThrow_WhenArrayIsFull()
 	{
 		string[] arr = new[] { "a" };
 
@@ -47,7 +47,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void Add_ShouldThrow_WhenArrayIsNull()
+	public void Add_WhenCalled_ShouldThrow_WhenArrayIsNull()
 	{
 		string?[] arr = null!;
 
@@ -57,7 +57,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void AddUnique_ShouldAdd_WhenNotPresent()
+	public void AddUnique_WhenCalled_ShouldAdd_WhenNotPresent()
 	{
 		string?[] arr = new[] { null, "b", null };
 
@@ -68,7 +68,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void AddUnique_ShouldNotAdd_WhenAlreadyPresent()
+	public void AddUnique_WhenCalled_ShouldNotAdd_WhenAlreadyPresent()
 	{
 		string?[] arr = new[] { "a", null };
 
@@ -80,7 +80,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void AddUnique_ShouldThrow_WhenArrayIsEmpty()
+	public void AddUnique_WhenCalled_ShouldThrow_WhenArrayIsEmpty()
 	{
 		string?[] arr = [];
 
@@ -90,7 +90,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void AddUnique_ShouldThrow_WhenArrayIsNull()
+	public void AddUnique_WhenCalled_ShouldThrow_WhenArrayIsNull()
 	{
 		string?[] arr = null!;
 
@@ -100,7 +100,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void AddUnique_ShouldThrow_WhenNoSpaceAvailable_AndNotPresent()
+	public void AddUnique_WhenCalled_ShouldThrow_WhenNoSpaceAvailable_AndNotPresent()
 	{
 		string[] arr = new[] { "a", "b" };
 
@@ -110,7 +110,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldReturnFalse_ForDifferentLengths()
+	public void CompareArrays_WhenCalled_ShouldReturnFalse_ForDifferentLengths()
 	{
 		int[] a = [1, 2];
 		int[] b = [1, 2, 3];
@@ -119,7 +119,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldReturnFalse_WhenAnyElementDiffers()
+	public void CompareArrays_WhenCalled_ShouldReturnFalse_WhenAnyElementDiffers()
 	{
 		int[] a = [1, 2, 3];
 		int[] b = [1, 99, 3];
@@ -128,7 +128,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldReturnTrue_ForEqualArrays()
+	public void CompareArrays_WhenCalled_ShouldReturnTrue_ForEqualArrays()
 	{
 		int[] a = [1, 2, 3];
 		int[] b = [1, 2, 3];
@@ -137,7 +137,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldThrow_WhenEitherArrayIsEmpty()
+	public void CompareArrays_WhenCalled_ShouldThrow_WhenEitherArrayIsEmpty()
 	{
 		int[] a = [];
 		int[] b = [1, 2];
@@ -148,7 +148,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldThrow_WhenFirstIsNull()
+	public void CompareArrays_WhenCalled_ShouldThrow_WhenFirstIsNull()
 	{
 		int[] a = null!;
 		int[] b = [1, 2];
@@ -159,7 +159,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void CompareArrays_ShouldThrow_WhenSecondIsNull()
+	public void CompareArrays_WhenCalled_ShouldThrow_WhenSecondIsNull()
 	{
 		int[] a = [1, 2];
 		int[] b = null!;
@@ -170,7 +170,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void RemoveElement_ShouldNoop_WhenItemNotFound()
+	public void RemoveElement_WhenCalled_ShouldNoop_WhenItemNotFound()
 	{
 		string[] arr = new[] { "x", "y" };
 
@@ -180,7 +180,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void RemoveElement_ShouldSetFoundElementToNull_AndReturnSameArray()
+	public void RemoveElement_WhenCalled_ShouldSetFoundElementToNull_AndReturnSameArray()
 	{
 		string[] arr = new[] { "a", "b", "c" };
 
@@ -193,7 +193,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void RemoveElement_ShouldThrow_WhenArrayIsEmpty()
+	public void RemoveElement_WhenCalled_ShouldThrow_WhenArrayIsEmpty()
 	{
 		string?[] arr = [];
 
@@ -203,7 +203,7 @@ public class ArrayHelperTests
 	}
 
 	[Fact]
-	public void RemoveElement_ShouldThrow_WhenArrayIsNull()
+	public void RemoveElement_WhenCalled_ShouldThrow_WhenArrayIsNull()
 	{
 		string?[] arr = null!;
 

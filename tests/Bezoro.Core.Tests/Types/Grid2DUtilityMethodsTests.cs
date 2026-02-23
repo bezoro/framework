@@ -3,13 +3,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Grid2D<>))]
 public class Grid2DUtilityMethodsTests
 {
 	[Fact]
-	public void Clear_SetsAllElementsToDefault()
+	public void Grid2DUtilityMethods_WhenCalled_ShouldClear_SetsAllElementsToDefault()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3, 42);
@@ -26,7 +26,7 @@ public class Grid2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void Fill_SetsAllElementsToValue()
+	public void Grid2DUtilityMethods_WhenCalled_ShouldFill_SetsAllElementsToValue()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -49,7 +49,7 @@ public class Grid2DUtilityMethodsTests
 	[InlineData(0,  3,  false)]
 	[InlineData(-1, 0,  false)]
 	[InlineData(0,  -1, false)]
-	public void IsInBounds_ReturnsCorrectResult(int x, int y, bool expected)
+	public void IsInBounds_WhenCalled_ShouldReturnCorrectResult(int x, int y, bool expected)
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -59,7 +59,7 @@ public class Grid2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void TryGet_WhenInBounds_ReturnsTrueAndValue()
+	public void TryGetWhenInBounds_WhenCalled_ShouldReturnTrueAndValue()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -74,7 +74,7 @@ public class Grid2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void TryGet_WhenOutOfBounds_ReturnsFalse()
+	public void TryGetWhenOutOfBounds_WhenCalled_ShouldReturnFalse()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -88,7 +88,7 @@ public class Grid2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void TrySet_WhenInBounds_ReturnsTrueAndSetsValue()
+	public void TrySetWhenInBounds_WhenCalled_ShouldReturnTrueAndSetsValue()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -102,7 +102,7 @@ public class Grid2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void TrySet_WhenOutOfBounds_ReturnsFalse()
+	public void TrySetWhenOutOfBounds_WhenCalled_ShouldReturnFalse()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -114,3 +114,4 @@ public class Grid2DUtilityMethodsTests
 		result.Should().BeFalse();
 	}
 }
+

@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2ExplicitConversionTests
 {
 	[Fact]
-	public void WhenInvalidFromVector2_ShouldThrow()
+	public void WhenInvalidFromVector2_WhenCalled_ShouldThrow()
 	{
 		var v = new Vector2(1.5f, 2f);
 
@@ -21,7 +21,7 @@ public class UIntVector2ExplicitConversionTests
 	}
 
 	[Fact]
-	public void WhenValidFromVector2_ShouldSucceed()
+	public void WhenValidFromVector2_WhenCalled_ShouldSucceed()
 	{
 		var v = new Vector2(4f, 2f);
 

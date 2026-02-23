@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PoolPolicyValidateTests
 {
 	[Fact]
-	public void WithNoValidateDelegate_ShouldReturnTrue()
+	public void WithNoValidateDelegate_WhenCalled_ShouldReturnTrue()
 	{
 		var policy = new PoolPolicy<object>(() => new());
 		var item   = new object();
@@ -20,7 +20,7 @@ public class PoolPolicyValidateTests
 	}
 
 	[Fact]
-	public void WithValidateDelegate_ShouldInvokeDelegate()
+	public void WithValidateDelegate_WhenCalled_ShouldInvokeDelegate()
 	{
 		var validateCalled = false;
 		var policy = new PoolPolicy<object>(
@@ -40,7 +40,7 @@ public class PoolPolicyValidateTests
 	}
 
 	[Fact]
-	public void WithValidateDelegate_ShouldReturnDelegateResult()
+	public void WithValidateDelegate_WhenCalled_ShouldReturnDelegateResult()
 	{
 		var policy = new PoolPolicy<object>(
 			() => new(),

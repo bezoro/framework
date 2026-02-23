@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class MemoryExtensionsTests
 {
 	[Fact]
-	public void ThrowIfEmpty_WhenMemoryHasItems_ReturnsMemory()
+	public void ThrowIfEmptyWhenMemoryHasItems_WhenCalled_ShouldReturnMemory()
 	{
 		Memory<int> memory = new[] { 1, 2, 3 };
 
@@ -21,7 +21,7 @@ public class MemoryExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenMemoryIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenMemoryIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		var memory = Memory<int>.Empty;
 
@@ -31,7 +31,7 @@ public class MemoryExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlyMemoryHasItems_ReturnsMemory()
+	public void ThrowIfEmptyWhenReadOnlyMemoryHasItems_WhenCalled_ShouldReturnMemory()
 	{
 		ReadOnlyMemory<int> memory = new[] { 4, 5, 6 };
 
@@ -41,7 +41,7 @@ public class MemoryExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlyMemoryIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenReadOnlyMemoryIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		var memory = ReadOnlyMemory<int>.Empty;
 

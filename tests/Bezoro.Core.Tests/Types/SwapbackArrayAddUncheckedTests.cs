@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAddUncheckedTests
 {
 	[Fact]
-	public void ShouldIncrementVersion()
+	public void SwapbackArrayAddUnchecked_WhenCalled_ShouldShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int>(10);
 		uint initialVersion = arr.Version;
@@ -22,7 +22,7 @@ public class SwapbackArrayAddUncheckedTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_ShouldAppendItem()
+	public void WhenSuccessful_WhenCalled_ShouldAppendItem()
 	{
 		var arr = new SwapbackArray<int>(10);
 

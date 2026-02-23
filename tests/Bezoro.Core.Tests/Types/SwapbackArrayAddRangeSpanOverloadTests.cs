@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAddRangeSpanOverloadTests
 {
 	[Fact]
-	public void WhenEmpty_ShouldNotIncrementVersion()
+	public void WhenEmpty_WhenCalled_ShouldNotIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int>();
 		uint initialVersion = arr.Version;
@@ -21,7 +21,7 @@ public class SwapbackArrayAddRangeSpanOverloadTests
 	}
 
 	[Fact]
-	public void WhenValid_ShouldAddAllItems()
+	public void WhenValid_WhenCalled_ShouldAddAllItems()
 	{
 		var arr = new SwapbackArray<int> { 1, 2 };
 
@@ -31,7 +31,7 @@ public class SwapbackArrayAddRangeSpanOverloadTests
 	}
 
 	[Fact]
-	public void WhenValid_ShouldIncrementVersionOnce()
+	public void WhenValid_WhenCalled_ShouldIncrementVersionOnce()
 	{
 		var  arr            = new SwapbackArray<int>();
 		uint initialVersion = arr.Version;

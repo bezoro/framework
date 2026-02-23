@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayInsertAtTests
 {
 	[Fact]
-	public void WhenIndexIsOutOfBounds_ShouldThrow()
+	public void WhenIndexIsOutOfBounds_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -20,7 +20,7 @@ public class SwapbackArrayInsertAtTests
 	}
 
 	[Fact]
-	public void WhenInsertingAtLastIndex_ShouldAppend()
+	public void WhenInsertingAtLastIndex_WhenCalled_ShouldAppend()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -31,7 +31,7 @@ public class SwapbackArrayInsertAtTests
 	}
 
 	[Fact]
-	public void WhenInsertingAtOccupiedIndex_ShouldIncrementVersion()
+	public void WhenInsertingAtOccupiedIndex_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -44,7 +44,7 @@ public class SwapbackArrayInsertAtTests
 	}
 
 	[Fact]
-	public void WhenInsertingAtOccupiedIndex_ShouldPerformSwapback()
+	public void WhenInsertingAtOccupiedIndex_WhenCalled_ShouldPerformSwapback()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 

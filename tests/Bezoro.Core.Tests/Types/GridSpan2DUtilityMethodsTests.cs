@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(GridSpan2D<>))]
 public class GridSpan2DUtilityMethodsTests
 {
 	[Fact]
-	public void AsReadOnly_ReturnsReadOnlyView()
+	public void AsReadOnly_WhenCalled_ShouldReturnReadOnlyView()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -27,7 +27,7 @@ public class GridSpan2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void Clear_SetsAllToDefault()
+	public void GridSpan2DUtilityMethods_WhenCalled_ShouldClear_SetsAllToDefault()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -46,7 +46,7 @@ public class GridSpan2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void Fill_SetsAllToValue()
+	public void GridSpan2DUtilityMethods_WhenCalled_ShouldFill_SetsAllToValue()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -64,7 +64,7 @@ public class GridSpan2DUtilityMethodsTests
 	}
 
 	[Fact]
-	public void IsInBounds_ReturnsCorrectResult()
+	public void IsInBounds_WhenCalled_ShouldReturnCorrectResult()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -77,3 +77,4 @@ public class GridSpan2DUtilityMethodsTests
 		grid.IsInBounds(-1, 0).Should().BeFalse();
 	}
 }
+

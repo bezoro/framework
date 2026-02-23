@@ -8,13 +8,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Singleton<>))]
 public class SingletonTests
 {
 	[Fact]
-	public async Task Instance_Is_ThreadSafe_Creates_Once()
+	public async Task Singleton_WhenCalled_ShouldInstance_Is_ThreadSafe_Creates_Once()
 	{
 		// Arrange
 		Singleton<DefaultSingleton>.Reset(true);
@@ -35,7 +35,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Abstract_Type_Instance_Throws_TypeInitializationException()
+	public void AbstractTypeInstance_WhenCalled_ShouldThrowTypeInitializationException()
 	{
 		// Act
 		Action act = () => _ = Singleton<AbstractSingleton>.Instance;
@@ -45,7 +45,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void ConfigureFactory_Recreate_Disposes_And_Uses_New_Factory()
+	public void Singleton_WhenCalled_ShouldConfigureFactory_Recreate_Disposes_And_Uses_New_Factory()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -66,7 +66,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void DirectConstruction_Is_Disallowed()
+	public void Singleton_WhenCalled_ShouldDirectConstruction_Is_Disallowed()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -81,7 +81,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Factory_Returns_Null_Throws_TypeInitializationException()
+	public void Factory_WhenCalled_ShouldReturnNull_Throws_TypeInitializationException()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -94,7 +94,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Flags_Reflect_State_Correctly_With_Override_And_Default()
+	public void Singleton_WhenCalled_ShouldFlags_Reflect_State_Correctly_With_Override_And_Default()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -110,7 +110,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Initialize_Sets_Override_And_Subsequent_Initialize_Fails()
+	public void Singleton_WhenCalled_ShouldInitialize_Sets_Override_And_Subsequent_Initialize_Fails()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -129,7 +129,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void LazyCreation_And_TryGet_And_IsValueCreated_Flow()
+	public void Singleton_WhenCalled_ShouldLazyCreation_And_TryGet_And_IsValueCreated_Flow()
 	{
 		// Arrange
 		Singleton<DefaultSingleton>.Reset(true);
@@ -151,7 +151,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Null_Factory_Arguments_Throw()
+	public void Singleton_WhenCalled_ShouldNull_Factory_Arguments_Throw()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -168,7 +168,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Override_Scope_Replaces_And_Restores_Instance()
+	public void Singleton_WhenCalled_ShouldOverride_Scope_Replaces_And_Restores_Instance()
 	{
 		// Arrange
 		Singleton<PublicCtorSingleton>.Reset(true);
@@ -198,7 +198,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void ReflectionConstruction_Is_Disallowed()
+	public void Singleton_WhenCalled_ShouldReflectionConstruction_Is_Disallowed()
 	{
 		// Arrange
 		Singleton<DefaultSingleton>.Reset(true);
@@ -216,7 +216,7 @@ public class SingletonTests
 	}
 
 	[Fact]
-	public void Reset_Swallows_Dispose_Errors()
+	public void Singleton_WhenCalled_ShouldReset_Swallows_Dispose_Errors()
 	{
 		// Arrange
 		Singleton<ThrowOnDisposeSingleton>.Reset(true);
@@ -280,3 +280,4 @@ internal sealed class ThrowOnDisposeSingleton : Singleton<ThrowOnDisposeSingleto
 		throw new InvalidOperationException("Dispose failed");
 	}
 }
+

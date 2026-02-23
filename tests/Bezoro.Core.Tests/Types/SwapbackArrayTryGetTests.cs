@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayTryGetTests
 {
 	[Fact]
-	public void WhenIndexEqualsCount_ShouldReturnFalse()
+	public void WhenIndexEqualsCount_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -17,7 +17,7 @@ public class SwapbackArrayTryGetTests
 	}
 
 	[Fact]
-	public void WhenIndexIsOutOfBounds_ShouldReturnFalse()
+	public void WhenIndexIsOutOfBounds_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int?> { 1, 2 };
 
@@ -25,7 +25,7 @@ public class SwapbackArrayTryGetTests
 	}
 
 	[Fact]
-	public void WhenValidIndex_ShouldReturnItem()
+	public void WhenValidIndex_WhenCalled_ShouldReturnItem()
 	{
 		var arr = new SwapbackArray<int?> { 1, 2 };
 

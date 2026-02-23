@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolTrimExcessTests
 {
 	[Fact]
-	public void ShouldRemoveExcessItems()
+	public void ObjectPoolTrimExcess_WhenCalled_ShouldShouldRemoveExcessItems()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -24,7 +24,7 @@ public class ObjectPoolTrimExcessTests
 	}
 
 	[Fact]
-	public void WhenNoExcess_ShouldReturnZero()
+	public void WhenNoExcess_WhenCalled_ShouldReturnZero()
 	{
 		var pool = new ObjectPool<object>(() => new());
 

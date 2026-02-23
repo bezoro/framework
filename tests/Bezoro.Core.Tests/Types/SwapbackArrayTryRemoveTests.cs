@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayTryRemoveTests
 {
 	[Fact]
-	public void WhenDuplicateItemExists_ShouldRemoveFirstInstance()
+	public void WhenDuplicateItemExists_WhenCalled_ShouldRemoveFirstInstance()
 	{
 		int[] values = [1, 2, 3, 4, 2, 5];
 		var   arr    = new SwapbackArray<int>(values);
@@ -20,7 +20,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemExists_ShouldDecrementCount()
+	public void WhenItemExists_WhenCalled_ShouldDecrementCount()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -30,7 +30,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemExists_ShouldRemoveItem()
+	public void WhenItemExists_WhenCalled_ShouldRemoveItem()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -41,7 +41,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemExists_ShouldReturnTrue()
+	public void WhenItemExists_WhenCalled_ShouldReturnTrue()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -49,7 +49,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemNotFound_ShouldNotModifyArray()
+	public void WhenItemNotFound_WhenCalled_ShouldNotModifyArray()
 	{
 		int[] values = [1, 2];
 		var   arr    = new SwapbackArray<int>(values);
@@ -60,7 +60,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenItemNotFound_ShouldReturnFalse()
+	public void WhenItemNotFound_WhenCalled_ShouldReturnFalse()
 	{
 		int[] values = [1, 2];
 		var   arr    = new SwapbackArray<int>(values);
@@ -69,7 +69,7 @@ public class SwapbackArrayTryRemoveTests
 	}
 
 	[Fact]
-	public void WhenReferenceType_ShouldClearRemovedSlot()
+	public void WhenReferenceType_WhenCalled_ShouldClearRemovedSlot()
 	{
 		var obj1 = new object();
 		var obj2 = new object();

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayContainsTests
 {
 	[Fact]
-	public void WhenArrayIsEmpty_ShouldReturnFalse()
+	public void WhenArrayIsEmpty_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -17,7 +17,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenDefaultItemExists_ShouldReturnTrue()
+	public void WhenDefaultItemExists_WhenCalled_ShouldReturnTrue()
 	{
 		// ReSharper disable once PreferConcreteValueOverDefault
 		var arr = new SwapbackArray<int> { 1, 2, 3, default };
@@ -27,7 +27,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenDefaultItemNotFound_ShouldReturnFalse()
+	public void WhenDefaultItemNotFound_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -36,7 +36,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenItemExists_ShouldReturnTrue()
+	public void WhenItemExists_WhenCalled_ShouldReturnTrue()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -44,7 +44,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenItemNotFound_ShouldReturnFalse()
+	public void WhenItemNotFound_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -52,7 +52,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenNullItemExists_ShouldReturnTrue()
+	public void WhenNullItemExists_WhenCalled_ShouldReturnTrue()
 	{
 		var arr = new SwapbackArray<int?> { 1, 2, 3, null };
 
@@ -60,7 +60,7 @@ public class SwapbackArrayContainsTests
 	}
 
 	[Fact]
-	public void WhenNullItemNotFound_ShouldReturnFalse()
+	public void WhenNullItemNotFound_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int?> { 1, 2, 3, 4 };
 

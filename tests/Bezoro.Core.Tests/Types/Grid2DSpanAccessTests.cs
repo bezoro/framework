@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Grid2D<>))]
 public class Grid2DSpanAccessTests
 {
 	[Fact]
-	public void AsSpan_ReturnsCorrectData()
+	public void AsSpan_WhenCalled_ShouldReturnCorrectData()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 2);
@@ -35,7 +35,7 @@ public class Grid2DSpanAccessTests
 	}
 
 	[Fact]
-	public void GetRow_ReturnsCorrectRow()
+	public void GetRow_WhenCalled_ShouldReturnCorrectRow()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 2);
@@ -63,7 +63,7 @@ public class Grid2DSpanAccessTests
 	}
 
 	[Fact]
-	public void GetRow_WhenOutOfBounds_ThrowsArgumentOutOfRangeException()
+	public void GetRowWhenOutOfBounds_WhenCalled_ShouldThrowArgumentOutOfRangeException()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 2);
@@ -73,3 +73,4 @@ public class Grid2DSpanAccessTests
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
 }
+

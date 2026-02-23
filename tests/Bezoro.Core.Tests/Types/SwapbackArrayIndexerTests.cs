@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayIndexerTests
 {
 	[Fact]
-	public void WhenGetOutOfBounds_ShouldThrow()
+	public void WhenGetOutOfBounds_WhenCalled_ShouldThrow()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -21,7 +21,7 @@ public class SwapbackArrayIndexerTests
 	}
 
 	[Fact]
-	public void WhenGetValidIndex_ShouldReturnItem()
+	public void WhenGetValidIndex_WhenCalled_ShouldReturnItem()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -32,7 +32,7 @@ public class SwapbackArrayIndexerTests
 	}
 
 	[Fact]
-	public void WhenSetOutOfBounds_ShouldThrow()
+	public void WhenSetOutOfBounds_WhenCalled_ShouldThrow()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -43,7 +43,7 @@ public class SwapbackArrayIndexerTests
 	}
 
 	[Fact]
-	public void WhenSetValidIndex_ShouldIncrementVersion()
+	public void WhenSetValidIndex_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -56,7 +56,7 @@ public class SwapbackArrayIndexerTests
 	}
 
 	[Fact]
-	public void WhenSetValidIndex_ShouldSetItem()
+	public void WhenSetValidIndex_WhenCalled_ShouldSetItem()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 

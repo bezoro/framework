@@ -17,7 +17,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldDecrementCount()
+	public void WhenCalled_WhenCalled_ShouldDecrementCount()
 	{
 		var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
 
@@ -27,7 +27,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldIncrementVersion()
+	public void WhenCalled_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -40,7 +40,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldSwapLastItemIntoRemovedIndex()
+	public void WhenCalled_WhenCalled_ShouldSwapLastItemIntoRemovedIndex()
 	{
 		var arr = new SwapbackArray<int> { 10, 20, 30, 40 };
 
@@ -50,7 +50,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenFails_ShouldNotIncrementVersion()
+	public void WhenFails_WhenCalled_ShouldNotIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1 };
 		uint initialVersion = arr.Version;
@@ -61,7 +61,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenIndexIsOutOfBounds_ShouldReturnFalse()
+	public void WhenIndexIsOutOfBounds_WhenCalled_ShouldReturnFalse()
 	{
 		var arr = new SwapbackArray<int> { 10 };
 
@@ -69,7 +69,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenRemovingLastElement_ShouldNotSwap()
+	public void WhenRemovingLastElement_WhenCalled_ShouldNotSwap()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -80,7 +80,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenUnderutilized_ShouldAutoDownsize()
+	public void WhenUnderutilized_WhenCalled_ShouldAutoDownsize()
 	{
 		var arr = new SwapbackArray<int>(16);
 		for (var i = 0; i < 16; i++) arr.Add(i);
@@ -103,7 +103,7 @@ public class SwapbackArrayTryRemoveAtTests
 	}
 
 	[Fact]
-	public void WhenValidIndex_ShouldReturnTrue()
+	public void WhenValidIndex_WhenCalled_ShouldReturnTrue()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 

@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(GridSpan2D<>))]
 public class GridSpan2DIndexerTests
 {
 	[Fact]
-	public void WhenSettingAndGetting_ThenWorksCorrectly()
+	public void GridSpan2DIndexer_WhenSettingAndGetting_ShouldWorksCorrectly()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -24,7 +24,7 @@ public class GridSpan2DIndexerTests
 	}
 
 	[Fact]
-	public void WhenUsingRefReturn_ThenCanModifyInPlace()
+	public void GridSpan2DIndexer_WhenUsingRefReturn_ShouldCanModifyInPlace()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[9];
@@ -39,3 +39,4 @@ public class GridSpan2DIndexerTests
 		grid[1, 1].Should().Be(42);
 	}
 }
+

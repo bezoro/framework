@@ -4,7 +4,7 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(Grid2D<>))]
 public class Grid2DIndexerTests
@@ -14,7 +14,7 @@ public class Grid2DIndexerTests
 	[InlineData(5, 5, 0,  5)]  // y out of bounds
 	[InlineData(5, 5, -1, 0)]  // x negative
 	[InlineData(5, 5, 0,  -1)] // y negative
-	public void WhenAccessingOutOfBounds_ThenThrowsIndexOutOfRangeException(
+	public void Grid2DIndexer_WhenAccessingOutOfBounds_ShouldThrowsIndexOutOfRangeException(
 		int gridWidth,
 		int gridHeight,
 		int accessX,
@@ -29,7 +29,7 @@ public class Grid2DIndexerTests
 	}
 
 	[Fact]
-	public void WhenSettingAndGettingAtBoundaries_ThenWorksCorrectly()
+	public void Grid2DIndexer_WhenSettingAndGettingAtBoundaries_ShouldWorksCorrectly()
 	{
 		// Arrange
 		const int WIDTH  = 2;
@@ -48,7 +48,7 @@ public class Grid2DIndexerTests
 	}
 
 	[Fact]
-	public void WhenSettingAndGettingValue_ThenStoresAndRetrievesCorrectly()
+	public void Grid2DIndexer_WhenSettingAndGettingValue_ShouldStoresAndRetrievesCorrectly()
 	{
 		// Arrange
 		const int    WIDTH      = 5;
@@ -71,7 +71,7 @@ public class Grid2DIndexerTests
 	[InlineData(5, 5, 0,  5,  10)] // y out of bounds
 	[InlineData(5, 5, -1, 0,  10)] // x negative
 	[InlineData(5, 5, 0,  -1, 10)] // y negative
-	public void WhenSettingOutOfBounds_ThenThrowsIndexOutOfRangeException(
+	public void Grid2DIndexer_WhenSettingOutOfBounds_ShouldThrowsIndexOutOfRangeException(
 		int gridWidth,
 		int gridHeight,
 		int setX,
@@ -87,7 +87,7 @@ public class Grid2DIndexerTests
 	}
 
 	[Fact]
-	public void WhenUsingRefReturn_ThenCanModifyInPlace()
+	public void Grid2DIndexer_WhenUsingRefReturn_ShouldCanModifyInPlace()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -101,3 +101,4 @@ public class Grid2DIndexerTests
 		grid[1, 1].Should().Be(42);
 	}
 }
+

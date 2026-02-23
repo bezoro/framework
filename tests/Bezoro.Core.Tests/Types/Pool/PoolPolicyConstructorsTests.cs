@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PoolPolicyConstructorsTests
 {
 	[Fact]
-	public void WithAllDelegates_ShouldCreatePolicy()
+	public void WithAllDelegates_WhenCalled_ShouldCreatePolicy()
 	{
 		var policy = new PoolPolicy<object>(
 			() => new(),
@@ -23,7 +23,7 @@ public class PoolPolicyConstructorsTests
 	}
 
 	[Fact]
-	public void WithFactory_ShouldCreatePolicy()
+	public void WithFactory_WhenCalled_ShouldCreatePolicy()
 	{
 		var policy = new PoolPolicy<object>(() => new());
 
@@ -31,7 +31,7 @@ public class PoolPolicyConstructorsTests
 	}
 
 	[Fact]
-	public void WithNullFactory_ShouldThrow()
+	public void WithNullFactory_WhenCalled_ShouldThrow()
 	{
 		var act = () => new PoolPolicy<object>(null!);
 

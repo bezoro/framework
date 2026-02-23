@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoRuntimeElementTypeTests
 {
 	[Fact]
-	public void WhenElementIsNull_ShouldFallbackToArrayType()
+	public void WhenElementIsNull_WhenCalled_ShouldFallbackToArrayType()
 	{
 		var info = new ArrayElementInfo<string>(5, null, 7);
 
@@ -17,7 +17,7 @@ public class ArrayElementInfoRuntimeElementTypeTests
 	}
 
 	[Fact]
-	public void WhenNullableHasValue_ShouldBeUnderlyingType()
+	public void WhenNullableHasValue_WhenCalled_ShouldBeUnderlyingType()
 	{
 		var info = new ArrayElementInfo<int?>(1, 5, 3);
 
@@ -26,7 +26,7 @@ public class ArrayElementInfoRuntimeElementTypeTests
 	}
 
 	[Fact]
-	public void WhenNullableIsNull_ShouldBeArrayType()
+	public void WhenNullableIsNull_WhenCalled_ShouldBeArrayType()
 	{
 		var info = new ArrayElementInfo<int?>(null, null, 3);
 

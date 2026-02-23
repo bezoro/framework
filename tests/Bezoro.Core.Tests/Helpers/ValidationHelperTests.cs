@@ -11,14 +11,14 @@ namespace Bezoro.Core.Tests.Helpers;
 public class ValidationHelperTests
 {
 	[Fact]
-	public void Condition_ShouldNotThrow_WhenConditionIsTrue()
+	public void Condition_WhenCalled_ShouldNotThrow_WhenConditionIsTrue()
 	{
 		var act = () => ValidationHelper.Condition(true, "ok", new Dummy(), "Run");
 		act.Should().NotThrow();
 	}
 
 	[Fact]
-	public void Condition_ShouldThrow_WithComposedMessage_WhenConditionIsFalse()
+	public void Condition_WhenCalled_ShouldThrow_WithComposedMessage_WhenConditionIsFalse()
 	{
 		var instance = new Dummy();
 
@@ -29,42 +29,42 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void IsFalse_Default_ShouldNotThrow_WhenConditionIsFalse()
+	public void IsFalse_WhenDefault_ShouldNotThrow_WhenConditionIsFalse()
 	{
 		var act = () => ValidationHelper.IsFalse(false, "ignored");
 		act.Should().NotThrow();
 	}
 
 	[Fact]
-	public void IsFalse_Default_ShouldThrow_WhenConditionIsTrue()
+	public void IsFalse_WhenDefault_ShouldThrow_WhenConditionIsTrue()
 	{
 		var act = () => ValidationHelper.IsFalse(true, "boom");
 		act.Should().Throw<InvalidOperationException>();
 	}
 
 	[Fact]
-	public void IsFalse_Generic_ShouldNotThrow_WhenConditionIsFalse()
+	public void IsFalse_WhenGeneric_ShouldNotThrow_WhenConditionIsFalse()
 	{
 		var act = () => ValidationHelper.IsFalse<ArgumentException>(false, "ignored");
 		act.Should().NotThrow();
 	}
 
 	[Fact]
-	public void IsFalse_Generic_ShouldThrowSpecificException_WhenConditionIsTrue()
+	public void IsFalse_WhenGeneric_ShouldThrowSpecificException_WhenConditionIsTrue()
 	{
 		var act = () => ValidationHelper.IsFalse<ArgumentException>(true, "bad");
 		act.Should().Throw<ArgumentException>();
 	}
 
 	[Fact]
-	public void IsNotNull_ShouldNotThrow_WhenObjectIsNotNull()
+	public void IsNotNull_WhenCalled_ShouldNotThrow_WhenObjectIsNotNull()
 	{
 		var act = () => ValidationHelper.IsNotNull("x");
 		act.Should().NotThrow();
 	}
 
 	[Fact]
-	public void IsNotNull_ShouldThrow_WhenObjectIsNull()
+	public void IsNotNull_WhenCalled_ShouldThrow_WhenObjectIsNull()
 	{
 		string? obj = null;
 		var     act = () => ValidationHelper.IsNotNull(obj!);
@@ -72,7 +72,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void IsPositiveValue_ShouldNotThrow_WhenValueIsPositive()
+	public void IsPositiveValue_WhenCalled_ShouldNotThrow_WhenValueIsPositive()
 	{
 		var act = () => ValidationHelper.IsPositiveValue(0.01f);
 		act.Should().NotThrow();
@@ -81,7 +81,7 @@ public class ValidationHelperTests
 	[Theory]
 	[InlineData(0f)]
 	[InlineData(-1f)]
-	public void IsPositiveValue_ShouldThrow_WhenValueIsNonPositive(float value)
+	public void IsPositiveValue_WhenCalled_ShouldThrow_WhenValueIsNonPositive(float value)
 	{
 		var act = () => ValidationHelper.IsPositiveValue(value, "amount");
 		var ex  = act.Should().Throw<ArgumentException>().Which;
@@ -90,14 +90,14 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void IsSubclassOf_ShouldNotThrow_WhenTypeIsSubclass()
+	public void IsSubclassOf_WhenCalled_ShouldNotThrow_WhenTypeIsSubclass()
 	{
 		var act = () => ValidationHelper.IsSubclassOf<BaseType>(new Dummy(), "Check", typeof(DerivedType));
 		act.Should().NotThrow();
 	}
 
 	[Fact]
-	public void IsSubclassOf_ShouldThrow_WhenTypeIsNotSubclass()
+	public void IsSubclassOf_WhenCalled_ShouldThrow_WhenTypeIsNotSubclass()
 	{
 		var act = () => ValidationHelper.IsSubclassOf<BaseType>(new Dummy(), "Check", typeof(string));
 		var ex  = act.Should().Throw<ArgumentException>().Which;
@@ -108,7 +108,7 @@ public class ValidationHelperTests
 	[InlineData(0, 0, 0, 7)]
 	[InlineData(7, 7, 0, 7)]
 	[InlineData(3, 4, 0, 7)]
-	public void IsWithinRange_ShouldNotThrow_WhenInsideOrOnBoundary(int file, int rank, int min, int max)
+	public void IsWithinRange_WhenCalled_ShouldNotThrow_WhenInsideOrOnBoundary(int file, int rank, int min, int max)
 	{
 		var act = () => ValidationHelper.IsWithinRange(file, rank, min, max);
 		act.Should().NotThrow();
@@ -119,7 +119,7 @@ public class ValidationHelperTests
 	[InlineData(0,  -1, 0, 7)]
 	[InlineData(8,  0,  0, 7)]
 	[InlineData(0,  8,  0, 7)]
-	public void IsWithinRange_ShouldThrow_WhenOutside(int file, int rank, int min, int max)
+	public void IsWithinRange_WhenCalled_ShouldThrow_WhenOutside(int file, int rank, int min, int max)
 	{
 		var act = () => ValidationHelper.IsWithinRange(file, rank, min, max);
 		var ex  = act.Should().Throw<ArgumentOutOfRangeException>().Which;
@@ -130,7 +130,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ListNotNullOrEmpty_ShouldNotThrow_WhenListHasItems()
+	public void ListNotNullOrEmpty_WhenCalled_ShouldNotThrow_WhenListHasItems()
 	{
 		var list = new List<int> { 1 };
 		var act  = () => ValidationHelper.ListNotNullOrEmpty(list);
@@ -138,7 +138,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ListNotNullOrEmpty_ShouldThrow_WhenListIsEmpty()
+	public void ListNotNullOrEmpty_WhenCalled_ShouldThrow_WhenListIsEmpty()
 	{
 		var list = new List<int>();
 		var act  = () => ValidationHelper.ListNotNullOrEmpty(list);
@@ -147,7 +147,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ListNotNullOrEmpty_ShouldThrow_WhenListIsNull()
+	public void ListNotNullOrEmpty_WhenCalled_ShouldThrow_WhenListIsNull()
 	{
 		List<int> list = null!;
 		var       act  = () => ValidationHelper.ListNotNullOrEmpty(list);
@@ -155,7 +155,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void String_ShouldNotThrow_WhenValid()
+	public void String_WhenCalled_ShouldNotThrow_WhenValid()
 	{
 		var act = () => ValidationHelper.String("ok");
 		act.Should().NotThrow();
@@ -165,7 +165,7 @@ public class ValidationHelperTests
 	[InlineData(null)]
 	[InlineData("")]
 	[InlineData("   ")]
-	public void String_ShouldThrow_WhenNullOrWhitespace(string? value)
+	public void String_WhenCalled_ShouldThrow_WhenNullOrWhitespace(string? value)
 	{
 		var act = () => ValidationHelper.String(value!);
 		var ex  = act.Should().Throw<ArgumentException>().Which;
@@ -173,7 +173,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ThrowIfObjectIsNull_ShouldStillThrow_WhenObjectIsNotNull_PerCurrentBehavior()
+	public void ThrowIfObjectIsNull_WhenCalled_ShouldStillThrow_WhenObjectIsNotNull_PerCurrentBehavior()
 	{
 		object obj = new();
 		var    act = () => ValidationHelper.ThrowIfObjectIsNull(obj, "thing", "extra info");
@@ -183,7 +183,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ThrowIfObjectIsNull_ShouldThrow_WhenObjectIsNull()
+	public void ThrowIfObjectIsNull_WhenCalled_ShouldThrow_WhenObjectIsNull()
 	{
 		object obj = null!;
 		var    act = () => ValidationHelper.ThrowIfObjectIsNull(obj);
@@ -193,7 +193,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ValueNotAboveMax_ShouldNotThrow_WhenValueIsEqualOrLess()
+	public void ValueNotAboveMax_WhenCalled_ShouldNotThrow_WhenValueIsEqualOrLess()
 	{
 		var a1 = () => ValidationHelper.ValueNotAboveMax(5, 5);
 		var a2 = () => ValidationHelper.ValueNotAboveMax(4, 5);
@@ -202,7 +202,7 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ValueNotAboveMax_ShouldThrow_WhenValueIsGreater()
+	public void ValueNotAboveMax_WhenCalled_ShouldThrow_WhenValueIsGreater()
 	{
 		var act = () => ValidationHelper.ValueNotAboveMax(6, 5, "count", "limit");
 		var ex  = act.Should().Throw<ArgumentException>().Which;

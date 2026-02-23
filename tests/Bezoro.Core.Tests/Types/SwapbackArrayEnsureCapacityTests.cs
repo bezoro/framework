@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayEnsureCapacityTests
 {
 	[Fact]
-	public void WhenArrayIsEmpty_ShouldUseMinimumCapacity()
+	public void WhenArrayIsEmpty_WhenCalled_ShouldUseMinimumCapacity()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -20,7 +20,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenAtMaxArrayLength_ShouldNotGrow()
+	public void WhenAtMaxArrayLength_WhenCalled_ShouldNotGrow()
 	{
 		const uint MAX_ARRAY_LENGTH = 0x7FFFFFC7;
 		var        arr              = new SwapbackArray<int>(MAX_ARRAY_LENGTH);
@@ -31,7 +31,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenDoublingWouldExceedMax_ShouldUseMaxCapacity()
+	public void WhenDoublingWouldExceedMax_WhenCalled_ShouldUseMaxCapacity()
 	{
 		var arr = new SwapbackArray<int>(int.MaxValue / 2);
 
@@ -41,7 +41,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenRequestedMinimumExceedsMaximum_ShouldThrow()
+	public void WhenRequestedMinimumExceedsMaximum_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int>();
 		var act = () => arr.EnsureCapacity(int.MaxValue);
@@ -49,7 +49,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenValidRequestedMinimumBelowDoubleCapacity_ShouldDoubleCapacity()
+	public void WhenValidRequestedMinimumBelowDoubleCapacity_WhenCalled_ShouldDoubleCapacity()
 	{
 		var initialCapacity = 5u;
 		var arr             = new SwapbackArray<int>(initialCapacity);
@@ -60,7 +60,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenValidRequestedMinimumIsAboveDoubleCurrentCapacity_ShouldUseMinimum()
+	public void WhenValidRequestedMinimumIsAboveDoubleCurrentCapacity_WhenCalled_ShouldUseMinimum()
 	{
 		var initialCapacity = 5u;
 		var arr             = new SwapbackArray<int>(initialCapacity);
@@ -71,7 +71,7 @@ public class SwapbackArrayEnsureCapacityTests
 	}
 
 	[Fact]
-	public void WhenValidRequestedMinimumIsBelowCurrentCapacity_ShouldNotChangeCapacity()
+	public void WhenValidRequestedMinimumIsBelowCurrentCapacity_WhenCalled_ShouldNotChangeCapacity()
 	{
 		var arr = new SwapbackArray<int>(8);
 

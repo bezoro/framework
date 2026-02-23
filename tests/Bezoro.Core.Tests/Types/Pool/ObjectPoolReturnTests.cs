@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolReturnTests
 {
 	[Fact]
-	public void WhenDisposed_ShouldDiscardAndReturnFalse()
+	public void WhenDisposed_WhenCalled_ShouldDiscardAndReturnFalse()
 	{
 		var pool = new ObjectPool<DisposableObject>(() => new());
 		var item = pool.Rent();
@@ -23,7 +23,7 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void WhenPoolAtMaxCapacity_ShouldDiscard()
+	public void WhenPoolAtMaxCapacity_WhenCalled_ShouldDiscard()
 	{
 		// Pool starts with 1 item and max is 1
 		var pool = new ObjectPool<object>(
@@ -41,7 +41,7 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void WhenResetReturnsFalse_ShouldDiscard()
+	public void WhenResetReturnsFalse_WhenCalled_ShouldDiscard()
 	{
 		var pool = new ObjectPool<TestObject>(() => new());
 		var item = pool.Rent();
@@ -54,7 +54,7 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void WithIPooledObject_ShouldCallOnReturn()
+	public void WithIPooledObject_WhenCalled_ShouldCallOnReturn()
 	{
 		var pool = new ObjectPool<TestObject>(() => new());
 		var item = pool.Rent();
@@ -65,7 +65,7 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void WithNullItem_ShouldThrow()
+	public void WithNullItem_WhenCalled_ShouldThrow()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -75,7 +75,7 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void WithValidItem_ShouldAddToPool()
+	public void WithValidItem_WhenCalled_ShouldAddToPool()
 	{
 		var    pool = new ObjectPool<object>(() => new());
 		object item = pool.Rent();

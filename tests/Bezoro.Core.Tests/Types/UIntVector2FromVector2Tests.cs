@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2FromVector2Tests
 {
 	[Fact]
-	public void WhenInfinity_ShouldThrow()
+	public void WhenInfinity_WhenCalled_ShouldThrow()
 	{
 		var v = new Vector2(float.PositiveInfinity, 0f);
 
@@ -21,7 +21,7 @@ public class UIntVector2FromVector2Tests
 	}
 
 	[Fact]
-	public void WhenNaN_ShouldThrow()
+	public void WhenNaN_WhenCalled_ShouldThrow()
 	{
 		var v = new Vector2(float.NaN, 0f);
 
@@ -34,7 +34,7 @@ public class UIntVector2FromVector2Tests
 	[InlineData(-1f,            0f)]
 	[InlineData(0f,             -0.1f)]
 	[InlineData(5_000_000_000f, 0f)] // larger than uint.MaxValue
-	public void WhenNegativeOrTooLarge_ShouldThrow(float x, float y)
+	public void WhenNegativeOrTooLarge_WhenCalled_ShouldThrow(float x, float y)
 	{
 		var v = new Vector2(x, y);
 
@@ -44,7 +44,7 @@ public class UIntVector2FromVector2Tests
 	}
 
 	[Fact]
-	public void WhenNonWholeBeyondTolerance_ShouldThrow()
+	public void WhenNonWholeBeyondTolerance_WhenCalled_ShouldThrow()
 	{
 		var v = new Vector2(1.000002f, 2f);
 
@@ -54,7 +54,7 @@ public class UIntVector2FromVector2Tests
 	}
 
 	[Fact]
-	public void WhenValidVector2_ShouldReturnNewValidUIntVector2()
+	public void WhenValidVector2_WhenCalled_ShouldReturnNewValidUIntVector2()
 	{
 		var v = new Vector2(3f, 7f);
 
@@ -65,7 +65,7 @@ public class UIntVector2FromVector2Tests
 	}
 
 	[Fact]
-	public void WhenValidVector2_ShouldRoundToNearestInteger()
+	public void WhenValidVector2_WhenCalled_ShouldRoundToNearestInteger()
 	{
 		// Differences within 1e-6 should be accepted and rounded
 		var v = new Vector2(2.0000004f, 5.9999996f);

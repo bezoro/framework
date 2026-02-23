@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayReplaceAtTests
 {
 	[Fact]
-	public void WhenIndexIsOutOfBounds_ShouldThrow()
+	public void WhenIndexIsOutOfBounds_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 
@@ -20,7 +20,7 @@ public class SwapbackArrayReplaceAtTests
 	}
 
 	[Fact]
-	public void WhenValidCall_ShouldIncrementVersion()
+	public void WhenValidCall_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -33,7 +33,7 @@ public class SwapbackArrayReplaceAtTests
 	}
 
 	[Fact]
-	public void WhenValidCall_ShouldReplaceItem()
+	public void WhenValidCall_WhenCalled_ShouldReplaceItem()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4 };
 

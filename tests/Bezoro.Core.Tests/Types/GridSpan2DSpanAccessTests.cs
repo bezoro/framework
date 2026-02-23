@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(GridSpan2D<>))]
 public class GridSpan2DSpanAccessTests
 {
 	[Fact]
-	public void AsSpan_ReturnsCorrectData()
+	public void AsSpan_WhenCalled_ShouldReturnCorrectData()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[6];
@@ -32,7 +32,7 @@ public class GridSpan2DSpanAccessTests
 	}
 
 	[Fact]
-	public void GetRow_ReturnsCorrectRow()
+	public void GetRow_WhenCalled_ShouldReturnCorrectRow()
 	{
 		// Arrange
 		Span<int> data = stackalloc int[6];
@@ -54,3 +54,4 @@ public class GridSpan2DSpanAccessTests
 		row1[2].Should().Be(6);
 	}
 }
+

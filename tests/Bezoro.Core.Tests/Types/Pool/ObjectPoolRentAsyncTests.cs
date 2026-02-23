@@ -12,7 +12,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolRentAsyncTests
 {
 	[Fact]
-	public async Task WhenCancelled_ShouldThrowOperationCancelled()
+	public async Task WhenCancelled_WhenCalled_ShouldThrowOperationCancelled()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -29,7 +29,7 @@ public class ObjectPoolRentAsyncTests
 	}
 
 	[Fact]
-	public async Task WhenPoolHasItems_ShouldReturnImmediately()
+	public async Task WhenPoolHasItems_WhenCalled_ShouldReturnImmediately()
 	{
 		var    pool     = new ObjectPool<object>(() => new());
 		object original = pool.Rent();

@@ -4,13 +4,13 @@ using JetBrains.Annotations;
 using NSubstitute;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(ResultFactory))]
 public class ResultFactoryTests
 {
 	[Fact]
-	public void Failed_ShouldCreateFailedResult()
+	public void Failed_WhenCalled_ShouldCreateFailedResult()
 	{
 		// Arrange
 		var reason = Substitute.For<IFailureReason>();
@@ -25,7 +25,7 @@ public class ResultFactoryTests
 	}
 
 	[Fact]
-	public void Succeeded_ShouldCreateSuccessfulResult()
+	public void Succeeded_WhenCalled_ShouldCreateSuccessfulResult()
 	{
 		// Arrange
 		const int DATA = 42;
@@ -39,3 +39,4 @@ public class ResultFactoryTests
 		value.Should().Be(DATA);
 	}
 }
+

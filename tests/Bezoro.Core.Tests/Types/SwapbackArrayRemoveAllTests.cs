@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayRemoveAllTests
 {
 	[Fact]
-	public void WhenAllMatch_ShouldRemoveAllItems()
+	public void WhenAllMatch_WhenCalled_ShouldRemoveAllItems()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -21,7 +21,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenAllMatch_ShouldReturnCorrectCount()
+	public void WhenAllMatch_WhenCalled_ShouldReturnCorrectCount()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -31,7 +31,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenArrayIsEmpty_ShouldNotIncrementVersion()
+	public void WhenArrayIsEmpty_WhenCalled_ShouldNotIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int>();
 		uint initialVersion = arr.Version;
@@ -42,7 +42,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenArrayIsEmpty_ShouldReturnZero()
+	public void WhenArrayIsEmpty_WhenCalled_ShouldReturnZero()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -53,7 +53,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenComplexPredicate_ShouldWork()
+	public void WhenComplexPredicate_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
 
@@ -73,7 +73,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenFindsItems_ShouldRemoveItems()
+	public void WhenFindsItems_WhenCalled_ShouldRemoveItems()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -95,7 +95,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenItemsRemoved_ShouldIncrementVersion()
+	public void WhenItemsRemoved_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 		uint initialVersion = arr.Version;
@@ -108,7 +108,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenNoMatches_ShouldNotIncrementVersion()
+	public void WhenNoMatches_WhenCalled_ShouldNotIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -119,7 +119,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenNoMatches_ShouldNotModifyArray()
+	public void WhenNoMatches_WhenCalled_ShouldNotModifyArray()
 	{
 		var   arr      = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 		int[] original = arr.ToArray();
@@ -131,7 +131,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenNoMatches_ShouldReturnZero()
+	public void WhenNoMatches_WhenCalled_ShouldReturnZero()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -142,7 +142,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenNullableType_ShouldHandleNulls()
+	public void WhenNullableType_WhenCalled_ShouldHandleNulls()
 	{
 		var arr = new SwapbackArray<int?> { 1, null, 3, null, 5 };
 
@@ -157,7 +157,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenNullPredicate_ShouldThrow()
+	public void WhenNullPredicate_WhenCalled_ShouldThrow()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -167,7 +167,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenPredicateThrows_ShouldPropagateException()
+	public void WhenPredicateThrows_WhenCalled_ShouldPropagateException()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -177,7 +177,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenReferenceType_ShouldClearRemovedSlots()
+	public void WhenReferenceType_WhenCalled_ShouldClearRemovedSlots()
 	{
 		var obj1 = new object();
 		var obj2 = new object();
@@ -193,7 +193,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingAdjacentItems_ShouldWork()
+	public void WhenRemovingAdjacentItems_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -210,7 +210,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingAllDuplicates_ShouldRemoveAllInstances()
+	public void WhenRemovingAllDuplicates_WhenCalled_ShouldRemoveAllInstances()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 2, 2, 3, 4, 2, 5 };
 
@@ -226,7 +226,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingFirstItem_ShouldWork()
+	public void WhenRemovingFirstItem_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -243,7 +243,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingFromLargeArray_ShouldHandleCorrectly()
+	public void WhenRemovingFromLargeArray_WhenCalled_ShouldHandleCorrectly()
 	{
 		var arr = new SwapbackArray<int>();
 		for (var i = 0; i < 100; i++)
@@ -259,7 +259,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingLastItem_ShouldWork()
+	public void WhenRemovingLastItem_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -274,7 +274,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingMiddleItem_ShouldWork()
+	public void WhenRemovingMiddleItem_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5 };
 
@@ -289,7 +289,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingMultipleItems_ShouldPreserveRemainingItems()
+	public void WhenRemovingMultipleItems_WhenCalled_ShouldPreserveRemainingItems()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -311,7 +311,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenRemovingSingleItem_ShouldWork()
+	public void WhenRemovingSingleItem_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -325,7 +325,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenSingleElement_ShouldWork()
+	public void WhenSingleElement_WhenCalled_ShouldWork()
 	{
 		var arr = new SwapbackArray<int> { 42 };
 
@@ -348,7 +348,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenSomeItemsMatch_ShouldReturnCorrectCount()
+	public void WhenSomeItemsMatch_WhenCalled_ShouldReturnCorrectCount()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -358,7 +358,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenSomeItemsMatch_ShouldUpdateCount()
+	public void WhenSomeItemsMatch_WhenCalled_ShouldUpdateCount()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
@@ -368,7 +368,7 @@ public class SwapbackArrayRemoveAllTests
 	}
 
 	[Fact]
-	public void WhenUnderutilizedAfterRemoval_ShouldTriggerShrink()
+	public void WhenUnderutilizedAfterRemoval_WhenCalled_ShouldTriggerShrink()
 	{
 		var arr = new SwapbackArray<int>(16);
 		for (var i = 0; i < 16; i++)

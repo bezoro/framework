@@ -3,13 +3,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(GridSpan2D<>))]
 public class GridSpan2DFromGrid2DTests
 {
 	[Fact]
-	public void AsGridSpan_CreatesValidSpanView()
+	public void GridSpan2DFromGrid2D_WhenCalled_ShouldAsGridSpan_CreatesValidSpanView()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -29,7 +29,7 @@ public class GridSpan2DFromGrid2DTests
 	}
 
 	[Fact]
-	public void AsReadOnlyGridSpan_CreatesValidReadOnlyView()
+	public void GridSpan2DFromGrid2D_WhenCalled_ShouldAsReadOnlyGridSpan_CreatesValidReadOnlyView()
 	{
 		// Arrange
 		var grid = new Grid2D<int>(3, 3);
@@ -44,3 +44,4 @@ public class GridSpan2DFromGrid2DTests
 		readOnly[1, 1].Should().Be(42);
 	}
 }
+

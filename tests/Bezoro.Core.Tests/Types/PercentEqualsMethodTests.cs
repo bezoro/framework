@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentEqualsMethodTests
 {
 	[Fact]
-	public void WhenDifferentValue_ShouldReturnFalse()
+	public void WhenDifferentValue_WhenCalled_ShouldReturnFalse()
 	{
 		var a = new Percent(50);
 		var b = new Percent(75);
@@ -18,7 +18,7 @@ public class PercentEqualsMethodTests
 	}
 
 	[Fact]
-	public void WhenObjectIsDifferentType_ShouldReturnFalse()
+	public void WhenObjectIsDifferentType_WhenCalled_ShouldReturnFalse()
 	{
 		var    a = new Percent(50);
 		object b = 50;
@@ -27,7 +27,7 @@ public class PercentEqualsMethodTests
 	}
 
 	[Fact]
-	public void WhenObjectIsNull_ShouldReturnFalse()
+	public void WhenObjectIsNull_WhenCalled_ShouldReturnFalse()
 	{
 		var a = new Percent(50);
 
@@ -35,7 +35,7 @@ public class PercentEqualsMethodTests
 	}
 
 	[Fact]
-	public void WhenObjectIsSameValue_ShouldReturnTrue()
+	public void WhenObjectIsSameValue_WhenCalled_ShouldReturnTrue()
 	{
 		var    a = new Percent(50);
 		object b = new Percent(50);
@@ -44,7 +44,7 @@ public class PercentEqualsMethodTests
 	}
 
 	[Fact]
-	public void WhenSameValue_ShouldReturnTrue()
+	public void WhenSameValue_WhenCalled_ShouldReturnTrue()
 	{
 		var a = new Percent(50);
 		var b = new Percent(50);

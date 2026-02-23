@@ -12,7 +12,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class StringExtensionsColourTests
 {
 	[Fact]
-	public void Color_with_bytes_matches_FromArgb()
+	public void StringExtensionsColour_WhenCalled_ShouldColor_with_bytes_matches_FromArgb()
 	{
 		const string TEXT     = "t";
 		string       expected = TEXT.Color(Color.FromArgb(32, 255, 128, 64)); // a, r, g, b
@@ -21,7 +21,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void Color_with_color_name_wraps_text()
+	public void StringExtensionsColour_WhenCalled_ShouldColor_with_color_name_wraps_text()
 	{
 		const string TEXT = "hello";
 		const string NAME = "red";
@@ -32,7 +32,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void Color_with_Color_struct_uses_RGBA_format()
+	public void StringExtensionsColour_WhenCalled_ShouldColor_with_Color_struct_uses_RGBA_format()
 	{
 		const string TEXT  = "hello";
 		var          color = new Color(1f, 0.5f, 0.25f, 0.75f);
@@ -44,7 +44,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void Color_with_floats_matches_ctor()
+	public void StringExtensionsColour_WhenCalled_ShouldColor_with_floats_matches_ctor()
 	{
 		const string TEXT = "t";
 		var          c    = new Color(1f, 0.5f, 0.25f, 0.125f);
@@ -53,7 +53,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void Color_with_rgba32_matches_FromRgba32()
+	public void StringExtensionsColour_WhenCalled_ShouldColor_with_rgba32_matches_FromRgba32()
 	{
 		const string TEXT   = "t";
 		const uint   RGBA32 = 0x3366CC99; // RRGGBBAA
@@ -62,7 +62,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void ColorHex_falls_back_to_named_color_when_parse_fails()
+	public void StringExtensionsColour_WhenCalled_ShouldColorHex_falls_back_to_named_color_when_parse_fails()
 	{
 		const string TEXT = "hello";
 		const string NAME = "not-a-color";
@@ -71,7 +71,7 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void ColorHex_parses_valid_hex_and_matches_Color_overload()
+	public void StringExtensionsColour_WhenCalled_ShouldColorHex_parses_valid_hex_and_matches_Color_overload()
 	{
 		const string TEXT  = "hello";
 		const string INPUT = "#11223344"; // RRGGBBAA

@@ -12,7 +12,7 @@ public class ArrayConverterTests
 	#region Flatten
 
 	[Fact]
-	public void Flatten_ShouldFlattenInRowMajorOrder()
+	public void Flatten_WhenCalled_ShouldFlattenInRowMajorOrder()
 	{
 		int[,] input = new[,]
 		{
@@ -27,7 +27,7 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Flatten_ShouldReturnEmptyArray_WhenZeroColumns()
+	public void Flatten_WhenCalled_ShouldReturnEmptyArray_WhenZeroColumns()
 	{
 		var input = new int[2, 0];
 
@@ -37,7 +37,7 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Flatten_ShouldReturnEmptyArray_WhenZeroRows()
+	public void Flatten_WhenCalled_ShouldReturnEmptyArray_WhenZeroRows()
 	{
 		var input = new int[0, 3];
 
@@ -47,14 +47,14 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Flatten_ShouldThrow_WhenInputIsNull()
+	public void Flatten_WhenCalled_ShouldThrow_WhenInputIsNull()
 	{
 		var act = () => ArrayConverter.Flatten<int>(null!);
 		act.Should().Throw<ArgumentNullException>().WithParameterName("from");
 	}
 
 	[Fact]
-	public void Flatten_ShouldWorkWithReferenceTypes()
+	public void Flatten_WhenCalled_ShouldWorkWithReferenceTypes()
 	{
 		var input = new string[1, 1];
 		input[0, 0] = "alpha";
@@ -69,7 +69,7 @@ public class ArrayConverterTests
 	#region Reshape
 
 	[Fact]
-	public void Reshape_ShouldArrangeElementsInRowMajorOrder()
+	public void Reshape_WhenCalled_ShouldArrangeElementsInRowMajorOrder()
 	{
 		int[] input = { 1, 2, 3, 4, 5, 6 };
 
@@ -84,7 +84,7 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Reshape_ShouldReturnEmptyArray_WhenInputIsEmpty()
+	public void Reshape_WhenCalled_ShouldReturnEmptyArray_WhenInputIsEmpty()
 	{
 		int[] input = Array.Empty<int>();
 
@@ -94,35 +94,35 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Reshape_ShouldThrow_WhenInputIsNull()
+	public void Reshape_WhenCalled_ShouldThrow_WhenInputIsNull()
 	{
 		var act = () => ArrayConverter.Reshape<int>(null!, 1, 1);
 		act.Should().Throw<ArgumentNullException>().WithParameterName("from");
 	}
 
 	[Fact]
-	public void Reshape_ShouldThrow_WhenRowsIsNegative()
+	public void Reshape_WhenCalled_ShouldThrow_WhenRowsIsNegative()
 	{
 		var act = () => ArrayConverter.Reshape(new[] { 1 }, -1, 1);
 		act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("rows");
 	}
 
 	[Fact]
-	public void Reshape_ShouldThrow_WhenColumnsIsNegative()
+	public void Reshape_WhenCalled_ShouldThrow_WhenColumnsIsNegative()
 	{
 		var act = () => ArrayConverter.Reshape(new[] { 1 }, 1, -1);
 		act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("columns");
 	}
 
 	[Fact]
-	public void Reshape_ShouldThrow_WhenLengthDoesNotMatchShape()
+	public void Reshape_WhenCalled_ShouldThrow_WhenLengthDoesNotMatchShape()
 	{
 		var act = () => ArrayConverter.Reshape(new[] { 1, 2, 3 }, 2, 2);
 		act.Should().Throw<ArgumentException>().WithParameterName("from");
 	}
 
 	[Fact]
-	public void Reshape_ShouldWorkWithReferenceTypes()
+	public void Reshape_WhenCalled_ShouldWorkWithReferenceTypes()
 	{
 		string[] input = { "a", "b", "c", "d" };
 
@@ -135,7 +135,7 @@ public class ArrayConverterTests
 	}
 
 	[Fact]
-	public void Flatten_And_Reshape_ShouldRoundTrip()
+	public void Flatten_WhenAnd_Reshape_ShouldRoundTrip()
 	{
 		int[,] original = new[,]
 		{

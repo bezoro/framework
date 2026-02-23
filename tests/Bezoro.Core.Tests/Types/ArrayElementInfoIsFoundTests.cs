@@ -12,7 +12,7 @@ public class ArrayElementInfoIsFoundTests
 	[InlineData(null, false)]
 	[InlineData(0u,   true)]
 	[InlineData(5u,   true)]
-	public void WhenIsFound_ShouldReflectIndex(uint? index, bool expected)
+	public void WhenIsFound_WhenCalled_ShouldReflectIndex(uint? index, bool expected)
 	{
 		var info = new ArrayElementInfo<object>(index, new(), index.HasValue ? index.Value + 1 : 0);
 

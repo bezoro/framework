@@ -156,7 +156,7 @@ public class UIntRangeCurrentTests
 public class UIntRangeCurrentUpdateTests
 {
 	[Fact]
-	public void MaximizeCurrent_ShouldSetCurrentToMax()
+	public void MaximizeCurrent_WhenCalled_ShouldSetCurrentToMax()
 	{
 		var range = new UIntRange(10u, 3u, 2u);
 
@@ -183,7 +183,7 @@ public class UIntRangeCurrentUpdateTests
 	}
 
 	[Fact]
-	public void SetCurrentToMinimum_ShouldSetCurrentToMin()
+	public void SetCurrentToMinimum_WhenCalled_ShouldSetCurrentToMin()
 	{
 		var range = new UIntRange(10u, 7u, 2u);
 

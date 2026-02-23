@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayIntegrationTests
 {
 	[Fact]
-	public void AddRangeThenClearThenReuse_ShouldNotLeakReferences()
+	public void AddRangeThenClearThenReuse_WhenCalled_ShouldNotLeakReferences()
 	{
 		var      arr  = new SwapbackArray<object>();
 		object[] refs = Enumerable.Range(0, 100).Select(_ => new object()).ToArray();
@@ -25,7 +25,7 @@ public class SwapbackArrayIntegrationTests
 	}
 
 	[Fact]
-	public void AddRangeThenRemoveAll_ShouldMaintainConsistency()
+	public void AddRangeThenRemoveAll_WhenCalled_ShouldMaintainConsistency()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -38,7 +38,7 @@ public class SwapbackArrayIntegrationTests
 	}
 
 	[Fact]
-	public void BalancedChurn_ShouldMaintainCapacity()
+	public void BalancedChurn_WhenCalled_ShouldMaintainCapacity()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -58,7 +58,7 @@ public class SwapbackArrayIntegrationTests
 	}
 
 	[Fact]
-	public void EnsureCapacityThenTrimExcess_ShouldRoundTrip()
+	public void EnsureCapacityThenTrimExcess_WhenCalled_ShouldRoundTrip()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -72,7 +72,7 @@ public class SwapbackArrayIntegrationTests
 	}
 
 	[Fact]
-	public void GradualGrowth_ShouldNotOverAllocate()
+	public void GradualGrowth_WhenCalled_ShouldNotOverAllocate()
 	{
 		var arr       = new SwapbackArray<int>();
 		var nextValue = 0;

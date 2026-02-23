@@ -8,10 +8,10 @@ using Xunit;
 namespace Bezoro.Core.Tests.Extensions;
 
 [TestSubject(typeof(StringExtensions))]
-public class StringExtensionsChecksTests
+public class StringExtensionsValidationTests
 {
 	[Fact]
-	public void Bold_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBold_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -21,7 +21,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bold_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBold_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -31,7 +31,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bold_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBold_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -41,33 +41,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bold_WrapsText()
-	{
-		"hello".Bold().Should().Be("<b>hello</b>");
-	}
-
-	[Fact]
-	public void Bracketed_DefaultBracket_NoColor_NoPadding()
-	{
-		"abc".Bracketed().Should().Be("[abc]");
-	}
-
-	[Fact]
-	public void Bracketed_UnknownBracket_UsesSameForClosing()
-	{
-		"bar".Bracketed(bracket: '|').Should().Be("|bar|");
-	}
-
-	[Fact]
-	public void Bracketed_UsesCorrectClosingBracket_ForVariousOpenings()
-	{
-		"t".Bracketed(bracket: '(').Should().Be("(t)");
-		"t".Bracketed(bracket: '{').Should().Be("{t}");
-		"t".Bracketed(bracket: '<').Should().Be("<t>");
-	}
-
-	[Fact]
-	public void Bracketed_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBracketed_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -77,7 +51,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bracketed_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBracketed_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -87,7 +61,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bracketed_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldBracketed_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -97,29 +71,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Bracketed_WithColor_ColorsOnlyBrackets()
-	{
-		var red = Color.FromRgb(255, 0, 0);
-		"abc".Bracketed(color: red, bracket: '[')
-			 .Should().Be("<color=#FF0000>[</color>abc<color=#FF0000>]</color>");
-	}
-
-	[Fact]
-	public void Bracketed_WithPadding_AddsSpacesAroundText()
-	{
-		"abc".Bracketed(1).Should().Be("[ abc ]");
-		"xy".Bracketed(2, bracket: '(').Should().Be("(  xy  )");
-	}
-
-	[Fact]
-	public void Capitalize_UppercasesFirstCharacter()
-	{
-		"hello".Capitalize().Should().Be("Hello");
-		"h".Capitalize().Should().Be("H");
-	}
-
-	[Fact]
-	public void Capitalize_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldCapitalize_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -129,7 +81,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Capitalize_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldCapitalize_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -139,7 +91,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Capitalize_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldCapitalize_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -149,14 +101,14 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void IsEmpty_ReturnsFalse_ForNonWhitespace()
+	public void IsEmpty_WhenCalled_ShouldReturnFalse_ForNonWhitespace()
 	{
 		"a".IsEmpty().Should().BeFalse();
 		" a ".IsEmpty().Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsEmpty_ReturnsTrue_ForEmptyOrWhitespace()
+	public void IsEmpty_WhenCalled_ShouldReturnTrue_ForEmptyOrWhitespace()
 	{
 		"".IsEmpty().Should().BeTrue();
 		"   ".IsEmpty().Should().BeTrue();
@@ -164,14 +116,14 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_ReturnsFalse_ForNonEmpty()
+	public void IsNullOrEmpty_WhenCalled_ShouldReturnFalse_ForNonEmpty()
 	{
 		"a".IsNullOrEmpty().Should().BeFalse();
 		" a ".IsNullOrEmpty().Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_ReturnsTrue_ForNullOrEmpty()
+	public void IsNullOrEmpty_WhenCalled_ShouldReturnTrue_ForNullOrEmpty()
 	{
 		string? s = null;
 		s.IsNullOrEmpty().Should().BeTrue();
@@ -182,14 +134,14 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void IsNullOrWhiteSpace_ReturnsFalse_ForNonWhitespace()
+	public void IsNullOrWhiteSpace_WhenCalled_ShouldReturnFalse_ForNonWhitespace()
 	{
 		"a".IsNullOrWhiteSpace().Should().BeFalse();
 		" a ".IsNullOrWhiteSpace().Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsNullOrWhiteSpace_ReturnsTrue_ForNullEmptyOrWhitespace()
+	public void IsNullOrWhiteSpace_WhenCalled_ShouldReturnTrue_ForNullEmptyOrWhitespace()
 	{
 		string? s = null;
 		s.IsNullOrWhiteSpace().Should().BeTrue();
@@ -199,7 +151,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void IsWhiteSpace_ReturnsFalse_ForEmptyAndNonWhitespace()
+	public void IsWhiteSpace_WhenCalled_ShouldReturnFalse_ForEmptyAndNonWhitespace()
 	{
 		"".IsWhiteSpace().Should().BeFalse();
 		"a".IsWhiteSpace().Should().BeFalse();
@@ -207,14 +159,14 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void IsWhiteSpace_ReturnsTrue_ForWhitespaceOnly()
+	public void IsWhiteSpace_WhenCalled_ShouldReturnTrue_ForWhitespaceOnly()
 	{
 		" ".IsWhiteSpace().Should().BeTrue();
 		"\t\n".IsWhiteSpace().Should().BeTrue();
 	}
 
 	[Fact]
-	public void Italic_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldItalic_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -224,7 +176,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Italic_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldItalic_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -234,7 +186,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Italic_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldItalic_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -244,20 +196,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Italic_WrapsText()
-	{
-		"hello".Italic().Should().Be("<i>hello</i>");
-	}
-
-	[Fact]
-	public void Lowercase_ReturnsLower_ForNonNull()
-	{
-		"ABC".Lowercase().Should().Be("abc");
-		"AbC".Lowercase().Should().Be("abc");
-	}
-
-	[Fact]
-	public void Lowercase_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldLowercase_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -277,7 +216,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Lowercase_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldLowercase_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -287,19 +226,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Repeat_Repeats_OnCountGreaterThanOne()
-	{
-		"ab".Repeat(3).Should().Be("ababab");
-	}
-
-	[Fact]
-	public void Repeat_ReturnsOriginal_OnCountOne()
-	{
-		"ab".Repeat().Should().Be("ab");
-	}
-
-	[Fact]
-	public void Repeat_Throws_OnNullString()
+	public void Repeat_WhenCalled_ShouldThrowOnNullString()
 	{
 		string? s   = null;
 		Action  act = () => s!.Repeat(3);
@@ -327,7 +254,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Size_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldSize_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -347,7 +274,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Size_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldSize_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -357,13 +284,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Size_WrapsText_WithProvidedSize()
-	{
-		"hello".Size(16).Should().Be("<size=16>hello</size>");
-	}
-
-	[Fact]
-	public void Strikethrough_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldStrikethrough_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -373,7 +294,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Strikethrough_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldStrikethrough_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -383,7 +304,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Strikethrough_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldStrikethrough_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -393,13 +314,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Strikethrough_WrapsText()
-	{
-		"hello".Strikethrough().Should().Be("<s>hello</s>");
-	}
-
-	[Fact]
-	public void Underline_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUnderline_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -409,7 +324,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Underline_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUnderline_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -419,7 +334,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Underline_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUnderline_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -429,20 +344,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Underline_WrapsText()
-	{
-		"hello".Underline().Should().Be("<u>hello</u>");
-	}
-
-	[Fact]
-	public void Uppercase_ReturnsUpper_ForNonNull()
-	{
-		"abc".Uppercase().Should().Be("ABC");
-		"aBc".Uppercase().Should().Be("ABC");
-	}
-
-	[Fact]
-	public void Uppercase_WhenEmpty_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUppercase_WhenEmpty_Throws()
 	{
 		string s = string.Empty;
 
@@ -452,7 +354,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Uppercase_WhenNull_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUppercase_WhenNull_Throws()
 	{
 		string? s = null;
 
@@ -462,7 +364,7 @@ public class StringExtensionsChecksTests
 	}
 
 	[Fact]
-	public void Uppercase_WhenWhitespace_Throws()
+	public void StringExtensionsValidation_WhenCalled_ShouldUppercase_WhenWhitespace_Throws()
 	{
 		var s = "   ";
 
@@ -470,4 +372,5 @@ public class StringExtensionsChecksTests
 
 		act.Should().Throw<ArgumentNullException>();
 	}
+
 }

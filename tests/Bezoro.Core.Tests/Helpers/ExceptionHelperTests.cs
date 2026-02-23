@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Helpers;
 public class ExceptionHelperTests
 {
 	[Fact]
-	public void FormatExceptionMessage_ShouldIncludeParamTypes_WhenProvided_ViaReflection()
+	public void FormatExceptionMessage_WhenCalled_ShouldIncludeParamTypes_WhenProvided_ViaReflection()
 	{
 		var method = typeof(ExceptionHelper).GetMethod(
 			"FormatExceptionMessage",
@@ -39,7 +39,7 @@ public class ExceptionHelperTests
 	}
 
 	[Fact]
-	public void ThrowException_ShouldComposeMessage_WithAllDetails()
+	public void ThrowException_WhenCalled_ShouldComposeMessage_WithAllDetails()
 	{
 		var instance = new Dummy();
 
@@ -54,7 +54,7 @@ public class ExceptionHelperTests
 	}
 
 	[Fact]
-	public void ThrowException_ShouldComposeMessage_WithDefaults_WhenArgsAreNullOrWhitespace()
+	public void ThrowException_WhenCalled_ShouldComposeMessage_WithDefaults_WhenArgsAreNullOrWhitespace()
 	{
 		var act = () => ExceptionHelper.ThrowException<InvalidOperationException>(
 			null,

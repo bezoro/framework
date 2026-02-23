@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class CollectionExtensionsSearchTests
 {
 	[Fact]
-	public void Find_EmptyCollection_ThrowsEmptyCollectionException()
+	public void FindEmptyCollection_WhenCalled_ShouldThrowEmptyCollectionException()
 	{
 		int[] collection = [];
 		var   action     = () => collection.Find(1);
@@ -19,21 +19,21 @@ public class CollectionExtensionsSearchTests
 	}
 
 	[Fact]
-	public void Find_ExistingItem_ReturnsItem()
+	public void FindExistingItem_WhenCalled_ShouldReturnItem()
 	{
 		int[] collection = [1, 2, 3];
 		collection.Find(2).Should().Be(2);
 	}
 
 	[Fact]
-	public void Find_NonExistingItem_ReturnsDefaultValue()
+	public void FindNonExistingItem_WhenCalled_ShouldReturnDefaultValue()
 	{
 		int[] collection = [1, 2, 3];
 		collection.Find(4).Should().Be(0);
 	}
 
 	[Fact]
-	public void Find_NullCollection_ThrowsArgumentNullException()
+	public void FindNullCollection_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		int[] collection = null!;
 		var   action     = () => collection.Find(1);

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAsReadOnlyCollectionTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnReadOnlyCollectionWithSameItems()
+	public void WhenCalled_WhenCalled_ShouldReturnReadOnlyCollectionWithSameItems()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 

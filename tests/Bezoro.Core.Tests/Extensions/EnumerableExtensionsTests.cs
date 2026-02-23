@@ -12,7 +12,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class EnumerableExtensionsTests
 {
 	[Fact]
-	public void HasAny_NonGeneric_Should_HandleString_EmptyAndNonEmpty()
+	public void HasAny_WhenNonGeneric_ShouldHandleString_EmptyAndNonEmpty()
 	{
 		// Arrange
 		IEnumerable empty    = "";
@@ -24,7 +24,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_NonGeneric_Should_ReturnFalse_ForNonCollectionEmptyEnumerable()
+	public void HasAny_WhenNonGeneric_ShouldReturnFalse_ForNonCollectionEmptyEnumerable()
 	{
 		// Arrange
 		var sequence = NonGenericEnumerableEmpty();
@@ -40,7 +40,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_NonGeneric_Should_ReturnFalse_WhenArrayListIsEmpty()
+	public void HasAny_WhenNonGeneric_ShouldReturnFalse_WhenArrayListIsEmpty()
 	{
 		// Arrange
 		IEnumerable collection = new ArrayList();
@@ -50,7 +50,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_NonGeneric_Should_ReturnTrue_ForNonCollectionEnumerable()
+	public void HasAny_WhenNonGeneric_ShouldReturnTrue_ForNonCollectionEnumerable()
 	{
 		// Arrange
 		var sequence = NonGenericEnumerableWithItems();
@@ -66,7 +66,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_NonGeneric_Should_ReturnTrue_WhenCollectionHasElements()
+	public void HasAny_WhenNonGeneric_ShouldReturnTrue_WhenCollectionHasElements()
 	{
 		// Arrange
 		ArrayList collection = new() { 1, 2, 3 };
@@ -76,7 +76,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_Should_ReturnFalse_WhenCollectionIsEmpty()
+	public void HasAny_WhenCalled_ShouldReturnFalse_WhenCollectionIsEmpty()
 	{
 		// Arrange
 		int[] collection = [];
@@ -86,7 +86,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_Should_ReturnTrue_WhenCollectionHasElements()
+	public void HasAny_WhenCalled_ShouldReturnTrue_WhenCollectionHasElements()
 	{
 		// Arrange
 		int[] collection = [1, 2, 3];
@@ -96,7 +96,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_Should_ThrowArgumentNullException_WhenSourceIsNull()
+	public void HasAny_WhenCalled_ShouldThrowArgumentNullException_WhenSourceIsNull()
 	{
 		// Arrange
 		IEnumerable<int>? collection = null;
@@ -109,7 +109,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_NonGeneric_Should_ReturnTrue_WhenNull()
+	public void IsNullOrEmpty_WhenNonGeneric_ShouldReturnTrue_WhenNull()
 	{
 		// Arrange
 		IEnumerable? collection = null;
@@ -119,7 +119,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_NonGeneric_Should_Work_ForArrayList()
+	public void IsNullOrEmpty_WhenNonGeneric_ShouldWork_ForArrayList()
 	{
 		// Arrange
 		IEnumerable empty    = new ArrayList();
@@ -131,7 +131,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_Should_ReturnFalse_WhenCollectionHasElements()
+	public void IsNullOrEmpty_WhenCalled_ShouldReturnFalse_WhenCollectionHasElements()
 	{
 		// Arrange
 		int[] collection = [1, 2, 3];
@@ -141,7 +141,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_Should_ReturnTrue_WhenCollectionIsEmpty()
+	public void IsNullOrEmpty_WhenCalled_ShouldReturnTrue_WhenCollectionIsEmpty()
 	{
 		// Arrange
 		int[] collection = [];
@@ -151,7 +151,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void IsNullOrEmpty_Should_ReturnTrue_WhenCollectionIsNull()
+	public void IsNullOrEmpty_WhenCalled_ShouldReturnTrue_WhenCollectionIsNull()
 	{
 		// Arrange
 		IEnumerable<int>? collection = null;
@@ -161,7 +161,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void PrettyJoin_Should_JoinElements_WithCustomSeparator()
+	public void PrettyJoin_WhenCalled_ShouldJoinElements_WithCustomSeparator()
 	{
 		// Arrange
 		int[] collection = [1, 2, 3];
@@ -174,7 +174,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void PrettyJoin_Should_JoinElements_WithDefaultSeparator()
+	public void PrettyJoin_WhenCalled_ShouldJoinElements_WithDefaultSeparator()
 	{
 		// Arrange
 		int[] collection = [1, 2, 3];
@@ -187,7 +187,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void PrettyJoin_Should_ThrowArgumentNullException_WhenSourceIsNull()
+	public void PrettyJoin_WhenCalled_ShouldThrowArgumentNullException_WhenSourceIsNull()
 	{
 		// Arrange
 		IEnumerable<int>? collection = null;
@@ -200,7 +200,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Generic_Should_ReturnTrueAndCount_ForIReadOnlyCollectionOnly()
+	public void TryGetCount_WhenGeneric_ShouldReturnTrueAndCount_ForIReadOnlyCollectionOnly()
 	{
 		// Arrange
 		IEnumerable<int> collection = new ReadOnlyCollectionStub(5, 6);
@@ -214,7 +214,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Generic_Should_ReturnTrueAndLength_ForStringWithCharType()
+	public void TryGetCount_WhenGeneric_ShouldReturnTrueAndLength_ForStringWithCharType()
 	{
 		// Arrange
 		var               str   = "test";
@@ -229,7 +229,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Generic_Should_Use_NonGenericICollection_Count_WhenAvailable()
+	public void TryGetCount_WhenGeneric_ShouldUse_NonGenericICollection_Count_WhenAvailable()
 	{
 		// Arrange
 		IEnumerable<int> collection = new HybridCollection(1, 2, 3);
@@ -243,7 +243,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_NonGeneric_Should_ReturnFalseAndMinusOne_ForNonCollection()
+	public void TryGetCount_WhenNonGeneric_ShouldReturnFalseAndMinusOne_ForNonCollection()
 	{
 		// Arrange
 		var enumerable = NonGenericEnumerable();
@@ -264,7 +264,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_NonGeneric_Should_ReturnTrueAndCount_ForICollection()
+	public void TryGetCount_WhenNonGeneric_ShouldReturnTrueAndCount_ForICollection()
 	{
 		// Arrange
 		IEnumerable collection = new ArrayList { 1, 2, 3 };
@@ -278,7 +278,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_NonGeneric_Should_ReturnTrueAndLength_ForString_TypedAsEnumerable()
+	public void TryGetCount_WhenNonGeneric_ShouldReturnTrueAndLength_ForString_TypedAsEnumerable()
 	{
 		// Arrange
 		IEnumerable str = "test";
@@ -292,7 +292,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Should_ReturnFalseAndMinusOne_ForNonCollection()
+	public void TryGetCount_WhenCalled_ShouldReturnFalseAndMinusOne_ForNonCollection()
 	{
 		// Arrange
 		var enumerable = NonCollection();
@@ -314,7 +314,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Should_ReturnTrueAndCount_ForCollection()
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForCollection()
 	{
 		// Arrange
 		var collection = new List<int> { 1, 2, 3 };
@@ -328,7 +328,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Should_ReturnTrueAndCount_ForReadOnlyCollection()
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForReadOnlyCollection()
 	{
 		// Arrange
 		IReadOnlyCollection<int> collection = new List<int> { 1, 2, 3 }.AsReadOnly();
@@ -342,7 +342,7 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void TryGetCount_Should_ReturnTrueAndLength_ForString()
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndLength_ForString()
 	{
 		// Arrange
 		var str = "test";

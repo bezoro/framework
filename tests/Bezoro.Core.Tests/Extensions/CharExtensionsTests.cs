@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class CharExtensionsTests
 {
 	[Fact]
-	public void IsEmpty_WhenNotWhiteSpace_ReturnsFalse()
+	public void IsEmptyWhenNotWhiteSpace_WhenCalled_ShouldReturnFalse()
 	{
 		'a'.IsEmpty().Should().BeFalse();
 		'1'.IsEmpty().Should().BeFalse();
@@ -18,7 +18,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void IsEmpty_WhenWhiteSpace_ReturnsTrue()
+	public void IsEmptyWhenWhiteSpace_WhenCalled_ShouldReturnTrue()
 	{
 		' '.IsEmpty().Should().BeTrue();
 		'\t'.IsEmpty().Should().BeTrue();
@@ -26,7 +26,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenNotWhiteSpace_ReturnsChar()
+	public void ThrowIfEmptyWhenNotWhiteSpace_WhenCalled_ShouldReturnChar()
 	{
 		'a'.ThrowIfEmpty().Should().Be('a');
 		'1'.ThrowIfEmpty().Should().Be('1');
@@ -34,7 +34,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenWhiteSpace_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenWhiteSpace_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act1 = () => ' '.ThrowIfEmpty();
 		var act2 = () => '\t'.ThrowIfEmpty();
@@ -46,7 +46,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfLetter_WhenLetter_ThrowsArgumentException()
+	public void ThrowIfLetterWhenLetter_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act1 = () => 'a'.ThrowIfLetter();
 		var act2 = () => 'Z'.ThrowIfLetter();
@@ -56,14 +56,14 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfLetter_WhenNotLetter_ReturnsChar()
+	public void ThrowIfLetterWhenNotLetter_WhenCalled_ShouldReturnChar()
 	{
 		'1'.ThrowIfLetter().Should().Be('1');
 		'#'.ThrowIfLetter().Should().Be('#');
 	}
 
 	[Fact]
-	public void ThrowIfLowerCase_WhenLowerCase_ThrowsArgumentException()
+	public void ThrowIfLowerCaseWhenLowerCase_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act = () => 'a'.ThrowIfLowerCase();
 
@@ -71,7 +71,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfLowerCase_WhenNotLowerCase_ReturnsChar()
+	public void ThrowIfLowerCaseWhenNotLowerCase_WhenCalled_ShouldReturnChar()
 	{
 		'A'.ThrowIfLowerCase().Should().Be('A');
 		'1'.ThrowIfLowerCase().Should().Be('1');
@@ -79,14 +79,14 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfNumber_WhenNotNumber_ReturnsChar()
+	public void ThrowIfNumberWhenNotNumber_WhenCalled_ShouldReturnChar()
 	{
 		'a'.ThrowIfNumber().Should().Be('a');
 		'#'.ThrowIfNumber().Should().Be('#');
 	}
 
 	[Fact]
-	public void ThrowIfNumber_WhenNumber_ThrowsArgumentException()
+	public void ThrowIfNumberWhenNumber_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act = () => '1'.ThrowIfNumber();
 
@@ -94,14 +94,14 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfSymbol_WhenNotSymbol_ReturnsChar()
+	public void ThrowIfSymbolWhenNotSymbol_WhenCalled_ShouldReturnChar()
 	{
 		'a'.ThrowIfSymbol().Should().Be('a');
 		'1'.ThrowIfSymbol().Should().Be('1');
 	}
 
 	[Fact]
-	public void ThrowIfSymbol_WhenSymbol_ThrowsArgumentException()
+	public void ThrowIfSymbolWhenSymbol_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act = () => '©'.ThrowIfSymbol();
 
@@ -109,7 +109,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfUpperCase_WhenNotUpperCase_ReturnsChar()
+	public void ThrowIfUpperCaseWhenNotUpperCase_WhenCalled_ShouldReturnChar()
 	{
 		'a'.ThrowIfUpperCase().Should().Be('a');
 		'1'.ThrowIfUpperCase().Should().Be('1');
@@ -117,7 +117,7 @@ public class CharExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfUpperCase_WhenUpperCase_ThrowsArgumentException()
+	public void ThrowIfUpperCaseWhenUpperCase_WhenCalled_ShouldThrowArgumentException()
 	{
 		var act = () => 'A'.ThrowIfUpperCase();
 

@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2TryFromVector2Tests
 {
 	[Fact]
-	public void WhenInvalid_ShouldReturnFalseAndNull()
+	public void WhenInvalid_WhenCalled_ShouldReturnFalseAndNull()
 	{
 		var v = new Vector2(-1f, 0f);
 
@@ -21,7 +21,7 @@ public class UIntVector2TryFromVector2Tests
 	}
 
 	[Fact]
-	public void WhenValid_ShouldReturnTrueAndResult()
+	public void WhenValid_WhenCalled_ShouldReturnTrueAndResult()
 	{
 		var v = new Vector2(8f, 9f);
 

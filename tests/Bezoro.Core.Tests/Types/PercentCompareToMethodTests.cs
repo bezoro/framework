@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentCompareToMethodTests
 {
 	[Fact]
-	public void WhenEqual_ShouldReturnZero()
+	public void WhenEqual_WhenCalled_ShouldReturnZero()
 	{
 		var a = new Percent(50);
 		var b = new Percent(50);
@@ -18,7 +18,7 @@ public class PercentCompareToMethodTests
 	}
 
 	[Fact]
-	public void WhenGreater_ShouldReturnPositive()
+	public void WhenGreater_WhenCalled_ShouldReturnPositive()
 	{
 		var a = new Percent(75);
 		var b = new Percent(50);
@@ -27,7 +27,7 @@ public class PercentCompareToMethodTests
 	}
 
 	[Fact]
-	public void WhenLess_ShouldReturnNegative()
+	public void WhenLess_WhenCalled_ShouldReturnNegative()
 	{
 		var a = new Percent(25);
 		var b = new Percent(50);

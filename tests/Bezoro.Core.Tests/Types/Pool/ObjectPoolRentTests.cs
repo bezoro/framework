@@ -11,7 +11,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolRentTests
 {
 	[Fact]
-	public void WhenAtMaxCapacity_ShouldThrowPoolExhausted()
+	public void WhenAtMaxCapacity_WhenCalled_ShouldThrowPoolExhausted()
 	{
 		var pool = new ObjectPool<object>(
 			() => new(),
@@ -27,7 +27,7 @@ public class ObjectPoolRentTests
 	}
 
 	[Fact]
-	public void WhenDisposed_ShouldThrowObjectDisposed()
+	public void WhenDisposed_WhenCalled_ShouldThrowObjectDisposed()
 	{
 		var pool = new ObjectPool<object>(() => new());
 		pool.Dispose();
@@ -38,7 +38,7 @@ public class ObjectPoolRentTests
 	}
 
 	[Fact]
-	public void WhenPoolEmpty_ShouldCreateNewItem()
+	public void WhenPoolEmpty_WhenCalled_ShouldCreateNewItem()
 	{
 		var createCount = 0;
 		var pool = new ObjectPool<object>(() =>
@@ -57,7 +57,7 @@ public class ObjectPoolRentTests
 	}
 
 	[Fact]
-	public void WhenPoolHasItems_ShouldReturnPooledItem()
+	public void WhenPoolHasItems_WhenCalled_ShouldReturnPooledItem()
 	{
 		var createCount = 0;
 		var pool = new ObjectPool<object>(() =>
@@ -77,7 +77,7 @@ public class ObjectPoolRentTests
 	}
 
 	[Fact]
-	public void WithIPooledObject_ShouldCallOnRent()
+	public void WithIPooledObject_WhenCalled_ShouldCallOnRent()
 	{
 		var pool = new ObjectPool<TestObject>(() => new());
 

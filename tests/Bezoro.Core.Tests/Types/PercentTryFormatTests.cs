@@ -11,7 +11,7 @@ public class PercentTryFormatTests
 {
 #if NET6_0_OR_GREATER
 	[Fact]
-	public void WhenBufferSufficient_ShouldFormatAndReturnTrue()
+	public void WhenBufferSufficient_WhenCalled_ShouldFormatAndReturnTrue()
 	{
 		var        p      = new Percent(42);
 		Span<char> buffer = stackalloc char[4];
@@ -24,7 +24,7 @@ public class PercentTryFormatTests
 	}
 
 	[Fact]
-	public void WhenBufferTooSmall_ShouldReturnFalse()
+	public void WhenBufferTooSmall_WhenCalled_ShouldReturnFalse()
 	{
 		var        p      = new Percent(100);
 		Span<char> buffer = stackalloc char[3];
@@ -35,7 +35,7 @@ public class PercentTryFormatTests
 	}
 
 	[Fact]
-	public void WhenFull_ShouldFormat100Percent()
+	public void WhenFull_WhenCalled_ShouldFormat100Percent()
 	{
 		Span<char> buffer = stackalloc char[4];
 
@@ -47,7 +47,7 @@ public class PercentTryFormatTests
 	}
 
 	[Fact]
-	public void WhenZero_ShouldFormat0Percent()
+	public void WhenZero_WhenCalled_ShouldFormat0Percent()
 	{
 		Span<char> buffer = stackalloc char[4];
 

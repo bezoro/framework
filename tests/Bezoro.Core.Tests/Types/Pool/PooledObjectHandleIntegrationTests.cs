@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PooledObjectHandleIntegrationTests
 {
 	[Fact]
-	public async Task AsyncUsing_ShouldAutoReturn()
+	public async Task AsyncUsing_WhenCalled_ShouldAutoReturn()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -25,7 +25,7 @@ public class PooledObjectHandleIntegrationTests
 	}
 
 	[Fact]
-	public void NestedUsing_ShouldWorkCorrectly()
+	public void NestedUsing_WhenCalled_ShouldWorkCorrectly()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -44,7 +44,7 @@ public class PooledObjectHandleIntegrationTests
 	}
 
 	[Fact]
-	public void UsingStatement_ShouldAutoReturn()
+	public void UsingStatement_WhenCalled_ShouldAutoReturn()
 	{
 		var pool = new ObjectPool<object>(() => new());
 

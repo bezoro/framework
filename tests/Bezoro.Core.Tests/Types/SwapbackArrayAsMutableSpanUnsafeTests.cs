@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAsMutableSpanUnsafeTests
 {
 	[Fact]
-	public void WhenCalled_ShouldNotIncrementVersion()
+	public void WhenCalled_WhenCalled_ShouldNotIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -21,7 +21,7 @@ public class SwapbackArrayAsMutableSpanUnsafeTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldReturnWritableSpan()
+	public void WhenCalled_WhenCalled_ShouldReturnWritableSpan()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoNotFoundTests
 {
 	[Fact]
-	public void WhenNotFound_ShouldCreateNotFoundInstance()
+	public void WhenNotFound_WhenCalled_ShouldCreateNotFoundInstance()
 	{
 		var info = ArrayElementInfo<string>.NotFound("y", 9);
 

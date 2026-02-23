@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class UIntVector2ImplicitConversionTests
 {
 	[Fact]
-	public void ImplicitConversion_ToVector2_ShouldProduceSameComponents()
+	public void ImplicitConversion_WhenToVector2_ShouldProduceSameComponents()
 	{
 		var u = new UIntVector2(12u, 34u);
 

@@ -5,7 +5,7 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Utilities;
 
 [TestSubject(typeof(StringTags))]
 public class StringTagsTests
@@ -13,7 +13,7 @@ public class StringTagsTests
 	private static readonly Lock Sync = new();
 
 	[Fact]
-	public void Clear_RemovesAllTags()
+	public void StringTags_WhenCalled_ShouldClear_RemovesAllTags()
 	{
 		lock (Sync)
 		{
@@ -25,7 +25,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void GetRegisteredTags_ReturnsCurrentSet()
+	public void GetRegisteredTags_WhenCalled_ShouldReturnCurrentSet()
 	{
 		lock (Sync)
 		{
@@ -38,7 +38,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Process_AllowsEscapedBraces()
+	public void StringTags_WhenCalled_ShouldProcess_AllowsEscapedBraces()
 	{
 		lock (Sync)
 		{
@@ -50,7 +50,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Process_LeavesUnknownTagsIntact()
+	public void StringTags_WhenCalled_ShouldProcess_LeavesUnknownTagsIntact()
 	{
 		lock (Sync)
 		{
@@ -60,7 +60,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Process_ReplacesRegisteredValueTag()
+	public void StringTags_WhenCalled_ShouldProcess_ReplacesRegisteredValueTag()
 	{
 		lock (Sync)
 		{
@@ -71,7 +71,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Process_ReturnsInput_WhenNullOrEmpty()
+	public void Process_WhenCalled_ShouldReturnInput_WhenNullOrEmpty()
 	{
 		lock (Sync)
 		{
@@ -83,7 +83,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Process_WhenProviderThrows_LeavesTagUnchanged()
+	public void StringTags_WhenCalled_ShouldProcess_WhenProviderThrows_LeavesTagUnchanged()
 	{
 		lock (Sync)
 		{
@@ -94,7 +94,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Register_AllowOverwrite_UpdatesValue()
+	public void StringTags_WhenCalled_ShouldRegister_AllowOverwrite_UpdatesValue()
 	{
 		lock (Sync)
 		{
@@ -106,7 +106,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Register_DisallowOverwrite_Throws()
+	public void StringTags_WhenCalled_ShouldRegister_DisallowOverwrite_Throws()
 	{
 		lock (Sync)
 		{
@@ -118,7 +118,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Register_Throws_OnInvalidOrWhitespaceName()
+	public void Register_WhenCalled_ShouldThrowOnInvalidOrWhitespaceName()
 	{
 		lock (Sync)
 		{
@@ -131,7 +131,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Register_Throws_OnNullProvider()
+	public void Register_WhenCalled_ShouldThrowOnNullProvider()
 	{
 		lock (Sync)
 		{
@@ -142,7 +142,7 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Unregister_RemovesSpecificTag()
+	public void StringTags_WhenCalled_ShouldUnregister_RemovesSpecificTag()
 	{
 		lock (Sync)
 		{
@@ -155,3 +155,4 @@ public class StringTagsTests
 		}
 	}
 }
+

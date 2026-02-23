@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayConstructorsIntOverloadTests
 {
 	[Fact]
-	public void WhenLessThanMinimumCapacity_ShouldUseMinimumCapacity()
+	public void WhenLessThanMinimumCapacity_WhenCalled_ShouldUseMinimumCapacity()
 	{
 		var arr = new SwapbackArray<int>(3);
 
@@ -17,7 +17,7 @@ public class SwapbackArrayConstructorsIntOverloadTests
 	}
 
 	[Fact]
-	public void WhenParameterless_ShouldUseMinimumCapacity()
+	public void WhenParameterless_WhenCalled_ShouldUseMinimumCapacity()
 	{
 		var arr = new SwapbackArray<int>();
 
@@ -26,7 +26,7 @@ public class SwapbackArrayConstructorsIntOverloadTests
 	}
 
 	[Fact]
-	public void WhenValidCapacity_ShouldUseProvidedCapacity()
+	public void WhenValidCapacity_WhenCalled_ShouldUseProvidedCapacity()
 	{
 		var arr = new SwapbackArray<int>(10);
 

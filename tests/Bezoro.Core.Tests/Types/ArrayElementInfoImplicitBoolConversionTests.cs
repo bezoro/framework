@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class ArrayElementInfoImplicitBoolConversionTests
 {
 	[Fact]
-	public void WhenFound_ShouldReturnTrue()
+	public void WhenFound_WhenCalled_ShouldReturnTrue()
 	{
 		var info = ArrayElementInfo<int>.Found(0, 42, 5);
 
@@ -19,7 +19,7 @@ public class ArrayElementInfoImplicitBoolConversionTests
 	}
 
 	[Fact]
-	public void WhenNotFound_ShouldReturnFalse()
+	public void WhenNotFound_WhenCalled_ShouldReturnFalse()
 	{
 		var info = ArrayElementInfo<int>.NotFound(42, 5);
 
@@ -29,7 +29,7 @@ public class ArrayElementInfoImplicitBoolConversionTests
 	}
 
 	[Fact]
-	public void WhenUsedInIfStatement_ShouldWork()
+	public void WhenUsedInIfStatement_WhenCalled_ShouldWork()
 	{
 		var found    = ArrayElementInfo<string>.Found(0, "test", 1);
 		var notFound = ArrayElementInfo<string>.NotFound("missing", 5);

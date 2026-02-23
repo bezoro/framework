@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PoolPolicyOnDiscardTests
 {
 	[Fact]
-	public void WithDiscardDelegateAndDisposable_ShouldCallBoth()
+	public void WithDiscardDelegateAndDisposable_WhenCalled_ShouldCallBoth()
 	{
 		var discardCalled = false;
 		var policy = new PoolPolicy<DisposableTestObject>(
@@ -26,7 +26,7 @@ public class PoolPolicyOnDiscardTests
 	}
 
 	[Fact]
-	public void WithDisposableItem_ShouldDispose()
+	public void WithDisposableItem_WhenCalled_ShouldDispose()
 	{
 		var policy = new PoolPolicy<DisposableTestObject>(() => new());
 		var item   = new DisposableTestObject();
@@ -37,7 +37,7 @@ public class PoolPolicyOnDiscardTests
 	}
 
 	[Fact]
-	public void WithOnDiscardDelegate_ShouldInvokeDelegate()
+	public void WithOnDiscardDelegate_WhenCalled_ShouldInvokeDelegate()
 	{
 		var discardCalled = false;
 		var policy = new PoolPolicy<object>(

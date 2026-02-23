@@ -4,13 +4,13 @@ using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Bezoro.Core.Tests;
+namespace Bezoro.Core.Tests.Types;
 
 [TestSubject(typeof(GridSpan2D<>))]
 public class GridSpan2DConstructorTests
 {
 	[Fact]
-	public void WhenCreatedFromSpan_ThenInitializesCorrectly()
+	public void GridSpan2DConstructor_WhenCreatedFromSpan_ShouldInitializesCorrectly()
 	{
 		// Arrange
 		Span<int> data   = stackalloc int[12];
@@ -26,3 +26,4 @@ public class GridSpan2DConstructorTests
 		grid.Length.Should().Be(WIDTH * HEIGHT);
 	}
 }
+

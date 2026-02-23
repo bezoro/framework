@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentExplicitCastFromByteTests
 {
 	[Fact]
-	public void WhenInvalidByte_ShouldThrow()
+	public void WhenInvalidByte_WhenCalled_ShouldThrow()
 	{
 		byte value = 101;
 
@@ -20,7 +20,7 @@ public class PercentExplicitCastFromByteTests
 	}
 
 	[Fact]
-	public void WhenValidByte_ShouldCreatePercent()
+	public void WhenValidByte_WhenCalled_ShouldCreatePercent()
 	{
 		byte value = 42;
 

@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class ObjectPoolTryRentTests
 {
 	[Fact]
-	public void WhenDisposed_ShouldReturnFalse()
+	public void WhenDisposed_WhenCalled_ShouldReturnFalse()
 	{
 		var pool = new ObjectPool<object>(() => new());
 		pool.Dispose();
@@ -21,7 +21,7 @@ public class ObjectPoolTryRentTests
 	}
 
 	[Fact]
-	public void WhenPoolEmpty_ShouldReturnFalse()
+	public void WhenPoolEmpty_WhenCalled_ShouldReturnFalse()
 	{
 		var pool = new ObjectPool<object>(() => new());
 
@@ -32,7 +32,7 @@ public class ObjectPoolTryRentTests
 	}
 
 	[Fact]
-	public void WhenPoolHasItems_ShouldReturnTrue()
+	public void WhenPoolHasItems_WhenCalled_ShouldReturnTrue()
 	{
 		var    pool     = new ObjectPool<object>(() => new());
 		object original = pool.Rent();

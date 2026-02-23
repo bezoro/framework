@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayAsSpanTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnSpanWithExpectedLength()
+	public void WhenCalled_WhenCalled_ShouldReturnSpanWithExpectedLength()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);
@@ -20,7 +20,7 @@ public class SwapbackArrayAsSpanTests
 	}
 
 	[Fact]
-	public void WhenCalled_ShouldReturnSpanWithExpectedValues()
+	public void WhenCalled_WhenCalled_ShouldReturnSpanWithExpectedValues()
 	{
 		int[] values = [1, 2, 3, 4];
 		var   arr    = new SwapbackArray<int>(values);

@@ -14,84 +14,84 @@ namespace Bezoro.Core.Tests.Extensions;
 public class GenericExtensionsTests
 {
 	[Fact]
-	public void IsBetween_WhenValueIsInRange_ReturnsTrue()
+	public void IsBetweenWhenValueIsInRange_WhenCalled_ShouldReturnTrue()
 	{
 		5.IsBetween(1, 10).Should().BeTrue();
 	}
 
 	[Fact]
-	public void IsBetween_WhenValueIsOutOfRange_ReturnsFalse()
+	public void IsBetweenWhenValueIsOutOfRange_WhenCalled_ShouldReturnFalse()
 	{
 		11.IsBetween(1, 10).Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsDefault_WhenValueIsDefault_ReturnsTrue()
+	public void IsDefaultWhenValueIsDefault_WhenCalled_ShouldReturnTrue()
 	{
 		default(int).IsDefault().Should().BeTrue();
 	}
 
 	[Fact]
-	public void IsDefault_WhenValueIsNotDefault_ReturnsFalse()
+	public void IsDefaultWhenValueIsNotDefault_WhenCalled_ShouldReturnFalse()
 	{
 		42.IsDefault().Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsNull_WhenValueIsNotNull_ReturnsFalse()
+	public void IsNullWhenValueIsNotNull_WhenCalled_ShouldReturnFalse()
 	{
 		"test".IsNull().Should().BeFalse();
 	}
 
 	[Fact]
-	public void IsNull_WhenValueIsNull_ReturnsTrue()
+	public void IsNullWhenValueIsNull_WhenCalled_ShouldReturnTrue()
 	{
 		string? value = null;
 		value.IsNull().Should().BeTrue();
 	}
 
 	[Fact]
-	public void IsOneOf_WhenValueIsInCandidates_ReturnsTrue()
+	public void IsOneOfWhenValueIsInCandidates_WhenCalled_ShouldReturnTrue()
 	{
 		5.IsOneOf(1, 3, 5, 7).Should().BeTrue();
 	}
 
 	[Fact]
-	public void IsOneOf_WhenValueIsNotInCandidates_ReturnsFalse()
+	public void IsOneOfWhenValueIsNotInCandidates_WhenCalled_ShouldReturnFalse()
 	{
 		6.IsOneOf(1, 3, 5, 7).Should().BeFalse();
 	}
 
 	[Fact]
-	public void ThrowIf_WhenConditionIsFalse_ReturnsValue()
+	public void ThrowIfWhenConditionIsFalse_WhenCalled_ShouldReturnValue()
 	{
 		int result = 5.ThrowIf(false, "param", "Custom message");
 		result.Should().Be(5);
 	}
 
 	[Fact]
-	public void ThrowIf_WhenConditionIsTrue_ThrowsArgumentException()
+	public void ThrowIfWhenConditionIsTrue_WhenCalled_ShouldThrowArgumentException()
 	{
 		var action = () => 5.ThrowIf(true, "param", "Custom message");
 		action.Should().Throw<ArgumentException>().WithMessage("Custom message*");
 	}
 
 	[Fact]
-	public void ThrowIf_WhenPredicateIsFalse_ReturnsValue()
+	public void ThrowIfWhenPredicateIsFalse_WhenCalled_ShouldReturnValue()
 	{
 		int result = 5.ThrowIf(x => x < 0);
 		result.Should().Be(5);
 	}
 
 	[Fact]
-	public void ThrowIf_WhenPredicateIsTrue_ThrowsArgumentException()
+	public void ThrowIfWhenPredicateIsTrue_WhenCalled_ShouldThrowArgumentException()
 	{
 		var action = () => 5.ThrowIf(x => x > 0);
 		action.Should().Throw<ArgumentException>();
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenEnumerableWithoutCountIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenEnumerableWithoutCountIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		var enumerable = GetEmptyIterator();
 
@@ -101,7 +101,7 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlyCollectionIsEmpty_ThrowsArgumentException()
+	public void ThrowIfEmptyWhenReadOnlyCollectionIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		IReadOnlyCollection<int> collection = new TestReadOnlyCollection<int>(Array.Empty<int>());
 
@@ -111,7 +111,7 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenReadOnlyCollectionIsNotEmpty_ReturnsCollection()
+	public void ThrowIfEmptyWhenReadOnlyCollectionIsNotEmpty_WhenCalled_ShouldReturnCollection()
 	{
 		IReadOnlyCollection<int> collection = new TestReadOnlyCollection<int>(new[] { 42 });
 
@@ -121,14 +121,14 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenSequenceIsEmpty_ThrowsEmptyCollectionException()
+	public void ThrowIfEmptyWhenSequenceIsEmpty_WhenCalled_ShouldThrowEmptyCollectionException()
 	{
 		var action = () => Array.Empty<int>().ThrowIfEmpty();
 		action.Should().Throw<EmptyCollectionException>();
 	}
 
 	[Fact]
-	public void ThrowIfEmpty_WhenSequenceIsNotEmpty_ReturnsSequence()
+	public void ThrowIfEmptyWhenSequenceIsNotEmpty_WhenCalled_ShouldReturnSequence()
 	{
 		int[] array  = [1, 2, 3];
 		int[] result = array.ThrowIfEmpty();
@@ -136,14 +136,14 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfNull_WhenValueIsNotNull_ReturnsValue()
+	public void ThrowIfNullWhenValueIsNotNull_WhenCalled_ShouldReturnValue()
 	{
 		string result = "test".ThrowIfNull();
 		result.Should().Be("test");
 	}
 
 	[Fact]
-	public void ThrowIfNull_WhenValueIsNull_ThrowsArgumentNullException()
+	public void ThrowIfNullWhenValueIsNull_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		string? value  = null;
 		var     action = () => value.ThrowIfNull();
@@ -151,7 +151,7 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void Yield_ReturnsEnumerableWithSingleItem()
+	public void Yield_WhenCalled_ShouldReturnEnumerableWithSingleItem()
 	{
 		var result = 42.Yield();
 		result.Should().ContainSingle().Which.Should().Be(42);

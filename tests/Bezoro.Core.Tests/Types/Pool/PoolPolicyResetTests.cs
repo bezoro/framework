@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PoolPolicyResetTests
 {
 	[Fact]
-	public void WithIPooledObject_ShouldCallOnReturn()
+	public void WithIPooledObject_WhenCalled_ShouldCallOnReturn()
 	{
 		var policy = new PoolPolicy<TestPooledObject>(() => new());
 		var item   = new TestPooledObject();
@@ -20,7 +20,7 @@ public class PoolPolicyResetTests
 	}
 
 	[Fact]
-	public void WithIPooledObject_ShouldPreferOnReturnOverDelegate()
+	public void WithIPooledObject_WhenCalled_ShouldPreferOnReturnOverDelegate()
 	{
 		var delegateCalled = false;
 		var policy = new PoolPolicy<TestPooledObject>(
@@ -41,7 +41,7 @@ public class PoolPolicyResetTests
 	}
 
 	[Fact]
-	public void WithIPooledObject_ShouldReturnOnReturnResult()
+	public void WithIPooledObject_WhenCalled_ShouldReturnOnReturnResult()
 	{
 		var policy = new PoolPolicy<TestPooledObject>(() => new());
 		var item   = new TestPooledObject { ReturnValue = false };
@@ -52,7 +52,7 @@ public class PoolPolicyResetTests
 	}
 
 	[Fact]
-	public void WithNoResetDelegate_ShouldReturnTrue()
+	public void WithNoResetDelegate_WhenCalled_ShouldReturnTrue()
 	{
 		var policy = new PoolPolicy<object>(() => new());
 		var item   = new object();
@@ -63,7 +63,7 @@ public class PoolPolicyResetTests
 	}
 
 	[Fact]
-	public void WithResetDelegate_ShouldInvokeDelegate()
+	public void WithResetDelegate_WhenCalled_ShouldInvokeDelegate()
 	{
 		var resetCalled = false;
 		var policy = new PoolPolicy<object>(

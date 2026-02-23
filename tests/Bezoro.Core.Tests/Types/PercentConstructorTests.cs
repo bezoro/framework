@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentConstructorTests
 {
 	[Fact]
-	public void WhenBoundaryValue0_ShouldCreateObject()
+	public void WhenBoundaryValue0_WhenCalled_ShouldCreateObject()
 	{
 		var p = new Percent(0);
 
@@ -18,7 +18,7 @@ public class PercentConstructorTests
 	}
 
 	[Fact]
-	public void WhenBoundaryValue100_ShouldCreateObject()
+	public void WhenBoundaryValue100_WhenCalled_ShouldCreateObject()
 	{
 		var p = new Percent(100);
 
@@ -26,7 +26,7 @@ public class PercentConstructorTests
 	}
 
 	[Fact]
-	public void WhenValidValue_ShouldCreateObject()
+	public void WhenValidValue_WhenCalled_ShouldCreateObject()
 	{
 		var p = new Percent(10);
 
@@ -34,7 +34,7 @@ public class PercentConstructorTests
 	}
 
 	[Fact]
-	public void WhenValueOver100_ShouldThrow()
+	public void WhenValueOver100_WhenCalled_ShouldThrow()
 	{
 		var act = () => new Percent(101);
 

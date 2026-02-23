@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentToRatioTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnRatio()
+	public void WhenCalled_WhenCalled_ShouldReturnRatio()
 	{
 		var p = new Percent(10);
 
@@ -24,7 +24,7 @@ public class PercentToRatioTests
 	[InlineData(50,  0.5f)]
 	[InlineData(75,  0.75f)]
 	[InlineData(100, 1.0f)]
-	public void WhenCalledWithValue_ShouldReturnExpectedRatio(byte value, float expectedRatio)
+	public void WhenCalledWithValue_WhenCalled_ShouldReturnExpectedRatio(byte value, float expectedRatio)
 	{
 		var p = new Percent(value);
 
@@ -32,7 +32,7 @@ public class PercentToRatioTests
 	}
 
 	[Fact]
-	public void WhenFull_ShouldReturnOne()
+	public void WhenFull_WhenCalled_ShouldReturnOne()
 	{
 		float r = Percent.Full.ToRatio();
 
@@ -40,7 +40,7 @@ public class PercentToRatioTests
 	}
 
 	[Fact]
-	public void WhenZero_ShouldReturnZero()
+	public void WhenZero_WhenCalled_ShouldReturnZero()
 	{
 		float r = Percent.Zero.ToRatio();
 

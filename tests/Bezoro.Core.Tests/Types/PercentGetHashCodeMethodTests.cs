@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class PercentGetHashCodeMethodTests
 {
 	[Fact]
-	public void WhenDifferentValue_ShouldReturnDifferentHashCode()
+	public void WhenDifferentValue_WhenCalled_ShouldReturnDifferentHashCode()
 	{
 		var a = new Percent(50);
 		var b = new Percent(75);
@@ -18,7 +18,7 @@ public class PercentGetHashCodeMethodTests
 	}
 
 	[Fact]
-	public void WhenSameValue_ShouldReturnSameHashCode()
+	public void WhenSameValue_WhenCalled_ShouldReturnSameHashCode()
 	{
 		var a = new Percent(50);
 		var b = new Percent(50);

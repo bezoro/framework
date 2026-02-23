@@ -10,7 +10,7 @@ namespace Bezoro.Core.Tests.Types.Pool;
 public class PooledObjectHandleImplicitConversionTests
 {
 	[Fact]
-	public void ShouldConvertToUnderlyingType()
+	public void PooledObjectHandleImplicitConversion_WhenCalled_ShouldShouldConvertToUnderlyingType()
 	{
 		// Use StringBuilder (not object) to properly test implicit conversion
 		// Assigning to 'object' boxes the struct instead of triggering the operator

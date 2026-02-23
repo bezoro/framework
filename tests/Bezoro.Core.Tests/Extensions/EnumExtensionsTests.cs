@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Extensions;
 public class EnumExtensionsTests
 {
 	[Fact]
-	public void IsDefined_ShouldReturnFalse_WhenValueIsNotDefined()
+	public void IsDefined_WhenCalled_ShouldReturnFalse_WhenValueIsNotDefined()
 	{
 		// Arrange
 		var value = (TestEnum)999;
@@ -22,7 +22,7 @@ public class EnumExtensionsTests
 	}
 
 	[Fact]
-	public void IsDefined_ShouldReturnTrue_WhenValueIsDefined()
+	public void IsDefined_WhenCalled_ShouldReturnTrue_WhenValueIsDefined()
 	{
 		// Arrange
 		var value = TestEnum.First;

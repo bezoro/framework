@@ -9,7 +9,7 @@ namespace Bezoro.Core.Tests.Types;
 public class SwapbackArrayClearTests
 {
 	[Fact]
-	public void WhenSuccessful_ShouldIncrementVersion()
+	public void WhenSuccessful_WhenCalled_ShouldIncrementVersion()
 	{
 		var  arr            = new SwapbackArray<int> { 1, 2, 3 };
 		uint initialVersion = arr.Version;
@@ -20,7 +20,7 @@ public class SwapbackArrayClearTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_ShouldResetCountToZero()
+	public void WhenSuccessful_WhenCalled_ShouldResetCountToZero()
 	{
 		var arr = new SwapbackArray<int> { 1, 2, 3 };
 
@@ -31,7 +31,7 @@ public class SwapbackArrayClearTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_WithoutTrim_ShouldMaintainCapacity()
+	public void WhenSuccessful_WhenWithoutTrim_ShouldMaintainCapacity()
 	{
 		var arr = new SwapbackArray<int>(100);
 		for (var i = 0; i < 50; i++) arr.Add(i);
@@ -43,7 +43,7 @@ public class SwapbackArrayClearTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_WithTrim_ShouldShrinkToMinimumCapacity()
+	public void WhenSuccessful_WhenWithTrim_ShouldShrinkToMinimumCapacity()
 	{
 		var arr = new SwapbackArray<int>(100);
 		for (var i = 0; i < 50; i++) arr.Add(i);
