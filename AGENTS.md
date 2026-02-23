@@ -88,12 +88,49 @@ Namespace mirrors folder. One type per file. No circular dependencies.
 
 ## Build Commands
 
+### Build
+
 ```bash
+# Full solution — use after any change to verify nothing is broken
 dotnet build bezoro.framework.sln
+
+# Release build — required before running benchmarks
+dotnet build bezoro.framework.sln -c Release
+```
+
+### Test
+
+```bash
+# Full test suite
 dotnet test bezoro.framework.sln
+
+# Single project
 dotnet test tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj
+
+# Filter by class or method name
 dotnet test --filter "FullyQualifiedName~ClassName"
 dotnet test --filter "FullyQualifiedName~MethodName"
+
+# Skip rebuild when already built (faster iteration)
+dotnet test bezoro.framework.sln --no-build
+```
+
+### Benchmarks
+
+BenchmarkDotNet **requires Release mode** — Debug builds produce meaningless results.
+
+```bash
+# Run all benchmarks in a project
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj
+
+# Run a specific benchmark class
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj -- --filter "*ClassName*"
+
+# Run a specific benchmark method
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj -- --filter "*MethodName*"
+
+# Core benchmarks
+dotnet run -c Release --project benchmarks/Bezoro.Core.Benchmarks/Bezoro.Core.Benchmarks.csproj
 ```
 
 > **Do not set or use `DOTNET_CLI_HOME`.** This environment variable is not needed and must not be passed to any `dotnet` invocation or shell environment.
