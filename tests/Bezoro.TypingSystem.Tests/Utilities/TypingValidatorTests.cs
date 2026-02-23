@@ -9,6 +9,14 @@ namespace Bezoro.TypingSystem.Tests.Utilities;
 public class TypingValidatorTests
 {
 	[Fact]
+	public void Accuracy_WhenNoAttempts_ShouldReportZero()
+	{
+		var metrics = new TypingMetrics();
+
+		metrics.Accuracy.Should().Be(0d);
+	}
+
+	[Fact]
 	public void ValidateInput_WhenCallbacksAreConfigured_ShouldInvokeCallbacksForMatchingStatuses()
 	{
 		var target = "abc".AsSpan();
@@ -38,24 +46,6 @@ public class TypingValidatorTests
 				TypingValidationStatus.PositionOutOfRange
 			}
 		);
-	}
-
-	[Fact]
-	public void ValidateInput_WhenMetricsAreProvided_ShouldRecordMetrics()
-	{
-		var metrics = new TypingMetrics();
-		var options = new TypingValidatorOptions { Metrics = metrics };
-		var target  = "abc".AsSpan();
-
-		TypingValidator.ValidateInput(target,                   0, 'a', options);
-		TypingValidator.ValidateInput(target,                   1, 'z', options);
-		TypingValidator.ValidateInput(ReadOnlySpan<char>.Empty, 0, 'x', options);
-
-		metrics.TotalInputs.Should().Be(3);
-		metrics.CorrectInputs.Should().Be(1);
-		metrics.MistakeInputs.Should().Be(1);
-		metrics.FaultedInputs.Should().Be(1);
-		metrics.Accuracy.Should().Be(0.5);
 	}
 
 	[Fact]
@@ -140,17 +130,29 @@ public class TypingValidatorTests
 	}
 
 	[Fact]
-	public void Accuracy_WhenNoAttempts_ShouldReportZero()
+	public void ValidateInput_WhenMetricsAreProvided_ShouldRecordMetrics()
 	{
 		var metrics = new TypingMetrics();
+		var options = new TypingValidatorOptions { Metrics = metrics };
+		var target  = "abc".AsSpan();
 
-		metrics.Accuracy.Should().Be(0d);
+		TypingValidator.ValidateInput(target,                   0, 'a', options);
+		TypingValidator.ValidateInput(target,                   1, 'z', options);
+		TypingValidator.ValidateInput(ReadOnlySpan<char>.Empty, 0, 'x', options);
+
+		metrics.TotalInputs.Should().Be(3);
+		metrics.CorrectInputs.Should().Be(1);
+		metrics.MistakeInputs.Should().Be(1);
+		metrics.FaultedInputs.Should().Be(1);
+		metrics.Accuracy.Should().Be(0.5);
 	}
 
 	[Theory]
 	[InlineData(3,   2)]
 	[InlineData(255, 2)]
-	public void ValidateInput_WhenPositionIsOutOfRange_ShouldReturnFaultedStatus(byte position, byte expectedNextPosition)
+	public void ValidateInput_WhenPositionIsOutOfRange_ShouldReturnFaultedStatus(
+		byte position,
+		byte expectedNextPosition)
 	{
 		var        target = "abc".AsSpan();
 		const char INPUT  = 'a';

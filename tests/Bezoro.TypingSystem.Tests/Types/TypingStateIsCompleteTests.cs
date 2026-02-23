@@ -8,21 +8,21 @@ namespace Bezoro.TypingSystem.Tests.Types;
 public class TypingStateIsCompleteTests
 {
 	[Fact]
-	public void IsComplete_WhenTargetLengthIsLessThanPosition_ShouldThrowArgumentOutOfRangeException()
-	{
-		var state = new TypingState(4, 5, 0);
-
-		var action = () => state.IsComplete(3);
-
-		action.Should().Throw<ArgumentOutOfRangeException>();
-	}
-
-	[Fact]
 	public void IsComplete_WhenTargetLengthIsLessThanCorrectCount_ShouldThrowArgumentOutOfRangeException()
 	{
 		var state = new TypingState(4, 5, 0);
 
 		var action = () => state.IsComplete(4);
+
+		action.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
+	public void IsComplete_WhenTargetLengthIsLessThanPosition_ShouldThrowArgumentOutOfRangeException()
+	{
+		var state = new TypingState(4, 5, 0);
+
+		var action = () => state.IsComplete(3);
 
 		action.Should().Throw<ArgumentOutOfRangeException>();
 	}

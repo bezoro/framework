@@ -10,56 +10,6 @@ namespace Bezoro.TypingSystem.Tests.Types;
 public class ArrayWordProviderTests
 {
 	[Fact]
-	public void Constructor_WhenWordsAreNull_ShouldThrowArgumentNullException()
-	{
-		IEnumerable<string> words = null!;
-
-		Action action = () => _ = new ArrayWordProvider(words);
-
-		action.Should().Throw<ArgumentNullException>();
-	}
-
-	[Fact]
-	public void Constructor_WhenWordsAreEmpty_ShouldThrowEmptyCollectionException()
-	{
-		Action action = () => _ = new ArrayWordProvider([]);
-
-		action.Should().Throw<EmptyCollectionException>();
-	}
-
-	[Fact]
-	public void GetNextWord_WhenWordsExist_ShouldReturnWordsInInsertionOrder()
-	{
-		IWordProvider provider = new ArrayWordProvider(["one", "two"]);
-
-		var first  = provider.GetNextWord();
-		var second = provider.GetNextWord();
-
-		first.ToString().Should().Be("one");
-		second.ToString().Should().Be("two");
-	}
-
-	[Fact]
-	public void GetNextWord_WhenNoWordsRemain_ShouldThrowInvalidOperationException()
-	{
-		IWordProvider provider = new ArrayWordProvider(["one"]);
-		_ = provider.GetNextWord();
-
-		Action action = () => _ = provider.GetNextWord();
-
-		action.Should().Throw<InvalidOperationException>();
-	}
-
-	[Fact]
-	public void HasMoreWords_WhenAllWordsAreConsumed_ShouldReturnFalse()
-	{
-		IWordProvider provider = new ArrayWordProvider(["one"]);
-		_ = provider.GetNextWord();
-
-		provider.HasMoreWords.Should().BeFalse();
-	}
-
-	[Fact]
 	public void AddWord_WhenCalled_ShouldIncreaseWordCount()
 	{
 		var provider = new ArrayWordProvider(["one"]);
@@ -80,23 +30,26 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void WordCount_WhenWordsAreAddedAndRemoved_ShouldReflectCurrentCount()
+	public void AddWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
 	{
-		var provider = new ArrayWordProvider(["one", "two"]);
-		provider.AddWord("three".AsMemory());
-		provider.RemoveWord("two".AsMemory());
+		string filePath = Path.GetTempFileName();
+		File.WriteAllLines(filePath, ["two", "three"]);
 
-		provider.WordCount.Should().Be(2);
-	}
+		try
+		{
+			IWordProvider provider = new ArrayWordProvider(["one"]);
 
-	[Fact]
-	public void RemoveWord_WhenWordDoesNotExist_ShouldThrowInvalidOperationException()
-	{
-		var provider = new ArrayWordProvider(["one"]);
+			provider.AddWordsFromFile(filePath);
 
-		Action action = () => provider.RemoveWord("missing".AsMemory());
-
-		action.Should().Throw<InvalidOperationException>();
+			provider.WordCount.Should().Be(3);
+			provider.GetNextWord().ToString().Should().Be("one");
+			provider.GetNextWord().ToString().Should().Be("two");
+			provider.GetNextWord().ToString().Should().Be("three");
+		}
+		finally
+		{
+			File.Delete(filePath);
+		}
 	}
 
 	[Fact]
@@ -115,25 +68,72 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void AddWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
+	public void Constructor_WhenWordsAreEmpty_ShouldThrowEmptyCollectionException()
 	{
-		var filePath = Path.GetTempFileName();
-		File.WriteAllLines(filePath, ["two", "three"]);
+		Action action = () => _ = new ArrayWordProvider([]);
 
-		try
-		{
-			IWordProvider provider = new ArrayWordProvider(["one"]);
+		action.Should().Throw<EmptyCollectionException>();
+	}
 
-			provider.AddWordsFromFile(filePath);
+	[Fact]
+	public void Constructor_WhenWordsAreNull_ShouldThrowArgumentNullException()
+	{
+		IEnumerable<string> words = null!;
 
-			provider.WordCount.Should().Be(3);
-			provider.GetNextWord().ToString().Should().Be("one");
-			provider.GetNextWord().ToString().Should().Be("two");
-			provider.GetNextWord().ToString().Should().Be("three");
-		}
-		finally
-		{
-			File.Delete(filePath);
-		}
+		Action action = () => _ = new ArrayWordProvider(words);
+
+		action.Should().Throw<ArgumentNullException>();
+	}
+
+	[Fact]
+	public void GetNextWord_WhenNoWordsRemain_ShouldThrowInvalidOperationException()
+	{
+		IWordProvider provider = new ArrayWordProvider(["one"]);
+		_ = provider.GetNextWord();
+
+		Action action = () => _ = provider.GetNextWord();
+
+		action.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
+	public void GetNextWord_WhenWordsExist_ShouldReturnWordsInInsertionOrder()
+	{
+		IWordProvider provider = new ArrayWordProvider(["one", "two"]);
+
+		var first  = provider.GetNextWord();
+		var second = provider.GetNextWord();
+
+		first.ToString().Should().Be("one");
+		second.ToString().Should().Be("two");
+	}
+
+	[Fact]
+	public void HasMoreWords_WhenAllWordsAreConsumed_ShouldReturnFalse()
+	{
+		IWordProvider provider = new ArrayWordProvider(["one"]);
+		_ = provider.GetNextWord();
+
+		provider.HasMoreWords.Should().BeFalse();
+	}
+
+	[Fact]
+	public void RemoveWord_WhenWordDoesNotExist_ShouldThrowInvalidOperationException()
+	{
+		var provider = new ArrayWordProvider(["one"]);
+
+		var action = () => provider.RemoveWord("missing".AsMemory());
+
+		action.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
+	public void WordCount_WhenWordsAreAddedAndRemoved_ShouldReflectCurrentCount()
+	{
+		var provider = new ArrayWordProvider(["one", "two"]);
+		provider.AddWord("three".AsMemory());
+		provider.RemoveWord("two".AsMemory());
+
+		provider.WordCount.Should().Be(2);
 	}
 }
