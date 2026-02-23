@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingState))]
 public class TypingStateConstructorTests
 {
 	[Fact]
-	public void WhenCorrectCountIsGreaterThanPositionPlus1_ShouldThrow()
+	public void Constructor_WhenCorrectCountIsGreaterThanPositionPlusOne_ShouldThrowArgumentOutOfRangeException()
 	{
 		const byte   POSITION      = 4;
 		const byte   CORRECT_COUNT = 6;
@@ -20,7 +20,7 @@ public class TypingStateConstructorTests
 	}
 
 	[Fact]
-	public void WhenMistakeCountIsGreaterThanCorrectCount_ShouldWork()
+	public void Constructor_WhenMistakeCountIsGreaterThanCorrectCount_ShouldCreateState()
 	{
 		const byte   POSITION      = 0;
 		const byte   CORRECT_COUNT = 0;
@@ -34,7 +34,7 @@ public class TypingStateConstructorTests
 	}
 
 	[Fact]
-	public void WhenMistakeCountIsGreaterThanPosition_ShouldWork()
+	public void Constructor_WhenMistakeCountIsGreaterThanPosition_ShouldCreateState()
 	{
 		const byte   POSITION      = 0;
 		const byte   CORRECT_COUNT = 0;
@@ -48,7 +48,7 @@ public class TypingStateConstructorTests
 	}
 
 	[Fact]
-	public void WhenPositionIsGreaterThanCorrectCount_ShouldThrow()
+	public void Constructor_WhenPositionIsGreaterThanCorrectCount_ShouldThrowArgumentOutOfRangeException()
 	{
 		const byte   POSITION      = 3;
 		const byte   CORRECT_COUNT = 2;
@@ -60,7 +60,7 @@ public class TypingStateConstructorTests
 	}
 
 	[Fact]
-	public void WhenValidInputs_ShouldPopulateFields()
+	public void Constructor_WhenInputsAreValid_ShouldPopulateFields()
 	{
 		const byte   POSITION      = 0;
 		const byte   CORRECT_COUNT = 0;

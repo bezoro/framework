@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingResult))]
 public class TypingResultCompletedTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnExpectedResult()
+	public void Completed_WhenCalled_ShouldReturnExpectedResult()
 	{
 		const byte TARGET_LENGTH = 5;
 		const byte POSITION      = TARGET_LENGTH - 1;

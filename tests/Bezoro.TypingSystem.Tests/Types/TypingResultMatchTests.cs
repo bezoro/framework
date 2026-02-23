@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingResult))]
 public class TypingResultMatchTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnExpectedResult()
+	public void Match_WhenCalled_ShouldReturnExpectedResult()
 	{
 		const char EXPECTED      = 'b';
 		const byte POSITION      = 1;
@@ -29,7 +29,7 @@ public class TypingResultMatchTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthIsMaximum_ShouldStillAdvance()
+	public void Match_WhenTargetLengthIsMaximum_ShouldStillAdvance()
 	{
 		const byte TARGET_LENGTH = byte.MaxValue;
 		const byte POSITION      = 0;

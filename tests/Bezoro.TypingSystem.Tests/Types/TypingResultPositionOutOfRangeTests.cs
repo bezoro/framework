@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingResult))]
 public class TypingResultPositionOutOfRangeTests
 {
 	[Fact]
-	public void WhenPositionExceedsTargetLength_ShouldClampNextPosition()
+	public void PositionOutOfRange_WhenPositionExceedsTargetLength_ShouldClampNextPosition()
 	{
 		const byte POSITION      = 5;
 		const byte TARGET_LENGTH = 3;
@@ -28,7 +28,7 @@ public class TypingResultPositionOutOfRangeTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthIsZero_ShouldReturnZeroForNextPosition()
+	public void PositionOutOfRange_WhenTargetLengthIsZero_ShouldReturnZeroForNextPosition()
 	{
 		const byte POSITION      = 10;
 		const byte TARGET_LENGTH = 0;

@@ -3,13 +3,13 @@ using Bezoro.TypingSystem.Utilities;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Utilities;
 
 [TestSubject(typeof(TypingValidator))]
-public class TypingValidatorValidateInputTests
+public class TypingValidatorTests
 {
 	[Fact]
-	public void ShouldInvokeCallbacksBasedOnResult()
+	public void ValidateInput_WhenCallbacksAreConfigured_ShouldInvokeCallbacksForMatchingStatuses()
 	{
 		var target = "abc".AsSpan();
 
@@ -41,7 +41,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void ShouldRecordMetrics()
+	public void ValidateInput_WhenMetricsAreProvided_ShouldRecordMetrics()
 	{
 		var metrics = new TypingMetrics();
 		var options = new TypingValidatorOptions { Metrics = metrics };
@@ -59,7 +59,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenIgnoreCaseDisabled_ShouldRespectCase()
+	public void ValidateInput_WhenIgnoreCaseIsDisabled_ShouldRespectCase()
 	{
 		var target = "Abc".AsSpan();
 
@@ -70,7 +70,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenIgnoreCaseEnabled_ShouldTreatDifferentCaseAsMatch()
+	public void ValidateInput_WhenIgnoreCaseIsEnabled_ShouldTreatDifferentCaseAsMatch()
 	{
 		var target = "Abc".AsSpan();
 
@@ -89,7 +89,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenInputCompletesTarget_ShouldReturnCompletedStatus()
+	public void ValidateInput_WhenInputCompletesTarget_ShouldReturnCompletedStatus()
 	{
 		var  target   = "abc".AsSpan();
 		var  position = (byte)(target.Length - 1);
@@ -105,7 +105,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenInputDoesNotMatch_ShouldReturnMismatchStatus()
+	public void ValidateInput_WhenInputDoesNotMatch_ShouldReturnMismatchStatus()
 	{
 		var        target   = "abc".AsSpan();
 		const int  POSITION = 0;
@@ -122,7 +122,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenInputMatches_ShouldReturnMatchStatus()
+	public void ValidateInput_WhenInputMatches_ShouldReturnMatchStatus()
 	{
 		var        target   = "abc".AsSpan();
 		const int  POSITION = 1;
@@ -140,7 +140,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenNoAttempts_ShouldReportZeroAccuracy()
+	public void Accuracy_WhenNoAttempts_ShouldReportZero()
 	{
 		var metrics = new TypingMetrics();
 
@@ -150,7 +150,7 @@ public class TypingValidatorValidateInputTests
 	[Theory]
 	[InlineData(3,   2)]
 	[InlineData(255, 2)]
-	public void WhenPositionIsOutOfRange_ShouldReturnFaultedStatus(byte position, byte expectedNextPosition)
+	public void ValidateInput_WhenPositionIsOutOfRange_ShouldReturnFaultedStatus(byte position, byte expectedNextPosition)
 	{
 		var        target = "abc".AsSpan();
 		const char INPUT  = 'a';
@@ -166,7 +166,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenTargetExceedsMaximumLength_ShouldThrow()
+	public void ValidateInput_WhenTargetExceedsMaximumLength_ShouldThrowArgumentOutOfRangeException()
 	{
 		string word = new('a', byte.MaxValue + 1);
 
@@ -179,7 +179,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenTargetIsEmpty_ShouldReturnEmptyTargetStatus()
+	public void ValidateInput_WhenTargetIsEmpty_ShouldReturnEmptyTargetStatus()
 	{
 		var        target = ReadOnlySpan<char>.Empty;
 		const char INPUT  = 'x';
@@ -195,7 +195,7 @@ public class TypingValidatorValidateInputTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthEqualsMaximum_ShouldValidateSuccessfully()
+	public void ValidateInput_WhenTargetLengthEqualsMaximum_ShouldValidateSuccessfully()
 	{
 		string     word     = new('a', byte.MaxValue);
 		var        target   = word.AsSpan();

@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingResult))]
 public class TypingResultMismatchTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnExpectedResult()
+	public void Mismatch_WhenCalled_ShouldReturnExpectedResult()
 	{
 		const char EXPECTED      = 'c';
 		const byte POSITION      = 2;

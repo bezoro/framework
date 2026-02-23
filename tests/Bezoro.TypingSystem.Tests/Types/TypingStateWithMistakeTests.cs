@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingState))]
 public class TypingStateWithMistakeTests
 {
 	[Fact]
-	public void WhenCalled_ShouldIncrementMistakeCount()
+	public void WithMistake_WhenCalled_ShouldIncrementMistakeCount()
 	{
 		var state = new TypingState(0, 0, 0);
 
@@ -20,7 +20,7 @@ public class TypingStateWithMistakeTests
 	}
 
 	[Fact]
-	public void WhenMistakeCountAtMaximum_ShouldThrow()
+	public void WithMistake_WhenMistakeCountIsAtMaximum_ShouldThrowInvalidOperationException()
 	{
 		var state = new TypingState(0, 0, ushort.MaxValue);
 

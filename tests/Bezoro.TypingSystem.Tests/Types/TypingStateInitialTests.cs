@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingState))]
 public class TypingStateInitialTests
 {
 	[Fact]
-	public void WhenCalled_ShouldReturnInitialState()
+	public void Initial_WhenAccessed_ShouldReturnInitialState()
 	{
 		var state = TypingState.Initial;
 

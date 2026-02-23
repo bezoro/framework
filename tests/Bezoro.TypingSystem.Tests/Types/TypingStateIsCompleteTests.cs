@@ -2,13 +2,13 @@ using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
-namespace Bezoro.TypingSystem.Tests;
+namespace Bezoro.TypingSystem.Tests.Types;
 
 [TestSubject(typeof(TypingState))]
 public class TypingStateIsCompleteTests
 {
 	[Fact]
-	public void WhenTargetLengthIsLessThanPosition_ShouldThrow()
+	public void IsComplete_WhenTargetLengthIsLessThanPosition_ShouldThrowArgumentOutOfRangeException()
 	{
 		var state = new TypingState(4, 5, 0);
 
@@ -18,7 +18,7 @@ public class TypingStateIsCompleteTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthLessThanCorrectCount_ShouldThrow()
+	public void IsComplete_WhenTargetLengthIsLessThanCorrectCount_ShouldThrowArgumentOutOfRangeException()
 	{
 		var state = new TypingState(4, 5, 0);
 
@@ -28,7 +28,7 @@ public class TypingStateIsCompleteTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthNotReached_ShouldReturnFalse()
+	public void IsComplete_WhenTargetLengthIsNotReached_ShouldReturnFalse()
 	{
 		var state = new TypingState(3, 4, 0);
 
@@ -36,7 +36,7 @@ public class TypingStateIsCompleteTests
 	}
 
 	[Fact]
-	public void WhenTargetLengthReached_ShouldReturnTrue()
+	public void IsComplete_WhenTargetLengthIsReached_ShouldReturnTrue()
 	{
 		var state = new TypingState(4, 5, 0);
 
