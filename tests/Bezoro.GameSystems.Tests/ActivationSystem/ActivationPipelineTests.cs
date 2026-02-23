@@ -19,7 +19,7 @@ public class ActivationPipelineTests
 	{
 		var systemType = typeof(ActivationProcessingSystem);
 
-		systemType.IsDefined(typeof(WritesAttribute<ActivationEntry>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<ActivationEntry>),              true).Should().BeTrue();
 		systemType.IsDefined(typeof(ReadsAttribute<ActivationCancellationRequest>), true).Should().BeTrue();
 	}
 
@@ -27,7 +27,7 @@ public class ActivationPipelineTests
 	public void Tick_WhenActivationCompletes_ShouldPublishCompletionOncePerCompletionEdge()
 	{
 		var world = new World();
-		world.SetResource(new ActivationConfig(maxActivationsPerTick: 2));
+		world.SetResource(new ActivationConfig(2));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
 
@@ -47,11 +47,31 @@ public class ActivationPipelineTests
 	}
 
 	[Fact]
+	public void Tick_WhenCallbacksAreDispatchedThroughConfiguredDispatcher_ShouldDeferInvocationToDispatcher()
+	{
+		var dispatched = new List<Action>();
+		var world      = new World();
+		world.SetResource(new ActivationConfig(callbackDispatcher: callback => dispatched.Add(callback)));
+		world.AddActivationPipeline();
+		var queue   = world.GetOrCreateActivationCommandQueue();
+		var invoked = false;
+
+		queue.Register(() => invoked = true);
+		world.Tick(0f);
+
+		invoked.Should().BeFalse();
+		dispatched.Should().HaveCount(1);
+
+		dispatched[0]();
+		invoked.Should().BeTrue();
+	}
+
+	[Fact]
 	public void Tick_WhenCancellationWasQueuedBeforeProcessing_ShouldNotInvokeCallback()
 	{
 		var world = new World();
 		world.AddActivationPipeline();
-		var queue = world.GetOrCreateActivationCommandQueue();
+		var queue   = world.GetOrCreateActivationCommandQueue();
 		var invoked = false;
 
 		var handle = queue.Register(() => invoked = true);
@@ -66,32 +86,12 @@ public class ActivationPipelineTests
 	}
 
 	[Fact]
-	public void Tick_WhenCallbacksAreDispatchedThroughConfiguredDispatcher_ShouldDeferInvocationToDispatcher()
-	{
-		var dispatched = new List<Action>();
-		var world = new World();
-		world.SetResource(new ActivationConfig(callbackDispatcher: callback => dispatched.Add(callback)));
-		world.AddActivationPipeline();
-		var queue = world.GetOrCreateActivationCommandQueue();
-		var invoked = false;
-
-		queue.Register(() => invoked = true);
-		world.Tick(0f);
-
-		invoked.Should().BeFalse();
-		dispatched.Should().HaveCount(1);
-
-		dispatched[0]();
-		invoked.Should().BeTrue();
-	}
-
-	[Fact]
 	public void Tick_WhenMaxActivationsPerTickIsLimited_ShouldRespectBudgetPerTick()
 	{
 		var world = new World();
-		world.SetResource(new ActivationConfig(maxActivationsPerTick: 2));
+		world.SetResource(new ActivationConfig(2));
 		world.AddActivationPipeline();
-		var queue = world.GetOrCreateActivationCommandQueue();
+		var queue     = world.GetOrCreateActivationCommandQueue();
 		var activated = 0;
 
 		for (var i = 0; i < 5; i++)
@@ -112,14 +112,14 @@ public class ActivationPipelineTests
 	{
 		var order = new List<string>();
 		var world = new World();
-		world.SetResource(new ActivationConfig(maxActivationsPerTick: 1));
+		world.SetResource(new ActivationConfig(1));
 		world.AddActivationPipeline();
 		var queue = world.GetOrCreateActivationCommandQueue();
 
-		queue.Register(() => order.Add("low"), 0);
-		queue.Register(() => order.Add("high"), 10);
-		queue.Register(() => order.Add("medium"), 5);
-		queue.Register(() => order.Add("same-priority-first"), 1);
+		queue.Register(() => order.Add("low"));
+		queue.Register(() => order.Add("high"),                 10);
+		queue.Register(() => order.Add("medium"),               5);
+		queue.Register(() => order.Add("same-priority-first"),  1);
 		queue.Register(() => order.Add("same-priority-second"), 1);
 
 		for (var i = 0; i < 5; i++)

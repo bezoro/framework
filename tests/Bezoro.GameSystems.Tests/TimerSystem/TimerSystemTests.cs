@@ -132,7 +132,7 @@ public class TimerSystemTests
 		system.Stopped += _ => stoppedCount++;
 
 		var timerEntity = world.Spawn(
-			new Timer(30, 10f, 0f, TimerState.Stopped)
+			new Timer(30, 10f)
 		);
 
 		// Act

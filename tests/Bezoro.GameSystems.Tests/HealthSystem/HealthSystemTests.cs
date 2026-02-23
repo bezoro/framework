@@ -20,7 +20,7 @@ public class HealthSystemTests
 		var systemType = typeof(HealthSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Health>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<Health>),               true).Should().BeTrue();
 		systemType.IsDefined(typeof(ReadsAttribute<HealthMutationRequest>), true).Should().BeTrue();
 	}
 
@@ -32,7 +32,7 @@ public class HealthSystemTests
 		var entity = world.Spawn();
 
 		// Act
-		var queued = world.QueueHealthDamage(entity, 5u);
+		bool queued = world.QueueHealthDamage(entity, 5u);
 
 		// Assert
 		queued.Should().BeFalse();
@@ -50,7 +50,7 @@ public class HealthSystemTests
 		system.Changed += _ => changedCount++;
 
 		var entity = world.Spawn(
-			new Health(max: 100u, current: 100u, excessCurrent: 20u, excessMax: 50u)
+			new Health(100u, 100u, 20u, 50u)
 		);
 
 		// Act
@@ -73,6 +73,27 @@ public class HealthSystemTests
 	}
 
 	[Fact]
+	public void Tick_WhenDirectDamageRequestIsQueued_ShouldIgnoreExcess()
+	{
+		// Arrange
+		var world = new World();
+		world.AddSystem(new HealthSystemType());
+
+		var entity = world.Spawn(
+			new Health(100u, 40u, 20u, 50u)
+		);
+
+		// Act
+		world.QueueHealthDirectDamage(entity, 30u).Should().BeTrue();
+		world.Tick(0f);
+
+		// Assert
+		var health = world.Get<Health>(entity);
+		health.Current.Should().Be(10u);
+		health.ExcessCurrent.Should().Be(20u);
+	}
+
+	[Fact]
 	public void Tick_WhenHealRequestIsQueued_ShouldFillCurrentWithoutOverflowIntoExcess()
 	{
 		// Arrange
@@ -80,7 +101,7 @@ public class HealthSystemTests
 		world.AddSystem(new HealthSystemType());
 
 		var entity = world.Spawn(
-			new Health(max: 100u, current: 90u, excessCurrent: 0u, excessMax: 25u)
+			new Health(100u, 90u, 0u, 25u)
 		);
 
 		// Act
@@ -101,7 +122,7 @@ public class HealthSystemTests
 		world.AddSystem(new HealthSystemType());
 
 		var entity = world.Spawn(
-			new Health(max: 100u, current: 90u, excessCurrent: 0u, excessMax: 25u)
+			new Health(100u, 90u, 0u, 25u)
 		);
 
 		// Act
@@ -115,33 +136,12 @@ public class HealthSystemTests
 	}
 
 	[Fact]
-	public void Tick_WhenDirectDamageRequestIsQueued_ShouldIgnoreExcess()
-	{
-		// Arrange
-		var world = new World();
-		world.AddSystem(new HealthSystemType());
-
-		var entity = world.Spawn(
-			new Health(max: 100u, current: 40u, excessCurrent: 20u, excessMax: 50u)
-		);
-
-		// Act
-		world.QueueHealthDirectDamage(entity, 30u).Should().BeTrue();
-		world.Tick(0f);
-
-		// Assert
-		var health = world.Get<Health>(entity);
-		health.Current.Should().Be(10u);
-		health.ExcessCurrent.Should().Be(20u);
-	}
-
-	[Fact]
 	public void Tick_WhenMultipleRequestsAreQueued_ShouldApplyInQueueOrder()
 	{
 		// Arrange
 		var world = new World();
 		world.AddSystem(new HealthSystemType());
-		var entity = world.Spawn(new Health(max: 100u, current: 50u));
+		var entity = world.Spawn(new Health(100u, 50u));
 
 		// Act
 		world.QueueHealthDamage(entity, 10u).Should().BeTrue();
@@ -170,7 +170,7 @@ public class HealthSystemTests
 		// Arrange
 		var world = new World();
 		world.AddSystem(new HealthSystemType());
-		var entity = world.Spawn(new Health(max: 100u, current: 25u));
+		var entity = world.Spawn(new Health(100u, 25u));
 
 		// Act
 		world.QueueSetHealthMax(entity, 200u, MaxValueUpdateMode.PreservePercentage).Should().BeTrue();

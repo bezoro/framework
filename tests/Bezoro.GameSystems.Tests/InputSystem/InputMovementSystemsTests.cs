@@ -21,9 +21,9 @@ public class InputMovementSystemsTests
 		var world = new World();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
-		world.AddSystem(new InputIngestionSystem(), Stage.Input);
+		world.AddSystem(new InputIngestionSystem(),   Stage.Input);
 		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
-		world.AddSystem(new MovementSystemType(), Stage.Tick);
+		world.AddSystem(new MovementSystemType());
 
 		var player = world.Spawn(
 			new Position(),
@@ -31,6 +31,7 @@ public class InputMovementSystemsTests
 			new InputControl { ControlId = 1 },
 			new MovementIntent()
 		);
+
 		world.Add(player, new MovementInputSettings { Speed = 3f, HoldDurationSeconds = 0.2f });
 
 		var enemy = world.Spawn(
@@ -39,10 +40,11 @@ public class InputMovementSystemsTests
 			new InputControl { ControlId = 2 },
 			new MovementIntent()
 		);
+
 		world.Add(enemy, new MovementInputSettings { Speed = 5f, HoldDurationSeconds = 0.2f });
 
-		queue.Enqueue(new InputCommand(controlId: 1, moveX: 1f, moveY: 0f, moveZ: 0f, sequence: 1));
-		queue.Enqueue(new InputCommand(controlId: 2, moveX: 0f, moveY: -1f, moveZ: 0f, sequence: 1));
+		queue.Enqueue(new(1, 1f, 0f, 0f, 1));
+		queue.Enqueue(new(2, 0f, -1f, 0f, 1));
 
 		// Act
 		world.FixedTick(0.1f);
@@ -58,48 +60,15 @@ public class InputMovementSystemsTests
 	}
 
 	[Fact]
-	public void FixedTick_WhenInputIsWithinHoldWindow_ShouldReuseLastInput()
-	{
-		// Arrange
-		var world = new World();
-		var queue = new InputCommandQueue();
-		world.SetResource(queue);
-		world.AddSystem(new InputIngestionSystem(), Stage.Input);
-		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
-		world.AddSystem(new MovementSystemType(), Stage.Tick);
-
-		var entity = world.Spawn(
-			new Position(),
-			new Velocity(),
-			new InputControl { ControlId = 7 },
-			new MovementIntent()
-		);
-		world.Add(entity, new MovementInputSettings { Speed = 4f, HoldDurationSeconds = 0.2f });
-
-		queue.Enqueue(new InputCommand(controlId: 7, moveX: 1f, moveY: 0f, moveZ: 0f, sequence: 1));
-
-		// Act
-		world.FixedTick(0.1f);
-		var afterFirstTick = world.Get<Position>(entity);
-
-		world.FixedTick(0.05f);
-		var afterSecondTick = world.Get<Position>(entity);
-
-		// Assert
-		afterFirstTick.X.Should().BeApproximately(0.4f, 0.0001f);
-		afterSecondTick.X.Should().BeApproximately(0.6f, 0.0001f);
-	}
-
-	[Fact]
 	public void FixedTick_WhenInputExpires_ShouldZeroVelocity()
 	{
 		// Arrange
 		var world = new World();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
-		world.AddSystem(new InputIngestionSystem(), Stage.Input);
+		world.AddSystem(new InputIngestionSystem(),   Stage.Input);
 		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
-		world.AddSystem(new MovementSystemType(), Stage.Tick);
+		world.AddSystem(new MovementSystemType());
 
 		var entity = world.Spawn(
 			new Position(),
@@ -107,9 +76,10 @@ public class InputMovementSystemsTests
 			new InputControl { ControlId = 42 },
 			new MovementIntent()
 		);
+
 		world.Add(entity, new MovementInputSettings { Speed = 2f, HoldDurationSeconds = 0.1f });
 
-		queue.Enqueue(new InputCommand(controlId: 42, moveX: 1f, moveY: 0f, moveZ: 0f, sequence: 1));
+		queue.Enqueue(new(42, 1f, 0f, 0f, 1));
 		world.FixedTick(0.05f);
 
 		// Act
@@ -126,15 +96,49 @@ public class InputMovementSystemsTests
 	}
 
 	[Fact]
+	public void FixedTick_WhenInputIsWithinHoldWindow_ShouldReuseLastInput()
+	{
+		// Arrange
+		var world = new World();
+		var queue = new InputCommandQueue();
+		world.SetResource(queue);
+		world.AddSystem(new InputIngestionSystem(),   Stage.Input);
+		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
+		world.AddSystem(new MovementSystemType());
+
+		var entity = world.Spawn(
+			new Position(),
+			new Velocity(),
+			new InputControl { ControlId = 7 },
+			new MovementIntent()
+		);
+
+		world.Add(entity, new MovementInputSettings { Speed = 4f, HoldDurationSeconds = 0.2f });
+
+		queue.Enqueue(new(7, 1f, 0f, 0f, 1));
+
+		// Act
+		world.FixedTick(0.1f);
+		var afterFirstTick = world.Get<Position>(entity);
+
+		world.FixedTick(0.05f);
+		var afterSecondTick = world.Get<Position>(entity);
+
+		// Assert
+		afterFirstTick.X.Should().BeApproximately(0.4f, 0.0001f);
+		afterSecondTick.X.Should().BeApproximately(0.6f, 0.0001f);
+	}
+
+	[Fact]
 	public void FixedTick_WhenNewInputArrivesAfterExpiry_ShouldResumeMovement()
 	{
 		// Arrange
 		var world = new World();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
-		world.AddSystem(new InputIngestionSystem(), Stage.Input);
+		world.AddSystem(new InputIngestionSystem(),   Stage.Input);
 		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
-		world.AddSystem(new MovementSystemType(), Stage.Tick);
+		world.AddSystem(new MovementSystemType());
 
 		var entity = world.Spawn(
 			new Position(),
@@ -142,14 +146,15 @@ public class InputMovementSystemsTests
 			new InputControl { ControlId = 9 },
 			new MovementIntent()
 		);
+
 		world.Add(entity, new MovementInputSettings { Speed = 3f, HoldDurationSeconds = 0.1f });
 
-		queue.Enqueue(new InputCommand(controlId: 9, moveX: 1f, moveY: 0f, moveZ: 0f, sequence: 1));
+		queue.Enqueue(new(9, 1f, 0f, 0f, 1));
 		world.FixedTick(0.05f);
 		world.FixedTick(0.11f);
 
 		// Act
-		queue.Enqueue(new InputCommand(controlId: 9, moveX: -1f, moveY: 0f, moveZ: 0f, sequence: 2));
+		queue.Enqueue(new(9, -1f, 0f, 0f, 2));
 		world.FixedTick(0.05f);
 
 		// Assert
@@ -167,9 +172,9 @@ public class InputMovementSystemsTests
 		var world = new World();
 		var queue = new InputCommandQueue();
 		world.SetResource(queue);
-		world.AddSystem(new InputIngestionSystem(), Stage.Input);
+		world.AddSystem(new InputIngestionSystem(),   Stage.Input);
 		world.AddSystem(new IntentToVelocitySystem(), Stage.PreTick);
-		world.AddSystem(new MovementSystemType(), Stage.Tick);
+		world.AddSystem(new MovementSystemType());
 
 		var entity = world.Spawn(
 			new Position(),
@@ -177,10 +182,11 @@ public class InputMovementSystemsTests
 			new InputControl { ControlId = 5 },
 			new MovementIntent()
 		);
+
 		world.Add(entity, new MovementInputSettings { Speed = 1f, HoldDurationSeconds = 0.2f });
 
-		queue.Enqueue(new InputCommand(controlId: 5, moveX: 1f, moveY: 0f, moveZ: 0f, sequence: 2));
-		queue.Enqueue(new InputCommand(controlId: 5, moveX: -1f, moveY: 0f, moveZ: 0f, sequence: 1));
+		queue.Enqueue(new(5, 1f, 0f, 0f, 2));
+		queue.Enqueue(new(5, -1f, 0f, 0f, 1));
 
 		// Act
 		world.FixedTick(0.1f);
@@ -197,9 +203,9 @@ public class InputMovementSystemsTests
 		var systemType = typeof(IntentToVelocitySystem);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(ReadsAttribute<InputControl>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<InputControl>),          true).Should().BeTrue();
 		systemType.IsDefined(typeof(ReadsAttribute<MovementInputSettings>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<MovementIntent>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<Velocity>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<MovementIntent>),       true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<Velocity>),             true).Should().BeTrue();
 	}
 }
