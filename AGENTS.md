@@ -58,12 +58,6 @@
 ```
 bezoro.framework.sln
 ├── src/
-│   ├── Bezoro.Core/        # Foundation (no dependencies)
-│   ├── Bezoro.Logging/     # → Core
-│   ├── Bezoro.ECS/         # → Core
-│   ├── Bezoro.GameSystems/ # → Core + ECS
-│   ├── Bezoro.TypingSystem/# → Core
-│   └── Bezoro.UCI/         # → Core + Logging
 ├── tests/                  # Mirrors src/ with *.Tests projects
 ├── benchmarks/             # BenchmarkDotNet projects for perf-critical code
 └── samples/                # Standalone usage examples (self-documenting)
@@ -147,14 +141,14 @@ The solution targets both `net9.0` and `netstandard2.1`. Runtime APIs that are n
 
 ### Naming
 
-| Convention | Usage |
-|------------|-------|
-| `PascalCase` | Types, methods, properties, events, constants |
-| `camelCase` | Parameters, locals |
-| `_camelCase` | Private fields |
-| `I` prefix | Interfaces |
-| `Async` suffix | Async methods |
-| `Try` prefix | `bool` + `out` pattern |
+| Convention     | Usage                                         |
+|----------------|-----------------------------------------------|
+| `PascalCase`   | Types, methods, properties, events, constants |
+| `camelCase`    | Parameters, locals                            |
+| `_camelCase`   | Private fields                                |
+| `I` prefix     | Interfaces                                    |
+| `Async` suffix | Async methods                                 |
+| `Try` prefix   | `bool` + `out` pattern                        |
 
 ### Style
 
@@ -169,7 +163,6 @@ The solution targets both `net9.0` and `netstandard2.1`. Runtime APIs that are n
 ### Nullability
 
 - Nullable refs enabled; warnings as errors
-- Guards: `ArgumentNullException.ThrowIfNull(param)`
 - Prefer `??` and `?.` over explicit checks
 - Use `[NotNullWhen]`, `[MaybeNullWhen]` for analyzers
 
@@ -210,14 +203,14 @@ The solution targets both `net9.0` and `netstandard2.1`. Runtime APIs that are n
 /// <exception cref="Ex">When thrown.</exception>
 ```
 
-| Tag | When |
-|-----|------|
-| `<summary>` | Always |
-| `<param>` | Every parameter |
-| `<typeparam>` | Every generic param |
-| `<returns>` | Non-void methods |
-| `<exception>` | Every thrown exception |
-| `<remarks>` | Thread safety, perf notes |
+| Tag             | When                      |
+|-----------------|---------------------------|
+| `<summary>`     | Always                    |
+| `<param>`       | Every parameter           |
+| `<typeparam>`   | Every generic param       |
+| `<returns>`     | Non-void methods          |
+| `<exception>`   | Every thrown exception    |
+| `<remarks>`     | Thread safety, perf notes |
 | `<inheritdoc/>` | Interface implementations |
 
 ### Code Comments

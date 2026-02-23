@@ -13,7 +13,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void Execute_WhenUsingAllFilters_ShouldMatchExpectedEntities()
 	{
-		var world = new World();
+		using var world = new World();
 
 		var e1 = world.Spawn();
 		world.Add(e1, new QueryPosition { X = 1, Y = 1 });
@@ -33,7 +33,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void Execute_WhenUsingAnyAndNoneFilters_ShouldMatchExpectedEntities()
 	{
-		var world = new World();
+		using var world = new World();
 
 		var e1 = world.Spawn();
 		world.Add(e1, new QueryPosition { X = 1, Y = 1 });
@@ -58,7 +58,7 @@ public class QueryGeneratorTests
 	[Fact]
 	public void ForEach_WhenUsingTypedDelegate_ShouldApplyComponentUpdates()
 	{
-		var world = new World();
+		using var world = new World();
 
 		var entity = world.Spawn();
 		world.Add(entity, new QueryPosition { X = 1, Y = 2 });

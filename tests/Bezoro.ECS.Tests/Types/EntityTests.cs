@@ -10,7 +10,7 @@ namespace Bezoro.ECS.Tests.Types;
 public class EntityTests
 {
 	[Fact]
-	public void Entity_Should_Store_Id()
+	public void Constructor_WhenValuesProvided_ShouldStoreIdAndVersion()
 	{
 		// Arrange
 		const int EXPECTED_ID      = 123;
@@ -25,13 +25,13 @@ public class EntityTests
 	}
 
 	[Fact]
-	public void Entity_ShouldBeEightBytes()
+	public void MarshalSize_WhenRequested_ShouldBeEightBytes()
 	{
 		Marshal.SizeOf<Entity>().Should().Be(8);
 	}
 
 	[Fact]
-	public void None_ShouldRepresentInvalidEntity()
+	public void None_WhenRead_ShouldRepresentInvalidEntity()
 	{
 		Entity.None.Id.Should().Be(-1);
 		Entity.None.Version.Should().Be(0);

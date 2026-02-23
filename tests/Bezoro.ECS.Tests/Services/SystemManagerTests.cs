@@ -15,10 +15,10 @@ namespace Bezoro.ECS.Tests.Services;
 public class SystemManagerTests
 {
 	[Fact]
-	public void UpdateAll_Should_Respect_Update_Frequency()
+	public void UpdateAll_WhenAccumulatedDeltaReachesInterval_ShouldRespectUpdateFrequency()
 	{
 		// Arrange
-		var world  = new World();
+		using var world  = new World();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -36,7 +36,7 @@ public class SystemManagerTests
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var entity = world.Spawn();
 		world.Add(entity, new Counter { Value = 1 });
 
@@ -57,10 +57,10 @@ public class SystemManagerTests
 	}
 
 	[Fact]
-	public void UpdateAll_When_DeltaTime_Is_Large_Should_Cap_Catch_Up_Ticks()
+	public void UpdateAll_WhenDeltaTimeIsLarge_ShouldCapCatchUpTicks()
 	{
 		// Arrange
-		var world  = new World();
+		using var world  = new World();
 		var system = new FixedStepSystem();
 		world.AddSystem(system);
 
@@ -78,7 +78,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenFixedStepSystemsUseDifferentPhases_ShouldAccumulateIndependently()
 	{
-		var world        = new World();
+		using var world        = new World();
 		var updateSystem = new PhaseCounterSystem(SystemLoopPhase.Tick,      SystemUpdateSettings.FixedInterval(0.5f));
 		var fixedSystem  = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.FixedInterval(0.5f));
 
@@ -99,7 +99,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		world.AddSystem(new NoOpSystem());
 		world.AddSystem(new ThrowingSystem());
 
@@ -113,7 +113,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenPlanIsDirty_ShouldBuildPlanOnceAndReuseAcrossFrames()
 	{
 		// Arrange
-		var world = new World();
+		using var world = new World();
 		world.AddSystem(new ReadCounterSystem());
 		world.AddSystem(new WriteCounterSystem(3));
 
@@ -132,7 +132,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var system = new CommandCaptureSystem();
 		world.AddSystem(system);
 
@@ -147,7 +147,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDoesNotRecordCommands_ShouldKeepCommandStorageUnallocated()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var system = new CommandBufferAllocationProbeSystem();
 		world.AddSystem(system);
 
@@ -159,7 +159,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var system = new StaleCommandBufferReferenceSystem();
 		world.AddSystem(system);
 
@@ -172,7 +172,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsFixedUpdate_ShouldNotRunDuringUpdate()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var system = new PhaseCounterSystem(SystemLoopPhase.FixedTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -184,7 +184,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemLoopPhaseIsLateUpdate_ShouldRunOnlyDuringLateUpdate()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var system = new PhaseCounterSystem(SystemLoopPhase.LateTick, SystemUpdateSettings.EveryTick);
 		world.AddSystem(system);
 
@@ -200,7 +200,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsChangeAfterFirstUpdate_ShouldRebuildPlanOnNextUpdate()
 	{
 		// Arrange
-		var world = new World();
+		using var world = new World();
 		world.AddSystem(new ReadCounterSystem());
 		world.Tick(1f / 60f);
 		world.SchedulerPlanBuildCount.Should().Be(1);
@@ -218,7 +218,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunInParallel()
 	{
 		// Systems with no declared access metadata default to non-exclusive and may run concurrently.
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -231,7 +231,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
@@ -244,7 +244,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareResourceReadMetadata_ShouldAllowParallelExecution()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new ResourceReadProbeSystem(probe));
 		world.AddSystem(new ResourceReadProbeSystem(probe));
@@ -257,7 +257,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemWritesResourceAndAnotherReadsResource_ShouldSerializeExecution()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 		world.AddSystem(new ResourceWriteProbeSystem(probe));
 		world.AddSystem(new ResourceReadProbeSystem(probe));
@@ -271,7 +271,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenExclusiveSystemIsRegistered_ShouldRunAloneEvenAlongsideUndeclaredSystems()
 	{
 		// [Exclusive] systems must still run alone; fix 2a only affects undeclared systems.
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -288,7 +288,7 @@ public class SystemManagerTests
 	{
 		// After fix 2a: undeclared systems default to isExclusive=false.
 		// An undeclared system and a [Reads<Counter>] system have no conflicts, so they run in the same batch.
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var probe = new ConcurrencyProbe();
 
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -303,7 +303,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemReentersTick_ShouldThrowInvalidOperationException()
 	{
-		var world = new World();
+		using var world = new World();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -316,7 +316,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenReentrantTickAttemptFails_ShouldAllowSubsequentTicks()
 	{
-		var world = new World();
+		using var world = new World();
 		var system = new ReentrantTickSystem();
 		world.AddSystem(system);
 
@@ -330,7 +330,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDeclaresAfterDependency_ShouldRunAfterTargetEvenWhenRegisteredFirst()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var probe = new OrderingProbe();
 		world.AddSystem(new AfterDependencySystem(probe));
 		world.AddSystem(new AnchorDependencySystem(probe));
@@ -344,7 +344,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDeclaresBeforeDependency_ShouldRunBeforeTargetEvenWhenRegisteredLast()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		var probe = new OrderingProbe();
 		world.AddSystem(new BeforeTargetSystem(probe));
 		world.AddSystem(new BeforeDependencySystem(probe));
@@ -358,7 +358,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenDependenciesFormCycle_ShouldThrowInvalidOperationException()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		world.AddSystem(new CyclicAfterSystemA());
 		world.AddSystem(new CyclicAfterSystemB());
 
@@ -371,7 +371,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemSetIsDisabled_ShouldSkipSystemsInSet()
 	{
-		var world            = new World();
+		using var world            = new World();
 		var setSystem        = new SetCounterSystem();
 		var alwaysRunSystem  = new NoSetCounterSystem();
 		world.AddSystem(setSystem);
@@ -390,7 +390,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemRunConditionIsFalse_ShouldSkipSystemUntilConditionBecomesTrue()
 	{
-		var world  = new World();
+		using var world  = new World();
 		world.SetResource(new SchedulerGateResource { Enabled = false });
 		var system = new ConditionallyEnabledCounterSystem();
 		world.AddSystem(system);
@@ -405,7 +405,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSetRunConditionIsFalse_ShouldSkipAllSystemsInSetUntilConditionBecomesTrue()
 	{
-		var world = new World();
+		using var world = new World();
 		world.SetResource(new SchedulerGateResource { Enabled = false });
 		world.SetSystemSetRunCondition<SimulationSystemSet>(new SchedulerGateRunCondition());
 
@@ -425,7 +425,7 @@ public class SystemManagerTests
 	[Fact]
 	public void GetScheduleDiagnostics_WhenNoSystemsRegistered_ShouldReturnEmptyPlan()
 	{
-		var world       = new World();
+		using var world       = new World();
 		var diagnostics = world.GetScheduleDiagnostics();
 
 		diagnostics.RegisteredSystemCount.Should().Be(0);
@@ -436,7 +436,7 @@ public class SystemManagerTests
 	[Fact]
 	public void GetScheduleDiagnostics_WhenSystemsConflict_ShouldExposeSerializedBatches()
 	{
-		var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
 		world.AddSystem(new ReadCounterSystem());
 		world.AddSystem(new WriteCounterSystem(42));
 
@@ -778,8 +778,6 @@ public class SystemManagerTests
 				_release.Wait(TimeSpan.FromMilliseconds(200));
 			else
 				_release.Set();
-
-			Thread.Sleep(10);
 			Interlocked.Decrement(ref _running);
 		}
 

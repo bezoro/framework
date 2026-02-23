@@ -1,5 +1,4 @@
 using Bezoro.ECS.Services;
-using Bezoro.ECS.Types;
 using Bezoro.GameSystems.TimerSystem.Extensions;
 using Bezoro.GameSystems.TimerSystem.Types;
 using FluentAssertions;
@@ -24,7 +23,7 @@ public class TimerSystemTests
 		system.Finished += _ => finishedCount++;
 
 		var timerEntity = world.Spawn(
-			new Timer(timerId: 1, durationSeconds: 1f, elapsedSeconds: 0.5f, state: TimerState.Running, mode: TimerMode.OneShot)
+			new Timer(1, 1f, 0.5f, TimerState.Running, TimerMode.OneShot)
 		);
 
 		// Act
@@ -33,64 +32,6 @@ public class TimerSystemTests
 		// Assert
 		world.IsAlive(timerEntity).Should().BeFalse();
 		finishedCount.Should().Be(1);
-	}
-
-	[Fact]
-	public void Tick_WhenRunningTimersExist_ShouldIncrementElapsedByDeltaTime()
-	{
-		// Arrange
-		var world = new World();
-		world.AddSystem(new TimerSystemType());
-
-		var e1 = world.Spawn(
-			new Timer(timerId: 1, durationSeconds: 10f, elapsedSeconds: 1f, state: TimerState.Running)
-		);
-		var e2 = world.Spawn(
-			new Timer(timerId: 2, durationSeconds: 5f, elapsedSeconds: 0.25f, state: TimerState.Running)
-		);
-
-		// Act
-		world.Tick(0.5f);
-
-		// Assert
-		var t1 = world.Get<Timer>(e1);
-		var t2 = world.Get<Timer>(e2);
-
-		t1.ElapsedSeconds.Should().BeApproximately(1.5f, 0.0001f);
-		t2.ElapsedSeconds.Should().BeApproximately(0.75f, 0.0001f);
-	}
-
-	[Fact]
-	public void Tick_WhenTimerCompletes_ShouldSetCompletedAndPublishFinishedEvent()
-	{
-		// Arrange
-		var world  = new World();
-		var system = new TimerSystemType();
-		world.AddSystem(system);
-
-		var finishedCount = 0;
-		system.Finished += _ => finishedCount++;
-
-		var timerEntity = world.Spawn(
-			new Timer(timerId: 7, durationSeconds: 1f, elapsedSeconds: 0.75f, state: TimerState.Running)
-		);
-
-		// Act
-		world.Tick(0.5f);
-
-		// Assert
-		var timer = world.Get<Timer>(timerEntity);
-		timer.State.Should().Be(TimerState.Completed);
-		timer.ElapsedSeconds.Should().BeApproximately(1f, 0.0001f);
-
-		finishedCount.Should().Be(1);
-
-		var events = world.GetResource<TimerEventsResource>();
-		events.Count.Should().Be(1);
-		events.TryDequeue(out var evt).Should().BeTrue();
-		evt.Lifecycle.Should().Be(TimerLifecycle.Finished);
-		evt.TimerEntity.Should().Be(timerEntity);
-		evt.TimerId.Should().Be(7);
 	}
 
 	[Fact]
@@ -105,7 +46,7 @@ public class TimerSystemTests
 		system.Resumed += _ => resumedCount++;
 
 		var timerEntity = world.Spawn(
-			new Timer(timerId: 13, durationSeconds: 10f, elapsedSeconds: 2f, state: TimerState.Paused)
+			new Timer(13, 10f, 2f, TimerState.Paused)
 		);
 
 		// Act
@@ -129,11 +70,11 @@ public class TimerSystemTests
 
 		var startedCount   = 0;
 		var restartedCount = 0;
-		system.Started += _ => startedCount++;
+		system.Started   += _ => startedCount++;
 		system.Restarted += _ => restartedCount++;
 
 		var timerEntity = world.Spawn(
-			new Timer(timerId: 21, durationSeconds: 10f, elapsedSeconds: 9f, state: TimerState.Running)
+			new Timer(21, 10f, 9f, TimerState.Running)
 		);
 
 		// Act
@@ -149,6 +90,32 @@ public class TimerSystemTests
 	}
 
 	[Fact]
+	public void Tick_WhenRunningTimersExist_ShouldIncrementElapsedByDeltaTime()
+	{
+		// Arrange
+		var world = new World();
+		world.AddSystem(new TimerSystemType());
+
+		var e1 = world.Spawn(
+			new Timer(1, 10f, 1f, TimerState.Running)
+		);
+
+		var e2 = world.Spawn(
+			new Timer(2, 5f, 0.25f, TimerState.Running)
+		);
+
+		// Act
+		world.Tick(0.5f);
+
+		// Assert
+		var t1 = world.Get<Timer>(e1);
+		var t2 = world.Get<Timer>(e2);
+
+		t1.ElapsedSeconds.Should().BeApproximately(1.5f, 0.0001f);
+		t2.ElapsedSeconds.Should().BeApproximately(0.75f, 0.0001f);
+	}
+
+	[Fact]
 	public void Tick_WhenStartPauseStopAreRequested_ShouldEmitMatchingLifecycleCallbacks()
 	{
 		// Arrange
@@ -161,11 +128,11 @@ public class TimerSystemTests
 		var stoppedCount = 0;
 
 		system.Started += _ => startedCount++;
-		system.Paused += _ => pausedCount++;
+		system.Paused  += _ => pausedCount++;
 		system.Stopped += _ => stoppedCount++;
 
 		var timerEntity = world.Spawn(
-			new Timer(timerId: 30, durationSeconds: 10f, elapsedSeconds: 0f, state: TimerState.Stopped)
+			new Timer(30, 10f, 0f, TimerState.Stopped)
 		);
 
 		// Act
@@ -184,5 +151,38 @@ public class TimerSystemTests
 		startedCount.Should().Be(1);
 		pausedCount.Should().Be(1);
 		stoppedCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Tick_WhenTimerCompletes_ShouldSetCompletedAndPublishFinishedEvent()
+	{
+		// Arrange
+		var world  = new World();
+		var system = new TimerSystemType();
+		world.AddSystem(system);
+
+		var finishedCount = 0;
+		system.Finished += _ => finishedCount++;
+
+		var timerEntity = world.Spawn(
+			new Timer(7, 1f, 0.75f, TimerState.Running)
+		);
+
+		// Act
+		world.Tick(0.5f);
+
+		// Assert
+		var timer = world.Get<Timer>(timerEntity);
+		timer.State.Should().Be(TimerState.Completed);
+		timer.ElapsedSeconds.Should().BeApproximately(1f, 0.0001f);
+
+		finishedCount.Should().Be(1);
+
+		var events = world.GetResource<TimerEventsResource>();
+		events.Count.Should().Be(1);
+		events.TryDequeue(out var evt).Should().BeTrue();
+		evt.Lifecycle.Should().Be(TimerLifecycle.Finished);
+		evt.TimerEntity.Should().Be(timerEntity);
+		evt.TimerId.Should().Be(7);
 	}
 }

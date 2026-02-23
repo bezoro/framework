@@ -14,7 +14,7 @@ public class SplitFieldGeneratorTests
 	[Fact]
 	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var first  = world.Spawn();
 		var second = world.Spawn();
 
@@ -44,7 +44,7 @@ public class SplitFieldGeneratorTests
 	[Fact]
 	public void SplitGeneratedHelpers_WhenAddingSplitComponent_ShouldStoreAndRehydrateGroups()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var entity = world.Spawn();
 		var input = new SplitTransform
 		{

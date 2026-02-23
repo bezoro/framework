@@ -1,4 +1,3 @@
-using System;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -13,80 +12,57 @@ namespace Bezoro.ECS.Tests.Services;
 public class GeneratedQueryAndJobSourceGenIntegrationTests
 {
 	[Fact]
-	public void Compile_WhenUsingGeneratedQuerySpecFromAttributes_ShouldMatchExpectedEntities()
+	public void Compile_WhenUsingGeneratedAddedFilter_ShouldReturnOnlyNewAdditions()
 	{
-		using var world = new World(new WorldConfig
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var first  = world.Spawn(new GeneratedPosition { X = 1, Y = 1 });
+		var second = world.Spawn(new GeneratedVelocity { X = 9, Y = 9 });
+
+		var handle = world.Compile<GeneratedAddedPositionQuery>();
+		using (var initial = world.Execute(handle))
 		{
-			EntityCapacity                = 16,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 64,
-			CommandPayloadCapacityPerType = 64,
-			QueryResultCapacity           = 16
-		});
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(first);
+		}
 
-		var first = world.Spawn(
-			new GeneratedPosition { X = 1, Y = 1 },
-			new GeneratedVelocity { X = 2, Y = 2 }
-		);
-		var second = world.Spawn(
-			new GeneratedPosition { X = 3, Y = 3 },
-			new GeneratedAcceleration { X = 5, Y = 5 }
-		);
-		_ = world.Spawn(
-			new GeneratedPosition { X = 7, Y = 7 },
-			new GeneratedVelocity { X = 1, Y = 1 },
-			new GeneratedFrozen()
-		);
-		_ = world.Spawn(new GeneratedVelocity { X = 8, Y = 8 });
-
-		var handle = world.Compile<GeneratedPositionMotionQuery>();
-		using var cursor = world.Execute(handle);
-		cursor.MoveNext().Should().BeTrue();
-		cursor.Current.Length.Should().Be(2);
-		var entities = cursor.Current.ToArray();
-		entities.Should().Contain(first);
-		entities.Should().Contain(second);
-	}
-
-	[Fact]
-	public void Compile_WhenUsingGeneratedOptionalFilter_ShouldIncludeEntitiesWithAndWithoutOptionalType()
-	{
-		using var world = new World(new WorldConfig
+		using (var unchanged = world.Execute(handle))
 		{
-			EntityCapacity                = 16,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 64,
-			CommandPayloadCapacityPerType = 64,
-			QueryResultCapacity           = 16
-		});
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
 
-		var first = world.Spawn(new GeneratedPosition { X = 1, Y = 1 });
-		var second = world.Spawn(
-			new GeneratedPosition { X = 2, Y = 2 },
-			new GeneratedVelocity { X = 3, Y = 3 }
-		);
-		_ = world.Spawn(new GeneratedVelocity { X = 9, Y = 9 });
-
-		var handle = world.Compile<GeneratedPositionOptionalVelocityQuery>();
-		using var cursor = world.Execute(handle);
-		cursor.MoveNext().Should().BeTrue();
-		cursor.Current.Length.Should().Be(2);
-		var entities = cursor.Current.ToArray();
-		entities.Should().Contain(first);
-		entities.Should().Contain(second);
+		world.Set(first, new GeneratedPosition { X  = 10, Y = 10 });
+		world.Add(second, new GeneratedPosition { X = 20, Y = 20 });
+		using var added = world.Execute(handle);
+		added.MoveNext().Should().BeTrue();
+		added.Current.Length.Should().Be(1);
+		added.Current[0].Should().Be(second);
 	}
 
 	[Fact]
 	public void Compile_WhenUsingGeneratedChangedFilter_ShouldReturnOnlyRecentlyChangedEntities()
 	{
-		using var world = new World(new WorldConfig
-		{
-			EntityCapacity                = 16,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 64,
-			CommandPayloadCapacityPerType = 64,
-			QueryResultCapacity           = 16
-		});
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 16
+			}
+		);
 
 		var first = world.Spawn(new GeneratedPosition { X = 1, Y = 1 });
 		_ = world.Spawn(new GeneratedPosition { X = 2, Y = 2 });
@@ -112,53 +88,117 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 	}
 
 	[Fact]
-	public void Compile_WhenUsingGeneratedAddedFilter_ShouldReturnOnlyNewAdditions()
+	public void Compile_WhenUsingGeneratedOptionalFilter_ShouldIncludeEntitiesWithAndWithoutOptionalType()
 	{
-		using var world = new World(new WorldConfig
-		{
-			EntityCapacity                = 16,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 64,
-			CommandPayloadCapacityPerType = 64,
-			QueryResultCapacity           = 16
-		});
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 16
+			}
+		);
 
 		var first = world.Spawn(new GeneratedPosition { X = 1, Y = 1 });
-		var second = world.Spawn(new GeneratedVelocity { X = 9, Y = 9 });
+		var second = world.Spawn(
+			new GeneratedPosition { X = 2, Y = 2 },
+			new GeneratedVelocity { X = 3, Y = 3 }
+		);
 
-		var handle = world.Compile<GeneratedAddedPositionQuery>();
-		using (var initial = world.Execute(handle))
-		{
-			initial.MoveNext().Should().BeTrue();
-			initial.Current.Length.Should().Be(1);
-			initial.Current[0].Should().Be(first);
-		}
+		_ = world.Spawn(new GeneratedVelocity { X = 9, Y = 9 });
 
-		using (var unchanged = world.Execute(handle))
-		{
-			unchanged.MoveNext().Should().BeTrue();
-			unchanged.Current.Length.Should().Be(0);
-		}
+		var       handle = world.Compile<GeneratedPositionOptionalVelocityQuery>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(2);
+		var entities = cursor.Current.ToArray();
+		entities.Should().Contain(first);
+		entities.Should().Contain(second);
+	}
 
-		world.Set(first, new GeneratedPosition { X = 10, Y = 10 });
-		world.Add(second, new GeneratedPosition { X = 20, Y = 20 });
-		using var added = world.Execute(handle);
-		added.MoveNext().Should().BeTrue();
-		added.Current.Length.Should().Be(1);
-		added.Current[0].Should().Be(second);
+	[Fact]
+	public void Compile_WhenUsingGeneratedQuerySpecFromAttributes_ShouldMatchExpectedEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var first = world.Spawn(
+			new GeneratedPosition { X = 1, Y = 1 },
+			new GeneratedVelocity { X = 2, Y = 2 }
+		);
+
+		var second = world.Spawn(
+			new GeneratedPosition { X     = 3, Y = 3 },
+			new GeneratedAcceleration { X = 5, Y = 5 }
+		);
+
+		_ = world.Spawn(
+			new GeneratedPosition { X = 7, Y = 7 },
+			new GeneratedVelocity { X = 1, Y = 1 },
+			new GeneratedFrozen()
+		);
+
+		_ = world.Spawn(new GeneratedVelocity { X = 8, Y = 8 });
+
+		var       handle = world.Compile<GeneratedPositionMotionQuery>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(2);
+		var entities = cursor.Current.ToArray();
+		entities.Should().Contain(first);
+		entities.Should().Contain(second);
+	}
+
+	[Fact]
+	public void Run_WhenUsingGeneratedCursorJobExtension_ShouldMutateCurrentChunk()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		var entity = world.Spawn(
+			new GeneratedPosition { X = 10, Y = -2 },
+			new GeneratedVelocity { X = 1, Y  = 4 }
+		);
+
+		var       handle = world.Compile<GeneratedPositionVelocityQuery>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Run(new(3f));
+
+		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 13, Y = 10 });
 	}
 
 	[Fact]
 	public void Run_WhenUsingGeneratedWorldJobExtension_ShouldMutateMatchingEntities()
 	{
-		using var world = new World(new WorldConfig
-		{
-			EntityCapacity                = 8,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 32,
-			CommandPayloadCapacityPerType = 32,
-			QueryResultCapacity           = 8
-		});
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 8
+			}
+		);
 
 		var entity = world.Spawn(
 			new GeneratedPosition { X = 1, Y = 2 },
@@ -166,60 +206,27 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		);
 
 		var handle = world.Compile<GeneratedPositionVelocityQuery>();
-		world.Run(handle, new GeneratedIntegrateJob(2f));
+		world.Run(handle, new(2f));
 
 		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 7, Y = 0 });
 	}
+}
 
-	[Fact]
-	public void Run_WhenUsingGeneratedCursorJobExtension_ShouldMutateCurrentChunk()
-	{
-		using var world = new World(new WorldConfig
-		{
-			EntityCapacity                = 8,
-			ComponentTypeCapacity         = 16,
-			CommandCapacity               = 32,
-			CommandPayloadCapacityPerType = 32,
-			QueryResultCapacity           = 8
-		});
-
-		var entity = world.Spawn(
-			new GeneratedPosition { X = 10, Y = -2 },
-			new GeneratedVelocity { X = 1, Y = 4 }
-		);
-
-		var handle = world.Compile<GeneratedPositionVelocityQuery>();
-		using var cursor = world.Execute(handle);
-		cursor.MoveNext().Should().BeTrue();
-		cursor.Run(new GeneratedIntegrateJob(3f));
-
-		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 13, Y = 10 });
-	}
+internal struct GeneratedAcceleration
+{
+	public float X;
+	public float Y;
 }
 
 [Query]
-[All<GeneratedPosition>]
-[Any<GeneratedVelocity, GeneratedAcceleration>]
-[None<GeneratedFrozen>]
-internal readonly partial struct GeneratedPositionMotionQuery;
-
-[Query]
-[All<GeneratedPosition>]
-[All<GeneratedVelocity>]
-internal readonly partial struct GeneratedPositionVelocityQuery;
-
-[Query]
-[All<GeneratedPosition>]
-[Optional<GeneratedVelocity>]
-internal readonly partial struct GeneratedPositionOptionalVelocityQuery;
+[Added<GeneratedPosition>]
+internal readonly partial struct GeneratedAddedPositionQuery;
 
 [Query]
 [Changed<GeneratedPosition>]
 internal readonly partial struct GeneratedChangedPositionQuery;
 
-[Query]
-[Added<GeneratedPosition>]
-internal readonly partial struct GeneratedAddedPositionQuery;
+internal struct GeneratedFrozen;
 
 internal readonly struct GeneratedIntegrateJob(float dt) : IForEach<GeneratedPosition, GeneratedVelocity>
 {
@@ -236,16 +243,24 @@ internal struct GeneratedPosition
 	public float Y;
 }
 
+[Query]
+[All<GeneratedPosition>]
+[Any<GeneratedVelocity, GeneratedAcceleration>]
+[None<GeneratedFrozen>]
+internal readonly partial struct GeneratedPositionMotionQuery;
+
+[Query]
+[All<GeneratedPosition>]
+[Optional<GeneratedVelocity>]
+internal readonly partial struct GeneratedPositionOptionalVelocityQuery;
+
+[Query]
+[All<GeneratedPosition>]
+[All<GeneratedVelocity>]
+internal readonly partial struct GeneratedPositionVelocityQuery;
+
 internal struct GeneratedVelocity
 {
 	public float X;
 	public float Y;
 }
-
-internal struct GeneratedAcceleration
-{
-	public float X;
-	public float Y;
-}
-
-internal struct GeneratedFrozen;

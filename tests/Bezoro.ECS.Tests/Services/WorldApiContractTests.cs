@@ -14,7 +14,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var entity = world.Spawn();
 
 		world.Add<ApiHealth>(entity);
@@ -26,7 +26,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void SpawnOverloads_WhenCalled_ShouldInitializeComponents()
 	{
-		var world = new World();
+		using var world = new World();
 
 		var entity = world.Spawn(
 			new ApiPosition { X = 3f, Y = 4f },
@@ -42,7 +42,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void Resources_WhenSet_ShouldBeReadableByReference()
 	{
-		var world = new World();
+		using var world = new World();
 		world.SetResource(new ApiTuning { Gravity = 9.81f });
 
 		ref var tuning = ref world.GetResource<ApiTuning>();
@@ -67,7 +67,7 @@ public class WorldApiContractTests
 	[Fact]
 	public void CommandStreamPlayback_WhenCreatingAndSettingComponent_ShouldApplyChanges()
 	{
-		var world  = new World();
+		using var world  = new World();
 		var stream = world.CreateCommandStream();
 		var entity = stream.CreateEntity();
 		stream.Set(entity, new ApiPosition { X = 11f, Y = 13f });
