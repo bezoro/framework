@@ -16,7 +16,10 @@ public class UciEngineClientIsUciMoveStringTests
 	[InlineData("e2e4",  true,  "e2e4 is a valid UCI move")]
 	[InlineData("a7a8q", true,  "a7a8q is a valid promotion move")]
 	[InlineData("H7H8N", true,  "H7H8N is a valid move (case insensitive)")]
-	public void IsUciMoveString_WhenEvaluatingVariousInputs_ShouldReturnExpectedResult(string move, bool expected, string message)
+	public void IsUciMoveString_WhenEvaluatingVariousInputs_ShouldReturnExpectedResult(
+		string move,
+		bool   expected,
+		string message)
 	{
 		UciEngineClient.IsUciMoveString(move).Should().Be(expected, message);
 	}

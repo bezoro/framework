@@ -1,4 +1,4 @@
-using Bezoro.UCI.API.Types;
+﻿using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests.TestHelpers;
@@ -11,6 +11,32 @@ namespace Bezoro.UCI.Tests.Domain.Engines;
 [Trait("Category", "Integration")]
 public class PonderEngineTests
 {
+	[Fact]
+	public async Task BestMove_WhenCpScoreImproves_ShouldRaiseBestMove()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+		await engine.SetOptionAsync("MultiPv", "1");
+
+		var bestMoveCount = 0;
+		var tcs           = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.BestMove += (best, ponder) =>
+		{
+			bestMoveCount++;
+			// BestMove should be raised when score improves
+			// We expect at least one BestMove event as the engine finds better moves
+			if (bestMoveCount >= 1)
+				tcs.TrySetResult(true);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		await engine.StopSearchAsync();
+
+		bestMoveCount.Should().BeGreaterThan(0, "BestMove should be raised when score improves");
+	}
+
 	[Fact]
 	public async Task BestMove_WhenInfoPvContainsBestAndPonderMoves_ShouldMatchParsedPvMoves()
 	{
@@ -115,32 +141,6 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task BestMove_WhenCpScoreImproves_ShouldRaiseBestMove()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-		await engine.SetOptionAsync("MultiPv", "1");
-
-		var bestMoveCount = 0;
-		var tcs           = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		engine.BestMove += (best, ponder) =>
-		{
-			bestMoveCount++;
-			// BestMove should be raised when score improves
-			// We expect at least one BestMove event as the engine finds better moves
-			if (bestMoveCount >= 1)
-				tcs.TrySetResult(true);
-		};
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		await tcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
-		await engine.StopSearchAsync();
-
-		bestMoveCount.Should().BeGreaterThan(0, "BestMove should be raised when score improves");
-	}
-
-	[Fact]
 	public async Task BestMove_WhenMateScoreIsFound_ShouldRaiseBestMove()
 	{
 		// Test with a mate-in-one position to verify mate score handling
@@ -167,232 +167,6 @@ public class PonderEngineTests
 		await engine.StopSearchAsync();
 
 		bestMoveRaised.Should().BeTrue("BestMove should be raised when mate score is found");
-	}
-
-	[Fact]
-	public async Task Dispose_WhenCalled_ShouldDisposeEngine()
-	{
-		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// ReSharper disable once MethodHasAsyncOverload
-		engine.Dispose();
-
-		engine.IsStarted.Should().BeFalse();
-		engine.IsHealthy.Should().BeFalse();
-		engine.Status.Should().Be(TransportStatus.Disposed);
-	}
-
-	[Fact]
-	public async Task DisposeAsync_WhenCalled_ShouldDisposeEngine()
-	{
-		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await engine.DisposeAsync();
-
-		engine.IsStarted.Should().BeFalse();
-		engine.IsHealthy.Should().BeFalse();
-		engine.Status.Should().Be(TransportStatus.Disposed);
-	}
-
-	[Fact]
-	public async Task NewGameAsync_WhenCalledWhilePondering_ShouldStopSearchAndAllowRestart()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		var firstInfo =
-			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		engine.InfoPv += pv => firstInfo.TrySetResult(pv);
-
-		// Start search and wait for first info
-		await engine.StartSearchAsync(Fen.Default, null);
-		var pv1 = await firstInfo.Task.WaitAsync(TestConstants.MediumTimeout);
-		pv1.Should().NotBeNull();
-
-		// New game should stop search and reset internal state
-		await engine.NewGameAsync();
-
-		var secondInfo =
-			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		engine.InfoPv += pv => secondInfo.TrySetResult(pv);
-
-		// Start search again and ensure we receive info
-		await engine.StartSearchAsync(Fen.Default, null);
-		var pv2 = await secondInfo.Task.WaitAsync(TestConstants.MediumTimeout);
-		pv2.Should().NotBeNull();
-
-		await engine.StopSearchAsync();
-	}
-
-	[Fact]
-	public async Task SetOptionAsync_WhenMultiPv2_ShouldEmitMultipv2InInfoStream()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// Request multiple PVs
-		await engine.SetOptionAsync("MultiPv", "2");
-
-		var sawMultiPv2 = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.InfoPv += pv =>
-		{
-			// Some engines start from MultiPv=1 then emit MultiPv=2 shortly after
-			if (pv.MultiPv == 2)
-				sawMultiPv2.TrySetResult(true);
-		};
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		bool got = await sawMultiPv2.Task.WaitAsync(TestConstants.ExtendedTimeout);
-
-		got.Should().BeTrue();
-
-		await engine.StopSearchAsync();
-	}
-
-	[Fact]
-	public async Task StartAsync_WhenCalled_ShouldStartEngine()
-	{
-		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-
-		await engine.StartAsync();
-
-		engine.IsStarted.Should().BeTrue();
-		engine.IsHealthy.Should().BeTrue();
-		engine.Status.Should().Be(TransportStatus.Started);
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenInfoIsRaised_ShouldUpdateActivityTransitions()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		var pv = await infoTcs.Task.WaitAsync(TestConstants.MediumTimeout);
-		pv.Should().NotBeNull();
-		engine.Activity.Should().Be(EngineActivity.Searching);
-
-		await engine.StopSearchAsync();
-		engine.Activity.Should().Be(EngineActivity.Idle);
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenStopped_ShouldRaiseBestMove()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		ParsedMove? best   = null;
-		ParsedMove? ponder = null;
-		var         tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.BestMove += (b, p) =>
-		{
-			best   = b;
-			ponder = p;
-			tcs.TrySetResult(true);
-		};
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		await engine.StopAsync();
-
-		best.Should().NotBeNull();
-		UciEngineClient.IsUciMoveString(best!.Value.Raw).Should().BeTrue();
-		if (ponder.HasValue)
-			UciEngineClient.IsUciMoveString(ponder.Value.Raw).Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledTwice_ShouldRemainSearching()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		await infoTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
-		engine.Activity.Should().Be(EngineActivity.Searching);
-
-		// Calling again with the same position should not throw and should remain searching
-		await engine.StartSearchAsync(Fen.Default, null);
-		engine.Activity.Should().Be(EngineActivity.Searching);
-
-		await engine.StopSearchAsync();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalled_ShouldRaiseInfoPv()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		engine.InfoPv += pv => tcs.TrySetResult(pv);
-
-		await engine.StartSearchAsync(Fen.Default, null);
-
-		var received = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		engine.Activity.Should().Be(EngineActivity.Searching);
-		received?.Moves.Should().NotBeEmpty();
-		received?.ScoreCp.Should().NotBeNull();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartSearchAsync(Fen.Empty(), null));
-	}
-
-	[Fact]
-	public async Task StopAsync_WhenCalled_ShouldStopEngine()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await engine.StopAsync();
-
-		engine.IsStarted.Should().BeFalse();
-		engine.Status.Should().Be(TransportStatus.Stopped);
-	}
-
-	[Fact]
-	public async Task StopSearchAsync_WhenCalledTwice_ShouldStopSearchWithoutThrowing()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		// First run
-		await engine.StartSearchAsync(Fen.Default, null);
-		await engine.StopSearchAsync();
-		engine.Activity.Should().Be(EngineActivity.Idle);
-
-		// Second run
-		await engine.StartSearchAsync(Fen.Default, null);
-		await engine.StopSearchAsync();
-		engine.Activity.Should().Be(EngineActivity.Idle);
-	}
-
-	[Fact]
-	public async Task StopSearchAsync_WhenCalled_ShouldStopTheSearch()
-	{
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		await engine.StopSearchAsync();
-
-		engine.Activity.Should().Be(EngineActivity.Idle);
 	}
 
 	[Fact]
@@ -600,6 +374,230 @@ public class PonderEngineTests
 		engine.OnClientInfoPvReceived(pv2);
 		bestMoveCount.Should().Be(1, "Transition from positive mate to cp should NOT raise BestMove");
 	}
+
+	[Fact]
+	public async Task Dispose_WhenCalled_ShouldDisposeEngine()
+	{
+		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// ReSharper disable once MethodHasAsyncOverload
+		engine.Dispose();
+
+		engine.IsStarted.Should().BeFalse();
+		engine.IsHealthy.Should().BeFalse();
+		engine.Status.Should().Be(TransportStatus.Disposed);
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenCalled_ShouldDisposeEngine()
+	{
+		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await engine.DisposeAsync();
+
+		engine.IsStarted.Should().BeFalse();
+		engine.IsHealthy.Should().BeFalse();
+		engine.Status.Should().Be(TransportStatus.Disposed);
+	}
+
+	[Fact]
+	public async Task NewGameAsync_WhenCalledWhilePondering_ShouldStopSearchAndAllowRestart()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var firstInfo =
+			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.InfoPv += pv => firstInfo.TrySetResult(pv);
+
+		// Start search and wait for first info
+		await engine.StartSearchAsync(Fen.Default, null);
+		var pv1 = await firstInfo.Task.WaitAsync(TestConstants.MediumTimeout);
+		pv1.Should().NotBeNull();
+
+		// New game should stop search and reset internal state
+		await engine.NewGameAsync();
+
+		var secondInfo =
+			new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.InfoPv += pv => secondInfo.TrySetResult(pv);
+
+		// Start search again and ensure we receive info
+		await engine.StartSearchAsync(Fen.Default, null);
+		var pv2 = await secondInfo.Task.WaitAsync(TestConstants.MediumTimeout);
+		pv2.Should().NotBeNull();
+
+		await engine.StopSearchAsync();
+	}
+
+	[Fact]
+	public async Task SetOptionAsync_WhenMultiPv2_ShouldEmitMultipv2InInfoStream()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// Request multiple PVs
+		await engine.SetOptionAsync("MultiPv", "2");
+
+		var sawMultiPv2 = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv =>
+		{
+			// Some engines start from MultiPv=1 then emit MultiPv=2 shortly after
+			if (pv.MultiPv == 2)
+				sawMultiPv2.TrySetResult(true);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		bool got = await sawMultiPv2.Task.WaitAsync(TestConstants.ExtendedTimeout);
+
+		got.Should().BeTrue();
+
+		await engine.StopSearchAsync();
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenCalled_ShouldStartEngine()
+	{
+		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+
+		await engine.StartAsync();
+
+		engine.IsStarted.Should().BeTrue();
+		engine.IsHealthy.Should().BeTrue();
+		engine.Status.Should().Be(TransportStatus.Started);
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCalled_ShouldRaiseInfoPv()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv => tcs.TrySetResult(pv);
+
+		await engine.StartSearchAsync(Fen.Default, null);
+
+		var received = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		engine.Activity.Should().Be(EngineActivity.Searching);
+		received?.Moves.Should().NotBeEmpty();
+		received?.ScoreCp.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCalledTwice_ShouldRemainSearching()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await infoTcs.Task.WaitAsync(TimeSpan.FromSeconds(6));
+		engine.Activity.Should().Be(EngineActivity.Searching);
+
+		// Calling again with the same position should not throw and should remain searching
+		await engine.StartSearchAsync(Fen.Default, null);
+		engine.Activity.Should().Be(EngineActivity.Searching);
+
+		await engine.StopSearchAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => engine.StartSearchAsync(Fen.Empty(), null));
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenInfoIsRaised_ShouldUpdateActivityTransitions()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var infoTcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.InfoPv += pv => infoTcs.TrySetResult(pv);
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		var pv = await infoTcs.Task.WaitAsync(TestConstants.MediumTimeout);
+		pv.Should().NotBeNull();
+		engine.Activity.Should().Be(EngineActivity.Searching);
+
+		await engine.StopSearchAsync();
+		engine.Activity.Should().Be(EngineActivity.Idle);
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenStopped_ShouldRaiseBestMove()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		ParsedMove? best   = null;
+		ParsedMove? ponder = null;
+		var         tcs    = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		engine.BestMove += (b, p) =>
+		{
+			best   = b;
+			ponder = p;
+			tcs.TrySetResult(true);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		await engine.StopAsync();
+
+		best.Should().NotBeNull();
+		UciEngineClient.IsUciMoveString(best!.Value.Raw).Should().BeTrue();
+		if (ponder.HasValue)
+			UciEngineClient.IsUciMoveString(ponder.Value.Raw).Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task StopAsync_WhenCalled_ShouldStopEngine()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await engine.StopAsync();
+
+		engine.IsStarted.Should().BeFalse();
+		engine.Status.Should().Be(TransportStatus.Stopped);
+	}
+
+	[Fact]
+	public async Task StopSearchAsync_WhenCalled_ShouldStopTheSearch()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await engine.StopSearchAsync();
+
+		engine.Activity.Should().Be(EngineActivity.Idle);
+	}
+
+	[Fact]
+	public async Task StopSearchAsync_WhenCalledTwice_ShouldStopSearchWithoutThrowing()
+	{
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		// First run
+		await engine.StartSearchAsync(Fen.Default, null);
+		await engine.StopSearchAsync();
+		engine.Activity.Should().Be(EngineActivity.Idle);
+
+		// Second run
+		await engine.StartSearchAsync(Fen.Default, null);
+		await engine.StopSearchAsync();
+		engine.Activity.Should().Be(EngineActivity.Idle);
+	}
 }
-
-

@@ -8,6 +8,13 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientBuildGoCommandTests
 {
 	[Fact]
+	public void BuildGoCommand_WhenNodesDepthAndMateAreProvided_ShouldIncludeAllLimits()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(new() { Nodes = 123, Depth = 7, Mate = 2 });
+		cmd.Should().Be("go nodes 123 depth 7 mate 2", "nodes, depth, and mate should be included");
+	}
+
+	[Fact]
 	public void BuildGoCommand_WhenNoLimitsAreProvided_ShouldAddDefaultDepth()
 	{
 		string cmd = UciEngineClient.BuildGoCommand(new());
@@ -42,12 +49,5 @@ public class UciEngineClientBuildGoCommandTests
 			"go wtime 1000 btime 2000 winc 10 binc 20",
 			"time controls should be formatted correctly"
 		);
-	}
-
-	[Fact]
-	public void BuildGoCommand_WhenNodesDepthAndMateAreProvided_ShouldIncludeAllLimits()
-	{
-		string cmd = UciEngineClient.BuildGoCommand(new() { Nodes = 123, Depth = 7, Mate = 2 });
-		cmd.Should().Be("go nodes 123 depth 7 mate 2", "nodes, depth, and mate should be included");
 	}
 }

@@ -1,4 +1,4 @@
-using Bezoro.Core.Extensions;
+﻿using Bezoro.Core.Extensions;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
@@ -112,6 +112,22 @@ public class QuickInfoEngineTests
 		results.Select(m => m.Count).Distinct().Should().HaveCount(1);
 	}
 
+
+	[Fact]
+	public async Task QuickEvalAsync_WhenCalled_ShouldReturnValidSearchResult()
+	{
+		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+		var fen = await engine.GetCurrentFenAsync();
+		fen.ThrowIfNull();
+
+		var searchResult = await engine.QuickEvalAsync(fen.Value);
+
+		searchResult.Should().NotBeNull();
+		searchResult.BestMove.Should().NotBeNull();
+		searchResult.BestCpScore.Should().NotBeNull();
+	}
+
 	[Fact]
 	public async Task QuickEvalAsync_WhenCalledAfterNewGame_ShouldClearEvalCache()
 	{
@@ -156,22 +172,6 @@ public class QuickInfoEngineTests
 		result2.Should().NotBeNull();
 		// Both results should be valid, but the cache was cleared so result2 is fresh
 		result2.BestMove.Should().NotBeNull();
-	}
-
-
-	[Fact]
-	public async Task QuickEvalAsync_WhenCalled_ShouldReturnValidSearchResult()
-	{
-		await using var engine = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-		var fen = await engine.GetCurrentFenAsync();
-		fen.ThrowIfNull();
-
-		var searchResult = await engine.QuickEvalAsync(fen.Value);
-
-		searchResult.Should().NotBeNull();
-		searchResult.BestMove.Should().NotBeNull();
-		searchResult.BestCpScore.Should().NotBeNull();
 	}
 
 	[Fact]
@@ -256,4 +256,3 @@ public class QuickInfoEngineTests
 		engine.Status.Should().Be(TransportStatus.Stopped);
 	}
 }
-

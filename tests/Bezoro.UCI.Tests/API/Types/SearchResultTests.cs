@@ -141,30 +141,6 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void TryParse_WhenValidLine_ShouldReturnTrueAndValidObject()
-	{
-		const string LINE =
-			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
-
-		string[] lines = [LINE, "bestmove e2e4 ponder e7e5"];
-
-		bool success = SearchResult.TryParse(lines, out var resultWithScoreCp);
-
-		success.Should().BeTrue();
-		resultWithScoreCp.ReachedDepth.Should().Be(8u);
-		resultWithScoreCp.ReachedSelDepth.Should().Be(12u);
-		resultWithScoreCp.MultiPvValue.Should().Be(1u);
-		resultWithScoreCp.TotalNodesSearched.Should().Be(50000u);
-		resultWithScoreCp.TotalTbHits.Should().Be(0u);
-		resultWithScoreCp.TotalSearchTimeMs.Should().Be(1500u);
-		resultWithScoreCp.BestMove.Should().Be("e2e4");
-		resultWithScoreCp.PonderMove.Should().Be("e7e5");
-		resultWithScoreCp.PrincipalVariations.Should().ContainSingle();
-		resultWithScoreCp.PrincipalVariations[0].ScoreCp.Should().Be(120);
-		resultWithScoreCp.PrincipalVariations[0].ScoreMate.Should().BeNull();
-	}
-
-	[Fact]
 	public void TryParse_WhenMultiplePvsAreProvided_ShouldAggregateAndComputeExpectedTotals()
 	{
 		string[] lines =
@@ -187,5 +163,28 @@ public class SearchResultTests
 		result.BestMove.Should().Be("e2e4");
 		result.PonderMove.Should().Be("e7e5");
 	}
-}
 
+	[Fact]
+	public void TryParse_WhenValidLine_ShouldReturnTrueAndValidObject()
+	{
+		const string LINE =
+			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6";
+
+		string[] lines = [LINE, "bestmove e2e4 ponder e7e5"];
+
+		bool success = SearchResult.TryParse(lines, out var resultWithScoreCp);
+
+		success.Should().BeTrue();
+		resultWithScoreCp.ReachedDepth.Should().Be(8u);
+		resultWithScoreCp.ReachedSelDepth.Should().Be(12u);
+		resultWithScoreCp.MultiPvValue.Should().Be(1u);
+		resultWithScoreCp.TotalNodesSearched.Should().Be(50000u);
+		resultWithScoreCp.TotalTbHits.Should().Be(0u);
+		resultWithScoreCp.TotalSearchTimeMs.Should().Be(1500u);
+		resultWithScoreCp.BestMove.Should().Be("e2e4");
+		resultWithScoreCp.PonderMove.Should().Be("e7e5");
+		resultWithScoreCp.PrincipalVariations.Should().ContainSingle();
+		resultWithScoreCp.PrincipalVariations[0].ScoreCp.Should().Be(120);
+		resultWithScoreCp.PrincipalVariations[0].ScoreMate.Should().BeNull();
+	}
+}

@@ -10,20 +10,6 @@ namespace Bezoro.UCI.Tests.Domain;
 public class UciEngineClientSetPositionTests
 {
 	[Fact]
-	public async Task SetPositionAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
-	{
-		// Arrange
-		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
-		var ct = CancellationToken.None;
-
-		// Act & Assert - invalid fen -> throws
-		await FluentActions
-			  .Awaiting(() => client.SetPositionAsync(Fen.Empty(), null, ct))
-			  .Should()
-			  .ThrowAsync<ArgumentException>("empty FEN should be rejected");
-	}
-
-	[Fact]
 	public async Task SetPositionAsync_WhenFenAndMovesAreProvided_ShouldSendPositionCommandWithMoves()
 	{
 		// Arrange
@@ -36,6 +22,20 @@ public class UciEngineClientSetPositionTests
 
 		// Assert
 		await transport.Received().WriteLineAsync(Arg.Is<string>(s => s.Contains("moves e2e4 e7e5")), ct);
+	}
+
+	[Fact]
+	public async Task SetPositionAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
+	{
+		// Arrange
+		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+		var ct = CancellationToken.None;
+
+		// Act & Assert - invalid fen -> throws
+		await FluentActions
+			  .Awaiting(() => client.SetPositionAsync(Fen.Empty(), null, ct))
+			  .Should()
+			  .ThrowAsync<ArgumentException>("empty FEN should be rejected");
 	}
 
 	[Fact]
@@ -56,4 +56,3 @@ public class UciEngineClientSetPositionTests
 		);
 	}
 }
-

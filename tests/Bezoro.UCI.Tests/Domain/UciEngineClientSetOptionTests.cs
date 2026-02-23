@@ -22,20 +22,6 @@ public class UciEngineClientSetOptionTests
 	}
 
 	[Fact]
-	public async Task SetOptionAsync_WhenValueIsNull_ShouldSendNameOnlyCommand()
-	{
-		// Arrange
-		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
-		var ct = new CancellationTokenSource().Token;
-
-		// Act
-		await client.SetOptionAsync("Ponder", null, ct);
-
-		// Assert
-		await transport.Received(1).WriteLineAsync("setoption name Ponder", ct);
-	}
-
-	[Fact]
 	public async Task SetOptionAsync_WhenValueContainsSpaces_ShouldSendVerbatimValue()
 	{
 		// Arrange
@@ -48,6 +34,20 @@ public class UciEngineClientSetOptionTests
 
 		// Assert
 		await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {VALUE_WITH_SPACES}", ct);
+	}
+
+	[Fact]
+	public async Task SetOptionAsync_WhenValueIsNull_ShouldSendNameOnlyCommand()
+	{
+		// Arrange
+		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+		var ct = new CancellationTokenSource().Token;
+
+		// Act
+		await client.SetOptionAsync("Ponder", null, ct);
+
+		// Assert
+		await transport.Received(1).WriteLineAsync("setoption name Ponder", ct);
 	}
 
 	[Fact]
@@ -64,4 +64,3 @@ public class UciEngineClientSetOptionTests
 		await transport.Received(1).WriteLineAsync("setoption name Hash value 256", ct);
 	}
 }
-

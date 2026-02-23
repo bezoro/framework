@@ -22,4 +22,3 @@ public class UciEngineClientUciInitTests
 			  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
 	}
 }
-

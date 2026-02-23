@@ -667,4 +667,3 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		transport.Status.Should().Be(TransportStatus.Stopped);
 	}
 }
-

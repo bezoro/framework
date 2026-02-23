@@ -13,30 +13,6 @@ namespace Bezoro.UCI.Tests.API;
 [Trait("Category", "Integration")]
 public class UciCoordinatorTests
 {
-	[IntegrationTest]
-	[Trait("Requires", "Stockfish")]
-	public async Task AnalysisStream_WhenStarted_ShouldYieldPvWithScore()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.StateChanged += state =>
-		{
-			if (state.Evaluation?.Moves is { Count: > 0 })
-				tcs.TrySetResult(state.Evaluation.Value);
-		};
-
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await coordinator.StartSearchAsync();
-
-		var pvLine = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		pvLine.Moves.Should().NotBeEmpty();
-		(pvLine.ScoreCp.HasValue || pvLine.ScoreMate.HasValue).Should().BeTrue();
-
-		await coordinator.StopSearchAsync();
-	}
-
 	[Fact]
 	public async Task BestSearch_WhenStartedAndStopped_ShouldRestartCleanly()
 	{
@@ -226,27 +202,6 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenCalledAfterSearchAndClassification_ShouldNotThrow()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start search to create _bestCts
-		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Update position to create _classificationCts
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		await Task.Delay(TestConstants.ShortDelay);
-
-		// Dispose should clean up both token sources
-		await coordinator.DisposeAsync();
-
-		// If we got here without exceptions, disposal worked
-		// This test verifies that DisposeAsync doesn't throw when disposing token sources
-	}
-
-	[Fact]
 	public async Task DisposeAsync_WhenCalled_ShouldUnsubscribeFromEngineEvents()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
@@ -274,6 +229,27 @@ public class UciCoordinatorTests
 
 		// Counts should not have increased after dispose
 		stateChangeCount.Should().Be(stateChangeBefore, "StateChanged should not fire after dispose");
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenCalledAfterSearchAndClassification_ShouldNotThrow()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start search to create _bestCts
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Update position to create _classificationCts
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await Task.Delay(TestConstants.ShortDelay);
+
+		// Dispose should clean up both token sources
+		await coordinator.DisposeAsync();
+
+		// If we got here without exceptions, disposal worked
+		// This test verifies that DisposeAsync doesn't throw when disposing token sources
 	}
 
 	[Fact]
@@ -413,99 +389,6 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task UpdatePositionAsync_WhenApplyingWhiteE2E4_ShouldProvideBlackResponsesAndClassifiedMove()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Initial position: expect legal moves including e2e4
-		var legalStartTcs =
-			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		coordinator.StateChanged += state =>
-		{
-			if (state.LegalMoves.Count > 0)
-				legalStartTcs.TrySetResult(state.LegalMoves);
-		};
-
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		var legalStart = await legalStartTcs.Task.WaitAsync(TestConstants.MediumTimeout);
-		legalStart.Should().Contain(["e2e4", "d2d4"]);
-
-		// Apply white's move e2e4; validate black-side legal moves, pondering and classification events
-		var legalAfterWhiteTcs =
-			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		var bestAfterWhiteTcs =
-			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
-				TaskCreationOptions.RunContinuationsAsynchronously
-			);
-
-		var classifiedTcs =
-			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		coordinator.StateChanged += state =>
-		{
-			if (state.LegalMoves.Count > 0)
-			{
-				var hasReply = false;
-				foreach (string s in state.LegalMoves)
-				{
-					if (s == "e7e5" || s == "c7c5")
-					{
-						hasReply = true;
-						break;
-					}
-				}
-
-				if (hasReply)
-					legalAfterWhiteTcs.TrySetResult(state.LegalMoves);
-			}
-
-			if (state.BestMove.HasValue && !string.IsNullOrWhiteSpace(state.BestMove.Value.Raw))
-				bestAfterWhiteTcs.TrySetResult((state.BestMove.Value, state.PonderMove));
-
-			if (state.ClassifiedMoves.Count > 0)
-			{
-				var first = state.ClassifiedMoves.First();
-				classifiedTcs.TrySetResult((first.Key, first.Value));
-			}
-		};
-
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
-
-		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
-
-		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
-		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
-
-		var classified = await classifiedTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		classified.notation.Should().NotBeNullOrWhiteSpace();
-
-		await coordinator.StopSearchAsync();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task UpdatePositionAsync_WhenCalledWithDefaultFen_ShouldPopulateLegalMoves()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		// Start background processing for the default position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		// Wait for update
-		while (coordinator.State.LegalMoves.Count == 0) await Task.Delay(10);
-
-		var legal = coordinator.State.LegalMoves;
-		legal.Should().NotBeNull();
-		legal.Count.Should().BeGreaterThan(0);
-		legal.Should().Contain(["e2e4", "d2d4", "g1f3", "c2c4"]);
-	}
-
-	[Fact]
 	public async Task NewGameAsync_WhenCalledAfterSearch_ShouldResetStateAndAllowRestart()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
@@ -619,6 +502,37 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task StartPonderAsync_WhenCalled_ShouldRaisePonderInfo()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		coordinator.StateChanged += state =>
+		{
+			if (state.Evaluation != null) tcs.TrySetResult(state.Evaluation.Value);
+		};
+
+		await coordinator.StartSearchAsync(Fen.Default);
+
+		var received = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		received.Should().NotBeNull();
+		received!.Value.Moves.Should().NotBeEmpty();
+		received.Value.ScoreCp.Should().NotBeNull();
+
+		await coordinator.StopSearchAsync();
+	}
+
+	[Fact]
+	public async Task StartPonderAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		await Assert.ThrowsAsync<ArgumentException>(() => coordinator.StartSearchAsync(Fen.Empty()));
+	}
+
+	[Fact]
 	public async Task StartPonderAsync_WhenStopped_ShouldRaisePonderBestMove()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
@@ -648,37 +562,6 @@ public class UciCoordinatorTests
 		UciEngineClient.IsUciMoveString(best!.Value.Raw).Should().BeTrue();
 		if (ponder.HasValue)
 			UciEngineClient.IsUciMoveString(ponder.Value.Raw).Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task StartPonderAsync_WhenCalled_ShouldRaisePonderInfo()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.StateChanged += state =>
-		{
-			if (state.Evaluation != null) tcs.TrySetResult(state.Evaluation.Value);
-		};
-
-		await coordinator.StartSearchAsync(Fen.Default);
-
-		var received = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
-		received.Should().NotBeNull();
-		received!.Value.Moves.Should().NotBeEmpty();
-		received.Value.ScoreCp.Should().NotBeNull();
-
-		await coordinator.StopSearchAsync();
-	}
-
-	[Fact]
-	public async Task StartPonderAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		await Assert.ThrowsAsync<ArgumentException>(() => coordinator.StartSearchAsync(Fen.Empty()));
 	}
 
 	[Fact]
@@ -770,5 +653,121 @@ public class UciCoordinatorTests
 		await coordinator.StopSearchAsync();
 		await coordinator.StopAsync();
 	}
-}
 
+	[Fact]
+	public async Task UpdatePositionAsync_WhenApplyingWhiteE2E4_ShouldProvideBlackResponsesAndClassifiedMove()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Initial position: expect legal moves including e2e4
+		var legalStartTcs =
+			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.StateChanged += state =>
+		{
+			if (state.LegalMoves.Count > 0)
+				legalStartTcs.TrySetResult(state.LegalMoves);
+		};
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		var legalStart = await legalStartTcs.Task.WaitAsync(TestConstants.MediumTimeout);
+		legalStart.Should().Contain(["e2e4", "d2d4"]);
+
+		// Apply white's move e2e4; validate black-side legal moves, pondering and classification events
+		var legalAfterWhiteTcs =
+			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var bestAfterWhiteTcs =
+			new TaskCompletionSource<(ParsedMove best, ParsedMove? ponder)>(
+				TaskCreationOptions.RunContinuationsAsynchronously
+			);
+
+		var classifiedTcs =
+			new TaskCompletionSource<(string notation, Move move)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.StateChanged += state =>
+		{
+			if (state.LegalMoves.Count > 0)
+			{
+				var hasReply = false;
+				foreach (string s in state.LegalMoves)
+				{
+					if (s == "e7e5" || s == "c7c5")
+					{
+						hasReply = true;
+						break;
+					}
+				}
+
+				if (hasReply)
+					legalAfterWhiteTcs.TrySetResult(state.LegalMoves);
+			}
+
+			if (state.BestMove.HasValue && !string.IsNullOrWhiteSpace(state.BestMove.Value.Raw))
+				bestAfterWhiteTcs.TrySetResult((state.BestMove.Value, state.PonderMove));
+
+			if (state.ClassifiedMoves.Count > 0)
+			{
+				var first = state.ClassifiedMoves.First();
+				classifiedTcs.TrySetResult((first.Key, first.Value));
+			}
+		};
+
+		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+
+		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
+
+		var bestPair = await bestAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		bestPair.best.Raw.Should().NotBeNullOrWhiteSpace();
+		UciEngineClient.IsUciMoveString(bestPair.best.Raw).Should().BeTrue();
+
+		var classified = await classifiedTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		classified.notation.Should().NotBeNullOrWhiteSpace();
+
+		await coordinator.StopSearchAsync();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task UpdatePositionAsync_WhenCalledWithDefaultFen_ShouldPopulateLegalMoves()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		// Start background processing for the default position
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		// Wait for update
+		while (coordinator.State.LegalMoves.Count == 0) await Task.Delay(10);
+
+		var legal = coordinator.State.LegalMoves;
+		legal.Should().NotBeNull();
+		legal.Count.Should().BeGreaterThan(0);
+		legal.Should().Contain(["e2e4", "d2d4", "g1f3", "c2c4"]);
+	}
+
+	[IntegrationTest]
+	[Trait("Requires", "Stockfish")]
+	public async Task AnalysisStream_WhenStarted_ShouldYieldPvWithScore()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
+		coordinator.StateChanged += state =>
+		{
+			if (state.Evaluation?.Moves is { Count: > 0 })
+				tcs.TrySetResult(state.Evaluation.Value);
+		};
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.StartSearchAsync();
+
+		var pvLine = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);
+		pvLine.Moves.Should().NotBeEmpty();
+		(pvLine.ScoreCp.HasValue || pvLine.ScoreMate.HasValue).Should().BeTrue();
+
+		await coordinator.StopSearchAsync();
+	}
+}

@@ -59,6 +59,29 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	}
 
 	[Fact]
+	public async Task ReadLinesAsync_WhenSingleReaderIsDisabled_ShouldAllowConcurrentEnumerators()
+	{
+		Log("Starting test: ReadLinesAsync_WithSingleReaderFalse_AllowsConcurrentEnumerators");
+		await using var process = ProcessUciTransportBuilder.ForMultipleReaders().Build();
+		await process.StartAsync();
+
+		using var cts = new CancellationTokenSource(TestConstants.MediumDelay);
+		var       e1  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+		var       e2  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+
+		await FluentActions.Awaiting(async () => await e1.MoveNextAsync())
+						   .Should()
+						   .NotThrowAsync<InvalidOperationException>();
+
+		await FluentActions.Awaiting(async () => await e2.MoveNextAsync())
+						   .Should()
+						   .NotThrowAsync<InvalidOperationException>();
+
+		await e1.DisposeAsync();
+		await e2.DisposeAsync();
+	}
+
+	[Fact]
 	public async Task ReadLinesAsync_WhenStopped_ShouldCompleteGracefully()
 	{
 		Log("Starting test: ReadLinesAsync_WhenStopped_ShouldCompleteGracefully");
@@ -119,29 +142,6 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 						   .Should()
 						   .NotThrowAsync<InvalidOperationException>();
 
-		await e2.DisposeAsync();
-	}
-
-	[Fact]
-	public async Task ReadLinesAsync_WhenSingleReaderIsDisabled_ShouldAllowConcurrentEnumerators()
-	{
-		Log("Starting test: ReadLinesAsync_WithSingleReaderFalse_AllowsConcurrentEnumerators");
-		await using var process = ProcessUciTransportBuilder.ForMultipleReaders().Build();
-		await process.StartAsync();
-
-		using var cts = new CancellationTokenSource(TestConstants.MediumDelay);
-		var       e1  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
-		var       e2  = process.ReadLinesAsync(cts.Token).GetAsyncEnumerator(cts.Token);
-
-		await FluentActions.Awaiting(async () => await e1.MoveNextAsync())
-						   .Should()
-						   .NotThrowAsync<InvalidOperationException>();
-
-		await FluentActions.Awaiting(async () => await e2.MoveNextAsync())
-						   .Should()
-						   .NotThrowAsync<InvalidOperationException>();
-
-		await e1.DisposeAsync();
 		await e2.DisposeAsync();
 	}
 
@@ -232,4 +232,3 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 		received!.Trim().Should().Be("marker");
 	}
 }
-
