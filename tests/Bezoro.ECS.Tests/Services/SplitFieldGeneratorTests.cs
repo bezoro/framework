@@ -1,5 +1,5 @@
-using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -15,8 +15,8 @@ public class SplitFieldGeneratorTests
 	public void SplitGeneratedGroups_WhenQueriedByHotGroup_ShouldIterateWithoutColdGroup()
 	{
 		using var world  = new World();
-		var first  = world.Spawn();
-		var second = world.Spawn();
+		var       first  = world.Spawn();
+		var       second = world.Spawn();
 
 		SplitTransformSplitGenerated.Add(
 			world, first, new() { PositionX = 1f, PositionY = 2f, RotationZ = 3f, Scale = 4f }
@@ -27,7 +27,7 @@ public class SplitFieldGeneratorTests
 		);
 
 		var handle = world.Compile<SplitGroup0QuerySpec>();
-		var sum = 0f;
+		var sum    = 0f;
 		using (var cursor = world.Execute(handle))
 		{
 			cursor.MoveNext().Should().BeTrue();
@@ -45,7 +45,7 @@ public class SplitFieldGeneratorTests
 	public void SplitGeneratedHelpers_WhenAddingSplitComponent_ShouldStoreAndRehydrateGroups()
 	{
 		using var world  = new World();
-		var entity = world.Spawn();
+		var       entity = world.Spawn();
 		var input = new SplitTransform
 		{
 			PositionX = 3f,
@@ -69,7 +69,8 @@ public class SplitFieldGeneratorTests
 }
 
 [SplitFields]
-internal struct SplitTransform{
+internal struct SplitTransform
+{
 	[SplitGroup(0)] public float PositionX;
 	[SplitGroup(0)] public float PositionY;
 	[SplitGroup(0)] public float RotationZ;

@@ -10,23 +10,9 @@ namespace Bezoro.ECS.Tests.Internal.Fixed;
 public class ArchetypeStorageTests
 {
 	[Fact]
-	public void ColumnStorage_WhenTypeIsUnmanaged_ShouldUseNativeBackedColumn()
-	{
-		using var storage = CreateStorage(typeof(UnmanagedComponent), isManagedLane: false);
-		storage.AllocateRow(1, out int chunkIndex, out int rowIndex);
-
-		ref var component = ref storage.GetRef<UnmanagedComponent>(chunkIndex, rowIndex, 0);
-		component.Value = 42;
-
-		var chunk = storage.GetChunk(chunkIndex);
-		chunk.Columns[0].IsUnmanaged.Should().BeTrue();
-		storage.GetRef<UnmanagedComponent>(chunkIndex, rowIndex, 0).Value.Should().Be(42);
-	}
-
-	[Fact]
 	public void ColumnStorage_WhenTypeIsManagedLane_ShouldUseManagedColumn()
 	{
-		using var storage = CreateStorage(typeof(ManagedComponent), isManagedLane: true);
+		using var storage = CreateStorage(typeof(ManagedComponent), true);
 		storage.AllocateRow(1, out int chunkIndex, out int rowIndex);
 		ref var component = ref storage.GetRef<ManagedComponent>(chunkIndex, rowIndex, 0);
 		component.Name = "alpha";
@@ -38,9 +24,50 @@ public class ArchetypeStorageTests
 	}
 
 	[Fact]
+	public void ColumnStorage_WhenTypeIsUnmanaged_ShouldUseNativeBackedColumn()
+	{
+		using var storage = CreateStorage(typeof(UnmanagedComponent), false);
+		storage.AllocateRow(1, out int chunkIndex, out int rowIndex);
+
+		ref var component = ref storage.GetRef<UnmanagedComponent>(chunkIndex, rowIndex, 0);
+		component.Value = 42;
+
+		var chunk = storage.GetChunk(chunkIndex);
+		chunk.Columns[0].IsUnmanaged.Should().BeTrue();
+		storage.GetRef<UnmanagedComponent>(chunkIndex, rowIndex, 0).Value.Should().Be(42);
+	}
+
+	[Fact]
+	public void CopySharedColumnsFromWithPairs_WhenCopyingRange_ShouldCopyAllRequestedRows()
+	{
+		using var source = CreateStorage(typeof(UnmanagedComponent), false, 8);
+		using var target = CreateStorage(typeof(UnmanagedComponent), false, 8);
+		for (var i = 0; i < 5; i++)
+		{
+			source.AllocateRow(i + 1, out int sourceChunkIndex, out int sourceRowIndex);
+			ref var component = ref source.GetRef<UnmanagedComponent>(sourceChunkIndex, sourceRowIndex, 0);
+			component.Value = i + 10;
+		}
+
+		target.ReserveRows(3, out int targetChunkIndex, out int targetRowStart);
+		source.CopySharedColumnsFromWithPairs(
+			source.GetChunk(0),
+			1,
+			target.GetChunk(targetChunkIndex),
+			targetRowStart,
+			3,
+			[0, 0]
+		);
+
+		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart,     0).Value.Should().Be(11);
+		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart + 1, 0).Value.Should().Be(12);
+		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart + 2, 0).Value.Should().Be(13);
+	}
+
+	[Fact]
 	public void MoveRowRangeWithinChunk_WhenCompactingRows_ShouldMoveEntitiesAndComponentDataTogether()
 	{
-		using var storage = CreateStorage(typeof(UnmanagedComponent), isManagedLane: false, chunkCapacity: 8);
+		using var storage = CreateStorage(typeof(UnmanagedComponent), false, 8);
 		for (var i = 0; i < 4; i++)
 		{
 			storage.AllocateRow(i + 1, out int chunkIndex, out int rowIndex);
@@ -49,7 +76,7 @@ public class ArchetypeStorageTests
 		}
 
 		var chunk = storage.GetChunk(0);
-		storage.MoveRowRangeWithinChunk(chunk, sourceRowIndex: 2, destinationRowIndex: 0, rowCount: 2);
+		storage.MoveRowRangeWithinChunk(chunk, 2, 0, 2);
 
 		chunk.EntityIds[0].Should().Be(3);
 		chunk.EntityIds[1].Should().Be(4);
@@ -60,7 +87,7 @@ public class ArchetypeStorageTests
 	[Fact]
 	public void MoveRowRangeWithinChunk_WhenSourceAndDestinationOverlap_ShouldPreserveRangeOrdering()
 	{
-		using var storage = CreateStorage(typeof(UnmanagedComponent), isManagedLane: false, chunkCapacity: 8);
+		using var storage = CreateStorage(typeof(UnmanagedComponent), false, 8);
 		for (var i = 0; i < 5; i++)
 		{
 			storage.AllocateRow(i + 1, out int chunkIndex, out int rowIndex);
@@ -69,7 +96,7 @@ public class ArchetypeStorageTests
 		}
 
 		var chunk = storage.GetChunk(0);
-		storage.MoveRowRangeWithinChunk(chunk, sourceRowIndex: 0, destinationRowIndex: 1, rowCount: 4);
+		storage.MoveRowRangeWithinChunk(chunk, 0, 1, 4);
 
 		chunk.EntityIds[1].Should().Be(1);
 		chunk.EntityIds[2].Should().Be(2);
@@ -81,51 +108,24 @@ public class ArchetypeStorageTests
 		storage.GetRef<UnmanagedComponent>(0, 4, 0).Value.Should().Be(13);
 	}
 
-	[Fact]
-	public void CopySharedColumnsFromWithPairs_WhenCopyingRange_ShouldCopyAllRequestedRows()
-	{
-		using var source = CreateStorage(typeof(UnmanagedComponent), isManagedLane: false, chunkCapacity: 8);
-		using var target = CreateStorage(typeof(UnmanagedComponent), isManagedLane: false, chunkCapacity: 8);
-		for (var i = 0; i < 5; i++)
-		{
-			source.AllocateRow(i + 1, out int sourceChunkIndex, out int sourceRowIndex);
-			ref var component = ref source.GetRef<UnmanagedComponent>(sourceChunkIndex, sourceRowIndex, 0);
-			component.Value = i + 10;
-		}
-
-		target.ReserveRows(3, out int targetChunkIndex, out int targetRowStart);
-		source.CopySharedColumnsFromWithPairs(
-			source.GetChunk(0),
-			sourceRowIndex: 1,
-			target.GetChunk(targetChunkIndex),
-			targetRowIndex: targetRowStart,
-			rowCount: 3,
-			sourceTargetColumnPairs: [0, 0]
-		);
-
-		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart, 0).Value.Should().Be(11);
-		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart + 1, 0).Value.Should().Be(12);
-		target.GetRef<UnmanagedComponent>(targetChunkIndex, targetRowStart + 2, 0).Value.Should().Be(13);
-	}
-
 	private static ArchetypeStorage CreateStorage(Type componentType, bool isManagedLane, int chunkCapacity = 4) =>
 		new(
-			id: 0,
-			typeIds: [0],
-			maskWords: [1UL],
-			columnTypes: [componentType],
-			columnIsManagedLane: [isManagedLane],
-			componentTypeCapacity: 8,
-			chunkCapacity: chunkCapacity
+			0,
+			[0],
+			[1UL],
+			[componentType],
+			[isManagedLane],
+			8,
+			chunkCapacity
 		);
-
-	private struct UnmanagedComponent
-	{
-		public int Value;
-	}
 
 	private struct ManagedComponent
 	{
 		public string? Name;
+	}
+
+	private struct UnmanagedComponent
+	{
+		public int Value;
 	}
 }

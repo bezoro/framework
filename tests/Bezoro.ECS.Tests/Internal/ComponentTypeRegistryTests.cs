@@ -1,4 +1,3 @@
-using System;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -11,38 +10,26 @@ namespace Bezoro.ECS.Tests.Internal;
 public class ComponentTypeRegistryTests
 {
 	[Fact]
-	public void GetRelationshipIds_WhenNoNewRelationshipsAdded_ShouldReturnEquivalentSnapshotValues()
-	{
-		var registry = new ComponentTypeRegistry();
-		_ = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
-
-		ReadOnlySpan<int> firstSnapshot  = registry.GetRelationshipIds(typeof(RelatesTo));
-		ReadOnlySpan<int> secondSnapshot = registry.GetRelationshipIds(typeof(RelatesTo));
-
-		firstSnapshot.ToArray().Should().Equal(secondSnapshot.ToArray());
-	}
-
-	[Fact]
 	public void GetRelationshipIds_WhenCallerMutatesCopiedSnapshot_ShouldNotCorruptInternalState()
 	{
 		var registry = new ComponentTypeRegistry();
-		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
+		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), new(1, 1));
 
 		int[] snapshot = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 		snapshot[0] = -123;
 
-		ReadOnlySpan<int> secondRead = registry.GetRelationshipIds(typeof(RelatesTo));
+		var secondRead = registry.GetRelationshipIds(typeof(RelatesTo));
 		secondRead.ToArray().Should().Equal(firstId);
 	}
 
 	[Fact]
 	public void GetRelationshipIds_WhenNewRelationshipAdded_ShouldPreservePreviousSnapshotAndReturnNewOne()
 	{
-		var registry = new ComponentTypeRegistry();
-		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(1, 1));
+		var   registry                         = new ComponentTypeRegistry();
+		int   firstId                          = registry.GetOrCreateRelationship(typeof(RelatesTo), new(1, 1));
 		int[] snapshotBeforeSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 
-		int secondId = registry.GetOrCreateRelationship(typeof(RelatesTo), new Entity(2, 1));
+		int   secondId                        = registry.GetOrCreateRelationship(typeof(RelatesTo), new(2, 1));
 		int[] snapshotAfterSecondRelationship = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 
 		snapshotBeforeSecondRelationship.Should().Equal(firstId);
@@ -51,13 +38,25 @@ public class ComponentTypeRegistryTests
 	}
 
 	[Fact]
-	public void GetRelationshipIds_WhenRelationshipRemoved_ShouldPreservePreviousSnapshotAndReturnNewOne()
+	public void GetRelationshipIds_WhenNoNewRelationshipsAdded_ShouldReturnEquivalentSnapshotValues()
 	{
 		var registry = new ComponentTypeRegistry();
-		var firstTarget = new Entity(1, 1);
-		var secondTarget = new Entity(2, 1);
-		int firstId  = registry.GetOrCreateRelationship(typeof(RelatesTo), firstTarget);
-		int secondId = registry.GetOrCreateRelationship(typeof(RelatesTo), secondTarget);
+		_ = registry.GetOrCreateRelationship(typeof(RelatesTo), new(1, 1));
+
+		var firstSnapshot  = registry.GetRelationshipIds(typeof(RelatesTo));
+		var secondSnapshot = registry.GetRelationshipIds(typeof(RelatesTo));
+
+		firstSnapshot.ToArray().Should().Equal(secondSnapshot.ToArray());
+	}
+
+	[Fact]
+	public void GetRelationshipIds_WhenRelationshipRemoved_ShouldPreservePreviousSnapshotAndReturnNewOne()
+	{
+		var   registry              = new ComponentTypeRegistry();
+		var   firstTarget           = new Entity(1, 1);
+		var   secondTarget          = new Entity(2, 1);
+		int   firstId               = registry.GetOrCreateRelationship(typeof(RelatesTo), firstTarget);
+		int   secondId              = registry.GetOrCreateRelationship(typeof(RelatesTo), secondTarget);
 		int[] snapshotBeforeRemoval = registry.GetRelationshipIds(typeof(RelatesTo)).ToArray();
 
 		registry.ReleaseRelationshipsForTarget(firstTarget);

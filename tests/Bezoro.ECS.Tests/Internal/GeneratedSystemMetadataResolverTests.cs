@@ -25,6 +25,19 @@ public class GeneratedSystemMetadataResolverTests
 	}
 
 	[Fact]
+	public void TryGet_WhenSystemHasNoAttributes_ShouldReturnEmptyMetadata()
+	{
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(ResolverUnknownSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.SystemType.Should().Be(typeof(ResolverUnknownSystem));
+		metadata.Reads.Should().BeEmpty();
+		metadata.Writes.Should().BeEmpty();
+		metadata.IsExclusive.Should().BeFalse();
+	}
+
+	[Fact]
 	public void TryGet_WhenSystemIsNestedType_ShouldReturnGeneratedMetadata()
 	{
 		var  resolver = new GeneratedSystemMetadataResolver();
@@ -48,19 +61,6 @@ public class GeneratedSystemMetadataResolverTests
 		metadata.Reads.Should().ContainSingle(t => t == typeof(ResolverReadComponent));
 		metadata.Writes.Should().ContainSingle(t => t == typeof(ResolverWriteComponent));
 		metadata.IsExclusive.Should().BeTrue();
-	}
-
-	[Fact]
-	public void TryGet_WhenSystemHasNoAttributes_ShouldReturnEmptyMetadata()
-	{
-		var  resolver = new GeneratedSystemMetadataResolver();
-		bool result   = resolver.TryGet(typeof(ResolverUnknownSystem), out var metadata);
-
-		result.Should().BeTrue();
-		metadata.SystemType.Should().Be(typeof(ResolverUnknownSystem));
-		metadata.Reads.Should().BeEmpty();
-		metadata.Writes.Should().BeEmpty();
-		metadata.IsExclusive.Should().BeFalse();
 	}
 }
 
