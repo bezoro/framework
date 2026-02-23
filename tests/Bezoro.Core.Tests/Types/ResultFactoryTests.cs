@@ -39,4 +39,3 @@ public class ResultFactoryTests
 		value.Should().Be(DATA);
 	}
 }
-

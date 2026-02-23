@@ -114,4 +114,3 @@ public class Grid2DUtilityMethodsTests
 		result.Should().BeFalse();
 	}
 }
-

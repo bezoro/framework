@@ -27,6 +27,157 @@ public class TryCancellationTests
 	}
 
 	[Fact]
+	public async Task DoAsyncWithCancellationTokenWithNullAction_WhenCalled_ShouldThrowArgumentNullException()
+	{
+		Func<CancellationToken, Task>? nullAction = null;
+		var                            action     = () => Try.DoAsync(nullAction!);
+		await action.Should().ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
+	public async Task GetAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldThrowOperationCanceledException()
+	{
+		using var cts   = new CancellationTokenSource();
+		var       token = cts.Token;
+
+		await cts.CancelAsync();
+
+		var action = () => Try.GetAsync(
+			async ct =>
+			{
+				await Task.Delay(100, ct);
+				return 42;
+			},
+			cancellationToken: token
+		);
+
+		await action.Should().ThrowAsync<OperationCanceledException>();
+	}
+
+	[Fact]
+	public async Task GetAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
+	{
+		Func<CancellationToken, Task<int>>? nullFunc = null;
+		var                                 action   = () => Try.GetAsync(nullFunc!);
+		await action.Should().ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
+	public async Task GetAsyncWithCancellationTokenWithValidFunction_WhenCalled_ShouldReturnResult()
+	{
+		using var cts = new CancellationTokenSource();
+
+		int result = await Try.GetAsync(
+						 async ct =>
+						 {
+							 await Task.Delay(10, ct);
+							 return 42;
+						 },
+						 cancellationToken: cts.Token
+					 );
+
+		result.Should().Be(42);
+	}
+
+	[Fact]
+	public async Task
+		GetOrDefaultAsync_WithCancellationToken_WithFactory_WithNullFactory_ThrowsArgumentNullException()
+	{
+		using var  cts         = new CancellationTokenSource();
+		Func<int>? nullFactory = null;
+		var        action      = () => Try.GetOrDefaultAsync(_ => Task.FromResult(42), nullFactory!);
+		await action.Should().ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
+	public async Task
+		GetOrDefaultAsync_WithCancellationToken_WithFactory_WithNullFunction_ThrowsArgumentNullException()
+	{
+		Func<CancellationToken, Task<int>>? nullFunc = null;
+		var                                 action   = () => Try.GetOrDefaultAsync(nullFunc!, () => 0);
+		await action.Should().ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
+	public async Task GetOrDefaultAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnDefault()
+	{
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
+
+		int result = await Try.GetOrDefaultAsync(
+						 async ct =>
+						 {
+							 await Task.Delay(100, ct);
+							 return 42;
+						 },
+						 99,
+						 cancellationToken: cts.Token
+					 );
+
+		result.Should().Be(99);
+	}
+
+	[Fact]
+	public async Task
+		GetOrDefaultAsyncWithCancellationTokenWithFactoryWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
+	{
+		using var cts = new CancellationTokenSource();
+
+		int result = await Try.GetOrDefaultAsync(
+						 async ct =>
+						 {
+							 await Task.Delay(10, ct);
+							 return 42;
+						 },
+						 () => 0,
+						 cancellationToken: cts.Token
+					 );
+
+		result.Should().Be(42);
+	}
+
+	[Fact]
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithFailingFunction_WhenCalled_ShouldReturnDefault()
+	{
+		using var cts = new CancellationTokenSource();
+
+		int result = await Try.GetOrDefaultAsync(
+						 _ => Task.FromException<int>(new InvalidOperationException()),
+						 99,
+						 cancellationToken: cts.Token
+					 );
+
+		result.Should().Be(99);
+	}
+
+	[Fact]
+	public async Task
+		GetOrDefaultAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
+	{
+		Func<CancellationToken, Task<int>>? nullFunc = null;
+		var                                 action   = () => Try.GetOrDefaultAsync(nullFunc!, 0);
+		await action.Should().ThrowAsync<ArgumentNullException>();
+	}
+
+	[Fact]
+	public async Task GetOrDefaultAsyncWithCancellationTokenWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
+	{
+		using var cts = new CancellationTokenSource();
+
+		int result = await Try.GetOrDefaultAsync(
+						 async ct =>
+						 {
+							 await Task.Delay(10, ct);
+							 return 42;
+						 },
+						 0,
+						 cancellationToken: cts.Token
+					 );
+
+		result.Should().Be(42);
+	}
+
+	[Fact]
 	public async Task TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
@@ -63,15 +214,8 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task DoAsyncWithCancellationTokenWithNullAction_WhenCalled_ShouldThrowArgumentNullException()
-	{
-		Func<CancellationToken, Task>? nullAction = null;
-		var                            action     = () => Try.DoAsync(nullAction!);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithValidAction_ExecutesSuccessfully()
+	public async Task
+		TryCancellation_WhenCalled_ShouldDoAsync_WithCancellationToken_WithValidAction_ExecutesSuccessfully()
 	{
 		var       executed = false;
 		using var cts      = new CancellationTokenSource();
@@ -86,26 +230,6 @@ public class TryCancellationTests
 		);
 
 		executed.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task GetAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldThrowOperationCanceledException()
-	{
-		using var cts   = new CancellationTokenSource();
-		var       token = cts.Token;
-
-		await cts.CancelAsync();
-
-		var action = () => Try.GetAsync(
-			async ct =>
-			{
-				await Task.Delay(100, ct);
-				return 42;
-			},
-			cancellationToken: token
-		);
-
-		await action.Should().ThrowAsync<OperationCanceledException>();
 	}
 
 	[Fact]
@@ -127,7 +251,8 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldGetAsync_WithCancellationToken_WithException_TransformsException()
+	public async Task
+		TryCancellation_WhenCalled_ShouldGetAsync_WithCancellationToken_WithException_TransformsException()
 	{
 		using var cts   = new CancellationTokenSource();
 		var       token = cts.Token;
@@ -145,51 +270,8 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task GetAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
-	{
-		Func<CancellationToken, Task<int>>? nullFunc = null;
-		var                                 action   = () => Try.GetAsync(nullFunc!);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task GetAsyncWithCancellationTokenWithValidFunction_WhenCalled_ShouldReturnResult()
-	{
-		using var cts = new CancellationTokenSource();
-
-		int result = await Try.GetAsync(
-						 async ct =>
-						 {
-							 await Task.Delay(10, ct);
-							 return 42;
-						 },
-						 cancellationToken: cts.Token
-					 );
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnDefault()
-	{
-		using var cts = new CancellationTokenSource();
-		await cts.CancelAsync();
-
-		int result = await Try.GetOrDefaultAsync(
-						 async ct =>
-						 {
-							 await Task.Delay(100, ct);
-							 return 42;
-						 },
-						 99,
-						 cancellationToken: cts.Token
-					 );
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithException_InvokesCallback()
+	public async Task
+		TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithException_InvokesCallback()
 	{
 		Exception? capturedException = null;
 		using var  cts               = new CancellationTokenSource();
@@ -207,7 +289,8 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WhenCancelled_CallsFactory()
+	public async Task
+		TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WhenCancelled_CallsFactory()
 	{
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -226,7 +309,8 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WithFailingFunction_CallsFactory()
+	public async Task
+		TryCancellation_WhenCalled_ShouldGetOrDefaultAsync_WithCancellationToken_WithFactory_WithFailingFunction_CallsFactory()
 	{
 		using var cts = new CancellationTokenSource();
 
@@ -237,97 +321,6 @@ public class TryCancellationTests
 					 );
 
 		result.Should().Be(99);
-	}
-
-	[Fact]
-	public async Task
-		GetOrDefaultAsync_WithCancellationToken_WithFactory_WithNullFactory_ThrowsArgumentNullException()
-	{
-		using var  cts         = new CancellationTokenSource();
-		Func<int>? nullFactory = null;
-		var        action      = () => Try.GetOrDefaultAsync(_ => Task.FromResult(42), nullFactory!);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task
-		GetOrDefaultAsync_WithCancellationToken_WithFactory_WithNullFunction_ThrowsArgumentNullException()
-	{
-		Func<CancellationToken, Task<int>>? nullFunc = null;
-		var                                 action   = () => Try.GetOrDefaultAsync(nullFunc!, () => 0);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsyncWithCancellationTokenWithFactoryWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
-	{
-		using var cts = new CancellationTokenSource();
-
-		int result = await Try.GetOrDefaultAsync(
-						 async ct =>
-						 {
-							 await Task.Delay(10, ct);
-							 return 42;
-						 },
-						 () => 0,
-						 cancellationToken: cts.Token
-					 );
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsyncWithCancellationTokenWithFailingFunction_WhenCalled_ShouldReturnDefault()
-	{
-		using var cts = new CancellationTokenSource();
-
-		int result = await Try.GetOrDefaultAsync(
-						 _ => Task.FromException<int>(new InvalidOperationException()),
-						 99,
-						 cancellationToken: cts.Token
-					 );
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsyncWithCancellationTokenWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
-	{
-		Func<CancellationToken, Task<int>>? nullFunc = null;
-		var                                 action   = () => Try.GetOrDefaultAsync(nullFunc!, 0);
-		await action.Should().ThrowAsync<ArgumentNullException>();
-	}
-
-	[Fact]
-	public async Task GetOrDefaultAsyncWithCancellationTokenWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
-	{
-		using var cts = new CancellationTokenSource();
-
-		int result = await Try.GetOrDefaultAsync(
-						 async ct =>
-						 {
-							 await Task.Delay(10, ct);
-							 return 42;
-						 },
-						 0,
-						 cancellationToken: cts.Token
-					 );
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task TryDoAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnFalse()
-	{
-		using var cts = new CancellationTokenSource();
-		await cts.CancelAsync();
-
-		bool result = await Try.TryDoAsync(
-						  async ct => { await Task.Delay(100, ct); },
-						  cancellationToken: cts.Token
-					  );
-
-		result.Should().BeFalse();
 	}
 
 	[Fact]
@@ -345,6 +338,38 @@ public class TryCancellationTests
 		result.Should().BeFalse();
 		capturedException.Should().NotBeNull();
 		capturedException!.Message.Should().Be("Test");
+	}
+
+	[Fact]
+	public async Task TryCancellation_WhenCalled_ShouldTryGetAsync_WithCancellationToken_WithException_InvokesCallback()
+	{
+		Exception? capturedException = null;
+		using var  cts               = new CancellationTokenSource();
+
+		(bool success, int value) = await Try.TryGetAsync(
+										_ => Task.FromException<int>(new InvalidOperationException("Test")),
+										ex => capturedException = ex,
+										cts.Token
+									);
+
+		success.Should().BeFalse();
+		value.Should().Be(0);
+		capturedException.Should().NotBeNull();
+		capturedException!.Message.Should().Be("Test");
+	}
+
+	[Fact]
+	public async Task TryDoAsyncWithCancellationTokenWhenCancelled_WhenCalled_ShouldReturnFalse()
+	{
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
+
+		bool result = await Try.TryDoAsync(
+						  async ct => { await Task.Delay(100, ct); },
+						  cancellationToken: cts.Token
+					  );
+
+		result.Should().BeFalse();
 	}
 
 	[Fact]
@@ -407,24 +432,6 @@ public class TryCancellationTests
 	}
 
 	[Fact]
-	public async Task TryCancellation_WhenCalled_ShouldTryGetAsync_WithCancellationToken_WithException_InvokesCallback()
-	{
-		Exception? capturedException = null;
-		using var  cts               = new CancellationTokenSource();
-
-		(bool success, int value) = await Try.TryGetAsync(
-										_ => Task.FromException<int>(new InvalidOperationException("Test")),
-										ex => capturedException = ex,
-										cts.Token
-									);
-
-		success.Should().BeFalse();
-		value.Should().Be(0);
-		capturedException.Should().NotBeNull();
-		capturedException!.Message.Should().Be("Test");
-	}
-
-	[Fact]
 	public async Task TryGetAsyncWithCancellationTokenWithFailingFunction_WhenCalled_ShouldReturnFailureAndDefault()
 	{
 		using var cts = new CancellationTokenSource();
@@ -463,6 +470,4 @@ public class TryCancellationTests
 		success.Should().BeTrue();
 		value.Should().Be(42);
 	}
-
 }
-

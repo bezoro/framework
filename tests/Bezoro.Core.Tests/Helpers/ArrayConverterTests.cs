@@ -143,15 +143,17 @@ public class ArrayConverterTests
 			{ 4, 5, 6 }
 		};
 
-		int[] flat = ArrayConverter.Flatten(original);
+		int[]  flat     = ArrayConverter.Flatten(original);
 		int[,] restored = ArrayConverter.Reshape(flat, 2, 3);
 
 		restored.GetLength(0).Should().Be(original.GetLength(0));
 		restored.GetLength(1).Should().Be(original.GetLength(1));
 
-		for (int i = 0; i < 2; i++)
-		for (int j = 0; j < 3; j++)
-			restored[i, j].Should().Be(original[i, j]);
+		for (var i = 0; i < 2; i++)
+		{
+			for (var j = 0; j < 3; j++)
+				restored[i, j].Should().Be(original[i, j]);
+		}
 	}
 
 	#endregion

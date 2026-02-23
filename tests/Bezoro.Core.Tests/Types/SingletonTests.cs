@@ -45,6 +45,19 @@ public class SingletonTests
 	}
 
 	[Fact]
+	public void Factory_WhenCalled_ShouldReturnNull_Throws_TypeInitializationException()
+	{
+		// Arrange
+		Singleton<PublicCtorSingleton>.Reset(true);
+
+		// Act
+		Action act = () => Singleton<PublicCtorSingleton>.Override(() => null!);
+
+		// Assert
+		act.Should().Throw<TypeInitializationException>();
+	}
+
+	[Fact]
 	public void Singleton_WhenCalled_ShouldConfigureFactory_Recreate_Disposes_And_Uses_New_Factory()
 	{
 		// Arrange
@@ -78,19 +91,6 @@ public class SingletonTests
 		// Assert
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*Direct construction*not allowed*");
-	}
-
-	[Fact]
-	public void Factory_WhenCalled_ShouldReturnNull_Throws_TypeInitializationException()
-	{
-		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
-
-		// Act
-		Action act = () => Singleton<PublicCtorSingleton>.Override(() => null!);
-
-		// Assert
-		act.Should().Throw<TypeInitializationException>();
 	}
 
 	[Fact]
@@ -280,4 +280,3 @@ internal sealed class ThrowOnDisposeSingleton : Singleton<ThrowOnDisposeSingleto
 		throw new InvalidOperationException("Dispose failed");
 	}
 }
-

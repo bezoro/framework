@@ -101,4 +101,3 @@ public class Grid2DIndexerTests
 		grid[1, 1].Should().Be(42);
 	}
 }
-

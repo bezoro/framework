@@ -53,4 +53,3 @@ public class ReadOnlyGridSpan2DTests
 		grid[2, 1].Should().Be(6);
 	}
 }
-

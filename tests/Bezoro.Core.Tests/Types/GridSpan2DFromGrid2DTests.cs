@@ -44,4 +44,3 @@ public class GridSpan2DFromGrid2DTests
 		readOnly[1, 1].Should().Be(42);
 	}
 }
-

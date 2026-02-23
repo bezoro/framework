@@ -85,4 +85,3 @@ public class Grid2DConstructorTests
 		grid.Height.Should().Be(10);
 	}
 }
-

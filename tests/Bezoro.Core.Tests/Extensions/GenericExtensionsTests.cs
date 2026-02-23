@@ -63,34 +63,6 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfWhenConditionIsFalse_WhenCalled_ShouldReturnValue()
-	{
-		int result = 5.ThrowIf(false, "param", "Custom message");
-		result.Should().Be(5);
-	}
-
-	[Fact]
-	public void ThrowIfWhenConditionIsTrue_WhenCalled_ShouldThrowArgumentException()
-	{
-		var action = () => 5.ThrowIf(true, "param", "Custom message");
-		action.Should().Throw<ArgumentException>().WithMessage("Custom message*");
-	}
-
-	[Fact]
-	public void ThrowIfWhenPredicateIsFalse_WhenCalled_ShouldReturnValue()
-	{
-		int result = 5.ThrowIf(x => x < 0);
-		result.Should().Be(5);
-	}
-
-	[Fact]
-	public void ThrowIfWhenPredicateIsTrue_WhenCalled_ShouldThrowArgumentException()
-	{
-		var action = () => 5.ThrowIf(x => x > 0);
-		action.Should().Throw<ArgumentException>();
-	}
-
-	[Fact]
 	public void ThrowIfEmptyWhenEnumerableWithoutCountIsEmpty_WhenCalled_ShouldThrowArgumentException()
 	{
 		var enumerable = GetEmptyIterator();
@@ -148,6 +120,34 @@ public class GenericExtensionsTests
 		string? value  = null;
 		var     action = () => value.ThrowIfNull();
 		action.Should().Throw<ArgumentNullException>();
+	}
+
+	[Fact]
+	public void ThrowIfWhenConditionIsFalse_WhenCalled_ShouldReturnValue()
+	{
+		int result = 5.ThrowIf(false, "param", "Custom message");
+		result.Should().Be(5);
+	}
+
+	[Fact]
+	public void ThrowIfWhenConditionIsTrue_WhenCalled_ShouldThrowArgumentException()
+	{
+		var action = () => 5.ThrowIf(true, "param", "Custom message");
+		action.Should().Throw<ArgumentException>().WithMessage("Custom message*");
+	}
+
+	[Fact]
+	public void ThrowIfWhenPredicateIsFalse_WhenCalled_ShouldReturnValue()
+	{
+		int result = 5.ThrowIf(x => x < 0);
+		result.Should().Be(5);
+	}
+
+	[Fact]
+	public void ThrowIfWhenPredicateIsTrue_WhenCalled_ShouldThrowArgumentException()
+	{
+		var action = () => 5.ThrowIf(x => x > 0);
+		action.Should().Throw<ArgumentException>();
 	}
 
 	[Fact]

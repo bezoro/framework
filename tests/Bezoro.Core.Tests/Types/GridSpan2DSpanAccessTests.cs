@@ -54,4 +54,3 @@ public class GridSpan2DSpanAccessTests
 		row1[2].Should().Be(6);
 	}
 }
-

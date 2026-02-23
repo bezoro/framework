@@ -14,29 +14,6 @@ namespace Bezoro.Core.Tests.Extensions;
 public class ArrayExtensionsSearchTests
 {
 	[Fact]
-	public async Task Process_WhenCalled_ShouldStop_When_Cancelled()
-	{
-		// Arrange
-		int[,]    array             = new[,] { { 1, 2 }, { 3, 4 } };
-		var       processedElements = new List<int>();
-		using var cts               = new CancellationTokenSource();
-
-		// Act
-		await array.Process(
-			async (element, _, _, ct) =>
-			{
-				if (element == 3) await cts.CancelAsync();
-				await Task.Delay(1, ct);
-				processedElements.Add(element);
-			},
-			cts.Token
-		);
-
-		// Assert
-		processedElements.Should().BeEquivalentTo([1, 2]);
-	}
-
-	[Fact]
 	public async Task Process_WhenCalled_ShouldProcess_AllElements()
 	{
 		// Arrange
@@ -76,6 +53,29 @@ public class ArrayExtensionsSearchTests
 
 		// Assert
 		processedElements.Should().BeEquivalentTo("1", "3", "4");
+	}
+
+	[Fact]
+	public async Task Process_WhenCalled_ShouldStop_When_Cancelled()
+	{
+		// Arrange
+		int[,]    array             = new[,] { { 1, 2 }, { 3, 4 } };
+		var       processedElements = new List<int>();
+		using var cts               = new CancellationTokenSource();
+
+		// Act
+		await array.Process(
+			async (element, _, _, ct) =>
+			{
+				if (element == 3) await cts.CancelAsync();
+				await Task.Delay(1, ct);
+				processedElements.Add(element);
+			},
+			cts.Token
+		);
+
+		// Assert
+		processedElements.Should().BeEquivalentTo([1, 2]);
 	}
 
 	[Fact]

@@ -213,4 +213,3 @@ public class DoubleComparerTests
 		DoubleComparer.Sign(-eps * 2).Should().Be(-1);
 	}
 }
-

@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Core.Types;
 using FluentAssertions;
@@ -20,21 +19,6 @@ public class TryAsyncTests
 	}
 
 	[Fact]
-	public async Task TryAsync_WhenCalled_ShouldDoAsync_WithValidAction_ExecutesSuccessfully()
-	{
-		var executed = false;
-		var taskFunc = () =>
-		{
-			executed = true;
-			return Task.CompletedTask;
-		};
-
-		await Try.DoAsync(taskFunc);
-
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
 	public async Task GetAsyncWithNullFunction_WhenCalled_ShouldThrowArgumentNullException()
 	{
 		Func<Task<int>>? nullFunc = null;
@@ -48,17 +32,6 @@ public class TryAsyncTests
 		var func   = () => Task.FromResult(42);
 		int result = await Try.GetAsync(func);
 		result.Should().Be(42);
-	}
-
-	[Fact]
-	public async Task TryAsync_WhenCalled_ShouldGetOrDefaultAsync_WithFactory_WithFailingFunction_CallsFactory()
-	{
-		int result = await Try.GetOrDefaultAsync(
-						 () => Task.FromException<int>(new InvalidOperationException()),
-						 () => 99
-					 );
-
-		result.Should().Be(99);
 	}
 
 	[Fact]
@@ -78,6 +51,32 @@ public class TryAsyncTests
 		int result = await Try.GetOrDefaultAsync(() => Task.FromResult(42), 0);
 
 		result.Should().Be(42);
+	}
+
+	[Fact]
+	public async Task TryAsync_WhenCalled_ShouldDoAsync_WithValidAction_ExecutesSuccessfully()
+	{
+		var executed = false;
+		var taskFunc = () =>
+		{
+			executed = true;
+			return Task.CompletedTask;
+		};
+
+		await Try.DoAsync(taskFunc);
+
+		executed.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task TryAsync_WhenCalled_ShouldGetOrDefaultAsync_WithFactory_WithFailingFunction_CallsFactory()
+	{
+		int result = await Try.GetOrDefaultAsync(
+						 () => Task.FromException<int>(new InvalidOperationException()),
+						 () => 99
+					 );
+
+		result.Should().Be(99);
 	}
 
 	[Fact]
@@ -121,6 +120,4 @@ public class TryAsyncTests
 		success.Should().BeTrue();
 		value.Should().Be(42);
 	}
-
 }
-

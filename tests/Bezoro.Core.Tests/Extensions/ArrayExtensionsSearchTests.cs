@@ -9,22 +9,6 @@ namespace Bezoro.Core.Tests.Extensions;
 public class ArrayExtensionsProcessTests
 {
 	[Fact]
-	public void ContainsWhenElementDoesNotExist_WhenCalled_ShouldReturnFalse()
-	{
-		string[] array = ["first", "second", "third"];
-		array.Contains("fourth", out int index).Should().BeFalse();
-		index.Should().Be(-1);
-	}
-
-	[Fact]
-	public void ContainsWhenElementExists_WhenCalled_ShouldReturnTrue()
-	{
-		string[] array = ["first", "second", "third"];
-		array.Contains("second", out int index).Should().BeTrue();
-		index.Should().Be(1);
-	}
-
-	[Fact]
 	public void ContainsStructWhenElementDoesNotExist_WhenCalled_ShouldReturnFalse()
 	{
 		int[] array = [1, 2, 3];
@@ -37,6 +21,22 @@ public class ArrayExtensionsProcessTests
 	{
 		int[] array = [1, 2, 3];
 		array.ContainsStruct(2, out int index).Should().BeTrue();
+		index.Should().Be(1);
+	}
+
+	[Fact]
+	public void ContainsWhenElementDoesNotExist_WhenCalled_ShouldReturnFalse()
+	{
+		string[] array = ["first", "second", "third"];
+		array.Contains("fourth", out int index).Should().BeFalse();
+		index.Should().Be(-1);
+	}
+
+	[Fact]
+	public void ContainsWhenElementExists_WhenCalled_ShouldReturnTrue()
+	{
+		string[] array = ["first", "second", "third"];
+		array.Contains("second", out int index).Should().BeTrue();
 		index.Should().Be(1);
 	}
 

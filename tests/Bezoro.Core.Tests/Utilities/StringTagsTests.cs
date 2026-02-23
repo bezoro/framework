@@ -13,18 +13,6 @@ public class StringTagsTests
 	private static readonly Lock Sync = new();
 
 	[Fact]
-	public void StringTags_WhenCalled_ShouldClear_RemovesAllTags()
-	{
-		lock (Sync)
-		{
-			StringTags.Clear();
-			StringTags.RegisterValue("A", "1");
-			StringTags.Clear();
-			StringTags.Process("{A}").Should().Be("{A}");
-		}
-	}
-
-	[Fact]
 	public void GetRegisteredTags_WhenCalled_ShouldReturnCurrentSet()
 	{
 		lock (Sync)
@@ -34,6 +22,54 @@ public class StringTagsTests
 			StringTags.RegisterValue("B", "2");
 
 			StringTags.GetRegisteredTags().Should().BeEquivalentTo("A", "B");
+		}
+	}
+
+	[Fact]
+	public void Process_WhenCalled_ShouldReturnInput_WhenNullOrEmpty()
+	{
+		lock (Sync)
+		{
+			StringTags.Clear();
+
+			StringTags.Process(null!).Should().BeNull();
+			StringTags.Process(string.Empty).Should().BeEmpty();
+		}
+	}
+
+	[Fact]
+	public void Register_WhenCalled_ShouldThrowOnInvalidOrWhitespaceName()
+	{
+		lock (Sync)
+		{
+			StringTags.Clear();
+			var act1 = () => StringTags.Register("bad-name", () => "x");
+			var act2 = () => StringTags.Register("  ",       () => "x");
+			act1.Should().Throw<ArgumentException>();
+			act2.Should().Throw<ArgumentException>();
+		}
+	}
+
+	[Fact]
+	public void Register_WhenCalled_ShouldThrowOnNullProvider()
+	{
+		lock (Sync)
+		{
+			StringTags.Clear();
+			var act = () => StringTags.Register("A", null!);
+			act.Should().Throw<ArgumentNullException>();
+		}
+	}
+
+	[Fact]
+	public void StringTags_WhenCalled_ShouldClear_RemovesAllTags()
+	{
+		lock (Sync)
+		{
+			StringTags.Clear();
+			StringTags.RegisterValue("A", "1");
+			StringTags.Clear();
+			StringTags.Process("{A}").Should().Be("{A}");
 		}
 	}
 
@@ -67,18 +103,6 @@ public class StringTagsTests
 			StringTags.Clear();
 			StringTags.RegisterValue("Name", "John");
 			StringTags.Process("Hello {Name}!").Should().Be("Hello John!");
-		}
-	}
-
-	[Fact]
-	public void Process_WhenCalled_ShouldReturnInput_WhenNullOrEmpty()
-	{
-		lock (Sync)
-		{
-			StringTags.Clear();
-
-			StringTags.Process(null!).Should().BeNull();
-			StringTags.Process(string.Empty).Should().BeEmpty();
 		}
 	}
 
@@ -118,30 +142,6 @@ public class StringTagsTests
 	}
 
 	[Fact]
-	public void Register_WhenCalled_ShouldThrowOnInvalidOrWhitespaceName()
-	{
-		lock (Sync)
-		{
-			StringTags.Clear();
-			var act1 = () => StringTags.Register("bad-name", () => "x");
-			var act2 = () => StringTags.Register("  ",       () => "x");
-			act1.Should().Throw<ArgumentException>();
-			act2.Should().Throw<ArgumentException>();
-		}
-	}
-
-	[Fact]
-	public void Register_WhenCalled_ShouldThrowOnNullProvider()
-	{
-		lock (Sync)
-		{
-			StringTags.Clear();
-			var act = () => StringTags.Register("A", null!);
-			act.Should().Throw<ArgumentNullException>();
-		}
-	}
-
-	[Fact]
 	public void StringTags_WhenCalled_ShouldUnregister_RemovesSpecificTag()
 	{
 		lock (Sync)
@@ -155,4 +155,3 @@ public class StringTagsTests
 		}
 	}
 }
-

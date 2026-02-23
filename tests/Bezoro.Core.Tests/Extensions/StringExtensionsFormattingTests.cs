@@ -1,4 +1,3 @@
-using System;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types;
 using FluentAssertions;
@@ -10,6 +9,19 @@ namespace Bezoro.Core.Tests.Extensions;
 [TestSubject(typeof(StringExtensions))]
 public class StringExtensionsFormattingTests
 {
+	[Fact]
+	public void Lowercase_WhenCalled_ShouldReturnLower_ForNonNull()
+	{
+		"ABC".Lowercase().Should().Be("abc");
+		"AbC".Lowercase().Should().Be("abc");
+	}
+
+	[Fact]
+	public void Repeat_WhenCalled_ShouldReturnOriginal_OnCountOne()
+	{
+		"ab".Repeat().Should().Be("ab");
+	}
+
 	[Fact]
 	public void StringExtensionsFormatting_WhenCalled_ShouldBold_WrapsText()
 	{
@@ -65,22 +77,9 @@ public class StringExtensionsFormattingTests
 	}
 
 	[Fact]
-	public void Lowercase_WhenCalled_ShouldReturnLower_ForNonNull()
-	{
-		"ABC".Lowercase().Should().Be("abc");
-		"AbC".Lowercase().Should().Be("abc");
-	}
-
-	[Fact]
 	public void StringExtensionsFormatting_WhenCalled_ShouldRepeat_Repeats_OnCountGreaterThanOne()
 	{
 		"ab".Repeat(3).Should().Be("ababab");
-	}
-
-	[Fact]
-	public void Repeat_WhenCalled_ShouldReturnOriginal_OnCountOne()
-	{
-		"ab".Repeat().Should().Be("ab");
 	}
 
 	[Fact]
@@ -107,5 +106,4 @@ public class StringExtensionsFormattingTests
 		"abc".Uppercase().Should().Be("ABC");
 		"aBc".Uppercase().Should().Be("ABC");
 	}
-
 }

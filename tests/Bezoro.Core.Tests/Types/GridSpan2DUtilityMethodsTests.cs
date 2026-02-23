@@ -77,4 +77,3 @@ public class GridSpan2DUtilityMethodsTests
 		grid.IsInBounds(-1, 0).Should().BeFalse();
 	}
 }
-

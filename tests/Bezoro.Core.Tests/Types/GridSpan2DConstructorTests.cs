@@ -26,4 +26,3 @@ public class GridSpan2DConstructorTests
 		grid.Length.Should().Be(WIDTH * HEIGHT);
 	}
 }
-

@@ -47,4 +47,3 @@ public class Grid2DDisposeTests
 		act.Should().NotThrow();
 	}
 }
-

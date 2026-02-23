@@ -12,6 +12,39 @@ namespace Bezoro.Core.Tests.Extensions;
 public class EnumerableExtensionsTests
 {
 	[Fact]
+	public void HasAny_WhenCalled_ShouldReturnFalse_WhenCollectionIsEmpty()
+	{
+		// Arrange
+		int[] collection = [];
+
+		// Act & Assert
+		collection.HasAny().Should().BeFalse();
+	}
+
+	[Fact]
+	public void HasAny_WhenCalled_ShouldReturnTrue_WhenCollectionHasElements()
+	{
+		// Arrange
+		int[] collection = [1, 2, 3];
+
+		// Act & Assert
+		collection.HasAny().Should().BeTrue();
+	}
+
+	[Fact]
+	public void HasAny_WhenCalled_ShouldThrowArgumentNullException_WhenSourceIsNull()
+	{
+		// Arrange
+		IEnumerable<int>? collection = null;
+
+		// Act
+		Action act = () => _ = collection!.HasAny();
+
+		// Assert
+		act.Should().Throw<ArgumentNullException>();
+	}
+
+	[Fact]
 	public void HasAny_WhenNonGeneric_ShouldHandleString_EmptyAndNonEmpty()
 	{
 		// Arrange
@@ -76,61 +109,6 @@ public class EnumerableExtensionsTests
 	}
 
 	[Fact]
-	public void HasAny_WhenCalled_ShouldReturnFalse_WhenCollectionIsEmpty()
-	{
-		// Arrange
-		int[] collection = [];
-
-		// Act & Assert
-		collection.HasAny().Should().BeFalse();
-	}
-
-	[Fact]
-	public void HasAny_WhenCalled_ShouldReturnTrue_WhenCollectionHasElements()
-	{
-		// Arrange
-		int[] collection = [1, 2, 3];
-
-		// Act & Assert
-		collection.HasAny().Should().BeTrue();
-	}
-
-	[Fact]
-	public void HasAny_WhenCalled_ShouldThrowArgumentNullException_WhenSourceIsNull()
-	{
-		// Arrange
-		IEnumerable<int>? collection = null;
-
-		// Act
-		Action act = () => _ = collection!.HasAny();
-
-		// Assert
-		act.Should().Throw<ArgumentNullException>();
-	}
-
-	[Fact]
-	public void IsNullOrEmpty_WhenNonGeneric_ShouldReturnTrue_WhenNull()
-	{
-		// Arrange
-		IEnumerable? collection = null;
-
-		// Act & Assert
-		collection.IsNullOrEmpty().Should().BeTrue();
-	}
-
-	[Fact]
-	public void IsNullOrEmpty_WhenNonGeneric_ShouldWork_ForArrayList()
-	{
-		// Arrange
-		IEnumerable empty    = new ArrayList();
-		IEnumerable nonEmpty = new ArrayList { 1 };
-
-		// Act & Assert
-		empty.IsNullOrEmpty().Should().BeTrue();
-		nonEmpty.IsNullOrEmpty().Should().BeFalse();
-	}
-
-	[Fact]
 	public void IsNullOrEmpty_WhenCalled_ShouldReturnFalse_WhenCollectionHasElements()
 	{
 		// Arrange
@@ -158,6 +136,28 @@ public class EnumerableExtensionsTests
 
 		// Act & Assert
 		collection.IsNullOrEmpty().Should().BeTrue();
+	}
+
+	[Fact]
+	public void IsNullOrEmpty_WhenNonGeneric_ShouldReturnTrue_WhenNull()
+	{
+		// Arrange
+		IEnumerable? collection = null;
+
+		// Act & Assert
+		collection.IsNullOrEmpty().Should().BeTrue();
+	}
+
+	[Fact]
+	public void IsNullOrEmpty_WhenNonGeneric_ShouldWork_ForArrayList()
+	{
+		// Arrange
+		IEnumerable empty    = new ArrayList();
+		IEnumerable nonEmpty = new ArrayList { 1 };
+
+		// Act & Assert
+		empty.IsNullOrEmpty().Should().BeTrue();
+		nonEmpty.IsNullOrEmpty().Should().BeFalse();
 	}
 
 	[Fact]
@@ -197,6 +197,70 @@ public class EnumerableExtensionsTests
 
 		// Assert
 		act.Should().Throw<ArgumentNullException>();
+	}
+
+	[Fact]
+	public void TryGetCount_WhenCalled_ShouldReturnFalseAndMinusOne_ForNonCollection()
+	{
+		// Arrange
+		var enumerable = NonCollection();
+
+		// Act
+		bool result = enumerable.TryGetCount(out int count);
+
+		// Assert
+		result.Should().BeFalse();
+		count.Should().Be(-1);
+		return;
+
+		static IEnumerable<int> NonCollection()
+		{
+			yield return 1;
+			yield return 2;
+			yield return 3;
+		}
+	}
+
+	[Fact]
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForCollection()
+	{
+		// Arrange
+		var collection = new List<int> { 1, 2, 3 };
+
+		// Act
+		bool result = collection.TryGetCount(out int count);
+
+		// Assert
+		result.Should().BeTrue();
+		count.Should().Be(3);
+	}
+
+	[Fact]
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForReadOnlyCollection()
+	{
+		// Arrange
+		IReadOnlyCollection<int> collection = new List<int> { 1, 2, 3 }.AsReadOnly();
+
+		// Act
+		bool result = collection.TryGetCount(out int count);
+
+		// Assert
+		result.Should().BeTrue();
+		count.Should().Be(3);
+	}
+
+	[Fact]
+	public void TryGetCount_WhenCalled_ShouldReturnTrueAndLength_ForString()
+	{
+		// Arrange
+		var str = "test";
+
+		// Act
+		bool result = str.TryGetCount(out int count);
+
+		// Assert
+		result.Should().BeTrue();
+		count.Should().Be(4);
 	}
 
 	[Fact]
@@ -282,70 +346,6 @@ public class EnumerableExtensionsTests
 	{
 		// Arrange
 		IEnumerable str = "test";
-
-		// Act
-		bool result = str.TryGetCount(out int count);
-
-		// Assert
-		result.Should().BeTrue();
-		count.Should().Be(4);
-	}
-
-	[Fact]
-	public void TryGetCount_WhenCalled_ShouldReturnFalseAndMinusOne_ForNonCollection()
-	{
-		// Arrange
-		var enumerable = NonCollection();
-
-		// Act
-		bool result = enumerable.TryGetCount(out int count);
-
-		// Assert
-		result.Should().BeFalse();
-		count.Should().Be(-1);
-		return;
-
-		static IEnumerable<int> NonCollection()
-		{
-			yield return 1;
-			yield return 2;
-			yield return 3;
-		}
-	}
-
-	[Fact]
-	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForCollection()
-	{
-		// Arrange
-		var collection = new List<int> { 1, 2, 3 };
-
-		// Act
-		bool result = collection.TryGetCount(out int count);
-
-		// Assert
-		result.Should().BeTrue();
-		count.Should().Be(3);
-	}
-
-	[Fact]
-	public void TryGetCount_WhenCalled_ShouldReturnTrueAndCount_ForReadOnlyCollection()
-	{
-		// Arrange
-		IReadOnlyCollection<int> collection = new List<int> { 1, 2, 3 }.AsReadOnly();
-
-		// Act
-		bool result = collection.TryGetCount(out int count);
-
-		// Assert
-		result.Should().BeTrue();
-		count.Should().Be(3);
-	}
-
-	[Fact]
-	public void TryGetCount_WhenCalled_ShouldReturnTrueAndLength_ForString()
-	{
-		// Arrange
-		var str = "test";
 
 		// Act
 		bool result = str.TryGetCount(out int count);

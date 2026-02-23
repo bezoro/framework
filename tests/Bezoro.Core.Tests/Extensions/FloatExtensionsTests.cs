@@ -68,7 +68,9 @@ public class FloatExtensionsTests
 	[Theory]
 	[InlineData(1.9f, 2f)]
 	[InlineData(-10f, 2f)]
-	public void ThrowIfOverOrEqualThan_WhenCalled_ShouldNotThrowAndReturnValue_WhenValueIsLessThanMax(float value, float max)
+	public void ThrowIfOverOrEqualThan_WhenCalled_ShouldNotThrowAndReturnValue_WhenValueIsLessThanMax(
+		float value,
+		float max)
 	{
 		float result = value.ThrowIfOverOrEqualThan(max);
 		result.Should().Be(value);
@@ -90,7 +92,9 @@ public class FloatExtensionsTests
 	[Theory]
 	[InlineData(2f, 2f)] // equal boundary
 	[InlineData(1f, 2f)] // less than
-	public void ThrowIfOverThan_WhenCalled_ShouldNotThrowAndReturnValue_WhenValueIsEqualOrLessThanMax(float value, float max)
+	public void ThrowIfOverThan_WhenCalled_ShouldNotThrowAndReturnValue_WhenValueIsEqualOrLessThanMax(
+		float value,
+		float max)
 	{
 		float result = value.ThrowIfOverThan(max);
 		result.Should().Be(value);

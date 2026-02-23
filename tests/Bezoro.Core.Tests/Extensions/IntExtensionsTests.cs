@@ -61,7 +61,8 @@ public class IntExtensionsTests
 	[Theory]
 	[InlineData(-1)]
 	[InlineData(-100)]
-	public void IsNegative_WhenCalled_ShouldReturnTrue_WhenValueIsNegative(int value) => value.IsNegative().Should().BeTrue();
+	public void IsNegative_WhenCalled_ShouldReturnTrue_WhenValueIsNegative(int value) =>
+		value.IsNegative().Should().BeTrue();
 
 	[Theory]
 	[InlineData(2)]
@@ -83,7 +84,8 @@ public class IntExtensionsTests
 	[Theory]
 	[InlineData(1)]
 	[InlineData(100)]
-	public void IsPositive_WhenCalled_ShouldReturnTrue_WhenValueIsPositive(int value) => value.IsPositive().Should().BeTrue();
+	public void IsPositive_WhenCalled_ShouldReturnTrue_WhenValueIsPositive(int value) =>
+		value.IsPositive().Should().BeTrue();
 
 	[Theory]
 	[InlineData(1)]

@@ -1,6 +1,4 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Bezoro.Core.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -19,25 +17,27 @@ public class TrySyncTests
 	}
 
 	[Fact]
-	public void TrySync_WhenCalled_ShouldDo_WithValidAction_ExecutesSuccessfully()
+	public void GetOrDefaultWithFactoryWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
 	{
-		var executed = false;
-		Try.Do(() => executed = true);
-		executed.Should().BeTrue();
+		int result = Try.GetOrDefault(() => 42, () => 0);
+
+		result.Should().Be(42);
 	}
 
 	[Fact]
-	public void TrySync_WhenCalled_ShouldGet_WithExceptionCallback_InvokesCallback()
+	public void GetOrDefaultWithFailingFunction_WhenCalled_ShouldReturnDefault()
 	{
-		Exception? capturedException = null;
-		var action = () => Try.Get<int>(
-			() => throw new InvalidOperationException("Test"),
-			onException: ex => capturedException = ex
-		);
+		int result = Try.GetOrDefault(() => throw new InvalidOperationException(), 99);
 
-		action.Should().Throw<InvalidOperationException>();
-		capturedException.Should().NotBeNull();
-		capturedException!.Message.Should().Be("Test");
+		result.Should().Be(99);
+	}
+
+	[Fact]
+	public void GetOrDefaultWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
+	{
+		int result = Try.GetOrDefault(() => 42, 0);
+
+		result.Should().Be(42);
 	}
 
 	[Fact]
@@ -69,35 +69,69 @@ public class TrySyncTests
 	}
 
 	[Fact]
+	public void TryDoWithFailingAction_WhenCalled_ShouldReturnFalse()
+	{
+		bool result = Try.TryDo(() => throw new InvalidOperationException());
+
+		result.Should().BeFalse();
+	}
+
+	[Fact]
+	public void TryDoWithSuccessfulAction_WhenCalled_ShouldReturnTrue()
+	{
+		var  executed = false;
+		bool result   = Try.TryDo(() => executed = true);
+
+		result.Should().BeTrue();
+		executed.Should().BeTrue();
+	}
+
+	[Fact]
+	public void TryGetWithFailingFunction_WhenCalled_ShouldReturnFailureAndDefault()
+	{
+		(bool success, int value) = Try.TryGet<int>(() => throw new InvalidOperationException());
+
+		success.Should().BeFalse();
+		value.Should().Be(0);
+	}
+
+	[Fact]
+	public void TryGetWithSuccessfulFunction_WhenCalled_ShouldReturnSuccessAndValue()
+	{
+		(bool success, int value) = Try.TryGet(() => 42);
+
+		success.Should().BeTrue();
+		value.Should().Be(42);
+	}
+
+	[Fact]
+	public void TrySync_WhenCalled_ShouldDo_WithValidAction_ExecutesSuccessfully()
+	{
+		var executed = false;
+		Try.Do(() => executed = true);
+		executed.Should().BeTrue();
+	}
+
+	[Fact]
+	public void TrySync_WhenCalled_ShouldGet_WithExceptionCallback_InvokesCallback()
+	{
+		Exception? capturedException = null;
+		var action = () => Try.Get<int>(
+			() => throw new InvalidOperationException("Test"),
+			onException: ex => capturedException = ex
+		);
+
+		action.Should().Throw<InvalidOperationException>();
+		capturedException.Should().NotBeNull();
+		capturedException!.Message.Should().Be("Test");
+	}
+
+	[Fact]
 	public void TrySync_WhenCalled_ShouldGetOrDefault_WithFactory_WithFailingFunction_CallsFactory()
 	{
 		int result = Try.GetOrDefault(() => throw new InvalidOperationException(), () => 99);
 
 		result.Should().Be(99);
-	}
-
-	[Fact]
-	public void GetOrDefaultWithFactoryWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
-	{
-		int result = Try.GetOrDefault(() => 42, () => 0);
-
-		result.Should().Be(42);
-	}
-
-	[Fact]
-	public void GetOrDefaultWithFailingFunction_WhenCalled_ShouldReturnDefault()
-	{
-		int result = Try.GetOrDefault(() => throw new InvalidOperationException(), 99);
-
-		result.Should().Be(99);
-	}
-
-	[Fact]
-	public void GetOrDefaultWithSuccessfulFunction_WhenCalled_ShouldReturnValue()
-	{
-		int result = Try.GetOrDefault(() => 42, 0);
-
-		result.Should().Be(42);
 	}
 
 	[Fact]
@@ -132,24 +166,6 @@ public class TrySyncTests
 	}
 
 	[Fact]
-	public void TryDoWithFailingAction_WhenCalled_ShouldReturnFalse()
-	{
-		bool result = Try.TryDo(() => throw new InvalidOperationException());
-
-		result.Should().BeFalse();
-	}
-
-	[Fact]
-	public void TryDoWithSuccessfulAction_WhenCalled_ShouldReturnTrue()
-	{
-		var  executed = false;
-		bool result   = Try.TryDo(() => executed = true);
-
-		result.Should().BeTrue();
-		executed.Should().BeTrue();
-	}
-
-	[Fact]
 	public void TrySync_WhenCalled_ShouldTryGet_WithFailingFunction_InvokesCallback()
 	{
 		Exception? capturedException = null;
@@ -162,24 +178,4 @@ public class TrySyncTests
 		capturedException.Should().NotBeNull();
 		capturedException!.Message.Should().Be("Test error");
 	}
-
-	[Fact]
-	public void TryGetWithFailingFunction_WhenCalled_ShouldReturnFailureAndDefault()
-	{
-		(bool success, int value) = Try.TryGet<int>(() => throw new InvalidOperationException());
-
-		success.Should().BeFalse();
-		value.Should().Be(0);
-	}
-
-	[Fact]
-	public void TryGetWithSuccessfulFunction_WhenCalled_ShouldReturnSuccessAndValue()
-	{
-		(bool success, int value) = Try.TryGet(() => 42);
-
-		success.Should().BeTrue();
-		value.Should().Be(42);
-	}
-
 }
-

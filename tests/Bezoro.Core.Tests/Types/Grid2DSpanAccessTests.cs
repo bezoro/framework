@@ -73,4 +73,3 @@ public class Grid2DSpanAccessTests
 		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
 }
-

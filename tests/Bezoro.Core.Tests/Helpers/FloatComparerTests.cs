@@ -227,4 +227,3 @@ public class FloatComparerTests
 		FloatComparer.Sign(-eps * 2).Should().Be(-1);
 	}
 }
-
