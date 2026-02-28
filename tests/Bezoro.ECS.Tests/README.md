@@ -30,6 +30,7 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 
 - Tests are consumer-first and validate ECS ergonomics as exposed by the public API.
 - Runtime tests prioritize correctness for structural changes, deterministic playback, and fixed-capacity behavior.
+- Snapshot restore coverage includes fail-closed defaults, explicit allow-list enforcement, malformed payload rejection, and no-mutation-on-rejection behavior.
 - Source-generation integration tests ensure generated code stays aligned with runtime contracts.
 
 ## Test Conventions

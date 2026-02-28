@@ -125,15 +125,20 @@ world.RestoreSnapshot(
     ref reader,
     new SnapshotDeserializationOptions
     {
-        AllowedReferenceResourceTypes = [typeof(GameConfigResource)]
+        AllowedComponentTypes = [typeof(Position), typeof(Velocity)],
+        AllowedRelationTypes = [typeof(Follows)],
+        AllowedResourceTypes = [typeof(GameConfigResource)]
     }
 );
 ```
 
 ### Snapshot Notes
-- Restore clears world state and resources before replaying snapshot payload.
+- Restore validates the entire payload before mutating world state.
+- Restore defaults to deny-by-default for snapshot component, relation, and resource types.
+- Use explicit allow-lists for untrusted or cross-boundary snapshot input.
+- `AllowAllComponentTypes` / `AllowAllRelationTypes` / `AllowAllResourceTypes` are intended for trusted same-process restore flows only.
 - Snapshot relation records replay through relation APIs with deterministic source-target mapping.
-- Include explicit allow-lists for reference resources when loading untrusted input.
+- `IWorldSnapshotReader` still owns serializer behavior and type materialization; `RestoreSnapshot` validates the already-materialized `WorldSnapshot`.
 - Keep snapshot DTO versions stable so old saves can be migrated safely.
 
 ## Query Diagnostics

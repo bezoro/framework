@@ -82,6 +82,30 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
+	public void RestoreSnapshot_WhenCalledWithoutExplicitAllowLists_ShouldRejectSnapshotTypesByDefault()
+	{
+		using var world = new World();
+		var snapshot = new WorldSnapshot(
+			[],
+			[
+				new(
+					new Entity(1, 1),
+					[
+						new SnapshotComponentRecord(typeof(ApiPosition), new ApiPosition { X = 1f, Y = 2f })
+					]
+				)
+			],
+			[]
+		);
+		var reader = new InMemorySnapshotReader(snapshot);
+
+		var act = () => world.RestoreSnapshot(ref reader);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*not allow-listed*");
+	}
+
+	[Fact]
 	public void Resources_WhenSet_ShouldBeReadableByReference()
 	{
 		using var world = new World();
@@ -112,6 +136,11 @@ public class WorldApiContractTests
 	private readonly struct PositionQuerySpec : ICompiledQuerySpec
 	{
 		public void Build(ref QueryBuilder builder) => builder.All<ApiPosition>();
+	}
+
+	private readonly struct InMemorySnapshotReader(WorldSnapshot snapshot) : IWorldSnapshotReader
+	{
+		public WorldSnapshot Read() => snapshot;
 	}
 }
 
