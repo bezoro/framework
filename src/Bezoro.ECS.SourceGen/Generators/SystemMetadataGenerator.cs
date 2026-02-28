@@ -13,6 +13,8 @@ namespace Bezoro.ECS.SourceGen.Generators;
 [Generator]
 public sealed class SystemMetadataGenerator : IIncrementalGenerator
 {
+	private const string DirectIterationConflictResourceKey = "global::Bezoro.ECS.Services.World";
+
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var systems = context.CompilationProvider.Select(static (compilation, _) =>
@@ -55,6 +57,22 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 					{
 						if (i > 0) builder.Append(", ");
 						builder.Append("typeof(").Append(model.Writes[i]).Append(')');
+					}
+
+					builder.AppendLine(" },");
+					builder.Append("            new global::System.Type[] { ");
+					for (var i = 0; i < model.ReadResources.Count; i++)
+					{
+						if (i > 0) builder.Append(", ");
+						builder.Append("typeof(").Append(model.ReadResources[i]).Append(')');
+					}
+
+					builder.AppendLine(" },");
+					builder.Append("            new global::System.Type[] { ");
+					for (var i = 0; i < model.WriteResources.Count; i++)
+					{
+						if (i > 0) builder.Append(", ");
+						builder.Append("typeof(").Append(model.WriteResources[i]).Append(')');
 					}
 
 					builder.AppendLine(" },");
@@ -129,8 +147,43 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		return TryGetComponentTypesFromJobParameter(method, originalMethod, out componentTypes);
 	}
 
+	private static bool TryGetSingleReadOnlyQueryViewForEachComponent(
+		IMethodSymbol   method,
+		out ITypeSymbol componentType)
+	{
+		componentType = null!;
+		var originalMethod = method.ReducedFrom ?? method;
+		if (!TryResolveIterationTarget(method, originalMethod, out var target) ||
+			target != IterationTarget.QueryView)
+			return false;
+
+		if (method.Name != "ForEachRead" && originalMethod.Name != "ForEachRead")
+			return false;
+
+		if (method.TypeArguments.Length != 1)
+			return false;
+
+		if (!HasReadOnlyQueryViewForEachDelegate(method) && !HasReadOnlyQueryViewForEachDelegate(originalMethod))
+			return false;
+
+		componentType = method.TypeArguments[0];
+		return true;
+	}
+
 	private static bool IsReadWriteForEachMethodName(string methodName) =>
 		methodName == "ForEachRw" || methodName == "ForEachRW";
+
+	private static bool HasReadOnlyQueryViewForEachDelegate(IMethodSymbol method)
+	{
+		if (method.Parameters.Length != 1)
+			return false;
+
+		return method.Parameters[0].Type is INamedTypeSymbol parameterType &&
+			   parameterType.Name == "EntityInAction" &&
+			   parameterType.ContainingType is INamedTypeSymbol containingType &&
+			   containingType.Name == "QueryView" &&
+			   containingType.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types";
+	}
 
 	private static bool TryResolveIterationTarget(
 		IMethodSymbol method,
@@ -155,6 +208,22 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			return true;
 		}
 
+		if (method.ContainingType is INamedTypeSymbol methodContainingType &&
+			methodContainingType.Name == "QueryView" &&
+			methodContainingType.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types")
+		{
+			target = IterationTarget.QueryView;
+			return true;
+		}
+
+		if (originalMethod.ContainingType is INamedTypeSymbol originalContainingType &&
+			originalContainingType.Name == "QueryView" &&
+			originalContainingType.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types")
+		{
+			target = IterationTarget.QueryView;
+			return true;
+		}
+
 		if (IsTypeName(method.ContainingType, "Bezoro.ECS.Services.World") ||
 			IsTypeName(originalMethod.ContainingType, "Bezoro.ECS.Services.World"))
 		{
@@ -175,6 +244,14 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		if (IsTypeName(receiverType, "Bezoro.ECS.Types.QueryCursor"))
 		{
 			target = IterationTarget.QueryCursor;
+			return true;
+		}
+
+		if (receiverType is INamedTypeSymbol receiverNamed &&
+			receiverNamed.Name == "QueryView" &&
+			receiverNamed.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types")
+		{
+			target = IterationTarget.QueryView;
 			return true;
 		}
 
@@ -228,7 +305,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			return false;
 		}
 
-		if (target == IterationTarget.QueryCursor)
+		if (target == IterationTarget.QueryCursor || target == IterationTarget.QueryView)
 		{
 			if (method.Name == "ForEach")
 			{
@@ -236,7 +313,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				return componentTypes.Length > 0;
 			}
 
-			if (method.Name == "Run" && method.TypeArguments.Length > 1)
+			if ((method.Name == "Run" || method.Name == "RunParallel") && method.TypeArguments.Length > 1)
 			{
 				componentTypes = SkipTypeArguments(method.TypeArguments, 1);
 				return componentTypes.Length > 0;
@@ -253,7 +330,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				return componentTypes.Length > 0;
 			}
 
-			if (method.Name == "Run" && method.TypeArguments.Length > 2)
+			if ((method.Name == "Run" || method.Name == "RunParallel") && method.TypeArguments.Length > 2)
 			{
 				componentTypes = SkipTypeArguments(method.TypeArguments, 2);
 				return componentTypes.Length > 0;
@@ -307,8 +384,23 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		return null;
 	}
 
+	private static bool TryGetComponentTypesFromPotentialJobType(ITypeSymbol? jobType, out ITypeSymbol[] componentTypes)
+	{
+		componentTypes = [];
+		if (jobType is null)
+			return false;
+
+		var inferred = InferJobComponentTypes(jobType);
+		if (inferred.Length == 0)
+			return false;
+
+		componentTypes = inferred;
+		return true;
+	}
+
 	private static bool IsIterationMethodName(string methodName) =>
-		methodName == "ForEach" || methodName == "ForEachRw" || methodName == "ForEachRW" || methodName == "Run";
+		methodName == "ForEach" || methodName == "ForEachRw" || methodName == "ForEachRW" || methodName == "Run" ||
+		methodName == "RunParallel";
 
 	private static bool IsQueryHandleType(ITypeSymbol type) =>
 		type is INamedTypeSymbol named &&
@@ -335,6 +427,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		None,
 		LegacyQuery,
 		QueryCursor,
+		QueryView,
 		World
 	}
 
@@ -350,7 +443,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			if (!iface.IsGenericType)
 				continue;
 
-			if (iface.Name != "IForEach")
+			if (iface.Name != "IForEach" && iface.Name != "IForEachEntity")
 				continue;
 
 			if (iface.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Abstractions")
@@ -368,9 +461,11 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 
 	private static SystemModel BuildSystemModel(INamedTypeSymbol type, Compilation compilation)
 	{
-		var reads       = new HashSet<string>(StringComparer.Ordinal);
-		var writes      = new HashSet<string>(StringComparer.Ordinal);
-		var isExclusive = false;
+		var reads          = new HashSet<string>(StringComparer.Ordinal);
+		var writes         = new HashSet<string>(StringComparer.Ordinal);
+		var readResources  = new HashSet<string>(StringComparer.Ordinal);
+		var writeResources = new HashSet<string>(StringComparer.Ordinal);
+		var isExclusive    = false;
 
 		for (var current = type; current is { }; current = current.BaseType)
 		{
@@ -391,17 +486,27 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 					writes.Add(
 						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
 					);
+				else if (attributeClass.Name == "ReadsResourceAttribute" && attributeClass.TypeArguments.Length == 1)
+					readResources.Add(
+						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+					);
+				else if (attributeClass.Name == "WritesResourceAttribute" && attributeClass.TypeArguments.Length == 1)
+					writeResources.Add(
+						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+					);
 				else if (attributeClass.Name == "ExclusiveAttribute")
 					isExclusive = true;
 			}
 		}
 
-		InferFromUpdateBodies(type, compilation, reads, writes);
+		InferFromUpdateBodies(type, compilation, reads, writes, readResources, writeResources);
 
 		return new(
 			type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			reads.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
 			writes.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
+			readResources.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
+			writeResources.OrderBy(static x => x, StringComparer.Ordinal).ToArray(),
 			isExclusive
 		);
 	}
@@ -419,6 +524,36 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		writes.Add(key);
 		reads.Remove(key);
 	}
+
+	private static void AddReadResource(
+		HashSet<string> readResources,
+		HashSet<string> writeResources,
+		ITypeSymbol     type)
+	{
+		string key = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		if (!writeResources.Contains(key))
+			readResources.Add(key);
+	}
+
+	private static void AddWriteResource(
+		HashSet<string> readResources,
+		HashSet<string> writeResources,
+		ITypeSymbol     type)
+	{
+		string key = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		writeResources.Add(key);
+		readResources.Remove(key);
+	}
+
+	private static void AddDirectIterationConflictResource(
+		HashSet<string> readResources,
+		HashSet<string> writeResources)
+	{
+		writeResources.Add(DirectIterationConflictResourceKey);
+		readResources.Remove(DirectIterationConflictResourceKey);
+	}
+
+	private static bool RequiresDirectIterationConflict(IterationTarget target) => false;
 
 	private static void CollectSystems(
 		INamespaceSymbol         namespaceSymbol,
@@ -449,8 +584,108 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			CollectSystems(nestedTypes[i], compilation, output);
 	}
 
-	private static void InferFromInvocation(IMethodSymbol method, HashSet<string> reads, HashSet<string> writes)
+	private static bool TryGetDirectAccess(
+		IMethodSymbol method,
+		out AccessTarget target,
+		out bool        isWrite,
+		out ITypeSymbol accessedType)
 	{
+		target       = AccessTarget.None;
+		isWrite      = false;
+		accessedType = null!;
+		var originalMethod = method.ReducedFrom ?? method;
+		var candidate = method.TypeArguments.Length == 1
+			? method
+			: originalMethod.TypeArguments.Length == 1
+				? originalMethod
+				: null;
+
+		if (candidate is null || candidate.TypeArguments.Length != 1)
+			return false;
+
+		string containingType = candidate.ContainingType.ToDisplayString();
+		if (containingType != "Bezoro.ECS.Services.World" &&
+			containingType != "Bezoro.ECS.Abstractions.IWorld")
+			return false;
+
+		accessedType = candidate.TypeArguments[0];
+		switch (candidate.Name)
+		{
+			case "Read":
+			case "TryRead":
+			case "Get":
+			case "TryGet":
+			case "Has":
+				target  = AccessTarget.Component;
+				isWrite = false;
+				return true;
+			case "Write":
+			case "TryWrite":
+			case "Set":
+			case "Replace":
+			case "Add":
+			case "Remove":
+				target  = AccessTarget.Component;
+				isWrite = true;
+				return true;
+			case "ReadResource":
+			case "TryReadResource":
+			case "GetResource":
+			case "HasResource":
+				target  = AccessTarget.Resource;
+				isWrite = false;
+				return true;
+			case "WriteResource":
+			case "GetOrCreateResource":
+			case "SetResource":
+			case "ReplaceResource":
+			case "RemoveResource":
+				target  = AccessTarget.Resource;
+				isWrite = true;
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	private static void InferFromInvocation(
+		IMethodSymbol     method,
+		HashSet<string>   reads,
+		HashSet<string>   writes,
+		HashSet<string>   readResources,
+		HashSet<string>   writeResources)
+	{
+		var originalMethod = method.ReducedFrom ?? method;
+		bool hasIterationTarget = TryResolveIterationTarget(method, originalMethod, out var iterationTarget);
+
+		if (TryGetSingleReadOnlyQueryViewForEachComponent(method, out var readOnlyComponentType))
+		{
+			AddReadComponent(reads, writes, readOnlyComponentType);
+			if (hasIterationTarget && RequiresDirectIterationConflict(iterationTarget))
+				AddDirectIterationConflictResource(readResources, writeResources);
+			return;
+		}
+
+		if (TryGetDirectAccess(method, out var target, out bool isWrite, out var accessedType))
+		{
+			if (target == AccessTarget.Component)
+			{
+				if (isWrite)
+					AddWriteComponent(reads, writes, accessedType);
+				else
+					AddReadComponent(reads, writes, accessedType);
+			}
+			else if (target == AccessTarget.Resource)
+			{
+				if (isWrite)
+					AddWriteResource(readResources, writeResources, accessedType);
+				else
+					AddReadResource(readResources, writeResources, accessedType);
+			}
+
+			return;
+		}
+
 		if (!TryGetForEachComponentAccess(method, out bool isReadWrite, out var componentTypes))
 			return;
 
@@ -462,15 +697,184 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 			for (var i = 0; i < componentTypes.Length; i++)
 				AddWriteComponent(reads, writes, componentTypes[i]);
 
+			if (hasIterationTarget && RequiresDirectIterationConflict(iterationTarget))
+				AddDirectIterationConflictResource(readResources, writeResources);
 			return;
 		}
 
 		AddWriteComponent(reads, writes, componentTypes[0]);
 		for (var i = 1; i < componentTypes.Length; i++)
 			AddReadComponent(reads, writes, componentTypes[i]);
+
+		if (hasIterationTarget && RequiresDirectIterationConflict(iterationTarget))
+			AddDirectIterationConflictResource(readResources, writeResources);
 	}
 
-	private static void InferFromOperation(IOperation root, HashSet<string> reads, HashSet<string> writes)
+	private static void InferFromInvocationSyntax(
+		InvocationExpressionSyntax invocation,
+		SemanticModel              semanticModel,
+		HashSet<string>            reads,
+		HashSet<string>            writes,
+		HashSet<string>            readResources,
+		HashSet<string>            writeResources)
+	{
+		if (semanticModel.GetOperation(invocation) is IInvocationOperation)
+			return;
+
+		if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+			return;
+
+		if (memberAccess.Name is not GenericNameSyntax and not IdentifierNameSyntax)
+			return;
+
+		string methodName = memberAccess.Name.Identifier.ValueText;
+		if (methodName != "ForEach" && methodName != "ForEachRead" && methodName != "Run" && methodName != "RunParallel")
+			return;
+
+		var receiverType = semanticModel.GetTypeInfo(memberAccess.Expression).Type;
+		if (!TryResolveIterationTargetFromReceiverType(receiverType, out var target))
+			return;
+
+		if (methodName == "ForEachRead")
+		{
+			if (memberAccess.Name is not GenericNameSyntax readOnlyGenericName ||
+				!TryGetComponentTypesFromGenericName(readOnlyGenericName, receiverType, semanticModel, methodName, out var readOnlyTypes) ||
+				readOnlyTypes.Length != 1)
+				return;
+
+			AddReadComponent(reads, writes, readOnlyTypes[0]);
+			if (RequiresDirectIterationConflict(target))
+				AddDirectIterationConflictResource(readResources, writeResources);
+			return;
+		}
+
+		if (methodName is "Run" or "RunParallel")
+		{
+			ITypeSymbol? jobType = null;
+			for (var i = 0; i < invocation.ArgumentList.Arguments.Count; i++)
+			{
+				var candidateType = semanticModel.GetTypeInfo(invocation.ArgumentList.Arguments[i].Expression).Type;
+				if (TryGetComponentTypesFromPotentialJobType(candidateType, out var componentTypes))
+				{
+					jobType = candidateType;
+					AddWriteComponent(reads, writes, componentTypes[0]);
+					for (var componentIndex = 1; componentIndex < componentTypes.Length; componentIndex++)
+						AddReadComponent(reads, writes, componentTypes[componentIndex]);
+
+					break;
+				}
+			}
+
+			if (jobType is not null)
+			{
+				if (RequiresDirectIterationConflict(target))
+					AddDirectIterationConflictResource(readResources, writeResources);
+				return;
+			}
+		}
+
+		if (memberAccess.Name is not GenericNameSyntax genericName)
+			return;
+
+		if (!TryGetComponentTypesFromGenericName(genericName, receiverType, semanticModel, methodName, out var genericComponentTypes))
+			return;
+
+		AddWriteComponent(reads, writes, genericComponentTypes[0]);
+		for (var i = 1; i < genericComponentTypes.Length; i++)
+			AddReadComponent(reads, writes, genericComponentTypes[i]);
+		if (RequiresDirectIterationConflict(target))
+			AddDirectIterationConflictResource(readResources, writeResources);
+	}
+
+	private static bool TryGetComponentTypesFromGenericName(
+		GenericNameSyntax genericName,
+		ITypeSymbol?      receiverType,
+		SemanticModel     semanticModel,
+		string            methodName,
+		out ITypeSymbol[] componentTypes)
+	{
+		componentTypes = [];
+		if (!TryResolveIterationTargetFromReceiverType(receiverType, out var target))
+			return false;
+
+		int skipCount = methodName switch
+		{
+			"ForEach" => target switch
+			{
+				IterationTarget.QueryCursor => 0,
+				IterationTarget.QueryView   => 0,
+				IterationTarget.World       => 1,
+				IterationTarget.LegacyQuery => 0,
+				_                           => int.MaxValue
+			},
+			"ForEachRead" => 0,
+			"Run" or "RunParallel" => target switch
+			{
+				IterationTarget.QueryCursor => 1,
+				IterationTarget.QueryView   => 1,
+				IterationTarget.World       => 2,
+				IterationTarget.LegacyQuery => 1,
+				_                           => int.MaxValue
+			},
+			_ => int.MaxValue
+		};
+
+		if (skipCount >= genericName.TypeArgumentList.Arguments.Count)
+			return false;
+
+		var result = new List<ITypeSymbol>();
+		for (var i = skipCount; i < genericName.TypeArgumentList.Arguments.Count; i++)
+		{
+			var type = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[i]).Type;
+			if (type is not null)
+				result.Add(type);
+		}
+
+		componentTypes = result.ToArray();
+		return componentTypes.Length > 0;
+	}
+
+	private static bool TryResolveIterationTargetFromReceiverType(ITypeSymbol? receiverType, out IterationTarget target)
+	{
+		target = IterationTarget.None;
+		if (receiverType is null)
+			return false;
+
+		if (IsTypeName(receiverType, "Bezoro.ECS.Types.Query"))
+		{
+			target = IterationTarget.LegacyQuery;
+			return true;
+		}
+
+		if (IsTypeName(receiverType, "Bezoro.ECS.Types.QueryCursor"))
+		{
+			target = IterationTarget.QueryCursor;
+			return true;
+		}
+
+		if (receiverType is INamedTypeSymbol receiverNamed &&
+			receiverNamed.Name == "QueryView" &&
+			receiverNamed.ContainingNamespace.ToDisplayString() == "Bezoro.ECS.Types")
+		{
+			target = IterationTarget.QueryView;
+			return true;
+		}
+
+		if (IsTypeName(receiverType, "Bezoro.ECS.Services.World"))
+		{
+			target = IterationTarget.World;
+			return true;
+		}
+
+		return false;
+	}
+
+	private static void InferFromOperation(
+		IOperation       root,
+		HashSet<string>  reads,
+		HashSet<string>  writes,
+		HashSet<string>  readResources,
+		HashSet<string>  writeResources)
 	{
 		var stack = new Stack<IOperation>();
 		stack.Push(root);
@@ -479,7 +883,7 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		{
 			var current = stack.Pop();
 			if (current is IInvocationOperation invocation)
-				InferFromInvocation(invocation.TargetMethod, reads, writes);
+				InferFromInvocation(invocation.TargetMethod, reads, writes, readResources, writeResources);
 
 			foreach (var child in current.ChildOperations)
 				stack.Push(child);
@@ -490,7 +894,9 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		INamedTypeSymbol type,
 		Compilation      compilation,
 		HashSet<string>  reads,
-		HashSet<string>  writes)
+		HashSet<string>  writes,
+		HashSet<string>  readResources,
+		HashSet<string>  writeResources)
 	{
 		var members = type.GetMembers("Update");
 		for (var memberIndex = 0; memberIndex < members.Length; memberIndex++)
@@ -513,7 +919,9 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				if (operation is null)
 					continue;
 
-				InferFromOperation(operation, reads, writes);
+				InferFromOperation(operation, reads, writes, readResources, writeResources);
+				foreach (var invocation in syntax.DescendantNodes().OfType<InvocationExpressionSyntax>())
+					InferFromInvocationSyntax(invocation, semanticModel, reads, writes, readResources, writeResources);
 			}
 		}
 	}
@@ -522,13 +930,24 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		string                systemType,
 		IReadOnlyList<string> reads,
 		IReadOnlyList<string> writes,
+		IReadOnlyList<string> readResources,
+		IReadOnlyList<string> writeResources,
 		bool                  isExclusive
 	)
 	{
-		public bool                  IsExclusive { get; } = isExclusive;
-		public IReadOnlyList<string> Reads       { get; } = reads;
-		public IReadOnlyList<string> Writes      { get; } = writes;
+		public bool                  IsExclusive    { get; } = isExclusive;
+		public IReadOnlyList<string> Reads          { get; } = reads;
+		public IReadOnlyList<string> Writes         { get; } = writes;
+		public IReadOnlyList<string> ReadResources  { get; } = readResources;
+		public IReadOnlyList<string> WriteResources { get; } = writeResources;
 
 		public string SystemType { get; } = systemType;
+	}
+
+	private enum AccessTarget
+	{
+		None,
+		Component,
+		Resource
 	}
 }

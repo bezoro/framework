@@ -16,6 +16,7 @@ Unit and integration tests for `Bezoro.ECS` runtime, scheduling, source generati
 | `WorldRuntimeOverflowTests`                     | Capacity and overflow policy behavior for playback and command recording.                                                   |
 | `WorldApiContractTests`                         | Public API surface and contract-level behavior checks for `World`/`IWorld`.                                                 |
 | `SystemManagerTests`                            | Scheduling behavior, access-conflict batching, and phase/stage execution semantics.                                         |
+| `SystemManagerErgonomicInferenceTests`          | Scheduler inference coverage for ergonomic APIs such as `QueryView`, direct resource methods, and generated job extensions. |
 | `QueryGeneratorTests`                           | Compiled query usage and filtering behavior from a consumer perspective.                                                    |
 | `GeneratedQueryAndJobSourceGenIntegrationTests` | Source-generated query-spec and job-extension integration against runtime execution APIs.                                   |
 | `GeneratedSystemMetadataResolverTests`          | Generated system metadata discovery and resolver behavior.                                                                  |
@@ -32,6 +33,14 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 - Runtime tests prioritize correctness for structural changes, deterministic playback, and fixed-capacity behavior.
 - Snapshot restore coverage includes fail-closed defaults, explicit allow-list enforcement, malformed payload rejection, and no-mutation-on-rejection behavior.
 - Source-generation integration tests ensure generated code stays aligned with runtime contracts.
+
+## Release Gates
+
+- `WorldApiContractTests` protects the intended public authoring surface, including `QueryView<TSpec>` and `SystemContext.Commands`.
+- `SystemManagerTests` and `SystemManagerErgonomicInferenceTests` protect scheduler conflict detection for both attribute-driven and inferred access metadata.
+- `WorldAdvancedApiTests` protects snapshot fail-closed behavior, allow-list enforcement, and no-mutation-on-rejection semantics.
+- `WorldRuntimeAllocationTests` protects hot-path allocation expectations after warmup.
+- `GeneratedQueryAndJobSourceGenIntegrationTests` protects the generator-backed ergonomic API that application code is expected to use.
 
 ## Test Conventions
 

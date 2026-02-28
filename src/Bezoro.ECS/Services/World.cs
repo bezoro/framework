@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Bezoro.ECS.Abstractions;
@@ -6,6 +8,7 @@ using Bezoro.ECS.Options;
 using Bezoro.ECS.Types;
 using RelationMarker = Bezoro.ECS.Internal.RelationMarker;
 using RelationshipInfo = Bezoro.ECS.Internal.RelationshipInfo;
+using QueryExecutionLease = Bezoro.ECS.Internal.QueryExecutionLease;
 
 namespace Bezoro.ECS.Services;
 
@@ -35,6 +38,7 @@ public class World : IWorld, IDisposable
 	private readonly Dictionary<Type, CompiledQueryPlan> _compiledPlansBySpecType = [];
 	private readonly Dictionary<Type, int>               _typeToId                = [];
 	private readonly Dictionary<Type, object>            _resources               = [];
+	private readonly ConcurrentBag<QueryExecutionLease>  _queryExecutionLeasePool = [];
 	private readonly Entity[]                            _queryEntities;
 	private readonly EntityLocation[]                    _locationByEntityId;
 	private readonly int                                 _emptyArchetypeId;
@@ -61,6 +65,7 @@ public class World : IWorld, IDisposable
 	private int  _queryHighWatermark;
 	private int  _queryOverflowCount;
 	private int  _registeredTypeHighWatermark;
+	private int  _sharedQueryScratchInUse;
 	private int  _typeCount;
 	private int  _updateDepth;
 	private uint _componentChangeVersion;
@@ -133,6 +138,9 @@ public class World : IWorld, IDisposable
 		return TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
 
+	public bool TryRead<T>(Entity entity, out T component) where T : struct =>
+		TryGet(entity, out component);
+
 	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
@@ -164,6 +172,9 @@ public class World : IWorld, IDisposable
 		int typeId = GetOrCreateComponentTypeId<T>();
 		return new(this, typeId);
 	}
+
+	public CommandBuffer CreateCommandBuffer() =>
+		new(CreateCommandStream());
 
 	public Entity Spawn()
 	{
@@ -225,21 +236,28 @@ public class World : IWorld, IDisposable
 	/// <param name="handle">Compiled query handle produced by <see cref="Compile{TSpec}" />.</param>
 	/// <returns>A <see cref="QueryCursor" /> that must be disposed after use.</returns>
 	/// <exception cref="InvalidOperationException">
-	///     Thrown if another cursor is already open. Only one active query cursor is supported at a time.
-	///     <see cref="World" /> is not thread-safe; do not call from multiple threads concurrently.
+	///     Thrown when <paramref name="handle" /> belongs to a different world.
+	///     Structural world operations remain disallowed while any query cursor is active.
 	/// </exception>
 	public QueryCursor Execute<TSpec>(QueryHandle<TSpec> handle) where TSpec : struct, ICompiledQuerySpec
 	{
 		ThrowIfDisposed();
-		if (_activeQueryCursors > 0)
-			throw new InvalidOperationException("Only one active query cursor is supported at a time.");
-
 		if (!ReferenceEquals(handle.Plan.Owner, this))
 			throw new InvalidOperationException("Query handle belongs to a different world.");
 
-		int matchCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		_activeQueryCursors = 1;
-		return new(this, _queryChunkMatches, chunkMatchCount, _queryEntities, matchCount);
+		AcquireQueryExecutionScratch(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		try
+		{
+			int matchCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			var lease = RentQueryExecutionLease(chunkMatches, entities, usesSharedScratch);
+			Interlocked.Increment(ref _activeQueryCursors);
+			return new(this, chunkMatches, chunkMatchCount, entities, matchCount, lease);
+		}
+		catch
+		{
+			ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+			throw;
+		}
 	}
 
 	public QueryHandle<TSpec> Compile<TSpec>() where TSpec : struct, ICompiledQuerySpec
@@ -270,11 +288,100 @@ public class World : IWorld, IDisposable
 		return ref component;
 	}
 
+	public ref readonly T Read<T>(Entity entity) where T : struct
+	{
+		ThrowIfDisposed();
+		EnsureAlive(entity);
+		int typeId = GetOrCreateComponentTypeId<T>();
+		return ref GetComponentRefUnchecked<T>(entity.Id, typeId);
+	}
+
+	public bool TryWrite<T>(Entity entity, out ComponentRef<T> component) where T : struct
+	{
+		ThrowIfDisposed();
+		component = default;
+		if (!IsAliveUnchecked(entity))
+			return false;
+
+		int typeId = GetOrCreateComponentTypeId<T>();
+		var location = _locationByEntityId[entity.Id];
+		if (!location.IsValid)
+			return false;
+
+		var archetype = _archetypes[location.ArchetypeId];
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			return false;
+
+		ref var value = ref GetComponentRefUnchecked<T>(entity.Id, typeId);
+		TrackPotentialSingleRefWrite(entity.Id, typeId);
+		component = new(ref value);
+		return true;
+	}
+
+	public ref T Write<T>(Entity entity) where T : struct =>
+		ref Get<T>(entity);
+
 	public ref T GetResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
 		if (!_resources.TryGetValue(typeof(T), out object? boxed))
 			throw new KeyNotFoundException($"Resource of type {typeof(T).Name} was not found.");
+
+		return ref ((ResourceBox<T>)boxed).Value;
+	}
+
+	public bool HasResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		return _resources.ContainsKey(typeof(T));
+	}
+
+	public ref readonly T ReadResource<T>() where T : notnull =>
+		ref GetResource<T>();
+
+	public bool TryReadResource<T>(out T resource) where T : notnull
+	{
+		ThrowIfDisposed();
+		if (_resources.TryGetValue(typeof(T), out object? boxed) &&
+			boxed is ResourceBox<T> typed)
+		{
+			resource = typed.Value;
+			return true;
+		}
+
+		resource = default!;
+		return false;
+	}
+
+	public ref T WriteResource<T>() where T : notnull =>
+		ref GetResource<T>();
+
+	public ref T GetOrCreateResource<T>() where T : notnull, new()
+	{
+		ThrowIfDisposed();
+		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+		{
+			var created = new ResourceBox<T>(new());
+			_resources[typeof(T)] = created;
+			return ref created.Value;
+		}
+
+		return ref ((ResourceBox<T>)boxed).Value;
+	}
+
+	public ref T GetOrCreateResource<T>(Func<T> factory) where T : notnull
+	{
+		ThrowIfDisposed();
+		if (factory is null)
+			throw new ArgumentNullException(nameof(factory));
+
+		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+		{
+			var created = new ResourceBox<T>(factory());
+			_resources[typeof(T)] = created;
+			return ref created.Value;
+		}
 
 		return ref ((ResourceBox<T>)boxed).Value;
 	}
@@ -468,38 +575,11 @@ public class World : IWorld, IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-				action(ref Unsafe.Add(ref c1Start, offset));
-		}
+		cursor.ForEach(action);
 	}
 
 	public void ForEach<TSpec, T1, T2>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2> action)
@@ -510,51 +590,11 @@ public class World : IWorld, IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				action(ref c1, in c2);
-			}
-		}
+		cursor.ForEach(action);
 	}
 
 	public void ForEach<TSpec, T1, T2, T3>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2, T3> action)
@@ -566,61 +606,11 @@ public class World : IWorld, IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = GetOrCreateComponentTypeId<T3>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				action(ref c1, in c2, in c3);
-			}
-		}
+		cursor.ForEach(action);
 	}
 
 	/// <summary>
@@ -645,71 +635,11 @@ public class World : IWorld, IDisposable
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = GetOrCreateComponentTypeId<T3>();
-		int               typeId4            = GetOrCreateComponentTypeId<T4>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		int               cachedColumnIndex4 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
-				if (cachedColumnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-				action(ref c1, in c2, in c3, in c4);
-			}
-		}
+		cursor.ForEach(action);
 	}
 
 	public void LateTick(float deltaTime) => RunPhase(SystemLoopPhase.LateTick, deltaTime);
@@ -721,7 +651,7 @@ public class World : IWorld, IDisposable
 		if (!ReferenceEquals(stream.Owner, this))
 			throw new InvalidOperationException("Command stream belongs to a different world.");
 
-		if (_activeQueryCursors > 0)
+		if (Volatile.Read(ref _activeQueryCursors) > 0)
 			throw new InvalidOperationException("Playback cannot run while a query cursor is active.");
 
 		stream.PlaybackInternal();
@@ -733,6 +663,9 @@ public class World : IWorld, IDisposable
 		int typeId = GetOrCreateComponentTypeId<T>();
 		RemoveComponentFromCommand(entity, typeId);
 	}
+
+	public void Replace<T>(Entity entity, in T component) where T : struct =>
+		Set(entity, in component);
 
 	public void Reset()
 	{
@@ -751,6 +684,7 @@ public class World : IWorld, IDisposable
 		_freeCount          = 0;
 		_nextEntityId       = 0;
 		_activeQueryCursors = 0;
+		_sharedQueryScratchInUse = 0;
 		_addedVersionByEntityType.Clear();
 		_changeVersionByEntityType.Clear();
 		_relationTypeIdByKey.Clear();
@@ -765,38 +699,11 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 	{
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-				job.Execute(ref Unsafe.Add(ref c1Start, offset));
-		}
+		cursor.Run<TJob, T1>(job);
 	}
 
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
@@ -806,51 +713,11 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 	{
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				job.Execute(ref c1, in c2);
-			}
-		}
+		cursor.Run<TJob, T1, T2>(job);
 	}
 
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
@@ -861,61 +728,11 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 	{
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = GetOrCreateComponentTypeId<T3>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			if (match.Count == 0)
-				continue;
-
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				job.Execute(ref c1, in c2, in c3);
-			}
-		}
+		cursor.Run<TJob, T1, T2, T3>(job);
 	}
 
 	/// <summary>
@@ -938,71 +755,77 @@ public class World : IWorld, IDisposable
 		where T4 : unmanaged
 	{
 		ThrowIfDisposed();
-		ThrowIfDirectIterationUnavailable(handle);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
 			return;
 
-		int               typeId1            = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int               typeId2            = GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = GetOrCreateComponentTypeId<T3>();
-		int               typeId4            = GetOrCreateComponentTypeId<T4>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		int               cachedColumnIndex4 = -1;
-		for (var i = 0; i < chunkMatchCount; i++)
-		{
-			var match = _queryChunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _archetypes[match.ArchetypeId];
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
+		cursor.Run<TJob, T1, T2, T3, T4>(job);
+	}
 
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
+	/// <summary>
+	///     Executes an entity-aware struct job over one mutable unmanaged component.
+	/// </summary>
+	public void RunEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
+			return;
 
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
+		cursor.RunEntity<TJob, T1>(job);
+	}
 
-				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
-				if (cachedColumnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
+	/// <summary>
+	///     Executes an entity-aware struct job over one mutable and one read-only unmanaged component.
+	/// </summary>
+	public void RunEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
+			return;
 
-			if (match.Count == 0)
-				continue;
+		cursor.RunEntity<TJob, T1, T2>(job);
+	}
 
-			var     chunk   = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-				job.Execute(ref c1, in c2, in c3, in c4);
-			}
-		}
+	/// <summary>
+	///     Executes an entity-aware struct job over one mutable and two read-only unmanaged components.
+	/// </summary>
+	public void RunEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
+			return;
+
+		cursor.RunEntity<TJob, T1, T2, T3>(job);
+	}
+
+	/// <summary>
+	///     Executes an entity-aware struct job over one mutable and three read-only unmanaged components.
+	/// </summary>
+	public void RunEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		using var cursor = Execute(handle);
+		if (!cursor.MoveNext())
+			return;
+
+		cursor.RunEntity<TJob, T1, T2, T3, T4>(job);
 	}
 
 	/// <summary>
@@ -1024,35 +847,43 @@ public class World : IWorld, IDisposable
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
 		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
-			return;
+		AcquireQueryChunkMatchScratch(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
 
-		int typeId1 = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
-			chunkMatchCount,
-			parallelism,
-			index =>
-			{
-				var match = _queryChunkMatches[index];
-				if (match.Count == 0)
-					return;
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
+				{
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
 
-				var archetype = _archetypes[match.ArchetypeId];
-				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
-				if (columnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
 
-				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
-				var     local   = job;
-				for (var offset = 0; offset < match.Count; offset++)
-					local.Execute(ref Unsafe.Add(ref c1Start, offset));
-			}
-		);
+					var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					var     local   = job;
+					for (var offset = 0; offset < match.Count; offset++)
+						local.Execute(ref Unsafe.Add(ref c1Start, offset));
+				}
+			);
+		}
+		finally
+		{
+			ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
+		}
 	}
 
 	/// <summary>
@@ -1079,47 +910,55 @@ public class World : IWorld, IDisposable
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
 		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
-			return;
+		AcquireQueryChunkMatchScratch(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
 
-		int typeId1 = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int typeId2 = GetOrCreateComponentTypeId<T2>();
-		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
-			chunkMatchCount,
-			parallelism,
-			index =>
-			{
-				var match = _queryChunkMatches[index];
-				if (match.Count == 0)
-					return;
-
-				var archetype = _archetypes[match.ArchetypeId];
-				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
-				if (columnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
-				if (columnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
-				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
-				var     local   = job;
-				for (var offset = 0; offset < match.Count; offset++)
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
 				{
-					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-					local.Execute(ref c1, in c2);
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					var     local   = job;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						local.Execute(ref c1, in c2);
+					}
 				}
-			}
-		);
+			);
+		}
+		finally
+		{
+			ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
+		}
 	}
 
 	/// <summary>
@@ -1148,56 +987,64 @@ public class World : IWorld, IDisposable
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
 		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
-			return;
+		AcquireQueryChunkMatchScratch(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
 
-		int typeId1 = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int typeId2 = GetOrCreateComponentTypeId<T2>();
-		int typeId3 = GetOrCreateComponentTypeId<T3>();
-		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
-			chunkMatchCount,
-			parallelism,
-			index =>
-			{
-				var match = _queryChunkMatches[index];
-				if (match.Count == 0)
-					return;
-
-				var archetype = _archetypes[match.ArchetypeId];
-				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
-				if (columnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
-				if (columnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
-				if (columnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
-				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
-				ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
-				var     local   = job;
-				for (var offset = 0; offset < match.Count; offset++)
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			int typeId3 = GetOrCreateComponentTypeId<T3>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
 				{
-					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-					ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-					local.Execute(ref c1, in c2, in c3);
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+					if (columnIndex3 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+					var     local   = job;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+						local.Execute(ref c1, in c2, in c3);
+					}
 				}
-			}
-		);
+			);
+		}
+		finally
+		{
+			ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
+		}
 	}
 
 	/// <summary>
@@ -1228,65 +1075,359 @@ public class World : IWorld, IDisposable
 		ThrowIfDisposed();
 		ThrowIfDirectIterationUnavailable(handle);
 		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
-		int entityCount = FillQueryResults(handle.Plan, out int chunkMatchCount);
-		if (entityCount == 0)
-			return;
+		AcquireQueryChunkMatchScratch(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
 
-		int typeId1 = GetOrCreateComponentTypeId<T1>();
-		TrackPotentialQueryChunkMatchRefWrites(chunkMatchCount, typeId1);
-		int typeId2 = GetOrCreateComponentTypeId<T2>();
-		int typeId3 = GetOrCreateComponentTypeId<T3>();
-		int typeId4 = GetOrCreateComponentTypeId<T4>();
-		Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
-			chunkMatchCount,
-			parallelism,
-			index =>
-			{
-				var match = _queryChunkMatches[index];
-				if (match.Count == 0)
-					return;
-
-				var archetype = _archetypes[match.ArchetypeId];
-				int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
-				if (columnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
-				if (columnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
-				if (columnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				int columnIndex4 = archetype.GetColumnIndexOrNegative(typeId4);
-				if (columnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
-				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
-				ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
-				ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, columnIndex4, match.RowStart);
-				var     local   = job;
-				for (var offset = 0; offset < match.Count; offset++)
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			int typeId3 = GetOrCreateComponentTypeId<T3>();
+			int typeId4 = GetOrCreateComponentTypeId<T4>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
 				{
-					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-					ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-					ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-					local.Execute(ref c1, in c2, in c3, in c4);
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+					if (columnIndex3 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex4 = archetype.GetColumnIndexOrNegative(typeId4);
+					if (columnIndex4 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var     chunk   = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+					ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, columnIndex4, match.RowStart);
+					var     local   = job;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+						ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+						local.Execute(ref c1, in c2, in c3, in c4);
+					}
 				}
-			}
-		);
+			);
+		}
+		finally
+		{
+			ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
+		}
+	}
+
+	/// <summary>
+	///     Executes an entity-aware struct job in parallel over one mutable unmanaged component.
+	/// </summary>
+	public void RunParallelEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		AcquireQueryExecutionScratch(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
+
+			MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
+				{
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					var local = job;
+					int entityIndex = match.EntityStartIndex;
+					for (var offset = 0; offset < match.Count; offset++)
+						local.Execute(entities[entityIndex + offset], ref Unsafe.Add(ref c1Start, offset));
+				}
+			);
+		}
+		finally
+		{
+			ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+		}
+	}
+
+	/// <summary>
+	///     Executes an entity-aware struct job in parallel over one mutable and one read-only unmanaged component.
+	/// </summary>
+	public void RunParallelEntity<TSpec, TJob, T1, T2>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		AcquireQueryExecutionScratch(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
+
+			MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
+				{
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					var local = job;
+					int entityIndex = match.EntityStartIndex;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						local.Execute(entities[entityIndex + offset], ref c1, in c2);
+					}
+				}
+			);
+		}
+		finally
+		{
+			ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+		}
+	}
+
+	/// <summary>
+	///     Executes an entity-aware struct job in parallel over one mutable and two read-only unmanaged components.
+	/// </summary>
+	public void RunParallelEntity<TSpec, TJob, T1, T2, T3>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		AcquireQueryExecutionScratch(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
+
+			MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			int typeId3 = GetOrCreateComponentTypeId<T3>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
+				{
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+					if (columnIndex3 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+					var local = job;
+					int entityIndex = match.EntityStartIndex;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+						local.Execute(entities[entityIndex + offset], ref c1, in c2, in c3);
+					}
+				}
+			);
+		}
+		finally
+		{
+			ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+		}
+	}
+
+	/// <summary>
+	///     Executes an entity-aware struct job in parallel over one mutable and three read-only unmanaged components.
+	/// </summary>
+	public void RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(
+		QueryHandle<TSpec> handle,
+		TJob               job,
+		int?               degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		ThrowIfDirectIterationUnavailable(handle);
+		int parallelism = ResolveDegreeOfParallelism(degreeOfParallelism);
+		AcquireQueryExecutionScratch(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = FillQueryResults(handle.Plan, chunkMatches, _config.QueryResultCapacity, out int chunkMatchCount);
+			if (entityCount == 0)
+				return;
+
+			MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
+			int typeId1 = GetOrCreateComponentTypeId<T1>();
+			TrackPotentialQueryChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+			int typeId2 = GetOrCreateComponentTypeId<T2>();
+			int typeId3 = GetOrCreateComponentTypeId<T3>();
+			int typeId4 = GetOrCreateComponentTypeId<T4>();
+			Bezoro.ECS.Internal.ParallelWorkScheduler.Execute(
+				chunkMatchCount,
+				parallelism,
+				index =>
+				{
+					var match = chunkMatches[index];
+					if (match.Count == 0)
+						return;
+
+					var archetype = _archetypes[match.ArchetypeId];
+					int columnIndex1 = archetype.GetColumnIndexOrNegative(typeId1);
+					if (columnIndex1 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex2 = archetype.GetColumnIndexOrNegative(typeId2);
+					if (columnIndex2 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex3 = archetype.GetColumnIndexOrNegative(typeId3);
+					if (columnIndex3 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					int columnIndex4 = archetype.GetColumnIndexOrNegative(typeId4);
+					if (columnIndex4 < 0)
+						throw new KeyNotFoundException(
+							$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
+						);
+
+					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
+					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+					ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, columnIndex4, match.RowStart);
+					var local = job;
+					int entityIndex = match.EntityStartIndex;
+					for (var offset = 0; offset < match.Count; offset++)
+					{
+						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+						ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+						local.Execute(entities[entityIndex + offset], ref c1, in c2, in c3, in c4);
+					}
+				}
+			);
+		}
+		finally
+		{
+			ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+		}
 	}
 
 	/// <summary>
@@ -1298,7 +1439,7 @@ public class World : IWorld, IDisposable
 		where TSnapshotWriter : struct, IWorldSnapshotWriter
 	{
 		ThrowIfDisposed();
-		if (_activeQueryCursors > 0)
+		if (Volatile.Read(ref _activeQueryCursors) > 0)
 			throw new InvalidOperationException("Snapshot capture cannot run while a query cursor is active.");
 
 		var resources = new List<SnapshotResourceRecord>(_resources.Count);
@@ -1361,7 +1502,7 @@ public class World : IWorld, IDisposable
 		where TSnapshotReader : struct, IWorldSnapshotReader
 	{
 		ThrowIfDisposed();
-		if (_activeQueryCursors > 0)
+		if (Volatile.Read(ref _activeQueryCursors) > 0)
 			throw new InvalidOperationException("Snapshot restore cannot run while a query cursor is active.");
 
 		options ??= SnapshotDeserializationOptions.Default;
@@ -1393,22 +1534,36 @@ public class World : IWorld, IDisposable
 		ThrowIfDirectIterationUnavailable(handle);
 		var plan = handle.Plan;
 		int matchingArchetypeCount = GetOrRefreshMatchingArchetypes(plan);
-		int matchingEntityCount = FillQueryResults(plan, out int matchingChunkCount, false);
-		return new(
-			matchingArchetypeCount,
-			matchingChunkCount,
-			matchingEntityCount,
-			plan.ArchetypeCacheVersion,
-			plan.ArchetypeCacheVersion == _archetypeVersion,
-			ResolveTypes(plan.AllTypeIds),
-			ResolveTypes(plan.AnyTypeIds),
-			ResolveTypes(plan.NoneTypeIds),
-			ResolveTypes(plan.OptionalTypeIds),
-			ResolveTypes(plan.AddedTypeIds),
-			ResolveTypes(plan.ChangedTypeIds),
-			plan.RelatedRelationType,
-			plan.RelatedTarget
-		);
+		AcquireQueryChunkMatchScratch(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int matchingEntityCount = FillQueryResults(
+				plan,
+				chunkMatches,
+				_config.QueryResultCapacity,
+				out int matchingChunkCount,
+				false
+			);
+			return new(
+				matchingArchetypeCount,
+				matchingChunkCount,
+				matchingEntityCount,
+				plan.ArchetypeCacheVersion,
+				plan.ArchetypeCacheVersion == _archetypeVersion,
+				ResolveTypes(plan.AllTypeIds),
+				ResolveTypes(plan.AnyTypeIds),
+				ResolveTypes(plan.NoneTypeIds),
+				ResolveTypes(plan.OptionalTypeIds),
+				ResolveTypes(plan.AddedTypeIds),
+				ResolveTypes(plan.ChangedTypeIds),
+				plan.RelatedRelationType,
+				plan.RelatedTarget
+			);
+		}
+		finally
+		{
+			ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
+		}
 	}
 
 	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
@@ -1436,6 +1591,12 @@ public class World : IWorld, IDisposable
 		ApplySetFromCommand(entity, in component);
 	}
 
+	public QueryView<TSpec> Query<TSpec>() where TSpec : struct, ICompiledQuerySpec =>
+		new(this, Compile<TSpec>());
+
+	public void Precompile<TSpec>() where TSpec : struct, ICompiledQuerySpec =>
+		_ = Compile<TSpec>();
+
 	public void SetResource<T>(T resource) where T : notnull
 	{
 		ThrowIfDisposed();
@@ -1443,6 +1604,21 @@ public class World : IWorld, IDisposable
 			existingBox.DisposeValue();
 
 		_resources[typeof(T)] = new ResourceBox<T>(resource);
+	}
+
+	public void ReplaceResource<T>(T resource) where T : notnull =>
+		SetResource(resource);
+
+	public bool RemoveResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		if (!_resources.TryGetValue(typeof(T), out object? existing))
+			return false;
+
+		if (existing is IResourceBox resourceBox)
+			resourceBox.DisposeValue();
+
+		return _resources.Remove(typeof(T));
 	}
 
 	public void Tick(float deltaTime) => RunPhase(SystemLoopPhase.Tick, deltaTime);
@@ -1476,6 +1652,102 @@ public class World : IWorld, IDisposable
 
 		return _archetypes[archetypeId];
 	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal Entity GetEntityForCursor(int entityId) =>
+		new(entityId, _versionByEntityId[entityId]);
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal int[] GetEntityVersionsForCursor() => _versionByEntityId;
+
+	internal void ReleaseCursorQueryExecution(
+		QueryChunkMatch[]    chunkMatches,
+		Entity[]             entities,
+		bool                 usesSharedScratch,
+		QueryExecutionLease  lease)
+	{
+		ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
+		Interlocked.Decrement(ref _activeQueryCursors);
+		_queryExecutionLeasePool.Add(lease);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private QueryExecutionLease RentQueryExecutionLease(
+		QueryChunkMatch[] chunkMatches,
+		Entity[]          entities,
+		bool              usesSharedScratch)
+	{
+		if (!_queryExecutionLeasePool.TryTake(out var lease))
+			lease = new();
+
+		lease.Initialize(this, chunkMatches, entities, usesSharedScratch);
+		return lease;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void AcquireQueryChunkMatchScratch(out QueryChunkMatch[] chunkMatches, out bool usesSharedScratch)
+	{
+		if (TryAcquireSharedQueryScratch())
+		{
+			chunkMatches     = _queryChunkMatches;
+			usesSharedScratch = true;
+			return;
+		}
+
+		chunkMatches      = ArrayPool<QueryChunkMatch>.Shared.Rent(_config.QueryResultCapacity);
+		usesSharedScratch = false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void AcquireQueryExecutionScratch(
+		out QueryChunkMatch[] chunkMatches,
+		out Entity[]          entities,
+		out bool              usesSharedScratch)
+	{
+		if (TryAcquireSharedQueryScratch())
+		{
+			chunkMatches      = _queryChunkMatches;
+			entities          = _queryEntities;
+			usesSharedScratch = true;
+			return;
+		}
+
+		chunkMatches      = ArrayPool<QueryChunkMatch>.Shared.Rent(_config.QueryResultCapacity);
+		entities          = ArrayPool<Entity>.Shared.Rent(_config.QueryResultCapacity);
+		usesSharedScratch = false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ReleaseQueryChunkMatchScratch(QueryChunkMatch[] chunkMatches, bool usesSharedScratch)
+	{
+		if (usesSharedScratch)
+		{
+			Volatile.Write(ref _sharedQueryScratchInUse, 0);
+			return;
+		}
+
+		ArrayPool<QueryChunkMatch>.Shared.Return(chunkMatches);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ReleaseQueryExecutionScratch(
+		QueryChunkMatch[] chunkMatches,
+		Entity[]          entities,
+		bool              usesSharedScratch)
+	{
+		if (usesSharedScratch)
+		{
+			Volatile.Write(ref _sharedQueryScratchInUse, 0);
+			return;
+		}
+
+		ArrayPool<QueryChunkMatch>.Shared.Return(chunkMatches);
+		ArrayPool<Entity>.Shared.Return(entities);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryAcquireSharedQueryScratch() =>
+		Interlocked.CompareExchange(ref _sharedQueryScratchInUse, 1, 0) == 0;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool HasComponentForAccessor(
@@ -2018,7 +2290,7 @@ public class World : IWorld, IDisposable
 
 	internal void ExitQueryCursor()
 	{
-		if (_activeQueryCursors > 0)
+		if (Volatile.Read(ref _activeQueryCursors) > 0)
 			_activeQueryCursors = 0;
 	}
 
@@ -2907,9 +3179,12 @@ public class World : IWorld, IDisposable
 		return true;
 	}
 
-	private bool TryAppendQueryChunk(in QueryChunkMatch chunkMatch, ref int chunkMatchCount)
+	private bool TryAppendQueryChunk(
+		in QueryChunkMatch chunkMatch,
+		QueryChunkMatch[]  chunkMatches,
+		ref int            chunkMatchCount)
 	{
-		if (chunkMatchCount >= _queryChunkMatches.Length)
+		if (chunkMatchCount >= chunkMatches.Length)
 		{
 			_queryOverflowCount++;
 			if (_config.OverflowPolicy == WorldOverflowPolicy.FailFast)
@@ -2920,7 +3195,7 @@ public class World : IWorld, IDisposable
 			return false;
 		}
 
-		_queryChunkMatches[chunkMatchCount++] = chunkMatch;
+		chunkMatches[chunkMatchCount++] = chunkMatch;
 		return true;
 	}
 
@@ -2929,10 +3204,12 @@ public class World : IWorld, IDisposable
 		int chunkIndex,
 		int rowStart,
 		int rowCount,
+		QueryChunkMatch[] chunkMatches,
+		int entityCapacity,
 		ref int count,
 		ref int chunkMatchCount)
 	{
-		int remaining = _queryEntities.Length - count;
+		int remaining = entityCapacity - count;
 		if (remaining <= 0)
 		{
 			_queryOverflowCount++;
@@ -2947,6 +3224,7 @@ public class World : IWorld, IDisposable
 		int rowsToAppend = Math.Min(remaining, rowCount);
 		if (!TryAppendQueryChunk(
 				new(refArchetypeId, chunkIndex, rowStart, rowsToAppend, count),
+				chunkMatches,
 				ref chunkMatchCount
 			))
 			return false;
@@ -3340,6 +3618,8 @@ public class World : IWorld, IDisposable
 
 	private int FillQueryResults(
 		CompiledQueryPlan plan,
+		QueryChunkMatch[] chunkMatches,
+		int               entityCapacity,
 		out int           chunkMatchCount,
 		bool              advanceObservedChangeVersion = true)
 	{
@@ -3365,6 +3645,8 @@ public class World : IWorld, IDisposable
 							chunkIndex,
 							0,
 							chunk.Count,
+							chunkMatches,
+							entityCapacity,
 							ref count,
 							ref chunkMatchCount
 						))
@@ -3392,6 +3674,8 @@ public class World : IWorld, IDisposable
 							chunkIndex,
 							runStart,
 							row - runStart,
+							chunkMatches,
+							entityCapacity,
 							ref count,
 							ref chunkMatchCount
 						))
@@ -3408,6 +3692,18 @@ public class World : IWorld, IDisposable
 
 		return count;
 	}
+
+	private int FillQueryResults(
+		CompiledQueryPlan plan,
+		out int           chunkMatchCount,
+		bool              advanceObservedChangeVersion = true) =>
+		FillQueryResults(
+			plan,
+			_queryChunkMatches,
+			_config.QueryResultCapacity,
+			out chunkMatchCount,
+			advanceObservedChangeVersion
+		);
 
 	private int GetOrCreateAddTransition(ArchetypeStorage sourceArchetype, int typeId)
 	{
@@ -3491,6 +3787,18 @@ public class World : IWorld, IDisposable
 			return;
 
 		TrackPotentialChunkMatchRefWrites(_queryChunkMatches, chunkMatchCount, typeId);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void TrackPotentialQueryChunkMatchRefWrites(
+		QueryChunkMatch[] chunkMatches,
+		int               chunkMatchCount,
+		int               typeId)
+	{
+		if (!_trackRefWriteChanges)
+			return;
+
+		TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -4005,9 +4313,6 @@ public class World : IWorld, IDisposable
 	private void ThrowIfDirectIterationUnavailable<TSpec>(QueryHandle<TSpec> handle)
 		where TSpec : struct, ICompiledQuerySpec
 	{
-		if (_activeQueryCursors > 0)
-			throw new InvalidOperationException("Direct query iteration cannot run while a query cursor is active.");
-
 		if (!ReferenceEquals(handle.Plan.Owner, this))
 			throw new InvalidOperationException("Query handle belongs to a different world.");
 	}

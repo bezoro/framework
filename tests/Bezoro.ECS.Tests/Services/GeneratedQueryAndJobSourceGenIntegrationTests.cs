@@ -181,7 +181,7 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		var       handle = world.Compile<GeneratedPositionVelocityQuery>();
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
-		cursor.Run(new(3f));
+		cursor.Run(new GeneratedIntegrateJob(3f));
 
 		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 13, Y = 10 });
 	}
@@ -206,9 +206,121 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		);
 
 		var handle = world.Compile<GeneratedPositionVelocityQuery>();
-		world.Run(handle, new(2f));
+		world.Run(handle, new GeneratedIntegrateJob(2f));
 
 		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 7, Y = 0 });
+	}
+
+	[Fact]
+	public void Run_WhenUsingGeneratedQueryViewJobExtension_ShouldMutateMatchingEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		var entity = world.Spawn(
+			new GeneratedPosition { X = 2, Y = 3 },
+			new GeneratedVelocity { X = -1, Y = 5 }
+		);
+
+		world.Query<GeneratedPositionVelocityQuery>().Run(new GeneratedIntegrateJob(4f));
+
+		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = -2, Y = 23 });
+	}
+
+	[Fact]
+	public void RunParallel_WhenUsingGeneratedQueryViewJobExtension_ShouldMutateMatchingEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16,
+				MaxDegreeOfParallelism        = 4
+			}
+		);
+
+		var first = world.Spawn(
+			new GeneratedPosition { X = 1, Y = 1 },
+			new GeneratedVelocity { X = 2, Y = 3 }
+		);
+
+		var second = world.Spawn(
+			new GeneratedPosition { X = 10, Y = 20 },
+			new GeneratedVelocity { X = -4, Y = 1 }
+		);
+
+		world.Query<GeneratedPositionVelocityQuery>().RunParallel(new GeneratedIntegrateJob(2f), 2);
+
+		world.Get<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 5, Y = 7 });
+		world.Get<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 2, Y = 22 });
+	}
+
+	[Fact]
+	public void Run_WhenUsingGeneratedQueryViewEntityJobExtension_ShouldReceiveEntityAndMutateMatchingEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		var entity = world.Spawn(
+			new GeneratedPosition { X = 5, Y = 6 },
+			new GeneratedVelocity { X = 1, Y = 2 }
+		);
+
+		GeneratedEntityIntegrateJob.LastEntity = Entity.None;
+		world.Query<GeneratedPositionVelocityQuery>().Run(new GeneratedEntityIntegrateJob(3f));
+
+		GeneratedEntityIntegrateJob.LastEntity.Should().Be(entity);
+		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 8, Y = 12 });
+	}
+
+	[Fact]
+	public void RunParallel_WhenUsingGeneratedQueryViewEntityJobExtension_ShouldMutateMatchingEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16,
+				MaxDegreeOfParallelism        = 4
+			}
+		);
+
+		var first = world.Spawn(
+			new GeneratedPosition { X = 2, Y = 4 },
+			new GeneratedVelocity { X = 1, Y = 1 }
+		);
+
+		var second = world.Spawn(
+			new GeneratedPosition { X = 9, Y = 3 },
+			new GeneratedVelocity { X = -2, Y = 5 }
+		);
+
+		world.Query<GeneratedPositionVelocityQuery>().RunParallel(new GeneratedEntityIntegrateJob(2f), 2);
+
+		world.Get<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 4, Y = 6 });
+		world.Get<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 5, Y = 13 });
 	}
 }
 
@@ -232,6 +344,18 @@ internal readonly struct GeneratedIntegrateJob(float dt) : IForEach<GeneratedPos
 {
 	public void Execute(ref GeneratedPosition component1, in GeneratedVelocity component2)
 	{
+		component1.X += component2.X * dt;
+		component1.Y += component2.Y * dt;
+	}
+}
+
+internal struct GeneratedEntityIntegrateJob(float dt) : IForEachEntity<GeneratedPosition, GeneratedVelocity>
+{
+	public static Entity LastEntity;
+
+	public void Execute(Entity entity, ref GeneratedPosition component1, in GeneratedVelocity component2)
+	{
+		LastEntity = entity;
 		component1.X += component2.X * dt;
 		component1.Y += component2.Y * dt;
 	}

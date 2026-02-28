@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -66,6 +67,57 @@ public class WorldApiContractTests
 		world.Has<ApiPosition>(entity).Should().BeTrue();
 		world.TryGet(entity, out ApiPosition position).Should().BeTrue();
 		position.Should().Be(new ApiPosition { X = 5f, Y = 8f });
+	}
+
+	[Fact]
+	public void PublicQuerySurface_WhenInspectingContracts_ShouldNotExposeIgnoredParameterizedQueryOverload()
+	{
+		var interfaceMethods = typeof(IWorld)
+							  .GetMethods()
+							  .Where(static method => method.Name == nameof(IWorld.Query))
+							  .ToArray();
+		var worldMethods = typeof(World)
+						  .GetMethods()
+						  .Where(static method => method.Name == nameof(World.Query))
+						  .ToArray();
+
+		interfaceMethods.Should().ContainSingle(static method => method.GetParameters().Length == 0);
+		interfaceMethods.Should().NotContain(static method => method.GetParameters().Length == 1);
+
+		worldMethods.Should().ContainSingle(
+			static method => method.IsGenericMethodDefinition && method.GetParameters().Length == 0
+		);
+		worldMethods.Should().NotContain(
+			static method => method.IsGenericMethodDefinition && method.GetParameters().Length == 1
+		);
+	}
+
+	[Fact]
+	public void PublicQuerySurface_WhenInspectingContracts_ShouldExposeQueryViewFromIWorldAndWorld()
+	{
+		var interfaceMethod = typeof(IWorld)
+							 .GetMethods()
+							 .Single(static method => method.Name == nameof(IWorld.Query) && method.GetParameters().Length == 0);
+		var worldMethod = typeof(World)
+						 .GetMethods()
+						 .Single(
+							  static method => method.Name == nameof(World.Query)
+							                && method.IsGenericMethodDefinition
+							                && method.GetParameters().Length == 0
+						  );
+
+		interfaceMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(QueryView<>));
+		worldMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(QueryView<>));
+	}
+
+	[Fact]
+	public void PublicSystemSurface_WhenInspectingContracts_ShouldExposeCommandBufferOnSystemContext()
+	{
+		typeof(SystemContext)
+			.GetProperty(nameof(SystemContext.Commands))!
+			.PropertyType
+			.Should()
+			.Be(typeof(CommandBuffer));
 	}
 
 	[Fact]

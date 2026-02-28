@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
@@ -15,12 +14,14 @@ namespace Bezoro.GameSystems.StreamingSystem.Services;
 /// </summary>
 [Reads<Position>]
 [Writes<StreamState>]
+[ReadsResource<StreamingConfig>]
+[WritesResource<StreamingRuntimeState>]
+[WritesResource<StreamingEventsResource>]
 public sealed class StreamingSystem : ISystem
 {
-	private const float DefaultStreamInDistance  = 100f;
-	private const float DefaultStreamOutDistance = 120f;
+	private const float DefaultStreamInDistance   = 100f;
+	private const float DefaultStreamOutDistance  = 120f;
 	private const int   DefaultMaxEntitiesPerTick = 50;
-	private QueryHandle<StreamingQuerySpec> _streamingQuery;
 
 	/// <summary>
 	///     Raised when an entity changes streaming state.
@@ -48,7 +49,6 @@ public sealed class StreamingSystem : ISystem
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
-		_streamingQuery = world.Compile<StreamingQuerySpec>();
 	}
 
 	/// <inheritdoc />
@@ -58,13 +58,14 @@ public sealed class StreamingSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
-		ref var config = ref world.GetResource<StreamingConfig>();
+		ref readonly var config = ref world.ReadResource<StreamingConfig>();
 		ValidateConfig(in config);
 
-		int total = CountStreamables(world, _streamingQuery);
+		var streamingQuery = world.Query<StreamingQuery>();
+		int total = streamingQuery.Count();
 		if (total == 0)
 		{
-			ref var emptyRuntime = ref world.GetResource<StreamingRuntimeState>();
+			ref var emptyRuntime = ref world.WriteResource<StreamingRuntimeState>();
 			emptyRuntime.NextEntityIndex = 0;
 			return;
 		}
@@ -73,7 +74,7 @@ public sealed class StreamingSystem : ISystem
 									 ? total
 									 : Math.Min(config.MaxEntitiesPerTick, total);
 
-		ref var runtime = ref world.GetResource<StreamingRuntimeState>();
+		ref var runtime = ref world.WriteResource<StreamingRuntimeState>();
 		int startIndex = NormalizeStartIndex(runtime.NextEntityIndex, total);
 		int selectionEndExclusive = startIndex + maxEntitiesPerTick;
 		var wraps = selectionEndExclusive > total;
@@ -86,7 +87,7 @@ public sealed class StreamingSystem : ISystem
 
 		ApplyStreamingTransitions(
 			world,
-			_streamingQuery,
+			streamingQuery,
 			referencePosition,
 			inDistanceSquared,
 			outDistanceSquared,
@@ -101,29 +102,23 @@ public sealed class StreamingSystem : ISystem
 	}
 
 	private void ApplyStreamingTransitions(
-		World   world,
-		QueryHandle<StreamingQuerySpec> queryHandle,
-		Vector3  referencePosition,
-		float    inDistanceSquared,
-		float    outDistanceSquared,
-		int      startIndex,
-		bool     wraps,
-		int      endExclusive)
+		World                    world,
+		QueryView<StreamingQuery> query,
+		Vector3                  referencePosition,
+		float                    inDistanceSquared,
+		float                    outDistanceSquared,
+		int                      startIndex,
+		bool                     wraps,
+		int                      endExclusive)
 	{
-		using var cursor = world.Execute(queryHandle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
+		var index = 0;
+		query.ForEach<StreamState, Position>(
+			(Entity entity, ref StreamState state, in Position position) =>
 		{
-			if (!IsSelectedIndex(i, startIndex, wraps, endExclusive))
-			{
-				continue;
-			}
+			int currentIndex = index++;
+			if (!IsSelectedIndex(currentIndex, startIndex, wraps, endExclusive))
+				return;
 
-			var position = cursor.Get<Position>(i);
-			ref var state = ref cursor.Get<StreamState>(i);
 			float distanceSquared = GetDistanceSquared(referencePosition, in position);
 
 			StreamingTransition? transition = TryTransition(
@@ -134,18 +129,19 @@ public sealed class StreamingSystem : ISystem
 			);
 
 			if (transition.HasValue)
-				Publish(world, entities[i], transition.Value, distanceSquared);
+				Publish(world, entity, transition.Value, distanceSquared);
 		}
+		);
 	}
 
 	private void Publish(
-		World               world,
-		Entity               targetEntity,
-		StreamingTransition  transition,
-		float                distanceSquared)
+		World              world,
+		Entity             targetEntity,
+		StreamingTransition transition,
+		float              distanceSquared)
 	{
 		var eventData = new StreamingStateChangedEvent(targetEntity, transition, distanceSquared);
-		ref var events = ref world.GetResource<StreamingEventsResource>();
+		ref var events = ref world.GetOrCreateResource<StreamingEventsResource>();
 		events.Enqueue(in eventData);
 
 		try
@@ -185,9 +181,9 @@ public sealed class StreamingSystem : ISystem
 
 	private static StreamingTransition? TryTransition(
 		ref StreamState streamState,
-		float          distanceSquared,
-		float          inDistanceSquared,
-		float          outDistanceSquared)
+		float           distanceSquared,
+		float           inDistanceSquared,
+		float           outDistanceSquared)
 	{
 		if (!streamState.IsStreamedIn && distanceSquared <= inDistanceSquared)
 		{
@@ -212,15 +208,6 @@ public sealed class StreamingSystem : ISystem
 		return startIndex;
 	}
 
-	private static int CountStreamables(World world, QueryHandle<StreamingQuerySpec> queryHandle)
-	{
-		using var cursor = world.Execute(queryHandle);
-		if (!cursor.MoveNext())
-			return 0;
-
-		return cursor.Current.Length;
-	}
-
 	private static void ValidateConfig(in StreamingConfig config)
 	{
 		if (config.StreamInDistance < 0f)
@@ -237,48 +224,21 @@ public sealed class StreamingSystem : ISystem
 
 	private static void EnsureResources(World world)
 	{
-		try
-		{
-			_ = world.GetResource<StreamingConfig>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(
-				new StreamingConfig
-				{
-					ReferencePosition    = Vector3.Zero,
-					StreamInDistance     = DefaultStreamInDistance,
-					StreamOutDistance    = DefaultStreamOutDistance,
-					MaxEntitiesPerTick = DefaultMaxEntitiesPerTick
-				}
-			);
-		}
-
-		try
-		{
-			_ = world.GetResource<StreamingRuntimeState>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new StreamingRuntimeState());
-		}
-
-		try
-		{
-			_ = world.GetResource<StreamingEventsResource>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new StreamingEventsResource());
-		}
-	}
-
-	private readonly struct StreamingQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder)
-		{
-			builder.All<Position>();
-			builder.All<StreamState>();
-		}
+		world.GetOrCreateResource(
+			static () => new StreamingConfig
+			{
+				ReferencePosition  = Vector3.Zero,
+				StreamInDistance   = DefaultStreamInDistance,
+				StreamOutDistance  = DefaultStreamOutDistance,
+				MaxEntitiesPerTick = DefaultMaxEntitiesPerTick
+			}
+		);
+		world.GetOrCreateResource<StreamingRuntimeState>();
+		world.GetOrCreateResource<StreamingEventsResource>();
 	}
 }
+
+[Query]
+[With<Position>]
+[With<StreamState>]
+internal readonly partial struct StreamingQuery;

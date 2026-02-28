@@ -11,13 +11,13 @@ namespace Bezoro.ECS.Types;
 /// <param name="deltaTime">The elapsed time passed to this system update.</param>
 /// <param name="stage">The stage executing this context.</param>
 /// <param name="world">The world instance executing this context.</param>
-/// <param name="commands">The command stream for deferred structural changes.</param>
-public readonly struct SystemContext(float deltaTime, Stage stage, World world, CommandStream commands)
+/// <param name="commands">The command buffer for deferred structural changes.</param>
+public readonly struct SystemContext(float deltaTime, Stage stage, World world, CommandBuffer commands)
 {
 	/// <summary>
-	///     Gets the command stream for deferred structural changes.
+	///     Gets the command buffer for deferred structural changes.
 	/// </summary>
-	public CommandStream Commands { get; } = commands;
+	public CommandBuffer Commands { get; } = commands;
 
 	/// <summary>
 	///     Gets the elapsed time passed to this system update.

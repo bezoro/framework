@@ -19,6 +19,12 @@ public interface IWorld
 	/// <returns><c>true</c> if the component exists; <c>false</c> otherwise.</returns>
 	bool TryGet<T>(Entity entity, out T component) where T : struct;
 
+	/// <summary>
+	///     Attempts to retrieve a copy of component <typeparamref name="T" /> on <paramref name="entity" />.
+	/// </summary>
+	/// <returns><c>true</c> if the component exists; <c>false</c> otherwise.</returns>
+	bool TryRead<T>(Entity entity, out T component) where T : struct;
+
 	/// <summary>Creates a new entity with no components and returns its handle.</summary>
 	Entity Spawn();
 
@@ -47,8 +53,35 @@ public interface IWorld
 	/// <summary>Returns a mutable reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
 	ref T Get<T>(Entity entity) where T : struct;
 
+	/// <summary>Returns a readonly reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	ref readonly T Read<T>(Entity entity) where T : struct;
+
+	/// <summary>Returns a mutable reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	ref T Write<T>(Entity entity) where T : struct;
+
+	/// <summary>Attempts to retrieve a mutable reference wrapper for component <typeparamref name="T" />.</summary>
+	bool TryWrite<T>(Entity entity, out ComponentRef<T> component) where T : struct;
+
 	/// <summary>Returns a reference to the registered resource of type <typeparamref name="T" />.</summary>
 	ref T GetResource<T>() where T : notnull;
+
+	/// <summary>Returns <c>true</c> if a resource of type <typeparamref name="T" /> is registered.</summary>
+	bool HasResource<T>() where T : notnull;
+
+	/// <summary>Returns a readonly reference to the registered resource of type <typeparamref name="T" />.</summary>
+	ref readonly T ReadResource<T>() where T : notnull;
+
+	/// <summary>Returns a mutable reference to the registered resource of type <typeparamref name="T" />.</summary>
+	ref T WriteResource<T>() where T : notnull;
+
+	/// <summary>Attempts to read a copy of the registered resource of type <typeparamref name="T" />.</summary>
+	bool TryReadResource<T>(out T resource) where T : notnull;
+
+	/// <summary>Gets the resource of type <typeparamref name="T" /> or creates it via the default constructor.</summary>
+	ref T GetOrCreateResource<T>() where T : notnull, new();
+
+	/// <summary>Creates an ergonomic query view for <typeparamref name="TQuery" />.</summary>
+	QueryView<TQuery> Query<TQuery>() where TQuery : struct, ICompiledQuerySpec;
 
 	/// <summary>Adds a default-valued component <typeparamref name="T" /> to <paramref name="entity" />.</summary>
 	void Add<T>(Entity entity) where T : struct;
@@ -74,6 +107,9 @@ public interface IWorld
 	/// <summary>Removes component <typeparamref name="T" /> from <paramref name="entity" />.</summary>
 	void Remove<T>(Entity entity) where T : struct;
 
+	/// <summary>Replaces component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	void Replace<T>(Entity entity, in T component) where T : struct;
+
 	/// <summary>
 	///     Removes relation <typeparamref name="TRelation" /> from <paramref name="source" /> to <paramref name="target" />.
 	/// </summary>
@@ -86,4 +122,10 @@ public interface IWorld
 
 	/// <summary>Registers or replaces the resource of type <typeparamref name="T" />.</summary>
 	void SetResource<T>(T resource) where T : notnull;
+
+	/// <summary>Registers or replaces the resource of type <typeparamref name="T" />.</summary>
+	void ReplaceResource<T>(T resource) where T : notnull;
+
+	/// <summary>Removes the resource of type <typeparamref name="T" /> if present.</summary>
+	bool RemoveResource<T>() where T : notnull;
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Bezoro.Core.Types;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
@@ -14,10 +13,9 @@ namespace Bezoro.GameSystems.HealthSystem.Services;
 /// </summary>
 [Writes<Health>]
 [Reads<HealthMutationRequest>]
+[WritesResource<HealthEventsResource>]
 public sealed class HealthSystem : ISystem
 {
-	private QueryHandle<HealthMutationRequestQuerySpec> _requestQuery;
-
 	/// <summary>
 	///     Raised when a request changes health values.
 	/// </summary>
@@ -33,8 +31,7 @@ public sealed class HealthSystem : ISystem
 	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
-		EnsureEventsResource(world);
-		_requestQuery = world.Compile<HealthMutationRequestQuerySpec>();
+		ref var events = ref world.GetOrCreateResource<HealthEventsResource>();
 	}
 
 	/// <inheritdoc />
@@ -42,30 +39,23 @@ public sealed class HealthSystem : ISystem
 	{
 		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
-		EnsureEventsResource(world);
+		var commands = context.Commands;
 
-		using var cursor = world.Execute(_requestQuery);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
+		world.Query<HealthMutationRequestQuery>().ForEach<HealthMutationRequest>(
+			(Entity requestEntity, ref HealthMutationRequest request) =>
 		{
-			var requestEntity = entities[i];
-			var request = cursor.Get<HealthMutationRequest>(i);
-			ProcessRequest(world, request);
-			context.Commands.Destroy(requestEntity);
+			ProcessRequest(world, in request);
+			commands.Despawn(requestEntity);
 		}
+		);
 	}
 
 	private void ProcessRequest(World world, in HealthMutationRequest request)
 	{
-		if (!world.IsAlive(request.TargetEntity))
+		if (!world.TryWrite<Health>(request.TargetEntity, out var healthRef))
 			return;
 
-		if (!world.TryGet(request.TargetEntity, out Health health))
-			return;
-
+		ref var health = ref healthRef.Value;
 		var oldCurrent = health.Current;
 		var oldMax = health.Max;
 		var oldExcess = health.ExcessCurrent;
@@ -73,8 +63,6 @@ public sealed class HealthSystem : ISystem
 		var kind = ApplyMutation(ref health, in request);
 		if (oldCurrent == health.Current && oldMax == health.Max && oldExcess == health.ExcessCurrent)
 			return;
-
-		world.Set(request.TargetEntity, in health);
 
 		var eventData = new HealthChangedEvent(
 			request.TargetEntity,
@@ -89,7 +77,7 @@ public sealed class HealthSystem : ISystem
 			health.ExcessCurrent
 		);
 
-		ref var events = ref world.GetResource<HealthEventsResource>();
+		ref var events = ref world.GetOrCreateResource<HealthEventsResource>();
 		events.Enqueue(in eventData);
 
 		try
@@ -195,21 +183,8 @@ public sealed class HealthSystem : ISystem
 		uint scaled = (uint)(numerator / oldMax);
 		return scaled > newMax ? newMax : scaled;
 	}
-
-	private static void EnsureEventsResource(World world)
-	{
-		try
-		{
-			_ = world.GetResource<HealthEventsResource>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new HealthEventsResource());
-		}
-	}
-
-	private readonly struct HealthMutationRequestQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder) => builder.All<HealthMutationRequest>();
-	}
 }
+
+[Query]
+[With<HealthMutationRequest>]
+internal readonly partial struct HealthMutationRequestQuery;

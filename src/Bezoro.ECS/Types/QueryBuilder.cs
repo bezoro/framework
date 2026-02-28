@@ -56,6 +56,13 @@ public struct QueryBuilder
 		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _allTypeIds, ref _allCount);
 
 	/// <summary>
+	///     Requires component type <typeparamref name="T" />.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	public void With<T>() where T : struct =>
+		All<T>();
+
+	/// <summary>
 	///     Requires at least one of the registered <c>Any</c> component types.
 	/// </summary>
 	/// <typeparam name="T">Component type.</typeparam>
@@ -63,11 +70,25 @@ public struct QueryBuilder
 		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _anyTypeIds, ref _anyCount);
 
 	/// <summary>
+	///     Requires at least one of the registered <c>AnyOf</c> component types.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	public void AnyOf<T>() where T : struct =>
+		Any<T>();
+
+	/// <summary>
 	///     Excludes component type <typeparamref name="T" />.
 	/// </summary>
 	/// <typeparam name="T">Component type.</typeparam>
 	public void None<T>() where T : struct =>
 		AddTypeId(_world.GetOrCreateComponentTypeId<T>(), ref _noneTypeIds, ref _noneCount);
+
+	/// <summary>
+	///     Excludes component type <typeparamref name="T" />.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	public void Without<T>() where T : struct =>
+		None<T>();
 
 	/// <summary>
 	///     Registers component type <typeparamref name="T" /> as optional.

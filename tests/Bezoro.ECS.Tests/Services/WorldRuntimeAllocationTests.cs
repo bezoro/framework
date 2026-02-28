@@ -227,6 +227,149 @@ public partial class WorldRuntimeTests
 		allocated.Should().BeLessThanOrEqualTo(64);
 	}
 
+	[Fact]
+	public void QueryView_ForEach_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocateForUnmanagedComponents()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 512,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 2048,
+				CommandPayloadCapacityPerType = 2048,
+				QueryResultCapacity           = 512
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 256; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 1, Y = -1 });
+		}
+
+		world.Playback(commands);
+		var query = world.Query<PositionAndVelocityQuerySpec>();
+
+		// Warm up JIT/caches so the measurement captures steady-state allocations.
+		query.ForEach<Position, Velocity>(
+			static (Entity entity, ref Position position, in Velocity velocity) =>
+			{
+				_ = entity;
+				position.X += velocity.X;
+				position.Y += velocity.Y;
+			}
+		);
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			query.ForEach<Position, Velocity>(
+				static (Entity entity, ref Position position, in Velocity velocity) =>
+				{
+					_ = entity;
+					position.X += velocity.X;
+					position.Y += velocity.Y;
+				}
+			);
+		}
+
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			query.ForEach<Position, Velocity>(
+				static (Entity entity, ref Position position, in Velocity velocity) =>
+				{
+					_ = entity;
+					position.X += velocity.X;
+					position.Y += velocity.Y;
+				}
+			);
+		}
+
+		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		allocated.Should().BeLessThanOrEqualTo(64);
+	}
+
+	[Fact]
+	public void QueryCursor_ForEachEntity_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocateForUnmanagedComponents()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 512,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 2048,
+				CommandPayloadCapacityPerType = 2048,
+				QueryResultCapacity           = 512
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 256; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+			commands.Set(entity, new Velocity { X = 1, Y = -1 });
+		}
+
+		world.Playback(commands);
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+
+		using (var warmup = world.Execute(handle))
+		{
+			warmup.MoveNext();
+			warmup.ForEachEntity<Position, Velocity>(
+				static (Entity entity, ref Position position, in Velocity velocity) =>
+				{
+					_ = entity;
+					position.X += velocity.X;
+					position.Y += velocity.Y;
+				}
+			);
+		}
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			using var cursor = world.Execute(handle);
+			cursor.MoveNext();
+			cursor.ForEachEntity<Position, Velocity>(
+				static (Entity entity, ref Position position, in Velocity velocity) =>
+				{
+					_ = entity;
+					position.X += velocity.X;
+					position.Y += velocity.Y;
+				}
+			);
+		}
+
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			using var cursor = world.Execute(handle);
+			cursor.MoveNext();
+			cursor.ForEachEntity<Position, Velocity>(
+				static (Entity entity, ref Position position, in Velocity velocity) =>
+				{
+					_ = entity;
+					position.X += velocity.X;
+					position.Y += velocity.Y;
+				}
+			);
+		}
+
+		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		allocated.Should().BeLessThanOrEqualTo(64);
+	}
+
 
 	[Fact]
 	public void QueryCursor_Get_WhenExecutingSequentiallyAfterWarmup_ShouldNotAllocate()

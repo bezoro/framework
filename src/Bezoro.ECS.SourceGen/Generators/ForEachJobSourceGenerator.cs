@@ -49,10 +49,11 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 	private static bool IsTypeAccessibilitySupported(Accessibility accessibility) =>
 		accessibility == Accessibility.Public || accessibility == Accessibility.Internal;
 
-	private static bool TryGetForEachTypes(INamedTypeSymbol type, out ITypeSymbol[] componentTypes)
+	private static bool TryGetForEachTypes(INamedTypeSymbol type, out ITypeSymbol[] componentTypes, out bool isEntityAware)
 	{
 		INamedTypeSymbol? selected      = null;
 		var               selectedArity = 0;
+		isEntityAware = false;
 
 		for (var i = 0; i < type.AllInterfaces.Length; i++)
 		{
@@ -64,12 +65,14 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 			{
 				selected      = iface;
 				selectedArity = arity;
+				isEntityAware = iface.OriginalDefinition.MetadataName.StartsWith("IForEachEntity`", StringComparison.Ordinal);
 			}
 		}
 
 		if (selected is null)
 		{
 			componentTypes = [];
+			isEntityAware  = false;
 			return false;
 		}
 
@@ -87,10 +90,15 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 			return false;
 
 		string metadataName = symbol.MetadataName;
-		if (!metadataName.StartsWith("IForEach`", StringComparison.Ordinal))
+		string prefix;
+		if (metadataName.StartsWith("IForEachEntity`", StringComparison.Ordinal))
+			prefix = "IForEachEntity`";
+		else if (metadataName.StartsWith("IForEach`", StringComparison.Ordinal))
+			prefix = "IForEach`";
+		else
 			return false;
 
-		string arityText = metadataName.Substring("IForEach`".Length);
+		string arityText = metadataName.Substring(prefix.Length);
 		if (!int.TryParse(arityText, out arity))
 			return false;
 
@@ -113,11 +121,35 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 		builder.Append("    public static void Run(this global::Bezoro.ECS.Types.QueryCursor cursor, ")
 			   .Append(model.JobType).AppendLine(" job)");
 		builder.AppendLine("    {");
-		builder.Append("        cursor.Run<").Append(model.JobType);
+		builder.Append("        cursor.").Append(model.IsEntityAware ? "RunEntity<" : "Run<").Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
 
 		builder.AppendLine(">(job);");
+		builder.AppendLine("    }");
+		builder.AppendLine();
+		builder.Append(
+			"    public static void Run<TSpec>(this global::Bezoro.ECS.Types.QueryView<TSpec> query, "
+		).Append(model.JobType).AppendLine(" job)");
+		builder.AppendLine("        where TSpec : struct, global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
+		builder.AppendLine("    {");
+		builder.Append("        query.").Append(model.IsEntityAware ? "RunEntity<" : "Run<").Append(model.JobType);
+		for (var i = 0; i < model.ComponentTypes.Length; i++)
+			builder.Append(", ").Append(model.ComponentTypes[i]);
+
+		builder.AppendLine(">(job);");
+		builder.AppendLine("    }");
+		builder.AppendLine();
+		builder.Append(
+			"    public static void RunParallel<TSpec>(this global::Bezoro.ECS.Types.QueryView<TSpec> query, "
+		).Append(model.JobType).AppendLine(" job, int? degreeOfParallelism = null)");
+		builder.AppendLine("        where TSpec : struct, global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
+		builder.AppendLine("    {");
+		builder.Append("        query.").Append(model.IsEntityAware ? "RunParallelEntity<" : "RunParallel<").Append(model.JobType);
+		for (var i = 0; i < model.ComponentTypes.Length; i++)
+			builder.Append(", ").Append(model.ComponentTypes[i]);
+
+		builder.AppendLine(">(job, degreeOfParallelism);");
 		builder.AppendLine("    }");
 		builder.AppendLine();
 		builder.Append(
@@ -126,7 +158,7 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 		builder.AppendLine("        where TSpec : struct, global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
 		builder.AppendLine("    {");
-		builder.Append("        world.Run<TSpec, ").Append(model.JobType);
+		builder.Append("        world.").Append(model.IsEntityAware ? "RunEntity<TSpec, " : "Run<TSpec, ").Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
 
@@ -168,7 +200,7 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 	{
 		if (type.TypeKind == TypeKind.Struct &&
 			IsAccessibleFromGeneratedCode(type) &&
-			TryGetForEachTypes(type, out var componentTypes))
+			TryGetForEachTypes(type, out var componentTypes, out bool isEntityAware))
 		{
 			string namespaceName = type.ContainingNamespace.IsGlobalNamespace
 									   ? string.Empty
@@ -182,7 +214,7 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 			string sanitizedName     = SanitizeTypeName(jobType);
 			string generatedTypeName = sanitizedName + "ForEachExtensions";
 			string hintName          = sanitizedName + ".ForEachJob.g.cs";
-			models.Add(new(namespaceName, generatedTypeName, jobType, componentTypeNames, hintName));
+			models.Add(new(namespaceName, generatedTypeName, jobType, componentTypeNames, hintName, isEntityAware));
 		}
 
 		var nestedTypes = type.GetTypeMembers();
@@ -195,11 +227,13 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 		string   generatedTypeName,
 		string   jobType,
 		string[] componentTypes,
-		string   hintName
+		string   hintName,
+		bool     isEntityAware
 	)
 	{
 		public string GeneratedTypeName { get; } = generatedTypeName;
 		public string HintName          { get; } = hintName;
+		public bool   IsEntityAware     { get; } = isEntityAware;
 		public string JobType           { get; } = jobType;
 
 		public string   Namespace      { get; } = typeNamespace;

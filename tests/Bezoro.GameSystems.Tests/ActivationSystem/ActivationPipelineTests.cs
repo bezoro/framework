@@ -19,8 +19,12 @@ public class ActivationPipelineTests
 	{
 		var systemType = typeof(ActivationProcessingSystem);
 
-		systemType.IsDefined(typeof(WritesAttribute<ActivationEntry>),              true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<ActivationCancellationRequest>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<ActivationEntry>),                         true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<ActivationCancellationRequest>),            true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsResourceAttribute<ActivationConfig>),                 true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationRuntimeState>),          true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationEventsResource>),        true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationDispatchQueueResource>), true).Should().BeTrue();
 	}
 
 	[Fact]

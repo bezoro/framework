@@ -33,10 +33,10 @@ world.QueueHealthHeal(entity, 5u);
 world.QueueHealthIncreaseHealth(entity, 20u);
 world.Tick(0f);
 
-var health = world.Get<Health>(entity);
+var health = world.Read<Health>(entity);
 Console.WriteLine($"{health.Current}/{health.Max} + {health.ExcessCurrent} excess");
 
-ref var events = ref world.GetResource<HealthEventsResource>();
+ref readonly var events = ref world.ReadResource<HealthEventsResource>();
 while (events.TryDequeue(out var evt))
 {
     Console.WriteLine($"{evt.Kind}: dCurrent={evt.DeltaCurrent}, dExcess={evt.DeltaExcess}");

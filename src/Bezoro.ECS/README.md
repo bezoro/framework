@@ -1,5 +1,5 @@
 # Bezoro.ECS
-High-performance fixed-capacity ECS runtime centered on `World`, `CommandStream`, compiled queries, and conflict-aware system scheduling.
+High-performance fixed-capacity ECS runtime centered on `World`, `CommandBuffer`, `QueryView`, compiled queries, and conflict-aware system scheduling.
 
 ## Types
 | Type                                                                                                                       | Description                                                                                                                                  |
@@ -8,8 +8,8 @@ High-performance fixed-capacity ECS runtime centered on `World`, `CommandStream`
 | `WorldConfig`                                                                                                              | Fixed-capacity runtime configuration (entity/component/query/command capacities, chunk capacity, parallelism, and overflow policy).          |
 | `WorldOptions`                                                                                                             | Compatibility options surface mapped to `WorldConfig`.                                                                                       |
 | `Entity`                                                                                                                   | Stable entity handle (`id`, `version`) with stale-handle invalidation semantics.                                                             |
-| `CommandStream`                                                                                                            | Deferred structural mutation recorder (`CreateEntity`/`Set`/`Remove`/`Destroy`) with deterministic playback.                                 |
-| `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`                                               | Compiled query pipeline with `All`/`Any`/`None`/`Optional`/`Changed`/`Added`/`Related` filters and hot-path iteration APIs.                  |
+| `CommandBuffer` / `CommandStream`                                                                                          | Deferred structural mutation recorder. `CommandBuffer` is the ergonomic surface; `CommandStream` remains the lower-level implementation.     |
+| `QueryView<TSpec>` / `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`                          | Query authoring and execution surfaces. `QueryView<TSpec>` is the ergonomic path; handles/cursors remain the low-level hot-path APIs.        |
 | `QueryDiagnostics`                                                                                                         | Query introspection snapshot (filters, cache state, matching archetype/chunk/entity counts).                                                 |
 | `ISystem` / `SystemContext` / `SystemUpdateSettings` / `Stage` / `SystemLoopPhase`                                         | System contract and scheduling context for staged `Tick`/`FixedTick`/`LateTick` execution.                                                   |
 | `ISystemRunCondition` / `SystemRunConditionContext`                                                                        | System/set run-condition contract for conditional scheduler execution.                                                                       |
@@ -19,46 +19,39 @@ High-performance fixed-capacity ECS runtime centered on `World`, `CommandStream`
 
 ## Quick Start
 ```csharp
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 
 var world = new World(new WorldConfig { EntityCapacity = 1024, QueryResultCapacity = 1024 });
 
-using var commands = world.CreateCommandStream();
-var entity = commands.CreateEntity();
-commands.Set(entity, new Position { X = 1, Y = 2 });
-world.Playback(commands);
+var entity = world.Spawn(new Position { X = 1, Y = 2 });
 
-var handle = world.Compile<PositionQuery>();
-using var cursor = world.Execute(handle);
-if (cursor.MoveNext())
-{
-    for (var i = 0; i < cursor.Current.Length; i++)
+world.Query<PositionQuery>().ForEach(
+    (entityId, ref Position position) =>
     {
-        ref var position = ref cursor.Get<Position>(i);
         position.X += 10;
-    }
-}
+    });
 
-readonly struct PositionQuery : ICompiledQuerySpec
-{
-    public void Build(ref QueryBuilder builder) => builder.All<Position>();
-}
+[Query]
+[With<Position>]
+readonly partial struct PositionQuery;
 
 struct Position { public float X; public float Y; }
 ```
+Within this solution, application code should reference `Bezoro.ECS`; the source generator project is wired in as analyzer infrastructure and is not intended as a separate application-facing dependency.
 
 ## API Reference
 | Member                                                                                                                        | Description                                                                              |
 |-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| `Spawn`, `Despawn`, `Add`, `Set`, `Remove`, `Get`, `TryGet`, `Has`, `IsAlive`                                                 | Core entity/component operations with versioned-handle safety.                           |
+| `Spawn`, `Despawn`, `Add`, `Replace`, `Remove`, `Read`, `Write`, `TryRead`, `TryWrite`, `Has`, `IsAlive`                      | Core entity/component operations with explicit read/write intent.                        |
 | `AddRelation<TRelation>`, `RemoveRelation<TRelation>`, `HasRelation<TRelation>`                                               | First-class relation API for source->target edges backed by relation marker components.  |
-| `CreateCommandStream`, `Playback`                                                                                             | Deferred mutation recording and deterministic apply stage.                               |
-| `Compile<TSpec>`, `Execute<TSpec>`, `ForEach(...)`, `Run(...)`, `RunParallel(...)`                                            | Compiled query plan creation plus sequential/parallel hot-path iteration helpers.        |
+| `CreateCommandBuffer`, `CreateCommandStream`, `Playback`                                                                      | Deferred mutation recording and deterministic apply stage.                               |
+| `Query<TSpec>`, `Compile<TSpec>`, `Execute<TSpec>`, `ForEach(...)`, `Run(...)`, `RunParallel(...)`, `RunEntity(...)`          | Ergonomic and low-level query execution surfaces.                                        |
 | `GetQueryDiagnostics<TSpec>`                                                                                                  | Snapshot of compiled query filters, cache status, and current match counts.              |
 | `AddSystem`, `Tick`, `FixedTick`, `LateTick`, `RunPhase`                                                                      | System registration and phase-based scheduling.                                          |
 | `SetSystemSetEnabled<TSet>`, `IsSystemSetEnabled<TSet>`, `SetSystemSetRunCondition<TSet>`, `ClearSystemSetRunCondition<TSet>` | Runtime system-set controls and set-level run conditions.                                |
-| `GetResource<T>`, `SetResource<T>`                                                                                            | Type-indexed resource storage.                                                           |
+| `HasResource<T>`, `ReadResource<T>`, `WriteResource<T>`, `TryReadResource<T>`, `GetOrCreateResource<T>`, `ReplaceResource<T>` | Type-indexed resource storage with explicit read/write/create semantics.                 |
 | `CaptureSnapshot<TWriter>`, `RestoreSnapshot<TReader>`                                                                        | Snapshot capture/restore with serializer-owned transport via reader/writer abstractions. |
 | `GetScheduleDiagnostics`                                                                                                      | Snapshot of current scheduler phase/stage/batch plan and registered system count.        |
 | `GetDiagnostics`, `CommandStream.GetDiagnostics`                                                                              | Capacity/overflow/high-watermark diagnostics.                                            |
@@ -73,15 +66,27 @@ struct Position { public float X; public float Y; }
 - Fixed-interval scheduling is supported via `SystemUpdateSettings.FixedInterval(...)` with bounded catch-up.
 
 ## Query Model
-- Compiled queries are defined via `ICompiledQuerySpec.Build(ref QueryBuilder builder)`.
-- Supported runtime filters: `All<T>`, `Any<T>`, `None<T>`, `Optional<T>`, `Changed<T>`, `Added<T>`, `Related<TRelation>(target)` / `Related<TRelation>()`.
+- Ergonomic queries are typically declared with `[Query]` plus `[With]` / `[Without]` / `[AnyOf]` attributes and consumed through `World.Query<TSpec>()`.
+- `ICompiledQuerySpec.Build(ref QueryBuilder builder)` remains available for advanced/manual query authoring.
+- Runtime-parameterized query instances are not part of the public 1.0 surface yet; ergonomic queries are compiled by specification type.
+- Supported runtime filters: `With<T>` / `All<T>`, `AnyOf<T>` / `Any<T>`, `Without<T>` / `None<T>`, `Optional<T>`, `Changed<T>`, `Added<T>`, `Related<TRelation>(target)` / `Related<TRelation>()`.
 - `Changed<T>` / `Added<T>` are evaluated incrementally per compiled handle execution.
 - Change tracking also covers mutable ref-based write surfaces (`World.Get`, component accessors, cursor/world `ForEach`, cursor/world `Run`, and `RunParallel`) once any changed/added query is compiled.
 - `GetQueryDiagnostics(handle)` reports static filter makeup and current dynamic match counts without advancing incremental `Changed`/`Added` windows.
 - Execution styles:
+- QueryView style: `world.Query<MyQuery>().ForEach((entity, ref Position position) => { ... })`
+- QueryView read-only style: `world.Query<MyQuery>().ForEachRead((entity, in ActivationEntry entry) => { ... })`
+- QueryView job style: `world.Query<MyQuery>().Run(new IntegrateJob(dt))`
+- QueryView entity-aware job style: `world.Query<MyQuery>().Run(new IntegrateEntityJob(dt))`
 - Cursor style: `using var cursor = world.Execute(handle);`
+- Cursor entity-aware job style: `cursor.Run(new IntegrateEntityJob(dt))`
 - Direct style: `world.ForEach(handle, ...)` / `world.Run(handle, job)`
+- Direct entity-aware job style: `world.Run(handle, new IntegrateEntityJob(dt))`
 - Parallel direct style: `world.RunParallel(handle, job, degreeOfParallelism: 4)`
+- Parallel QueryView entity-aware job style: `world.Query<MyQuery>().RunParallel(new IntegrateEntityJob(dt), degreeOfParallelism: 4)`
+- The public instance methods carrying entity-aware jobs are named `RunEntity(...)` / `RunParallelEntity(...)`; the source generator emits `Run(...)` / `RunParallel(...)` extensions for `IForEachEntity<T...>` jobs so gameplay code stays symmetrical with the non-entity-aware path.
+- Typed `QueryView.ForEach(...)` now works for any struct component, including structs that contain references.
+- `QueryView` job execution and the lower-level cursor/direct hot paths remain unmanaged-only and are still the performance-oriented escape hatch.
 
 ## Snapshot Serialization
 `Bezoro.ECS` keeps snapshot transport explicit and engine-agnostic.
@@ -187,6 +192,13 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 - `RunParallel` parallelizes component iteration only; structural world mutations still require command recording/playback.
 - Query cursor and direct/diagnostics APIs are mutually exclusive while a cursor is active.
 
+## Support Boundaries
+- The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.
+- `QueryView.ForEach...` supports any `struct` component, including structs with managed references.
+- Job-based query execution (`Run(...)`, `RunParallel(...)`, cursor/direct hot paths) remains the unmanaged-only performance tier.
+- `SystemContext.Commands` and `CommandBuffer` are the primary deferred-mutation surface for systems; `CommandStream` remains available as the lower-level implementation API.
+- Direct `World` access is single-threaded by contract; parallelism is coordinated through scheduler batches and `RunParallel`.
+
 ### Changed/Added Tracking Cost Model
 - `Changed<T>` and `Added<T>` tracking activates when at least one compiled query uses these filters.
 - Once active, mutable ref-based write surfaces (`Get`, accessors, cursor/direct runs, `RunParallel`) mark change metadata.
@@ -222,6 +234,7 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 - [x] Query DSL support for `All`/`Any`/`None`
 - [x] Cursor-based and direct hot-path iteration
 - [x] Struct job execution (`Run<TJob,...>`) on cursor and world
+- [x] Entity-aware struct job execution (`IForEachEntity<T...>`) on `QueryView`, cursor, and world
 - [x] Source-generated query spec implementation from `[Query]` + `[All]`/`[Any]`/`[None]`/`[Optional]`/`[Changed]`/`[Added]`
 - [x] Optional component filter support (`Optional<T>`) in runtime query execution
 - [x] Changed/added component filters (`Changed<T>`/`Added<T>`) in runtime query execution
@@ -238,7 +251,8 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 ### Source Generation
 - [x] System metadata catalog generation
 - [x] Metadata inference from modern ECS iteration APIs (`World.ForEach/Run`, `QueryCursor.ForEach/Run`)
-- [x] Generated job extensions for cursor/world `Run(job)` ergonomics
+- [x] Generated job extensions for `QueryView` / cursor / world `Run(job)` ergonomics
+- [x] Generated entity-aware job extensions for `IForEachEntity<T...>`
 - [x] Query generator no longer emits stale `Query`/`IQuery` runtime references
 - [x] Split-field generator support
 - [x] Source-generated diagnostics for unsupported advanced query filters

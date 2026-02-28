@@ -622,6 +622,39 @@ public class WorldAdvancedApiTests
 		}
 	}
 
+	[Fact]
+	public void RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 32,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 32,
+				MaxDegreeOfParallelism        = 4
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 8; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+
+		world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 2);
+
+		cursor.Get<Position>(0).X.Should().Be(1);
+	}
+
 	private struct AdvanceJob : IForEach<Position>
 	{
 		public void Execute(ref Position component1) => component1.X += 1;

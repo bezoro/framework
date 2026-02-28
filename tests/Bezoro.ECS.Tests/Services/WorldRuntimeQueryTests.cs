@@ -323,7 +323,7 @@ public partial class WorldRuntimeTests
 
 
 	[Fact]
-	public void ForEach_WhenCursorIsActive_ShouldThrow()
+	public void ForEach_WhenCursorIsActive_ShouldAllowIndependentDirectIteration()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -346,12 +346,45 @@ public partial class WorldRuntimeTests
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
 
-		var act = () => world.ForEach(
+		world.ForEach(
 			handle, (ref Position position, in Velocity velocity) => { position.X += velocity.X; }
 		);
 
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*query cursor is active*");
+		cursor.Get<Position>(0).X.Should().Be(2);
+	}
+
+	[Fact]
+	public void Execute_WhenAnotherCursorIsActive_ShouldAllowIndependentEnumeration()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		var       entity   = commands.CreateEntity();
+		commands.Set(entity, new Position { X = 1, Y = 1 });
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using var first = world.Execute(handle);
+		first.MoveNext().Should().BeTrue();
+
+		using var second = world.Execute(handle);
+		second.MoveNext().Should().BeTrue();
+
+		first.Current.Length.Should().Be(1);
+		second.Current.Length.Should().Be(1);
+		var firstEntity  = first.Current[0];
+		var secondEntity = second.Current[0];
+		firstEntity.Id.Should().BeGreaterThanOrEqualTo(0);
+		secondEntity.Should().Be(firstEntity);
 	}
 
 

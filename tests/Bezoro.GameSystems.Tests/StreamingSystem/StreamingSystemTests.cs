@@ -23,8 +23,11 @@ public class StreamingSystemTests
 		var systemType = typeof(StreamingSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(ReadsAttribute<Position>),     true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<StreamState>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<Position>),                    true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<StreamState>),                true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsResourceAttribute<StreamingConfig>),     true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<StreamingRuntimeState>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<StreamingEventsResource>), true).Should().BeTrue();
 	}
 
 	[Fact]

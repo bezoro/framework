@@ -138,7 +138,11 @@ internal sealed class SystemManager
 		bool isExclusive = false;
 		if (_metadataResolver.TryGet(type, out var metadata))
 		{
-			if (metadata.Reads.Length > 0 || metadata.Writes.Length > 0 || metadata.IsExclusive)
+			if (metadata.Reads.Length > 0 ||
+				metadata.Writes.Length > 0 ||
+				metadata.ReadResources.Length > 0 ||
+				metadata.WriteResources.Length > 0 ||
+				metadata.IsExclusive)
 				hasDeclaredAccessMetadata = true;
 
 			for (var i = 0; i < metadata.Reads.Length; i++)
@@ -155,6 +159,22 @@ internal sealed class SystemManager
 				if (componentType is null) continue;
 
 				AddWriteType(world, readSet, writeSet, componentType);
+			}
+
+			for (var i = 0; i < metadata.ReadResources.Length; i++)
+			{
+				var resourceType = metadata.ReadResources[i];
+				if (resourceType is null) continue;
+
+				AddReadResourceType(readSet, writeSet, resourceType, GetOrCreateResourceAccessTypeId);
+			}
+
+			for (var i = 0; i < metadata.WriteResources.Length; i++)
+			{
+				var resourceType = metadata.WriteResources[i];
+				if (resourceType is null) continue;
+
+				AddWriteResourceType(readSet, writeSet, resourceType, GetOrCreateResourceAccessTypeId);
 			}
 
 			isExclusive = metadata.IsExclusive;
@@ -731,7 +751,7 @@ internal sealed class SystemManager
 	{
 		var stream = world.CreateCommandStream();
 		streams[index] = stream;
-		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, stream);
+		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, new(stream));
 		execution.State.System.Update(in context);
 	}
 

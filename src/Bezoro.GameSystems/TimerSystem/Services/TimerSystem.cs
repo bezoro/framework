@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -12,10 +11,9 @@ namespace Bezoro.GameSystems.TimerSystem.Services;
 ///     ECS system that advances running timers and emits lifecycle callbacks.
 /// </summary>
 [Writes<Timer>]
+[WritesResource<TimerEventsResource>]
 public sealed class TimerSystem : ISystem
 {
-	private QueryHandle<TimerQuerySpec> _timerQuery;
-
 	/// <summary>
 	///     Raised when a timer transitions to running from stopped.
 	/// </summary>
@@ -56,8 +54,7 @@ public sealed class TimerSystem : ISystem
 	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
-		EnsureEventsResource(world);
-		_timerQuery = world.Compile<TimerQuerySpec>();
+		world.GetOrCreateResource<TimerEventsResource>();
 	}
 
 	/// <inheritdoc />
@@ -66,27 +63,22 @@ public sealed class TimerSystem : ISystem
 		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
-		EnsureEventsResource(world);
+		world.GetOrCreateResource<TimerEventsResource>();
+		var commands = context.Commands;
 		float deltaTime = context.DeltaTime <= 0f ? 0f : context.DeltaTime;
 
-		using var cursor = world.Execute(_timerQuery);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
+		world.Query<TimerQuery>().ForEach<Timer>(
+			(Entity timerEntity, ref Timer timer) =>
 		{
-			var timerEntity = entities[i];
-			ref var timer = ref cursor.Get<Timer>(i);
-
 			PublishPendingTransition(world, timerEntity, ref timer);
-			AdvanceTimer(world, context.Commands, timerEntity, ref timer, deltaTime);
+			AdvanceTimer(world, commands, timerEntity, ref timer, deltaTime);
 		}
+		);
 	}
 
 	private void AdvanceTimer(
-		World        world,
-		CommandStream commands,
+		World         world,
+		CommandBuffer commands,
 		Entity        timerEntity,
 		ref Timer     timer,
 		float         deltaTime)
@@ -104,13 +96,13 @@ public sealed class TimerSystem : ISystem
 		Publish(world, timerEntity, timer, TimerLifecycle.Finished);
 
 		if (timer.Mode == TimerMode.OneShot)
-			commands.Destroy(timerEntity);
+			commands.Despawn(timerEntity);
 	}
 
 	private void PublishPendingTransition(
 		World     world,
-		Entity     timerEntity,
-		ref Timer  timer)
+		Entity    timerEntity,
+		ref Timer timer)
 	{
 		var lifecycle = timer.PendingAction switch
 		{
@@ -131,8 +123,8 @@ public sealed class TimerSystem : ISystem
 
 	private void Publish(
 		World         world,
-		Entity         timerEntity,
-		in Timer       timer,
+		Entity        timerEntity,
+		in Timer      timer,
 		TimerLifecycle lifecycle)
 	{
 		var ownerEntity = TryResolveOwner(world, timerEntity);
@@ -146,7 +138,7 @@ public sealed class TimerSystem : ISystem
 			timer.DurationSeconds
 		);
 
-		ref var events = ref world.GetResource<TimerEventsResource>();
+		ref var events = ref world.GetOrCreateResource<TimerEventsResource>();
 		events.Enqueue(in eventData);
 
 		try
@@ -173,26 +165,13 @@ public sealed class TimerSystem : ISystem
 
 	private static Entity TryResolveOwner(World world, Entity timerEntity)
 	{
-		if (world.TryGet(timerEntity, out TimerOwner owner))
+		if (world.TryRead(timerEntity, out TimerOwner owner))
 			return owner.OwnerEntity;
 
 		return Entity.None;
 	}
-
-	private static void EnsureEventsResource(World world)
-	{
-		try
-		{
-			_ = world.GetResource<TimerEventsResource>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new TimerEventsResource());
-		}
-	}
-
-	private readonly struct TimerQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder) => builder.All<Timer>();
-	}
 }
+
+[Query]
+[With<Timer>]
+internal readonly partial struct TimerQuery;

@@ -20,8 +20,9 @@ public class HealthSystemTests
 		var systemType = typeof(HealthSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Health>),               true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<HealthMutationRequest>), true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesAttribute<Health>),                        true).Should().BeTrue();
+		systemType.IsDefined(typeof(ReadsAttribute<HealthMutationRequest>),          true).Should().BeTrue();
+		systemType.IsDefined(typeof(WritesResourceAttribute<HealthEventsResource>), true).Should().BeTrue();
 	}
 
 	[Fact]
@@ -58,12 +59,12 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Current.Should().Be(95u);
 		health.ExcessCurrent.Should().Be(0u);
 
 		changedCount.Should().Be(1);
-		var events = world.GetResource<HealthEventsResource>();
+		var events = world.ReadResource<HealthEventsResource>();
 		events.Count.Should().Be(1);
 		events.TryDequeue(out var evt).Should().BeTrue();
 		evt.TargetEntity.Should().Be(entity);
@@ -88,7 +89,7 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Current.Should().Be(10u);
 		health.ExcessCurrent.Should().Be(20u);
 	}
@@ -109,7 +110,7 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Current.Should().Be(100u);
 		health.ExcessCurrent.Should().Be(0u);
 	}
@@ -130,7 +131,7 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Current.Should().Be(100u);
 		health.ExcessCurrent.Should().Be(10u);
 	}
@@ -150,10 +151,10 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Current.Should().Be(42u);
 
-		var events = world.GetResource<HealthEventsResource>();
+		var events = world.ReadResource<HealthEventsResource>();
 		events.Count.Should().Be(3);
 		events.TryDequeue(out var first).Should().BeTrue();
 		events.TryDequeue(out var second).Should().BeTrue();
@@ -177,7 +178,7 @@ public class HealthSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var health = world.Get<Health>(entity);
+		var health = world.Read<Health>(entity);
 		health.Max.Should().Be(200u);
 		health.Current.Should().Be(50u);
 	}

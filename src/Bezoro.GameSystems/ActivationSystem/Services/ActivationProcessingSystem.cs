@@ -13,11 +13,12 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 /// </summary>
 [Writes<ActivationEntry>]
 [Reads<ActivationCancellationRequest>]
+[ReadsResource<ActivationConfig>]
+[WritesResource<ActivationRuntimeState>]
+[WritesResource<ActivationEventsResource>]
+[WritesResource<ActivationDispatchQueueResource>]
 public sealed class ActivationProcessingSystem : ISystem
 {
-	private QueryHandle<ActivationEntryQuerySpec> _entryQuery;
-	private QueryHandle<ActivationCancellationQuerySpec> _cancellationQuery;
-
 	/// <summary>
 	///     Raised when all pending entries have been activated.
 	/// </summary>
@@ -32,8 +33,6 @@ public sealed class ActivationProcessingSystem : ISystem
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
-		_entryQuery = world.Compile<ActivationEntryQuerySpec>();
-		_cancellationQuery = world.Compile<ActivationCancellationQuerySpec>();
 	}
 
 	/// <inheritdoc />
@@ -43,11 +42,11 @@ public sealed class ActivationProcessingSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
-		var entriesByHandle = BuildEntryIndex(world, _entryQuery);
-		ApplyCancellations(world, context.Commands, entriesByHandle, _cancellationQuery);
+		var entriesByHandle = BuildEntryIndex(world);
+		ApplyCancellations(world, context.Commands, entriesByHandle);
 
-		var pendingEntries = CollectPendingEntries(world, _entryQuery, out var activatedCount);
-		ref var runtime = ref world.GetResource<ActivationRuntimeState>();
+		var pendingEntries = CollectPendingEntries(world, out var activatedCount);
+		ref var runtime = ref world.WriteResource<ActivationRuntimeState>();
 		if (pendingEntries.Count > 0)
 			runtime.CompletionPublished = false;
 
@@ -61,8 +60,8 @@ public sealed class ActivationProcessingSystem : ISystem
 				}
 			);
 
-		ref var config = ref world.GetResource<ActivationConfig>();
-		ref var dispatchQueue = ref world.GetResource<ActivationDispatchQueueResource>();
+		ref readonly var config = ref world.ReadResource<ActivationConfig>();
+		ref var dispatchQueue = ref world.WriteResource<ActivationDispatchQueueResource>();
 
 		var maxActivationsPerTick = config.MaxActivationsPerTick <= 0
 										? int.MaxValue
@@ -73,14 +72,14 @@ public sealed class ActivationProcessingSystem : ISystem
 		for (var i = 0; i < targetActivationCount; i++)
 		{
 			var candidate = pendingEntries[i];
-			if (!world.TryGet(candidate.EntryEntity, out ActivationEntry entry))
+			if (!world.TryWrite<ActivationEntry>(candidate.EntryEntity, out var entryRef))
 				continue;
 
+			ref var entry = ref entryRef.Value;
 			if (entry.State != ActivationState.Pending)
 				continue;
 
 			entry.State = ActivationState.Activated;
-			world.Set(candidate.EntryEntity, in entry);
 			dispatchQueue.Enqueue(entry.Callback);
 			activatedThisTick++;
 		}
@@ -100,7 +99,7 @@ public sealed class ActivationProcessingSystem : ISystem
 				return;
 
 			var eventData = new ActivationCompletedEvent(runtime.ActivatedCount);
-			ref var events = ref world.GetResource<ActivationEventsResource>();
+			ref var events = ref world.GetOrCreateResource<ActivationEventsResource>();
 			events.Enqueue(in eventData);
 
 			try
@@ -119,138 +118,81 @@ public sealed class ActivationProcessingSystem : ISystem
 		runtime.CompletionPublished = false;
 	}
 
-	private static List<PendingActivationCandidate> CollectPendingEntries(
-		World world,
-		QueryHandle<ActivationEntryQuerySpec> queryHandle,
-		out int activatedCount)
+	private static List<PendingActivationCandidate> CollectPendingEntries(World world, out int activatedCount)
 	{
 		var pendingEntries = new List<PendingActivationCandidate>();
-		activatedCount = 0;
+		var activatedCountLocal = 0;
 
-		using var cursor = world.Execute(queryHandle);
-		if (!cursor.MoveNext())
-			return pendingEntries;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			if (!world.TryGet(entities[i], out ActivationEntry entry))
-				continue;
-
-			if (entry.State == ActivationState.Activated)
+		world.Query<ActivationEntryQuery>().ForEachRead<ActivationEntry>(
+			(Entity entryEntity, in ActivationEntry entry) =>
 			{
-				activatedCount++;
-				continue;
+				if (entry.State == ActivationState.Activated)
+				{
+					activatedCountLocal++;
+					return;
+				}
+
+				if (entry.State != ActivationState.Pending)
+					return;
+
+				pendingEntries.Add(new(entryEntity, entry.Priority, entry.Handle.Id));
 			}
+		);
 
-			if (entry.State != ActivationState.Pending)
-				continue;
-
-			pendingEntries.Add(new(entities[i], entry.Priority, entry.Handle.Id));
-		}
-
+		activatedCount = activatedCountLocal;
 		return pendingEntries;
 	}
 
-	private static Dictionary<int, Entity> BuildEntryIndex(
-		World world,
-		QueryHandle<ActivationEntryQuerySpec> queryHandle)
+	private static Dictionary<int, Entity> BuildEntryIndex(World world)
 	{
 		var entriesByHandle = new Dictionary<int, Entity>();
-		using var cursor = world.Execute(queryHandle);
-		if (!cursor.MoveNext())
-			return entriesByHandle;
+		world.Query<ActivationEntryQuery>().ForEachRead<ActivationEntry>(
+			(Entity entryEntity, in ActivationEntry entry) =>
+			{
+				if (!entry.Handle.IsValid)
+					return;
 
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			if (!world.TryGet(entities[i], out ActivationEntry entry))
-				continue;
-
-			if (!entry.Handle.IsValid)
-				continue;
-
-			entriesByHandle[entry.Handle.Id] = entities[i];
-		}
+				entriesByHandle[entry.Handle.Id] = entryEntity;
+			}
+		);
 
 		return entriesByHandle;
 	}
 
 	private static void ApplyCancellations(
-		World                  world,
-		CommandStream          commands,
-		IReadOnlyDictionary<int, Entity> entriesByHandle,
-		QueryHandle<ActivationCancellationQuerySpec> queryHandle)
+		World                         world,
+		CommandBuffer                 commands,
+		IReadOnlyDictionary<int, Entity> entriesByHandle)
 	{
-		using var cursor = world.Execute(queryHandle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			var requestEntity = entities[i];
-			var request = cursor.Get<ActivationCancellationRequest>(i);
-
-			if (entriesByHandle.TryGetValue(request.Handle.Id, out var entryEntity) &&
-				world.TryGet(entryEntity, out ActivationEntry entry) &&
-				entry.State == ActivationState.Pending)
+		world.Query<ActivationCancellationQuery>().ForEachRead<ActivationCancellationRequest>(
+			(Entity requestEntity, in ActivationCancellationRequest request) =>
 			{
-				entry.State = ActivationState.Cancelled;
-				world.Set(entryEntity, in entry);
-			}
+				if (entriesByHandle.TryGetValue(request.Handle.Id, out var entryEntity) &&
+					world.TryWrite<ActivationEntry>(entryEntity, out var entryRef) &&
+					entryRef.Value.State == ActivationState.Pending)
+				{
+					entryRef.Value.State = ActivationState.Cancelled;
+				}
 
-			commands.Destroy(requestEntity);
-		}
+				commands.Despawn(requestEntity);
+			}
+		);
 	}
 
 	private static void EnsureResources(World world)
 	{
-		try
-		{
-			_ = world.GetResource<ActivationConfig>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new ActivationConfig());
-		}
-
-		try
-		{
-			_ = world.GetResource<ActivationRuntimeState>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new ActivationRuntimeState());
-		}
-
-		try
-		{
-			_ = world.GetResource<ActivationEventsResource>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new ActivationEventsResource());
-		}
-
-		try
-		{
-			_ = world.GetResource<ActivationDispatchQueueResource>();
-		}
-		catch (KeyNotFoundException)
-		{
-			world.SetResource(new ActivationDispatchQueueResource());
-		}
-	}
-
-	private readonly struct ActivationEntryQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder) => builder.All<ActivationEntry>();
-	}
-
-	private readonly struct ActivationCancellationQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder) => builder.All<ActivationCancellationRequest>();
+		world.GetOrCreateResource<ActivationConfig>();
+		world.GetOrCreateResource<ActivationRuntimeState>();
+		world.GetOrCreateResource<ActivationEventsResource>();
+		world.GetOrCreateResource<ActivationDispatchQueueResource>();
 	}
 
 }
+
+[Query]
+[With<ActivationEntry>]
+internal readonly partial struct ActivationEntryQuery;
+
+[Query]
+[With<ActivationCancellationRequest>]
+internal readonly partial struct ActivationCancellationQuery;

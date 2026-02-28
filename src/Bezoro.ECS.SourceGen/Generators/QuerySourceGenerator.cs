@@ -92,12 +92,12 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 			if (attributeClass.ContainingNamespace.ToDisplayString() != "Bezoro.ECS.Attributes")
 				continue;
 
-			if (attributeClass.Name == "AllAttribute")
+			if (attributeClass.Name is "AllAttribute" or "WithAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
 					all.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 			}
-			else if (attributeClass.Name == "NoneAttribute")
+			else if (attributeClass.Name is "NoneAttribute" or "WithoutAttribute")
 			{
 				if (attributeClass.TypeArguments.Length == 1)
 					none.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
@@ -109,6 +109,11 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 					any.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 					any.Add(ToFullyQualified(attributeClass.TypeArguments[1]));
 				}
+			}
+			else if (attributeClass.Name == "AnyOfAttribute")
+			{
+				if (attributeClass.TypeArguments.Length == 1)
+					any.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
 			}
 			else if (attributeClass.Name == "OptionalAttribute")
 			{
@@ -181,15 +186,15 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 
 		var sortedAll = model.All.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
 		for (var i = 0; i < sortedAll.Length; i++)
-			builder.Append("        builder.All<").Append(sortedAll[i]).AppendLine(">();");
+			builder.Append("        builder.With<").Append(sortedAll[i]).AppendLine(">();");
 
 		var sortedNone = model.None.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
 		for (var i = 0; i < sortedNone.Length; i++)
-			builder.Append("        builder.None<").Append(sortedNone[i]).AppendLine(">();");
+			builder.Append("        builder.Without<").Append(sortedNone[i]).AppendLine(">();");
 
 		var sortedAny = model.Any.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
 		for (var i = 0; i < sortedAny.Length; i++)
-			builder.Append("        builder.Any<").Append(sortedAny[i]).AppendLine(">();");
+			builder.Append("        builder.AnyOf<").Append(sortedAny[i]).AppendLine(">();");
 
 		var sortedOptional = model.Optional.OrderBy(static t => t, StringComparer.Ordinal).ToArray();
 		for (var i = 0; i < sortedOptional.Length; i++)

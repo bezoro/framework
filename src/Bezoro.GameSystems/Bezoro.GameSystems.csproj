@@ -8,6 +8,10 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
 		<ProjectReference Include="..\Bezoro.ECS\Bezoro.ECS.csproj" />
+		<ProjectReference Include="..\Bezoro.ECS.SourceGen\Bezoro.ECS.SourceGen.csproj"
+		                  OutputItemType="Analyzer"
+		                  ReferenceOutputAssembly="false"
+		                  PrivateAssets="all" />
 		<ProjectReference Include="..\Bezoro.Events\Bezoro.Events.csproj" />
 	</ItemGroup>
 
