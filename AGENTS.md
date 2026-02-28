@@ -2,10 +2,7 @@
 
 ## Core Philosophy
 
-- **Correctness First**: Must compile, pass tests, handle edge cases.
-- **Minimal & Atomic**: Touch only what's necessary. No scope creep.
 - **TDD**: Red → Green → Refactor. Tests before implementation.
-- **Safety**: Never leak secrets/PII. Validate inputs.
 
 ### Public API
 
@@ -21,26 +18,11 @@
 - **Thread Safety**: Favor immutability and lock-free designs.
 - **Threading Model**: Worker threads produce immutable results. Callbacks dispatch via configurable context. Framework remains engine-agnostic.
 
-## Codebase Scanning
-
-- **Never shell out for file operations.** Do not use `PowerShell`, `cmd`, `cat`, `head`, `tail`, `Get-Content`, `Select-String`, `find`, `grep`, or `rg` via shell to read, search, or list files. These commands are either unavailable or wasteful on this platform. Always use the dedicated tools instead — they work everywhere and are faster:
-  - **Read files** → `Read` tool
-  - **Search file contents** → `Grep` tool (uses ripgrep internally)
-  - **Find files by name/pattern** → `Glob` tool
-  - **Run shell commands** → `Bash` tool, but **only** for build/test/git operations (e.g., `dotnet build`, `dotnet test`, `git status`)
-- **Exclude `bin/`, `obj/`, and `Debug/` directories** when searching or exploring the codebase unless they are directly relevant to the task (e.g., diagnosing build output or binary issues).
-- These folders contain generated artifacts and add noise to search results.
-
 ## Workflow
 
-### 1. Analysis
+> Refer to the global CLAUDE.md/Agents.md under *Plan Before You Execute*.
 
-- Restate problem to confirm understanding.
-- Identify: pros/cons, perf/memory, thread safety, risks, edge cases, constraints.
-- **Stop & Ask** if requirements are ambiguous.
-- Push back on suboptimal ideas; propose alternatives.
-
-### 2. Execution
+### Execution
 
 1. **Test (= API Design)**: Tests are the primary design tool. Before writing any implementation, write tests that express the **ideal consumer experience** — the way a caller *should* interact with the API. Iterate on naming, signatures, overloads, return types, and error handling *in the test* until the usage reads naturally and feels ergonomic. Only once the test captures the desired public surface, run to confirm it fails.
 2. **Implement**: Minimal code to pass the test-defined API. Run tests. Verify no fake greens. Keep it simple — performance optimization belongs in step 3.
@@ -48,7 +30,7 @@
 4. **Document**: Check if XML docs need updates for changed/added APIs. Check if the project's README needs updating — every project must have one and it must stay current.
 5. **Verify**: Build the full solution (`dotnet build bezoro.framework.sln`) to ensure no breaks.
 
-### 3. Error Recovery
+### Error Recovery
 
 - If `dotnet build` or `dotnet test` fails, **diagnose the root cause, fix it, and re-run**. Do not skip or ignore failures.
 - Repeat until green. If stuck after reasonable attempts, ask the user.
@@ -280,32 +262,3 @@ tests/Bezoro.ECS.Tests/
 One test class per source type. Test class name = `{TypeName}Tests`. Place shared fixtures in a `Fixtures/` folder.
 
 **Guidelines**: Isolated tests | One behavior per test | `[Theory]` for multiple inputs | `[MemberData]` for complex data | `IClassFixture<T>` for expensive setup | Mock only I/O boundaries | `[Trait("Category", "Integration")]` for non-unit tests
-
-## Git Branching
-
-- **Never commit directly to `main`**. The `main` branch is protected.
-- Work on `develop` or create feature branches (`feat/<name>`, `fix/<name>`, etc.) as appropriate.
-- Create feature branches when the change is non-trivial or spans multiple commits.
-- PRs target `main` from `develop` or feature branches.
-- PR titles follow commit format: `<type>(<scope>): <description>`. Body summarizes changes with bulleted list.
-
-## Commits
-
-**Format**: `<type>(<scope>): <description>`
-
-**Types**: `feat` | `fix` | `build` | `chore` | `ci` | `docs` | `perf` | `refactor` | `revert` | `style` | `test`
-
-**Breaking**: `feat(api)!: message` or footer `BREAKING CHANGE: description`
-
-**Body**: Use bulleted lists (`-`) to describe individual changes.
-
-**SemVer**: `feat` → MINOR | `fix` → PATCH | `!`/`BREAKING CHANGE` → MAJOR
-
-### Commit Workflow
-
-1. **Check state**: Run `git status` and `git diff` to review all changes.
-2. **Stage selectively**: Only `git add` files related to the current task. Never use `git add -A` or `git add .` blindly.
-3. **Review staged**: Run `git diff --staged` to verify only intended changes are staged.
-4. **Commit**: Create commit with appropriate message format.
-
-**Never commit unrelated changes**. If unrelated modifications exist, leave them unstaged or ask the user how to proceed.
