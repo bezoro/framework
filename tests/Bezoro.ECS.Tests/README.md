@@ -17,6 +17,8 @@ Unit and integration tests for `Bezoro.ECS` runtime, scheduling, source generati
 | `WorldApiContractTests`                         | Public API surface and contract-level behavior checks for `World`/`IWorld`.                                                 |
 | `SystemManagerTests`                            | Scheduling behavior, access-conflict batching, and phase/stage execution semantics.                                         |
 | `SystemManagerErgonomicInferenceTests`          | Scheduler inference coverage for ergonomic APIs such as `QueryView`, direct resource methods, and generated job extensions. |
+| `WorldRelationIndexTests`                       | Internal relation-index lifecycle coverage for relation type-id reuse and target release cleanup.                            |
+| `WorldResourceStoreTests`                       | Internal resource-store lifecycle coverage for disposal and snapshot boxing round-trips.                                     |
 | `QueryGeneratorTests`                           | Compiled query usage and filtering behavior from a consumer perspective.                                                    |
 | `GeneratedQueryAndJobSourceGenIntegrationTests` | Source-generated query-spec and job-extension integration against runtime execution APIs.                                   |
 | `GeneratedSystemMetadataResolverTests`          | Generated system metadata discovery and resolver behavior.                                                                  |

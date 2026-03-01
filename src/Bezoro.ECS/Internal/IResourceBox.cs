@@ -2,9 +2,9 @@ namespace Bezoro.ECS.Internal;
 
 internal interface IResourceBox
 {
-	object ValueObject { get; }
+	object BoxedValue { get; }
 
-	ValueTask DisposeValueAsync();
+	Type ResourceType { get; }
 
 	void DisposeValue();
 }

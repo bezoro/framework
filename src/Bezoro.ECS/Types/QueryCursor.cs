@@ -11,54 +11,30 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public struct QueryCursor : IDisposable
 {
-	internal interface IEntityAction<T1> where T1 : struct
-	{
-		void Invoke(Entity entity, ref T1 component1);
-	}
+	private const int UnknownTypeId = int.MinValue;
+	private const int UnknownArchetypeId = int.MinValue;
+	private const int MissingColumnIndex = -1;
+	private const int UninitializedChunkMatchHint = -1;
 
-	internal interface IEntityAction<T1, T2>
-		where T1 : struct
-		where T2 : struct
-	{
-		void Invoke(Entity entity, ref T1 component1, in T2 component2);
-	}
-
-	internal interface IEntityAction<T1, T2, T3>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-	{
-		void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3);
-	}
-
-	internal interface IEntityAction<T1, T2, T3, T4>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-		where T4 : struct
-	{
-		void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4);
-	}
-
-	private readonly Entity[]          _entities;
-	private readonly int               _chunkMatchCount;
-	private readonly int               _count;
-	private readonly QueryChunkMatch[] _chunkMatches;
+	private readonly Entity[]            _entities;
+	private readonly int                 _chunkMatchCount;
+	private readonly int                 _count;
+	private readonly QueryChunkMatch[]   _chunkMatches;
 	private readonly QueryExecutionLease _lease;
 
-	private readonly World             _world;
-	private          ArchetypeStorage? _cachedGetArchetype;
-	private          ArchetypeStorage? _cachedReadArchetype;
-	private          bool              _disposed;
-	private          bool              _entitiesMaterialized;
-	private          bool              _moved;
-	private          int               _cachedGetArchetypeId;
-	private          int               _cachedGetColumnIndex;
-	private          int               _cachedGetTypeId;
-	private          int               _cachedReadArchetypeId;
-	private          int               _cachedReadColumnIndex;
-	private          int               _cachedReadTypeId;
-	private          int               _chunkMatchHint;
+	private readonly World               _world;
+	private          ArchetypeStorage?   _cachedGetArchetype;
+	private          ArchetypeStorage?   _cachedReadArchetype;
+	private          bool                _disposed;
+	private          bool                _entitiesMaterialized;
+	private          bool                _moved;
+	private          int                 _cachedGetArchetypeId;
+	private          int                 _cachedGetColumnIndex;
+	private          int                 _cachedGetTypeId;
+	private          int                 _cachedReadArchetypeId;
+	private          int                 _cachedReadColumnIndex;
+	private          int                 _cachedReadTypeId;
+	private          int                 _chunkMatchHint;
 
 	/// <summary>
 	///     Delegate invoked with one mutable unmanaged component.
@@ -122,14 +98,51 @@ public struct QueryCursor : IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged;
 
-	private readonly struct DelegateEntityAction<T1>(EntityRefAction<T1> action) : IEntityAction<T1>
+	private readonly struct DelegateChunkAction<T1>(RefAction<T1> action) : IChunkAction<T1>
+		where T1 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1) => action(ref component1);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2>(RefInAction<T1, T2> action) : IChunkAction<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2) => action(ref component1, in component2);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2, T3>(RefInAction<T1, T2, T3> action) : IChunkAction<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
+			action(ref component1, in component2, in component3);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
+		: IChunkAction<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			action(ref component1, in component2, in component3, in component4);
+	}
+
+	private readonly struct DelegateEntityAction<T1>(EntityRefAction<T1> action) : IEntityChunkAction<T1>
 		where T1 : unmanaged
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Invoke(Entity entity, ref T1 component1) => action(entity, ref component1);
 	}
 
-	private readonly struct DelegateEntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : IEntityAction<T1, T2>
+	private readonly struct DelegateEntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : IEntityChunkAction<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
@@ -137,7 +150,7 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2) => action(entity, ref component1, in component2);
 	}
 
-	private readonly struct DelegateEntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action) : IEntityAction<T1, T2, T3>
+	private readonly struct DelegateEntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action) : IEntityChunkAction<T1, T2, T3>
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
@@ -146,7 +159,7 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => action(entity, ref component1, in component2, in component3);
 	}
 
-	private readonly struct DelegateEntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action) : IEntityAction<T1, T2, T3, T4>
+	private readonly struct DelegateEntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action) : IEntityChunkAction<T1, T2, T3, T4>
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
@@ -156,7 +169,55 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4) => action(entity, ref component1, in component2, in component3, in component4);
 	}
 
-	private struct JobEntityAction<TJob, T1>(TJob job) : IEntityAction<T1>
+	private struct JobChunkAction<TJob, T1>(TJob job) : IChunkAction<T1>
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1) => _job.Execute(ref component1);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2>(TJob job) : IChunkAction<T1, T2>
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2) => _job.Execute(ref component1, in component2);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2, T3>(TJob job) : IChunkAction<T1, T2, T3>
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
+			_job.Execute(ref component1, in component2, in component3);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2, T3, T4>(TJob job) : IChunkAction<T1, T2, T3, T4>
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			_job.Execute(ref component1, in component2, in component3, in component4);
+	}
+
+	private struct JobEntityAction<TJob, T1>(TJob job) : IEntityChunkAction<T1>
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
@@ -166,7 +227,7 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1) => _job.Execute(entity, ref component1);
 	}
 
-	private struct JobEntityAction<TJob, T1, T2>(TJob job) : IEntityAction<T1, T2>
+	private struct JobEntityAction<TJob, T1, T2>(TJob job) : IEntityChunkAction<T1, T2>
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -177,7 +238,7 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2) => _job.Execute(entity, ref component1, in component2);
 	}
 
-	private struct JobEntityAction<TJob, T1, T2, T3>(TJob job) : IEntityAction<T1, T2, T3>
+	private struct JobEntityAction<TJob, T1, T2, T3>(TJob job) : IEntityChunkAction<T1, T2, T3>
 		where TJob : struct, IForEachEntity<T1, T2, T3>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -189,7 +250,7 @@ public struct QueryCursor : IDisposable
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => _job.Execute(entity, ref component1, in component2, in component3);
 	}
 
-	private struct JobEntityAction<TJob, T1, T2, T3, T4>(TJob job) : IEntityAction<T1, T2, T3, T4>
+	private struct JobEntityAction<TJob, T1, T2, T3, T4>(TJob job) : IEntityChunkAction<T1, T2, T3, T4>
 		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -220,14 +281,14 @@ public struct QueryCursor : IDisposable
 		_disposed             = false;
 		_moved                = false;
 		_entitiesMaterialized = false;
-		_chunkMatchHint       = -1;
-		_cachedGetTypeId      = int.MinValue;
-		_cachedGetArchetypeId = int.MinValue;
-		_cachedGetColumnIndex = -1;
+		_chunkMatchHint       = UninitializedChunkMatchHint;
+		_cachedGetTypeId      = UnknownTypeId;
+		_cachedGetArchetypeId = UnknownArchetypeId;
+		_cachedGetColumnIndex = MissingColumnIndex;
 		_cachedGetArchetype   = null;
-		_cachedReadTypeId      = int.MinValue;
-		_cachedReadArchetypeId = int.MinValue;
-		_cachedReadColumnIndex = -1;
+		_cachedReadTypeId      = UnknownTypeId;
+		_cachedReadArchetypeId = UnknownArchetypeId;
+		_cachedReadColumnIndex = MissingColumnIndex;
 		_cachedReadArchetype   = null;
 	}
 
@@ -281,8 +342,8 @@ public struct QueryCursor : IDisposable
 		if (typeId != _cachedGetTypeId)
 		{
 			_cachedGetTypeId      = typeId;
-			_cachedGetArchetypeId = int.MinValue;
-			_cachedGetColumnIndex = -1;
+			_cachedGetArchetypeId = UnknownArchetypeId;
+			_cachedGetColumnIndex = MissingColumnIndex;
 			_cachedGetArchetype   = null;
 		}
 
@@ -332,8 +393,8 @@ public struct QueryCursor : IDisposable
 		if (typeId != _cachedReadTypeId)
 		{
 			_cachedReadTypeId      = typeId;
-			_cachedReadArchetypeId = int.MinValue;
-			_cachedReadColumnIndex = -1;
+			_cachedReadArchetypeId = UnknownArchetypeId;
+			_cachedReadColumnIndex = MissingColumnIndex;
 			_cachedReadArchetype   = null;
 		}
 
@@ -379,38 +440,9 @@ public struct QueryCursor : IDisposable
 	/// <param name="action">Per-entity callback.</param>
 	public void ForEach<T1>(RefAction<T1> action) where T1 : unmanaged
 	{
-		ThrowIfDisposed();
 		if (action is null) throw new ArgumentNullException(nameof(action));
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-				action(ref Unsafe.Add(ref c1Start, offset));
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<DelegateChunkAction<T1>, T1>(_world, _chunkMatches, _chunkMatchCount, new(action));
 	}
 
 	/// <summary>
@@ -423,51 +455,9 @@ public struct QueryCursor : IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
 		if (action is null) throw new ArgumentNullException(nameof(action));
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				action(ref c1, in c2);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2>, T1, T2>(_world, _chunkMatches, _chunkMatchCount, new(action));
 	}
 
 	/// <summary>
@@ -482,61 +472,9 @@ public struct QueryCursor : IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
 		if (action is null) throw new ArgumentNullException(nameof(action));
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				action(ref c1, in c2, in c3);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2, T3>, T1, T2, T3>(_world, _chunkMatches, _chunkMatchCount, new(action));
 	}
 
 	/// <summary>
@@ -553,308 +491,52 @@ public struct QueryCursor : IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
 		if (action is null) throw new ArgumentNullException(nameof(action));
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		int               cachedColumnIndex4 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
-				if (cachedColumnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-				action(ref c1, in c2, in c3, in c4);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2, T3, T4>, T1, T2, T3, T4>(
+			_world,
+			_chunkMatches,
+			_chunkMatchCount,
+			new(action)
+		);
 	}
 
 	internal void ExecuteEntityAction<TAction, T1>(TAction action)
-		where TAction : struct, IEntityAction<T1>
+		where TAction : struct, IEntityChunkAction<T1>
 		where T1 : struct
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		var versions = _world.GetEntityVersionsForCursor();
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				int entityId = Unsafe.Add(ref entityIdStart, offset);
-				action.Invoke(new(entityId, versions[entityId]), ref Unsafe.Add(ref c1Start, offset));
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	internal void ExecuteEntityAction<TAction, T1, T2>(TAction action)
-		where TAction : struct, IEntityAction<T1, T2>
+		where TAction : struct, IEntityChunkAction<T1, T2>
 		where T1 : struct
 		where T2 : struct
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		var versions = _world.GetEntityVersionsForCursor();
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				int entityId = Unsafe.Add(ref entityIdStart, offset);
-				action.Invoke(new(entityId, versions[entityId]), ref c1, in c2);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	internal void ExecuteEntityAction<TAction, T1, T2, T3>(TAction action)
-		where TAction : struct, IEntityAction<T1, T2, T3>
+		where TAction : struct, IEntityChunkAction<T1, T2, T3>
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		var versions = _world.GetEntityVersionsForCursor();
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				int entityId = Unsafe.Add(ref entityIdStart, offset);
-				action.Invoke(new(entityId, versions[entityId]), ref c1, in c2, in c3);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	internal void ExecuteEntityAction<TAction, T1, T2, T3, T4>(TAction action)
-		where TAction : struct, IEntityAction<T1, T2, T3, T4>
+		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct
 		where T4 : struct
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		int               cachedColumnIndex4 = -1;
-		var versions = _world.GetEntityVersionsForCursor();
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
-				if (cachedColumnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
-			ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-				int entityId = Unsafe.Add(ref entityIdStart, offset);
-				action.Invoke(new(entityId, versions[entityId]), ref c1, in c2, in c3, in c4);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3, T4>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	/// <summary>
@@ -929,37 +611,8 @@ public struct QueryCursor : IDisposable
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-				job.Execute(ref Unsafe.Add(ref c1Start, offset));
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<JobChunkAction<TJob, T1>, T1>(_world, _chunkMatches, _chunkMatchCount, new(job));
 	}
 
 	/// <summary>
@@ -974,50 +627,8 @@ public struct QueryCursor : IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				job.Execute(ref c1, in c2);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<JobChunkAction<TJob, T1, T2>, T1, T2>(_world, _chunkMatches, _chunkMatchCount, new(job));
 	}
 
 	/// <summary>
@@ -1034,60 +645,13 @@ public struct QueryCursor : IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				job.Execute(ref c1, in c2, in c3);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<JobChunkAction<TJob, T1, T2, T3>, T1, T2, T3>(
+			_world,
+			_chunkMatches,
+			_chunkMatchCount,
+			new(job)
+		);
 	}
 
 	/// <summary>
@@ -1106,70 +670,13 @@ public struct QueryCursor : IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		if (!_moved)
-			throw new InvalidOperationException("Call MoveNext before enumerating components.");
-
-		int               typeId1            = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialChunkMatchRefWrites(_chunkMatches, _chunkMatchCount, typeId1);
-		int               typeId2            = _world.GetOrCreateComponentTypeId<T2>();
-		int               typeId3            = _world.GetOrCreateComponentTypeId<T3>();
-		int               typeId4            = _world.GetOrCreateComponentTypeId<T4>();
-		int               cachedArchetypeId  = int.MinValue;
-		ArchetypeStorage? cachedArchetype    = null;
-		int               cachedColumnIndex1 = -1;
-		int               cachedColumnIndex2 = -1;
-		int               cachedColumnIndex3 = -1;
-		int               cachedColumnIndex4 = -1;
-		for (var i = 0; i < _chunkMatchCount; i++)
-		{
-			var match = _chunkMatches[i];
-			if (match.ArchetypeId != cachedArchetypeId)
-			{
-				cachedArchetypeId  = match.ArchetypeId;
-				cachedArchetype    = _world.GetArchetypeForCursor(match.ArchetypeId);
-				cachedColumnIndex1 = cachedArchetype.GetColumnIndexOrNegative(typeId1);
-				if (cachedColumnIndex1 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId1}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex2 = cachedArchetype.GetColumnIndexOrNegative(typeId2);
-				if (cachedColumnIndex2 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId2}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex3 = cachedArchetype.GetColumnIndexOrNegative(typeId3);
-				if (cachedColumnIndex3 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId3}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-
-				cachedColumnIndex4 = cachedArchetype.GetColumnIndexOrNegative(typeId4);
-				if (cachedColumnIndex4 < 0)
-					throw new KeyNotFoundException(
-						$"Type id '{typeId4}' does not exist in archetype '{match.ArchetypeId}'."
-					);
-			}
-
-			var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-			if (match.Count == 0)
-				continue;
-
-			ref var c1Start = ref cachedArchetype.GetRefByIndex<T1>(chunk, cachedColumnIndex1, match.RowStart);
-			ref var c2Start = ref cachedArchetype.GetRefByIndex<T2>(chunk, cachedColumnIndex2, match.RowStart);
-			ref var c3Start = ref cachedArchetype.GetRefByIndex<T3>(chunk, cachedColumnIndex3, match.RowStart);
-			ref var c4Start = ref cachedArchetype.GetRefByIndex<T4>(chunk, cachedColumnIndex4, match.RowStart);
-			for (var offset = 0; offset < match.Count; offset++)
-			{
-				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-				job.Execute(ref c1, in c2, in c3, in c4);
-			}
-		}
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.Execute<JobChunkAction<TJob, T1, T2, T3, T4>, T1, T2, T3, T4>(
+			_world,
+			_chunkMatches,
+			_chunkMatchCount,
+			new(job)
+		);
 	}
 
 	/// <summary>
@@ -1322,5 +829,13 @@ public struct QueryCursor : IDisposable
 	{
 		if (_disposed)
 			throw new ObjectDisposedException(nameof(QueryCursor));
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ValidateReadyForEnumeration()
+	{
+		ThrowIfDisposed();
+		if (!_moved)
+			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 	}
 }

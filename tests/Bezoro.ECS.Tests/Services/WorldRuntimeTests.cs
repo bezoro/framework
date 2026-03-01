@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -41,6 +42,28 @@ public partial class WorldRuntimeTests
 		{
 			component1.X += component2.X * dt;
 			component1.Y += component2.Y * dt;
+		}
+	}
+
+	private struct RecordingEntityIntegrateJob(List<int> order) : IForEachEntity<Position, Velocity>
+	{
+		private readonly List<int> _order = order;
+
+		public void Execute(Entity entity, ref Position component1, in Velocity component2)
+		{
+			_order.Add((int)component1.X);
+			component1.Y += component2.Y;
+		}
+	}
+
+	private struct RecordingIntegrateJob(List<int> order) : IForEach<Position, Velocity>
+	{
+		private readonly List<int> _order = order;
+
+		public void Execute(ref Position component1, in Velocity component2)
+		{
+			_order.Add((int)component1.X);
+			component1.Y += component2.Y;
 		}
 	}
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -701,6 +702,106 @@ public partial class WorldRuntimeTests
 			updated.X.Should().Be(i + 6);
 			updated.Y.Should().Be(i - 3);
 		}
+	}
+
+	[Fact]
+	public void QueryCursor_WhenUsingTraversalFamilies_ShouldPreserveOrderAndMutationAcrossAdapters()
+	{
+		static (List<int> order, float[] yValues) ExecuteWith(
+			Action<World, QueryHandle<PositionAndVelocityQuerySpec>, List<int>> run)
+		{
+			using var world = new World(
+				new WorldConfig
+				{
+					EntityCapacity                = 16,
+					ComponentTypeCapacity         = 16,
+					CommandCapacity               = 48,
+					CommandPayloadCapacityPerType = 48,
+					QueryResultCapacity           = 16
+				}
+			);
+
+			using var commands = world.CreateCommandStream();
+			for (var i = 0; i < 5; i++)
+			{
+				var entity = commands.CreateEntity();
+				commands.Set(entity, new Position { X = i, Y = i * 10 });
+				commands.Set(entity, new Velocity { X = 0, Y = 3 });
+			}
+
+			world.Playback(commands);
+
+			var handle = world.Compile<PositionAndVelocityQuerySpec>();
+			var order  = new List<int>();
+			run(world, handle, order);
+
+			using var cursor = world.Execute(handle);
+			cursor.MoveNext().Should().BeTrue();
+			var yValues = new float[cursor.Current.Length];
+			for (var i = 0; i < cursor.Current.Length; i++)
+				yValues[i] = cursor.Get<Position>(i).Y;
+
+			return (order, yValues);
+		}
+
+		var foreachResult = ExecuteWith(
+			static (world, handle, order) =>
+			{
+				using var cursor = world.Execute(handle);
+				cursor.MoveNext().Should().BeTrue();
+				cursor.ForEach((ref Position position, in Velocity velocity) =>
+					{
+						order.Add((int)position.X);
+						position.Y += velocity.Y;
+					}
+				);
+			}
+		);
+
+		var foreachEntityResult = ExecuteWith(
+			static (world, handle, order) =>
+			{
+				using var cursor = world.Execute(handle);
+				cursor.MoveNext().Should().BeTrue();
+				cursor.ForEachEntity((Entity entity, ref Position position, in Velocity velocity) =>
+					{
+						order.Add((int)position.X);
+						position.Y += velocity.Y;
+					}
+				);
+			}
+		);
+
+		var runResult = ExecuteWith(
+			static (world, handle, order) =>
+			{
+				using var cursor = world.Execute(handle);
+				cursor.MoveNext().Should().BeTrue();
+				cursor.Run<RecordingIntegrateJob, Position, Velocity>(new(order));
+			}
+		);
+
+		var runEntityResult = ExecuteWith(
+			static (world, handle, order) =>
+			{
+				using var cursor = world.Execute(handle);
+				cursor.MoveNext().Should().BeTrue();
+				cursor.RunEntity<RecordingEntityIntegrateJob, Position, Velocity>(new(order));
+			}
+		);
+
+		int[] expectedOrder = [0, 1, 2, 3, 4];
+		float[] expectedYValues = [3, 13, 23, 33, 43];
+
+		foreachResult.order.Should().Equal(expectedOrder);
+		foreachEntityResult.order.Should().Equal(expectedOrder);
+		runResult.order.Should().Equal(expectedOrder);
+		runEntityResult.order.Should().Equal(expectedOrder);
+
+		foreachResult.yValues.Should().Equal(expectedYValues);
+		foreachEntityResult.yValues.Should().Equal(expectedYValues);
+		runResult.yValues.Should().Equal(expectedYValues);
+		runEntityResult.yValues.Should().Equal(expectedYValues);
 	}
 
 

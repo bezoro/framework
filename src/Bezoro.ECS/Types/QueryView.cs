@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Types;
@@ -60,26 +61,26 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	private readonly QueryHandle<TQuery> _handle = handle;
 	private readonly World               _world  = world ?? throw new ArgumentNullException(nameof(world));
 
-	private readonly struct ReadOnlyEntityAction<T1>(EntityInAction<T1> action) : QueryCursor.IEntityAction<T1>
+	private readonly struct ReadOnlyEntityAction<T1>(EntityInAction<T1> action) : IEntityChunkAction<T1>
 		where T1 : struct
 	{
 		public void Invoke(Entity entity, ref T1 component1) => action(entity, in component1);
 	}
 
-	private readonly struct EntityAction<T1>(EntityRefAction<T1> action) : QueryCursor.IEntityAction<T1>
+	private readonly struct EntityAction<T1>(EntityRefAction<T1> action) : IEntityChunkAction<T1>
 		where T1 : struct
 	{
 		public void Invoke(Entity entity, ref T1 component1) => action(entity, ref component1);
 	}
 
-	private readonly struct EntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : QueryCursor.IEntityAction<T1, T2>
+	private readonly struct EntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : IEntityChunkAction<T1, T2>
 		where T1 : struct
 		where T2 : struct
 	{
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2) => action(entity, ref component1, in component2);
 	}
 
-	private readonly struct EntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action) : QueryCursor.IEntityAction<T1, T2, T3>
+	private readonly struct EntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action) : IEntityChunkAction<T1, T2, T3>
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct
@@ -87,7 +88,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => action(entity, ref component1, in component2, in component3);
 	}
 
-	private readonly struct EntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action) : QueryCursor.IEntityAction<T1, T2, T3, T4>
+	private readonly struct EntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action) : IEntityChunkAction<T1, T2, T3, T4>
 		where T1 : struct
 		where T2 : struct
 		where T3 : struct
