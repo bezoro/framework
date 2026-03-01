@@ -262,3 +262,22 @@ tests/Bezoro.ECS.Tests/
 One test class per source type. Test class name = `{TypeName}Tests`. Place shared fixtures in a `Fixtures/` folder.
 
 **Guidelines**: Isolated tests | One behavior per test | `[Theory]` for multiple inputs | `[MemberData]` for complex data | `IClassFixture<T>` for expensive setup | Mock only I/O boundaries | `[Trait("Category", "Integration")]` for non-unit tests
+
+---
+
+## Agent Notes
+
+> This section is maintained by the agent. Add entries as patterns, pitfalls, and preferences are discovered working on this codebase. Each entry should be actionable and specific — no vague advice.
+
+### Format
+
+```
+### <Short Title>
+**Context**: When/where this applies.
+**Rule**: The concrete do/don't/prefer/avoid.
+**Reason**: Why — failure mode, wasted work, or quality impact.
+```
+
+---
+
+<!-- Agent: add learned entries below this line -->
