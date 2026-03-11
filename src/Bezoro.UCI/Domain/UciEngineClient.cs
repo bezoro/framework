@@ -67,8 +67,8 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		_searchCoordinator = new(
 			_transport,
 			SetActivity,
-			pv => InfoPvReceived?.Invoke(pv),
-			(best, ponder) => BestMoveReceived?.Invoke(best, ponder)
+			PublishInfoPvSafe,
+			PublishBestMoveSafe
 		);
 
 		_outputDispatcher = new(_lineWaiters, _searchCoordinator);
@@ -314,11 +314,19 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 				try
 				{
 					LineReceived?.Invoke(line);
+				}
+				catch
+				{
+					// External subscribers must not interfere with protocol processing.
+				}
+
+				try
+				{
 					_outputDispatcher.Process(line);
 				}
 				catch
 				{
-					// keep loop alive
+					// Keep loop alive if output dispatch hits an unexpected failure.
 				}
 			}
 		}
@@ -339,6 +347,30 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private void SetActivity(EngineActivity next)
 	{
 		_activityTracker.Set(next);
+	}
+
+	private void PublishBestMoveSafe(string bestMove, string ponderMove)
+	{
+		try
+		{
+			BestMoveReceived?.Invoke(bestMove, ponderMove);
+		}
+		catch
+		{
+			// External subscribers must not interfere with search completion.
+		}
+	}
+
+	private void PublishInfoPvSafe(PrincipalVariation pv)
+	{
+		try
+		{
+			InfoPvReceived?.Invoke(pv);
+		}
+		catch
+		{
+			// External subscribers must not interfere with PV capture.
+		}
 	}
 
 	private sealed class EventSubscription(Action unsubscribe) : IDisposable

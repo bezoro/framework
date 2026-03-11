@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,8 +10,9 @@ namespace Bezoro.UCI.Domain.EngineClient;
 /// </summary>
 internal sealed class UciLineWaiterRegistry
 {
-	private readonly ConcurrentDictionary<Guid, WaiterRegistration> _waiters = new();
-	private          int                                            _waiterCount;
+	private readonly LinkedList<WaiterRegistration> _waiters = [];
+	private readonly object                         _waiterLock = new();
+	private          int                            _waiterCount;
 
 	/// <summary>
 	///     True when at least one waiter is currently registered.
@@ -26,13 +27,14 @@ internal sealed class UciLineWaiterRegistry
 		TimeSpan           timeout,
 		CancellationToken  cancellationToken)
 	{
-		var id  = Guid.NewGuid();
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+		LinkedListNode<WaiterRegistration> node;
 
-		if (_waiters.TryAdd(id, new(predicate, tcs)))
+		lock (_waiterLock)
+		{
+			node = _waiters.AddLast(new WaiterRegistration(predicate, tcs));
 			Interlocked.Increment(ref _waiterCount);
-		else
-			throw new InvalidOperationException("Unable to register UCI line waiter.");
+		}
 
 		if (timeout == Timeout.InfiniteTimeSpan && !cancellationToken.CanBeCanceled)
 			try
@@ -41,8 +43,7 @@ internal sealed class UciLineWaiterRegistry
 			}
 			finally
 			{
-				if (_waiters.TryRemove(id, out _))
-					Interlocked.Decrement(ref _waiterCount);
+				RemoveWaiter(node);
 			}
 
 		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
@@ -58,8 +59,7 @@ internal sealed class UciLineWaiterRegistry
 		}
 		finally
 		{
-			if (_waiters.TryRemove(id, out _))
-				Interlocked.Decrement(ref _waiterCount);
+			RemoveWaiter(node);
 		}
 	}
 
@@ -68,40 +68,67 @@ internal sealed class UciLineWaiterRegistry
 	/// </summary>
 	public void CancelAll()
 	{
-		foreach (var (id, waiter) in _waiters)
+		WaiterRegistration[] waitersToCancel;
+		lock (_waiterLock)
 		{
-			if (!_waiters.TryRemove(id, out var removed)) continue;
+			if (_waiters.Count == 0) return;
 
-			Interlocked.Decrement(ref _waiterCount);
-			removed.CompletionSource.TrySetCanceled();
+			waitersToCancel = [.. _waiters];
+			_waiters.Clear();
+			Volatile.Write(ref _waiterCount, 0);
 		}
+
+		foreach (WaiterRegistration waiter in waitersToCancel)
+			waiter.CompletionSource.TrySetCanceled();
 	}
 
 	/// <summary>
-	///     Attempts to complete any registered waiters whose predicate matches the supplied line.
+	///     Attempts to complete the earliest registered waiter whose predicate matches the supplied line.
 	/// </summary>
 	public void Notify(string line)
 	{
 		if (!HasWaiters) return;
 
-		foreach (var (id, waiter) in _waiters)
+		TaskCompletionSource<string>? completion = null;
+
+		lock (_waiterLock)
 		{
-			bool match;
-			try
+			var node = _waiters.First;
+			while (node is { })
 			{
-				match = waiter.Predicate(line);
+				var current = node;
+				node = node.Next;
+
+				bool match;
+				try
+				{
+					match = current.Value.Predicate(line);
+				}
+				catch
+				{
+					match = false;
+				}
+
+				if (!match) continue;
+
+				_waiters.Remove(current);
+				Interlocked.Decrement(ref _waiterCount);
+				completion = current.Value.CompletionSource;
+				break;
 			}
-			catch
-			{
-				match = false;
-			}
+		}
 
-			if (!match) continue;
+		completion?.TrySetResult(line);
+	}
 
-			if (!_waiters.TryRemove(id, out var removed)) continue;
+	private void RemoveWaiter(LinkedListNode<WaiterRegistration> node)
+	{
+		lock (_waiterLock)
+		{
+			if (node.List is null) return;
 
+			_waiters.Remove(node);
 			Interlocked.Decrement(ref _waiterCount);
-			removed.CompletionSource.TrySetResult(line);
 		}
 	}
 

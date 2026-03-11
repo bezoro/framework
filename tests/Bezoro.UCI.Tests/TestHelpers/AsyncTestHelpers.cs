@@ -192,4 +192,43 @@ public static class AsyncTestHelpers
 			throw new TimeoutException($"Operation did not complete within {timeout.TotalSeconds} seconds.");
 		}
 	}
+
+	/// <summary>
+	///     Waits for an async enumerator to finish yielding items within the supplied timeout.
+	/// </summary>
+	/// <typeparam name="T">The element type.</typeparam>
+	/// <param name="enumerator">Enumerator to drain.</param>
+	/// <param name="pendingMoveNext">Optional in-flight MoveNextAsync task started before the shutdown action.</param>
+	/// <param name="timeout">Maximum time to wait for the enumerator to complete.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public static async Task WaitForAsyncEnumeratorToCompleteAsync<T>(
+		IAsyncEnumerator<T> enumerator,
+		Task<bool>?         pendingMoveNext = null,
+		TimeSpan            timeout         = default,
+		CancellationToken   ct              = default)
+	{
+		if (timeout == default)
+			timeout = TestConstants.DefaultTimeout;
+
+		using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		timeoutCts.CancelAfter(timeout);
+
+		try
+		{
+			bool hasItem = pendingMoveNext is null
+							   ? await enumerator.MoveNextAsync().AsTask().WaitAsync(timeoutCts.Token).ConfigureAwait(false)
+							   : await pendingMoveNext.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+
+			while (hasItem)
+				hasItem = await enumerator.MoveNextAsync().AsTask().WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (OperationCanceledException)
+		{
+			throw new TimeoutException($"Enumerator did not complete within {timeout.TotalSeconds} seconds.");
+		}
+	}
 }

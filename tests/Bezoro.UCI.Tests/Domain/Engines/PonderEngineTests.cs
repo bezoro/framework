@@ -107,6 +107,7 @@ public class PonderEngineTests
 	{
 		// Arrange
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var bestMoveCount = 0;
 		var lockObj       = new object();
@@ -174,6 +175,7 @@ public class PonderEngineTests
 	{
 		// Arrange: mate in -1 (better) vs mate in -5 (worse)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var         bestMoveRaised = false;
 		ParsedMove? receivedBest   = null;
@@ -211,6 +213,7 @@ public class PonderEngineTests
 	{
 		// Arrange: mate in 1 (better) vs mate in 5 (worse)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var         bestMoveRaised = false;
 		ParsedMove? receivedBest   = null;
@@ -248,6 +251,7 @@ public class PonderEngineTests
 	{
 		// Arrange: cp score → mate score (mate is always better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var bestMoveRaised = false;
 		engine.BestMove += (best, ponder) => { bestMoveRaised = true; };
@@ -278,6 +282,7 @@ public class PonderEngineTests
 	{
 		// Arrange: negative mate → negative cp (both losing, compare cp values)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
@@ -322,6 +327,7 @@ public class PonderEngineTests
 	{
 		// Arrange: negative mate (losing) → positive cp (winning cp is better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
@@ -351,6 +357,7 @@ public class PonderEngineTests
 	{
 		// Arrange: positive mate (winning) → cp (mate is always better)
 		var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		engine.EnableOutputForwardingForTests();
 
 		var bestMoveCount = 0;
 		engine.BestMove += (best, ponder) => { bestMoveCount++; };
@@ -503,6 +510,36 @@ public class PonderEngineTests
 		// Calling again with the same position should not throw and should remain searching
 		await engine.StartSearchAsync(Fen.Default, null);
 		engine.Activity.Should().Be(EngineActivity.Searching);
+
+		await engine.StopSearchAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenRetargetedToDifferentPosition_ShouldRestartOnNewPosition()
+	{
+		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		mateFen.Should().NotBeNull();
+
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var initialInfoTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var mateMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.InfoPv += _ => initialInfoTcs.TrySetResult(true);
+		engine.BestMove += (best, _) =>
+		{
+			if (best.Raw == "f7g7")
+				mateMoveTcs.TrySetResult(best);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await initialInfoTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+
+		await engine.StartSearchAsync(mateFen!.Value, null);
+
+		var bestMove = await mateMoveTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		bestMove.Raw.Should().Be("f7g7");
 
 		await engine.StopSearchAsync();
 	}

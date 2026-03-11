@@ -24,6 +24,8 @@ internal sealed class MoveClassificationEngine(
 	private readonly QuickInfoEngine _quick              = new(enginePath, args, workingDirectory);
 	private readonly SemaphoreSlim   _clientPositionLock = new(1, 1);
 	private readonly SemaphoreSlim   _quickPositionLock  = new(1, 1);
+	private readonly Func<UciEngineClient, CancellationToken, Task>? _clientStartupConfigurator;
+	private readonly Func<CancellationToken, Task>?                  _stopHook;
 
 	private readonly string _enginePath = enginePath ?? throw new ArgumentNullException(nameof(enginePath));
 	private          bool   _disposed;
@@ -38,6 +40,21 @@ internal sealed class MoveClassificationEngine(
 	public event Action<IReadOnlyList<Move>>? AllMovesClassified;
 	public event Action<Move>?                MoveClassified;
 
+	public bool IsHealthy => _started && _quick.IsHealthy && _client is { IsHealthy: true };
+	public bool IsStarted => _started;
+
+	internal MoveClassificationEngine(
+		string                                          enginePath,
+		IEnumerable<string>?                            args,
+		string?                                         workingDirectory,
+		Func<UciEngineClient, CancellationToken, Task>? clientStartupConfigurator,
+		Func<CancellationToken, Task>?                  stopHook = null)
+		: this(enginePath, args, workingDirectory)
+	{
+		_clientStartupConfigurator = clientStartupConfigurator;
+		_stopHook                  = stopHook;
+	}
+
 	public async IAsyncEnumerable<Move> ClassifyAsync(
 		Fen?                                       fen          = null,
 		uint                                       perMoveDepth = 6,
@@ -46,7 +63,7 @@ internal sealed class MoveClassificationEngine(
 	{
 		EnsureStarted();
 
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _classificationCts.Token);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, CaptureClassificationToken());
 		var       token     = linkedCts.Token;
 
 		fen ??= await _quick.GetCurrentFenAsync(token);
@@ -60,7 +77,7 @@ internal sealed class MoveClassificationEngine(
 		await _clientPositionLock.WaitAsync(token).ConfigureAwait(false);
 		try
 		{
-			await _client.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
+			await _client!.SetPositionAsync(fen.Value, null, token).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -299,22 +316,90 @@ internal sealed class MoveClassificationEngine(
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
 		EnsureStarted();
-		await _client!.UciNewGameAsync(ct).ConfigureAwait(false);
+		StopClassification();
+		await _quick.NewGameAsync(ct).ConfigureAwait(false);
+
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client!.UciNewGameAsync(ct).ConfigureAwait(false);
+			ClearCaches();
+		}
+		finally
+		{
+			_clientPositionLock.Release();
+		}
+	}
+
+	public async Task SetOptionAsync(string name, string? value, CancellationToken ct = default)
+	{
+		EnsureStarted();
+
+		await _quick.SetOptionAsync(name, value, ct).ConfigureAwait(false);
+
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client!.SetOptionAsync(name, value, ct).ConfigureAwait(false);
+			ClearCaches();
+		}
+		finally
+		{
+			_clientPositionLock.Release();
+		}
 	}
 
 	public async Task StartAsync(CancellationToken ct = default)
 	{
-		await _quick.StartAsync(ct).ConfigureAwait(false);
+		var quickStarted = false;
 
-		_transport = new(_enginePath, _args, workingDirectory);
-		_client    = new(_transport);
-		await _client.StartAsync(ct).ConfigureAwait(false);
-		await _client.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
-		await _client.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
+		try
+		{
+			await _quick.StartAsync(ct).ConfigureAwait(false);
+			quickStarted = true;
 
-		ClearCaches();
+			_transport = new(_enginePath, _args, workingDirectory);
+			_client    = new(_transport);
+			await _client.StartAsync(ct).ConfigureAwait(false);
+			await ConfigureClientForStartAsync(_client, ct).ConfigureAwait(false);
 
-		_started = true;
+			ClearCaches();
+			_started = true;
+		}
+		catch
+		{
+			_started = false;
+			ClearCaches();
+
+			if (_client is { } client)
+			{
+				try
+				{
+					await client.DisposeAsync().ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort */
+				}
+				finally
+				{
+					_client    = null;
+					_transport = null;
+				}
+			}
+
+			if (quickStarted)
+				try
+				{
+					await _quick.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				}
+				catch
+				{
+					/* best-effort */
+				}
+
+			throw;
+		}
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
@@ -326,6 +411,9 @@ internal sealed class MoveClassificationEngine(
 
 		if (_client is { })
 			await _client.StopAsync(ct).ConfigureAwait(false);
+
+		if (_stopHook is { })
+			await _stopHook(ct).ConfigureAwait(false);
 
 		_started = false;
 	}
@@ -449,7 +537,7 @@ internal sealed class MoveClassificationEngine(
 			if (!originalStateRestored)
 				try
 				{
-					await _client.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
+					await _client!.SetPositionAsync(fen, null, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch
 				{
@@ -490,6 +578,7 @@ internal sealed class MoveClassificationEngine(
 		if (_disposed) return;
 
 		_disposed = true;
+		_started  = false;
 
 		StopClassification();
 
@@ -623,12 +712,14 @@ internal sealed class MoveClassificationEngine(
 
 		// Ensure engine is at root position and restrict search to this single move
 		SearchResult result = default;
+		bool         scoreNeedsInversion = false;
 		if (_client is null || !_client.IsStarted || !_client.IsHealthy)
 		{
 			await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
 			try
 			{
-				result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
+				result = await _quick.EvaluatePositionAsync(fen, [move], perMoveDepth, ct).ConfigureAwait(false);
+				scoreNeedsInversion = true;
 			}
 			finally
 			{
@@ -640,49 +731,44 @@ internal sealed class MoveClassificationEngine(
 			await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
 			try
 			{
-				await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+				await _client!.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 				result = await _client.GoAsync(new() { Depth = perMoveDepth, SearchMoves = [move] }, ct)
-									  .ConfigureAwait(false);
+								 .ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested)
+			{
+				throw;
 			}
 			catch (OperationCanceledException)
 			{
-				// If the scoring search is canceled (e.g., due to tight test timeouts),
-				// fall back to a neutral score and still compute terminal conditions.
 				result = default;
 			}
-			catch (ObjectDisposedException)
+			catch
 			{
-				// Defensive: fallback to quick eval as well
-				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
-				try
-				{
-					result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
-				}
-				finally
-				{
-					_quickPositionLock.Release();
-				}
-			}
-			catch (InvalidOperationException)
-			{
-				// Engine process may have exited unexpectedly; fallback to QuickInfoEngine for a quick eval
-				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
-				try
-				{
-					result = await _quick.QuickEvalAsync(fen, perMoveDepth, ct).ConfigureAwait(false);
-				}
-				finally
-				{
-					_quickPositionLock.Release();
-				}
+				scoreNeedsInversion = true;
 			}
 			finally
 			{
 				_clientPositionLock.Release();
 			}
+
+			if (scoreNeedsInversion)
+			{
+				await _quickPositionLock.WaitAsync(ct).ConfigureAwait(false);
+				try
+				{
+					result = await _quick.EvaluatePositionAsync(fen, [move], perMoveDepth, ct).ConfigureAwait(false);
+				}
+				finally
+				{
+					_quickPositionLock.Release();
+				}
+			}
 		}
 
 		score = ScoreFromResult(result);
+		if (scoreNeedsInversion)
+			score = InvertScore(score);
 
 		// Determine terminal positions using helper methods for consistency.
 		bool isMate = false, isStalemate = false;
@@ -767,11 +853,43 @@ internal sealed class MoveClassificationEngine(
 		_isStalemateCache.Clear();
 	}
 
+	private CancellationToken CaptureClassificationToken()
+	{
+		var cts = Volatile.Read(ref _classificationCts);
+		try
+		{
+			return cts.Token;
+		}
+		catch (ObjectDisposedException)
+		{
+			throw new OperationCanceledException("Classification was stopped before it could start.");
+		}
+	}
+
+	private Task ConfigureClientForStartAsync(UciEngineClient client, CancellationToken ct) =>
+		_clientStartupConfigurator is null
+			? ConfigureDefaultClientOptionsAsync(client, ct)
+			: _clientStartupConfigurator(client, ct);
+
+	private static async Task ConfigureDefaultClientOptionsAsync(UciEngineClient client, CancellationToken ct)
+	{
+		await client.SetOptionAsync("Threads", "2", ct).ConfigureAwait(false);
+		await client.SetOptionAsync("MultiPv", "1", ct).ConfigureAwait(false);
+	}
+
 	private void EnsureStarted()
 	{
 		if (!_started || _client is null)
 			throw new InvalidOperationException(
 				"MoveClassificationEngine must be started by calling StartAsync() before use."
 			);
+	}
+
+	private static MoveScore InvertScore(MoveScore score)
+	{
+		if (score.ScoreMate is { } mate) return MoveScore.FromMate(-mate);
+		if (score.ScoreCp is { } cp) return MoveScore.FromCp(-cp);
+
+		return score;
 	}
 }

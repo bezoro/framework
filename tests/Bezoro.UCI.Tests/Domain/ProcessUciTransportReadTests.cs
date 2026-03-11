@@ -27,16 +27,13 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 		var readTask   = enumerator.MoveNextAsync().AsTask();
 
 		var stopTask = transport.StopAsync();
+		var timeout  = Task.Delay(TestConstants.DefaultTimeout);
 
-		var completed = await Task.WhenAny(readTask, stopTask, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().NotBe(Task.Delay(TestConstants.DefaultTimeout), "Operations should complete");
+		var completed = await Task.WhenAny(readTask, stopTask, timeout);
+		completed.Should().NotBe(timeout, "Operations should complete");
 
 		await stopTask;
-
-		var readCompleted = await Task.WhenAny(readTask, Task.Delay(TestConstants.DefaultTimeout));
-		readCompleted.Should().Be(readTask, "Read should complete after stop");
-
-		(await readTask).Should().BeFalse("No more lines should be available after stop");
+		await AsyncTestHelpers.WaitForAsyncEnumeratorToCompleteAsync(enumerator, readTask);
 
 		await enumerator.DisposeAsync();
 	}
@@ -52,10 +49,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 		var pending    = enumerator.MoveNextAsync().AsTask();
 
 		await process.DisposeAsync();
-
-		var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().Be(pending, "enumeration should complete after dispose");
-		(await pending).Should().BeFalse("no more lines should be available after transport is disposed");
+		await AsyncTestHelpers.WaitForAsyncEnumeratorToCompleteAsync(enumerator, pending);
 	}
 
 	[Fact]
@@ -92,10 +86,7 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 		var pending    = enumerator.MoveNextAsync().AsTask();
 
 		await process.StopAsync();
-
-		var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().Be(pending, "enumeration should complete after stop");
-		(await pending).Should().BeFalse("no more lines should be available after transport is stopped");
+		await AsyncTestHelpers.WaitForAsyncEnumeratorToCompleteAsync(enumerator, pending);
 
 		await enumerator.DisposeAsync();
 	}

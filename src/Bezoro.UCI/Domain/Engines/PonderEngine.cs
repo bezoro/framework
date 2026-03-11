@@ -9,29 +9,44 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 {
 	private readonly object          _scoreLock = new();
 	private readonly UciEngineClient _client;
+	private readonly Func<CancellationToken, Task>? _stopHook;
 
 	private int? _lastScoreCp;
 	private int? _lastScoreMate;
+	private int  _searchActive;
+	private int  _forwardingGeneration;
+	private int  _searchGeneration;
 
 	public event Action<ParsedMove, ParsedMove?>? BestMove;
 	public event Action<PrincipalVariation>?      InfoPv;
+	internal event Action<ParsedMove, ParsedMove?, int>? BestMoveWithGeneration;
+	internal event Action<PrincipalVariation, int>?      InfoPvWithGeneration;
 
 	public PonderEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
+		: this(enginePath, args, workingDirectory, null) { }
+
+	internal PonderEngine(
+		string                          enginePath,
+		IEnumerable<string>?            args,
+		string?                         workingDirectory,
+		Func<CancellationToken, Task>?  stopHook)
 	{
 		var transport = new ProcessUciTransport(enginePath, args, workingDirectory);
-		_client                =  new(transport);
+		_client                = new(transport);
+		_stopHook              = stopHook;
 		_client.InfoPvReceived += OnClientInfoPvReceived;
 	}
 
 	public bool IsHealthy => _client.IsHealthy;
 	public bool IsStarted => _client.IsStarted;
+	internal int CurrentSearchGeneration => Volatile.Read(ref _searchGeneration);
 
 	public EngineActivity  Activity => _client.Activity;
 	public TransportStatus Status   => _client.Status;
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
-		await _client.StopSearchAsync(ct).ConfigureAwait(false);
+		await StopSearchAsync(ct).ConfigureAwait(false);
 		await _client.UciNewGameAsync(ct).ConfigureAwait(false);
 
 		ClearLastScores();
@@ -64,33 +79,58 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default)
 	{
-		if (Activity.IsActive()) return;
+		if (Volatile.Read(ref _searchActive) == 1)
+			await StopSearchAsync(ct).ConfigureAwait(false);
 
 		// Reset last scores when starting a new search to synchronize internal evaluation state
 		ClearLastScores();
+		DisableOutputForwarding();
+		int generation = Interlocked.Increment(ref _searchGeneration);
 
-		await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
-		await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);
+		try
+		{
+			await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
+			EnableOutputForwarding(generation);
+			await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);
+			Volatile.Write(ref _searchActive, 1);
+		}
+		catch
+		{
+			DisableOutputForwarding();
+			Volatile.Write(ref _searchActive, 0);
+			Interlocked.CompareExchange(ref _searchGeneration, generation + 1, generation);
+			throw;
+		}
 	}
 
 	public async Task StopAsync(CancellationToken ct = default)
 	{
+		await StopSearchAsync(ct).ConfigureAwait(false);
 		await _client.StopAsync(ct).ConfigureAwait(false);
 		ClearLastScores();
+		if (_stopHook is { })
+			await _stopHook(ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
 	///     Stops any ongoing search (best or ponder).
 	/// </summary>
-	public Task StopSearchAsync(CancellationToken ct = default)
+	public async Task StopSearchAsync(CancellationToken ct = default)
 	{
+		DisableOutputForwarding();
+		Volatile.Write(ref _searchActive, 0);
+		Interlocked.Increment(ref _searchGeneration);
+
 		lock (_scoreLock)
 		{
 			_lastScoreMate = null;
 			_lastScoreCp   = null;
 		}
 
-		return _client.StopSearchAsync(ct);
+		if (!_client.IsStarted) return;
+
+		await _client.StopSearchAsync(ct).ConfigureAwait(false);
+		await _client.IsReadyAsync(ct).ConfigureAwait(false);
 	}
 
 	public ValueTask DisposeAsync() => _client.DisposeAsync();
@@ -98,6 +138,12 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public void Dispose()
 	{
 		DisposeAsync().AsTask().GetAwaiter().GetResult();
+	}
+
+	internal void EnableOutputForwardingForTests(int generation = 1)
+	{
+		Volatile.Write(ref _searchGeneration, generation);
+		EnableOutputForwarding(generation);
 	}
 
 	/// <summary>
@@ -156,6 +202,10 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 
 	internal void OnClientInfoPvReceived(PrincipalVariation pv)
 	{
+		int generation = Volatile.Read(ref _forwardingGeneration);
+		if (generation == 0) return;
+
+		InfoPvWithGeneration?.Invoke(pv, generation);
 		InfoPv?.Invoke(pv);
 
 		int? newMate = pv.ScoreMate;
@@ -188,6 +238,7 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 				ponderParsed = ParsedMove.FromNotation(ponderStr);
 		}
 
+		BestMoveWithGeneration?.Invoke(bestParsed, ponderParsed, generation);
 		BestMove?.Invoke(bestParsed, ponderParsed);
 	}
 
@@ -199,4 +250,10 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			_lastScoreCp   = null;
 		}
 	}
+
+	private void EnableOutputForwarding(int generation) =>
+		Volatile.Write(ref _forwardingGeneration, generation);
+
+	private void DisableOutputForwarding() =>
+		Volatile.Write(ref _forwardingGeneration, 0);
 }

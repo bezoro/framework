@@ -53,8 +53,19 @@ internal sealed class BackgroundLoopManager(
 	{
 		var task = _exitNotifyTask;
 		_exitNotifyTask = null;
-		if (task != null)
-			await TryAwaitWithTimeout(task, "process exit notification", timeout).ConfigureAwait(false);
+		if (task is null) return;
+
+		if (timeout <= TimeSpan.Zero)
+		{
+			await task.ConfigureAwait(false);
+			return;
+		}
+
+		var completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+		if (completed != task)
+			throw new TimeoutException("Timed out awaiting process exit notification.");
+
+		await task.ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -165,8 +176,11 @@ internal sealed class BackgroundLoopManager(
 			{
 				try
 				{
-					await ProcessHelper.WaitForProcessExitAsync(process, CancellationToken.None)
-									   .ConfigureAwait(false);
+					if (options.WaitForProcessExitAsyncOverride is { } waitOverride)
+						await waitOverride(process, CancellationToken.None).ConfigureAwait(false);
+					else
+						await ProcessHelper.WaitForProcessExitAsync(process, CancellationToken.None)
+										   .ConfigureAwait(false);
 
 					stateManager.MarkProcessAlive(false);
 					int exitCode = process.ExitCode;
@@ -471,39 +485,6 @@ internal sealed class BackgroundLoopManager(
 
 			bool hasMore = await outgoingReader.WaitToReadAsync(writeToken).ConfigureAwait(false);
 			if (!hasMore) break;
-		}
-	}
-
-	/// <summary>
-	///     Tries to await a task with a timeout.
-	/// </summary>
-	private async Task TryAwaitWithTimeout(Task task, string description, TimeSpan timeout)
-	{
-		if (timeout <= TimeSpan.Zero)
-		{
-			await task.ConfigureAwait(false);
-			return;
-		}
-
-		Task completed;
-		try
-		{
-			completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			reportError(ex, $"Error while awaiting {description}.");
-			return;
-		}
-
-		if (completed == task)
-		{
-			await task.ConfigureAwait(false);
-		}
-		else
-		{
-			var timeoutException = new TimeoutException($"Timed out awaiting {description}.");
-			Logger.Log(timeoutException, category: LogCategory.Uci);
 		}
 	}
 

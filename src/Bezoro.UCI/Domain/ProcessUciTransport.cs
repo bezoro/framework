@@ -555,20 +555,33 @@ internal sealed class ProcessUciTransport : IUciTransport
 	{
 		if (process is null) return;
 
+		List<Exception> errors = [];
 		try
 		{
 			if (killIfNotExited)
-				await KillProcessImmediatelyAsync(process).ConfigureAwait(false);
+				await KillProcessImmediatelyAsync(process, errors).ConfigureAwait(false);
 			else
-				await HandleGracefulShutdownAsync(process).ConfigureAwait(false);
+				await HandleGracefulShutdownAsync(process, errors).ConfigureAwait(false);
 
-			await _loopManager.AwaitExitNotificationAsync(_options.TeardownTimeout).ConfigureAwait(false);
+			try
+			{
+				await _loopManager.AwaitExitNotificationAsync(_options.TeardownTimeout).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				errors.Add(ex);
+			}
+
+			if (!ProcessHasExitedSafe(process))
+				errors.Add(new InvalidOperationException("UCI engine process did not exit during teardown."));
+		}
+		finally
+		{
 			ProcessHelper.SafeDisposeProcess(process);
 		}
-		catch (Exception ex)
-		{
-			Error?.Invoke(ex);
-		}
+
+		if (errors.Count == 1) throw errors[0];
+		if (errors.Count > 1) throw new AggregateException("UCI transport teardown failed.", errors);
 	}
 
 	/// <summary>
@@ -654,20 +667,29 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <summary>
 	///     Orchestrates graceful shutdown: wait for exit, then force kill if necessary.
 	/// </summary>
-	private async Task HandleGracefulShutdownAsync(Process process)
+	private async Task HandleGracefulShutdownAsync(Process process, List<Exception> errors)
 	{
 		if (ProcessHasExitedSafe(process)) return;
 
-		await WaitForGracefulExitAsync(process).ConfigureAwait(false);
+		bool exitedGracefully;
+		try
+		{
+			exitedGracefully = await WaitForGracefulExitAsync(process).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			errors.Add(ex);
+			exitedGracefully = ProcessHasExitedSafe(process);
+		}
 
-		if (!ProcessHasExitedSafe(process))
-			await KillProcessAfterGracePeriodAsync(process).ConfigureAwait(false);
+		if (!exitedGracefully && !ProcessHasExitedSafe(process))
+			await KillProcessAfterGracePeriodAsync(process, errors).ConfigureAwait(false);
 	}
 
 	/// <summary>
 	///     Force kills the process after the grace period has expired.
 	/// </summary>
-	private async Task KillProcessAfterGracePeriodAsync(Process process)
+	private async Task KillProcessAfterGracePeriodAsync(Process process, List<Exception> errors)
 	{
 		try
 		{
@@ -676,20 +698,23 @@ internal sealed class ProcessUciTransport : IUciTransport
 				category: LogCategory.Uci
 			);
 
-			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
+			KillProcessOrThrow(process);
+			await WaitForProcessExitWithTimeoutAsync(
+				process,
+				_options.TeardownTimeout,
+				"forced process termination"
+			).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Error?.Invoke(ex);
+			errors.Add(ex);
 		}
-
-		await Task.CompletedTask;
 	}
 
 	/// <summary>
 	///     Immediately kills the process if it hasn't already exited.
 	/// </summary>
-	private async Task KillProcessImmediatelyAsync(Process process)
+	private async Task KillProcessImmediatelyAsync(Process process, List<Exception> errors)
 	{
 		if (ProcessHasExitedSafe(process)) return;
 
@@ -700,14 +725,17 @@ internal sealed class ProcessUciTransport : IUciTransport
 				category: LogCategory.Uci
 			);
 
-			ProcessHelper.SafeKillProcess(process, _options.KillEntireProcessTree);
+			KillProcessOrThrow(process);
+			await WaitForProcessExitWithTimeoutAsync(
+				process,
+				_options.TeardownTimeout,
+				"failed-start process termination"
+			).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Logger.Log(ex, category: LogCategory.Uci);
+			errors.Add(ex);
 		}
-
-		await Task.CompletedTask;
 	}
 
 	/// <summary>
@@ -726,18 +754,26 @@ internal sealed class ProcessUciTransport : IUciTransport
 		var p = Interlocked.Exchange(ref _process, null);
 		_stateManager.MarkProcessAlive(false);
 
-		// Cancel read loop and dispose streams, but don't await completion yet
-		// The read loops need to keep running while we send quit and drain final output
-		CancelReadLoopAndDisposeStreams();
+		try
+		{
+			// Stop new writes first, but keep stdout/stderr open so final engine output can drain.
+			await CleanupWriteLoopAndStdinAsync(sendQuit).ConfigureAwait(false);
 
-		// Send quit (if requested) and cleanup write side
-		await CleanupWriteLoopAndStdinAsync(sendQuit).ConfigureAwait(false);
-
-		// NOW await read loops completion - they've had time to drain final output
-		await AwaitReadLoopsCompletionAsync().ConfigureAwait(false);
-
-		// Finally cleanup the process
-		await CleanupProcessAsync(p, false).ConfigureAwait(false);
+			// Wait for graceful exit (or force termination) while the read loops are still alive.
+			await CleanupProcessAsync(p, false).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_stateManager.SetStatus(TransportStatus.Failed);
+			ReportError(ex, "Failed to teardown UCI transport cleanly");
+			throw;
+		}
+		finally
+		{
+			// Always close the read side and join the loops after teardown is attempted.
+			CancelReadLoopAndDisposeStreams();
+			await AwaitReadLoopsCompletionAsync().ConfigureAwait(false);
+		}
 
 		_stateManager.SetStatus(finalStatus);
 		Logger.Log(finalLog, category: LogCategory.Uci);
@@ -746,25 +782,66 @@ internal sealed class ProcessUciTransport : IUciTransport
 	/// <summary>
 	///     Waits for the process to exit gracefully within the grace period.
 	/// </summary>
-	private async Task WaitForGracefulExitAsync(Process process)
+	private async Task<bool> WaitForGracefulExitAsync(Process process)
 	{
+		if (ProcessHasExitedSafe(process)) return true;
+
+		using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
 		try
 		{
-			using var timeoutCts = new CancellationTokenSource(GetQuitGracePeriod());
-			try
-			{
-				await ProcessHelper.WaitForProcessExitAsync(process, timeoutCts.Token)
-								   .ConfigureAwait(false);
-			}
-			catch (OperationCanceledException)
-			{
-				// Timeout occurred - process didn't exit gracefully
-			}
+			await WaitForProcessExitCoreAsync(process, timeoutCts.Token).ConfigureAwait(false);
+			return true;
 		}
-		catch (Exception ex)
+		catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
 		{
-			Error?.Invoke(ex);
+			return ProcessHasExitedSafe(process);
 		}
+	}
+
+	private void KillProcessOrThrow(Process process)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		try
+		{
+#if NET5_0_OR_GREATER
+			process.Kill(_options.KillEntireProcessTree);
+#else
+			process.Kill();
+#endif
+		}
+		catch (Exception) when (ProcessHasExitedSafe(process))
+		{
+			// The process exited between the liveness check and the kill attempt.
+		}
+	}
+
+	private Task WaitForProcessExitCoreAsync(Process process, CancellationToken ct) =>
+		_options.WaitForProcessExitAsyncOverride is { } waitOverride
+			? waitOverride(process, ct)
+			: ProcessHelper.WaitForProcessExitAsync(process, ct);
+
+	private async Task WaitForProcessExitWithTimeoutAsync(
+		Process  process,
+		TimeSpan timeout,
+		string   operationDescription)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
+		CancellationToken waitToken = timeoutCts?.Token ?? CancellationToken.None;
+
+		try
+		{
+			await WaitForProcessExitCoreAsync(process, waitToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (timeoutCts is { IsCancellationRequested: true })
+		{
+			throw new TimeoutException($"Timed out awaiting {operationDescription}.");
+		}
+
+		if (!ProcessHasExitedSafe(process))
+			throw new InvalidOperationException($"Process remained alive after {operationDescription}.");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

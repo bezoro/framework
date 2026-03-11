@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Bezoro.UCI.Domain;
 
@@ -124,4 +126,9 @@ internal readonly struct ProcessUciTransportOptions()
 	///     Test-only hook to deterministically exercise backpressure code-paths. Defaults to false; no production impact.
 	/// </summary>
 	internal bool DisableWriteLoop { get; init; } = false;
+
+	/// <summary>
+	///     Test-only hook to override asynchronous process-exit waits. Defaults to the platform process wait behavior.
+	/// </summary>
+	internal Func<Process, CancellationToken, Task>? WaitForProcessExitAsyncOverride { get; init; } = null;
 }

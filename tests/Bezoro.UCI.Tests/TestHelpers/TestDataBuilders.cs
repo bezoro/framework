@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Diagnostics;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 
@@ -380,6 +381,14 @@ public static class TestDataBuilders
 		public ProcessUciTransportBuilder WithMaxLineLength(int maxLength)
 		{
 			_options = _options with { MaxLineLength = maxLength };
+			return this;
+		}
+
+		/// <summary>Sets a test-only override for process-exit waits.</summary>
+		internal ProcessUciTransportBuilder WithWaitForProcessExitOverride(
+			Func<Process, CancellationToken, Task> waitForProcessExitAsync)
+		{
+			_options = _options with { WaitForProcessExitAsyncOverride = waitForProcessExitAsync };
 			return this;
 		}
 

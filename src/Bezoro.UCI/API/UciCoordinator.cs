@@ -27,6 +27,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 	private CancellationTokenSource? _bestCts;
 	private CancellationTokenSource? _classificationCts;
+	private TaskCompletionSource<IReadOnlyDictionary<string, Move>>? _classificationCompletion;
+	private int                      _acceptedPonderGeneration;
+	private int                      _classificationGeneration;
 
 	private UciState _state = UciState.Default;
 
@@ -65,29 +68,40 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		string?                 workingDirectory = null,
 		SynchronizationContext? syncContext      = null,
 		UciCoordinatorOptions?  options          = null)
+		: this(
+			new QuickInfoEngine(enginePath, args, workingDirectory),
+			new PonderEngine(enginePath, args, workingDirectory),
+			new MoveClassificationEngine(enginePath, args, workingDirectory),
+			syncContext,
+			options
+		) { }
+
+	internal UciCoordinator(
+		QuickInfoEngine         quick,
+		PonderEngine            ponder,
+		MoveClassificationEngine classifier,
+		SynchronizationContext? syncContext = null,
+		UciCoordinatorOptions?  options     = null)
 	{
 		_syncContext = syncContext;
 		_options     = options ?? UciCoordinatorOptions.Default;
-		_quick       = new(enginePath, args, workingDirectory);
-		_ponder      = new(enginePath, args, workingDirectory);
-		_classifier  = new(enginePath, args, workingDirectory);
+		_quick       = quick ?? throw new ArgumentNullException(nameof(quick));
+		_ponder      = ponder ?? throw new ArgumentNullException(nameof(ponder));
+		_classifier  = classifier ?? throw new ArgumentNullException(nameof(classifier));
 
-		_ponder.InfoPv   += OnPonderInfo;
-		_ponder.BestMove += PonderOnBestMove;
-
-		_classifier.MoveClassified     += OnClassifierMoveClassified;
-		_classifier.AllMovesClassified += OnClassifierAllMovesClassified;
+		_ponder.InfoPvWithGeneration   += OnPonderInfo;
+		_ponder.BestMoveWithGeneration += PonderOnBestMove;
 	}
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines are healthy and responsive.
 	/// </summary>
-	public bool IsHealthy => _quick.IsHealthy && _ponder.IsHealthy;
+	public bool IsHealthy => _quick.IsHealthy && _ponder.IsHealthy && _classifier.IsHealthy;
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines have been started.
 	/// </summary>
-	public bool IsStarted => _quick.IsStarted && _ponder.IsStarted;
+	public bool IsStarted => _quick.IsStarted && _ponder.IsStarted && _classifier.IsStarted;
 
 	/// <summary>
 	///     Gets the current position FEN (after all played moves).
@@ -164,59 +178,79 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public async IAsyncEnumerable<Move> StreamClassifiedMovesAsync(
 		[EnumeratorCancellation] CancellationToken ct = default)
 	{
-		// Capture current state
-		UciState initialState;
+		var channel = Channel.CreateUnbounded<Move>();
+		var yielded = new HashSet<string>();
+
+		UciState                                     initialState;
+		Task<IReadOnlyDictionary<string, Move>>?     completionTask;
 		lock (_sync)
 		{
-			initialState = _state;
+			initialState   = _state;
+			completionTask = _classificationCompletion?.Task;
 		}
 
-		// Yield already classified moves
-		foreach (var kvp in initialState.ClassifiedMoves) yield return kvp.Value;
+		foreach (var kvp in initialState.ClassifiedMoves)
+		{
+			yielded.Add(kvp.Key);
+			yield return kvp.Value;
+		}
 
-		var channel = Channel.CreateUnbounded<Move>();
+		if (initialState.IsClassificationComplete)
+			yield break;
 
 		void OnStateChanged(UciState newState)
 		{
-			// If the position changed (Fen or PlayedMoves), we stop
 			if (newState.BaseFen != initialState.BaseFen ||
 				!newState.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
+			{
+				channel.Writer.TryComplete();
+				return;
+			}
+
+			foreach (var kvp in newState.ClassifiedMoves)
+			{
+				if (yielded.Add(kvp.Key))
+					channel.Writer.TryWrite(kvp.Value);
+			}
+
+			if (newState.IsClassificationComplete)
 				channel.Writer.TryComplete();
 		}
 
-		void OnMoveClassified(Move m)
-		{
-			channel.Writer.TryWrite(m);
-		}
+		StateChanged += OnStateChanged;
 
-		void OnAllClassified(IReadOnlyList<Move> _)
+		Task? completionMonitor = null;
+		if (completionTask is { })
 		{
-			channel.Writer.TryComplete();
+			completionMonitor = completionTask.ContinueWith(
+				static (task, state) =>
+				{
+					var writer = (ChannelWriter<Move>)state!;
+					var error = task.IsFaulted ? task.Exception?.InnerException ?? task.Exception : null;
+					writer.TryComplete(task.IsCanceled ? null : error);
+				},
+				channel.Writer,
+				CancellationToken.None,
+				TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default
+			);
 		}
-
-		_classifier.MoveClassified     += OnMoveClassified;
-		_classifier.AllMovesClassified += OnAllClassified;
-		StateChanged                   += OnStateChanged;
 
 		try
 		{
-			// We need to filter duplicates that we already yielded
-			var yielded = new HashSet<string>(initialState.ClassifiedMoves.Keys);
-
 			while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
 			{
 				while (channel.Reader.TryRead(out var move))
 				{
-					if (yielded.Add(move.Notation))
-						yield return move;
+					yield return move;
 				}
 			}
 		}
 		finally
 		{
-			_classifier.MoveClassified     -= OnMoveClassified;
-			_classifier.AllMovesClassified -= OnAllClassified;
-			StateChanged                   -= OnStateChanged;
+			StateChanged -= OnStateChanged;
+			if (completionMonitor is { })
+				await completionMonitor.ConfigureAwait(false);
 		}
 	}
 
@@ -260,13 +294,16 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
+		InvalidatePonderState(clearTransientState: true);
+		CancelAndDispose(ref _bestCts);
+		ClearState();
 		await Task.WhenAll(
 			_quick.NewGameAsync(ct),
 			_ponder.NewGameAsync(ct),
 			_classifier.NewGameAsync(ct)
 		).ConfigureAwait(false);
 
-		ClearState();
+		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 	}
 
@@ -284,7 +321,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="value">The option value, or null to use the engine's default.</param>
 	/// <param name="ct">Cancellation token.</param>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
-		_ponder.SetOptionAsync(name, value, ct);
+		Task.WhenAll(
+			_quick.SetOptionAsync(name, value, ct),
+			_ponder.SetOptionAsync(name, value, ct),
+			_classifier.SetOptionAsync(name, value, ct)
+		);
 
 	/// <summary>
 	///     Sets the position from a FEN string.
@@ -306,20 +347,35 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
-		await Task.WhenAll(
-			_quick.StartAsync(ct),
-			_ponder.StartAsync(ct),
-			_classifier.StartAsync(ct)
-		).ConfigureAwait(false);
+		var quickStarted      = false;
+		var ponderStarted     = false;
+		var classifierStarted = false;
 
-		// Configure ponder engine based on options.
-		await _ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
-		await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
+		try
+		{
+			await _quick.StartAsync(ct).ConfigureAwait(false);
+			quickStarted = true;
 
-		ClearState();
-		State = UciState.Default;
+			await _ponder.StartAsync(ct).ConfigureAwait(false);
+			ponderStarted = true;
 
-		Raise(Ready);
+			await _classifier.StartAsync(ct).ConfigureAwait(false);
+			classifierStarted = true;
+
+			// Configure ponder engine based on options.
+			await _ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
+			await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
+
+			ClearState();
+			State = UciState.Default;
+
+			Raise(Ready);
+		}
+		catch
+		{
+			await RollbackStartAsync(quickStarted, ponderStarted, classifierStarted).ConfigureAwait(false);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -340,19 +396,25 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		IEnumerable<string>? playedMoves = null,
 		CancellationToken    ct          = default)
 	{
-		// Atomically cancel and replace the old cancellation token source
+		InvalidatePonderState(clearTransientState: true);
+
 		var newCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		var token  = newCts.Token; // Capture token before CancelAndDispose may dispose newCts
+		var token  = newCts.Token;
 		CancelAndDispose(ref _bestCts, newCts);
 
-		lock (_sync)
+		try
 		{
-			_state = _state with { IsSearching = true };
+			await _ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
+			AcceptPonderGeneration(_ponder.CurrentSearchGeneration);
+			SetSearchingState(true);
 		}
+		catch
+		{
+			if (CancelAndDisposeIfCurrent(ref _bestCts, newCts))
+				SetSearchingState(false);
 
-		Raise(StateChanged, _state);
-
-		await _ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -360,20 +422,41 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async Task StopAsync(CancellationToken ct = default)
 	{
-		// Stop searches first
-		await StopSearchAsync(ct).ConfigureAwait(false);
+		var stopFailures = new List<Exception>();
+		bool cancellationRequested = ct.IsCancellationRequested;
+		ClearState();
 
-		// Stop engines
-		await Task.WhenAll(
-			_classifier.StopAsync(ct),
-			_ponder.StopAsync(ct),
-			_quick.StopAsync(ct)
+		cancellationRequested = await TryStopStepAsync(
+			StopSearchCoreAsync,
+			cancellationRequested,
+			stopFailures,
+			ct,
+			reportErrors: false
+		).ConfigureAwait(false);
+		cancellationRequested = await TryStopStepAsync(
+			token => _classifier.StopAsync(token),
+			cancellationRequested,
+			stopFailures,
+			ct
+		).ConfigureAwait(false);
+		cancellationRequested = await TryStopStepAsync(
+			token => _ponder.StopAsync(token),
+			cancellationRequested,
+			stopFailures,
+			ct
+		).ConfigureAwait(false);
+		cancellationRequested = await TryStopStepAsync(
+			token => _quick.StopAsync(token),
+			cancellationRequested,
+			stopFailures,
+			ct
 		).ConfigureAwait(false);
 
-		ClearState();
+		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 
 		Raise(Stopped);
+		ThrowStopFailures(stopFailures, cancellationRequested, ct);
 	}
 
 	/// <summary>
@@ -381,11 +464,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async Task StopSearchAsync(CancellationToken ct = default)
 	{
-		CancelAndDispose(ref _bestCts);
-
 		try
 		{
-			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
+			await StopSearchCoreAsync(ct).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -395,13 +476,6 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		{
 			RaiseError(ex);
 		}
-
-		lock (_sync)
-		{
-			_state = _state with { IsSearching = false };
-		}
-
-		Raise(StateChanged, _state);
 	}
 
 	/// <summary>
@@ -421,7 +495,6 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		// Stop previous searches and any ongoing classification
 		await StopSearchAsync(ct).ConfigureAwait(false);
-		_classifier.StopClassification();
 		ClearState();
 
 		var movesList = playedMoves?.ToList() ?? new List<string>();
@@ -454,44 +527,63 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		Raise(StateChanged, _state);
 
 		// Start pondering for the new position
-		_ = StartSearchAsync(fen, movesList, ct);
+		try
+		{
+			await StartSearchAsync(fen, movesList, ct).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			RaiseError(ex);
+		}
+
+		int classificationGeneration = BeginClassificationRun();
 
 		// Start background classification (events will propagate results)
 		if (effectiveFen is { } currentFen)
 		{
-			// Create new cancellation token source for this classification task
-			// (ClearState() already canceled and disposed the previous one)
-			CancelAndDispose(ref _classificationCts, CancellationTokenSource.CreateLinkedTokenSource(ct));
+			var classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			var classificationToken = classificationCts.Token;
+			CancelAndDispose(ref _classificationCts, classificationCts);
 
-			// Fire-and-forget move classifier (listeners handle events)
 			_ = Task.Run(
 				async () =>
 				{
 					try
 					{
-						await foreach (var _ in _classifier
+						await foreach (var move in _classifier
 												.ClassifyAsync(
 													currentFen,
 													_options.ClassificationDepth,
 													legalMoves,
-													_classificationCts!.Token
+													classificationToken
 												)
 												.ConfigureAwait(false))
 						{
-							// No-op; MoveClassificationEngine events will handle updates
+							ApplyClassifiedMove(move, classificationGeneration);
 						}
+
+						CompleteClassificationRun(classificationGeneration);
 					}
 					catch (OperationCanceledException)
 					{
-						// Expected when position changes or coordinator stops
+						CancelClassificationRunIfActive(classificationGeneration);
 					}
 					catch (Exception ex)
 					{
+						FaultClassificationRun(classificationGeneration, ex);
 						RaiseError(ex);
 					}
 				},
 				CancellationToken.None
 			);
+		}
+		else
+		{
+			CompleteClassificationRun(classificationGeneration);
 		}
 	}
 
@@ -510,33 +602,27 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <returns>Dictionary of all classified moves.</returns>
 	public async Task<IReadOnlyDictionary<string, Move>> WaitForClassificationAsync(CancellationToken ct = default)
 	{
-		var tcs = new TaskCompletionSource<IReadOnlyDictionary<string, Move>>(
-			TaskCreationOptions.RunContinuationsAsynchronously
-		);
-
-		using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-		void OnStateChanged(UciState state)
+		Task<IReadOnlyDictionary<string, Move>> waitTask;
+		lock (_sync)
 		{
-			if (state.IsClassificationComplete)
-				tcs.TrySetResult(state.ClassifiedMoves);
+			if (_state.IsClassificationComplete)
+				return _state.ClassifiedMoves;
+
+			waitTask = _classificationCompletion?.Task ??
+					   Task.FromResult<IReadOnlyDictionary<string, Move>>(_state.ClassifiedMoves);
 		}
 
-		StateChanged += OnStateChanged;
+		if (!ct.CanBeCanceled)
+			return await waitTask.ConfigureAwait(false);
 
-		try
-		{
-			// Check if already complete
-			var current = State;
-			if (current.IsClassificationComplete)
-				return current.ClassifiedMoves;
+		var cancelTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var registration = ct.Register(static state => ((TaskCompletionSource<object?>)state!).TrySetResult(null), cancelTcs);
 
-			return await tcs.Task.ConfigureAwait(false);
-		}
-		finally
-		{
-			StateChanged -= OnStateChanged;
-		}
+		var completed = await Task.WhenAny(waitTask, cancelTcs.Task).ConfigureAwait(false);
+		if (completed == cancelTcs.Task)
+			throw new OperationCanceledException(ct);
+
+		return await waitTask.ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -550,6 +636,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		var currentState = State;
 
+		return await ClassifyMoveForStateAsync(currentState, move, ct).ConfigureAwait(false);
+	}
+
+	internal async Task<Move> ClassifyMoveForStateAsync(UciState currentState, string move, CancellationToken ct = default)
+	{
 		if (!currentState.LegalMoves.Contains(move))
 			throw new ArgumentException($"Move '{move}' is not legal in the current position.", nameof(move));
 
@@ -558,7 +649,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			return existing;
 
 		// Use the classifier to classify this specific move
-		var result = await _classifier.ClassifyMoveAsync(CurrentFen, move, _options.ClassificationDepth, ct)
+		var result = await _classifier.ClassifyMoveAsync(currentState.CurrentFen, move, _options.ClassificationDepth, ct)
 									  .ConfigureAwait(false);
 
 		if (!result.HasValue)
@@ -574,7 +665,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The search result containing the best move and evaluation.</returns>
 	public Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default) =>
-		_quick.QuickEvalAsync(CurrentFen, parameters.Depth ?? _options.ClassificationDepth, ct);
+		_quick.SearchAsync(parameters, CurrentFen, null, ct);
 
 	/// <summary>
 	///     Applies a move to the current position and updates the engines.
@@ -636,11 +727,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		ClearState();
 
 		// Unsubscribe from engine events
-		_ponder.InfoPv   -= OnPonderInfo;
-		_ponder.BestMove -= PonderOnBestMove;
-
-		_classifier.MoveClassified     -= OnClassifierMoveClassified;
-		_classifier.AllMovesClassified -= OnClassifierAllMovesClassified;
+		_ponder.InfoPvWithGeneration   -= OnPonderInfo;
+		_ponder.BestMoveWithGeneration -= PonderOnBestMove;
 
 		// Dispose cancellation token sources
 		// (ClearState() already handled _classificationCts)
@@ -682,6 +770,29 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 	}
 
+	private static bool CancelAndDisposeIfCurrent(
+		ref CancellationTokenSource? ctsField,
+		CancellationTokenSource      candidate)
+	{
+		var current = Interlocked.CompareExchange(ref ctsField, null, candidate);
+		if (!ReferenceEquals(current, candidate)) return false;
+
+		try
+		{
+			candidate.Cancel();
+		}
+		catch
+		{
+			// Best-effort: ignore errors when canceling
+		}
+		finally
+		{
+			candidate.Dispose();
+		}
+
+		return true;
+	}
+
 	/// <summary>
 	///     Cancels background move classification and clears all cached per-move results.
 	/// </summary>
@@ -689,62 +800,239 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		_classifier.StopClassification();
 		CancelAndDispose(ref _classificationCts);
+		CancelClassificationCompletion();
 	}
 
-	/// <summary>
-	///     Event handler for when all moves are classified for the current position.
-	///     Filters out any moves that are not legal in the current game state.
-	/// </summary>
-	private void OnClassifierAllMovesClassified(IReadOnlyList<Move> moves)
+	private async Task RollbackStartAsync(bool quickStarted, bool ponderStarted, bool classifierStarted)
 	{
-		// We don't strictly need to do anything here for the state,
-		// as individual moves are added as they come in.
-		// But we might want to ensure consistency.
+		if (classifierStarted)
+			try
+			{
+				await _classifier.StopAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+
+		if (ponderStarted)
+			try
+			{
+				await _ponder.StopAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+
+		if (quickStarted)
+			try
+			{
+				await _quick.StopAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				/* best-effort */
+			}
+
+		ClearState();
+		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
+		lock (_sync)
+		{
+			_state = UciState.Default;
+		}
 	}
 
-	/// <summary>
-	///     Event handler for when a single move is classified.
-	///     Updates internal cache; only publishes if move is legal in the current position.
-	/// </summary>
-	private void OnClassifierMoveClassified(Move move)
+	private void SetSearchingState(bool isSearching)
+	{
+		UciState snapshot;
+		lock (_sync)
+		{
+			if (_state.IsSearching == isSearching) return;
+
+			_state    = _state with { IsSearching = isSearching };
+			snapshot = _state;
+		}
+
+		Raise(StateChanged, snapshot);
+	}
+
+	private void AcceptPonderGeneration(int generation) =>
+		Interlocked.Exchange(ref _acceptedPonderGeneration, generation);
+
+	internal int AcceptedPonderGenerationForTests => Volatile.Read(ref _acceptedPonderGeneration);
+	internal int AcceptedClassificationGenerationForTests
+	{
+		get
+		{
+			lock (_sync)
+			{
+				return _classificationGeneration;
+			}
+		}
+	}
+
+	internal void ApplyPonderBestMoveForTests(ParsedMove best, ParsedMove? ponder, int generation) =>
+		ApplyPonderBestMove(best, ponder, generation);
+
+	internal void ApplyPonderInfoForTests(PrincipalVariation pv, int generation) =>
+		ApplyPonderInfo(pv, generation);
+
+	internal void ApplyClassifiedMoveForTests(Move move, int generation) =>
+		ApplyClassifiedMove(move, generation);
+
+	internal void CompleteClassificationForTests(int generation) =>
+		CompleteClassificationRun(generation);
+
+	private void InvalidatePonderState(bool clearTransientState)
+	{
+		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
+
+		UciState snapshot;
+		bool     changed = false;
+		lock (_sync)
+		{
+			var next = _state with { IsSearching = false };
+			if (clearTransientState)
+				next = next with
+				{
+					Evaluation = null,
+					BestMove   = null,
+					PonderMove = null
+				};
+
+			if (next == _state) return;
+
+			_state   = next;
+			snapshot = _state;
+			changed  = true;
+		}
+
+		if (changed)
+			Raise(StateChanged, snapshot);
+	}
+
+	private int BeginClassificationRun()
 	{
 		lock (_sync)
 		{
-			// Verify relevance
+			_classificationGeneration++;
+			_classificationCompletion = CreateClassificationCompletionSource();
+			return _classificationGeneration;
+		}
+	}
+
+	private void ApplyClassifiedMove(Move move, int generation)
+	{
+		UciState snapshot;
+		lock (_sync)
+		{
+			if (_classificationGeneration != generation) return;
 			if (!_state.LegalMoves.Contains(move.Notation)) return;
 
 			var newClassified = _state.ClassifiedMoves.SetItem(move.Notation, move);
-
 			_state = _state with { ClassifiedMoves = newClassified };
+			snapshot = _state;
 		}
 
-		Raise(StateChanged, _state);
+		Raise(StateChanged, snapshot);
 	}
+
+	private void CompleteClassificationRun(int generation)
+	{
+		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
+		IReadOnlyDictionary<string, Move> result;
+		lock (_sync)
+		{
+			if (_classificationGeneration != generation) return;
+
+			completion = _classificationCompletion;
+			result     = _state.ClassifiedMoves;
+		}
+
+		completion?.TrySetResult(result);
+	}
+
+	private void FaultClassificationRun(int generation, Exception ex)
+	{
+		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
+		lock (_sync)
+		{
+			if (_classificationGeneration != generation) return;
+
+			completion = _classificationCompletion;
+		}
+
+		completion?.TrySetException(ex);
+	}
+
+	private void CancelClassificationRunIfActive(int generation)
+	{
+		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
+		lock (_sync)
+		{
+			if (_classificationGeneration != generation) return;
+
+			completion = _classificationCompletion;
+		}
+
+		completion?.TrySetCanceled();
+	}
+
+	private void CancelClassificationCompletion()
+	{
+		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
+		lock (_sync)
+		{
+			_classificationGeneration++;
+			completion = _classificationCompletion;
+			_classificationCompletion = null;
+		}
+
+		completion?.TrySetCanceled();
+	}
+
+	private static TaskCompletionSource<IReadOnlyDictionary<string, Move>> CreateClassificationCompletionSource() =>
+		new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 	/// <summary>
 	///     Forwards ponder engine PV updates.
 	/// </summary>
-	private void OnPonderInfo(PrincipalVariation pv)
+	private void OnPonderInfo(PrincipalVariation pv, int generation) =>
+		ApplyPonderInfo(pv, generation);
+
+	private void ApplyPonderInfo(PrincipalVariation pv, int generation)
 	{
+		if (generation != Volatile.Read(ref _acceptedPonderGeneration)) return;
+
+		UciState snapshot;
 		lock (_sync)
 		{
-			_state = _state with { Evaluation = pv };
+			_state   = _state with { Evaluation = pv };
+			snapshot = _state;
 		}
 
-		Raise(StateChanged, _state);
+		Raise(StateChanged, snapshot);
 	}
 
 	/// <summary>
 	///     Forwards the best move (and optional ponder move) found by the ponder engine.
 	/// </summary>
-	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder)
+	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder, int generation) =>
+		ApplyPonderBestMove(best, ponder, generation);
+
+	private void ApplyPonderBestMove(ParsedMove best, ParsedMove? ponder, int generation)
 	{
+		if (generation != Volatile.Read(ref _acceptedPonderGeneration)) return;
+
+		UciState snapshot;
 		lock (_sync)
 		{
-			_state = _state with { BestMove = best, PonderMove = ponder };
+			_state   = _state with { BestMove = best, PonderMove = ponder };
+			snapshot = _state;
 		}
 
-		Raise(StateChanged, _state);
+		Raise(StateChanged, snapshot);
 	}
 
 	private void Raise(Action? handler)
@@ -771,4 +1059,68 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	///     Raises the Error event with the specified exception.
 	/// </summary>
 	private void RaiseError(Exception ex) => Raise(Error, ex);
+
+	private static void ThrowStopFailures(
+		IReadOnlyList<Exception> failures,
+		bool                     cancellationRequested,
+		CancellationToken        ct)
+	{
+		if (failures.Count == 0)
+		{
+			if (cancellationRequested)
+				throw new OperationCanceledException(ct);
+
+			return;
+		}
+
+		if (failures.Count == 1)
+			throw failures[0];
+
+		throw new AggregateException(failures);
+	}
+
+	private async Task StopSearchCoreAsync(CancellationToken ct)
+	{
+		InvalidatePonderState(clearTransientState: true);
+		CancelAndDispose(ref _bestCts);
+
+		try
+		{
+			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			SetSearchingState(false);
+		}
+	}
+
+	private async Task<bool> TryStopStepAsync(
+		Func<CancellationToken, Task> step,
+		bool                          cancellationRequested,
+		List<Exception>               failures,
+		CancellationToken             callerToken,
+		bool                          reportErrors = true)
+	{
+		try
+		{
+			await step(cancellationRequested ? CancellationToken.None : callerToken).ConfigureAwait(false);
+			return cancellationRequested;
+		}
+		catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
+		{
+			return true;
+		}
+		catch (OperationCanceledException)
+		{
+			return cancellationRequested;
+		}
+		catch (Exception ex)
+		{
+			failures.Add(ex);
+			if (reportErrors)
+				RaiseError(ex);
+
+			return cancellationRequested;
+		}
+	}
 }

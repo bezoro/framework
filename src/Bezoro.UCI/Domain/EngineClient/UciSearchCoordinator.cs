@@ -106,6 +106,7 @@ internal sealed class UciSearchCoordinator(
 
 		var     timeout  = ComputeTimeout(parameters);
 		string? bestLine = null;
+		bool    callerCanceled = false;
 
 		try
 		{
@@ -123,9 +124,13 @@ internal sealed class UciSearchCoordinator(
 			var completed = await Task.WhenAny(bestTask, timeoutTask, cancelTcs.Task).ConfigureAwait(false);
 
 			if (completed == cancelTcs.Task)
-				throw new OperationCanceledException(ct);
+			{
+				callerCanceled = true;
+				await IssueStopBestEffortAsync().ConfigureAwait(false);
+				await DrainSearchAfterStopAsync(session, bestTask).ConfigureAwait(false);
+			}
 
-			if (completed == bestTask)
+			else if (completed == bestTask)
 			{
 				bestLine = await bestTask.ConfigureAwait(false);
 			}
@@ -146,11 +151,26 @@ internal sealed class UciSearchCoordinator(
 			_setActivity(EngineActivity.Idle);
 		}
 
+		if (callerCanceled)
+			throw new OperationCanceledException(ct);
+
 		if (bestLine is { })
 			session.AddLine(bestLine);
 
 		var snapshot = session.SnapshotLines();
 		return SearchResult.TryParse(snapshot, out var result) ? result : default;
+	}
+
+	private async Task DrainSearchAfterStopAsync(SearchSession session, Task<string> bestTask)
+	{
+		try
+		{
+			_ = await AwaitBestMoveGracefullyAsync(session, bestTask, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			// Cancellation still needs to unwind even if the engine never reports bestmove after stop.
+		}
 	}
 
 	private async Task<string?> AwaitBestMoveGracefullyAsync(

@@ -273,10 +273,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var readTask   = enumerator.MoveNextAsync().AsTask();
 
 		await process.DisposeAsync();
-
-		var completed = await Task.WhenAny(readTask, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().Be(readTask);
-		(await readTask).Should().BeFalse();
+		await AsyncTestHelpers.WaitForAsyncEnumeratorToCompleteAsync(enumerator, readTask);
 
 		await enumerator.DisposeAsync();
 	}
@@ -595,10 +592,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var pending    = enumerator.MoveNextAsync().AsTask();
 
 		await process.StopAsync();
-
-		var completed = await Task.WhenAny(pending, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().Be(pending);
-		(await pending).Should().BeFalse();
+		await AsyncTestHelpers.WaitForAsyncEnumeratorToCompleteAsync(enumerator, pending);
 
 		await enumerator.DisposeAsync();
 	}
@@ -665,5 +659,53 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 		transport.Status.Should().Be(TransportStatus.Stopped);
+	}
+
+	[Fact]
+	public async Task StopAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow()
+	{
+		Log("Starting test: StopAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow");
+		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
+		var errors = new List<Exception>();
+
+		var transport = Transport()
+						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
+						.Build();
+
+		transport.Error += ex => errors.Add(ex);
+		await transport.StartAsync();
+
+		var act = async () => await transport.StopAsync();
+
+		await act.Should().ThrowAsync<InvalidOperationException>()
+				 .WithMessage(teardownFailure.Message);
+
+		transport.Status.Should().Be(TransportStatus.Failed);
+		transport.IsStarted.Should().BeFalse();
+		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow()
+	{
+		Log("Starting test: DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow");
+		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
+		var errors = new List<Exception>();
+
+		var transport = Transport()
+						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
+						.Build();
+
+		transport.Error += ex => errors.Add(ex);
+		await transport.StartAsync();
+
+		var act = async () => await transport.DisposeAsync();
+
+		await act.Should().ThrowAsync<InvalidOperationException>()
+				 .WithMessage(teardownFailure.Message);
+
+		transport.Status.Should().Be(TransportStatus.Failed);
+		transport.IsStarted.Should().BeFalse();
+		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
 	}
 }

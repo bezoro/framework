@@ -12,12 +12,12 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private readonly ConcurrentDictionary<(string Fen, uint Depth), SearchResult> _evalCache = new();
 
 	// Caching
-	private readonly object                      _cacheLock    = new();
-	private readonly SemaphoreSlim               _positionLock = new(1, 1);
-	private readonly UciEngineClient             _client;
-	private          bool                        _disposed;
-	private          Fen?                        _currentFenCache;
-	private          IReadOnlyCollection<string> _legalMovesCache;
+	private readonly object                       _cacheLock    = new();
+	private readonly SemaphoreSlim                _positionLock = new(1, 1);
+	private readonly UciEngineClient              _client;
+	private          bool                         _disposed;
+	private          Fen?                         _currentFenCache;
+	private          IReadOnlyCollection<string>? _legalMovesCache;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 	{
@@ -38,6 +38,23 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		try
 		{
 			await _client.UciNewGameAsync(ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+		}
+		finally
+		{
+			_positionLock.Release();
+		}
+	}
+
+	public async Task SetOptionAsync(string name, string? value, CancellationToken ct = default)
+	{
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client.SetOptionAsync(name, value, ct).ConfigureAwait(false);
 			lock (_cacheLock)
 			{
 				ClearPositionDependentCaches_NoLock();
@@ -163,28 +180,59 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	public async Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default)
+	public Task<SearchResult> SearchAsync(
+		SearchParameters      parameters,
+		Fen                   fen,
+		IEnumerable<string>?  moves = null,
+		CancellationToken     ct    = default)
+	{
+		if (IsDepthOnlySearch(parameters))
+			return EvaluatePositionAsync(fen, moves, parameters.Depth ?? 6, ct);
+
+		return ExecuteSearchAsync(fen, moves, parameters, ct);
+	}
+
+	public Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default) =>
+		EvaluatePositionAsync(fen, null, depth, ct);
+
+	public async Task<SearchResult> EvaluatePositionAsync(
+		Fen                  fen,
+		IEnumerable<string>? moves,
+		uint                 depth = 6,
+		CancellationToken    ct    = default)
 	{
 		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			var key = (fen.ToString(), depth);
-			if (_evalCache.TryGetValue(key, out var cached)) return cached;
+			var movesList = moves?.ToList();
+			if (movesList is not { Count: > 0 })
+			{
+				var key = (fen.ToString(), depth);
+				if (_evalCache.TryGetValue(key, out var cached)) return cached;
 
-			await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
-			var result = await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);
+				await _client.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
+				var result = await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);
 
-			_evalCache.TryAdd(key, result);
+				_evalCache.TryAdd(key, result);
+
+				lock (_cacheLock)
+				{
+					_currentFenCache = fen;
+					_legalMovesCache = null;
+				}
+
+				return result;
+			}
+
+			await _client.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
+			var movedResult = await _client.GoAsync(new() { Depth = depth }, ct).ConfigureAwait(false);
 
 			lock (_cacheLock)
 			{
-				// Engine is now set to 'fen'
-				_currentFenCache = fen;
-				// We didn't compute legal moves here; invalidate to force recomputation if requested
-				_legalMovesCache = null;
+				ClearPositionDependentCaches_NoLock();
 			}
 
-			return result;
+			return movedResult;
 		}
 		catch
 		{
@@ -201,6 +249,63 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 			_positionLock.Release();
 		}
 	}
+
+	private async Task<SearchResult> ExecuteSearchAsync(
+		Fen                  fen,
+		IEnumerable<string>? moves,
+		SearchParameters     parameters,
+		CancellationToken    ct)
+	{
+		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			var movesList = moves?.ToList();
+
+			await _client.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
+			var result = await _client.GoAsync(parameters, ct).ConfigureAwait(false);
+
+			lock (_cacheLock)
+			{
+				if (movesList is { Count: > 0 })
+				{
+					ClearPositionDependentCaches_NoLock();
+				}
+				else
+				{
+					_currentFenCache = fen;
+					_legalMovesCache = null;
+				}
+			}
+
+			return result;
+		}
+		catch
+		{
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
+
+			throw;
+		}
+		finally
+		{
+			_positionLock.Release();
+		}
+	}
+
+	private static bool IsDepthOnlySearch(SearchParameters parameters) =>
+		!parameters.Infinite &&
+		!parameters.Ponder &&
+		parameters.SearchMoves is null &&
+		parameters.BlackIncrementMs is null &&
+		parameters.BlackTimeMs is null &&
+		parameters.Mate is null &&
+		parameters.MovesToGo is null &&
+		parameters.MoveTimeMs is null &&
+		parameters.WhiteIncrementMs is null &&
+		parameters.WhiteTimeMs is null &&
+		parameters.Nodes is null;
 
 	public async ValueTask DisposeAsync()
 	{

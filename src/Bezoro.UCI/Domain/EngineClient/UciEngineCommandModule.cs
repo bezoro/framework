@@ -17,6 +17,7 @@ internal sealed class UciEngineCommandModule(
 	Action<EngineActivity> setActivity
 )
 {
+	private readonly SemaphoreSlim _protocolGate = new(1, 1);
 	private readonly Action<EngineActivity> _setActivity =
 		setActivity ?? throw new ArgumentNullException(nameof(setActivity));
 	private readonly IUciLineSource _lineSource = lineSource ?? throw new ArgumentNullException(nameof(lineSource));
@@ -33,16 +34,7 @@ internal sealed class UciEngineCommandModule(
 
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
-		await _lineWaiters.WaitForAsync(
-							  static l => l.Trim().Equals(
-								  UciConstants.Responses.READY_OK,
-								  StringComparison.OrdinalIgnoreCase
-							  ),
-							  TimeSpan.FromSeconds(10),
-							  ct
-						  )
-						  .ConfigureAwait(false);
+		await ExecuteSerializedCommandAsync(IsReadyCoreAsync, ct).ConfigureAwait(false);
 	}
 
 	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
@@ -79,27 +71,90 @@ internal sealed class UciEngineCommandModule(
 
 	public async Task UciInitAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
-		await _lineWaiters.WaitForAsync(
-							  static l => l.Trim().Equals(
-								  UciConstants.Responses.UCI_OK,
-								  StringComparison.OrdinalIgnoreCase
-							  ),
-							  TimeSpan.FromSeconds(5),
-							  ct
-						  )
-						  .ConfigureAwait(false);
-
-		await IsReadyAsync(ct).ConfigureAwait(false);
+		await ExecuteSerializedCommandAsync(UciInitCoreAsync, ct).ConfigureAwait(false);
 	}
 
 	public async Task UciNewGameAsync(CancellationToken ct)
 	{
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI_NEW_GAME, ct).ConfigureAwait(false);
-		await IsReadyAsync(ct).ConfigureAwait(false);
+		await ExecuteSerializedCommandAsync(UciNewGameCoreAsync, ct).ConfigureAwait(false);
 	}
 
+	// TODO: [CODE SMELL - Engine-Specific Protocol Coupling] GetFenViaDAsync and GetLegalMovesViaGoPerft1Async rely on Stockfish-style 'd' output and 'go perft 1'. Fix: add capability detection and generic UCI fallbacks before claiming broad UCI-engine compatibility.
 	public async Task<Fen?> GetFenViaDAsync(CancellationToken ct)
+	{
+		return await ExecuteSerializedCommandAsync(GetFenViaDCoreAsync, ct).ConfigureAwait(false);
+	}
+
+	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
+	{
+		return await ExecuteSerializedCommandAsync(GetLegalMovesViaGoPerft1CoreAsync, ct).ConfigureAwait(false);
+	}
+
+	private async Task ExecuteSerializedCommandAsync(Func<CancellationToken, Task> action, CancellationToken ct)
+	{
+		await _protocolGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await action(ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_protocolGate.Release();
+		}
+	}
+
+	private async Task<T> ExecuteSerializedCommandAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct)
+	{
+		await _protocolGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			return await action(ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_protocolGate.Release();
+		}
+	}
+
+	private async Task IsReadyCoreAsync(CancellationToken ct)
+	{
+		Task<string> readyTask = _lineWaiters.WaitForAsync(
+			static l => l.Trim().Equals(
+				UciConstants.Responses.READY_OK,
+				StringComparison.OrdinalIgnoreCase
+			),
+			TimeSpan.FromSeconds(10),
+			ct
+		);
+
+		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
+		await readyTask.ConfigureAwait(false);
+	}
+
+	private async Task UciInitCoreAsync(CancellationToken ct)
+	{
+		Task<string> uciOkTask = _lineWaiters.WaitForAsync(
+			static l => l.Trim().Equals(
+				UciConstants.Responses.UCI_OK,
+				StringComparison.OrdinalIgnoreCase
+			),
+			TimeSpan.FromSeconds(5),
+			ct
+		);
+
+		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
+		await uciOkTask.ConfigureAwait(false);
+
+		await IsReadyCoreAsync(ct).ConfigureAwait(false);
+	}
+
+	private async Task UciNewGameCoreAsync(CancellationToken ct)
+	{
+		await _transport.WriteLineAsync(UciConstants.Commands.UCI_NEW_GAME, ct).ConfigureAwait(false);
+		await IsReadyCoreAsync(ct).ConfigureAwait(false);
+	}
+
+	private async Task<Fen?> GetFenViaDCoreAsync(CancellationToken ct)
 	{
 		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), TimeSpan.FromSeconds(2), ct);
 
@@ -149,7 +204,7 @@ internal sealed class UciEngineCommandModule(
 		return fenWithCheckers;
 	}
 
-	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
+	private async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1CoreAsync(CancellationToken ct)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -157,7 +212,7 @@ internal sealed class UciEngineCommandModule(
 
 		using var subscription = _lineSource.Subscribe(CaptureMoves);
 		await _transport.WriteLineAsync($"{UciConstants.Commands.GO_PERFT} 1", ct).ConfigureAwait(false);
-		await IsReadyAsync(ct).ConfigureAwait(false);
+		await IsReadyCoreAsync(ct).ConfigureAwait(false);
 
 		return results.ToList();
 	}
