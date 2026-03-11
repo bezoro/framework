@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -63,6 +64,41 @@ public class WorldErgonomicApiTests
 	}
 
 	[Fact]
+	public void Query_WhenUsingTypedForEachWhileCursorIsActive_ShouldAllowIndependentDirectIteration()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		var entity = world.Spawn(
+			new ErgonomicPosition { X = 1, Y = 2 },
+			new ErgonomicVelocity { X = 3, Y = 4 }
+		);
+
+		var handle = world.Compile<ErgonomicPositionVelocityQuery>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+
+		world.Query<ErgonomicPositionVelocityQuery>().ForEach<ErgonomicPosition, ErgonomicVelocity>(
+			(Entity entityId, ref ErgonomicPosition position, in ErgonomicVelocity velocity) =>
+			{
+				entityId.Should().Be(entity);
+				position.X += velocity.X;
+				position.Y += velocity.Y;
+			}
+		);
+
+		cursor.Get<ErgonomicPosition>(0).Should().Be(new ErgonomicPosition { X = 4, Y = 6 });
+	}
+
+	[Fact]
 	public void Query_WhenUsingTypedReadOnlyForEachWithManagedComponent_ShouldProvideComponentWithoutManualLookups()
 	{
 		using var world = new World();
@@ -105,6 +141,22 @@ public class WorldErgonomicApiTests
 		world.Read<ErgonomicManagedNote>(entity).Should().Be(
 			new ErgonomicManagedNote { Label = "pending!", Count = 9 }
 		);
+	}
+
+	[Fact]
+	public void Query_WhenCachedAndWorldDisposed_ShouldThrowOnUnmanagedFastPath()
+	{
+		var world = new World();
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+		var query = world.Query<ErgonomicPositionQuery>();
+
+		world.Dispose();
+
+		Action act = () => query.ForEach<ErgonomicPosition>(
+			(Entity entityId, ref ErgonomicPosition position) => position.X += 1
+		);
+
+		act.Should().Throw<ObjectDisposedException>();
 	}
 
 	[Fact]

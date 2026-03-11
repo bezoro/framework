@@ -627,6 +627,7 @@ public sealed class CommandStream : IDisposable
 		_temporaryResolveGeneration++;
 	}
 
+	// TODO: [CODE SMELL - Boolean Trap] This helper changes allocation behavior based on a boolean flag. Fix: split it into explicit entity-buffer and payload-buffer helpers.
 	private void EnsureBatchBuffers(bool needsPayloadIndices)
 	{
 		if (_batchEntityIds is null)

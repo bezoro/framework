@@ -10,6 +10,7 @@ using QueryExecutionLease = Bezoro.ECS.Internal.QueryExecutionLease;
 
 namespace Bezoro.ECS.Services;
 
+// TODO: [CODE SMELL - God Class] This type owns public API surface, query orchestration, change tracking, snapshots, systems, and hot-path helpers. Fix: split query/direct-iteration concerns into dedicated collaborators and reduce World to orchestration.
 public class World : IWorld, IDisposable
 {
 	private static readonly Dictionary<Type, bool> ContainsReferencesByType = [];
@@ -684,11 +685,7 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 	{
 		ThrowIfDisposed();
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.Run<TJob, T1>(job);
+		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
 	}
 
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
@@ -698,11 +695,7 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 	{
 		ThrowIfDisposed();
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.Run<TJob, T1, T2>(job);
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
@@ -713,11 +706,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 	{
 		ThrowIfDisposed();
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.Run<TJob, T1, T2, T3>(job);
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
@@ -740,11 +729,7 @@ public class World : IWorld, IDisposable
 		where T4 : unmanaged
 	{
 		ThrowIfDisposed();
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.Run<TJob, T1, T2, T3, T4>(job);
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
@@ -755,11 +740,8 @@ public class World : IWorld, IDisposable
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.RunEntity<TJob, T1>(job);
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
 	}
 
 	/// <summary>
@@ -771,11 +753,8 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.RunEntity<TJob, T1, T2>(job);
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	/// <summary>
@@ -788,11 +767,8 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.RunEntity<TJob, T1, T2, T3>(job);
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
@@ -806,11 +782,8 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		using var cursor = Execute(handle);
-		if (!cursor.MoveNext())
-			return;
-
-		cursor.RunEntity<TJob, T1, T2, T3, T4>(job);
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
@@ -1482,6 +1455,87 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+
+	internal void RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+
+	internal void RunDirectFastEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+
+	internal void RunDirectFastEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+
+	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+
+	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1>
+		where T1 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2>
+		where T1 : struct
+		where T2 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
+	}
 
 	internal void SetComponentFromSnapshot(Entity entity, Type componentType, object value)
 		=> _entityStore.SetComponentBoxed(entity, componentType, value);

@@ -322,6 +322,87 @@ public partial class WorldRuntimeTests
 		AssertOnlyChangedEntity();
 	}
 
+	[Fact]
+	public void Run_WhenCompiledQueryUsesChanged_ShouldOnlyExecuteChangedEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var first  = world.Spawn(new Position { X = 1, Y = 10 });
+		var second = world.Spawn(new Position { X = 2, Y = 20 });
+		var handle = world.Compile<ChangedPositionQuerySpec>();
+
+		using (var initial = world.Execute(handle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(2);
+		}
+
+		using (var unchanged = world.Execute(handle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		world.Set(first, new Position { X = 11, Y = 12 });
+
+		var visited = new List<int>();
+		world.Run<ChangedPositionQuerySpec, RecordingPositionJob, Position>(handle, new(visited));
+
+		visited.Should().Equal(11);
+		world.Read<Position>(first).Y.Should().Be(112);
+		world.Read<Position>(second).Y.Should().Be(20);
+	}
+
+	[Fact]
+	public void RunEntity_WhenCompiledQueryUsesAdded_ShouldOnlyExecuteAddedEntities()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var first  = world.Spawn(new Position { X = 1, Y = 10 });
+		var second = world.Spawn();
+		var handle = world.Compile<AddedPositionQuerySpec>();
+
+		using (var initial = world.Execute(handle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(first);
+		}
+
+		using (var unchanged = world.Execute(handle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		world.Add(second, new Position { X = 22, Y = 30 });
+
+		var visited = new List<int>();
+		world.RunEntity<AddedPositionQuerySpec, RecordingEntityPositionJob, Position>(handle, new(visited));
+
+		visited.Should().Equal(22);
+		world.Read<Position>(first).Y.Should().Be(10);
+		world.Read<Position>(second).Y.Should().Be(130);
+	}
+
 
 	[Fact]
 	public void ForEach_WhenCursorIsActive_ShouldAllowIndependentDirectIteration()
@@ -839,6 +920,45 @@ public partial class WorldRuntimeTests
 			var updated = cursor.Get<Position>(i);
 			updated.X.Should().Be(i + 2);
 			updated.Y.Should().Be(i + 4);
+		}
+	}
+
+	[Fact]
+	public void RunEntity_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponentsAndReceiveEntity()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 48,
+				CommandPayloadCapacityPerType = 48,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 3; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i * 10 });
+			commands.Set(entity, new Velocity { X = 0, Y = 3 });
+		}
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		var order  = new List<int>();
+		world.RunEntity<PositionAndVelocityQuerySpec, RecordingEntityIntegrateJob, Position, Velocity>(handle, new(order));
+
+		order.Should().Equal(0, 1, 2);
+
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		for (var i = 0; i < cursor.Current.Length; i++)
+		{
+			var updated = cursor.Get<Position>(i);
+			updated.Y.Should().Be((i * 10) + 3);
 		}
 	}
 }

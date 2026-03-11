@@ -479,56 +479,412 @@ internal sealed class WorldDirectIterationService(World world)
 		}
 	}
 
+	private interface IDirectChunkExecutor
+	{
+		int PrimaryTypeId { get; }
+		void PrepareArchetype(ArchetypeStorage archetype, int archetypeId);
+		void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount);
+	}
+
+	private interface IDirectEntityChunkExecutor
+	{
+		int PrimaryTypeId { get; }
+		void PrepareArchetype(ArchetypeStorage archetype, int archetypeId);
+		void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount);
+	}
+
+	private struct DirectJobExecutor<TJob, T1> : IDirectChunkExecutor
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		private readonly int _typeId1;
+		private int          _columnIndex1;
+		private TJob         _job;
+
+		public DirectJobExecutor(World world, TJob job)
+		{
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_columnIndex1 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId) =>
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			for (var offset = 0; offset < rowCount; offset++)
+				_job.Execute(ref Unsafe.Add(ref c1Start, offset));
+		}
+	}
+
+	private struct DirectJobExecutor<TJob, T1, T2> : IDirectChunkExecutor
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		private readonly int _typeId1;
+		private readonly int _typeId2;
+		private int          _columnIndex1;
+		private int          _columnIndex2;
+		private TJob         _job;
+
+		public DirectJobExecutor(World world, TJob job)
+		{
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				_job.Execute(ref c1, in c2);
+			}
+		}
+	}
+
+	private struct DirectJobExecutor<TJob, T1, T2, T3> : IDirectChunkExecutor
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		private readonly int _typeId1;
+		private readonly int _typeId2;
+		private readonly int _typeId3;
+		private int          _columnIndex1;
+		private int          _columnIndex2;
+		private int          _columnIndex3;
+		private TJob         _job;
+
+		public DirectJobExecutor(World world, TJob job)
+		{
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_typeId3      = world.GetOrCreateComponentTypeId<T3>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_columnIndex3 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+			_columnIndex3 = GetColumnIndex(archetype, _typeId3, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, _columnIndex3, rowStart);
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				_job.Execute(ref c1, in c2, in c3);
+			}
+		}
+	}
+
+	private struct DirectJobExecutor<TJob, T1, T2, T3, T4> : IDirectChunkExecutor
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		private readonly int _typeId1;
+		private readonly int _typeId2;
+		private readonly int _typeId3;
+		private readonly int _typeId4;
+		private int          _columnIndex1;
+		private int          _columnIndex2;
+		private int          _columnIndex3;
+		private int          _columnIndex4;
+		private TJob         _job;
+
+		public DirectJobExecutor(World world, TJob job)
+		{
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_typeId3      = world.GetOrCreateComponentTypeId<T3>();
+			_typeId4      = world.GetOrCreateComponentTypeId<T4>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_columnIndex3 = -1;
+			_columnIndex4 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+			_columnIndex3 = GetColumnIndex(archetype, _typeId3, archetypeId);
+			_columnIndex4 = GetColumnIndex(archetype, _typeId4, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, _columnIndex3, rowStart);
+			ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, _columnIndex4, rowStart);
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+				_job.Execute(ref c1, in c2, in c3, in c4);
+			}
+		}
+	}
+
+	private struct DirectEntityJobExecutor<TJob, T1> : IDirectEntityChunkExecutor
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		private readonly int[] _versions;
+		private readonly int   _typeId1;
+		private int            _columnIndex1;
+		private TJob           _job;
+
+		public DirectEntityJobExecutor(World world, TJob job)
+		{
+			_versions     = world.GetEntityVersionsForCursor();
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_columnIndex1 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId) =>
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var entityIdStart = ref chunk.EntityIds[rowStart];
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				int entityId = Unsafe.Add(ref entityIdStart, offset);
+				_job.Execute(new(entityId, _versions[entityId]), ref Unsafe.Add(ref c1Start, offset));
+			}
+		}
+	}
+
+	private struct DirectEntityJobExecutor<TJob, T1, T2> : IDirectEntityChunkExecutor
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		private readonly int[] _versions;
+		private readonly int   _typeId1;
+		private readonly int   _typeId2;
+		private int            _columnIndex1;
+		private int            _columnIndex2;
+		private TJob           _job;
+
+		public DirectEntityJobExecutor(World world, TJob job)
+		{
+			_versions     = world.GetEntityVersionsForCursor();
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			ref var entityIdStart = ref chunk.EntityIds[rowStart];
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				int entityId = Unsafe.Add(ref entityIdStart, offset);
+				_job.Execute(new(entityId, _versions[entityId]), ref c1, in c2);
+			}
+		}
+	}
+
+	private struct DirectEntityJobExecutor<TJob, T1, T2, T3> : IDirectEntityChunkExecutor
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		private readonly int[] _versions;
+		private readonly int   _typeId1;
+		private readonly int   _typeId2;
+		private readonly int   _typeId3;
+		private int            _columnIndex1;
+		private int            _columnIndex2;
+		private int            _columnIndex3;
+		private TJob           _job;
+
+		public DirectEntityJobExecutor(World world, TJob job)
+		{
+			_versions     = world.GetEntityVersionsForCursor();
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_typeId3      = world.GetOrCreateComponentTypeId<T3>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_columnIndex3 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+			_columnIndex3 = GetColumnIndex(archetype, _typeId3, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, _columnIndex3, rowStart);
+			ref var entityIdStart = ref chunk.EntityIds[rowStart];
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				int entityId = Unsafe.Add(ref entityIdStart, offset);
+				_job.Execute(new(entityId, _versions[entityId]), ref c1, in c2, in c3);
+			}
+		}
+	}
+
+	private struct DirectEntityJobExecutor<TJob, T1, T2, T3, T4> : IDirectEntityChunkExecutor
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		private readonly int[] _versions;
+		private readonly int   _typeId1;
+		private readonly int   _typeId2;
+		private readonly int   _typeId3;
+		private readonly int   _typeId4;
+		private int            _columnIndex1;
+		private int            _columnIndex2;
+		private int            _columnIndex3;
+		private int            _columnIndex4;
+		private TJob           _job;
+
+		public DirectEntityJobExecutor(World world, TJob job)
+		{
+			_versions     = world.GetEntityVersionsForCursor();
+			_typeId1      = world.GetOrCreateComponentTypeId<T1>();
+			_typeId2      = world.GetOrCreateComponentTypeId<T2>();
+			_typeId3      = world.GetOrCreateComponentTypeId<T3>();
+			_typeId4      = world.GetOrCreateComponentTypeId<T4>();
+			_columnIndex1 = -1;
+			_columnIndex2 = -1;
+			_columnIndex3 = -1;
+			_columnIndex4 = -1;
+			_job          = job;
+		}
+
+		public int PrimaryTypeId => _typeId1;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void PrepareArchetype(ArchetypeStorage archetype, int archetypeId)
+		{
+			_columnIndex1 = GetColumnIndex(archetype, _typeId1, archetypeId);
+			_columnIndex2 = GetColumnIndex(archetype, _typeId2, archetypeId);
+			_columnIndex3 = GetColumnIndex(archetype, _typeId3, archetypeId);
+			_columnIndex4 = GetColumnIndex(archetype, _typeId4, archetypeId);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount)
+		{
+			ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, _columnIndex1, rowStart);
+			ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, _columnIndex2, rowStart);
+			ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, _columnIndex3, rowStart);
+			ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, _columnIndex4, rowStart);
+			ref var entityIdStart = ref chunk.EntityIds[rowStart];
+			for (var offset = 0; offset < rowCount; offset++)
+			{
+				ref var c1 = ref Unsafe.Add(ref c1Start, offset);
+				ref var c2 = ref Unsafe.Add(ref c2Start, offset);
+				ref var c3 = ref Unsafe.Add(ref c3Start, offset);
+				ref var c4 = ref Unsafe.Add(ref c4Start, offset);
+				int entityId = Unsafe.Add(ref entityIdStart, offset);
+				_job.Execute(new(entityId, _versions[entityId]), ref c1, in c2, in c3, in c4);
+			}
+		}
+	}
+
 	public void RunDirectFast<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
 		_world.ValidateDirectIterationHandle(handle);
-		int matchCount = _world.GetOrRefreshMatchingArchetypesForQueryEngine(handle.Plan);
-		if (matchCount == 0)
-			return;
-
-		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
-		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
-		_world.TrackPotentialDirectFastRefWritesForDirectIteration(matchingArchetypeIds, matchCount, typeId1);
-		var processedEntityCount = 0;
-		for (var i = 0; i < matchCount; i++)
-		{
-			int archetypeId = matchingArchetypeIds[i];
-			var archetype = _world.GetArchetypeForCursor(archetypeId);
-			int columnIndex1 = GetColumnIndex(archetype, typeId1, archetypeId);
-
-			for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
-			{
-				var chunk = archetype.GetChunkUnchecked(chunkIndex);
-				int chunkCount = chunk.Count;
-				if (chunkCount == 0)
-					continue;
-
-				int remaining = _world.QueryResultCapacityForDirectIteration - processedEntityCount;
-				if (remaining <= 0)
-				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
-				}
-
-				int rowsToProcess = Math.Min(remaining, chunkCount);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, 0);
-				for (var offset = 0; offset < rowsToProcess; offset++)
-					job.Execute(ref Unsafe.Add(ref c1Start, offset));
-
-				processedEntityCount += rowsToProcess;
-				if (rowsToProcess < chunkCount)
-				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
-				}
-			}
-		}
-
-		done:
-		_world.ObserveDirectIterationEntityCount(processedEntityCount);
+		var executor = new DirectJobExecutor<TJob, T1>(_world, job);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void RunDirectFast<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
@@ -538,57 +894,8 @@ internal sealed class WorldDirectIterationService(World world)
 		where T2 : unmanaged
 	{
 		_world.ValidateDirectIterationHandle(handle);
-		int matchCount = _world.GetOrRefreshMatchingArchetypesForQueryEngine(handle.Plan);
-		if (matchCount == 0)
-			return;
-
-		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
-		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
-		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
-		_world.TrackPotentialDirectFastRefWritesForDirectIteration(matchingArchetypeIds, matchCount, typeId1);
-		var processedEntityCount = 0;
-		for (var i = 0; i < matchCount; i++)
-		{
-			int archetypeId = matchingArchetypeIds[i];
-			var archetype = _world.GetArchetypeForCursor(archetypeId);
-			int columnIndex1 = GetColumnIndex(archetype, typeId1, archetypeId);
-			int columnIndex2 = GetColumnIndex(archetype, typeId2, archetypeId);
-
-			for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
-			{
-				var chunk = archetype.GetChunkUnchecked(chunkIndex);
-				int chunkCount = chunk.Count;
-				if (chunkCount == 0)
-					continue;
-
-				int remaining = _world.QueryResultCapacityForDirectIteration - processedEntityCount;
-				if (remaining <= 0)
-				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
-				}
-
-				int rowsToProcess = Math.Min(remaining, chunkCount);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, 0);
-				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, 0);
-				for (var offset = 0; offset < rowsToProcess; offset++)
-				{
-					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-					job.Execute(ref c1, in c2);
-				}
-
-				processedEntityCount += rowsToProcess;
-				if (rowsToProcess < chunkCount)
-				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
-				}
-			}
-		}
-
-		done:
-		_world.ObserveDirectIterationEntityCount(processedEntityCount);
+		var executor = new DirectJobExecutor<TJob, T1, T2>(_world, job);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void RunDirectFast<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
@@ -599,61 +906,261 @@ internal sealed class WorldDirectIterationService(World world)
 		where T3 : unmanaged
 	{
 		_world.ValidateDirectIterationHandle(handle);
-		int matchCount = _world.GetOrRefreshMatchingArchetypesForQueryEngine(handle.Plan);
-		if (matchCount == 0)
-			return;
+		var executor = new DirectJobExecutor<TJob, T1, T2, T3>(_world, job);
+		ExecuteDirectValidated(handle, ref executor);
+	}
 
-		int[] matchingArchetypeIds = handle.Plan.MatchingArchetypeIds;
-		int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
-		int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
-		int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
-		_world.TrackPotentialDirectFastRefWritesForDirectIteration(matchingArchetypeIds, matchCount, typeId1);
-		var processedEntityCount = 0;
-		for (var i = 0; i < matchCount; i++)
+	public void RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		var executor = new DirectJobExecutor<TJob, T1, T2, T3, T4>(_world, job);
+		ExecuteDirectValidated(handle, ref executor);
+	}
+
+	public void RunDirectFastEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		var executor = new DirectEntityJobExecutor<TJob, T1>(_world, job);
+		ExecuteDirectEntityValidated(handle, ref executor);
+	}
+
+	public void RunDirectFastEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		var executor = new DirectEntityJobExecutor<TJob, T1, T2>(_world, job);
+		ExecuteDirectEntityValidated(handle, ref executor);
+	}
+
+	public void RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		var executor = new DirectEntityJobExecutor<TJob, T1, T2, T3>(_world, job);
+		ExecuteDirectEntityValidated(handle, ref executor);
+	}
+
+	public void RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		var executor = new DirectEntityJobExecutor<TJob, T1, T2, T3, T4>(_world, job);
+		ExecuteDirectEntityValidated(handle, ref executor);
+	}
+
+	public void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1>
+		where T1 : struct
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
 		{
-			int archetypeId = matchingArchetypeIds[i];
-			var archetype = _world.GetArchetypeForCursor(archetypeId);
-			int columnIndex1 = GetColumnIndex(archetype, typeId1, archetypeId);
-			int columnIndex2 = GetColumnIndex(archetype, typeId2, archetypeId);
-			int columnIndex3 = GetColumnIndex(archetype, typeId3, archetypeId);
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
 
-			for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+			QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, chunkMatches, chunkMatchCount, action);
+		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
+	}
+
+	public void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2>
+		where T1 : struct
+		where T2 : struct
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
+
+			QueryChunkWalker.ExecuteEntity<TAction, T1, T2>(_world, chunkMatches, chunkMatchCount, action);
+		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
+	}
+
+	public void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
+
+			QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3>(_world, chunkMatches, chunkMatchCount, action);
+		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
+	}
+
+	public void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
+	{
+		_world.ValidateDirectIterationHandle(handle);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
+
+			QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3, T4>(_world, chunkMatches, chunkMatchCount, action);
+		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
+	}
+
+	private void ExecuteDirectValidated<TSpec, TExecutor>(QueryHandle<TSpec> handle, ref TExecutor executor)
+		where TSpec : struct, ICompiledQuerySpec
+		where TExecutor : struct, IDirectChunkExecutor
+	{
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
+
+			int cachedArchetypeId = int.MinValue;
+			ArchetypeStorage? cachedArchetype = null;
+			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, executor.PrimaryTypeId);
+			for (var i = 0; i < chunkMatchCount; i++)
 			{
-				var chunk = archetype.GetChunkUnchecked(chunkIndex);
-				int chunkCount = chunk.Count;
-				if (chunkCount == 0)
+				var match = chunkMatches[i];
+				if (match.Count == 0)
 					continue;
 
-				int remaining = _world.QueryResultCapacityForDirectIteration - processedEntityCount;
-				if (remaining <= 0)
+				if (match.ArchetypeId != cachedArchetypeId)
 				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
+					cachedArchetypeId = match.ArchetypeId;
+					cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
+					executor.PrepareArchetype(cachedArchetype, match.ArchetypeId);
 				}
 
-				int rowsToProcess = Math.Min(remaining, chunkCount);
-				ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, 0);
-				ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, 0);
-				ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, 0);
-				for (var offset = 0; offset < rowsToProcess; offset++)
-				{
-					ref var c1 = ref Unsafe.Add(ref c1Start, offset);
-					ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-					ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-					job.Execute(ref c1, in c2, in c3);
-				}
-
-				processedEntityCount += rowsToProcess;
-				if (rowsToProcess < chunkCount)
-				{
-					_world.HandleQueryOverflowForDirectIteration();
-					goto done;
-				}
+				var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+				executor.ExecuteChunk(cachedArchetype, chunk, match.RowStart, match.Count);
 			}
 		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
+	}
 
-		done:
-		_world.ObserveDirectIterationEntityCount(processedEntityCount);
+	private void ExecuteDirectEntityValidated<TSpec, TExecutor>(QueryHandle<TSpec> handle, ref TExecutor executor)
+		where TSpec : struct, ICompiledQuerySpec
+		where TExecutor : struct, IDirectEntityChunkExecutor
+	{
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
+		try
+		{
+			int entityCount = _world.FillQueryResultsForQueryEngine(
+				handle.Plan,
+				chunkMatches,
+				_world.QueryResultCapacityForDirectIteration,
+				out int chunkMatchCount
+			);
+			if (entityCount == 0)
+				return;
+
+			int cachedArchetypeId = int.MinValue;
+			ArchetypeStorage? cachedArchetype = null;
+			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, executor.PrimaryTypeId);
+			for (var i = 0; i < chunkMatchCount; i++)
+			{
+				var match = chunkMatches[i];
+				if (match.Count == 0)
+					continue;
+
+				if (match.ArchetypeId != cachedArchetypeId)
+				{
+					cachedArchetypeId = match.ArchetypeId;
+					cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
+					executor.PrepareArchetype(cachedArchetype, match.ArchetypeId);
+				}
+
+				var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
+				executor.ExecuteChunk(cachedArchetype, chunk, match.RowStart, match.Count);
+			}
+		}
+		finally
+		{
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

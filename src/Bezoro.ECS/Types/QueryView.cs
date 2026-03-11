@@ -61,6 +61,11 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	private readonly QueryHandle<TQuery> _handle = handle;
 	private readonly World               _world  = world ?? throw new ArgumentNullException(nameof(world));
 
+	private static class TypeTraits<T> where T : struct
+	{
+		internal static readonly bool ContainsReferences = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+	}
+
 	private readonly struct ReadOnlyEntityAction<T1>(EntityInAction<T1> action) : IEntityChunkAction<T1>
 		where T1 : struct
 	{
@@ -139,15 +144,15 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
+		if (!TypeTraits<T1>.ContainsReferences)
+		{
+			_world.ExecuteDirectEntityAction<TQuery, ReadOnlyEntityAction<T1>, T1>(_handle, new(action));
+			return;
+		}
+
 		using var cursor = _world.Execute(_handle);
 		if (!cursor.MoveNext())
 			return;
-
-		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T1>())
-		{
-			cursor.ExecuteEntityAction<ReadOnlyEntityAction<T1>, T1>(new(action));
-			return;
-		}
 
 		var entities = cursor.Current;
 		for (var i = 0; i < entities.Length; i++)
@@ -165,15 +170,15 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
+		if (!TypeTraits<T1>.ContainsReferences)
+		{
+			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1>, T1>(_handle, new(action));
+			return;
+		}
+
 		using var cursor = _world.Execute(_handle);
 		if (!cursor.MoveNext())
 			return;
-
-		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T1>())
-		{
-			cursor.ExecuteEntityAction<EntityAction<T1>, T1>(new(action));
-			return;
-		}
 
 		var entities = cursor.Current;
 		for (var i = 0; i < entities.Length; i++)
@@ -192,16 +197,16 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
+		if (!TypeTraits<T1>.ContainsReferences &&
+			!TypeTraits<T2>.ContainsReferences)
+		{
+			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2>, T1, T2>(_handle, new(action));
+			return;
+		}
+
 		using var cursor = _world.Execute(_handle);
 		if (!cursor.MoveNext())
 			return;
-
-		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T1>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T2>())
-		{
-			cursor.ExecuteEntityAction<EntityAction<T1, T2>, T1, T2>(new(action));
-			return;
-		}
 
 		var entities = cursor.Current;
 		for (var i = 0; i < entities.Length; i++)
@@ -222,17 +227,17 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
+		if (!TypeTraits<T1>.ContainsReferences &&
+			!TypeTraits<T2>.ContainsReferences &&
+			!TypeTraits<T3>.ContainsReferences)
+		{
+			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3>, T1, T2, T3>(_handle, new(action));
+			return;
+		}
+
 		using var cursor = _world.Execute(_handle);
 		if (!cursor.MoveNext())
 			return;
-
-		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T1>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T2>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T3>())
-		{
-			cursor.ExecuteEntityAction<EntityAction<T1, T2, T3>, T1, T2, T3>(new(action));
-			return;
-		}
 
 		var entities = cursor.Current;
 		for (var i = 0; i < entities.Length; i++)
@@ -255,18 +260,18 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
+		if (!TypeTraits<T1>.ContainsReferences &&
+			!TypeTraits<T2>.ContainsReferences &&
+			!TypeTraits<T3>.ContainsReferences &&
+			!TypeTraits<T4>.ContainsReferences)
+		{
+			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3, T4>, T1, T2, T3, T4>(_handle, new(action));
+			return;
+		}
+
 		using var cursor = _world.Execute(_handle);
 		if (!cursor.MoveNext())
 			return;
-
-		if (!RuntimeHelpers.IsReferenceOrContainsReferences<T1>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T2>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T3>() &&
-			!RuntimeHelpers.IsReferenceOrContainsReferences<T4>())
-		{
-			cursor.ExecuteEntityAction<EntityAction<T1, T2, T3, T4>, T1, T2, T3, T4>(new(action));
-			return;
-		}
 
 		var entities = cursor.Current;
 		for (var i = 0; i < entities.Length; i++)

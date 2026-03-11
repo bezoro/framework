@@ -67,6 +67,28 @@ public partial class WorldRuntimeTests
 		}
 	}
 
+	private struct RecordingPositionJob(List<int> order) : IForEach<Position>
+	{
+		private readonly List<int> _order = order;
+
+		public void Execute(ref Position component1)
+		{
+			_order.Add((int)component1.X);
+			component1.Y += 100;
+		}
+	}
+
+	private struct RecordingEntityPositionJob(List<int> order) : IForEachEntity<Position>
+	{
+		private readonly List<int> _order = order;
+
+		public void Execute(Entity entity, ref Position component1)
+		{
+			_order.Add((int)component1.X);
+			component1.Y += 100;
+		}
+	}
+
 	private struct ManagedTag
 	{
 		public Payload? Payload;

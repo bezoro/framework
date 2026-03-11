@@ -63,6 +63,34 @@ public partial class WorldRuntimeTests
 		cursor.Get<Position>(0).Should().Be(new Position { X = 11, Y = -3 });
 	}
 
+	[Fact]
+	public void Playback_WhenCreateEntityWithComponentRunContainsManyEntities_ShouldApplyEveryPayload()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 4; i++)
+			commands.CreateEntity(new Position { X = i, Y = -i });
+
+		world.Playback(commands);
+
+		var handle = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+		cursor.Current.Length.Should().Be(4);
+		for (var i = 0; i < cursor.Current.Length; i++)
+			cursor.Get<Position>(i).Should().Be(new Position { X = i, Y = -i });
+	}
+
 
 	[Fact]
 	public void Playback_WhenDenseRemoveFullyMarksAChunk_ShouldKeepOtherChunkLocationsStable()

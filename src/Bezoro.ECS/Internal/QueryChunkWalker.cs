@@ -63,6 +63,7 @@ internal interface IEntityChunkAction<T1, T2, T3, T4>
 	void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4);
 }
 
+// TODO: [CODE SMELL - Duplicated code] This walker repeats near-identical arity-specific traversal loops for chunk and entity execution. Fix: collapse these overloads onto a smaller shared kernel only after confirming the extracted abstraction does not regress hot-path performance.
 internal static class QueryChunkWalker
 {
 	public static void Execute<TAction, T1>(
