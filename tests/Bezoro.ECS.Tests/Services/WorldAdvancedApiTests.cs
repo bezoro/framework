@@ -12,6 +12,8 @@ namespace Bezoro.ECS.Tests.Services;
 [TestSubject(typeof(World))]
 public class WorldAdvancedApiTests
 {
+	private static readonly Entity ExistingEntity = new(0, 0);
+
 	[Fact]
 	public void CaptureAndRestoreSnapshot_WhenWorldHasRelationsResourcesAndComponents_ShouldRoundTrip()
 	{
@@ -53,8 +55,8 @@ public class WorldAdvancedApiTests
 			new()
 			{
 				AllowedComponentTypes = [typeof(Position), typeof(Velocity)],
-				AllowedRelationTypes = [typeof(Follows)],
-				AllowedResourceTypes = [typeof(SimulationSettings), typeof(SnapshotTagResource)]
+				AllowedRelationTypes  = [typeof(Follows)],
+				AllowedResourceTypes  = [typeof(SimulationSettings), typeof(SnapshotTagResource)]
 			}
 		);
 
@@ -144,35 +146,37 @@ public class WorldAdvancedApiTests
 	}
 
 	[Fact]
-	public void RestoreSnapshot_WhenNoTypesAreAllowedByDefault_ShouldRejectBeforeMutatingWorld()
+	public void RestoreSnapshot_WhenAllowAllFlagsAreEnabled_ShouldPreserveTrustedSameProcessScenario()
 	{
-		using var world = CreateWorldWithExistingState();
-		var existingEntityCount = world.EntityCount;
-		var existingGravity = world.GetResource<SimulationSettings>().Gravity;
-		var snapshot = CreateSnapshot(
-			resources:
-			[
-				new(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
-			],
-			entities:
-			[
-				new(
-					new Entity(11, 1),
-					[
-						new(typeof(Position), new Position { X = 4, Y = 7 })
-					]
-				)
-			]
+		using var source = CreateWorldWithExistingState();
+		source.SetResource(new SnapshotTagResource("trusted"));
+		var writer = new InMemorySnapshotWriter();
+		source.CaptureSnapshot(ref writer);
+
+		using var restored = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 8
+			}
 		);
 
-		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(ref reader);
+		var reader = new InMemorySnapshotReader(writer.Captured);
+		restored.RestoreSnapshot(
+			ref reader,
+			new()
+			{
+				AllowAllComponentTypes = true,
+				AllowAllRelationTypes  = true,
+				AllowAllResourceTypes  = true
+			}
+		);
 
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*not allow-listed*");
-		world.EntityCount.Should().Be(existingEntityCount);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
-		world.Get<Position>(_existingEntity).Should().Be(new Position { X = 99, Y = 100 });
+		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("trusted");
 	}
 
 	[Fact]
@@ -183,7 +187,7 @@ public class WorldAdvancedApiTests
 			entities:
 			[
 				new(
-					new Entity(12, 1),
+					new(12, 1),
 					[
 						new(typeof(Position), new Position { X = 1, Y = 2 })
 					]
@@ -202,72 +206,15 @@ public class WorldAdvancedApiTests
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*component type*not allow-listed*");
-		AssertWorldPreserved(world);
-	}
 
-	[Fact]
-	public void RestoreSnapshot_WhenRelationTypeIsNotAllowListed_ShouldThrowAndLeaveWorldUnchanged()
-	{
-		using var world = CreateWorldWithExistingState();
-		var snapshot = CreateSnapshot(
-			entities:
-			[
-				new(new Entity(21, 1), []),
-				new(new Entity(22, 1), [])
-			],
-			relations:
-			[
-				new(typeof(Follows), new Entity(21, 1), new Entity(22, 1))
-			]
-		);
-
-		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(
-			ref reader,
-			new()
-			{
-				AllowAllResourceTypes = true
-			}
-		);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*relation type*not allow-listed*");
-		AssertWorldPreserved(world);
-	}
-
-	[Fact]
-	public void RestoreSnapshot_WhenResourceTypeIsNotAllowListed_ShouldThrowAndLeaveWorldUnchanged()
-	{
-		var snapshot = new WorldSnapshot(
-			new[]
-			{
-				new SnapshotResourceRecord(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
-			},
-			Array.Empty<SnapshotEntityRecord>(),
-			Array.Empty<SnapshotRelationRecord>()
-		);
-
-		using var world = CreateWorldWithExistingState();
-		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(
-			ref reader,
-			new()
-			{
-				AllowAllComponentTypes = true,
-				AllowAllRelationTypes = true
-			}
-		);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*resource type*not allow-listed*");
 		AssertWorldPreserved(world);
 	}
 
 	[Fact]
 	public void RestoreSnapshot_WhenDuplicateEntityRecordsExist_ShouldThrowAndLeaveWorldUnchanged()
 	{
-		using var world = CreateWorldWithExistingState();
-		var duplicateEntity = new Entity(42, 3);
+		using var world           = CreateWorldWithExistingState();
+		var       duplicateEntity = new Entity(42, 3);
 		var snapshot = CreateSnapshot(
 			entities:
 			[
@@ -287,41 +234,16 @@ public class WorldAdvancedApiTests
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*Duplicate snapshot entity*");
-		AssertWorldPreserved(world);
-	}
 
-	[Fact]
-	public void RestoreSnapshot_WhenDuplicateResourceTypesExist_ShouldThrowAndLeaveWorldUnchanged()
-	{
-		using var world = CreateWorldWithExistingState();
-		var snapshot = CreateSnapshot(
-			resources:
-			[
-				new(typeof(SimulationSettings), new SimulationSettings { Gravity = 1 }),
-				new(typeof(SimulationSettings), new SimulationSettings { Gravity = 2 })
-			]
-		);
-
-		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(
-			ref reader,
-			new()
-			{
-				AllowedResourceTypes = [typeof(SimulationSettings)]
-			}
-		);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*Duplicate snapshot resource type*");
 		AssertWorldPreserved(world);
 	}
 
 	[Fact]
 	public void RestoreSnapshot_WhenDuplicateRelationsExist_ShouldThrowAndLeaveWorldUnchanged()
 	{
-		using var world = CreateWorldWithExistingState();
-		var source = new Entity(31, 1);
-		var target = new Entity(32, 1);
+		using var world  = CreateWorldWithExistingState();
+		var       source = new Entity(31, 1);
+		var       target = new Entity(32, 1);
 		var snapshot = CreateSnapshot(
 			entities:
 			[
@@ -346,21 +268,18 @@ public class WorldAdvancedApiTests
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*Duplicate snapshot relation*");
+
 		AssertWorldPreserved(world);
 	}
 
 	[Fact]
-	public void RestoreSnapshot_WhenRelationReferencesMissingEntity_ShouldThrowAndLeaveWorldUnchanged()
+	public void RestoreSnapshot_WhenDuplicateResourceTypesExist_ShouldThrowAndLeaveWorldUnchanged()
 	{
 		using var world = CreateWorldWithExistingState();
 		var snapshot = CreateSnapshot(
-			entities:
 			[
-				new(new Entity(51, 1), [])
-			],
-			relations:
-			[
-				new(typeof(Follows), new Entity(51, 1), new Entity(52, 1))
+				new(typeof(SimulationSettings), new SimulationSettings { Gravity = 1 }),
+				new(typeof(SimulationSettings), new SimulationSettings { Gravity = 2 })
 			]
 		);
 
@@ -369,12 +288,13 @@ public class WorldAdvancedApiTests
 			ref reader,
 			new()
 			{
-				AllowedRelationTypes = [typeof(Follows)]
+				AllowedResourceTypes = [typeof(SimulationSettings)]
 			}
 		);
 
 		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*target*was not found*");
+		   .WithMessage("*Duplicate snapshot resource type*");
+
 		AssertWorldPreserved(world);
 	}
 
@@ -400,14 +320,107 @@ public class WorldAdvancedApiTests
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*Entity.None*");
+
+		AssertWorldPreserved(world);
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenNoTypesAreAllowedByDefault_ShouldRejectBeforeMutatingWorld()
+	{
+		using var world               = CreateWorldWithExistingState();
+		int       existingEntityCount = world.EntityCount;
+		float     existingGravity     = world.GetResource<SimulationSettings>().Gravity;
+		var snapshot = CreateSnapshot(
+			[
+				new(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
+			],
+			[
+				new(
+					new(11, 1),
+					[
+						new(typeof(Position), new Position { X = 4, Y = 7 })
+					]
+				)
+			]
+		);
+
+		var reader = new InMemorySnapshotReader(snapshot);
+		var act    = () => world.RestoreSnapshot(ref reader);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*not allow-listed*");
+
+		world.EntityCount.Should().Be(existingEntityCount);
+		world.GetResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
+		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenRelationReferencesMissingEntity_ShouldThrowAndLeaveWorldUnchanged()
+	{
+		using var world = CreateWorldWithExistingState();
+		var snapshot = CreateSnapshot(
+			entities:
+			[
+				new(new(51, 1), [])
+			],
+			relations:
+			[
+				new(typeof(Follows), new(51, 1), new(52, 1))
+			]
+		);
+
+		var reader = new InMemorySnapshotReader(snapshot);
+		var act = () => world.RestoreSnapshot(
+			ref reader,
+			new()
+			{
+				AllowedRelationTypes = [typeof(Follows)]
+			}
+		);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*target*was not found*");
+
+		AssertWorldPreserved(world);
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenRelationTypeIsNotAllowListed_ShouldThrowAndLeaveWorldUnchanged()
+	{
+		using var world = CreateWorldWithExistingState();
+		var snapshot = CreateSnapshot(
+			entities:
+			[
+				new(new(21, 1), []),
+				new(new(22, 1), [])
+			],
+			relations:
+			[
+				new(typeof(Follows), new(21, 1), new(22, 1))
+			]
+		);
+
+		var reader = new InMemorySnapshotReader(snapshot);
+		var act = () => world.RestoreSnapshot(
+			ref reader,
+			new()
+			{
+				AllowAllResourceTypes = true
+			}
+		);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*relation type*not allow-listed*");
+
 		AssertWorldPreserved(world);
 	}
 
 	[Fact]
 	public void RestoreSnapshot_WhenRelationUsesWildcardTarget_ShouldThrowAndLeaveWorldUnchanged()
 	{
-		using var world = CreateWorldWithExistingState();
-		var source = new Entity(61, 1);
+		using var world  = CreateWorldWithExistingState();
+		var       source = new Entity(61, 1);
 		var snapshot = CreateSnapshot(
 			entities:
 			[
@@ -430,6 +443,36 @@ public class WorldAdvancedApiTests
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*concrete entities*");
+
+		AssertWorldPreserved(world);
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenResourceTypeIsNotAllowListed_ShouldThrowAndLeaveWorldUnchanged()
+	{
+		var snapshot = new WorldSnapshot(
+			new[]
+			{
+				new SnapshotResourceRecord(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
+			},
+			Array.Empty<SnapshotEntityRecord>(),
+			Array.Empty<SnapshotRelationRecord>()
+		);
+
+		using var world  = CreateWorldWithExistingState();
+		var       reader = new InMemorySnapshotReader(snapshot);
+		var act = () => world.RestoreSnapshot(
+			ref reader,
+			new()
+			{
+				AllowAllComponentTypes = true,
+				AllowAllRelationTypes  = true
+			}
+		);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*resource type*not allow-listed*");
+
 		AssertWorldPreserved(world);
 	}
 
@@ -439,106 +482,33 @@ public class WorldAdvancedApiTests
 		using var world = new World(
 			new WorldConfig
 			{
-				EntityCapacity = 1,
-				ComponentTypeCapacity = 8,
-				CommandCapacity = 16,
+				EntityCapacity                = 1,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 16,
 				CommandPayloadCapacityPerType = 16,
-				QueryResultCapacity = 8
+				QueryResultCapacity           = 8
 			}
 		);
+
 		world.SetResource(new SimulationSettings { Gravity = 9.81f });
 		var original = world.Spawn(new Position { X = 99, Y = 100 });
 		var snapshot = CreateSnapshot(
 			entities:
 			[
-				new(new Entity(71, 1), []),
-				new(new Entity(72, 1), [])
+				new(new(71, 1), []),
+				new(new(72, 1), [])
 			]
 		);
 
 		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(ref reader, new() { AllowAllComponentTypes = true });
+		var act    = () => world.RestoreSnapshot(ref reader, new() { AllowAllComponentTypes = true });
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*entity capacity*");
+
 		world.EntityCount.Should().Be(1);
 		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
 		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
-	}
-
-	[Fact]
-	public void RestoreSnapshot_WhenUniqueSnapshotTypesExceedComponentTypeCapacity_ShouldThrowBeforeClear()
-	{
-		using var world = new World(
-			new WorldConfig
-			{
-				EntityCapacity = 8,
-				ComponentTypeCapacity = 1,
-				CommandCapacity = 16,
-				CommandPayloadCapacityPerType = 16,
-				QueryResultCapacity = 8
-			}
-		);
-		var original = world.Spawn(new Position { X = 99, Y = 100 });
-		world.SetResource(new SimulationSettings { Gravity = 9.81f });
-		var snapshot = CreateSnapshot(
-			entities:
-			[
-				new(new Entity(81, 1), [new(typeof(Position), new Position { X = 1, Y = 2 })])
-			],
-			relations:
-			[
-				new(typeof(Follows), new Entity(81, 1), new Entity(81, 1))
-			]
-		);
-
-		var reader = new InMemorySnapshotReader(snapshot);
-		var act = () => world.RestoreSnapshot(
-			ref reader,
-			new()
-			{
-				AllowedComponentTypes = [typeof(Position)],
-				AllowedRelationTypes = [typeof(Follows)]
-			}
-		);
-
-		act.Should().Throw<InvalidOperationException>()
-		   .WithMessage("*component type capacity*");
-		world.EntityCount.Should().Be(1);
-		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
-	}
-
-	[Fact]
-	public void RestoreSnapshot_WhenAllowAllFlagsAreEnabled_ShouldPreserveTrustedSameProcessScenario()
-	{
-		using var source = CreateWorldWithExistingState();
-		source.SetResource(new SnapshotTagResource("trusted"));
-		var writer = new InMemorySnapshotWriter();
-		source.CaptureSnapshot(ref writer);
-
-		using var restored = new World(
-			new WorldConfig
-			{
-				EntityCapacity = 8,
-				ComponentTypeCapacity = 8,
-				CommandCapacity = 16,
-				CommandPayloadCapacityPerType = 16,
-				QueryResultCapacity = 8
-			}
-		);
-		var reader = new InMemorySnapshotReader(writer.Captured);
-		restored.RestoreSnapshot(
-			ref reader,
-			new()
-			{
-				AllowAllComponentTypes = true,
-				AllowAllRelationTypes = true,
-				AllowAllResourceTypes = true
-			}
-		);
-
-		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("trusted");
 	}
 
 	[Fact]
@@ -548,7 +518,7 @@ public class WorldAdvancedApiTests
 		var snapshot = CreateSnapshot(
 			entities:
 			[
-				new(new Entity(91, 1), [new(typeof(Position), new Position { X = 5, Y = 6 })])
+				new(new(91, 1), [new(typeof(Position), new Position { X = 5, Y = 6 })])
 			]
 		);
 
@@ -558,13 +528,91 @@ public class WorldAdvancedApiTests
 			new()
 			{
 				AllowedComponentTypes = [typeof(Position)],
-				TypeValidator = static type => type != typeof(Position)
+				TypeValidator         = static type => type != typeof(Position)
 			}
 		);
 
 		act.Should().Throw<InvalidOperationException>()
 		   .WithMessage("*not allowed*");
+
 		AssertWorldPreserved(world);
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenUniqueSnapshotTypesExceedComponentTypeCapacity_ShouldThrowBeforeClear()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 8,
+				ComponentTypeCapacity         = 1,
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 8
+			}
+		);
+
+		var original = world.Spawn(new Position { X = 99, Y = 100 });
+		world.SetResource(new SimulationSettings { Gravity = 9.81f });
+		var snapshot = CreateSnapshot(
+			entities:
+			[
+				new(new(81, 1), [new(typeof(Position), new Position { X = 1, Y = 2 })])
+			],
+			relations:
+			[
+				new(typeof(Follows), new(81, 1), new(81, 1))
+			]
+		);
+
+		var reader = new InMemorySnapshotReader(snapshot);
+		var act = () => world.RestoreSnapshot(
+			ref reader,
+			new()
+			{
+				AllowedComponentTypes = [typeof(Position)],
+				AllowedRelationTypes  = [typeof(Follows)]
+			}
+		);
+
+		act.Should().Throw<InvalidOperationException>()
+		   .WithMessage("*component type capacity*");
+
+		world.EntityCount.Should().Be(1);
+		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
+	}
+
+	[Fact]
+	public void RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 32,
+				ComponentTypeCapacity         = 8,
+				CommandCapacity               = 64,
+				CommandPayloadCapacityPerType = 64,
+				QueryResultCapacity           = 32,
+				MaxDegreeOfParallelism        = 4
+			}
+		);
+
+		using var commands = world.CreateCommandStream();
+		for (var i = 0; i < 8; i++)
+		{
+			var entity = commands.CreateEntity();
+			commands.Set(entity, new Position { X = i, Y = i });
+		}
+
+		world.Playback(commands);
+
+		var       handle = world.Compile<PositionQuerySpec>();
+		using var cursor = world.Execute(handle);
+		cursor.MoveNext().Should().BeTrue();
+
+		world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 2);
+
+		cursor.Get<Position>(0).X.Should().Be(1);
 	}
 
 	[Fact]
@@ -622,45 +670,45 @@ public class WorldAdvancedApiTests
 		}
 	}
 
-	[Fact]
-	public void RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
+	private static void AssertWorldPreserved(World world)
 	{
-		using var world = new World(
+		world.EntityCount.Should().Be(1);
+		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+	}
+
+	private static World CreateWorldWithExistingState()
+	{
+		var world = new World(
 			new WorldConfig
 			{
-				EntityCapacity                = 32,
+				EntityCapacity                = 8,
 				ComponentTypeCapacity         = 8,
-				CommandCapacity               = 64,
-				CommandPayloadCapacityPerType = 64,
-				QueryResultCapacity           = 32,
-				MaxDegreeOfParallelism        = 4
+				CommandCapacity               = 16,
+				CommandPayloadCapacityPerType = 16,
+				QueryResultCapacity           = 8
 			}
 		);
 
-		using var commands = world.CreateCommandStream();
-		for (var i = 0; i < 8; i++)
-		{
-			var entity = commands.CreateEntity();
-			commands.Set(entity, new Position { X = i, Y = i });
-		}
-
-		world.Playback(commands);
-
-		var handle = world.Compile<PositionQuerySpec>();
-		using var cursor = world.Execute(handle);
-		cursor.MoveNext().Should().BeTrue();
-
-		world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 2);
-
-		cursor.Get<Position>(0).X.Should().Be(1);
+		world.SetResource(new SimulationSettings { Gravity = 9.81f });
+		world.Spawn(new Position { X                       = 99, Y = 100 }).Should().Be(ExistingEntity);
+		return world;
 	}
+
+	private static WorldSnapshot CreateSnapshot(
+		SnapshotResourceRecord[]? resources = null,
+		SnapshotEntityRecord[]?   entities  = null,
+		SnapshotRelationRecord[]? relations = null) =>
+		new(
+			resources ?? [],
+			entities ?? [],
+			relations ?? []
+		);
 
 	private struct AdvanceJob : IForEach<Position>
 	{
 		public void Execute(ref Position component1) => component1.X += 1;
 	}
-
-	private static readonly Entity _existingEntity = new(0, 0);
 
 	private readonly struct ChangedPositionQuerySpec : ICompiledQuerySpec
 	{
@@ -740,38 +788,4 @@ public class WorldAdvancedApiTests
 		public float X;
 		public float Y;
 	}
-
-	private static void AssertWorldPreserved(World world)
-	{
-		world.EntityCount.Should().Be(1);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		world.Get<Position>(_existingEntity).Should().Be(new Position { X = 99, Y = 100 });
-	}
-
-	private static World CreateWorldWithExistingState()
-	{
-		var world = new World(
-			new WorldConfig
-			{
-				EntityCapacity = 8,
-				ComponentTypeCapacity = 8,
-				CommandCapacity = 16,
-				CommandPayloadCapacityPerType = 16,
-				QueryResultCapacity = 8
-			}
-		);
-		world.SetResource(new SimulationSettings { Gravity = 9.81f });
-		world.Spawn(new Position { X = 99, Y = 100 }).Should().Be(_existingEntity);
-		return world;
-	}
-
-	private static WorldSnapshot CreateSnapshot(
-		SnapshotResourceRecord[]? resources = null,
-		SnapshotEntityRecord[]? entities = null,
-		SnapshotRelationRecord[]? relations = null) =>
-		new(
-			resources ?? [],
-			entities ?? [],
-			relations ?? []
-		);
 }

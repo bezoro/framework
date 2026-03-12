@@ -23,6 +23,7 @@ public class World : IWorld, IDisposable
 																  );
 	private static readonly object             ContainsReferencesSync = new();
 	private static          int                _nextInstanceId;
+	private readonly        int                _instanceId;
 	private readonly        WorldChangeTracker _changeTracker;
 
 	private readonly WorldConfig                 _config;
@@ -37,8 +38,7 @@ public class World : IWorld, IDisposable
 	private readonly WorldSnapshotService        _snapshotService;
 	private readonly WorldSystemRuntime          _systemRuntime;
 
-	private          bool _disposed;
-	private readonly int  _instanceId;
+	private bool _disposed;
 
 	public World() : this(new WorldConfig()) { }
 
@@ -74,61 +74,61 @@ public class World : IWorld, IDisposable
 		get
 		{
 			ThrowIfDisposed();
-			return _aliveCount;
+			return AliveCount;
 		}
 	}
 
-	internal int ArchetypeVersionForQueryEngine => _archetypeVersion;
+	internal int ArchetypeVersionForQueryEngine => ArchetypeVersion;
 
 	internal int EntityCapacity                        => _config.EntityCapacity;
 	internal int QueryResultCapacityForDirectIteration => _config.QueryResultCapacity;
 	internal int SchedulerPlanBuildCount               => _systemRuntime.PlanBuildCount;
 
-	private bool[] _aliveByEntityId => _entityStore.AliveByEntityId;
+	private bool[] AliveByEntityId => _entityStore.AliveByEntityId;
 
-	private EntityLocation[] _locationByEntityId => _entityStore.LocationByEntityId;
+	private EntityLocation[] LocationByEntityId => _entityStore.LocationByEntityId;
 
-	private int[] _versionByEntityId => _entityStore.VersionByEntityId;
+	private int[] VersionByEntityId => _entityStore.VersionByEntityId;
 
-	private List<ArchetypeStorage> _archetypes => _entityStore.Archetypes;
+	private List<ArchetypeStorage> Archetypes => _entityStore.Archetypes;
 
-	private int _aliveCount
+	private int AliveCount
 	{
 		get => _entityStore.AliveCount;
 		set => _entityStore.AliveCount = value;
 	}
 
-	private int _archetypeVersion
+	private int ArchetypeVersion
 	{
 		get => _entityStore.ArchetypeVersion;
 		set => _entityStore.ArchetypeVersion = value;
 	}
 
-	private int _componentTypeOverflowCount
+	private int ComponentTypeOverflowCount
 	{
 		get => _entityStore.ComponentTypeOverflowCount;
 		set => _entityStore.ComponentTypeOverflowCount = value;
 	}
 
-	private int _entityHighWatermark
+	private int EntityHighWatermark
 	{
 		get => _entityStore.EntityHighWatermark;
 		set => _entityStore.EntityHighWatermark = value;
 	}
 
-	private int _entityOverflowCount
+	private int EntityOverflowCount
 	{
 		get => _entityStore.EntityOverflowCount;
 		set => _entityStore.EntityOverflowCount = value;
 	}
 
-	private int _registeredTypeHighWatermark
+	private int RegisteredTypeHighWatermark
 	{
 		get => _entityStore.RegisteredTypeHighWatermark;
 		set => _entityStore.RegisteredTypeHighWatermark = value;
 	}
 
-	private int _typeCount
+	private int TypeCount
 	{
 		get => _entityStore.TypeCount;
 		set => _entityStore.TypeCount = value;
@@ -141,8 +141,8 @@ public class World : IWorld, IDisposable
 			return false;
 
 		int typeId   = GetOrCreateComponentTypeId<T>();
-		var location = _locationByEntityId[entity.Id];
-		return location.IsValid && _archetypes[location.ArchetypeId].HasType(typeId);
+		var location = LocationByEntityId[entity.Id];
+		return location.IsValid && Archetypes[location.ArchetypeId].HasType(typeId);
 	}
 
 	public bool HasRelation<TRelation>(Entity source, Entity target)
@@ -155,11 +155,11 @@ public class World : IWorld, IDisposable
 		if (target == Entity.None)
 			return false;
 
-		var sourceLocation = _locationByEntityId[source.Id];
+		var sourceLocation = LocationByEntityId[source.Id];
 		if (!sourceLocation.IsValid)
 			return false;
 
-		var sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+		var sourceArchetype = Archetypes[sourceLocation.ArchetypeId];
 		if (target == Entity.Wildcard)
 		{
 			int[] relationTypeIds = _relationIndex.GetRelationTypeIds(typeof(TRelation));
@@ -204,11 +204,11 @@ public class World : IWorld, IDisposable
 		if (!IsAliveUnchecked(source))
 			return false;
 
-		var sourceLocation = _locationByEntityId[source.Id];
+		var sourceLocation = LocationByEntityId[source.Id];
 		if (!sourceLocation.IsValid)
 			return false;
 
-		var sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+		var sourceArchetype = Archetypes[sourceLocation.ArchetypeId];
 		if (target == Entity.Wildcard)
 		{
 			var   removedAny      = false;
@@ -216,11 +216,11 @@ public class World : IWorld, IDisposable
 			for (var i = 0; i < relationTypeIds.Length; i++)
 			{
 				int relationTypeId = relationTypeIds[i];
-				sourceLocation = _locationByEntityId[source.Id];
+				sourceLocation = LocationByEntityId[source.Id];
 				if (!sourceLocation.IsValid)
 					return removedAny;
 
-				sourceArchetype = _archetypes[sourceLocation.ArchetypeId];
+				sourceArchetype = Archetypes[sourceLocation.ArchetypeId];
 				if (!sourceArchetype.HasType(relationTypeId))
 					continue;
 
@@ -289,11 +289,11 @@ public class World : IWorld, IDisposable
 			return false;
 
 		int typeId   = GetOrCreateComponentTypeId<T>();
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			return false;
 
-		var archetype   = _archetypes[location.ArchetypeId];
+		var archetype   = Archetypes[location.ArchetypeId];
 		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
 		if (columnIndex < 0)
 			return false;
@@ -676,7 +676,7 @@ public class World : IWorld, IDisposable
 		where TSnapshotReader : struct, IWorldSnapshotReader
 	{
 		ThrowIfDisposed();
-		_snapshotCoordinator.Restore(ref reader, options, _typeCount);
+		_snapshotCoordinator.Restore(ref reader, options, TypeCount);
 	}
 
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
@@ -989,13 +989,13 @@ public class World : IWorld, IDisposable
 	{
 		ThrowIfDisposed();
 		return new(
-			new("Entities", _config.EntityCapacity, _aliveCount, _entityHighWatermark, _entityOverflowCount),
+			new("Entities", _config.EntityCapacity, AliveCount, EntityHighWatermark, EntityOverflowCount),
 			new(
 				"ComponentTypes",
 				_config.ComponentTypeCapacity,
-				_typeCount,
-				_registeredTypeHighWatermark,
-				_componentTypeOverflowCount
+				TypeCount,
+				RegisteredTypeHighWatermark,
+				ComponentTypeOverflowCount
 			),
 			new(
 				"QueryResults", _config.QueryResultCapacity, 0, _changeTracker.QueryHighWatermark,
@@ -1006,10 +1006,10 @@ public class World : IWorld, IDisposable
 
 	internal ArchetypeStorage GetArchetypeForCursor(int archetypeId)
 	{
-		if ((uint)archetypeId >= (uint)_archetypes.Count)
+		if ((uint)archetypeId >= (uint)Archetypes.Count)
 			throw new ArgumentOutOfRangeException(nameof(archetypeId));
 
-		return _archetypes[archetypeId];
+		return Archetypes[archetypeId];
 	}
 
 	internal bool ContainsReferencesForEntityStore(Type componentType) => ContainsReferences(componentType);
@@ -1025,11 +1025,11 @@ public class World : IWorld, IDisposable
 		if (!IsAliveUnchecked(entity))
 			return false;
 
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			return false;
 
-		var archetype = _archetypes[location.ArchetypeId];
+		var archetype = Archetypes[location.ArchetypeId];
 		return TryResolveAccessorColumnIndex(
 			archetype,
 			location.ArchetypeId,
@@ -1046,14 +1046,14 @@ public class World : IWorld, IDisposable
 		int    targetArchetypeId)
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
 		if (location.ArchetypeId != sourceArchetypeId)
 			return false;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 			return !sourceArchetype.HasType(typeId);
 
@@ -1067,14 +1067,14 @@ public class World : IWorld, IDisposable
 		int    targetArchetypeId)
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
 		if (location.ArchetypeId != sourceArchetypeId)
 			return false;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 			return sourceArchetype.HasType(typeId);
 
@@ -1097,14 +1097,14 @@ public class World : IWorld, IDisposable
 			return false;
 		}
 
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 		{
 			component = default;
 			return false;
 		}
 
-		var archetype = _archetypes[location.ArchetypeId];
+		var archetype = Archetypes[location.ArchetypeId];
 		if (!TryResolveAccessorColumnIndex(
 				archetype,
 				location.ArchetypeId,
@@ -1127,7 +1127,7 @@ public class World : IWorld, IDisposable
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal Entity GetEntityForCursor(int entityId) =>
-		new(entityId, _versionByEntityId[entityId]);
+		new(entityId, VersionByEntityId[entityId]);
 
 	internal int FillQueryResultsForQueryEngine(
 		CompiledQueryPlan plan,
@@ -1175,7 +1175,7 @@ public class World : IWorld, IDisposable
 	internal int[] BuildMaskWordIndices(ulong[] maskWords) => _entityStore.BuildMaskWordIndices(maskWords);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal int[] GetEntityVersionsForCursor() => _versionByEntityId;
+	internal int[] GetEntityVersionsForCursor() => VersionByEntityId;
 
 	internal ref T GetComponentRefForCursorUnchecked<T>(int entityId, int typeId) where T : struct
 		=> ref _entityStore.GetComponentRefForCursorUnchecked<T>(entityId, typeId);
@@ -1299,6 +1299,48 @@ public class World : IWorld, IDisposable
 	internal void EnableRefWriteTrackingForQuery(CompiledQueryPlan plan)
 		=> _changeTracker.EnableRefWriteTracking(plan);
 
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1>
+		where T1 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2>
+		where T1 : struct
+		where T2 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+	}
+
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
+		where TSpec : struct, ICompiledQuerySpec
+		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
+	{
+		ThrowIfDisposed();
+		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
+	}
+
 	internal void ExitQueryCursor()
 	{
 		_queryEngine.ExitCursors();
@@ -1415,11 +1457,11 @@ public class World : IWorld, IDisposable
 		if (!IsAliveUnchecked(entity))
 			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
 
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
-		archetype = _archetypes[location.ArchetypeId];
+		archetype = Archetypes[location.ArchetypeId];
 		if (!TryResolveAccessorColumnIndex(
 				archetype,
 				location.ArchetypeId,
@@ -1494,48 +1536,6 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
-
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
-		where TSpec : struct, ICompiledQuerySpec
-		where TAction : struct, IEntityChunkAction<T1>
-		where T1 : struct
-	{
-		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
-	}
-
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
-		where TSpec : struct, ICompiledQuerySpec
-		where TAction : struct, IEntityChunkAction<T1, T2>
-		where T1 : struct
-		where T2 : struct
-	{
-		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
-	}
-
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
-		where TSpec : struct, ICompiledQuerySpec
-		where TAction : struct, IEntityChunkAction<T1, T2, T3>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-	{
-		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
-	}
-
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
-		where TSpec : struct, ICompiledQuerySpec
-		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-		where T4 : struct
-	{
-		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
-	}
 
 	internal void SetComponentFromSnapshot(Entity entity, Type componentType, object value)
 		=> _entityStore.SetComponentBoxed(entity, componentType, value);
@@ -1631,9 +1631,9 @@ public class World : IWorld, IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool IsAliveUnchecked(Entity entity) =>
 		entity.Id >= 0 &&
-		entity.Id < _aliveByEntityId.Length &&
-		_aliveByEntityId[entity.Id] &&
-		_versionByEntityId[entity.Id] == entity.Version;
+		entity.Id < AliveByEntityId.Length &&
+		AliveByEntityId[entity.Id] &&
+		VersionByEntityId[entity.Id] == entity.Version;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private int ResolveDegreeOfParallelism(int? degreeOfParallelism)
@@ -1714,11 +1714,11 @@ public class World : IWorld, IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void TrackPotentialSingleRefWrite(int entityId, int typeId)
 	{
-		var location = _locationByEntityId[entityId];
+		var location = LocationByEntityId[entityId];
 		if (!location.IsValid)
 			return;
 
-		var archetype   = _archetypes[location.ArchetypeId];
+		var archetype   = Archetypes[location.ArchetypeId];
 		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
 		if (columnIndex < 0)
 			return;

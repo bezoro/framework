@@ -11,10 +11,10 @@ namespace Bezoro.ECS.Types;
 /// </summary>
 public struct QueryCursor : IDisposable
 {
-	private const int UnknownTypeId = int.MinValue;
-	private const int UnknownArchetypeId = int.MinValue;
-	private const int MissingColumnIndex = -1;
-	private const int UninitializedChunkMatchHint = -1;
+	private const int MISSING_COLUMN_INDEX           = -1;
+	private const int UNINITIALIZED_CHUNK_MATCH_HINT = -1;
+	private const int UNKNOWN_ARCHETYPE_ID           = int.MinValue;
+	private const int UNKNOWN_TYPE_ID                = int.MinValue;
 
 	private readonly Entity[]            _entities;
 	private readonly int                 _chunkMatchCount;
@@ -22,24 +22,19 @@ public struct QueryCursor : IDisposable
 	private readonly QueryChunkMatch[]   _chunkMatches;
 	private readonly QueryExecutionLease _lease;
 
-	private readonly World               _world;
-	private          ArchetypeStorage?   _cachedGetArchetype;
-	private          ArchetypeStorage?   _cachedReadArchetype;
-	private          bool                _disposed;
-	private          bool                _entitiesMaterialized;
-	private          bool                _moved;
-	private          int                 _cachedGetArchetypeId;
-	private          int                 _cachedGetColumnIndex;
-	private          int                 _cachedGetTypeId;
-	private          int                 _cachedReadArchetypeId;
-	private          int                 _cachedReadColumnIndex;
-	private          int                 _cachedReadTypeId;
-	private          int                 _chunkMatchHint;
-
-	/// <summary>
-	///     Delegate invoked with one mutable unmanaged component.
-	/// </summary>
-	public delegate void RefAction<T1>(ref T1 component1) where T1 : unmanaged;
+	private readonly World             _world;
+	private          ArchetypeStorage? _cachedGetArchetype;
+	private          ArchetypeStorage? _cachedReadArchetype;
+	private          bool              _disposed;
+	private          bool              _entitiesMaterialized;
+	private          bool              _moved;
+	private          int               _cachedGetArchetypeId;
+	private          int               _cachedGetColumnIndex;
+	private          int               _cachedGetTypeId;
+	private          int               _cachedReadArchetypeId;
+	private          int               _cachedReadColumnIndex;
+	private          int               _cachedReadTypeId;
+	private          int               _chunkMatchHint;
 
 	/// <summary>
 	///     Delegate invoked with one entity and one mutable unmanaged component.
@@ -47,12 +42,42 @@ public struct QueryCursor : IDisposable
 	public delegate void EntityRefAction<T1>(Entity entity, ref T1 component1) where T1 : unmanaged;
 
 	/// <summary>
-	///     Delegate invoked with one mutable and two read-only unmanaged components.
+	///     Delegate invoked with one entity, one mutable, and three read-only unmanaged components.
 	/// </summary>
-	public delegate void RefInAction<T1, T2, T3>(ref T1 component1, in T2 component2, in T3 component3)
+	public delegate void EntityRefInAction<T1, T2, T3, T4>(
+		Entity entity,
+		ref T1 component1,
+		in  T2 component2,
+		in  T3 component3,
+		in  T4 component4)
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged;
+
+	/// <summary>
+	///     Delegate invoked with one entity, one mutable, and two read-only unmanaged components.
+	/// </summary>
+	public delegate void EntityRefInAction<T1, T2, T3>(
+		Entity entity,
+		ref T1 component1,
+		in  T2 component2,
+		in  T3 component3)
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged;
+
+	/// <summary>
+	///     Delegate invoked with one entity, one mutable, and one read-only unmanaged component.
+	/// </summary>
+	public delegate void EntityRefInAction<T1, T2>(Entity entity, ref T1 component1, in T2 component2)
+		where T1 : unmanaged
+		where T2 : unmanaged;
+
+	/// <summary>
+	///     Delegate invoked with one mutable unmanaged component.
+	/// </summary>
+	public delegate void RefAction<T1>(ref T1 component1) where T1 : unmanaged;
 
 	/// <summary>
 	///     Delegate invoked with one mutable and three read-only unmanaged components.
@@ -68,227 +93,46 @@ public struct QueryCursor : IDisposable
 		where T4 : unmanaged;
 
 	/// <summary>
+	///     Delegate invoked with one mutable and two read-only unmanaged components.
+	/// </summary>
+	public delegate void RefInAction<T1, T2, T3>(ref T1 component1, in T2 component2, in T3 component3)
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged;
+
+	/// <summary>
 	///     Delegate invoked with one mutable and one read-only unmanaged component.
 	/// </summary>
 	public delegate void RefInAction<T1, T2>(ref T1 component1, in T2 component2)
 		where T1 : unmanaged
 		where T2 : unmanaged;
 
-	/// <summary>
-	///     Delegate invoked with one entity, one mutable, and one read-only unmanaged component.
-	/// </summary>
-	public delegate void EntityRefInAction<T1, T2>(Entity entity, ref T1 component1, in T2 component2)
-		where T1 : unmanaged
-		where T2 : unmanaged;
-
-	/// <summary>
-	///     Delegate invoked with one entity, one mutable, and two read-only unmanaged components.
-	/// </summary>
-	public delegate void EntityRefInAction<T1, T2, T3>(Entity entity, ref T1 component1, in T2 component2, in T3 component3)
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged;
-
-	/// <summary>
-	///     Delegate invoked with one entity, one mutable, and three read-only unmanaged components.
-	/// </summary>
-	public delegate void EntityRefInAction<T1, T2, T3, T4>(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4)
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-		where T4 : unmanaged;
-
-	private readonly struct DelegateChunkAction<T1>(RefAction<T1> action) : IChunkAction<T1>
-		where T1 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1) => action(ref component1);
-	}
-
-	private readonly struct DelegateChunkAction<T1, T2>(RefInAction<T1, T2> action) : IChunkAction<T1, T2>
-		where T1 : unmanaged
-		where T2 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2) => action(ref component1, in component2);
-	}
-
-	private readonly struct DelegateChunkAction<T1, T2, T3>(RefInAction<T1, T2, T3> action) : IChunkAction<T1, T2, T3>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
-			action(ref component1, in component2, in component3);
-	}
-
-	private readonly struct DelegateChunkAction<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
-		: IChunkAction<T1, T2, T3, T4>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-		where T4 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
-			action(ref component1, in component2, in component3, in component4);
-	}
-
-	private readonly struct DelegateEntityAction<T1>(EntityRefAction<T1> action) : IEntityChunkAction<T1>
-		where T1 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1) => action(entity, ref component1);
-	}
-
-	private readonly struct DelegateEntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : IEntityChunkAction<T1, T2>
-		where T1 : unmanaged
-		where T2 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2) => action(entity, ref component1, in component2);
-	}
-
-	private readonly struct DelegateEntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action) : IEntityChunkAction<T1, T2, T3>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => action(entity, ref component1, in component2, in component3);
-	}
-
-	private readonly struct DelegateEntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action) : IEntityChunkAction<T1, T2, T3, T4>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-		where T4 : unmanaged
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4) => action(entity, ref component1, in component2, in component3, in component4);
-	}
-
-	private struct JobChunkAction<TJob, T1>(TJob job) : IChunkAction<T1>
-		where TJob : struct, IForEach<T1>
-		where T1 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1) => _job.Execute(ref component1);
-	}
-
-	private struct JobChunkAction<TJob, T1, T2>(TJob job) : IChunkAction<T1, T2>
-		where TJob : struct, IForEach<T1, T2>
-		where T1 : unmanaged
-		where T2 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2) => _job.Execute(ref component1, in component2);
-	}
-
-	private struct JobChunkAction<TJob, T1, T2, T3>(TJob job) : IChunkAction<T1, T2, T3>
-		where TJob : struct, IForEach<T1, T2, T3>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
-			_job.Execute(ref component1, in component2, in component3);
-	}
-
-	private struct JobChunkAction<TJob, T1, T2, T3, T4>(TJob job) : IChunkAction<T1, T2, T3, T4>
-		where TJob : struct, IForEach<T1, T2, T3, T4>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-		where T4 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
-			_job.Execute(ref component1, in component2, in component3, in component4);
-	}
-
-	private struct JobEntityAction<TJob, T1>(TJob job) : IEntityChunkAction<T1>
-		where TJob : struct, IForEachEntity<T1>
-		where T1 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1) => _job.Execute(entity, ref component1);
-	}
-
-	private struct JobEntityAction<TJob, T1, T2>(TJob job) : IEntityChunkAction<T1, T2>
-		where TJob : struct, IForEachEntity<T1, T2>
-		where T1 : unmanaged
-		where T2 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2) => _job.Execute(entity, ref component1, in component2);
-	}
-
-	private struct JobEntityAction<TJob, T1, T2, T3>(TJob job) : IEntityChunkAction<T1, T2, T3>
-		where TJob : struct, IForEachEntity<T1, T2, T3>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => _job.Execute(entity, ref component1, in component2, in component3);
-	}
-
-	private struct JobEntityAction<TJob, T1, T2, T3, T4>(TJob job) : IEntityChunkAction<T1, T2, T3, T4>
-		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
-		where T1 : unmanaged
-		where T2 : unmanaged
-		where T3 : unmanaged
-		where T4 : unmanaged
-	{
-		private TJob _job = job;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4) => _job.Execute(entity, ref component1, in component2, in component3, in component4);
-	}
-
 	internal QueryCursor(
-		World             world,
-		QueryChunkMatch[] chunkMatches,
-		int               chunkMatchCount,
-		Entity[]          entities,
-		int               count,
+		World               world,
+		QueryChunkMatch[]   chunkMatches,
+		int                 chunkMatchCount,
+		Entity[]            entities,
+		int                 count,
 		QueryExecutionLease lease
 	)
 	{
-		_world                = world;
-		_chunkMatches         = chunkMatches;
-		_chunkMatchCount      = chunkMatchCount;
-		_entities             = entities;
-		_count                = count;
-		_lease                = lease;
-		_disposed             = false;
-		_moved                = false;
-		_entitiesMaterialized = false;
-		_chunkMatchHint       = UninitializedChunkMatchHint;
-		_cachedGetTypeId      = UnknownTypeId;
-		_cachedGetArchetypeId = UnknownArchetypeId;
-		_cachedGetColumnIndex = MissingColumnIndex;
-		_cachedGetArchetype   = null;
-		_cachedReadTypeId      = UnknownTypeId;
-		_cachedReadArchetypeId = UnknownArchetypeId;
-		_cachedReadColumnIndex = MissingColumnIndex;
+		_world                 = world;
+		_chunkMatches          = chunkMatches;
+		_chunkMatchCount       = chunkMatchCount;
+		_entities              = entities;
+		_count                 = count;
+		_lease                 = lease;
+		_disposed              = false;
+		_moved                 = false;
+		_entitiesMaterialized  = false;
+		_chunkMatchHint        = UNINITIALIZED_CHUNK_MATCH_HINT;
+		_cachedGetTypeId       = UNKNOWN_TYPE_ID;
+		_cachedGetArchetypeId  = UNKNOWN_ARCHETYPE_ID;
+		_cachedGetColumnIndex  = MISSING_COLUMN_INDEX;
+		_cachedGetArchetype    = null;
+		_cachedReadTypeId      = UNKNOWN_TYPE_ID;
+		_cachedReadArchetypeId = UNKNOWN_ARCHETYPE_ID;
+		_cachedReadColumnIndex = MISSING_COLUMN_INDEX;
 		_cachedReadArchetype   = null;
 	}
 
@@ -342,8 +186,8 @@ public struct QueryCursor : IDisposable
 		if (typeId != _cachedGetTypeId)
 		{
 			_cachedGetTypeId      = typeId;
-			_cachedGetArchetypeId = UnknownArchetypeId;
-			_cachedGetColumnIndex = MissingColumnIndex;
+			_cachedGetArchetypeId = UNKNOWN_ARCHETYPE_ID;
+			_cachedGetColumnIndex = MISSING_COLUMN_INDEX;
 			_cachedGetArchetype   = null;
 		}
 
@@ -393,8 +237,8 @@ public struct QueryCursor : IDisposable
 		if (typeId != _cachedReadTypeId)
 		{
 			_cachedReadTypeId      = typeId;
-			_cachedReadArchetypeId = UnknownArchetypeId;
-			_cachedReadColumnIndex = MissingColumnIndex;
+			_cachedReadArchetypeId = UNKNOWN_ARCHETYPE_ID;
+			_cachedReadColumnIndex = MISSING_COLUMN_INDEX;
 			_cachedReadArchetype   = null;
 		}
 
@@ -403,7 +247,7 @@ public struct QueryCursor : IDisposable
 
 		if (match.ArchetypeId != _cachedReadArchetypeId)
 		{
-			var archetype = _world.GetArchetypeForCursor(match.ArchetypeId);
+			var archetype   = _world.GetArchetypeForCursor(match.ArchetypeId);
 			int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
 			if (columnIndex < 0)
 				throw new KeyNotFoundException(
@@ -441,6 +285,7 @@ public struct QueryCursor : IDisposable
 	public void ForEach<T1>(RefAction<T1> action) where T1 : unmanaged
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+
 		ValidateReadyForEnumeration();
 		QueryChunkWalker.Execute<DelegateChunkAction<T1>, T1>(_world, _chunkMatches, _chunkMatchCount, new(action));
 	}
@@ -456,8 +301,11 @@ public struct QueryCursor : IDisposable
 		where T2 : unmanaged
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+
 		ValidateReadyForEnumeration();
-		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2>, T1, T2>(_world, _chunkMatches, _chunkMatchCount, new(action));
+		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2>, T1, T2>(
+			_world, _chunkMatches, _chunkMatchCount, new(action)
+		);
 	}
 
 	/// <summary>
@@ -473,8 +321,11 @@ public struct QueryCursor : IDisposable
 		where T3 : unmanaged
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+
 		ValidateReadyForEnumeration();
-		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2, T3>, T1, T2, T3>(_world, _chunkMatches, _chunkMatchCount, new(action));
+		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2, T3>, T1, T2, T3>(
+			_world, _chunkMatches, _chunkMatchCount, new(action)
+		);
 	}
 
 	/// <summary>
@@ -492,6 +343,7 @@ public struct QueryCursor : IDisposable
 		where T4 : unmanaged
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
+
 		ValidateReadyForEnumeration();
 		QueryChunkWalker.Execute<DelegateChunkAction<T1, T2, T3, T4>, T1, T2, T3, T4>(
 			_world,
@@ -499,44 +351,6 @@ public struct QueryCursor : IDisposable
 			_chunkMatchCount,
 			new(action)
 		);
-	}
-
-	internal void ExecuteEntityAction<TAction, T1>(TAction action)
-		where TAction : struct, IEntityChunkAction<T1>
-		where T1 : struct
-	{
-		ValidateReadyForEnumeration();
-		QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, _chunkMatches, _chunkMatchCount, action);
-	}
-
-	internal void ExecuteEntityAction<TAction, T1, T2>(TAction action)
-		where TAction : struct, IEntityChunkAction<T1, T2>
-		where T1 : struct
-		where T2 : struct
-	{
-		ValidateReadyForEnumeration();
-		QueryChunkWalker.ExecuteEntity<TAction, T1, T2>(_world, _chunkMatches, _chunkMatchCount, action);
-	}
-
-	internal void ExecuteEntityAction<TAction, T1, T2, T3>(TAction action)
-		where TAction : struct, IEntityChunkAction<T1, T2, T3>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-	{
-		ValidateReadyForEnumeration();
-		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3>(_world, _chunkMatches, _chunkMatchCount, action);
-	}
-
-	internal void ExecuteEntityAction<TAction, T1, T2, T3, T4>(TAction action)
-		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
-		where T1 : struct
-		where T2 : struct
-		where T3 : struct
-		where T4 : struct
-	{
-		ValidateReadyForEnumeration();
-		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3, T4>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	/// <summary>
@@ -628,7 +442,9 @@ public struct QueryCursor : IDisposable
 		where T2 : unmanaged
 	{
 		ValidateReadyForEnumeration();
-		QueryChunkWalker.Execute<JobChunkAction<TJob, T1, T2>, T1, T2>(_world, _chunkMatches, _chunkMatchCount, new(job));
+		QueryChunkWalker.Execute<JobChunkAction<TJob, T1, T2>, T1, T2>(
+			_world, _chunkMatches, _chunkMatchCount, new(job)
+		);
 	}
 
 	/// <summary>
@@ -709,7 +525,8 @@ public struct QueryCursor : IDisposable
 	}
 
 	/// <summary>
-	///     Executes a no-allocation sequential entity-aware struct job over one mutable and two read-only unmanaged components.
+	///     Executes a no-allocation sequential entity-aware struct job over one mutable and two read-only unmanaged
+	///     components.
 	/// </summary>
 	public void RunEntity<TJob, T1, T2, T3>(TJob job)
 		where TJob : struct, IForEachEntity<T1, T2, T3>
@@ -725,7 +542,8 @@ public struct QueryCursor : IDisposable
 	}
 
 	/// <summary>
-	///     Executes a no-allocation sequential entity-aware struct job over one mutable and three read-only unmanaged components.
+	///     Executes a no-allocation sequential entity-aware struct job over one mutable and three read-only unmanaged
+	///     components.
 	/// </summary>
 	public void RunEntity<TJob, T1, T2, T3, T4>(TJob job)
 		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
@@ -739,6 +557,44 @@ public struct QueryCursor : IDisposable
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
 
 		ExecuteEntityAction<JobEntityAction<TJob, T1, T2, T3, T4>, T1, T2, T3, T4>(new(job));
+	}
+
+	internal void ExecuteEntityAction<TAction, T1>(TAction action)
+		where TAction : struct, IEntityChunkAction<T1>
+		where T1 : struct
+	{
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, _chunkMatches, _chunkMatchCount, action);
+	}
+
+	internal void ExecuteEntityAction<TAction, T1, T2>(TAction action)
+		where TAction : struct, IEntityChunkAction<T1, T2>
+		where T1 : struct
+		where T2 : struct
+	{
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2>(_world, _chunkMatches, _chunkMatchCount, action);
+	}
+
+	internal void ExecuteEntityAction<TAction, T1, T2, T3>(TAction action)
+		where TAction : struct, IEntityChunkAction<T1, T2, T3>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+	{
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3>(_world, _chunkMatches, _chunkMatchCount, action);
+	}
+
+	internal void ExecuteEntityAction<TAction, T1, T2, T3, T4>(TAction action)
+		where TAction : struct, IEntityChunkAction<T1, T2, T3, T4>
+		where T1 : struct
+		where T2 : struct
+		where T3 : struct
+		where T4 : struct
+	{
+		ValidateReadyForEnumeration();
+		QueryChunkWalker.ExecuteEntity<TAction, T1, T2, T3, T4>(_world, _chunkMatches, _chunkMatchCount, action);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -837,5 +693,179 @@ public struct QueryCursor : IDisposable
 		ThrowIfDisposed();
 		if (!_moved)
 			throw new InvalidOperationException("Call MoveNext before enumerating components.");
+	}
+
+	private readonly struct DelegateChunkAction<T1>(RefAction<T1> action) : IChunkAction<T1>
+		where T1 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1) => action(ref component1);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2>(RefInAction<T1, T2> action) : IChunkAction<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2) => action(ref component1, in component2);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2, T3>(RefInAction<T1, T2, T3> action) : IChunkAction<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
+			action(ref component1, in component2, in component3);
+	}
+
+	private readonly struct DelegateChunkAction<T1, T2, T3, T4>(RefInAction<T1, T2, T3, T4> action)
+		: IChunkAction<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			action(ref component1, in component2, in component3, in component4);
+	}
+
+	private readonly struct DelegateEntityAction<T1>(EntityRefAction<T1> action) : IEntityChunkAction<T1>
+		where T1 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1) => action(entity, ref component1);
+	}
+
+	private readonly struct DelegateEntityAction<T1, T2>(EntityRefInAction<T1, T2> action) : IEntityChunkAction<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2) =>
+			action(entity, ref component1, in component2);
+	}
+
+	private readonly struct DelegateEntityAction<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action)
+		: IEntityChunkAction<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) => action(
+			entity, ref component1, in component2, in component3
+		);
+	}
+
+	private readonly struct DelegateEntityAction<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action)
+		: IEntityChunkAction<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			action(entity, ref component1, in component2, in component3, in component4);
+	}
+
+	private struct JobChunkAction<TJob, T1>(TJob job) : IChunkAction<T1>
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1) => _job.Execute(ref component1);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2>(TJob job) : IChunkAction<T1, T2>
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2) => _job.Execute(ref component1, in component2);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2, T3>(TJob job) : IChunkAction<T1, T2, T3>
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3) =>
+			_job.Execute(ref component1, in component2, in component3);
+	}
+
+	private struct JobChunkAction<TJob, T1, T2, T3, T4>(TJob job) : IChunkAction<T1, T2, T3, T4>
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			_job.Execute(ref component1, in component2, in component3, in component4);
+	}
+
+	private struct JobEntityAction<TJob, T1>(TJob job) : IEntityChunkAction<T1>
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1) => _job.Execute(entity, ref component1);
+	}
+
+	private struct JobEntityAction<TJob, T1, T2>(TJob job) : IEntityChunkAction<T1, T2>
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2) =>
+			_job.Execute(entity, ref component1, in component2);
+	}
+
+	private struct JobEntityAction<TJob, T1, T2, T3>(TJob job) : IEntityChunkAction<T1, T2, T3>
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3) =>
+			_job.Execute(entity, ref component1, in component2, in component3);
+	}
+
+	private struct JobEntityAction<TJob, T1, T2, T3, T4>(TJob job) : IEntityChunkAction<T1, T2, T3, T4>
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		private TJob _job = job;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4) =>
+			_job.Execute(entity, ref component1, in component2, in component3, in component4);
 	}
 }

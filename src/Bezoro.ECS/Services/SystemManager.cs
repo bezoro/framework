@@ -10,18 +10,18 @@ namespace Bezoro.ECS.Services;
 /// </summary>
 internal sealed class SystemManager
 {
-	private const int FirstResourceAccessId = -1;
+	private const int FIRST_RESOURCE_ACCESS_ID = -1;
 
 	private readonly Dictionary<SystemLoopPhase, Dictionary<Stage, List<SystemState[]>>> _phaseStagePlans = new();
-	private readonly SystemBatchExecutor _batchExecutor;
-	private readonly SystemRegistrationInspector _registrationInspector;
-	private readonly SystemExecutionPlanBuilder _planBuilder = new();
-	private readonly Dictionary<Type, int> _resourceTypeToAccessId = [];
 	private readonly Dictionary<Type, bool> _setEnabledByType = [];
+	private readonly Dictionary<Type, int> _resourceTypeToAccessId = [];
 	private readonly Dictionary<Type, ISystemRunCondition> _setRunConditionsByType = [];
 	private readonly List<SystemState> _systems = [];
-	private int _nextResourceAccessId = FirstResourceAccessId;
-	private bool _isPlanDirty = true;
+	private readonly SystemBatchExecutor _batchExecutor;
+	private readonly SystemExecutionPlanBuilder _planBuilder = new();
+	private readonly SystemRegistrationInspector _registrationInspector;
+	private          bool _isPlanDirty = true;
+	private          int _nextResourceAccessId = FIRST_RESOURCE_ACCESS_ID;
 
 	public SystemManager() : this(Environment.ProcessorCount) { }
 
@@ -36,19 +36,27 @@ internal sealed class SystemManager
 
 	internal int PlanBuildCount { get; private set; }
 
+	public bool IsSystemSetEnabled(Type setType)
+	{
+		if (setType is null)
+			throw new ArgumentNullException(nameof(setType));
+
+		return !_setEnabledByType.TryGetValue(setType, out bool enabled) || enabled;
+	}
+
 	public ScheduleDiagnostics GetDiagnostics()
 	{
 		if (_isPlanDirty && _systems.Count > 0)
 			RebuildExecutionPlan();
 
 		var phases = new List<SchedulePhaseDiagnostics>();
-		foreach (SystemLoopPhase loopPhase in StageOrder.LoopPhases)
+		foreach (var loopPhase in StageOrder.LoopPhases)
 		{
 			if (!_phaseStagePlans.TryGetValue(loopPhase, out var stagePlans))
 				continue;
 
 			var stages = new List<ScheduleStageDiagnostics>();
-			foreach (Stage stage in StageOrder.Stages)
+			foreach (var stage in StageOrder.Stages)
 			{
 				if (!stagePlans.TryGetValue(stage, out var stageBatches) || stageBatches.Count == 0)
 					continue;
@@ -65,32 +73,6 @@ internal sealed class SystemManager
 		}
 
 		return new(_systems.Count, PlanBuildCount, [.. phases]);
-	}
-
-	public bool IsSystemSetEnabled(Type setType)
-	{
-		if (setType is null)
-			throw new ArgumentNullException(nameof(setType));
-
-		return !_setEnabledByType.TryGetValue(setType, out bool enabled) || enabled;
-	}
-
-	public void SetSystemSetEnabled(Type setType, bool enabled)
-	{
-		if (setType is null)
-			throw new ArgumentNullException(nameof(setType));
-
-		_setEnabledByType[setType] = enabled;
-	}
-
-	public void SetSystemSetRunCondition(Type setType, ISystemRunCondition runCondition)
-	{
-		if (setType is null)
-			throw new ArgumentNullException(nameof(setType));
-		if (runCondition is null)
-			throw new ArgumentNullException(nameof(runCondition));
-
-		_setRunConditionsByType[setType] = runCondition;
 	}
 
 	public void ClearSystemSetRunCondition(Type setType)
@@ -125,6 +107,25 @@ internal sealed class SystemManager
 		system.OnCreate(world);
 	}
 
+	public void SetSystemSetEnabled(Type setType, bool enabled)
+	{
+		if (setType is null)
+			throw new ArgumentNullException(nameof(setType));
+
+		_setEnabledByType[setType] = enabled;
+	}
+
+	public void SetSystemSetRunCondition(Type setType, ISystemRunCondition runCondition)
+	{
+		if (setType is null)
+			throw new ArgumentNullException(nameof(setType));
+
+		if (runCondition is null)
+			throw new ArgumentNullException(nameof(runCondition));
+
+		_setRunConditionsByType[setType] = runCondition;
+	}
+
 	public void Shutdown(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
@@ -151,8 +152,8 @@ internal sealed class SystemManager
 			_resourceTypeToAccessId.Clear();
 			_setEnabledByType.Clear();
 			_setRunConditionsByType.Clear();
-			_nextResourceAccessId = FirstResourceAccessId;
-			_isPlanDirty = true;
+			_nextResourceAccessId = FIRST_RESOURCE_ACCESS_ID;
+			_isPlanDirty          = true;
 		}
 
 		if (exceptions is null)
@@ -167,6 +168,7 @@ internal sealed class SystemManager
 	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
+
 		if (_systems.Count == 0)
 			return;
 
@@ -174,7 +176,6 @@ internal sealed class SystemManager
 			RebuildExecutionPlan();
 
 		if (_phaseStagePlans.TryGetValue(loopPhase, out var stagePlans))
-		{
 			_batchExecutor.UpdatePhase(
 				world,
 				loopPhase,
@@ -183,12 +184,11 @@ internal sealed class SystemManager
 				_setRunConditionsByType,
 				deltaTime
 			);
-		}
 	}
 
 	private static ScheduleBatchDiagnostics CreateBatchDiagnostics(int batchIndex, SystemState[] batchStates)
 	{
-		var systemTypes = new Type[batchStates.Length];
+		var systemTypes             = new Type[batchStates.Length];
 		var containsExclusiveSystem = false;
 		for (var stateIndex = 0; stateIndex < batchStates.Length; stateIndex++)
 		{
@@ -199,14 +199,6 @@ internal sealed class SystemManager
 		}
 
 		return new(batchIndex, systemTypes, containsExclusiveSystem);
-	}
-
-	private void EnsureSystemSetKnown(Type setType)
-	{
-		if (setType is null)
-			throw new ArgumentNullException(nameof(setType));
-
-		_setEnabledByType.TryAdd(setType, true);
 	}
 
 	private int GetOrCreateResourceAccessTypeId(Type resourceType)
@@ -220,6 +212,14 @@ internal sealed class SystemManager
 		int id = _nextResourceAccessId--;
 		_resourceTypeToAccessId[resourceType] = id;
 		return id;
+	}
+
+	private void EnsureSystemSetKnown(Type setType)
+	{
+		if (setType is null)
+			throw new ArgumentNullException(nameof(setType));
+
+		_setEnabledByType.TryAdd(setType, true);
 	}
 
 	private void RebuildExecutionPlan()

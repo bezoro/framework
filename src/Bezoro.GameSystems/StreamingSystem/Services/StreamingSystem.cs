@@ -19,9 +19,9 @@ namespace Bezoro.GameSystems.StreamingSystem.Services;
 [WritesResource<StreamingEventsResource>]
 public sealed class StreamingSystem : ISystem
 {
-	private const float DefaultStreamInDistance   = 100f;
-	private const float DefaultStreamOutDistance  = 120f;
-	private const int   DefaultMaxEntitiesPerTick = 50;
+	private const float DEFAULT_STREAM_IN_DISTANCE    = 100f;
+	private const float DEFAULT_STREAM_OUT_DISTANCE   = 120f;
+	private const int   DEFAULT_MAX_ENTITIES_PER_TICK = 50;
 
 	/// <summary>
 	///     Raised when an entity changes streaming state.
@@ -48,6 +48,7 @@ public sealed class StreamingSystem : ISystem
 	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
+
 		EnsureResources(world);
 	}
 
@@ -56,13 +57,14 @@ public sealed class StreamingSystem : ISystem
 	{
 		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
+
 		EnsureResources(world);
 
 		ref readonly var config = ref world.ReadResource<StreamingConfig>();
 		ValidateConfig(in config);
 
 		var streamingQuery = world.Query<StreamingQuery>();
-		int total = streamingQuery.Count();
+		int total          = streamingQuery.Count();
 		if (total == 0)
 		{
 			ref var emptyRuntime = ref world.WriteResource<StreamingRuntimeState>();
@@ -74,16 +76,16 @@ public sealed class StreamingSystem : ISystem
 									 ? total
 									 : Math.Min(config.MaxEntitiesPerTick, total);
 
-		ref var runtime = ref world.WriteResource<StreamingRuntimeState>();
-		int startIndex = NormalizeStartIndex(runtime.NextEntityIndex, total);
-		int selectionEndExclusive = startIndex + maxEntitiesPerTick;
-		var wraps = selectionEndExclusive > total;
+		ref var runtime               = ref world.WriteResource<StreamingRuntimeState>();
+		int     startIndex            = NormalizeStartIndex(runtime.NextEntityIndex, total);
+		int     selectionEndExclusive = startIndex + maxEntitiesPerTick;
+		bool    wraps                 = selectionEndExclusive > total;
 		if (wraps)
 			selectionEndExclusive -= total;
 
-		var inDistanceSquared  = config.StreamInDistance * config.StreamInDistance;
-		var outDistanceSquared = config.StreamOutDistance * config.StreamOutDistance;
-		var referencePosition  = config.ReferencePosition;
+		float inDistanceSquared  = config.StreamInDistance * config.StreamInDistance;
+		float outDistanceSquared = config.StreamOutDistance * config.StreamOutDistance;
+		var   referencePosition  = config.ReferencePosition;
 
 		ApplyStreamingTransitions(
 			world,
@@ -101,68 +103,6 @@ public sealed class StreamingSystem : ISystem
 			runtime.NextEntityIndex -= total;
 	}
 
-	private void ApplyStreamingTransitions(
-		World                    world,
-		QueryView<StreamingQuery> query,
-		Vector3                  referencePosition,
-		float                    inDistanceSquared,
-		float                    outDistanceSquared,
-		int                      startIndex,
-		bool                     wraps,
-		int                      endExclusive)
-	{
-		var index = 0;
-		query.ForEach<StreamState, Position>(
-			(Entity entity, ref StreamState state, in Position position) =>
-		{
-			int currentIndex = index++;
-			if (!IsSelectedIndex(currentIndex, startIndex, wraps, endExclusive))
-				return;
-
-			float distanceSquared = GetDistanceSquared(referencePosition, in position);
-
-			StreamingTransition? transition = TryTransition(
-				ref state,
-				distanceSquared,
-				inDistanceSquared,
-				outDistanceSquared
-			);
-
-			if (transition.HasValue)
-				Publish(world, entity, transition.Value, distanceSquared);
-		}
-		);
-	}
-
-	private void Publish(
-		World              world,
-		Entity             targetEntity,
-		StreamingTransition transition,
-		float              distanceSquared)
-	{
-		var eventData = new StreamingStateChangedEvent(targetEntity, transition, distanceSquared);
-		ref var events = ref world.GetOrCreateResource<StreamingEventsResource>();
-		events.Enqueue(in eventData);
-
-		try
-		{
-			Changed?.Invoke(eventData);
-			GetHandler(transition)?.Invoke(eventData);
-		}
-		catch
-		{
-			// Event handler exceptions should not break simulation.
-		}
-	}
-
-	private Action<StreamingStateChangedEvent>? GetHandler(StreamingTransition transition) =>
-		transition switch
-		{
-			StreamingTransition.StreamedIn => StreamedIn,
-			StreamingTransition.StreamedOut => StreamedOut,
-			_ => null
-		};
-
 	private static bool IsSelectedIndex(int index, int startIndex, bool wraps, int endExclusive)
 	{
 		if (!wraps)
@@ -173,10 +113,18 @@ public sealed class StreamingSystem : ISystem
 
 	private static float GetDistanceSquared(Vector3 referencePosition, in Position entityPosition)
 	{
-		var dx = referencePosition.X - entityPosition.X;
-		var dy = referencePosition.Y - entityPosition.Y;
-		var dz = referencePosition.Z - entityPosition.Z;
+		float dx = referencePosition.X - entityPosition.X;
+		float dy = referencePosition.Y - entityPosition.Y;
+		float dz = referencePosition.Z - entityPosition.Z;
 		return dx * dx + dy * dy + dz * dz;
+	}
+
+	private static int NormalizeStartIndex(int startIndex, int total)
+	{
+		if (startIndex < 0 || startIndex >= total)
+			return 0;
+
+		return startIndex;
 	}
 
 	private static StreamingTransition? TryTransition(
@@ -200,12 +148,19 @@ public sealed class StreamingSystem : ISystem
 		return null;
 	}
 
-	private static int NormalizeStartIndex(int startIndex, int total)
+	private static void EnsureResources(World world)
 	{
-		if (startIndex < 0 || startIndex >= total)
-			return 0;
+		world.GetOrCreateResource(static () => new StreamingConfig
+			{
+				ReferencePosition  = Vector3.Zero,
+				StreamInDistance   = DEFAULT_STREAM_IN_DISTANCE,
+				StreamOutDistance  = DEFAULT_STREAM_OUT_DISTANCE,
+				MaxEntitiesPerTick = DEFAULT_MAX_ENTITIES_PER_TICK
+			}
+		);
 
-		return startIndex;
+		world.GetOrCreateResource<StreamingRuntimeState>();
+		world.GetOrCreateResource<StreamingEventsResource>();
 	}
 
 	private static void ValidateConfig(in StreamingConfig config)
@@ -222,19 +177,65 @@ public sealed class StreamingSystem : ISystem
 			);
 	}
 
-	private static void EnsureResources(World world)
+	private Action<StreamingStateChangedEvent>? GetHandler(StreamingTransition transition) =>
+		transition switch
+		{
+			StreamingTransition.StreamedIn  => StreamedIn,
+			StreamingTransition.StreamedOut => StreamedOut,
+			_                               => null
+		};
+
+	private void ApplyStreamingTransitions(
+		World                     world,
+		QueryView<StreamingQuery> query,
+		Vector3                   referencePosition,
+		float                     inDistanceSquared,
+		float                     outDistanceSquared,
+		int                       startIndex,
+		bool                      wraps,
+		int                       endExclusive)
 	{
-		world.GetOrCreateResource(
-			static () => new StreamingConfig
+		var index = 0;
+		query.ForEach((Entity entity, ref StreamState state, in Position position) =>
 			{
-				ReferencePosition  = Vector3.Zero,
-				StreamInDistance   = DefaultStreamInDistance,
-				StreamOutDistance  = DefaultStreamOutDistance,
-				MaxEntitiesPerTick = DefaultMaxEntitiesPerTick
+				int currentIndex = index++;
+				if (!IsSelectedIndex(currentIndex, startIndex, wraps, endExclusive))
+					return;
+
+				float distanceSquared = GetDistanceSquared(referencePosition, in position);
+
+				var transition = TryTransition(
+					ref state,
+					distanceSquared,
+					inDistanceSquared,
+					outDistanceSquared
+				);
+
+				if (transition.HasValue)
+					Publish(world, entity, transition.Value, distanceSquared);
 			}
 		);
-		world.GetOrCreateResource<StreamingRuntimeState>();
-		world.GetOrCreateResource<StreamingEventsResource>();
+	}
+
+	private void Publish(
+		World               world,
+		Entity              targetEntity,
+		StreamingTransition transition,
+		float               distanceSquared)
+	{
+		var     eventData = new StreamingStateChangedEvent(targetEntity, transition, distanceSquared);
+		ref var events    = ref world.GetOrCreateResource<StreamingEventsResource>();
+		events.Enqueue(in eventData);
+
+		try
+		{
+			Changed?.Invoke(eventData);
+			GetHandler(transition)?.Invoke(eventData);
+		}
+		catch
+		{
+			// Event handler exceptions should not break simulation.
+		}
 	}
 }
 

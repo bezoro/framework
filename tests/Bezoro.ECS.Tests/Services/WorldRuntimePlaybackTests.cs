@@ -83,7 +83,7 @@ public partial class WorldRuntimeTests
 
 		world.Playback(commands);
 
-		var handle = world.Compile<PositionQuerySpec>();
+		var       handle = world.Compile<PositionQuerySpec>();
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
 		cursor.Current.Length.Should().Be(4);
@@ -95,7 +95,7 @@ public partial class WorldRuntimeTests
 	[Fact]
 	public void Playback_WhenDenseRemoveFullyMarksAChunk_ShouldKeepOtherChunkLocationsStable()
 	{
-		const int entityCount = 8;
+		const int ENTITY_COUNT = 8;
 		using var world = new World(
 			new WorldConfig
 			{
@@ -109,7 +109,7 @@ public partial class WorldRuntimeTests
 		);
 
 		using var create = world.CreateCommandStream();
-		for (var i = 0; i < entityCount; i++)
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			var temporary = create.CreateEntity(new Position { X = i, Y = i });
 			create.Set(temporary, new Velocity { X = 1, Y = -1 });
@@ -118,11 +118,11 @@ public partial class WorldRuntimeTests
 		world.Playback(create);
 
 		var handle          = world.Compile<PositionQuerySpec>();
-		var entitiesByIndex = new Entity[entityCount];
+		var entitiesByIndex = new Entity[ENTITY_COUNT];
 		using (var cursor = world.Execute(handle))
 		{
 			cursor.MoveNext().Should().BeTrue();
-			cursor.Current.Length.Should().Be(entityCount);
+			cursor.Current.Length.Should().Be(ENTITY_COUNT);
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
@@ -137,14 +137,14 @@ public partial class WorldRuntimeTests
 
 		world.Playback(removeFirstChunk);
 
-		for (var i = 0; i < entityCount; i++)
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			bool shouldBeRemoved = i < 4;
 			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
 			world.Has<Position>(entitiesByIndex[i]).Should().BeTrue();
 		}
 
-		world.EntityCount.Should().Be(entityCount);
+		world.EntityCount.Should().Be(ENTITY_COUNT);
 	}
 
 
@@ -217,7 +217,7 @@ public partial class WorldRuntimeTests
 	[Fact]
 	public void Playback_WhenDenseRemovePartiallyMarksChunk_ShouldKeepSurvivorLocationsValid()
 	{
-		const int entityCount = 8;
+		const int ENTITY_COUNT = 8;
 		using var world = new World(
 			new WorldConfig
 			{
@@ -231,7 +231,7 @@ public partial class WorldRuntimeTests
 		);
 
 		using var create = world.CreateCommandStream();
-		for (var i = 0; i < entityCount; i++)
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			var temporary = create.CreateEntity(new Position { X = i, Y = i });
 			create.Set(temporary, new Velocity { X = i, Y = -i });
@@ -240,11 +240,11 @@ public partial class WorldRuntimeTests
 		world.Playback(create);
 
 		var handle          = world.Compile<PositionQuerySpec>();
-		var entitiesByIndex = new Entity[entityCount];
+		var entitiesByIndex = new Entity[ENTITY_COUNT];
 		using (var cursor = world.Execute(handle))
 		{
 			cursor.MoveNext().Should().BeTrue();
-			cursor.Current.Length.Should().Be(entityCount);
+			cursor.Current.Length.Should().Be(ENTITY_COUNT);
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
@@ -259,7 +259,7 @@ public partial class WorldRuntimeTests
 		remove.Remove<Velocity>(entitiesByIndex[7]);
 		world.Playback(remove);
 
-		for (var i = 0; i < entityCount; i++)
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			bool shouldBeRemoved = i is 0 or 3 or 7;
 			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
@@ -276,8 +276,8 @@ public partial class WorldRuntimeTests
 	[Fact]
 	public void Playback_WhenDenseRemoveUsesCollidingEntityIds_ShouldRemoveMarkedComponentsOnly()
 	{
-		const int entityCount = 80;
-		const int batchSize   = 16;
+		const int ENTITY_COUNT = 80;
+		const int BATCH_SIZE   = 16;
 		using var world = new World(
 			new WorldConfig
 			{
@@ -290,9 +290,9 @@ public partial class WorldRuntimeTests
 		);
 
 		using var create = world.CreateCommandStream();
-		for (var batchStart = 0; batchStart < entityCount; batchStart += batchSize)
+		for (var batchStart = 0; batchStart < ENTITY_COUNT; batchStart += BATCH_SIZE)
 		{
-			for (int i = batchStart; i < batchStart + batchSize; i++)
+			for (int i = batchStart; i < batchStart + BATCH_SIZE; i++)
 			{
 				var temporary = create.CreateEntity(new Position { X = i, Y = i });
 				create.Set(temporary, new Velocity { X = 1, Y = -1 });
@@ -302,11 +302,11 @@ public partial class WorldRuntimeTests
 		}
 
 		var handle          = world.Compile<PositionQuerySpec>();
-		var entitiesByIndex = new Entity[entityCount];
+		var entitiesByIndex = new Entity[ENTITY_COUNT];
 		using (var cursor = world.Execute(handle))
 		{
 			cursor.MoveNext().Should().BeTrue();
-			cursor.Current.Length.Should().Be(entityCount);
+			cursor.Current.Length.Should().Be(ENTITY_COUNT);
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
@@ -324,7 +324,7 @@ public partial class WorldRuntimeTests
 
 		world.Playback(remove);
 
-		for (var i = 0; i < entityCount; i++)
+		for (var i = 0; i < ENTITY_COUNT; i++)
 		{
 			bool shouldBeRemoved = i < 16 || i >= 64;
 			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);

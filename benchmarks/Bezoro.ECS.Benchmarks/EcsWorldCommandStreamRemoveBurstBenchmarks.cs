@@ -8,23 +8,23 @@ namespace Bezoro.ECS.Benchmarks;
 [MemoryDiagnoser]
 public class EcsWorldCommandStreamRemoveBurstBenchmarks
 {
-	private const int OperationsPerInvoke = 8;
+	private const int OPERATIONS_PER_INVOKE = 8;
 
 	private CommandStream _commands = null!;
 	private Entity[]      _entities = null!;
-	private World       _world    = null!;
+	private World         _world    = null!;
 
 	[Params(50_000)]
 	public int BurstSize { get; set; }
 
 	[Benchmark(
 		Description = "World CommandStream large remove burst (remove+restore cycle on existing component lane)",
-		OperationsPerInvoke = OperationsPerInvoke
+		OperationsPerInvoke = OPERATIONS_PER_INVOKE
 	)]
 	public int CommandStreamRemoveBurst()
 	{
 		var count = 0;
-		for (var op = 0; op < OperationsPerInvoke; op++)
+		for (var op = 0; op < OPERATIONS_PER_INVOKE; op++)
 		{
 			for (var i = 0; i < BurstSize; i++)
 				_commands.Remove<Velocity>(_entities[i]);
@@ -51,14 +51,17 @@ public class EcsWorldCommandStreamRemoveBurstBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
-		_world = new(new WorldConfig()
-		{
-			EntityCapacity                = BurstSize + 32,
-			ComponentTypeCapacity         = 32,
-			CommandCapacity               = (BurstSize * 2) + 32,
-			CommandPayloadCapacityPerType = BurstSize + 32,
-			QueryResultCapacity           = BurstSize + 32
-		});
+		_world = new(
+			new WorldConfig
+			{
+				EntityCapacity                = BurstSize + 32,
+				ComponentTypeCapacity         = 32,
+				CommandCapacity               = BurstSize * 2 + 32,
+				CommandPayloadCapacityPerType = BurstSize + 32,
+				QueryResultCapacity           = BurstSize + 32
+			}
+		);
+
 		_commands = _world.CreateCommandStream();
 
 		for (var i = 0; i < BurstSize; i++)
@@ -84,15 +87,15 @@ public class EcsWorldCommandStreamRemoveBurstBenchmarks
 		_world.Playback(_commands);
 	}
 
-	private readonly struct PositionQuerySpec : ICompiledQuerySpec
-	{
-		public void Build(ref QueryBuilder builder) => builder.All<Position>();
-	}
-
 	private struct Position
 	{
 		public float X;
 		public float Y;
+	}
+
+	private readonly struct PositionQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.All<Position>();
 	}
 
 	private struct Velocity
@@ -101,4 +104,3 @@ public class EcsWorldCommandStreamRemoveBurstBenchmarks
 		public float Y;
 	}
 }
-
