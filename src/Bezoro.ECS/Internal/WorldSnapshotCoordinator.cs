@@ -1,6 +1,5 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Options;
-using Bezoro.ECS.Services;
 
 namespace Bezoro.ECS.Internal;
 
@@ -8,12 +7,13 @@ internal sealed class WorldSnapshotCoordinator(
 	WorldEntityStore      entityStore,
 	WorldLifecycleService lifecycleService,
 	WorldQueryEngine      queryEngine,
-	WorldSnapshotService  snapshotService)
+	WorldSnapshotService  snapshotService
+)
 {
-	private readonly WorldEntityStore _entityStore = entityStore;
+	private readonly WorldEntityStore      _entityStore      = entityStore;
 	private readonly WorldLifecycleService _lifecycleService = lifecycleService;
-	private readonly WorldQueryEngine _queryEngine = queryEngine;
-	private readonly WorldSnapshotService _snapshotService = snapshotService;
+	private readonly WorldQueryEngine      _queryEngine      = queryEngine;
+	private readonly WorldSnapshotService  _snapshotService  = snapshotService;
 
 	public void Capture<TSnapshotWriter>(ref TSnapshotWriter writer)
 		where TSnapshotWriter : struct, IWorldSnapshotWriter

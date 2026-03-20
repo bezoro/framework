@@ -1,4 +1,3 @@
-using System.Threading;
 using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -7,10 +6,10 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class QueryExecutionLease
 {
-	private QueryChunkMatch[]? _chunkMatches;
-	private int                _disposed;
-	private Entity[]?          _entities;
 	private bool               _usesSharedScratch;
+	private Entity[]?          _entities;
+	private int                _disposed;
+	private QueryChunkMatch[]? _chunkMatches;
 	private World?             _world;
 
 	internal void Initialize(
@@ -31,10 +30,10 @@ internal sealed class QueryExecutionLease
 		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 			return;
 
-		var world       = _world;
-		var chunkMatches = _chunkMatches;
-		var entities     = _entities;
-		bool usesShared  = _usesSharedScratch;
+		var  world        = _world;
+		var  chunkMatches = _chunkMatches;
+		var  entities     = _entities;
+		bool usesShared   = _usesSharedScratch;
 
 		_world             = null;
 		_chunkMatches      = null;

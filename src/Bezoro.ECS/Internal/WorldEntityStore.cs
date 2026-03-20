@@ -2,221 +2,207 @@ using System.Runtime.CompilerServices;
 using Bezoro.ECS.Internal.Fixed;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
-using RelationMarker = Bezoro.ECS.Internal.RelationMarker;
 
 namespace Bezoro.ECS.Internal;
 
 internal sealed class WorldEntityStore
 {
-	private readonly Dictionary<ArchetypeTypeSetKey, int> _archetypeByTypeSet =
-		new(ArchetypeTypeSetKeyComparer.Instance);
-	private readonly List<ArchetypeStorage> _archetypes = [];
-	private readonly bool[] _aliveByEntityId;
-	private readonly Dictionary<long, int[]> _transitionCopyMapByPair = [];
-	private readonly WorldConfig _config;
-	private readonly int _emptyArchetypeId;
-	private readonly int[] _freeEntityIds;
-	private readonly Bezoro.ECS.Internal.Fixed.EntityLocation[] _locationByEntityId;
-	private readonly int _maskWordCount;
+	private readonly World              _world;
+	private readonly WorldConfig        _config;
 	private readonly WorldRelationIndex _relationIndex;
-	private readonly Dictionary<Type, int> _typeToId = [];
-	private readonly Type?[] _typeById;
-	private readonly bool[] _typeIsManagedLane;
-	private readonly int[] _versionByEntityId;
-	private readonly World _world;
-
-	private int _aliveCount;
-	private int _archetypeVersion;
-	private int _componentTypeOverflowCount;
-	private int _entityHighWatermark;
-	private int _entityOverflowCount;
-	private int _freeCount;
-	private int _nextEntityId;
-	private int _registeredTypeHighWatermark;
-	private int _typeCount;
 
 	public WorldEntityStore(World world, WorldConfig config, WorldRelationIndex relationIndex)
 	{
-		_world = world ?? throw new ArgumentNullException(nameof(world));
-		_config = config ?? throw new ArgumentNullException(nameof(config));
+		_world         = world ?? throw new ArgumentNullException(nameof(world));
+		_config        = config ?? throw new ArgumentNullException(nameof(config));
 		_relationIndex = relationIndex ?? throw new ArgumentNullException(nameof(relationIndex));
 
-		_aliveByEntityId = new bool[_config.EntityCapacity];
-		_versionByEntityId = new int[_config.EntityCapacity];
-		_freeEntityIds = new int[_config.EntityCapacity];
-		_locationByEntityId = new Bezoro.ECS.Internal.Fixed.EntityLocation[_config.EntityCapacity];
-		for (var i = 0; i < _locationByEntityId.Length; i++)
-			_locationByEntityId[i] = Bezoro.ECS.Internal.Fixed.EntityLocation.Invalid;
+		AliveByEntityId    = new bool[_config.EntityCapacity];
+		VersionByEntityId  = new int[_config.EntityCapacity];
+		FreeEntityIds      = new int[_config.EntityCapacity];
+		LocationByEntityId = new Fixed.EntityLocation[_config.EntityCapacity];
+		for (var i = 0; i < LocationByEntityId.Length; i++)
+			LocationByEntityId[i] = Fixed.EntityLocation.Invalid;
 
-		_typeById = new Type[_config.ComponentTypeCapacity];
-		_typeIsManagedLane = new bool[_config.ComponentTypeCapacity];
-		_maskWordCount = GetMaskWordCount(_config.ComponentTypeCapacity);
-		_emptyArchetypeId = GetOrCreateArchetype([]);
+		TypeById          = new Type[_config.ComponentTypeCapacity];
+		TypeIsManagedLane = new bool[_config.ComponentTypeCapacity];
+		MaskWordCount     = GetMaskWordCount(_config.ComponentTypeCapacity);
+		EmptyArchetypeId  = GetOrCreateArchetype([]);
 	}
 
-	public bool[] AliveByEntityId => _aliveByEntityId;
+	public bool[] AliveByEntityId { get; }
 
-	public int AliveCount
+	public bool[] TypeIsManagedLane { get; }
+
+	public Dictionary<ArchetypeTypeSetKey, int> ArchetypeByTypeSet { get; } = new(ArchetypeTypeSetKeyComparer.Instance);
+
+	public Dictionary<long, int[]> TransitionCopyMapByPair { get; } = [];
+
+	public Dictionary<Type, int> TypeToId { get; } = [];
+
+	public Fixed.EntityLocation[] LocationByEntityId { get; }
+
+	public int EmptyArchetypeId { get; }
+
+	public int MaskWordCount { get; }
+
+	public int[] FreeEntityIds { get; }
+
+	public int[] VersionByEntityId { get; }
+
+	public List<ArchetypeStorage> Archetypes { get; } = [];
+
+	public Type?[] TypeById { get; }
+
+	public int AliveCount { get; set; }
+
+	public int ArchetypeVersion { get; set; }
+
+	public int ComponentTypeOverflowCount { get; set; }
+
+	public int EntityHighWatermark { get; set; }
+
+	public int EntityOverflowCount { get; set; }
+
+	public int FreeCount { get; set; }
+
+	public int NextEntityId { get; set; }
+
+	public int RegisteredTypeHighWatermark { get; set; }
+
+	public int TypeCount { get; set; }
+
+	public ArchetypeStorage GetArchetypeForCursor(int archetypeId)
 	{
-		get => _aliveCount;
-		set => _aliveCount = value;
+		if ((uint)archetypeId >= (uint)Archetypes.Count)
+			throw new ArgumentOutOfRangeException(nameof(archetypeId));
+
+		return Archetypes[archetypeId];
 	}
 
-	public int ArchetypeVersion
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool HasComponentForAccessor(
+		Entity  entity,
+		int     typeId,
+		ref int cachedArchetypeId,
+		ref int cachedColumnIndex)
 	{
-		get => _archetypeVersion;
-		set => _archetypeVersion = value;
-	}
+		if (!IsAlive(entity))
+			return false;
 
-	public List<ArchetypeStorage> Archetypes => _archetypes;
+		var location = LocationByEntityId[entity.Id];
+		if (!location.IsValid)
+			return false;
 
-	public int ComponentTypeOverflowCount
-	{
-		get => _componentTypeOverflowCount;
-		set => _componentTypeOverflowCount = value;
-	}
-
-	public Dictionary<ArchetypeTypeSetKey, int> ArchetypeByTypeSet => _archetypeByTypeSet;
-
-	public int EmptyArchetypeId => _emptyArchetypeId;
-
-	public int EntityHighWatermark
-	{
-		get => _entityHighWatermark;
-		set => _entityHighWatermark = value;
-	}
-
-	public int EntityOverflowCount
-	{
-		get => _entityOverflowCount;
-		set => _entityOverflowCount = value;
-	}
-
-	public int[] FreeEntityIds => _freeEntityIds;
-
-	public int FreeCount
-	{
-		get => _freeCount;
-		set => _freeCount = value;
-	}
-
-	public Bezoro.ECS.Internal.Fixed.EntityLocation[] LocationByEntityId => _locationByEntityId;
-
-	public int MaskWordCount => _maskWordCount;
-
-	public int NextEntityId
-	{
-		get => _nextEntityId;
-		set => _nextEntityId = value;
-	}
-
-	public int RegisteredTypeHighWatermark
-	{
-		get => _registeredTypeHighWatermark;
-		set => _registeredTypeHighWatermark = value;
-	}
-
-	public Dictionary<long, int[]> TransitionCopyMapByPair => _transitionCopyMapByPair;
-
-	public Dictionary<Type, int> TypeToId => _typeToId;
-
-	public int TypeCount
-	{
-		get => _typeCount;
-		set => _typeCount = value;
-	}
-
-	public Type?[] TypeById => _typeById;
-
-	public bool[] TypeIsManagedLane => _typeIsManagedLane;
-
-	public int[] VersionByEntityId => _versionByEntityId;
-
-	public Entity CreateEntity()
-	{
-		int id;
-		if (_freeCount > 0)
-		{
-			id = _freeEntityIds[--_freeCount];
-		}
-		else
-		{
-			if (_nextEntityId >= _config.EntityCapacity)
-			{
-				_entityOverflowCount++;
-				throw new InvalidOperationException(
-					$"Entity capacity '{_config.EntityCapacity}' was exceeded."
-				);
-			}
-
-			id = _nextEntityId++;
-		}
-
-		_aliveByEntityId[id] = true;
-		_aliveCount++;
-		if (_aliveCount > _entityHighWatermark)
-			_entityHighWatermark = _aliveCount;
-
-		var emptyArchetype = _archetypes[_emptyArchetypeId];
-		emptyArchetype.AllocateRow(id, out int chunkIndex, out int rowIndex);
-		_locationByEntityId[id] = new(_emptyArchetypeId, chunkIndex, rowIndex);
-
-		return new(id, _versionByEntityId[id]);
-	}
-
-	public void Reset()
-	{
-		for (var entityId = 0; entityId < _nextEntityId; entityId++)
-		{
-			_aliveByEntityId[entityId] = false;
-			_versionByEntityId[entityId]++;
-			_locationByEntityId[entityId] = Bezoro.ECS.Internal.Fixed.EntityLocation.Invalid;
-		}
-
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].Clear();
-
-		_aliveCount = 0;
-		_freeCount = 0;
-		_nextEntityId = 0;
-		_relationIndex.Clear();
-	}
-
-	public void Dispose()
-	{
-		for (var i = 0; i < _archetypes.Count; i++)
-			_archetypes[i].Dispose();
-
-		_typeToId.Clear();
-		_relationIndex.Clear();
-		_archetypeByTypeSet.Clear();
-		_archetypes.Clear();
-		_transitionCopyMapByPair.Clear();
+		var archetype = Archetypes[location.ArchetypeId];
+		return TryResolveAccessorColumnIndex(
+			archetype,
+			location.ArchetypeId,
+			typeId,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex
+		);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool IsAlive(Entity entity) =>
 		entity.Id >= 0 &&
-		entity.Id < _aliveByEntityId.Length &&
-		_aliveByEntityId[entity.Id] &&
-		_versionByEntityId[entity.Id] == entity.Version;
+		entity.Id < AliveByEntityId.Length &&
+		AliveByEntityId[entity.Id] &&
+		VersionByEntityId[entity.Id] == entity.Version;
 
-	public void EnsureAlive(Entity entity)
+	public bool MatchesRemoveTransitionSource(
+		Entity entity,
+		int    sourceArchetypeId,
+		int    typeId,
+		int    targetArchetypeId)
 	{
-		if (!IsAlive(entity))
-			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
+		EnsureAlive(entity);
+		var location = LocationByEntityId[entity.Id];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
+
+		if (location.ArchetypeId != sourceArchetypeId)
+			return false;
+
+		var sourceArchetype = Archetypes[sourceArchetypeId];
+		if (targetArchetypeId == sourceArchetypeId)
+			return !sourceArchetype.HasType(typeId);
+
+		return sourceArchetype.HasType(typeId);
 	}
 
-	public bool TryGetComponentUnchecked<T>(int entityId, int typeId, out T component) where T : struct
+	public bool MatchesSetTransitionSource(
+		Entity entity,
+		int    sourceArchetypeId,
+		int    typeId,
+		int    targetArchetypeId)
 	{
-		var location = _locationByEntityId[entityId];
+		EnsureAlive(entity);
+		var location = LocationByEntityId[entity.Id];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
+
+		if (location.ArchetypeId != sourceArchetypeId)
+			return false;
+
+		var sourceArchetype = Archetypes[sourceArchetypeId];
+		if (targetArchetypeId == sourceArchetypeId)
+			return sourceArchetype.HasType(typeId);
+
+		return !sourceArchetype.HasType(typeId);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryGetComponentForAccessor<T>(
+		Entity  entity,
+		int     typeId,
+		ref int cachedArchetypeId,
+		ref int cachedColumnIndex,
+		out T   component)
+		where T : unmanaged
+	{
+		if (!IsAlive(entity))
+		{
+			component = default;
+			return false;
+		}
+
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 		{
 			component = default;
 			return false;
 		}
 
-		var archetype = _archetypes[location.ArchetypeId];
+		var archetype = Archetypes[location.ArchetypeId];
+		if (!TryResolveAccessorColumnIndex(
+				archetype,
+				location.ArchetypeId,
+				typeId,
+				ref cachedArchetypeId,
+				ref cachedColumnIndex
+			))
+		{
+			component = default;
+			return false;
+		}
+
+		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		component = archetype.GetRefByIndex<T>(chunk, cachedColumnIndex, location.RowIndex);
+		return true;
+	}
+
+	public bool TryGetComponentUnchecked<T>(int entityId, int typeId, out T component) where T : struct
+	{
+		var location = LocationByEntityId[entityId];
+		if (!location.IsValid)
+		{
+			component = default;
+			return false;
+		}
+
+		var archetype   = Archetypes[location.ArchetypeId];
 		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
 		if (columnIndex < 0)
 		{
@@ -235,77 +221,67 @@ internal sealed class WorldEntityStore
 		return true;
 	}
 
-	public ref T GetComponentRefUnchecked<T>(int entityId, int typeId) where T : struct
+	public Entity CreateEntity()
 	{
-		var location = _locationByEntityId[entityId];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+		int id;
+		if (FreeCount > 0)
+		{
+			id = FreeEntityIds[--FreeCount];
+		}
+		else
+		{
+			if (NextEntityId >= _config.EntityCapacity)
+			{
+				EntityOverflowCount++;
+				throw new InvalidOperationException(
+					$"Entity capacity '{_config.EntityCapacity}' was exceeded."
+				);
+			}
 
-		var archetype = _archetypes[location.ArchetypeId];
-		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
-		if (columnIndex < 0)
-			throw new KeyNotFoundException(
-				$"Component '{typeof(T).Name}' was not found for entity '{entityId}:{_versionByEntityId[entityId]}'."
-			);
+			id = NextEntityId++;
+		}
 
-		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
-		return ref archetype.GetRefByIndex<T>(chunk, columnIndex, location.RowIndex);
-	}
+		AliveByEntityId[id] = true;
+		AliveCount++;
+		if (AliveCount > EntityHighWatermark)
+			EntityHighWatermark = AliveCount;
 
-	public ref T GetComponentRefForCursorUnchecked<T>(int entityId, int typeId) where T : struct
-	{
-		var location = _locationByEntityId[entityId];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+		var emptyArchetype = Archetypes[EmptyArchetypeId];
+		emptyArchetype.AllocateRow(id, out int chunkIndex, out int rowIndex);
+		LocationByEntityId[id] = new(EmptyArchetypeId, chunkIndex, rowIndex);
 
-		return ref _archetypes[location.ArchetypeId].GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
-	}
-
-	public ArchetypeStorage GetArchetypeForCursor(int archetypeId)
-	{
-		if ((uint)archetypeId >= (uint)_archetypes.Count)
-			throw new ArgumentOutOfRangeException(nameof(archetypeId));
-
-		return _archetypes[archetypeId];
+		return new(id, VersionByEntityId[id]);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Entity GetEntityForCursor(int entityId) =>
-		new(entityId, _versionByEntityId[entityId]);
+		new(entityId, VersionByEntityId[entityId]);
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public int[] GetEntityVersionsForCursor() => _versionByEntityId;
-
-	public int GetArchetypeEntityCount(int archetypeId)
+	public int CreateRelationTypeId()
 	{
-		if ((uint)archetypeId >= (uint)_archetypes.Count)
-			throw new ArgumentOutOfRangeException(nameof(archetypeId));
-
-		return _archetypes[archetypeId].EntityCount;
-	}
-
-	public int GetOrCreateComponentTypeIdGeneric<T>() where T : struct
-	{
-		var componentType = typeof(T);
-		if (_typeToId.TryGetValue(componentType, out int existing))
-			return existing;
-
-		if (_typeCount >= _typeById.Length)
+		if (TypeCount >= TypeById.Length)
 		{
-			_componentTypeOverflowCount++;
+			ComponentTypeOverflowCount++;
 			throw new InvalidOperationException(
 				$"Component type capacity '{_config.ComponentTypeCapacity}' was exceeded."
 			);
 		}
 
-		int typeId = _typeCount++;
-		_typeToId[componentType] = typeId;
-		_typeById[typeId] = componentType;
-		_typeIsManagedLane[typeId] = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-		if (_typeCount > _registeredTypeHighWatermark)
-			_registeredTypeHighWatermark = _typeCount;
+		int typeId = TypeCount++;
+		TypeById[typeId]          = typeof(RelationMarker);
+		TypeIsManagedLane[typeId] = false;
+		if (TypeCount > RegisteredTypeHighWatermark)
+			RegisteredTypeHighWatermark = TypeCount;
 
 		return typeId;
+	}
+
+	public int GetArchetypeEntityCount(int archetypeId)
+	{
+		if ((uint)archetypeId >= (uint)Archetypes.Count)
+			throw new ArgumentOutOfRangeException(nameof(archetypeId));
+
+		return Archetypes[archetypeId].EntityCount;
 	}
 
 	public int GetOrCreateComponentTypeId(Type componentType, bool containsReferences)
@@ -314,57 +290,148 @@ internal sealed class WorldEntityStore
 		if (!componentType.IsValueType)
 			throw new ArgumentException("Components must be value types.", nameof(componentType));
 
-		if (_typeToId.TryGetValue(componentType, out int existing))
+		if (TypeToId.TryGetValue(componentType, out int existing))
 			return existing;
 
-		if (_typeCount >= _typeById.Length)
+		if (TypeCount >= TypeById.Length)
 		{
-			_componentTypeOverflowCount++;
+			ComponentTypeOverflowCount++;
 			throw new InvalidOperationException(
 				$"Component type capacity '{_config.ComponentTypeCapacity}' was exceeded."
 			);
 		}
 
-		int typeId = _typeCount++;
-		_typeToId[componentType] = typeId;
-		_typeById[typeId] = componentType;
-		_typeIsManagedLane[typeId] = containsReferences;
-		if (_typeCount > _registeredTypeHighWatermark)
-			_registeredTypeHighWatermark = _typeCount;
+		int typeId = TypeCount++;
+		TypeToId[componentType]   = typeId;
+		TypeById[typeId]          = componentType;
+		TypeIsManagedLane[typeId] = containsReferences;
+		if (TypeCount > RegisteredTypeHighWatermark)
+			RegisteredTypeHighWatermark = TypeCount;
 
 		return typeId;
 	}
 
-	public int CreateRelationTypeId()
+	public int GetOrCreateComponentTypeIdGeneric<T>() where T : struct
 	{
-		if (_typeCount >= _typeById.Length)
+		var componentType = typeof(T);
+		if (TypeToId.TryGetValue(componentType, out int existing))
+			return existing;
+
+		if (TypeCount >= TypeById.Length)
 		{
-			_componentTypeOverflowCount++;
+			ComponentTypeOverflowCount++;
 			throw new InvalidOperationException(
 				$"Component type capacity '{_config.ComponentTypeCapacity}' was exceeded."
 			);
 		}
 
-		int typeId = _typeCount++;
-		_typeById[typeId] = typeof(RelationMarker);
-		_typeIsManagedLane[typeId] = false;
-		if (_typeCount > _registeredTypeHighWatermark)
-			_registeredTypeHighWatermark = _typeCount;
+		int typeId = TypeCount++;
+		TypeToId[componentType]   = typeId;
+		TypeById[typeId]          = componentType;
+		TypeIsManagedLane[typeId] = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+		if (TypeCount > RegisteredTypeHighWatermark)
+			RegisteredTypeHighWatermark = TypeCount;
 
 		return typeId;
+	}
+
+	public int[] BuildMaskWordIndices(ulong[] maskWords)
+	{
+		var count = 0;
+		for (var i = 0; i < maskWords.Length; i++)
+		{
+			if (maskWords[i] != 0UL)
+				count++;
+		}
+
+		if (count == 0)
+			return [];
+
+		var indices = new int[count];
+		var j       = 0;
+		for (var i = 0; i < maskWords.Length; i++)
+		{
+			if (maskWords[i] == 0UL)
+				continue;
+
+			indices[j++] = i;
+		}
+
+		return indices;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public int[] GetEntityVersionsForCursor() => VersionByEntityId;
+
+	public ref T GetComponentRefForCursorUnchecked<T>(int entityId, int typeId) where T : struct
+	{
+		var location = LocationByEntityId[entityId];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+
+		return ref Archetypes[location.ArchetypeId].GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
+	}
+
+	public ref T GetComponentRefUnchecked<T>(int entityId, int typeId) where T : struct
+	{
+		var location = LocationByEntityId[entityId];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+
+		var archetype   = Archetypes[location.ArchetypeId];
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			throw new KeyNotFoundException(
+				$"Component '{typeof(T).Name}' was not found for entity '{entityId}:{VersionByEntityId[entityId]}'."
+			);
+
+		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
+		return ref archetype.GetRefByIndex<T>(chunk, columnIndex, location.RowIndex);
+	}
+
+	public Type[] ResolveTypes(int[] typeIds)
+	{
+		if (typeIds.Length == 0)
+			return [];
+
+		var resolved = new Type[typeIds.Length];
+		for (var i = 0; i < typeIds.Length; i++)
+		{
+			int typeId = typeIds[i];
+			resolved[i] = TypeById[typeId] ??
+						  throw new InvalidOperationException(
+							  $"Component type id '{typeId}' is not registered."
+						  );
+		}
+
+		return resolved;
+	}
+
+	public ulong[] BuildMaskWords(int[] typeIds)
+	{
+		var words = new ulong[MaskWordCount];
+		for (var i = 0; i < typeIds.Length; i++)
+		{
+			int typeId    = typeIds[i];
+			int wordIndex = typeId >> 6;
+			int bitIndex  = typeId & 63;
+			words[wordIndex] |= 1UL << bitIndex;
+		}
+
+		return words;
 	}
 
 	public void ApplySetBatchFromCommandKnownTransition<T>(
 		int[] entityIds,
-		int entityOffset,
-		int count,
-		T[] payloads,
-		int payloadCount,
+		int   entityOffset,
+		int   count,
+		T[]   payloads,
+		int   payloadCount,
 		int[] payloadIndices,
-		int payloadOffset,
-		int typeId,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int   payloadOffset,
+		int   typeId,
+		int   sourceArchetypeId,
+		int   targetArchetypeId)
 		where T : struct
 	{
 		if (entityIds is null) throw new ArgumentNullException(nameof(entityIds));
@@ -377,9 +444,9 @@ internal sealed class WorldEntityStore
 		if (payloadOffset < 0 || payloadOffset + count > payloadIndices.Length)
 			throw new ArgumentOutOfRangeException(nameof(payloadOffset));
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		int sourceColumnIndex = -1;
-		uint changeVersion = 0;
+		var  sourceArchetype   = Archetypes[sourceArchetypeId];
+		int  sourceColumnIndex = -1;
+		uint changeVersion     = 0;
 		if (targetArchetypeId == sourceArchetypeId)
 		{
 			sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
@@ -399,9 +466,9 @@ internal sealed class WorldEntityStore
 					$"Payload index '{payloadIndex}' is out of range for '{typeof(T).Name}'."
 				);
 
-			int entityId = entityIds[entityOffset + i];
+			int              entityId  = entityIds[entityOffset + i];
 			ref readonly var component = ref payloads[payloadIndex];
-			var location = _locationByEntityId[entityId];
+			var              location  = LocationByEntityId[entityId];
 			if (!location.IsValid || location.ArchetypeId != sourceArchetypeId)
 			{
 				SetComponentInternal(entityId, typeId, in component);
@@ -431,36 +498,36 @@ internal sealed class WorldEntityStore
 
 	public void ApplySetBatchFromCommandKnownTransitionFast<T>(
 		int[] entityIds,
-		int entityOffset,
-		int count,
-		T[] payloads,
+		int   entityOffset,
+		int   count,
+		T[]   payloads,
 		int[] payloadIndices,
-		int payloadOffset,
-		int typeId,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int   payloadOffset,
+		int   typeId,
+		int   sourceArchetypeId,
+		int   targetArchetypeId)
 		where T : struct
 	{
 		if (count == 0)
 			return;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 		{
-			uint changeVersion = AdvanceComponentChangeVersion();
-			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			uint changeVersion     = AdvanceComponentChangeVersion();
+			int  sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
 			if (sourceColumnIndex < 0)
 				throw new InvalidOperationException(
 					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
 				);
 
-			int cachedChunkIndex = -1;
-			Span<T> cachedColumn = default;
+			int     cachedChunkIndex = -1;
+			Span<T> cachedColumn     = default;
 			for (var i = 0; i < count; i++)
 			{
 				int payloadIndex = payloadIndices[payloadOffset + i];
-				int entityId = entityIds[entityOffset + i];
-				var location = _locationByEntityId[entityId];
+				int entityId     = entityIds[entityOffset + i];
+				var location     = LocationByEntityId[entityId];
 				if (location.ChunkIndex != cachedChunkIndex)
 				{
 					cachedChunkIndex = location.ChunkIndex;
@@ -476,13 +543,13 @@ internal sealed class WorldEntityStore
 			return;
 		}
 
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		for (var i = 0; i < count; i++)
 		{
 			int payloadIndex = payloadIndices[payloadOffset + i];
-			int entityId = entityIds[entityOffset + i];
-			var location = _locationByEntityId[entityId];
+			int entityId     = entityIds[entityOffset + i];
+			var location     = LocationByEntityId[entityId];
 			MoveEntityToArchetypeWithSet(
 				entityId,
 				location,
@@ -504,21 +571,21 @@ internal sealed class WorldEntityStore
 
 	public void ApplySetFromCommandKnownTransition<T>(
 		Entity entity,
-		in T component,
-		int typeId,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		in T   component,
+		int    typeId,
+		int    sourceArchetypeId,
+		int    targetArchetypeId)
 		where T : struct
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid || location.ArchetypeId != sourceArchetypeId)
 		{
 			SetComponentInternal(entity.Id, typeId, in component);
 			return;
 		}
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 		{
 			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
@@ -529,7 +596,7 @@ internal sealed class WorldEntityStore
 					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
 				);
 
-			var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
 			uint changeVersion = AdvanceComponentChangeVersion();
 			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
 			MarkComponentChanged(entity.Id, typeId, changeVersion);
@@ -547,53 +614,71 @@ internal sealed class WorldEntityStore
 	}
 
 	public void DescribeRemoveTransition(
-		Entity entity,
-		int typeId,
+		Entity  entity,
+		int     typeId,
 		out int sourceArchetypeId,
 		out int targetArchetypeId)
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
 		sourceArchetypeId = location.ArchetypeId;
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		targetArchetypeId = sourceArchetype.HasType(typeId)
-			? GetOrCreateRemoveTransition(sourceArchetype, typeId)
-			: sourceArchetypeId;
+								? GetOrCreateRemoveTransition(sourceArchetype, typeId)
+								: sourceArchetypeId;
 	}
 
 	public void DescribeSetTransition(Entity entity, int typeId, out int sourceArchetypeId, out int targetArchetypeId)
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
 		sourceArchetypeId = location.ArchetypeId;
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		targetArchetypeId = sourceArchetype.HasType(typeId)
-			? sourceArchetypeId
-			: GetOrCreateAddTransition(sourceArchetype, typeId);
+								? sourceArchetypeId
+								: GetOrCreateAddTransition(sourceArchetype, typeId);
 	}
 
 	public void DestroyEntity(Entity entity)
 	{
 		EnsureAlive(entity);
 		_relationIndex.ReleaseRelationsForTarget(entity, RemoveRelationTypeFromAllSources);
-		int entityId = entity.Id;
-		var location = _locationByEntityId[entityId];
-		var archetype = _archetypes[location.ArchetypeId];
+		int entityId  = entity.Id;
+		var location  = LocationByEntityId[entityId];
+		var archetype = Archetypes[location.ArchetypeId];
 		if (archetype.RemoveAt(location.ChunkIndex, location.RowIndex, out int movedEntityId))
 			UpdateMovedEntityLocation(location.ArchetypeId, location.ChunkIndex, location.RowIndex, movedEntityId);
 
-		_aliveByEntityId[entityId] = false;
-		_locationByEntityId[entityId] = Bezoro.ECS.Internal.Fixed.EntityLocation.Invalid;
-		_versionByEntityId[entityId]++;
-		_freeEntityIds[_freeCount++] = entityId;
-		_aliveCount--;
-		_world.ClearEntityComponentVersionsForEntityStore(entityId, _typeCount);
+		AliveByEntityId[entityId]    = false;
+		LocationByEntityId[entityId] = Fixed.EntityLocation.Invalid;
+		VersionByEntityId[entityId]++;
+		FreeEntityIds[FreeCount++] = entityId;
+		AliveCount--;
+		_world.ClearEntityComponentVersionsForEntityStore(entityId, TypeCount);
+	}
+
+	public void Dispose()
+	{
+		for (var i = 0; i < Archetypes.Count; i++)
+			Archetypes[i].Dispose();
+
+		TypeToId.Clear();
+		_relationIndex.Clear();
+		ArchetypeByTypeSet.Clear();
+		Archetypes.Clear();
+		TransitionCopyMapByPair.Clear();
+	}
+
+	public void EnsureAlive(Entity entity)
+	{
+		if (!IsAlive(entity))
+			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
 	}
 
 	public void RemoveAllComponentsFromCommandKnownTransitionFast(int sourceArchetypeId, int targetArchetypeId)
@@ -601,8 +686,8 @@ internal sealed class WorldEntityStore
 		if (targetArchetypeId == sourceArchetypeId)
 			return;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   sourceArchetype         = Archetypes[sourceArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		for (var chunkIndex = 0; chunkIndex < sourceArchetype.ChunkCount; chunkIndex++)
 		{
@@ -622,25 +707,25 @@ internal sealed class WorldEntityStore
 
 	public void RemoveComponentBatchFromCommandKnownTransition(
 		int[] entityIds,
-		int entityOffset,
-		int count,
-		int typeId,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int   entityOffset,
+		int   count,
+		int   typeId,
+		int   sourceArchetypeId,
+		int   targetArchetypeId)
 	{
 		if (entityIds is null) throw new ArgumentNullException(nameof(entityIds));
 		if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
 		if (entityOffset < 0 || entityOffset + count > entityIds.Length)
 			throw new ArgumentOutOfRangeException(nameof(entityOffset));
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		for (var i = 0; i < count; i++)
 		{
 			int entityId = entityIds[entityOffset + i];
-			var location = _locationByEntityId[entityId];
+			var location = LocationByEntityId[entityId];
 			if (!location.IsValid || location.ArchetypeId != sourceArchetypeId)
 			{
-				RemoveComponentFromCommand(new(entityId, _versionByEntityId[entityId]), typeId);
+				RemoveComponentFromCommand(new(entityId, VersionByEntityId[entityId]), typeId);
 				continue;
 			}
 
@@ -653,21 +738,21 @@ internal sealed class WorldEntityStore
 
 	public void RemoveComponentBatchFromCommandKnownTransitionFast(
 		int[] entityIds,
-		int entityOffset,
-		int count,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int   entityOffset,
+		int   count,
+		int   sourceArchetypeId,
+		int   targetArchetypeId)
 	{
 		if (count == 0 || targetArchetypeId == sourceArchetypeId)
 			return;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   sourceArchetype         = Archetypes[sourceArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		for (var i = 0; i < count; i++)
 		{
 			int entityId = entityIds[entityOffset + i];
-			var location = _locationByEntityId[entityId];
+			var location = LocationByEntityId[entityId];
 			MoveEntityToArchetype(
 				entityId,
 				location,
@@ -685,11 +770,11 @@ internal sealed class WorldEntityStore
 			return;
 
 		int entityId = entity.Id;
-		var location = _locationByEntityId[entityId];
+		var location = LocationByEntityId[entityId];
 		if (!location.IsValid)
 			return;
 
-		var sourceArchetype = _archetypes[location.ArchetypeId];
+		var sourceArchetype = Archetypes[location.ArchetypeId];
 		if (!sourceArchetype.HasType(typeId))
 			return;
 
@@ -699,12 +784,12 @@ internal sealed class WorldEntityStore
 
 	public void RemoveComponentFromCommandKnownTransition(
 		Entity entity,
-		int typeId,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int    typeId,
+		int    sourceArchetypeId,
+		int    targetArchetypeId)
 	{
 		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid || location.ArchetypeId != sourceArchetypeId)
 		{
 			RemoveComponentFromCommand(entity, typeId);
@@ -714,20 +799,20 @@ internal sealed class WorldEntityStore
 		if (targetArchetypeId == sourceArchetypeId)
 			return;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
+		var sourceArchetype = Archetypes[sourceArchetypeId];
 		MoveEntityToArchetype(entity.Id, location, sourceArchetype, targetArchetypeId);
 	}
 
 	public void RemoveMarkedComponentsFromCommandKnownTransitionFast(
 		uint[] batchEntityMarkerBits,
-		int sourceArchetypeId,
-		int targetArchetypeId)
+		int    sourceArchetypeId,
+		int    targetArchetypeId)
 	{
 		if (targetArchetypeId == sourceArchetypeId)
 			return;
 
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   sourceArchetype         = Archetypes[sourceArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		for (var chunkIndex = 0; chunkIndex < sourceArchetype.ChunkCount; chunkIndex++)
 		{
@@ -750,7 +835,7 @@ internal sealed class WorldEntityStore
 
 			int rowCount = chunk.Count;
 			var writeRow = 0;
-			var readRow = 0;
+			var readRow  = 0;
 			while (readRow < rowCount)
 			{
 				int entityId = chunk.EntityIds[readRow];
@@ -767,7 +852,7 @@ internal sealed class WorldEntityStore
 						sourceTargetColumnPairs
 					);
 
-					_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
+					LocationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
 					readRow++;
 					continue;
 				}
@@ -794,7 +879,7 @@ internal sealed class WorldEntityStore
 					{
 						int survivorEntityId = chunk.EntityIds[row];
 						if ((uint)survivorEntityId < (uint)_config.EntityCapacity)
-							_locationByEntityId[survivorEntityId] = new(sourceArchetypeId, chunkIndex, row);
+							LocationByEntityId[survivorEntityId] = new(sourceArchetypeId, chunkIndex, row);
 					}
 				}
 
@@ -805,132 +890,44 @@ internal sealed class WorldEntityStore
 		}
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool HasComponentForAccessor(
-		Entity entity,
-		int typeId,
-		ref int cachedArchetypeId,
-		ref int cachedColumnIndex)
+	public void Reset()
 	{
-		if (!IsAlive(entity))
-			return false;
-
-		var location = _locationByEntityId[entity.Id];
-		if (!location.IsValid)
-			return false;
-
-		var archetype = _archetypes[location.ArchetypeId];
-		return TryResolveAccessorColumnIndex(
-			archetype,
-			location.ArchetypeId,
-			typeId,
-			ref cachedArchetypeId,
-			ref cachedColumnIndex
-		);
-	}
-
-	public bool MatchesRemoveTransitionSource(
-		Entity entity,
-		int sourceArchetypeId,
-		int typeId,
-		int targetArchetypeId)
-	{
-		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
-
-		if (location.ArchetypeId != sourceArchetypeId)
-			return false;
-
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		if (targetArchetypeId == sourceArchetypeId)
-			return !sourceArchetype.HasType(typeId);
-
-		return sourceArchetype.HasType(typeId);
-	}
-
-	public bool MatchesSetTransitionSource(
-		Entity entity,
-		int sourceArchetypeId,
-		int typeId,
-		int targetArchetypeId)
-	{
-		EnsureAlive(entity);
-		var location = _locationByEntityId[entity.Id];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
-
-		if (location.ArchetypeId != sourceArchetypeId)
-			return false;
-
-		var sourceArchetype = _archetypes[sourceArchetypeId];
-		if (targetArchetypeId == sourceArchetypeId)
-			return sourceArchetype.HasType(typeId);
-
-		return !sourceArchetype.HasType(typeId);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool TryGetComponentForAccessor<T>(
-		Entity entity,
-		int typeId,
-		ref int cachedArchetypeId,
-		ref int cachedColumnIndex,
-		out T component)
-		where T : unmanaged
-	{
-		if (!IsAlive(entity))
+		for (var entityId = 0; entityId < NextEntityId; entityId++)
 		{
-			component = default;
-			return false;
+			AliveByEntityId[entityId] = false;
+			VersionByEntityId[entityId]++;
+			LocationByEntityId[entityId] = Fixed.EntityLocation.Invalid;
 		}
 
-		var location = _locationByEntityId[entity.Id];
-		if (!location.IsValid)
-		{
-			component = default;
-			return false;
-		}
+		for (var i = 0; i < Archetypes.Count; i++)
+			Archetypes[i].Clear();
 
-		var archetype = _archetypes[location.ArchetypeId];
-		if (!TryResolveAccessorColumnIndex(
-				archetype,
-				location.ArchetypeId,
-				typeId,
-				ref cachedArchetypeId,
-				ref cachedColumnIndex
-			))
-		{
-			component = default;
-			return false;
-		}
-
-		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
-		component = archetype.GetRefByIndex<T>(chunk, cachedColumnIndex, location.RowIndex);
-		return true;
+		AliveCount   = 0;
+		FreeCount    = 0;
+		NextEntityId = 0;
+		_relationIndex.Clear();
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void ResolveAccessorLocation(
-		Entity entity,
-		int typeId,
-		Type componentType,
-		ref int cachedArchetypeId,
-		ref int cachedColumnIndex,
+		Entity               entity,
+		int                  typeId,
+		Type                 componentType,
+		ref int              cachedArchetypeId,
+		ref int              cachedColumnIndex,
 		out ArchetypeStorage archetype,
-		out int chunkIndex,
-		out int rowIndex)
+		out int              chunkIndex,
+		out int              rowIndex)
 	{
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 		if (!IsAlive(entity))
 			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
 
-		var location = _locationByEntityId[entity.Id];
+		var location = LocationByEntityId[entity.Id];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
 
-		archetype = _archetypes[location.ArchetypeId];
+		archetype = Archetypes[location.ArchetypeId];
 		if (!TryResolveAccessorColumnIndex(
 				archetype,
 				location.ArchetypeId,
@@ -943,64 +940,7 @@ internal sealed class WorldEntityStore
 			);
 
 		chunkIndex = location.ChunkIndex;
-		rowIndex = location.RowIndex;
-	}
-
-	public Type[] ResolveTypes(int[] typeIds)
-	{
-		if (typeIds.Length == 0)
-			return [];
-
-		var resolved = new Type[typeIds.Length];
-		for (var i = 0; i < typeIds.Length; i++)
-		{
-			int typeId = typeIds[i];
-			resolved[i] = _typeById[typeId] ??
-				throw new InvalidOperationException(
-					$"Component type id '{typeId}' is not registered."
-				);
-		}
-
-		return resolved;
-	}
-
-	public int[] BuildMaskWordIndices(ulong[] maskWords)
-	{
-		var count = 0;
-		for (var i = 0; i < maskWords.Length; i++)
-		{
-			if (maskWords[i] != 0UL)
-				count++;
-		}
-
-		if (count == 0)
-			return [];
-
-		var indices = new int[count];
-		var j = 0;
-		for (var i = 0; i < maskWords.Length; i++)
-		{
-			if (maskWords[i] == 0UL)
-				continue;
-
-			indices[j++] = i;
-		}
-
-		return indices;
-	}
-
-	public ulong[] BuildMaskWords(int[] typeIds)
-	{
-		var words = new ulong[_maskWordCount];
-		for (var i = 0; i < typeIds.Length; i++)
-		{
-			int typeId = typeIds[i];
-			int wordIndex = typeId >> 6;
-			int bitIndex = typeId & 63;
-			words[wordIndex] |= 1UL << bitIndex;
-		}
-
-		return words;
+		rowIndex   = location.RowIndex;
 	}
 
 	public void SetComponentBoxed(Entity entity, Type componentType, object value)
@@ -1021,52 +961,95 @@ internal sealed class WorldEntityStore
 		SetComponentInternal(source.Id, relationTypeId, in marker);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private uint AdvanceComponentChangeVersion() =>
-		_world.AdvanceComponentChangeVersionForEntityStore();
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void MarkComponentAdded(int entityId, int typeId, uint version) =>
-		_world.MarkComponentAddedForEntityStore(entityId, typeId, version);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void MarkComponentChanged(int entityId, int typeId, uint version) =>
-		_world.MarkComponentChangedForEntityStore(entityId, typeId, version);
-
-	private int GetOrCreateArchetype(int[] sortedTypeIds)
+	private static bool IsEntityMarked(uint[] markerBits, int entityId)
 	{
-		var key = new ArchetypeTypeSetKey(sortedTypeIds);
-		if (_archetypeByTypeSet.TryGetValue(key, out int existing))
-			return existing;
+		int  markerWordIndex = entityId >> 5;
+		uint markerBit       = 1u << (entityId & 31);
+		return (markerBits[markerWordIndex] & markerBit) != 0u;
+	}
 
-		var columnTypes = new Type[sortedTypeIds.Length];
-		var managedLane = new bool[sortedTypeIds.Length];
-		for (var i = 0; i < sortedTypeIds.Length; i++)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool TryResolveAccessorColumnIndex(
+		ArchetypeStorage archetype,
+		int              archetypeId,
+		int              typeId,
+		ref int          cachedArchetypeId,
+		ref int          cachedColumnIndex)
+	{
+		if (cachedArchetypeId == archetypeId)
+			return cachedColumnIndex >= 0;
+
+		cachedArchetypeId = archetypeId;
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex >= 0)
 		{
-			int typeId = sortedTypeIds[i];
-			columnTypes[i] = _typeById[typeId] ??
-				throw new InvalidOperationException(
-					$"Component type id '{typeId}' was not registered before archetype creation."
-				);
-
-			managedLane[i] = _typeIsManagedLane[typeId];
+			cachedColumnIndex = columnIndex;
+			return true;
 		}
 
-		int archetypeId = _archetypes.Count;
-		var archetype = new ArchetypeStorage(
-			archetypeId,
-			sortedTypeIds,
-			BuildMaskWords(sortedTypeIds),
-			columnTypes,
-			managedLane,
-			_config.ComponentTypeCapacity,
-			_config.ChunkCapacity
-		);
+		cachedColumnIndex = -1;
+		return false;
+	}
 
-		_archetypes.Add(archetype);
-		_archetypeByTypeSet[key] = archetypeId;
-		_archetypeVersion++;
-		return archetypeId;
+	private static int GetMaskWordCount(int componentTypeCapacity) =>
+		Math.Max(1, (componentTypeCapacity + 63) / 64);
+
+	private static int[] AddTypeIdSorted(int[] source, int typeId)
+	{
+		var result   = new int[source.Length + 1];
+		var src      = 0;
+		var dst      = 0;
+		var inserted = false;
+		while (src < source.Length)
+		{
+			if (!inserted && typeId < source[src])
+			{
+				result[dst++] = typeId;
+				inserted      = true;
+			}
+
+			result[dst++] = source[src++];
+		}
+
+		if (!inserted)
+			result[dst] = typeId;
+
+		return result;
+	}
+
+	private static int[] RemoveTypeIdSorted(int[] source, int typeId)
+	{
+		var result  = new int[source.Length - 1];
+		var dst     = 0;
+		var removed = false;
+		for (var i = 0; i < source.Length; i++)
+		{
+			if (!removed && source[i] == typeId)
+			{
+				removed = true;
+				continue;
+			}
+
+			if (dst < result.Length)
+				result[dst++] = source[i];
+		}
+
+		if (!removed)
+			throw new InvalidOperationException($"Type id '{typeId}' was not found in source archetype.");
+
+		return result;
+	}
+
+	private bool IsChunkFullyMarked(uint[] markerBits, ArchetypeStorage.Chunk chunk)
+	{
+		for (var row = 0; row < chunk.Count; row++)
+		{
+			int entityId = chunk.EntityIds[row];
+			if ((uint)entityId >= (uint)_config.EntityCapacity || !IsEntityMarked(markerBits, entityId))
+				return false;
+		}
+
+		return true;
 	}
 
 	private int GetOrCreateAddTransition(ArchetypeStorage sourceArchetype, int typeId)
@@ -1083,8 +1066,44 @@ internal sealed class WorldEntityStore
 
 		int target = GetOrCreateArchetype(AddTypeIdSorted(sourceArchetype.TypeIds, typeId));
 		sourceArchetype.SetKnownAddTransition(typeId, target);
-		_archetypes[target].SetKnownRemoveTransition(typeId, sourceArchetype.Id);
+		Archetypes[target].SetKnownRemoveTransition(typeId, sourceArchetype.Id);
 		return target;
+	}
+
+	private int GetOrCreateArchetype(int[] sortedTypeIds)
+	{
+		var key = new ArchetypeTypeSetKey(sortedTypeIds);
+		if (ArchetypeByTypeSet.TryGetValue(key, out int existing))
+			return existing;
+
+		var columnTypes = new Type[sortedTypeIds.Length];
+		var managedLane = new bool[sortedTypeIds.Length];
+		for (var i = 0; i < sortedTypeIds.Length; i++)
+		{
+			int typeId = sortedTypeIds[i];
+			columnTypes[i] = TypeById[typeId] ??
+							 throw new InvalidOperationException(
+								 $"Component type id '{typeId}' was not registered before archetype creation."
+							 );
+
+			managedLane[i] = TypeIsManagedLane[typeId];
+		}
+
+		int archetypeId = Archetypes.Count;
+		var archetype = new ArchetypeStorage(
+			archetypeId,
+			sortedTypeIds,
+			BuildMaskWords(sortedTypeIds),
+			columnTypes,
+			managedLane,
+			_config.ComponentTypeCapacity,
+			_config.ChunkCapacity
+		);
+
+		Archetypes.Add(archetype);
+		ArchetypeByTypeSet[key] = archetypeId;
+		ArchetypeVersion++;
+		return archetypeId;
 	}
 
 	private int GetOrCreateRemoveTransition(ArchetypeStorage sourceArchetype, int typeId)
@@ -1101,14 +1120,14 @@ internal sealed class WorldEntityStore
 
 		int target = GetOrCreateArchetype(RemoveTypeIdSorted(sourceArchetype.TypeIds, typeId));
 		sourceArchetype.SetKnownRemoveTransition(typeId, target);
-		_archetypes[target].SetKnownAddTransition(typeId, sourceArchetype.Id);
+		Archetypes[target].SetKnownAddTransition(typeId, sourceArchetype.Id);
 		return target;
 	}
 
 	private int[] GetOrCreateTransitionCopyMap(ArchetypeStorage sourceArchetype, ArchetypeStorage targetArchetype)
 	{
 		long pairKey = (long)sourceArchetype.Id << 32 | (uint)targetArchetype.Id;
-		if (_transitionCopyMapByPair.TryGetValue(pairKey, out int[]? existing))
+		if (TransitionCopyMapByPair.TryGetValue(pairKey, out int[]? existing))
 			return existing;
 
 		var sharedColumnCount = 0;
@@ -1119,11 +1138,11 @@ internal sealed class WorldEntityStore
 				sharedColumnCount++;
 		}
 
-		var pairs = new int[sharedColumnCount * 2];
+		var pairs     = new int[sharedColumnCount * 2];
 		var pairIndex = 0;
 		for (var i = 0; i < targetArchetype.TypeIds.Length; i++)
 		{
-			int typeId = targetArchetype.TypeIds[i];
+			int typeId            = targetArchetype.TypeIds[i];
 			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
 			if (sourceColumnIndex < 0)
 				continue;
@@ -1132,18 +1151,30 @@ internal sealed class WorldEntityStore
 			pairs[pairIndex++] = i;
 		}
 
-		_transitionCopyMapByPair[pairKey] = pairs;
+		TransitionCopyMapByPair[pairKey] = pairs;
 		return pairs;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private uint AdvanceComponentChangeVersion() =>
+		_world.AdvanceComponentChangeVersionForEntityStore();
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void MarkComponentAdded(int entityId, int typeId, uint version) =>
+		_world.MarkComponentAddedForEntityStore(entityId, typeId, version);
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void MarkComponentChanged(int entityId, int typeId, uint version) =>
+		_world.MarkComponentChangedForEntityStore(entityId, typeId, version);
+
 	private void MoveEntireChunkToArchetype(
-		ArchetypeStorage sourceArchetype,
-		int sourceChunkIndex,
+		ArchetypeStorage       sourceArchetype,
+		int                    sourceChunkIndex,
 		ArchetypeStorage.Chunk sourceChunk,
-		ArchetypeStorage targetArchetype,
-		int[] sourceTargetColumnPairs)
+		ArchetypeStorage       targetArchetype,
+		int[]                  sourceTargetColumnPairs)
 	{
-		int rowCount = sourceChunk.Count;
+		int rowCount  = sourceChunk.Count;
 		var sourceRow = 0;
 		while (sourceRow < rowCount)
 		{
@@ -1172,11 +1203,11 @@ internal sealed class WorldEntityStore
 			);
 
 			int sourceRowEnd = sourceRow + reservedRows;
-			int targetRow = targetRowStart;
+			int targetRow    = targetRowStart;
 			for (; sourceRow < sourceRowEnd; sourceRow++, targetRow++)
 			{
 				int entityId = sourceChunk.EntityIds[sourceRow];
-				_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRow);
+				LocationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRow);
 			}
 		}
 
@@ -1184,15 +1215,15 @@ internal sealed class WorldEntityStore
 	}
 
 	private void MoveEntityToArchetype(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		int targetArchetypeId)
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		int                  targetArchetypeId)
 	{
 		if (targetArchetypeId == sourceArchetype.Id)
 			return;
 
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		MoveEntityToArchetype(
 			entityId,
@@ -1204,11 +1235,11 @@ internal sealed class WorldEntityStore
 	}
 
 	private void MoveEntityToArchetype(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		ArchetypeStorage targetArchetype,
-		int[] sourceTargetColumnPairs)
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		ArchetypeStorage     targetArchetype,
+		int[]                sourceTargetColumnPairs)
 	{
 		var sourceChunk = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
 		targetArchetype.AllocateRow(entityId, out int targetChunkIndex, out int targetRowIndex);
@@ -1221,7 +1252,7 @@ internal sealed class WorldEntityStore
 			sourceTargetColumnPairs
 		);
 
-		_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
+		LocationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
 		if (sourceArchetype.RemoveAt(sourceLocation.ChunkIndex, sourceLocation.RowIndex, out int movedEntityId))
 			UpdateMovedEntityLocation(
 				sourceArchetype.Id, sourceLocation.ChunkIndex, sourceLocation.RowIndex, movedEntityId
@@ -1229,19 +1260,19 @@ internal sealed class WorldEntityStore
 	}
 
 	private void MoveEntityToArchetypeWithSet<T>(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		int targetArchetypeId,
-		int setTypeId,
-		in T setComponent)
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		int                  targetArchetypeId,
+		int                  setTypeId,
+		in T                 setComponent)
 		where T : struct
 	{
 		if (targetArchetypeId == sourceArchetype.Id)
 		{
 			ref var current = ref sourceArchetype.GetRef<T>(
-				sourceLocation.ChunkIndex, sourceLocation.RowIndex, setTypeId
-			);
+								  sourceLocation.ChunkIndex, sourceLocation.RowIndex, setTypeId
+							  );
 
 			current = setComponent;
 			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(setTypeId);
@@ -1250,14 +1281,14 @@ internal sealed class WorldEntityStore
 					$"Type id '{setTypeId}' does not exist in archetype '{sourceArchetype.Id}'."
 				);
 
-			var sourceChunk = sourceArchetype.GetChunkUnchecked(sourceLocation.ChunkIndex);
+			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(sourceLocation.ChunkIndex);
 			uint changeVersion = AdvanceComponentChangeVersion();
 			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
 			MarkComponentChanged(entityId, setTypeId, changeVersion);
 			return;
 		}
 
-		var targetArchetype = _archetypes[targetArchetypeId];
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		MoveEntityToArchetypeWithSet(
 			entityId,
@@ -1271,17 +1302,17 @@ internal sealed class WorldEntityStore
 	}
 
 	private void MoveEntityToArchetypeWithSet<T>(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		ArchetypeStorage targetArchetype,
-		int[] sourceTargetColumnPairs,
-		int setTypeId,
-		in T setComponent)
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		ArchetypeStorage     targetArchetype,
+		int[]                sourceTargetColumnPairs,
+		int                  setTypeId,
+		in T                 setComponent)
 		where T : struct
 	{
 		bool setWasAdded = sourceArchetype.GetColumnIndexOrNegative(setTypeId) < 0;
-		var sourceChunk = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
+		var  sourceChunk = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
 		targetArchetype.AllocateRow(entityId, out int targetChunkIndex, out int targetRowIndex);
 		var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
 		targetArchetype.CopySharedColumnsFromWithPairs(
@@ -1306,7 +1337,7 @@ internal sealed class WorldEntityStore
 		if (setWasAdded)
 			MarkComponentAdded(entityId, setTypeId, changeVersion);
 
-		_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
+		LocationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
 
 		if (sourceArchetype.RemoveAt(sourceLocation.ChunkIndex, sourceLocation.RowIndex, out int movedEntityId))
 			UpdateMovedEntityLocation(
@@ -1314,33 +1345,14 @@ internal sealed class WorldEntityStore
 			);
 	}
 
-	private void MoveEntityToArchetypeWithSetKnownTransition<T>(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		int targetArchetypeId,
-		int setTypeId,
-		in T setComponent)
-		where T : struct
-	{
-		MoveEntityToArchetypeWithSet(
-			entityId,
-			sourceLocation,
-			sourceArchetype,
-			targetArchetypeId,
-			setTypeId,
-			in setComponent
-		);
-	}
-
 	private void MoveEntityToArchetypeWithSetBoxed(
-		int entityId,
-		Bezoro.ECS.Internal.Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage sourceArchetype,
-		int targetArchetypeId,
-		int setTypeId,
-		Type setComponentType,
-		object setComponent)
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		int                  targetArchetypeId,
+		int                  setTypeId,
+		Type                 setComponentType,
+		object               setComponent)
 	{
 		if (targetArchetypeId == sourceArchetype.Id)
 		{
@@ -1358,9 +1370,9 @@ internal sealed class WorldEntityStore
 			return;
 		}
 
-		bool setWasAdded = sourceArchetype.GetColumnIndexOrNegative(setTypeId) < 0;
-		var sourceChunkForMove = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
-		var targetArchetype = _archetypes[targetArchetypeId];
+		bool  setWasAdded             = sourceArchetype.GetColumnIndexOrNegative(setTypeId) < 0;
+		var   sourceChunkForMove      = sourceArchetype.GetChunk(sourceLocation.ChunkIndex);
+		var   targetArchetype         = Archetypes[targetArchetypeId];
 		int[] sourceTargetColumnPairs = GetOrCreateTransitionCopyMap(sourceArchetype, targetArchetype);
 		targetArchetype.AllocateRow(entityId, out int targetChunkIndex, out int targetRowIndex);
 		var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
@@ -1391,24 +1403,93 @@ internal sealed class WorldEntityStore
 		if (setWasAdded)
 			MarkComponentAdded(entityId, setTypeId, targetChangeVersion);
 
-		_locationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
+		LocationByEntityId[entityId] = new(targetArchetype.Id, targetChunkIndex, targetRowIndex);
 		if (sourceArchetype.RemoveAt(sourceLocation.ChunkIndex, sourceLocation.RowIndex, out int movedEntityId))
 			UpdateMovedEntityLocation(
 				sourceArchetype.Id, sourceLocation.ChunkIndex, sourceLocation.RowIndex, movedEntityId
 			);
 	}
 
-	private void SetComponentInternalBoxed(
-		int entityId,
-		int typeId,
-		Type componentType,
-		object component)
+	private void MoveEntityToArchetypeWithSetKnownTransition<T>(
+		int                  entityId,
+		Fixed.EntityLocation sourceLocation,
+		ArchetypeStorage     sourceArchetype,
+		int                  targetArchetypeId,
+		int                  setTypeId,
+		in T                 setComponent)
+		where T : struct
 	{
-		var location = _locationByEntityId[entityId];
+		MoveEntityToArchetypeWithSet(
+			entityId,
+			sourceLocation,
+			sourceArchetype,
+			targetArchetypeId,
+			setTypeId,
+			in setComponent
+		);
+	}
+
+	private void RemoveRelationTypeFromAllSources(int relationTypeId)
+	{
+		if (relationTypeId < 0)
+			return;
+
+		for (var entityId = 0; entityId < NextEntityId; entityId++)
+		{
+			if (!AliveByEntityId[entityId])
+				continue;
+
+			var location = LocationByEntityId[entityId];
+			if (!location.IsValid)
+				continue;
+
+			var archetype = Archetypes[location.ArchetypeId];
+			if (!archetype.HasType(relationTypeId))
+				continue;
+
+			RemoveComponentFromCommand(new(entityId, VersionByEntityId[entityId]), relationTypeId);
+		}
+	}
+
+	private void SetComponentInternal<T>(int entityId, int typeId, in T component) where T : struct
+	{
+		var location = LocationByEntityId[entityId];
 		if (!location.IsValid)
 			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
 
-		var sourceArchetype = _archetypes[location.ArchetypeId];
+		var sourceArchetype = Archetypes[location.ArchetypeId];
+		if (sourceArchetype.HasType(typeId))
+		{
+			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
+			existing = component;
+			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
+			if (sourceColumnIndex < 0)
+				throw new InvalidOperationException(
+					$"Type id '{typeId}' does not exist in archetype '{sourceArchetype.Id}'."
+				);
+
+			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
+			uint changeVersion = AdvanceComponentChangeVersion();
+			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
+			MarkComponentChanged(entityId, typeId, changeVersion);
+			return;
+		}
+
+		int targetArchetypeId = GetOrCreateAddTransition(sourceArchetype, typeId);
+		MoveEntityToArchetypeWithSet(entityId, location, sourceArchetype, targetArchetypeId, typeId, in component);
+	}
+
+	private void SetComponentInternalBoxed(
+		int    entityId,
+		int    typeId,
+		Type   componentType,
+		object component)
+	{
+		var location = LocationByEntityId[entityId];
+		if (!location.IsValid)
+			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
+
+		var sourceArchetype = Archetypes[location.ArchetypeId];
 		if (sourceArchetype.HasType(typeId))
 		{
 			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
@@ -1437,152 +1518,11 @@ internal sealed class WorldEntityStore
 		);
 	}
 
-	private void SetComponentInternal<T>(int entityId, int typeId, in T component) where T : struct
-	{
-		var location = _locationByEntityId[entityId];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entityId}' is not in a valid archetype.");
-
-		var sourceArchetype = _archetypes[location.ArchetypeId];
-		if (sourceArchetype.HasType(typeId))
-		{
-			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
-			existing = component;
-			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
-			if (sourceColumnIndex < 0)
-				throw new InvalidOperationException(
-					$"Type id '{typeId}' does not exist in archetype '{sourceArchetype.Id}'."
-				);
-
-			var sourceChunk = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
-			uint changeVersion = AdvanceComponentChangeVersion();
-			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
-			MarkComponentChanged(entityId, typeId, changeVersion);
-			return;
-		}
-
-		int targetArchetypeId = GetOrCreateAddTransition(sourceArchetype, typeId);
-		MoveEntityToArchetypeWithSet(entityId, location, sourceArchetype, targetArchetypeId, typeId, in component);
-	}
-
-	private void RemoveRelationTypeFromAllSources(int relationTypeId)
-	{
-		if (relationTypeId < 0)
-			return;
-
-		for (var entityId = 0; entityId < _nextEntityId; entityId++)
-		{
-			if (!_aliveByEntityId[entityId])
-				continue;
-
-			var location = _locationByEntityId[entityId];
-			if (!location.IsValid)
-				continue;
-
-			var archetype = _archetypes[location.ArchetypeId];
-			if (!archetype.HasType(relationTypeId))
-				continue;
-
-			RemoveComponentFromCommand(new(entityId, _versionByEntityId[entityId]), relationTypeId);
-		}
-	}
-
 	private void UpdateMovedEntityLocation(int archetypeId, int chunkIndex, int rowIndex, int movedEntityId)
 	{
-		var moved = _locationByEntityId[movedEntityId];
-		_locationByEntityId[movedEntityId] = new(archetypeId, chunkIndex, rowIndex);
+		var moved = LocationByEntityId[movedEntityId];
+		LocationByEntityId[movedEntityId] = new(archetypeId, chunkIndex, rowIndex);
 		if (moved.ArchetypeId != archetypeId || moved.ChunkIndex != chunkIndex)
 			throw new InvalidOperationException("Moved entity location update is inconsistent.");
-	}
-
-	private bool IsChunkFullyMarked(uint[] markerBits, ArchetypeStorage.Chunk chunk)
-	{
-		for (var row = 0; row < chunk.Count; row++)
-		{
-			int entityId = chunk.EntityIds[row];
-			if ((uint)entityId >= (uint)_config.EntityCapacity || !IsEntityMarked(markerBits, entityId))
-				return false;
-		}
-
-		return true;
-	}
-
-	private static bool IsEntityMarked(uint[] markerBits, int entityId)
-	{
-		int markerWordIndex = entityId >> 5;
-		uint markerBit = 1u << (entityId & 31);
-		return (markerBits[markerWordIndex] & markerBit) != 0u;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool TryResolveAccessorColumnIndex(
-		ArchetypeStorage archetype,
-		int archetypeId,
-		int typeId,
-		ref int cachedArchetypeId,
-		ref int cachedColumnIndex)
-	{
-		if (cachedArchetypeId == archetypeId)
-			return cachedColumnIndex >= 0;
-
-		cachedArchetypeId = archetypeId;
-		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
-		if (columnIndex >= 0)
-		{
-			cachedColumnIndex = columnIndex;
-			return true;
-		}
-
-		cachedColumnIndex = -1;
-		return false;
-	}
-
-	private static int GetMaskWordCount(int componentTypeCapacity) =>
-		Math.Max(1, (componentTypeCapacity + 63) / 64);
-
-	private static int[] AddTypeIdSorted(int[] source, int typeId)
-	{
-		var result = new int[source.Length + 1];
-		var src = 0;
-		var dst = 0;
-		var inserted = false;
-		while (src < source.Length)
-		{
-			if (!inserted && typeId < source[src])
-			{
-				result[dst++] = typeId;
-				inserted = true;
-			}
-
-			result[dst++] = source[src++];
-		}
-
-		if (!inserted)
-			result[dst] = typeId;
-
-		return result;
-	}
-
-	private static int[] RemoveTypeIdSorted(int[] source, int typeId)
-	{
-		var result = new int[source.Length - 1];
-		var dst = 0;
-		var removed = false;
-		for (var i = 0; i < source.Length; i++)
-		{
-			if (!removed && source[i] == typeId)
-			{
-				removed = true;
-				continue;
-			}
-
-			if (dst < result.Length)
-				result[dst++] = source[i];
-		}
-
-		if (!removed)
-			throw new InvalidOperationException($"Type id '{typeId}' was not found in source archetype.");
-
-		return result;
 	}
 }
