@@ -1,0 +1,171 @@
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Bezoro.Chess.UCI.Protocol.API.Types;
+
+public readonly record struct SearchResult
+{
+	/// <summary>
+	///     Initializes a new instance of the SearchResult struct.
+	/// </summary>
+	/// <param name="ReachedDepth">The depth reached by the search.</param>
+	/// <param name="ReachedSelDepth">The selective depth reached by the search.</param>
+	/// <param name="MultiPvValue">The number of principal variations per depth for the search.</param>
+	/// <param name="TotalNodesSearched">Total nodes searched by the search.</param>
+	/// <param name="TotalTbHits">Total tablebase hits during the search.</param>
+	/// <param name="TotalSearchTimeMs">Total time taken for the search in milliseconds.</param>
+	/// <param name="PrincipalVariations">The collection of PVs found in the search.</param>
+	/// <param name="BestMove">The best move found by the search.</param>
+	/// <param name="PonderMove">The ponder move found by the search.</param>
+	public SearchResult(
+		uint                              ReachedDepth,
+		uint                              ReachedSelDepth,
+		uint                              MultiPvValue,
+		uint                              TotalNodesSearched,
+		uint                              TotalTbHits,
+		uint                              TotalSearchTimeMs,
+		IReadOnlyList<PrincipalVariation> PrincipalVariations,
+		string                            BestMove,
+		string                            PonderMove
+	)
+	{
+		this.ReachedDepth        = ReachedDepth;
+		this.ReachedSelDepth     = ReachedSelDepth;
+		this.MultiPvValue        = MultiPvValue;
+		this.TotalNodesSearched  = TotalNodesSearched;
+		this.TotalTbHits         = TotalTbHits;
+		this.TotalSearchTimeMs   = TotalSearchTimeMs;
+		this.PrincipalVariations = PrincipalVariations;
+		this.BestMove            = BestMove;
+		this.PonderMove          = PonderMove;
+	}
+
+	/// <summary>True if any PV is a mate line.</summary>
+	public bool HasMate => PrincipalVariations.Any(v => v.ScoreMate.HasValue);
+
+	/// <summary>Returns the centipawn score for the best PV (MultiPV=1), or null if not available.</summary>
+	public int? BestCpScore => PrincipalVariations.Max(v => v.ScoreCp);
+
+	/// <summary>Returns the shortest mate found (positive for winning, negative for losing), or null if none.</summary>
+	public int? MateScore =>
+		PrincipalVariations
+			.Where(v => v.ScoreMate.HasValue)
+			.Select(v => v.ScoreMate!.Value)
+			.OrderBy(Math.Abs)
+			.FirstOrDefault();
+
+	public PrincipalVariation? BestPv =>
+		PrincipalVariations
+			.OrderByDescending(v => v.ScoreCp)
+			.Select(v => (PrincipalVariation?)v)
+			.FirstOrDefault();
+
+	public IReadOnlyList<PrincipalVariation> PrincipalVariations { get; init; }
+	public string                            BestMove            { get; init; }
+	public string                            PonderMove          { get; init; }
+	public uint                              MultiPvValue        { get; init; }
+	public uint                              ReachedDepth        { get; init; }
+	public uint                              ReachedSelDepth     { get; init; }
+	public uint                              TotalNodesSearched  { get; init; }
+	public uint                              TotalSearchTimeMs   { get; init; }
+	public uint                              TotalTbHits         { get; init; }
+
+	public static bool TryParse(IReadOnlyCollection<string> lines, out SearchResult result)
+	{
+		result = default;
+
+		uint reachedDepth       = 0,
+			 reachedSelDepth    = 0,
+			 multiPvValue       = 0,
+			 totalNodesSearched = 0,
+			 totalTbHits        = 0,
+			 totalSearchTimeMs  = 0;
+
+		List<PrincipalVariation> principalVariations = [];
+
+		string bestMove = string.Empty, ponderMove = string.Empty;
+
+		foreach (string? line in lines)
+		{
+			string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+			if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
+			{
+				if (tokens.Length < 2)
+					return false;
+
+				bestMove   = tokens[1];
+				ponderMove = tokens.Length > 3 && tokens[2] == "ponder" ? tokens[3] : string.Empty;
+			}
+
+			if (!PrincipalVariation.TryParse(line, out var pv)) continue;
+
+			reachedDepth = pv.Depth;
+			if (pv.SelDepth > reachedSelDepth) reachedSelDepth = pv.SelDepth;
+			multiPvValue       =  pv.MultiPv;
+			totalNodesSearched += pv.Nodes;
+			totalTbHits        += pv.TbHits;
+			totalSearchTimeMs  += pv.Time;
+			principalVariations.Add(pv);
+		}
+
+		result = new(
+			reachedDepth,
+			reachedSelDepth,
+			multiPvValue,
+			totalNodesSearched,
+			totalTbHits,
+			totalSearchTimeMs,
+			principalVariations,
+			bestMove,
+			ponderMove
+		);
+
+		return true;
+	}
+
+	/// <summary>True if any PV contains the given move in UCI notation.</summary>
+	public bool ContainsMove(string move) =>
+		PrincipalVariations.Any(v => v.Moves.Contains(move.ToLowerInvariant()));
+
+	public PrincipalVariation? GetVariationContaining(string move) =>
+		PrincipalVariations.FirstOrDefault(pv => pv.Moves.Contains(move.ToLowerInvariant()));
+
+	/// <summary>Returns the PV that starts with the given move, or null if none.</summary>
+	public PrincipalVariation? GetVariationStartingWith(string move) =>
+		PrincipalVariations.FirstOrDefault(v => v.Moves.FirstOrDefault() == move.ToLowerInvariant());
+
+	/// <summary>
+	///     Deconstructs the search result into its constituent parts.
+	/// </summary>
+	/// <param name="reachedDepth">The depth reached by the search.</param>
+	/// <param name="reachedSelDepth">The selective depth reached by the search.</param>
+	/// <param name="multiPvValue">The number of principal variations per depth for the search.</param>
+	/// <param name="totalNodesSearched">Total nodes searched by the search.</param>
+	/// <param name="totalTbHits">Total tablebase hits during the search.</param>
+	/// <param name="totalSearchTimeMs">Total time taken for the search in milliseconds.</param>
+	/// <param name="principalVariations">The collection of PVs found in the search.</param>
+	/// <param name="bestMove">The best move found by the search.</param>
+	/// <param name="ponderMove">The ponder move found by the search.</param>
+	public void Deconstruct(
+		out uint                              reachedDepth,
+		out uint                              reachedSelDepth,
+		out uint                              multiPvValue,
+		out uint                              totalNodesSearched,
+		out uint                              totalTbHits,
+		out uint                              totalSearchTimeMs,
+		out IReadOnlyList<PrincipalVariation> principalVariations,
+		out string                            bestMove,
+		out string                            ponderMove)
+	{
+		reachedDepth        = ReachedDepth;
+		reachedSelDepth     = ReachedSelDepth;
+		multiPvValue        = MultiPvValue;
+		totalNodesSearched  = TotalNodesSearched;
+		totalTbHits         = TotalTbHits;
+		totalSearchTimeMs   = TotalSearchTimeMs;
+		principalVariations = PrincipalVariations;
+		bestMove            = BestMove;
+		ponderMove          = PonderMove;
+	}
+}

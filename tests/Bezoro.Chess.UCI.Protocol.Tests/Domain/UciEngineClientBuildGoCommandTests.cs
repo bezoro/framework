@@ -1,0 +1,79 @@
+using Bezoro.Chess.UCI.Protocol.API;
+using FluentAssertions;
+using JetBrains.Annotations;
+
+namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
+
+[TestSubject(typeof(UciEngineClient))]
+public class UciEngineClientBuildGoCommandTests
+{
+	[Fact]
+	public void BuildGoCommand_WhenNodesDepthAndMateAreProvided_ShouldIncludeAllLimits()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(new() { Nodes = 123, Depth = 7, Mate = 2 });
+		cmd.Should().Be("go nodes 123 depth 7 mate 2", "nodes, depth, and mate should be included");
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenNoLimitsAreProvided_ShouldAddDefaultDepth()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(new());
+		cmd.Should().Be("go depth 6", "default depth should be 6");
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenPonderAndInfiniteAreEnabled_ShouldCombineFlags()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(new() { Ponder = true, Infinite = true });
+		cmd.Should().Be("go ponder infinite", "ponder and infinite flags should be combined");
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenSearchMovesAreProvided_ShouldFilterAndLowercaseMoves()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] }
+		);
+
+		cmd.Should().Be("go depth 6 searchmoves e2e4 a7a8q", "searchmoves should be filtered and lowercased");
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenTimeControlsAreProvided_ShouldFormatCommandCorrectly()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, WhiteIncrementMs = 10, BlackIncrementMs = 20 }
+		);
+
+		cmd.Should().Be(
+			"go wtime 1000 btime 2000 winc 10 binc 20",
+			"time controls should be formatted correctly"
+		);
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenMovesToGoIsPositive_ShouldIncludeMovesToGoBeforeSearchMoves()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, MovesToGo = 30, SearchMoves = ["E2E4"] }
+		);
+
+		cmd.Should().Be(
+			"go wtime 1000 btime 2000 movestogo 30 searchmoves e2e4",
+			"movestogo should be emitted for positive values and searchmoves should remain last"
+		);
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenMovesToGoIsNotPositive_ShouldOmitMovesToGo()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, MovesToGo = 0 }
+		);
+
+		cmd.Should().Be(
+			"go wtime 1000 btime 2000",
+			"movestogo should only be sent when the value is strictly positive"
+		);
+	}
+}
