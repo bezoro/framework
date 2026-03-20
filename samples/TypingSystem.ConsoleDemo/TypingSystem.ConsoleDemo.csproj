@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\TypingSystem.Core\TypingSystem.Core.csproj" />
+    <ProjectReference Include="..\..\src\Bezoro.TypingSystem\Bezoro.TypingSystem.csproj" />
   </ItemGroup>
 
 </Project>

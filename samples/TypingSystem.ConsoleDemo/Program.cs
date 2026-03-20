@@ -1,54 +1,54 @@
-using System;
-using TypingSystem.Core;
+using Bezoro.TypingSystem.Abstractions;
+using Bezoro.TypingSystem.Types;
+using Bezoro.TypingSystem.Utilities;
 
 Console.Title = "TypingSystem Console Demo";
 Console.WriteLine("TypingSystem Console Demo\n----------------------------");
 Console.WriteLine("Press ESC at any time to exit. Type the prompted word character by character.\n");
 
-IWordProvider wordProvider = new ArrayWordProvider(new[]
-{
-	"Cursor",
-	"Framework",
-	"Validator",
-	"Metrics",
-	"Refactor"
-});
+IWordProvider wordProvider = new ArrayWordProvider(
+	new[]
+	{
+		"Cursor",
+		"Framework",
+		"Validator",
+		"Metrics",
+		"Refactor"
+	}
+);
 
 var metrics = new TypingMetrics();
 var options = new TypingValidatorOptions
 {
 	IgnoreCase = true,
-	Metrics = metrics,
-	OnMatch = _ => Console.Write('+'),
+	Metrics    = metrics,
+	OnMatch    = _ => Console.Write('+'),
 	OnMismatch = result =>
 	{
 		Console.Write('\b');
 		Console.Write('✗');
 		Console.WriteLine($"\nMismatch: expected '{result.Expected}', received '{result.Input}'.");
 	},
-	OnCompleted = result =>
-	{
-		Console.WriteLine($"\nWord completed! Next position: {result.NextPosition}.");
-	},
-	OnFault = result => Console.WriteLine($"\nFaulted: {result.Status}.")
+	OnCompleted = result => { Console.WriteLine($"\nWord completed! Next position: {result.NextPosition}."); },
+	OnFault     = result => Console.WriteLine($"\nFaulted: {result.Status}.")
 };
 
 while (wordProvider.HasMoreWords)
 {
-	var wordMemory = wordProvider.GetNextWord();
-	var targetSpan = wordMemory.Span;
-	string displayWord = wordMemory.ToString();
+	var wordMemory  = wordProvider.GetNextWord();
+	var targetSpan  = wordMemory.Span;
+	var displayWord = wordMemory.ToString();
 
 	Console.WriteLine($"\nType this word: {displayWord}");
 	Console.WriteLine(new string('─', displayWord.Length));
 
 	var state = TypingState.Initial;
 
-bool completed = false;
+	var completed = false;
 
 	while (!completed)
 	{
-		var key = Console.ReadKey(intercept: true);
+		var key = Console.ReadKey(true);
 
 		if (key.Key == ConsoleKey.Escape)
 		{
@@ -58,10 +58,7 @@ bool completed = false;
 		}
 
 		char inputChar = key.KeyChar;
-		if (char.IsControl(inputChar))
-		{
-			continue;
-		}
+		if (char.IsControl(inputChar)) continue;
 
 		var result = TypingValidator.ValidateInput(targetSpan, state.Position, inputChar, options);
 
@@ -108,12 +105,3 @@ static void Summarize(TypingMetrics metrics)
 	Console.WriteLine($"Elapsed: {metrics.Elapsed:mm\\:ss}");
 	Console.WriteLine($"Characters per minute: {metrics.CharactersPerMinute:F1}");
 }
-
-
-
-
-
-
-
-
-

@@ -46,6 +46,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{B789
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bezoro.Chess.UCI.Protocol.ConsoleDemo", "samples\Bezoro.Chess.UCI.Protocol.ConsoleDemo\Bezoro.Chess.UCI.Protocol.ConsoleDemo.csproj", "{FD4D823B-813C-4613-8FAF-03344CA83F4A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TypingSystem.ConsoleDemo", "samples\TypingSystem.ConsoleDemo\TypingSystem.ConsoleDemo.csproj", "{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -284,6 +286,18 @@ Global
 		{FD4D823B-813C-4613-8FAF-03344CA83F4A}.Release|x64.Build.0 = Release|Any CPU
 		{FD4D823B-813C-4613-8FAF-03344CA83F4A}.Release|x86.ActiveCfg = Release|Any CPU
 		{FD4D823B-813C-4613-8FAF-03344CA83F4A}.Release|x86.Build.0 = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|x64.Build.0 = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Debug|x86.Build.0 = Debug|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|x64.ActiveCfg = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|x64.Build.0 = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|x86.ActiveCfg = Release|Any CPU
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -308,5 +322,6 @@ Global
 		{E76D878F-D918-42C4-93C7-8743B2C4A838} = {5EB83B88-623A-4133-98AE-5DECAD8310ED}
 		{5A8EDD0E-B5AB-4BD8-89A9-2D0DBAA92C4C} = {022FA1F2-FA8A-44E9-B9F3-B2FB5DE35BE6}
 		{FD4D823B-813C-4613-8FAF-03344CA83F4A} = {B789E9C7-9962-4479-A3D3-2EE0E841F876}
+		{339F58BD-FA2C-4DD5-BCDC-C63F406A779A} = {B789E9C7-9962-4479-A3D3-2EE0E841F876}
 	EndGlobalSection
 EndGlobal
