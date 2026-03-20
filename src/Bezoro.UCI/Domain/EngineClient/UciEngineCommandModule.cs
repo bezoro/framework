@@ -41,11 +41,15 @@ internal sealed class UciEngineCommandModule(
 	{
 		if (string.IsNullOrWhiteSpace(name)) return;
 
-		string cmd = value is null
-						 ? $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name}"
-						 : $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name} {UciConstants.Keywords.VALUE} {value}";
-
-		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+		await ExecuteSerializedCommandAsync(
+			async token =>
+			{
+				await _transport.WriteLineAsync(UciCommandBuilder.BuildSetOptionCommand(name, value), token)
+								.ConfigureAwait(false);
+				await IsReadyCoreAsync(token).ConfigureAwait(false);
+			},
+			ct
+		).ConfigureAwait(false);
 	}
 
 	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct)
@@ -53,12 +57,28 @@ internal sealed class UciEngineCommandModule(
 		if (!Fen.Validate(fen.Raw))
 			throw new ArgumentException("Invalid FEN provided.", nameof(fen));
 
-		string movePart = moves != null && moves.Any()
-							  ? $"{UciConstants.Keywords.MOVES} " + string.Join(' ', moves)
-							  : string.Empty;
+		await _transport.WriteLineAsync(UciCommandBuilder.BuildPositionCommand(fen, moves), ct)
+						.ConfigureAwait(false);
+	}
 
-		await _transport.WriteLineAsync(
-			$"{UciConstants.Commands.POSITION} {UciConstants.Keywords.FEN} {fen.Raw} {movePart}",
+	public async Task PonderHitAsync(CancellationToken ct)
+	{
+		await _transport.WriteLineAsync(UciConstants.Commands.PONDER_HIT, ct).ConfigureAwait(false);
+		_setActivity(EngineActivity.Searching);
+	}
+
+	public async Task RegisterAsync(UciRegistration registration, CancellationToken ct)
+	{
+		await ExecuteSerializedCommandAsync(
+			token => _transport.WriteLineAsync(UciCommandBuilder.BuildRegisterCommand(registration), token),
+			ct
+		).ConfigureAwait(false);
+	}
+
+	public async Task SetDebugAsync(bool enabled, CancellationToken ct)
+	{
+		await ExecuteSerializedCommandAsync(
+			token => _transport.WriteLineAsync(UciCommandBuilder.BuildDebugCommand(enabled), token),
 			ct
 		).ConfigureAwait(false);
 	}

@@ -349,6 +349,40 @@ internal sealed class MoveClassificationEngine(
 		}
 	}
 
+	public async Task SetDebugAsync(bool enabled, CancellationToken ct = default)
+	{
+		EnsureStarted();
+
+		await _quick.SetDebugAsync(enabled, ct).ConfigureAwait(false);
+
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client!.SetDebugAsync(enabled, ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_clientPositionLock.Release();
+		}
+	}
+
+	public async Task RegisterAsync(UciRegistration registration, CancellationToken ct = default)
+	{
+		EnsureStarted();
+
+		await _quick.RegisterAsync(registration, ct).ConfigureAwait(false);
+
+		await _clientPositionLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await _client!.RegisterAsync(registration, ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_clientPositionLock.Release();
+		}
+	}
+
 	public async Task StartAsync(CancellationToken ct = default)
 	{
 		var quickStarted = false;

@@ -1,5 +1,6 @@
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
+using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 using NSubstitute;
@@ -21,7 +22,7 @@ public class UciEngineClientSetPositionTests
 		await client.SetPositionAsync(fen, ["e2e4", "e7e5"], ct);
 
 		// Assert
-		await transport.Received().WriteLineAsync(Arg.Is<string>(s => s.Contains("moves e2e4 e7e5")), ct);
+		await transport.Received().WriteLineAsync("position startpos moves e2e4 e7e5", ct);
 	}
 
 	[Fact]
@@ -50,9 +51,23 @@ public class UciEngineClientSetPositionTests
 		await client.SetPositionAsync(fen, null, ct);
 
 		// Assert
-		await transport.Received().WriteLineAsync(
-			Arg.Is<string>(s => s.StartsWith($"position fen {fen.Raw}")),
-			ct
-		);
+		await transport.Received().WriteLineAsync("position startpos", ct);
+	}
+
+	[Fact]
+	public async Task SetPositionAsync_WhenFenIsNotStartPosition_ShouldSendFenCommand()
+	{
+		// Arrange
+		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+		var ct  = CancellationToken.None;
+		var fen = Fen.Parse(TestConstants.AFTER_E2_E4_FEN);
+
+		fen.Should().NotBeNull();
+
+		// Act
+		await client.SetPositionAsync(fen!.Value, null, ct);
+
+		// Assert
+		await transport.Received().WriteLineAsync($"position fen {fen.Value.Raw}", ct);
 	}
 }

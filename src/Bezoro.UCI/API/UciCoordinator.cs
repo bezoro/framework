@@ -129,6 +129,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public UciCoordinatorOptions Options => _options;
 
 	/// <summary>
+	///     Gets the engine metadata reported by the quick engine instance.
+	/// </summary>
+	public UciEngineInfo EngineInfo => _quick.EngineInfo;
+
+	/// <summary>
+	///     Gets the options advertised by the quick engine instance during handshake.
+	/// </summary>
+	public IReadOnlyList<UciEngineOption> AvailableOptions => _quick.AvailableOptions;
+
+	/// <summary>
+	///     Gets the capability state detected for the configured engine.
+	/// </summary>
+	public UciEngineCapabilities Capabilities => _quick.Capabilities;
+
+	/// <summary>
 	///     Gets the current state of the coordinator.
 	/// </summary>
 	public UciState State
@@ -180,6 +195,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		var channel = Channel.CreateUnbounded<Move>();
 		var yielded = new HashSet<string>();
+		var yieldedGate = new object();
 
 		UciState                                     initialState;
 		Task<IReadOnlyDictionary<string, Move>>?     completionTask;
@@ -207,10 +223,13 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 				return;
 			}
 
-			foreach (var kvp in newState.ClassifiedMoves)
+			lock (yieldedGate)
 			{
-				if (yielded.Add(kvp.Key))
-					channel.Writer.TryWrite(kvp.Value);
+				foreach (var kvp in newState.ClassifiedMoves)
+				{
+					if (yielded.Add(kvp.Key))
+						channel.Writer.TryWrite(kvp.Value);
+				}
 			}
 
 			if (newState.IsClassificationComplete)
@@ -328,6 +347,26 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		);
 
 	/// <summary>
+	///     Sends the standard UCI <c>debug on/off</c> command to all internal engines.
+	/// </summary>
+	public Task SetDebugAsync(bool enabled, CancellationToken ct = default) =>
+		Task.WhenAll(
+			_quick.SetDebugAsync(enabled, ct),
+			_ponder.SetDebugAsync(enabled, ct),
+			_classifier.SetDebugAsync(enabled, ct)
+		);
+
+	/// <summary>
+	///     Sends the standard UCI <c>register</c> command to all internal engines.
+	/// </summary>
+	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
+		Task.WhenAll(
+			_quick.RegisterAsync(registration, ct),
+			_ponder.RegisterAsync(registration, ct),
+			_classifier.RegisterAsync(registration, ct)
+		);
+
+	/// <summary>
 	///     Sets the position from a FEN string.
 	/// </summary>
 	/// <param name="fen">The FEN string representing the position.</param>
@@ -355,6 +394,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		{
 			await _quick.StartAsync(ct).ConfigureAwait(false);
 			quickStarted = true;
+			EnsureCoordinatorCapabilities(_quick.Capabilities);
 
 			await _ponder.StartAsync(ct).ConfigureAwait(false);
 			ponderStarted = true;
@@ -994,6 +1034,17 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 	private static TaskCompletionSource<IReadOnlyDictionary<string, Move>> CreateClassificationCompletionSource() =>
 		new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	private static void EnsureCoordinatorCapabilities(UciEngineCapabilities capabilities)
+	{
+		if (capabilities.SupportsCoordinatorExtensions) return;
+
+		throw new NotSupportedException(
+			$"UciCoordinator requires engine support for display-board FEN retrieval and perft move listing. " +
+			$"Detected capabilities: DisplayBoardFen={capabilities.DisplayBoardFen}, " +
+			$"PerftMoveListing={capabilities.PerftMoveListing}."
+		);
+	}
 
 	/// <summary>
 	///     Forwards ponder engine PV updates.

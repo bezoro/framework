@@ -1,8 +1,11 @@
+using System.Collections.Immutable;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain.EngineClient;
+using Bezoro.UCI.Domain.Common.Constants;
 
 namespace Bezoro.UCI.Domain;
 
@@ -14,6 +17,7 @@ namespace Bezoro.UCI.Domain;
 internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 {
 	private readonly EngineActivityTracker _activityTracker = new();
+	private readonly object                _metadataLock = new();
 	/// <summary>
 	///     Underlying transport abstraction for communicating with the engine.
 	/// </summary>
@@ -33,6 +37,9 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Cancellation source for the read loop and engine lifetime.
 	/// </summary>
 	private CancellationTokenSource? _cts;
+	private UciEngineCapabilities    _capabilities    = UciEngineCapabilities.Unknown;
+	private UciEngineInfo            _engineInfo      = UciEngineInfo.Empty;
+	private ImmutableArray<UciEngineOption> _availableOptions = ImmutableArray<UciEngineOption>.Empty;
 
 	private Task? _readerTask;
 
@@ -71,7 +78,7 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			PublishBestMoveSafe
 		);
 
-		_outputDispatcher = new(_lineWaiters, _searchCoordinator);
+		_outputDispatcher = new(_lineWaiters, _searchCoordinator, ObserveProtocolLine);
 		_commandModule    = new(_transport, _lineWaiters, this, SetActivity);
 	}
 
@@ -94,6 +101,36 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Engine process/transport status.
 	/// </summary>
 	public TransportStatus Status => _transport.Status;
+	internal ImmutableArray<UciEngineOption> AvailableOptions
+	{
+		get
+		{
+			lock (_metadataLock)
+			{
+				return _availableOptions;
+			}
+		}
+	}
+	internal UciEngineCapabilities Capabilities
+	{
+		get
+		{
+			lock (_metadataLock)
+			{
+				return _capabilities;
+			}
+		}
+	}
+	internal UciEngineInfo EngineInfo
+	{
+		get
+		{
+			lock (_metadataLock)
+			{
+				return _engineInfo;
+			}
+		}
+	}
 
 	/// <summary>
 	///     Determines if a string is a valid UCI move (e.g. "e2e4", "a7a8q").
@@ -125,6 +162,22 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct) =>
 		_commandModule.SetOptionAsync(name, value, ct);
+
+	/// <summary>
+	///     Sends the standard UCI <c>debug on/off</c> command.
+	/// </summary>
+	public Task SetDebugAsync(bool enabled, CancellationToken ct) => _commandModule.SetDebugAsync(enabled, ct);
+
+	/// <summary>
+	///     Sends the standard UCI <c>register</c> command.
+	/// </summary>
+	public Task RegisterAsync(UciRegistration registration, CancellationToken ct) =>
+		_commandModule.RegisterAsync(registration, ct);
+
+	/// <summary>
+	///     Sends the standard UCI <c>ponderhit</c> command.
+	/// </summary>
+	public Task PonderHitAsync(CancellationToken ct) => _commandModule.PonderHitAsync(ct);
 
 	/// <summary>
 	///     Sets the board position using a FEN and (optionally) a move list.
@@ -235,7 +288,12 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <summary>
 	///     Sends "uci" to the engine and waits for "uciok" and "readyok" to confirm supported handshaking.
 	/// </summary>
-	public Task UciInitAsync(CancellationToken ct) => _commandModule.UciInitAsync(ct);
+	public async Task UciInitAsync(CancellationToken ct)
+	{
+		ResetHandshakeMetadata();
+		await _commandModule.UciInitAsync(ct).ConfigureAwait(false);
+		PromoteStandardCapabilities();
+	}
 
 	/// <summary>
 	///     Informs the engine of a new game context via "ucinewgame"; calls <see cref="IsReadyAsync" />.
@@ -285,6 +343,20 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 
 		LineReceived += handler;
 		return new EventSubscription(() => LineReceived -= handler);
+	}
+
+	internal void SetExtensionCapabilities(
+		UciCapabilityState displayBoardFen,
+		UciCapabilityState perftMoveListing)
+	{
+		lock (_metadataLock)
+		{
+			_capabilities = _capabilities with
+			{
+				DisplayBoardFen = displayBoardFen,
+				PerftMoveListing = perftMoveListing
+			};
+		}
 	}
 
 	/// <summary>
@@ -347,6 +419,98 @@ internal sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private void SetActivity(EngineActivity next)
 	{
 		_activityTracker.Set(next);
+	}
+
+	private static bool TryParseIdLine(string line, string idToken, out string value)
+	{
+		string prefix = $"{UciConstants.Prefixes.ID} {idToken} ";
+		if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+		{
+			value = line[prefix.Length..].Trim();
+			return true;
+		}
+
+		value = string.Empty;
+		return false;
+	}
+
+	private void ObserveProtocolLine(string line)
+	{
+		if (string.IsNullOrWhiteSpace(line)) return;
+
+		if (TryParseIdLine(line, UciConstants.Keywords.NAME, out string name))
+		{
+			lock (_metadataLock)
+			{
+				_engineInfo = _engineInfo with { Name = name };
+			}
+
+			return;
+		}
+
+		if (TryParseIdLine(line, UciConstants.Keywords.AUTHOR, out string author))
+		{
+			lock (_metadataLock)
+			{
+				_engineInfo = _engineInfo with { Author = author };
+			}
+
+			return;
+		}
+
+		if (!UciEngineOption.TryParse(line, out var option)) return;
+
+		lock (_metadataLock)
+		{
+			var builder = _availableOptions.ToBuilder();
+			int index = -1;
+			for (var i = 0; i < builder.Count; i++)
+			{
+				if (!string.Equals(builder[i].Name, option.Name, StringComparison.OrdinalIgnoreCase)) continue;
+
+				index = i;
+				break;
+			}
+
+			if (index >= 0)
+				builder[index] = option;
+			else
+				builder.Add(option);
+
+			_availableOptions = builder.ToImmutable();
+			PromoteStandardCapabilities_NoLock();
+		}
+	}
+
+	private void PromoteStandardCapabilities()
+	{
+		lock (_metadataLock)
+		{
+			PromoteStandardCapabilities_NoLock();
+		}
+	}
+
+	private void PromoteStandardCapabilities_NoLock()
+	{
+		bool supportsPonder = _availableOptions.Any(static option =>
+			string.Equals(option.Name, "Ponder", StringComparison.OrdinalIgnoreCase));
+
+		_capabilities = _capabilities with
+		{
+			DebugCommand = UciCapabilityState.Supported,
+			RegisterCommand = UciCapabilityState.Supported,
+			PonderHit = supportsPonder ? UciCapabilityState.Supported : UciCapabilityState.Unknown
+		};
+	}
+
+	private void ResetHandshakeMetadata()
+	{
+		lock (_metadataLock)
+		{
+			_engineInfo       = UciEngineInfo.Empty;
+			_availableOptions = ImmutableArray<UciEngineOption>.Empty;
+			_capabilities     = UciEngineCapabilities.Unknown;
+		}
 	}
 
 	private void PublishBestMoveSafe(string bestMove, string ponderMove)

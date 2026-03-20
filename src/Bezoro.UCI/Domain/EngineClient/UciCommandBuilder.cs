@@ -65,6 +65,9 @@ internal static class UciCommandBuilder
 		if (parameters.BlackIncrementMs.HasValue)
 			parts.Add($"{UciConstants.Parameters.BLACK_TIME_INCREMENT} {parameters.BlackIncrementMs.Value}");
 
+		if (parameters.MovesToGo is > 0)
+			parts.Add($"{UciConstants.Parameters.MOVES_TO_GO} {parameters.MovesToGo.Value}");
+
 		if (parameters.MoveTimeMs.HasValue)
 			parts.Add($"{UciConstants.Parameters.MOVE_TIME} {parameters.MoveTimeMs.Value}");
 
@@ -90,6 +93,55 @@ internal static class UciCommandBuilder
 
 		return string.Join(' ', parts);
 	}
+
+	public static string BuildDebugCommand(bool enabled) =>
+		$"{UciConstants.Commands.DEBUG} {(enabled ? UciConstants.Keywords.ON : UciConstants.Keywords.OFF)}";
+
+	public static string BuildPositionCommand(Fen fen, IEnumerable<string>? moves)
+	{
+		string positionTarget = string.Equals(fen.Raw, Fen.Default.Raw, StringComparison.Ordinal)
+									? UciConstants.Commands.START_POS
+									: $"{UciConstants.Keywords.FEN} {fen.Raw}";
+
+		var normalizedMoves = NormalizeSearchMoves(moves);
+		if (normalizedMoves.Count == 0)
+			return $"{UciConstants.Commands.POSITION} {positionTarget}";
+
+		return
+			$"{UciConstants.Commands.POSITION} {positionTarget} {UciConstants.Keywords.MOVES} {string.Join(' ', normalizedMoves)}";
+	}
+
+	public static string BuildRegisterCommand(UciRegistration registration)
+	{
+		if (registration.Later)
+			return $"{UciConstants.Commands.REGISTER} {UciConstants.Keywords.LATER}";
+
+		if (string.IsNullOrWhiteSpace(registration.Name))
+			throw new ArgumentException(
+				"A registration name is required unless 'register later' is requested.",
+				nameof(registration)
+			);
+
+		var parts = new List<string>
+		{
+			UciConstants.Commands.REGISTER,
+			UciConstants.Keywords.NAME,
+			registration.Name.Trim()
+		};
+
+		if (!string.IsNullOrWhiteSpace(registration.Code))
+		{
+			parts.Add(UciConstants.Keywords.CODE);
+			parts.Add(registration.Code.Trim());
+		}
+
+		return string.Join(' ', parts);
+	}
+
+	public static string BuildSetOptionCommand(string name, string? value) =>
+		value is null
+			? $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name}"
+			: $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name} {UciConstants.Keywords.VALUE} {value}";
 
 	/// <summary>
 	///     Attempts to normalize a UCI move string.

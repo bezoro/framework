@@ -50,4 +50,30 @@ public class UciEngineClientBuildGoCommandTests
 			"time controls should be formatted correctly"
 		);
 	}
+
+	[Fact]
+	public void BuildGoCommand_WhenMovesToGoIsPositive_ShouldIncludeMovesToGoBeforeSearchMoves()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, MovesToGo = 30, SearchMoves = ["E2E4"] }
+		);
+
+		cmd.Should().Be(
+			"go wtime 1000 btime 2000 movestogo 30 searchmoves e2e4",
+			"movestogo should be emitted for positive values and searchmoves should remain last"
+		);
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenMovesToGoIsNotPositive_ShouldOmitMovesToGo()
+	{
+		string cmd = UciEngineClient.BuildGoCommand(
+			new() { WhiteTimeMs = 1000, BlackTimeMs = 2000, MovesToGo = 0 }
+		);
+
+		cmd.Should().Be(
+			"go wtime 1000 btime 2000",
+			"movestogo should only be sent when the value is strictly positive"
+		);
+	}
 }

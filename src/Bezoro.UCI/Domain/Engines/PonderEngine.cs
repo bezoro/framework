@@ -58,6 +58,12 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		_client.SetOptionAsync(name, value, ct);
 
+	public Task SetDebugAsync(bool enabled, CancellationToken ct = default) =>
+		_client.SetDebugAsync(enabled, ct);
+
+	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
+		_client.RegisterAsync(registration, ct);
+
 	/// <summary>
 	///     Sets the engine position without starting a search. Keeps ponder engine state synchronized with other engines.
 	/// </summary>

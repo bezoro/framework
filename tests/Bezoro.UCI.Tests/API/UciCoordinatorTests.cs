@@ -4,9 +4,11 @@ using Bezoro.UCI.API.Types;
 using Bezoro.UCI.Domain;
 using Bezoro.UCI.Domain.Engines;
 using Bezoro.UCI.Tests.Attributes;
+using Bezoro.UCI.Tests.Domain;
 using Bezoro.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
+using NSubstitute;
 
 namespace Bezoro.UCI.Tests.API;
 
@@ -440,6 +442,49 @@ public class UciCoordinatorTests
 
 		fen.Should().NotBeNull();
 		Fen.Validate(fen.Raw).Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenCompleted_ShouldExposeEngineMetadataAndCapabilities()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+
+		await coordinator.StartAsync();
+
+		coordinator.EngineInfo.Name.Should().NotBeNullOrWhiteSpace();
+		coordinator.EngineInfo.Author.Should().NotBeNullOrWhiteSpace();
+		coordinator.AvailableOptions.Should().Contain(x => x.Name == "Threads");
+		coordinator.AvailableOptions.Should().Contain(x => x.Name == "Hash");
+		coordinator.Capabilities.DisplayBoardFen.Should().Be(UciCapabilityState.Supported);
+		coordinator.Capabilities.PerftMoveListing.Should().Be(UciCapabilityState.Supported);
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenRequiredExtensionsAreUnavailable_ShouldFailEarlyWithClearMessage()
+	{
+		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
+		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
+				 .Do(async _ =>
+					 {
+						 await channel.Writer.WriteAsync("id name Minimal Engine");
+						 await channel.Writer.WriteAsync("id author Test Harness");
+						 await channel.Writer.WriteAsync("option name Ponder type check default false");
+						 await channel.Writer.WriteAsync("uciok");
+					 }
+				 );
+		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+				 .Do(_ => channel.Writer.TryWrite("readyok"));
+
+		var quick = new QuickInfoEngine(new UciEngineClient(transport));
+		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		var classifier = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
+
+		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+
+		await FluentActions.Awaiting(() => coordinator.StartAsync())
+						   .Should()
+						   .ThrowAsync<NotSupportedException>()
+						   .WithMessage("*DisplayBoardFen=Unsupported*PerftMoveListing=Unsupported*");
 	}
 
 	[Fact]
