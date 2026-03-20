@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
@@ -105,7 +105,7 @@ internal sealed class UciEngineCommandModule(
 	public async Task<Fen?> TryGetFenViaDisplayBoardAsync(CancellationToken ct) =>
 		await ExecuteSerializedCommandAsync(GetFenViaDisplayBoardCoreAsync, ct).ConfigureAwait(false);
 
-	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
+	public async Task<ImmutableArray<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
 		await ExecuteSerializedCommandAsync(GetLegalMovesViaPerftCoreAsync, ct).ConfigureAwait(false);
 
 	private static bool IsCheckersLine(string line) =>
@@ -215,7 +215,7 @@ internal sealed class UciEngineCommandModule(
 		return fenWithCheckers;
 	}
 
-	private async Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftCoreAsync(CancellationToken ct)
+	private async Task<ImmutableArray<string>> GetLegalMovesViaPerftCoreAsync(CancellationToken ct)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -225,7 +225,7 @@ internal sealed class UciEngineCommandModule(
 		await _transport.WriteLineAsync($"{UciConstants.Commands.GO_PERFT} 1", ct).ConfigureAwait(false);
 		await IsReadyCoreAsync(ct).ConfigureAwait(false);
 
-		return results.ToList();
+		return [.. results];
 	}
 
 	private async Task<T> ExecuteSerializedCommandAsync<T>(

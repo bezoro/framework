@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
@@ -27,7 +28,7 @@ public readonly record struct PrincipalVariation(
 	uint                  Nps,
 	uint                  TbHits,
 	uint                  Time,
-	IReadOnlyList<string> Moves,
+	ImmutableArray<string> Moves,
 	string                RawPv
 )
 {
@@ -39,7 +40,7 @@ public readonly record struct PrincipalVariation(
 	/// <returns><see langword="true" /> when the line contains a valid PV payload; otherwise <see langword="false" />.</returns>
 	public static bool TryParse(string line, out PrincipalVariation pv)
 	{
-		pv = default;
+		pv = new(0, 0, 0, null, null, 0, 0, 0, 0, ImmutableArray<string>.Empty, string.Empty);
 
 		if (!line.StartsWith("info ", StringComparison.OrdinalIgnoreCase)) return false;
 
@@ -48,7 +49,7 @@ public readonly record struct PrincipalVariation(
 		if (!tokens.Contains("pv")) return false;
 
 		pv = ParseSearchLineTokens(line);
-		return pv.Moves is { Count: > 0 };
+		return pv.Moves.Length > 0;
 	}
 
 	private static PrincipalVariation ParseSearchLineTokens(string line)
@@ -119,6 +120,6 @@ public readonly record struct PrincipalVariation(
 
 		if (pvMoves.Count == 0) return default;
 
-		return new(depth, selDepth, multiPv, scoreCp, scoreMate, nodes, nps, tbHits, time, pvMoves, rawPv);
+		return new(depth, selDepth, multiPv, scoreCp, scoreMate, nodes, nps, tbHits, time, pvMoves.ToImmutableArray(), rawPv);
 	}
 }

@@ -20,7 +20,6 @@ public readonly record struct Fen
 		string   enPassantTarget,
 		int      halfmoveClock,
 		int      fullmoveNumber,
-		string[] fenParts,
 		string?  checkers,
 		string   raw)
 	{
@@ -30,7 +29,6 @@ public readonly record struct Fen
 		EnPassantTarget = enPassantTarget;
 		HalfmoveClock   = halfmoveClock;
 		FullmoveNumber  = fullmoveNumber;
-		FenParts        = fenParts;
 		Checkers        = checkers;
 		Raw             = raw;
 	}
@@ -79,11 +77,6 @@ public readonly record struct Fen
 	///     Gets the optional <c>checkers</c> payload reported by engines that support the non-standard <c>d</c> command.
 	/// </summary>
 	public string?  Checkers        { get; }
-
-	/// <summary>
-	///     Gets the whitespace-delimited FEN parts.
-	/// </summary>
-	public string[] FenParts        { get; }
 
 	/// <summary>
 	///     Converts the value to its raw FEN representation.
@@ -138,7 +131,6 @@ public readonly record struct Fen
 				last.EnPassantTarget,
 				last.HalfmoveClock,
 				last.FullmoveNumber,
-				last.FenParts,
 				payload,
 				last.Raw
 			);
@@ -194,7 +186,6 @@ public readonly record struct Fen
 			enPassantTarget,
 			moveCounters.halfmoveClock,
 			moveCounters.fullmoveNumber,
-			parts,
 			checkers,
 			rawFen
 		);

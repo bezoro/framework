@@ -9,7 +9,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `SearchParameters`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Standard UCI `go` parameters with explicit validation.                                                    |
 | `SearchResult`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed result of a completed search.                                                                      |
 | `UciClientOptions`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Client-level timeout and protocol-behavior configuration.                                                 |
-| `UciProtocolMessage`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Base type for parsed protocol output.                                                                     |
+| `UciProtocolMessage`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Immutable envelope for parsed protocol output with typed optional payload fields keyed by `Type`.         |
 | `UciInfoMessage`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `info ...` payload including score, depth, PV, refutation, and current line data.                   |
 | `UciBestMoveMessage`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `bestmove ...` payload.                                                                             |
 | `UciIdMessage`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `id name` / `id author` payload.                                                                    |
@@ -82,6 +82,14 @@ await client.IsReadyAsync(cancellationToken);
 
 Compatibility events such as `InfoPvReceived`, `BestMoveReceived`, and `LineReceived` remain available for existing callers, but the typed events are the primary surface.
 
+Collection-bearing protocol snapshots use immutable storage:
+- `SearchParameters.SearchMoves`
+- `SearchResult.PrincipalVariations`
+- `PrincipalVariation.Moves`
+- `UciInfoPayload.Refutation` / `CurrentLine`
+- `UciEngineOption.Variables`
+- `UciEngineClient.AvailableOptions`
+
 ## Option Discovery And Validation
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
@@ -120,7 +128,7 @@ await client.SetPositionAsync(Fen.Default, ["e2e4", "e7e5"], cancellationToken);
 if (client.Capabilities.SupportsCoordinatorExtensions)
 {
     Fen? currentFen = await client.TryGetFenViaDisplayBoardAsync(cancellationToken);
-    IReadOnlyCollection<string> legalMoves = await client.GetLegalMovesViaPerftAsync(cancellationToken);
+    var legalMoves = await client.GetLegalMovesViaPerftAsync(cancellationToken);
 }
 ```
 
@@ -181,7 +189,7 @@ if (client.Capabilities.SupportsCoordinatorExtensions)
 | `WhiteIncrementMs` / `BlackIncrementMs` | Clock increments. Must not be negative.                                |
 | `MovesToGo`                             | Number of moves until the next time control. Must not be negative.     |
 | `Mate`                                  | Search for a mate in N. Must be greater than zero when set.            |
-| `SearchMoves`                           | Restrict search to specific moves.                                     |
+| `SearchMoves`                           | Restrict search to specific moves. Stored as an immutable snapshot.    |
 | `Infinite`                              | Search until explicitly stopped.                                       |
 | `Ponder`                                | Start a ponder search.                                                 |
 

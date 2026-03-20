@@ -136,7 +136,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Gets the options advertised by the quick engine instance during handshake.
 	/// </summary>
-	public IReadOnlyList<UciEngineOption> AvailableOptions => _quick.AvailableOptions;
+	public ImmutableArray<UciEngineOption> AvailableOptions => _quick.AvailableOptions;
 
 	/// <summary>
 	///     Gets the capability state detected for the configured engine.

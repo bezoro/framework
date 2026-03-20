@@ -83,7 +83,7 @@ public class QuickInfoEngineTests
 		var moves = await engine.GetLegalMovesAsync();
 
 		moves.Should().NotBeNull();
-		moves.Count.Should().Be(TestConstants.EXPECTED_STARTING_POSITION_MOVES);
+		moves.Length.Should().Be(TestConstants.EXPECTED_STARTING_POSITION_MOVES);
 	}
 
 	[Fact]
@@ -103,11 +103,11 @@ public class QuickInfoEngineTests
 		foreach (var moves in results)
 		{
 			moves.Should().NotBeNull();
-			moves.Count.Should().Be(TestConstants.EXPECTED_STARTING_POSITION_MOVES);
+			moves.Length.Should().Be(TestConstants.EXPECTED_STARTING_POSITION_MOVES);
 		}
 
 		// All should return the same moves (cached)
-		results.Select(m => m.Count).Distinct().Should().HaveCount(1);
+		results.Select(m => m.Length).Distinct().Should().HaveCount(1);
 	}
 
 

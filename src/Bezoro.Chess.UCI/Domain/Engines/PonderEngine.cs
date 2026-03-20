@@ -231,13 +231,13 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 
 		if (!improved) return;
 
-		string bestStr = pv.Moves is { Count: > 0 } ? pv.Moves[0] : string.Empty;
+		string bestStr = pv.Moves.Length > 0 ? pv.Moves[0] : string.Empty;
 		if (string.IsNullOrWhiteSpace(bestStr)) return;
 
 		var bestParsed = ParsedMove.FromNotation(bestStr);
 
 		ParsedMove? ponderParsed = null;
-		if (pv.Moves is { Count: > 1 })
+		if (pv.Moves.Length > 1)
 		{
 			string ponderStr = pv.Moves[1];
 			if (!string.IsNullOrWhiteSpace(ponderStr))

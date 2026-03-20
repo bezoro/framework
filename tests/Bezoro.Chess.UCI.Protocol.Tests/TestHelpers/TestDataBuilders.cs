@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
@@ -90,7 +91,7 @@ public static class TestDataBuilders
 	{
 		private int?                  _scoreCp = 34;
 		private int?                  _scoreMate;
-		private IReadOnlyList<string> _moves    = ["e2e4", "e7e5"];
+		private ImmutableArray<string> _moves    = ["e2e4", "e7e5"];
 		private string                _rawPv    = "e2e4 e7e5";
 		private uint                  _depth    = 10;
 		private uint                  _multiPv  = 1;
@@ -123,7 +124,7 @@ public static class TestDataBuilders
 
 		public PrincipalVariationBuilder WithMoves(params string[] moves)
 		{
-			_moves = moves;
+			_moves = [.. moves];
 			_rawPv = string.Join(" ", moves);
 			return this;
 		}
@@ -190,7 +191,7 @@ public static class TestDataBuilders
 	/// </summary>
 	public class SearchResultBuilder
 	{
-		private IReadOnlyList<PrincipalVariation> _principalVariations = new List<PrincipalVariation>();
+		private ImmutableArray<PrincipalVariation> _principalVariations = [];
 		private string                            _bestMove            = "e2e4";
 		private string                            _ponderMove          = string.Empty;
 		private uint                              _multiPvValue        = 1;
@@ -203,7 +204,7 @@ public static class TestDataBuilders
 		public SearchResult Build()
 		{
 			// If no PVs provided, create a default one
-			if (_principalVariations.Count == 0)
+			if (_principalVariations.IsDefaultOrEmpty)
 				_principalVariations =
 				[
 					PrincipalVariation()
@@ -245,7 +246,7 @@ public static class TestDataBuilders
 
 		public SearchResultBuilder WithPrincipalVariations(params PrincipalVariation[] pvs)
 		{
-			_principalVariations = pvs;
+			_principalVariations = [.. pvs];
 			return this;
 		}
 

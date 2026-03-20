@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,7 +17,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private readonly UciEngineClient              _client;
 	private          bool                         _disposed;
 	private          Fen?                         _currentFenCache;
-	private          IReadOnlyCollection<string>? _legalMovesCache;
+	private          ImmutableArray<string> _legalMovesCache;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 		: this(new(new ProcessUciTransport(enginePath, args, workingDirectory))) { }
@@ -32,7 +33,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public EngineActivity Activity => _client.Activity;
 
 	public   TransportStatus                Status           => _client.Status;
-	internal IReadOnlyList<UciEngineOption> AvailableOptions => _client.AvailableOptions;
+	internal ImmutableArray<UciEngineOption> AvailableOptions => _client.AvailableOptions;
 	internal UciEngineCapabilities          Capabilities     => _client.Capabilities;
 	internal UciEngineInfo                  EngineInfo       => _client.EngineInfo;
 
@@ -141,7 +142,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 					_currentFenCache = null;
 
 				if (_client.Capabilities.PerftMoveListing != UciCapabilityState.Supported)
-					_legalMovesCache = null;
+					_legalMovesCache = default;
 			}
 		}
 		finally
@@ -196,14 +197,14 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	public async Task<IReadOnlyCollection<string>> GetLegalMovesAsync(CancellationToken ct = default)
+	public async Task<ImmutableArray<string>> GetLegalMovesAsync(CancellationToken ct = default)
 	{
 		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
 			lock (_cacheLock)
 			{
-				if (_legalMovesCache is { }) return _legalMovesCache;
+				if (!_legalMovesCache.IsDefault) return _legalMovesCache;
 			}
 
 			EnsureCapabilitySupported(
@@ -248,7 +249,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 				lock (_cacheLock)
 				{
 					_currentFenCache = fen;
-					_legalMovesCache = null;
+					_legalMovesCache = default;
 				}
 
 				return result;
@@ -320,7 +321,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private static bool IsDepthOnlySearch(SearchParameters parameters) =>
 		!parameters.Infinite &&
 		!parameters.Ponder &&
-		parameters.SearchMoves is null &&
+		parameters.SearchMoves.IsDefaultOrEmpty &&
 		parameters.BlackIncrementMs is null &&
 		parameters.BlackTimeMs is null &&
 		parameters.Mate is null &&
@@ -346,7 +347,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		var                          displayBoardFen  = UciCapabilityState.Unsupported;
 		var                          perftMoveListing = UciCapabilityState.Unsupported;
 		Fen?                         probedFen        = null;
-		IReadOnlyCollection<string>? probedMoves      = null;
+		ImmutableArray<string>        probedMoves      = default;
 
 		try
 		{
@@ -367,7 +368,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		try
 		{
 			probedMoves = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
-			perftMoveListing = probedMoves.Count > 0
+			perftMoveListing = !probedMoves.IsDefault && probedMoves.Length > 0
 								   ? UciCapabilityState.Supported
 								   : UciCapabilityState.Unsupported;
 		}
@@ -388,7 +389,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 			if (displayBoardFen == UciCapabilityState.Supported && probedFen.HasValue)
 				_currentFenCache = probedFen;
 
-			if (perftMoveListing == UciCapabilityState.Supported && probedMoves is { })
+			if (perftMoveListing == UciCapabilityState.Supported && !probedMoves.IsDefault)
 				_legalMovesCache = probedMoves;
 		}
 	}
@@ -416,7 +417,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 				else
 				{
 					_currentFenCache = fen;
-					_legalMovesCache = null;
+					_legalMovesCache = default;
 				}
 			}
 
@@ -440,7 +441,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private void ClearPositionDependentCaches_NoLock()
 	{
 		_currentFenCache = null;
-		_legalMovesCache = null;
+		_legalMovesCache = default;
 		// Clear eval cache when position changes to avoid returning stale results
 		_evalCache.Clear();
 	}

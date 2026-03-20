@@ -10,15 +10,13 @@ namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 internal sealed class UciSearchCoordinator(
 	IUciTransport               transport,
 	Action<EngineActivity>      setActivity,
-	UciClientOptions           options
+	UciClientOptions            options
 )
 {
 	private readonly Action<EngineActivity> _setActivity =
 		setActivity ?? throw new ArgumentNullException(nameof(setActivity));
 	private readonly UciClientOptions _options = options;
 
-	private readonly Func<string, bool> _bestMovePredicate =
-		static line => line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase);
 	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
 
 	private volatile SearchSession? _activeSession;
@@ -26,14 +24,13 @@ internal sealed class UciSearchCoordinator(
 	public Task<SearchResult> ExecuteSearchAsync(SearchParameters parameters, CancellationToken ct) =>
 		ExecuteSearchInternalAsync(parameters, ct);
 
-	public void HandleBestMoveLine(string line)
+	public void HandleBestMove(UciBestMoveMessage message)
 	{
 		var session = _activeSession;
 
 		if (session is { })
 		{
-			session.AddLine(line);
-			session.CompleteBestMove(line);
+			session.CompleteBestMove(message);
 			Interlocked.CompareExchange(ref _activeSession, null, session);
 		}
 
@@ -43,7 +40,7 @@ internal sealed class UciSearchCoordinator(
 	public void HandleInfoLine(string line, PrincipalVariation? principalVariation = null)
 	{
 		if (principalVariation.HasValue)
-			_activeSession?.AddLine(line);
+			_activeSession?.RecordInfo(principalVariation.Value);
 	}
 
 	public void HandleTransportTerminated()
@@ -78,7 +75,7 @@ internal sealed class UciSearchCoordinator(
 		return TimeSpan.FromSeconds(seconds);
 	}
 
-	private async Task DrainSearchAfterStopAsync(SearchSession session, Task<string> bestTask)
+	private async Task DrainSearchAfterStopAsync(SearchSession session, Task<UciBestMoveMessage> bestTask)
 	{
 		try
 		{
@@ -114,7 +111,7 @@ internal sealed class UciSearchCoordinator(
 		}
 
 		var     timeout        = ComputeTimeout(parameters);
-		string? bestLine       = null;
+		UciBestMoveMessage? bestMove = null;
 		var     callerCanceled = false;
 
 		try
@@ -141,12 +138,19 @@ internal sealed class UciSearchCoordinator(
 
 			else if (completed == bestTask)
 			{
-				bestLine = await bestTask.ConfigureAwait(false);
+				bestMove = await bestTask.ConfigureAwait(false);
 			}
 			else
 			{
 				await IssueStopBestEffortAsync().ConfigureAwait(false);
-				bestLine = await AwaitBestMoveGracefullyAsync(session, bestTask, ct).ConfigureAwait(false);
+				try
+				{
+					bestMove = await AwaitBestMoveGracefullyAsync(session, bestTask, ct).ConfigureAwait(false);
+				}
+				catch (TimeoutException)
+				{
+					bestMove = null;
+				}
 			}
 		}
 		finally
@@ -163,21 +167,17 @@ internal sealed class UciSearchCoordinator(
 		if (callerCanceled)
 			throw new OperationCanceledException(ct);
 
-		if (bestLine is { })
-			session.AddLine(bestLine);
-
-		var snapshot = session.SnapshotLines();
-		if (SearchResult.TryParse(snapshot, out var result))
-			return result;
+		if (bestMove is { } resolvedBestMove)
+			return session.BuildResult(resolvedBestMove);
 
 		throw new InvalidOperationException(
 			"Engine search completed with malformed output: missing or invalid 'bestmove' line."
 		);
 	}
 
-	private async Task<string?> AwaitBestMoveGracefullyAsync(
+	private async Task<UciBestMoveMessage?> AwaitBestMoveGracefullyAsync(
 		SearchSession     session,
-		Task<string>      bestTask,
+		Task<UciBestMoveMessage> bestTask,
 		CancellationToken ct)
 	{
 		try
@@ -192,16 +192,16 @@ internal sealed class UciSearchCoordinator(
 			if (grace == bestTask)
 				return await bestTask.ConfigureAwait(false);
 
-			string? captured = session.FindFirstLine(_bestMovePredicate);
-			if (captured is null)
+			UciBestMoveMessage? captured = session.BestMove;
+			if (!captured.HasValue)
 				throw new TimeoutException("Engine search timed out without emitting 'bestmove'.");
 
 			return captured;
 		}
 		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
 		{
-			string? captured = session.FindFirstLine(_bestMovePredicate);
-			if (captured is null) throw;
+			UciBestMoveMessage? captured = session.BestMove;
+			if (!captured.HasValue) throw;
 
 			return captured;
 		}

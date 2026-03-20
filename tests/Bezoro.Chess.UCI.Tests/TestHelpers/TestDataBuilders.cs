@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Text;
 using Bezoro.Chess.UCI.API.Types;
 
@@ -130,17 +131,17 @@ public static class TestDataBuilders
 	/// </summary>
 	public class PrincipalVariationBuilder
 	{
-		private int?                  _scoreCp = 34;
-		private int?                  _scoreMate;
-		private IReadOnlyList<string> _moves    = ["e2e4", "e7e5"];
-		private string                _rawPv    = "e2e4 e7e5";
-		private uint                  _depth    = 10;
-		private uint                  _multiPv  = 1;
-		private uint                  _nodes    = 1000;
-		private uint                  _nps      = 5000;
-		private uint                  _selDepth = 10;
-		private uint                  _tbHits   = 2;
-		private uint                  _time     = 50;
+		private int?                   _scoreCp = 34;
+		private int?                   _scoreMate;
+		private ImmutableArray<string> _moves    = ["e2e4", "e7e5"];
+		private string                 _rawPv    = "e2e4 e7e5";
+		private uint                   _depth    = 10;
+		private uint                   _multiPv  = 1;
+		private uint                   _nodes    = 1000;
+		private uint                   _nps      = 5000;
+		private uint                   _selDepth = 10;
+		private uint                   _tbHits   = 2;
+		private uint                   _time     = 50;
 
 		public PrincipalVariation Build() =>
 			new(
@@ -165,7 +166,7 @@ public static class TestDataBuilders
 
 		public PrincipalVariationBuilder WithMoves(params string[] moves)
 		{
-			_moves = moves;
+			_moves = [.. moves];
 			_rawPv = string.Join(" ", moves);
 			return this;
 		}
@@ -232,20 +233,20 @@ public static class TestDataBuilders
 	/// </summary>
 	public class SearchResultBuilder
 	{
-		private IReadOnlyList<PrincipalVariation> _principalVariations = new List<PrincipalVariation>();
-		private string                            _bestMove            = "e2e4";
-		private string                            _ponderMove          = string.Empty;
-		private uint                              _multiPvValue        = 1;
-		private uint                              _reachedDepth        = 10;
-		private uint                              _reachedSelDepth     = 10;
-		private uint                              _totalNodesSearched  = 1000;
-		private uint                              _totalSearchTimeMs   = 50;
-		private uint                              _totalTbHits;
+		private ImmutableArray<PrincipalVariation> _principalVariations = [];
+		private string                             _bestMove            = "e2e4";
+		private string                             _ponderMove          = string.Empty;
+		private uint                               _multiPvValue        = 1;
+		private uint                               _reachedDepth        = 10;
+		private uint                               _reachedSelDepth     = 10;
+		private uint                               _totalNodesSearched  = 1000;
+		private uint                               _totalSearchTimeMs   = 50;
+		private uint                               _totalTbHits;
 
 		public SearchResult Build()
 		{
 			// If no PVs provided, create a default one
-			if (_principalVariations.Count == 0)
+			if (_principalVariations.IsDefaultOrEmpty)
 				_principalVariations =
 				[
 					PrincipalVariation()
@@ -287,7 +288,7 @@ public static class TestDataBuilders
 
 		public SearchResultBuilder WithPrincipalVariations(params PrincipalVariation[] pvs)
 		{
-			_principalVariations = pvs;
+			_principalVariations = [.. pvs];
 			return this;
 		}
 

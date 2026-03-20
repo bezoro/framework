@@ -29,9 +29,9 @@ public class UciEngineClientProtocolEventTests
 		result.BestMove.Should().Be("e2e4");
 		infoMessages.Should().ContainSingle();
 		infoMessages[0].Payload.PrincipalVariation.Should().NotBeNull();
-		bestMove.Should().NotBeNull();
-		bestMove!.BestMove.Should().Be("e2e4");
-		bestMove.PonderMove.Should().Be("e7e5");
+		bestMove.HasValue.Should().BeTrue();
+		bestMove!.Value.BestMove.Should().Be("e2e4");
+		bestMove.Value.PonderMove.Should().Be("e7e5");
 
 		await client.DisposeAsync();
 	}
@@ -60,17 +60,15 @@ public class UciEngineClientProtocolEventTests
 
 		await client.StartAsync(CancellationToken.None);
 
-		messages.OfType<UciIdMessage>().Should().ContainSingle(m =>
-																   m.Kind == UciIdKind.Name && m.Value == "Test Engine"
-		);
+		messages.Should().ContainSingle(m =>
+			m.Id.HasValue && m.Id.Value.Kind == UciIdKind.Name && m.Id.Value.Value == "Test Engine");
 
-		messages.OfType<UciIdMessage>().Should().ContainSingle(m =>
-																   m.Kind == UciIdKind.Author && m.Value == "Bezoro"
-		);
+		messages.Should().ContainSingle(m =>
+			m.Id.HasValue && m.Id.Value.Kind == UciIdKind.Author && m.Id.Value.Value == "Bezoro");
 
-		messages.OfType<UciOptionMessage>().Should().ContainSingle(m => m.Option.Name == "Ponder");
-		messages.OfType<UciUciOkMessage>().Should().ContainSingle();
-		messages.OfType<UciReadyOkMessage>().Should().ContainSingle();
+		messages.Should().ContainSingle(m => m.Option.HasValue && m.Option.Value.Option.Name == "Ponder");
+		messages.Should().ContainSingle(m => m.UciOk.HasValue);
+		messages.Should().ContainSingle(m => m.ReadyOk.HasValue);
 
 		await client.DisposeAsync();
 	}

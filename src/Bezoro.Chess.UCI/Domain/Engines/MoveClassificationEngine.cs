@@ -105,7 +105,7 @@ internal sealed class MoveClassificationEngine(
 
 				await _quick.SetPositionAsync(fen.Value, [m], token).ConfigureAwait(false);
 				var replies0 = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
-				if (replies0 is not { Count: 0 }) continue;
+				if (replies0.Length != 0) continue;
 
 				var  after0   = await _quick.GetCurrentFenAsync(token).ConfigureAwait(false);
 				bool inCheck0 = after0.HasValue && !string.IsNullOrEmpty(after0.Value.Checkers);
@@ -165,7 +165,7 @@ internal sealed class MoveClassificationEngine(
 			{
 				await _quick.SetPositionAsync(fen.Value, new[] { move }, token).ConfigureAwait(false);
 				var repliesQuick = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
-				if (repliesQuick is { Count: 0 })
+				if (repliesQuick.Length == 0)
 				{
 					var  afterFenQuick = await _quick.GetCurrentFenAsync(token).ConfigureAwait(false);
 					bool inCheckQuick  = afterFenQuick.HasValue && !string.IsNullOrEmpty(afterFenQuick.Value.Checkers);
@@ -207,7 +207,7 @@ internal sealed class MoveClassificationEngine(
 				{
 					await _quick.SetPositionAsync(fen.Value, [move], token).ConfigureAwait(false);
 					var replies = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
-					if (replies is { Count: 0 })
+					if (replies.Length == 0)
 					{
 						var  afterFen      = await _quick.GetCurrentFenAsync(token).ConfigureAwait(false);
 						bool inCheck       = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
@@ -236,7 +236,7 @@ internal sealed class MoveClassificationEngine(
 			{
 				await _quick.SetPositionAsync(fen.Value, new[] { move }, token).ConfigureAwait(false);
 				var repliesPost = await _quick.GetLegalMovesAsync(token).ConfigureAwait(false);
-				if (repliesPost is { Count: 0 })
+				if (repliesPost.Length == 0)
 				{
 					var  afterFenPost = await _quick.GetCurrentFenAsync(token).ConfigureAwait(false);
 					bool inCheckPost  = afterFenPost.HasValue && !string.IsNullOrEmpty(afterFenPost.Value.Checkers);
@@ -280,7 +280,7 @@ internal sealed class MoveClassificationEngine(
 
 						await _client.SetPositionAsync(fen.Value, new[] { m }, token).ConfigureAwait(false);
 						var repliesF = await _client.GetLegalMovesViaPerftAsync(token).ConfigureAwait(false);
-						if (repliesF is not { Count: 0 }) continue;
+						if (repliesF.Length != 0) continue;
 
 						var  fenF     = await _client.TryGetFenViaDisplayBoardAsync(token).ConfigureAwait(false);
 						bool inCheckF = fenF.HasValue && !string.IsNullOrEmpty(fenF.Value.Checkers);
@@ -471,7 +471,7 @@ internal sealed class MoveClassificationEngine(
 			// Apply the move and inspect the resulting position with the main client.
 			await _client!.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 			var replies = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
-			if (replies is { Count: > 0 })
+			if (replies.Length > 0)
 			{
 				_isMateCache[key] = false;
 				return false;
@@ -523,14 +523,14 @@ internal sealed class MoveClassificationEngine(
 		{
 			await _client!.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
 			var replies = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
-			if (replies is { Count: > 0 })
+			if (replies.Length > 0)
 			{
 				// Double-check with the quick engine in case of transient client issues
 				try
 				{
 					await _quick.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
 					var quickReplies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-					if (quickReplies is { Count: 0 })
+					if (quickReplies.Length == 0)
 					{
 						var  quickFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
 						bool quickInCheck = quickFen.HasValue && !string.IsNullOrEmpty(quickFen.Value.Checkers);
@@ -596,7 +596,7 @@ internal sealed class MoveClassificationEngine(
 			await _quick.SetPositionAsync(fen, null, ct).ConfigureAwait(false);
 			var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
 
-			if (legalMoves is null || !legalMoves.Contains(move))
+			if (!legalMoves.Contains(move))
 				throw new ArgumentException($"The move {move} is not legal in position {fen}");
 		}
 		finally
@@ -665,11 +665,11 @@ internal sealed class MoveClassificationEngine(
 	private static MoveScore ScoreFromResult(SearchResult result)
 	{
 		// Be resilient to default(SearchResult) where PrincipalVariations may be null
-		var pvs = result.PrincipalVariations ?? Array.Empty<PrincipalVariation>();
+		var pvs = result.PrincipalVariations;
 
 		// Prefer mate if any PV contains a mate score
 		int? mate = null;
-		if (pvs.Count > 0)
+		if (pvs.Length > 0)
 		{
 			var mateVals = pvs.Where(v => v.ScoreMate.HasValue)
 							  .Select(v => v.ScoreMate!.Value)
@@ -684,7 +684,7 @@ internal sealed class MoveClassificationEngine(
 
 		// Otherwise, use the max cp among PVs if present
 		int? cp = null;
-		if (pvs.Count > 0)
+		if (pvs.Length > 0)
 			cp = pvs.Max(v => v.ScoreCp);
 
 		return cp.HasValue ? MoveScore.FromCp(cp.Value) : default;
@@ -722,7 +722,7 @@ internal sealed class MoveClassificationEngine(
 			{
 				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 				var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-				if (replies is { Count: 0 })
+				if (replies.Length == 0)
 				{
 					var  afterFen    = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
 					bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
@@ -821,7 +821,7 @@ internal sealed class MoveClassificationEngine(
 				{
 					await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 					var replies = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-					if (replies is { Count: 0 })
+					if (replies.Length == 0)
 					{
 						var  afterFen     = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
 						bool inCheckQuick = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
@@ -848,7 +848,7 @@ internal sealed class MoveClassificationEngine(
 			{
 				await _quick.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
 				var repliesFinal = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-				if (repliesFinal is { Count: 0 })
+				if (repliesFinal.Length == 0)
 				{
 					var  afterFenFinal = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
 					bool inCheckFinal  = afterFenFinal.HasValue && !string.IsNullOrEmpty(afterFenFinal.Value.Checkers);

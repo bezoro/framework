@@ -51,14 +51,14 @@ public class PonderEngineTests
 		engine.InfoPv += pv =>
 		{
 			// Capture a PV with at least two moves to validate both best and ponder
-			if (pv.Moves is { Count: >= 2 })
+			if (pv.Moves is { Length: >= 2 })
 				lastPv = pv;
 		};
 
 		engine.BestMove += (best, ponder) =>
 		{
 			// Validate only when we have a captured PV
-			if (lastPv is { } pv && pv.Moves is { Count: >= 1 })
+			if (lastPv is { } pv && pv.Moves is { Length: >= 1 })
 			{
 				var expectedBest = ParsedMove.FromNotation(pv.Moves[0]);
 
@@ -74,7 +74,7 @@ public class PonderEngineTests
 				best.To.Length.Should().Be(2);
 				best.Notation.Length.Should().Be(4);
 
-				if (pv.Moves.Count >= 2)
+				if (pv.Moves.Length >= 2)
 				{
 					var expectedPonder = ParsedMove.FromNotation(pv.Moves[1]);
 

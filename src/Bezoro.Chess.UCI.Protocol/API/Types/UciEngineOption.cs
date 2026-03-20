@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -11,7 +12,7 @@ public readonly record struct UciEngineOption(
 	string?              DefaultValue,
 	int?                 Min,
 	int?                 Max,
-	IReadOnlyList<string> Variables
+	ImmutableArray<string> Variables
 )
 {
 	internal static bool TryParse(string line, out UciEngineOption option)
@@ -93,7 +94,7 @@ public readonly record struct UciEngineOption(
 			defaultValue,
 			min,
 			max,
-			variables.ToArray()
+			variables.ToImmutableArray()
 		);
 
 		return true;

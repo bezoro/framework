@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
@@ -26,9 +27,9 @@ internal static class UciCommandBuilder
 	/// <summary>
 	///     Normalizes a collection of user-provided search moves, keeping only valid UCI move strings.
 	/// </summary>
-	public static IReadOnlyList<string> NormalizeSearchMoves(IEnumerable<string>? moves)
+	public static ImmutableArray<string> NormalizeSearchMoves(IEnumerable<string>? moves)
 	{
-		if (moves is null) return Array.Empty<string>();
+		if (moves is null) return ImmutableArray<string>.Empty;
 
 		List<string>? normalized = null;
 		foreach (string? move in moves)
@@ -40,7 +41,7 @@ internal static class UciCommandBuilder
 			normalized.Add(candidate);
 		}
 
-		return normalized ?? (IReadOnlyList<string>)Array.Empty<string>();
+		return normalized is { Count: > 0 } ? normalized.ToImmutableArray() : ImmutableArray<string>.Empty;
 	}
 
 	public static string BuildDebugCommand(bool enabled) =>
@@ -79,8 +80,10 @@ internal static class UciCommandBuilder
 		if (parameters.Depth.HasValue) parts.Add($"{UciConstants.Parameters.DEPTH} {parameters.Depth.Value}");
 		if (parameters.Mate.HasValue) parts.Add($"{UciConstants.Parameters.MATE} {parameters.Mate.Value}");
 
-		var searchMoves = NormalizeSearchMoves(parameters.SearchMoves);
-		if (searchMoves.Count > 0)
+		var searchMoves = parameters.SearchMoves.IsDefault
+			? ImmutableArray<string>.Empty
+			: NormalizeSearchMoves(parameters.SearchMoves);
+		if (!searchMoves.IsDefaultOrEmpty)
 			parts.Add($"{UciConstants.Parameters.SEARCH_MOVES} " + string.Join(' ', searchMoves));
 
 		return string.Join(' ', parts);
@@ -93,7 +96,7 @@ internal static class UciCommandBuilder
 									: $"{UciConstants.Keywords.FEN} {fen.Raw}";
 
 		var normalizedMoves = NormalizeSearchMoves(moves);
-		if (normalizedMoves.Count == 0)
+		if (normalizedMoves.IsDefaultOrEmpty)
 			return $"{UciConstants.Commands.POSITION} {positionTarget}";
 
 		return

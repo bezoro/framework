@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
 /// <summary>
 ///     Defines a set of parameters for controlling an engine's search with the 'go' command.
 /// </summary>
-public record struct SearchParameters
+public readonly record struct SearchParameters
 {
 	/// <summary> Search indefinitely until a 'stop' command is sent. </summary>
 	public bool Infinite { get; init; }
@@ -14,7 +14,7 @@ public record struct SearchParameters
 	public bool Ponder { get; init; }
 
 	/// <summary> Restrict search to a list of moves. </summary>
-	public IEnumerable<string>? SearchMoves { get; init; }
+	public ImmutableArray<string> SearchMoves { get; init; }
 
 	/// <summary> Time increment for black in milliseconds. </summary>
 	public int? BlackIncrementMs { get; init; }
@@ -55,6 +55,11 @@ public record struct SearchParameters
 		MoveTimeMs.HasValue ||
 		WhiteTimeMs.HasValue ||
 		BlackTimeMs.HasValue;
+
+	/// <summary>
+	///     Returns <see langword="true" /> when the request restricts the search to an explicit move subset.
+	/// </summary>
+	public bool HasSearchMoves => !SearchMoves.IsDefaultOrEmpty;
 
 	/// <summary>
 	///     Validates the configured parameters and throws when the request is internally inconsistent or too vague.

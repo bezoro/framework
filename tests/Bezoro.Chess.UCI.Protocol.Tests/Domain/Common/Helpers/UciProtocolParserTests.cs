@@ -15,11 +15,11 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse(LINE, out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciBestMoveMessage>();
-		var bestMove = (UciBestMoveMessage)message!;
+		message.Type.Should().Be(UciProtocolMessageType.BestMove);
+		message.BestMove.HasValue.Should().BeTrue();
+		var bestMove = message.BestMove!.Value;
 		bestMove.BestMove.Should().Be("e2e4");
 		bestMove.PonderMove.Should().Be("e7e5");
-		bestMove.Type.Should().Be(UciProtocolMessageType.BestMove);
 		bestMove.RawLine.Should().Be(LINE);
 	}
 
@@ -29,8 +29,8 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("copyprotection checking", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciCopyProtectionMessage>();
-		((UciCopyProtectionMessage)message!).State.Should().Be(UciProtectionState.Checking);
+		message.CopyProtection.HasValue.Should().BeTrue();
+		message.CopyProtection!.Value.State.Should().Be(UciProtectionState.Checking);
 	}
 
 	[Fact]
@@ -39,8 +39,8 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("id name Stockfish 17", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciIdMessage>();
-		var idMessage = (UciIdMessage)message!;
+		message.Id.HasValue.Should().BeTrue();
+		var idMessage = message.Id!.Value;
 		idMessage.Kind.Should().Be(UciIdKind.Name);
 		idMessage.Value.Should().Be("Stockfish 17");
 	}
@@ -54,9 +54,8 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse(LINE, out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciInfoMessage>();
-
-		var info = ((UciInfoMessage)message!).Payload;
+		message.Info.HasValue.Should().BeTrue();
+		var info = message.Info!.Value.Payload;
 		info.Depth.Should().Be(20u);
 		info.SelDepth.Should().Be(32u);
 		info.MultiPv.Should().Be(2u);
@@ -84,8 +83,8 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("info string NNUE evaluation enabled", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciInfoMessage>();
-		((UciInfoMessage)message!).Payload.String.Should().Be("NNUE evaluation enabled");
+		message.Info.HasValue.Should().BeTrue();
+		message.Info!.Value.Payload.String.Should().Be("NNUE evaluation enabled");
 	}
 
 	[Fact]
@@ -97,8 +96,8 @@ public class UciProtocolParserTests
 		);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciOptionMessage>();
-		var option = ((UciOptionMessage)message!).Option;
+		message.Option.HasValue.Should().BeTrue();
+		var option = message.Option!.Value.Option;
 		option.Name.Should().Be("Style");
 		option.Type.Should().Be(UciOptionType.Combo);
 		option.DefaultValue.Should().Be("Normal");
@@ -111,7 +110,7 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("readyok", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciReadyOkMessage>();
+		message.ReadyOk.HasValue.Should().BeTrue();
 	}
 
 	[Fact]
@@ -120,8 +119,8 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("registration error", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciRegistrationMessage>();
-		((UciRegistrationMessage)message!).State.Should().Be(UciProtectionState.Error);
+		message.Registration.HasValue.Should().BeTrue();
+		message.Registration!.Value.State.Should().Be(UciProtectionState.Error);
 	}
 
 	[Fact]
@@ -130,6 +129,6 @@ public class UciProtocolParserTests
 		bool parsed = UciProtocolParser.TryParse("uciok", out var message);
 
 		parsed.Should().BeTrue();
-		message.Should().BeOfType<UciUciOkMessage>();
+		message.UciOk.HasValue.Should().BeTrue();
 	}
 }

@@ -25,19 +25,17 @@ internal sealed class UciOutputDispatcher(
 	{
 		if (UciProtocolParser.TryParse(line, out var message))
 		{
-			_messageObserver?.Invoke(message!);
+			_messageObserver?.Invoke(message);
 
-			if (message is UciInfoMessage { Payload.PrincipalVariation: { } pv })
+			if (message.Info is { Payload.PrincipalVariation: { } pv })
 				_searchCoordinator.HandleInfoLine(line, pv);
-			else if (message is UciBestMoveMessage)
-				_searchCoordinator.HandleBestMoveLine(line);
+			else if (message.BestMove is { } bestMove)
+				_searchCoordinator.HandleBestMove(bestMove);
 		}
 		else
 		{
 			if (line.StartsWith($"{UciConstants.Prefixes.INFO} ", StringComparison.OrdinalIgnoreCase))
 				_searchCoordinator.HandleInfoLine(line);
-			else if (line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase))
-				_searchCoordinator.HandleBestMoveLine(line);
 		}
 
 		waiters.Notify(line);

@@ -150,7 +150,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <summary>
 	///     Gets the options advertised by the engine during handshake.
 	/// </summary>
-	public IReadOnlyList<UciEngineOption> AvailableOptions
+	public ImmutableArray<UciEngineOption> AvailableOptions
 	{
 		get
 		{
@@ -399,7 +399,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Issues the non-standard <c>go perft 1</c> command and harvests all legal moves listed in the output.
 	///     Waits for "readyok" for completion.
 	/// </summary>
-	public Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
+	public Task<ImmutableArray<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
 		_commandModule.GetLegalMovesViaPerftAsync(ct);
 
 	/// <summary>
@@ -507,23 +507,23 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	{
 		PublishProtocolMessageSafe(message);
 
-		switch (message)
+		switch (message.Type)
 		{
-			case UciIdMessage { Kind: UciIdKind.Name, Value: var name }:
+			case UciProtocolMessageType.Id when message.Id is { Kind: UciIdKind.Name, Value: var name }:
 				lock (_metadataLock)
 				{
 					_engineInfo = _engineInfo with { Name = name };
 				}
 
 				return;
-			case UciIdMessage { Kind: UciIdKind.Author, Value: var author }:
+			case UciProtocolMessageType.Id when message.Id is { Kind: UciIdKind.Author, Value: var author }:
 				lock (_metadataLock)
 				{
 					_engineInfo = _engineInfo with { Author = author };
 				}
 
 				return;
-			case UciOptionMessage { Option: var option }:
+			case UciProtocolMessageType.Option when message.Option is { Option: var option }:
 				lock (_metadataLock)
 				{
 					var builder = _availableOptions.ToBuilder();
@@ -546,12 +546,12 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 				}
 
 				return;
-			case UciInfoMessage infoMessage:
+			case UciProtocolMessageType.Info when message.Info is { } infoMessage:
 				PublishInfoReceivedSafe(infoMessage);
 				if (infoMessage.Payload.PrincipalVariation is { } pv)
 					PublishInfoPvSafe(pv);
 				return;
-			case UciBestMoveMessage bestMoveMessage:
+			case UciProtocolMessageType.BestMove when message.BestMove is { } bestMoveMessage:
 				PublishBestMoveMessageSafe(bestMoveMessage);
 				PublishBestMoveSafe(bestMoveMessage.BestMove, bestMoveMessage.PonderMove);
 				return;

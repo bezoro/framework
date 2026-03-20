@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Immutable;
 using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
@@ -28,7 +28,7 @@ public readonly record struct SearchResult
 		uint                              TotalNodesSearched,
 		uint                              TotalTbHits,
 		uint                              TotalSearchTimeMs,
-		IReadOnlyList<PrincipalVariation> PrincipalVariations,
+		ImmutableArray<PrincipalVariation> PrincipalVariations,
 		string                            BestMove,
 		string                            PonderMove
 	)
@@ -45,19 +45,38 @@ public readonly record struct SearchResult
 	}
 
 	/// <summary>True if any PV is a mate line.</summary>
-	public bool HasMate => GetPrincipalVariations().Any(v => v.ScoreMate.HasValue);
+	public bool HasMate
+	{
+		get
+		{
+			foreach (var variation in PrincipalVariations)
+			{
+				if (variation.ScoreMate.HasValue) return true;
+			}
+
+			return false;
+		}
+	}
 
 	/// <summary>Returns the centipawn score for the best PV (MultiPV=1), or null if not available.</summary>
 	public int? BestCpScore
 	{
 		get
 		{
-			var principalVariations = GetPrincipalVariations();
-			if (principalVariations.Count == 0) return null;
+			var principalVariations = PrincipalVariations;
+			if (principalVariations.Length == 0) return null;
 			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
 				return primaryVariation.ScoreCp;
 
-			return principalVariations.Max(v => v.ScoreCp);
+			int? bestScore = null;
+			foreach (var variation in principalVariations)
+			{
+				if (!variation.ScoreCp.HasValue) continue;
+				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
+					bestScore = variation.ScoreCp.Value;
+			}
+
+			return bestScore;
 		}
 	}
 
@@ -66,8 +85,8 @@ public readonly record struct SearchResult
 	{
 		get
 		{
-			var principalVariations = GetPrincipalVariations();
-			if (principalVariations.Count == 0) return null;
+			var principalVariations = PrincipalVariations;
+			if (principalVariations.Length == 0) return null;
 
 			int? shortestMate = null;
 			foreach (var principalVariation in principalVariations)
@@ -91,22 +110,32 @@ public readonly record struct SearchResult
 	{
 		get
 		{
-			var principalVariations = GetPrincipalVariations();
-			if (principalVariations.Count == 0) return null;
+			var principalVariations = PrincipalVariations;
+			if (principalVariations.Length == 0) return null;
 			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
 				return primaryVariation;
 
-			return principalVariations
-				.OrderByDescending(v => v.ScoreCp)
-				.Select(v => (PrincipalVariation?)v)
-				.FirstOrDefault();
+			PrincipalVariation? bestVariation = null;
+			int? bestScore = null;
+			foreach (var variation in principalVariations)
+			{
+				if (!variation.ScoreCp.HasValue) continue;
+				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
+				{
+					bestScore = variation.ScoreCp.Value;
+					bestVariation = variation;
+				}
+			}
+
+			return bestVariation;
 		}
 	}
 
 	/// <summary>
 	///     Gets the principal variations captured from <c>info ... pv ...</c> lines.
 	/// </summary>
-	public IReadOnlyList<PrincipalVariation> PrincipalVariations { get; init; } = Array.Empty<PrincipalVariation>();
+	public ImmutableArray<PrincipalVariation> PrincipalVariations { get; init; } =
+		ImmutableArray<PrincipalVariation>.Empty;
 
 	/// <summary>
 	///     Gets the move reported by the engine in the final <c>bestmove</c> line.
@@ -209,7 +238,7 @@ public readonly record struct SearchResult
 			totalNodesSearched,
 			totalTbHits,
 			totalSearchTimeMs,
-			principalVariations,
+			principalVariations.ToImmutableArray(),
 			bestMove,
 			ponderMove
 		);
@@ -218,18 +247,42 @@ public readonly record struct SearchResult
 	}
 
 	/// <summary>True if any PV contains the given move in UCI notation.</summary>
-	public bool ContainsMove(string move) =>
-		GetPrincipalVariations().Any(v => v.Moves.Contains(move.ToLowerInvariant()));
+	public bool ContainsMove(string move)
+	{
+		string normalizedMove = move.ToLowerInvariant();
+		foreach (var variation in PrincipalVariations)
+		{
+			if (variation.Moves.Contains(normalizedMove)) return true;
+		}
+
+		return false;
+	}
 
 	/// <summary>
 	///     Returns the first principal variation containing the supplied move, or <see langword="null" /> when absent.
 	/// </summary>
-	public PrincipalVariation? GetVariationContaining(string move) =>
-		GetPrincipalVariations().FirstOrDefault(pv => pv.Moves.Contains(move.ToLowerInvariant()));
+	public PrincipalVariation? GetVariationContaining(string move)
+	{
+		string normalizedMove = move.ToLowerInvariant();
+		foreach (var variation in PrincipalVariations)
+		{
+			if (variation.Moves.Contains(normalizedMove)) return variation;
+		}
+
+		return null;
+	}
 
 	/// <summary>Returns the PV that starts with the given move, or null if none.</summary>
-	public PrincipalVariation? GetVariationStartingWith(string move) =>
-		GetPrincipalVariations().FirstOrDefault(v => v.Moves.FirstOrDefault() == move.ToLowerInvariant());
+	public PrincipalVariation? GetVariationStartingWith(string move)
+	{
+		string normalizedMove = move.ToLowerInvariant();
+		foreach (var variation in PrincipalVariations)
+		{
+			if (variation.Moves.Length > 0 && variation.Moves[0] == normalizedMove) return variation;
+		}
+
+		return null;
+	}
 
 	/// <summary>
 	///     Deconstructs the search result into its constituent parts.
@@ -250,7 +303,7 @@ public readonly record struct SearchResult
 		out uint                              totalNodesSearched,
 		out uint                              totalTbHits,
 		out uint                              totalSearchTimeMs,
-		out IReadOnlyList<PrincipalVariation> principalVariations,
+		out ImmutableArray<PrincipalVariation> principalVariations,
 		out string                            bestMove,
 		out string                            ponderMove)
 	{
@@ -265,11 +318,8 @@ public readonly record struct SearchResult
 		ponderMove          = PonderMove;
 	}
 
-	private IReadOnlyList<PrincipalVariation> GetPrincipalVariations() =>
-		PrincipalVariations ?? Array.Empty<PrincipalVariation>();
-
 	private static bool TryGetPrimaryVariation(
-		IReadOnlyList<PrincipalVariation> principalVariations,
+		ImmutableArray<PrincipalVariation> principalVariations,
 		out PrincipalVariation            primaryVariation)
 	{
 		foreach (var principalVariation in principalVariations)

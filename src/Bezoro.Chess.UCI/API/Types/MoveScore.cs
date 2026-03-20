@@ -81,7 +81,7 @@ public readonly record struct MoveScore()
 		if (!cp.HasValue)
 		{
 			var variations = result.PrincipalVariations;
-			if (variations is { Count: > 0 })
+			if (variations.Length > 0)
 				// Prefer the first available centipawn score
 				foreach (var pv in variations)
 				{

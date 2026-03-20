@@ -269,7 +269,7 @@ public class SearchResultTests
 		result.TotalNodesSearched.Should().Be(3000u); // sum
 		result.TotalTbHits.Should().Be(3u);           // sum
 		result.TotalSearchTimeMs.Should().Be(50u);    // sum
-		result.PrincipalVariations.Count.Should().Be(2);
+		result.PrincipalVariations.Length.Should().Be(2);
 		result.BestMove.Should().Be("e2e4");
 		result.PonderMove.Should().Be("e7e5");
 	}

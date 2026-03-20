@@ -682,7 +682,7 @@ public class UciCoordinatorTests
 
 		coordinator.StateChanged += state =>
 		{
-			if (state.Evaluation?.Moves is { Count: > 0 })
+			if (state.Evaluation?.Moves is { Length: > 0 })
 				bestLineTcs.TrySetResult(state.Evaluation.Value);
 		};
 
@@ -1089,7 +1089,7 @@ public class UciCoordinatorTests
 		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
 		coordinator.StateChanged += state =>
 		{
-			if (state.Evaluation?.Moves is { Count: > 0 })
+			if (state.Evaluation?.Moves is { Length: > 0 })
 				tcs.TrySetResult(state.Evaluation.Value);
 		};
 

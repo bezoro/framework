@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -18,9 +18,9 @@ public readonly record struct UciInfoPayload(
 	uint?                 CpuLoad,
 	string?               CurrentMove,
 	uint?                 CurrentMoveNumber,
-	IReadOnlyList<string> Refutation,
+	ImmutableArray<string> Refutation,
 	uint?                 CurrentLineCpu,
-	IReadOnlyList<string> CurrentLine,
+	ImmutableArray<string> CurrentLine,
 	string?               String,
 	PrincipalVariation?   PrincipalVariation
 );

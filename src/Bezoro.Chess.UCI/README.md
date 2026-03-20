@@ -189,3 +189,4 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 - `UciCoordinator` owns quick evaluation, pondering, background move classification, and optional `SynchronizationContext` dispatch for UI threads.
 - The coordinator currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
+- Search and metadata snapshots exposed by the protocol layer are immutable, so coordinator state can safely retain and rebroadcast them across threads.
