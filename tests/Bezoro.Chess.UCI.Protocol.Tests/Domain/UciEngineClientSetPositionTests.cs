@@ -1,5 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -40,21 +38,6 @@ public class UciEngineClientSetPositionTests
 	}
 
 	[Fact]
-	public async Task SetPositionAsync_WhenOnlyFenIsProvided_ShouldSendPositionCommandWithoutMoves()
-	{
-		// Arrange
-		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
-		var ct  = CancellationToken.None;
-		var fen = Fen.Default;
-
-		// Act
-		await client.SetPositionAsync(fen, null, ct);
-
-		// Assert
-		await transport.Received().WriteLineAsync("position startpos", ct);
-	}
-
-	[Fact]
 	public async Task SetPositionAsync_WhenFenIsNotStartPosition_ShouldSendFenCommand()
 	{
 		// Arrange
@@ -69,5 +52,20 @@ public class UciEngineClientSetPositionTests
 
 		// Assert
 		await transport.Received().WriteLineAsync($"position fen {fen.Value.Raw}", ct);
+	}
+
+	[Fact]
+	public async Task SetPositionAsync_WhenOnlyFenIsProvided_ShouldSendPositionCommandWithoutMoves()
+	{
+		// Arrange
+		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+		var ct  = CancellationToken.None;
+		var fen = Fen.Default;
+
+		// Act
+		await client.SetPositionAsync(fen, null, ct);
+
+		// Assert
+		await transport.Received().WriteLineAsync("position startpos", ct);
 	}
 }

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.Protocol.API.Types;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Abstractions;
 
@@ -17,6 +16,9 @@ public interface IUciTransport : IAsyncDisposable, IDisposable
 	/// </summary>
 	bool IsHealthy { get; }
 
+	/// <summary>
+	///     Gets a value indicating whether the transport has been started and not yet fully stopped or disposed.
+	/// </summary>
 	bool IsStarted { get; }
 
 	/// <summary>

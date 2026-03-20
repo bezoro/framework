@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.API.Types;
 using Bezoro.Chess.UCI.Domain.Engines;
 using Bezoro.Chess.UCI.Tests.TestHelpers;
 using FluentAssertions;
@@ -165,27 +164,26 @@ public class MoveClassificationEngineTests
 
 		var exceptions = new ConcurrentBag<Exception>();
 		var tasks = Enumerable.Range(0, 10)
-							  .Select(
-								   _ => Task.Run(
-									   async () =>
-									   {
-										   try
-										   {
-											   await using var enumerator = engine.ClassifyAsync(Fen.Default)
-																			  .GetAsyncEnumerator();
-											   await enumerator.MoveNextAsync();
-										   }
-										   catch (OperationCanceledException)
-										   {
-											   // Expected when classification is stopped concurrently.
-										   }
-										   catch (Exception ex)
-										   {
-											   exceptions.Add(ex);
-										   }
-									   }
-								   )
-							   )
+							  .Select(_ => Task.Run(async () =>
+										  {
+											  try
+											  {
+												  await using var enumerator = engine.ClassifyAsync(Fen.Default)
+													  .GetAsyncEnumerator();
+
+												  await enumerator.MoveNextAsync();
+											  }
+											  catch (OperationCanceledException)
+											  {
+												  // Expected when classification is stopped concurrently.
+											  }
+											  catch (Exception ex)
+											  {
+												  exceptions.Add(ex);
+											  }
+										  }
+									  )
+							  )
 							  .ToList();
 
 		tasks.AddRange(
@@ -196,57 +194,6 @@ public class MoveClassificationEngineTests
 		await Task.WhenAll(tasks);
 
 		exceptions.Should().NotContain(ex => ex is ObjectDisposedException);
-	}
-
-	[Fact]
-	public async Task StartAsync_WhenClientStartupConfigurationFails_ShouldRollbackAndLeaveEngineNotStarted()
-	{
-		await using var engine = new MoveClassificationEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			static (_, _) => throw new InvalidOperationException("startup failure")
-		);
-
-		await FluentActions.Awaiting(() => engine.StartAsync())
-						   .Should()
-						   .ThrowAsync<InvalidOperationException>()
-						   .WithMessage("startup failure");
-
-		engine.IsStarted.Should().BeFalse();
-		engine.IsHealthy.Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task NewGameAsync_WhenClassificationIsActive_ShouldCancelOldRunAndAllowFreshClassification()
-	{
-		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		var classificationTask = Task.Run(
-			async () =>
-			{
-				try
-				{
-					await foreach (var _ in engine.ClassifyAsync(Fen.Default))
-					{
-						// Drain until NewGameAsync cancels the active run.
-					}
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected when NewGameAsync stops the in-flight classification.
-				}
-			}
-		);
-
-		await Task.Delay(TestConstants.VeryShortDelay);
-		await engine.NewGameAsync();
-		await classificationTask.WaitAsync(TestConstants.DefaultTimeout);
-
-		var move = await engine.ClassifyMoveAsync(Fen.Default, "e2e4");
-		move.HasValue.Should().BeTrue();
-		move!.Value.Notation.Should().Be("e2e4");
 	}
 
 	[Fact]
@@ -529,5 +476,55 @@ public class MoveClassificationEngineTests
 		bool isStalemate = await engine.IsStalemateAsync(fen!.Value, "b7b6");
 
 		isStalemate.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task NewGameAsync_WhenClassificationIsActive_ShouldCancelOldRunAndAllowFreshClassification()
+	{
+		await using var engine = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var classificationTask = Task.Run(async () =>
+			{
+				try
+				{
+					await foreach (var _ in engine.ClassifyAsync(Fen.Default))
+					{
+						// Drain until NewGameAsync cancels the active run.
+					}
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected when NewGameAsync stops the in-flight classification.
+				}
+			}
+		);
+
+		await Task.Delay(TestConstants.VeryShortDelay);
+		await engine.NewGameAsync();
+		await classificationTask.WaitAsync(TestConstants.DefaultTimeout);
+
+		var move = await engine.ClassifyMoveAsync(Fen.Default, "e2e4");
+		move.HasValue.Should().BeTrue();
+		move!.Value.Notation.Should().Be("e2e4");
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenClientStartupConfigurationFails_ShouldRollbackAndLeaveEngineNotStarted()
+	{
+		await using var engine = new MoveClassificationEngine(
+			TestResourcePaths.STOCKFISH_PATH,
+			null,
+			null,
+			static (_, _) => throw new InvalidOperationException("startup failure")
+		);
+
+		await FluentActions.Awaiting(() => engine.StartAsync())
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>()
+						   .WithMessage("startup failure");
+
+		engine.IsStarted.Should().BeFalse();
+		engine.IsHealthy.Should().BeFalse();
 	}
 }

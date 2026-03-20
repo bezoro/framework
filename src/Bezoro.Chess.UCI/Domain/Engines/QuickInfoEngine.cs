@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.API.Types;
 
 namespace Bezoro.Chess.UCI.Domain.Engines;
 
@@ -20,7 +19,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	private          IReadOnlyCollection<string>? _legalMovesCache;
 
 	public QuickInfoEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
-		: this(new UciEngineClient(new ProcessUciTransport(enginePath, args, workingDirectory))) { }
+		: this(new(new ProcessUciTransport(enginePath, args, workingDirectory))) { }
 
 	internal QuickInfoEngine(UciEngineClient client)
 	{
@@ -31,11 +30,11 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 	public bool IsStarted => _client.IsStarted;
 
 	public EngineActivity Activity => _client.Activity;
-	internal IReadOnlyList<UciEngineOption> AvailableOptions => _client.AvailableOptions;
-	internal UciEngineCapabilities Capabilities => _client.Capabilities;
-	internal UciEngineInfo EngineInfo => _client.EngineInfo;
 
-	public TransportStatus Status => _client.Status;
+	public   TransportStatus                Status           => _client.Status;
+	internal IReadOnlyList<UciEngineOption> AvailableOptions => _client.AvailableOptions;
+	internal UciEngineCapabilities          Capabilities     => _client.Capabilities;
+	internal UciEngineInfo                  EngineInfo       => _client.EngineInfo;
 
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
@@ -54,16 +53,12 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	public async Task SetOptionAsync(string name, string? value, CancellationToken ct = default)
+	public async Task RegisterAsync(UciRegistration registration, CancellationToken ct = default)
 	{
 		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			await _client.SetOptionAsync(name, value, ct).ConfigureAwait(false);
-			lock (_cacheLock)
-			{
-				ClearPositionDependentCaches_NoLock();
-			}
+			await _client.RegisterAsync(registration, ct).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -84,12 +79,16 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	public async Task RegisterAsync(UciRegistration registration, CancellationToken ct = default)
+	public async Task SetOptionAsync(string name, string? value, CancellationToken ct = default)
 	{
 		await _positionLock.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			await _client.RegisterAsync(registration, ct).ConfigureAwait(false);
+			await _client.SetOptionAsync(name, value, ct).ConfigureAwait(false);
+			lock (_cacheLock)
+			{
+				ClearPositionDependentCaches_NoLock();
+			}
 		}
 		finally
 		{
@@ -140,6 +139,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 			{
 				if (_client.Capabilities.DisplayBoardFen != UciCapabilityState.Supported)
 					_currentFenCache = null;
+
 				if (_client.Capabilities.PerftMoveListing != UciCapabilityState.Supported)
 					_legalMovesCache = null;
 			}
@@ -182,7 +182,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 				"engine FEN retrieval via the non-standard 'd' command"
 			);
 
-			var fen = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
+			var fen = await _client.TryGetFenViaDisplayBoardAsync(ct).ConfigureAwait(false);
 			lock (_cacheLock)
 			{
 				_currentFenCache = fen;
@@ -211,7 +211,7 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 				"legal-move enumeration via the non-standard 'go perft 1' command"
 			);
 
-			var moves = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
+			var moves = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
 			lock (_cacheLock)
 			{
 				_legalMovesCache = moves;
@@ -224,21 +224,6 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 			_positionLock.Release();
 		}
 	}
-
-	public Task<SearchResult> SearchAsync(
-		SearchParameters      parameters,
-		Fen                   fen,
-		IEnumerable<string>?  moves = null,
-		CancellationToken     ct    = default)
-	{
-		if (IsDepthOnlySearch(parameters))
-			return EvaluatePositionAsync(fen, moves, parameters.Depth ?? 6, ct);
-
-		return ExecuteSearchAsync(fen, moves, parameters, ct);
-	}
-
-	public Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default) =>
-		EvaluatePositionAsync(fen, null, depth, ct);
 
 	public async Task<SearchResult> EvaluatePositionAsync(
 		Fen                  fen,
@@ -295,6 +280,119 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
+	public Task<SearchResult> QuickEvalAsync(Fen fen, uint depth = 6, CancellationToken ct = default) =>
+		EvaluatePositionAsync(fen, null, depth, ct);
+
+	public Task<SearchResult> SearchAsync(
+		SearchParameters     parameters,
+		Fen                  fen,
+		IEnumerable<string>? moves = null,
+		CancellationToken    ct    = default)
+	{
+		if (IsDepthOnlySearch(parameters))
+			return EvaluatePositionAsync(fen, moves, parameters.Depth ?? 6, ct);
+
+		return ExecuteSearchAsync(fen, moves, parameters, ct);
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed) return;
+
+		_disposed = true;
+
+		try
+		{
+			await _client.DisposeAsync().ConfigureAwait(false);
+		}
+		finally
+		{
+			_positionLock.Dispose();
+		}
+	}
+
+	public void Dispose()
+	{
+		DisposeAsync().AsTask().GetAwaiter().GetResult();
+		GC.SuppressFinalize(this);
+	}
+
+	private static bool IsDepthOnlySearch(SearchParameters parameters) =>
+		!parameters.Infinite &&
+		!parameters.Ponder &&
+		parameters.SearchMoves is null &&
+		parameters.BlackIncrementMs is null &&
+		parameters.BlackTimeMs is null &&
+		parameters.Mate is null &&
+		parameters.MovesToGo is null &&
+		parameters.MoveTimeMs is null &&
+		parameters.WhiteIncrementMs is null &&
+		parameters.WhiteTimeMs is null &&
+		parameters.Nodes is null;
+
+	private static void EnsureCapabilitySupported(UciCapabilityState capability, string capabilityName)
+	{
+		if (capability == UciCapabilityState.Supported) return;
+
+		throw new NotSupportedException(
+			$"The connected engine does not support {capabilityName}, which is required for this operation."
+		);
+	}
+
+	private async Task ProbeCapabilitiesAsync(CancellationToken ct)
+	{
+		await _client.SetPositionAsync(Fen.Default, null, ct).ConfigureAwait(false);
+
+		var                          displayBoardFen  = UciCapabilityState.Unsupported;
+		var                          perftMoveListing = UciCapabilityState.Unsupported;
+		Fen?                         probedFen        = null;
+		IReadOnlyCollection<string>? probedMoves      = null;
+
+		try
+		{
+			probedFen = await _client.TryGetFenViaDisplayBoardAsync(ct).ConfigureAwait(false);
+			displayBoardFen = probedFen.HasValue
+								  ? UciCapabilityState.Supported
+								  : UciCapabilityState.Unsupported;
+		}
+		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+		{
+			displayBoardFen = UciCapabilityState.Unsupported;
+		}
+		catch (Exception) when (!ct.IsCancellationRequested)
+		{
+			displayBoardFen = UciCapabilityState.Unsupported;
+		}
+
+		try
+		{
+			probedMoves = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
+			perftMoveListing = probedMoves.Count > 0
+								   ? UciCapabilityState.Supported
+								   : UciCapabilityState.Unsupported;
+		}
+		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+		{
+			perftMoveListing = UciCapabilityState.Unsupported;
+		}
+		catch (Exception) when (!ct.IsCancellationRequested)
+		{
+			perftMoveListing = UciCapabilityState.Unsupported;
+		}
+
+		_client.SetExtensionCapabilities(displayBoardFen, perftMoveListing);
+
+		lock (_cacheLock)
+		{
+			ClearPositionDependentCaches_NoLock();
+			if (displayBoardFen == UciCapabilityState.Supported && probedFen.HasValue)
+				_currentFenCache = probedFen;
+
+			if (perftMoveListing == UciCapabilityState.Supported && probedMoves is { })
+				_legalMovesCache = probedMoves;
+		}
+	}
+
 	private async Task<SearchResult> ExecuteSearchAsync(
 		Fen                  fen,
 		IEnumerable<string>? moves,
@@ -339,108 +437,11 @@ internal sealed class QuickInfoEngine : IAsyncDisposable, IDisposable
 		}
 	}
 
-	private static bool IsDepthOnlySearch(SearchParameters parameters) =>
-		!parameters.Infinite &&
-		!parameters.Ponder &&
-		parameters.SearchMoves is null &&
-		parameters.BlackIncrementMs is null &&
-		parameters.BlackTimeMs is null &&
-		parameters.Mate is null &&
-		parameters.MovesToGo is null &&
-		parameters.MoveTimeMs is null &&
-		parameters.WhiteIncrementMs is null &&
-		parameters.WhiteTimeMs is null &&
-		parameters.Nodes is null;
-
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed) return;
-
-		_disposed = true;
-
-		try
-		{
-			await _client.DisposeAsync().ConfigureAwait(false);
-		}
-		finally
-		{
-			_positionLock.Dispose();
-		}
-	}
-
-	public void Dispose()
-	{
-		DisposeAsync().AsTask().GetAwaiter().GetResult();
-		GC.SuppressFinalize(this);
-	}
-
 	private void ClearPositionDependentCaches_NoLock()
 	{
 		_currentFenCache = null;
 		_legalMovesCache = null;
 		// Clear eval cache when position changes to avoid returning stale results
 		_evalCache.Clear();
-	}
-
-	private static void EnsureCapabilitySupported(UciCapabilityState capability, string capabilityName)
-	{
-		if (capability == UciCapabilityState.Supported) return;
-
-		throw new NotSupportedException(
-			$"The connected engine does not support {capabilityName}, which is required for this operation."
-		);
-	}
-
-	private async Task ProbeCapabilitiesAsync(CancellationToken ct)
-	{
-		await _client.SetPositionAsync(Fen.Default, null, ct).ConfigureAwait(false);
-
-		UciCapabilityState displayBoardFen = UciCapabilityState.Unsupported;
-		UciCapabilityState perftMoveListing = UciCapabilityState.Unsupported;
-		Fen? probedFen = null;
-		IReadOnlyCollection<string>? probedMoves = null;
-
-		try
-		{
-			probedFen = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
-			displayBoardFen = probedFen.HasValue
-								  ? UciCapabilityState.Supported
-								  : UciCapabilityState.Unsupported;
-		}
-		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-		{
-			displayBoardFen = UciCapabilityState.Unsupported;
-		}
-		catch (Exception) when (!ct.IsCancellationRequested)
-		{
-			displayBoardFen = UciCapabilityState.Unsupported;
-		}
-
-		try
-		{
-			probedMoves = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
-			perftMoveListing = probedMoves.Count > 0
-								   ? UciCapabilityState.Supported
-								   : UciCapabilityState.Unsupported;
-		}
-		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-		{
-			perftMoveListing = UciCapabilityState.Unsupported;
-		}
-		catch (Exception) when (!ct.IsCancellationRequested)
-		{
-			perftMoveListing = UciCapabilityState.Unsupported;
-		}
-
-		_client.SetExtensionCapabilities(displayBoardFen, perftMoveListing);
-
-		lock (_cacheLock)
-		{
-			ClearPositionDependentCaches_NoLock();
-			if (displayBoardFen == UciCapabilityState.Supported && probedFen.HasValue)
-				_currentFenCache = probedFen;
-			if (perftMoveListing == UciCapabilityState.Supported && probedMoves is { })
-				_legalMovesCache = probedMoves;
-		}
 	}
 }

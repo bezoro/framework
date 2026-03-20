@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API;
 using FluentAssertions;
 using JetBrains.Annotations;
 

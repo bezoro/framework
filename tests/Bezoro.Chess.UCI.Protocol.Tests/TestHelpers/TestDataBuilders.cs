@@ -1,7 +1,5 @@
-using System.Text;
 using System.Diagnostics;
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.API;
+using System.Text;
 
 namespace Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 
@@ -343,14 +341,6 @@ public static class TestDataBuilders
 			return this;
 		}
 
-		/// <summary>Sets a test-only override for process-exit waits.</summary>
-		internal ProcessUciTransportBuilder WithWaitForProcessExitOverride(
-			Func<Process, CancellationToken, Task> waitForProcessExitAsync)
-		{
-			_options = _options with { WaitForProcessExitAsyncOverride = waitForProcessExitAsync };
-			return this;
-		}
-
 		/// <summary>Sets the on-quit-sent callback (test-only).</summary>
 		public ProcessUciTransportBuilder WithOnQuitSent(Action callback)
 		{
@@ -460,6 +450,14 @@ public static class TestDataBuilders
 		public ProcessUciTransportBuilder WithWorkingDirectory(string dir)
 		{
 			_workingDirectory = dir;
+			return this;
+		}
+
+		/// <summary>Sets a test-only override for process-exit waits.</summary>
+		internal ProcessUciTransportBuilder WithWaitForProcessExitOverride(
+			Func<Process, CancellationToken, Task> waitForProcessExitAsync)
+		{
+			_options = _options with { WaitForProcessExitAsyncOverride = waitForProcessExitAsync };
 			return this;
 		}
 	}

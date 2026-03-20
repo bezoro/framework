@@ -1,5 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API;
-using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 using NSubstitute;
@@ -28,10 +26,10 @@ public class UciEngineClientSetOptionTests
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
-		var client               = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
-		var          ct                = CancellationToken.None;
+		var          client = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
+		var          ct = CancellationToken.None;
 		const string VALUE_WITH_SPACES = @"C:\Chess\Table Bases\wdl345";
-		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
+		var          completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
 		var setOptionTask = client.SetOptionAsync("SyzygyPath", VALUE_WITH_SPACES, ct);
@@ -41,7 +39,7 @@ public class UciEngineClientSetOptionTests
 
 		// Assert
 		await transport.Received(1).WriteLineAsync($"setoption name SyzygyPath value {VALUE_WITH_SPACES}", ct);
-		await transport.Received(1).WriteLineAsync("isready", ct);
+		await transport.Received(1).WriteLineAsync("isready",                                              ct);
 
 		await client.DisposeAsync();
 	}
@@ -51,8 +49,8 @@ public class UciEngineClientSetOptionTests
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
-		var client               = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
-		var ct = CancellationToken.None;
+		var client        = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
+		var ct            = CancellationToken.None;
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
@@ -63,7 +61,7 @@ public class UciEngineClientSetOptionTests
 
 		// Assert
 		await transport.Received(1).WriteLineAsync("setoption name Ponder", ct);
-		await transport.Received(1).WriteLineAsync("isready", ct);
+		await transport.Received(1).WriteLineAsync("isready",               ct);
 
 		await client.DisposeAsync();
 	}
@@ -73,8 +71,8 @@ public class UciEngineClientSetOptionTests
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
-		var client               = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
-		var ct = CancellationToken.None;
+		var client        = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
+		var ct            = CancellationToken.None;
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
@@ -85,7 +83,7 @@ public class UciEngineClientSetOptionTests
 
 		// Assert
 		await transport.Received(1).WriteLineAsync("setoption name Hash value 256", ct);
-		await transport.Received(1).WriteLineAsync("isready", ct);
+		await transport.Received(1).WriteLineAsync("isready",                       ct);
 
 		await client.DisposeAsync();
 	}

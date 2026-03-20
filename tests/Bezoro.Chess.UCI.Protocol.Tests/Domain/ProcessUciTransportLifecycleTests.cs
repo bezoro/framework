@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
@@ -189,6 +188,30 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await process.DisposeAsync();
 
 		errorRaised.Should().BeFalse("normal disposal should not raise error event");
+	}
+
+	[Fact]
+	public async Task DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow()
+	{
+		Log("Starting test: DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow");
+		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
+		var errors          = new List<Exception>();
+
+		var transport = Transport()
+						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
+						.Build();
+
+		transport.Error += ex => errors.Add(ex);
+		await transport.StartAsync();
+
+		var act = async () => await transport.DisposeAsync();
+
+		await act.Should().ThrowAsync<InvalidOperationException>()
+				 .WithMessage(teardownFailure.Message);
+
+		transport.Status.Should().Be(TransportStatus.Failed);
+		transport.IsStarted.Should().BeFalse();
+		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
 	}
 
 	[Fact]
@@ -642,31 +665,11 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task StopAsync_WhenSendQuitOnStop_ShouldSendQuitCommandAndThenKillAfterGrace()
-	{
-		Log("Starting test: StopAsync_WhenSendQuitOnStop_ShouldSendQuitCommandAndThenKillAfterGrace");
-		var quitSent = false;
-
-		await using var transport = Transport()
-									.WithSendQuitOnStop()
-									.WithQuitGracePeriod(TestConstants.QuitGracePeriod)
-									.WithOnQuitSent(() => quitSent = true)
-									.Build();
-
-		await transport.StartAsync();
-
-		await transport.StopAsync();
-
-		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
-		transport.Status.Should().Be(TransportStatus.Stopped);
-	}
-
-	[Fact]
 	public async Task StopAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow()
 	{
 		Log("Starting test: StopAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow");
 		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
-		var errors = new List<Exception>();
+		var errors          = new List<Exception>();
 
 		var transport = Transport()
 						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
@@ -686,26 +689,22 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow()
+	public async Task StopAsync_WhenSendQuitOnStop_ShouldSendQuitCommandAndThenKillAfterGrace()
 	{
-		Log("Starting test: DisposeAsync_WhenProcessExitWaitFaults_ShouldSetFailedStatusAndThrow");
-		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
-		var errors = new List<Exception>();
+		Log("Starting test: StopAsync_WhenSendQuitOnStop_ShouldSendQuitCommandAndThenKillAfterGrace");
+		var quitSent = false;
 
-		var transport = Transport()
-						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
-						.Build();
+		await using var transport = Transport()
+									.WithSendQuitOnStop()
+									.WithQuitGracePeriod(TestConstants.QuitGracePeriod)
+									.WithOnQuitSent(() => quitSent = true)
+									.Build();
 
-		transport.Error += ex => errors.Add(ex);
 		await transport.StartAsync();
 
-		var act = async () => await transport.DisposeAsync();
+		await transport.StopAsync();
 
-		await act.Should().ThrowAsync<InvalidOperationException>()
-				 .WithMessage(teardownFailure.Message);
-
-		transport.Status.Should().Be(TransportStatus.Failed);
-		transport.IsStarted.Should().BeFalse();
-		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
+		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
+		transport.Status.Should().Be(TransportStatus.Stopped);
 	}
 }

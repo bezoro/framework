@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
 
@@ -114,6 +113,37 @@ public class SearchResultTests
 
 		result.HasMate.Should().BeTrue();
 		result.MateScore.Should().Be(-2);
+	}
+
+	[Fact]
+	public void TryParse_WhenBestMoveLineIsMalformed_ShouldReturnFalse()
+	{
+		string[] lines =
+		[
+			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5",
+			"bestmove ponder e7e5"
+		];
+
+		bool success = SearchResult.TryParse(lines, out var result);
+
+		success.Should().BeFalse();
+		result.BestMove.Should().BeNullOrEmpty();
+		result.ReachedDepth.Should().Be(0);
+	}
+
+	[Fact]
+	public void TryParse_WhenBestMoveLineIsMissing_ShouldReturnFalse()
+	{
+		string[] lines =
+		[
+			"info depth 8 seldepth 12 multipv 1 score cp 120 nodes 50000 tbhits 0 time 1500 pv e2e4 e7e5"
+		];
+
+		bool success = SearchResult.TryParse(lines, out var result);
+
+		success.Should().BeFalse();
+		result.BestMove.Should().BeNullOrEmpty();
+		result.ReachedDepth.Should().Be(0);
 	}
 
 	[Fact]

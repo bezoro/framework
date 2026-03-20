@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;

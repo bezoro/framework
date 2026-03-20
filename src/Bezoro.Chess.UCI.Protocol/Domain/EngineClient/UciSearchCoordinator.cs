@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
@@ -81,6 +80,18 @@ internal sealed class UciSearchCoordinator(
 		return TimeSpan.FromSeconds(seconds);
 	}
 
+	private async Task DrainSearchAfterStopAsync(SearchSession session, Task<string> bestTask)
+	{
+		try
+		{
+			_ = await AwaitBestMoveGracefullyAsync(session, bestTask, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			// Cancellation still needs to unwind even if the engine never reports bestmove after stop.
+		}
+	}
+
 	private async Task IssueStopBestEffortAsync()
 	{
 		try
@@ -104,9 +115,9 @@ internal sealed class UciSearchCoordinator(
 			throw new InvalidOperationException("A search is already in progress.");
 		}
 
-		var     timeout  = ComputeTimeout(parameters);
-		string? bestLine = null;
-		bool    callerCanceled = false;
+		var     timeout        = ComputeTimeout(parameters);
+		string? bestLine       = null;
+		var     callerCanceled = false;
 
 		try
 		{
@@ -158,19 +169,12 @@ internal sealed class UciSearchCoordinator(
 			session.AddLine(bestLine);
 
 		var snapshot = session.SnapshotLines();
-		return SearchResult.TryParse(snapshot, out var result) ? result : default;
-	}
+		if (SearchResult.TryParse(snapshot, out var result))
+			return result;
 
-	private async Task DrainSearchAfterStopAsync(SearchSession session, Task<string> bestTask)
-	{
-		try
-		{
-			_ = await AwaitBestMoveGracefullyAsync(session, bestTask, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (TimeoutException)
-		{
-			// Cancellation still needs to unwind even if the engine never reports bestmove after stop.
-		}
+		throw new InvalidOperationException(
+			"Engine search completed with malformed output: missing or invalid 'bestmove' line."
+		);
 	}
 
 	private async Task<string?> AwaitBestMoveGracefullyAsync(

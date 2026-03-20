@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
@@ -17,11 +16,11 @@ internal sealed class UciEngineCommandModule(
 	Action<EngineActivity> setActivity
 )
 {
-	private readonly SemaphoreSlim _protocolGate = new(1, 1);
 	private readonly Action<EngineActivity> _setActivity =
 		setActivity ?? throw new ArgumentNullException(nameof(setActivity));
-	private readonly IUciLineSource _lineSource = lineSource ?? throw new ArgumentNullException(nameof(lineSource));
-	private readonly IUciTransport  _transport  = transport ?? throw new ArgumentNullException(nameof(transport));
+	private readonly IUciLineSource _lineSource   = lineSource ?? throw new ArgumentNullException(nameof(lineSource));
+	private readonly IUciTransport  _transport    = transport ?? throw new ArgumentNullException(nameof(transport));
+	private readonly SemaphoreSlim  _protocolGate = new(1, 1);
 	private readonly UciLineWaiterRegistry _lineWaiters =
 		lineWaiters ?? throw new ArgumentNullException(nameof(lineWaiters));
 
@@ -35,30 +34,6 @@ internal sealed class UciEngineCommandModule(
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
 		await ExecuteSerializedCommandAsync(IsReadyCoreAsync, ct).ConfigureAwait(false);
-	}
-
-	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
-	{
-		if (string.IsNullOrWhiteSpace(name)) return;
-
-		await ExecuteSerializedCommandAsync(
-			async token =>
-			{
-				await _transport.WriteLineAsync(UciCommandBuilder.BuildSetOptionCommand(name, value), token)
-								.ConfigureAwait(false);
-				await IsReadyCoreAsync(token).ConfigureAwait(false);
-			},
-			ct
-		).ConfigureAwait(false);
-	}
-
-	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct)
-	{
-		if (!Fen.Validate(fen.Raw))
-			throw new ArgumentException("Invalid FEN provided.", nameof(fen));
-
-		await _transport.WriteLineAsync(UciCommandBuilder.BuildPositionCommand(fen, moves), ct)
-						.ConfigureAwait(false);
 	}
 
 	public async Task PonderHitAsync(CancellationToken ct)
@@ -83,6 +58,31 @@ internal sealed class UciEngineCommandModule(
 		).ConfigureAwait(false);
 	}
 
+	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
+	{
+		if (string.IsNullOrWhiteSpace(name)) return;
+
+		await ExecuteSerializedCommandAsync(
+			async token =>
+			{
+				await _transport.WriteLineAsync(UciCommandBuilder.BuildSetOptionCommand(name, value), token)
+								.ConfigureAwait(false);
+
+				await IsReadyCoreAsync(token).ConfigureAwait(false);
+			},
+			ct
+		).ConfigureAwait(false);
+	}
+
+	public async Task SetPositionAsync(Fen fen, IEnumerable<string>? moves, CancellationToken ct)
+	{
+		if (!Fen.Validate(fen.Raw))
+			throw new ArgumentException("Invalid FEN provided.", nameof(fen));
+
+		await _transport.WriteLineAsync(UciCommandBuilder.BuildPositionCommand(fen, moves), ct)
+						.ConfigureAwait(false);
+	}
+
 	public async Task StopSearchAsync(CancellationToken ct)
 	{
 		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
@@ -99,16 +99,17 @@ internal sealed class UciEngineCommandModule(
 		await ExecuteSerializedCommandAsync(UciNewGameCoreAsync, ct).ConfigureAwait(false);
 	}
 
-	// TODO: [CODE SMELL - Engine-Specific Protocol Coupling] GetFenViaDAsync and GetLegalMovesViaGoPerft1Async rely on Stockfish-style 'd' output and 'go perft 1'. Fix: add capability detection and generic UCI fallbacks before claiming broad UCI-engine compatibility.
-	public async Task<Fen?> GetFenViaDAsync(CancellationToken ct)
-	{
-		return await ExecuteSerializedCommandAsync(GetFenViaDCoreAsync, ct).ConfigureAwait(false);
-	}
+	public async Task<Fen?> TryGetFenViaDisplayBoardAsync(CancellationToken ct) =>
+		await ExecuteSerializedCommandAsync(GetFenViaDisplayBoardCoreAsync, ct).ConfigureAwait(false);
 
-	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct)
-	{
-		return await ExecuteSerializedCommandAsync(GetLegalMovesViaGoPerft1CoreAsync, ct).ConfigureAwait(false);
-	}
+	public async Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
+		await ExecuteSerializedCommandAsync(GetLegalMovesViaPerftCoreAsync, ct).ConfigureAwait(false);
+
+	private static bool IsCheckersLine(string line) =>
+		line.AsSpan().TrimStart().StartsWith(UciConstants.Prefixes.CHECKERS, StringComparison.OrdinalIgnoreCase);
+
+	private static bool IsFenLine(string line) =>
+		line.AsSpan().TrimStart().StartsWith(UciConstants.Prefixes.FEN, StringComparison.OrdinalIgnoreCase);
 
 	private async Task ExecuteSerializedCommandAsync(Func<CancellationToken, Task> action, CancellationToken ct)
 	{
@@ -123,22 +124,9 @@ internal sealed class UciEngineCommandModule(
 		}
 	}
 
-	private async Task<T> ExecuteSerializedCommandAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct)
-	{
-		await _protocolGate.WaitAsync(ct).ConfigureAwait(false);
-		try
-		{
-			return await action(ct).ConfigureAwait(false);
-		}
-		finally
-		{
-			_protocolGate.Release();
-		}
-	}
-
 	private async Task IsReadyCoreAsync(CancellationToken ct)
 	{
-		Task<string> readyTask = _lineWaiters.WaitForAsync(
+		var readyTask = _lineWaiters.WaitForAsync(
 			static l => l.Trim().Equals(
 				UciConstants.Responses.READY_OK,
 				StringComparison.OrdinalIgnoreCase
@@ -153,7 +141,7 @@ internal sealed class UciEngineCommandModule(
 
 	private async Task UciInitCoreAsync(CancellationToken ct)
 	{
-		Task<string> uciOkTask = _lineWaiters.WaitForAsync(
+		var uciOkTask = _lineWaiters.WaitForAsync(
 			static l => l.Trim().Equals(
 				UciConstants.Responses.UCI_OK,
 				StringComparison.OrdinalIgnoreCase
@@ -174,7 +162,7 @@ internal sealed class UciEngineCommandModule(
 		await IsReadyCoreAsync(ct).ConfigureAwait(false);
 	}
 
-	private async Task<Fen?> GetFenViaDCoreAsync(CancellationToken ct)
+	private async Task<Fen?> GetFenViaDisplayBoardCoreAsync(CancellationToken ct)
 	{
 		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), TimeSpan.FromSeconds(2), ct);
 
@@ -224,7 +212,7 @@ internal sealed class UciEngineCommandModule(
 		return fenWithCheckers;
 	}
 
-	private async Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1CoreAsync(CancellationToken ct)
+	private async Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftCoreAsync(CancellationToken ct)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -237,9 +225,18 @@ internal sealed class UciEngineCommandModule(
 		return results.ToList();
 	}
 
-	private static bool IsCheckersLine(string line) =>
-		line.AsSpan().TrimStart().StartsWith(UciConstants.Prefixes.CHECKERS, StringComparison.OrdinalIgnoreCase);
-
-	private static bool IsFenLine(string line) =>
-		line.AsSpan().TrimStart().StartsWith(UciConstants.Prefixes.FEN, StringComparison.OrdinalIgnoreCase);
+	private async Task<T> ExecuteSerializedCommandAsync<T>(
+		Func<CancellationToken, Task<T>> action,
+		CancellationToken                ct)
+	{
+		await _protocolGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			return await action(ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_protocolGate.Release();
+		}
+	}
 }

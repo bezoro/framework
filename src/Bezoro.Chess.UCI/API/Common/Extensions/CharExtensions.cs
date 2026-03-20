@@ -1,7 +1,6 @@
-using Bezoro.Core.Extensions;
 using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.Domain.Common.Exceptions;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
+using Bezoro.Core.Extensions;
 
 namespace Bezoro.Chess.UCI.API.Common.Extensions;
 

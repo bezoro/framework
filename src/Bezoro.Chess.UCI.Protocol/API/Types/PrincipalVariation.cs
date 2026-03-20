@@ -16,6 +16,7 @@ namespace Bezoro.Chess.UCI.Protocol.API.Types;
 /// <param name="TbHits">The number of tablebase hits for this principal variation</param>
 /// <param name="Time">The time taken for this principal variation in milliseconds</param>
 /// <param name="Moves">The sequence of moves in this principal variation</param>
+/// <param name="RawPv">The raw PV move string as emitted by the engine.</param>
 public readonly record struct PrincipalVariation(
 	uint                  Depth,
 	uint                  SelDepth,
@@ -30,6 +31,12 @@ public readonly record struct PrincipalVariation(
 	string                RawPv
 )
 {
+	/// <summary>
+	///     Attempts to parse a UCI <c>info ... pv ...</c> line.
+	/// </summary>
+	/// <param name="line">Raw engine output line.</param>
+	/// <param name="pv">Parsed principal variation when successful.</param>
+	/// <returns><see langword="true" /> when the line contains a valid PV payload; otherwise <see langword="false" />.</returns>
 	public static bool TryParse(string line, out PrincipalVariation pv)
 	{
 		pv = default;

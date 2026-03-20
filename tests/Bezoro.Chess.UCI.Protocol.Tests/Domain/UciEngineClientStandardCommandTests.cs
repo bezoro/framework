@@ -1,5 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.API;
 using FluentAssertions;
 using JetBrains.Annotations;
 using NSubstitute;
@@ -17,18 +15,6 @@ public class UciEngineClientStandardCommandTests
 		await client.PonderHitAsync(CancellationToken.None);
 
 		await transport.Received(1).WriteLineAsync("ponderhit", CancellationToken.None);
-	}
-
-	[Theory]
-	[InlineData(true, "debug on")]
-	[InlineData(false, "debug off")]
-	public async Task SetDebugAsync_WhenCalled_ShouldSendExpectedCommand(bool enabled, string expected)
-	{
-		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
-
-		await client.SetDebugAsync(enabled, CancellationToken.None);
-
-		await transport.Received(1).WriteLineAsync(expected, CancellationToken.None);
 	}
 
 	[Fact]
@@ -67,5 +53,17 @@ public class UciEngineClientStandardCommandTests
 		await FluentActions.Awaiting(act)
 						   .Should()
 						   .ThrowAsync<ArgumentException>();
+	}
+
+	[Theory]
+	[InlineData(true,  "debug on")]
+	[InlineData(false, "debug off")]
+	public async Task SetDebugAsync_WhenCalled_ShouldSendExpectedCommand(bool enabled, string expected)
+	{
+		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+
+		await client.SetDebugAsync(enabled, CancellationToken.None);
+
+		await transport.Received(1).WriteLineAsync(expected, CancellationToken.None);
 	}
 }

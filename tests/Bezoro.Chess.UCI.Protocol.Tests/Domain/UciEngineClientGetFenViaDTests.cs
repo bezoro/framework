@@ -1,5 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -11,7 +9,7 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 public class UciEngineClientGetFenViaDTests
 {
 	[Fact(Timeout = 4000)]
-	public async Task GetFenViaDAsync_WhenCalled_ShouldReturnCheckersWhenPresent()
+	public async Task TryGetFenViaDisplayBoardAsync_WhenCalled_ShouldReturnCheckersWhenPresent()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -28,7 +26,7 @@ public class UciEngineClientGetFenViaDTests
 				 );
 
 		// Act
-		var fenResult = await client.GetFenViaDAsync(CancellationToken.None);
+		var fenResult = await client.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
 
 		// Assert
 		fenResult.Should().NotBeNull("FEN result should be returned");
@@ -36,7 +34,7 @@ public class UciEngineClientGetFenViaDTests
 	}
 
 	[Fact(Timeout = 4000)]
-	public async Task GetFenViaDAsync_WhenCalled_ShouldReturnFen()
+	public async Task TryGetFenViaDisplayBoardAsync_WhenCalled_ShouldReturnFen()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -48,7 +46,7 @@ public class UciEngineClientGetFenViaDTests
 				 .Do(async _ => { await channel.Writer.WriteAsync($"fen: {fen}"); });
 
 		// Act
-		var fenResult = await client.GetFenViaDAsync(CancellationToken.None);
+		var fenResult = await client.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
 
 		// Assert
 		fenResult.Should().NotBeNull("FEN result should be returned");
@@ -56,22 +54,21 @@ public class UciEngineClientGetFenViaDTests
 	}
 
 	[Fact(Timeout = 4000)]
-	public async Task GetFenViaDAsync_WhenCalledConcurrently_ShouldKeepResponsesBoundToEachRequest()
+	public async Task TryGetFenViaDisplayBoardAsync_WhenCalledConcurrently_ShouldKeepResponsesBoundToEachRequest()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
 		var client = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
 
 		var releaseResponses = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		int requestCount = 0;
+		var requestCount     = 0;
 
 		string firstFen  = Fen.Default.Raw;
-		string secondFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+		var    secondFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
 
 		transport.ClearReceivedCalls();
 		transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
-				 .Do(
-					 async _ =>
+				 .Do(async _ =>
 					 {
 						 int invocation = Interlocked.Increment(ref requestCount);
 						 await releaseResponses.Task;
@@ -83,11 +80,11 @@ public class UciEngineClientGetFenViaDTests
 				 );
 
 		// Act
-		Task<Fen?> firstRequest  = client.GetFenViaDAsync(CancellationToken.None);
-		Task<Fen?> secondRequest = client.GetFenViaDAsync(CancellationToken.None);
+		var firstRequest  = client.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
+		var secondRequest = client.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
 
 		releaseResponses.TrySetResult();
-		Fen?[] results = await Task.WhenAll(firstRequest, secondRequest).WaitAsync(TestConstants.DefaultTimeout);
+		var results = await Task.WhenAll(firstRequest, secondRequest).WaitAsync(TestConstants.DefaultTimeout);
 
 		// Assert
 		results[0].Should().NotBeNull();

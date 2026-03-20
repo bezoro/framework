@@ -4,6 +4,9 @@ using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
+/// <summary>
+///     Represents a parsed Forsyth-Edwards Notation (FEN) position and optional engine-specific checkers metadata.
+/// </summary>
 public readonly record struct Fen
 {
 	private const char   FEN_SEPARATOR    = ':';
@@ -32,20 +35,69 @@ public readonly record struct Fen
 		Raw             = raw;
 	}
 
+	/// <summary>
+	///     Gets the standard chess starting position.
+	/// </summary>
 	public static Fen Default => Parse(UciConstants.Fen.STANDARD)!.Value;
 
+	/// <summary>
+	///     Gets the active side to move, normalized to <c>w</c> or <c>b</c>.
+	/// </summary>
 	public char     ActiveColor     { get; }
+
+	/// <summary>
+	///     Gets the fullmove number component from the FEN.
+	/// </summary>
 	public int      FullmoveNumber  { get; }
+
+	/// <summary>
+	///     Gets the halfmove clock component from the FEN.
+	/// </summary>
 	public int      HalfmoveClock   { get; }
+
+	/// <summary>
+	///     Gets the castling-rights component from the FEN.
+	/// </summary>
 	public string   CastlingRights  { get; }
+
+	/// <summary>
+	///     Gets the en-passant target square component from the FEN.
+	/// </summary>
 	public string   EnPassantTarget { get; }
+
+	/// <summary>
+	///     Gets the board piece-placement component from the FEN.
+	/// </summary>
 	public string   PiecePlacement  { get; }
+
+	/// <summary>
+	///     Gets the raw FEN text used to create this value.
+	/// </summary>
 	public string   Raw             { get; }
+
+	/// <summary>
+	///     Gets the optional <c>checkers</c> payload reported by engines that support the non-standard <c>d</c> command.
+	/// </summary>
 	public string?  Checkers        { get; }
+
+	/// <summary>
+	///     Gets the whitespace-delimited FEN parts.
+	/// </summary>
 	public string[] FenParts        { get; }
 
+	/// <summary>
+	///     Converts the value to its raw FEN representation.
+	/// </summary>
+	/// <param name="fen">FEN value to convert.</param>
 	public static implicit operator string(Fen fen) => fen.Raw;
 
+	/// <summary>
+	///     Attempts to parse a UCI output line containing either a <c>fen</c> or <c>checkers</c> payload.
+	/// </summary>
+	/// <param name="line">Raw engine output line.</param>
+	/// <param name="lastRawFen">Most recently observed raw FEN used to enrich a later <c>checkers</c> line.</param>
+	/// <param name="fen">Parsed FEN value when successful.</param>
+	/// <returns><see langword="true" /> when the line was recognized and parsed; otherwise <see langword="false" />.</returns>
 	public static bool TryParseUciOutputLine(string line, ref string? lastRawFen, out Fen? fen)
 	{
 		fen = null;
@@ -101,11 +153,24 @@ public readonly record struct Fen
 		return false;
 	}
 
+	/// <summary>
+	///     Validates whether the supplied raw FEN string is syntactically valid.
+	/// </summary>
+	/// <param name="rawFen">Candidate raw FEN text.</param>
+	/// <returns><see langword="true" /> when the value is valid; otherwise <see langword="false" />.</returns>
 	public static bool Validate(string rawFen) =>
 		!string.IsNullOrWhiteSpace(rawFen) && UciHelper.IsValidFen(rawFen.Trim());
 
+	/// <summary>
+	///     Returns an empty/default FEN value.
+	/// </summary>
 	public static Fen Empty() => new();
 
+	/// <summary>
+	///     Parses a raw FEN string into a <see cref="Fen" /> value.
+	/// </summary>
+	/// <param name="rawFen">Raw FEN text to parse.</param>
+	/// <returns>The parsed value, or <see langword="null" /> when validation fails.</returns>
 	public static Fen? Parse(string rawFen)
 	{
 		if (!Validate(rawFen)) return null;
@@ -135,6 +200,9 @@ public readonly record struct Fen
 		);
 	}
 
+	/// <summary>
+	///     Returns the raw FEN string.
+	/// </summary>
 	public override string ToString() => Raw;
 
 	private static (int halfmoveClock, int fullmoveNumber) ParseMoveCounters(string[] parts)

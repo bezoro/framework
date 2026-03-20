@@ -1,5 +1,4 @@
 using System.Text;
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;

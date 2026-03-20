@@ -112,8 +112,8 @@ await using var client = new UciEngineClient(enginePath);
 await client.StartAsync(cancellationToken);
 await client.SetPositionAsync(Fen.Default, ["e2e4", "e7e5"], cancellationToken);
 
-Fen? currentFen = await client.GetFenViaDAsync(cancellationToken);
-IReadOnlyCollection<string> legalMoves = await client.GetLegalMovesViaGoPerft1Async(cancellationToken);
+Fen? currentFen = await client.TryGetFenViaDisplayBoardAsync(cancellationToken);
+IReadOnlyCollection<string> legalMoves = await client.GetLegalMovesViaPerftAsync(cancellationToken);
 ```
 
 Those two helpers rely on non-standard engine behavior. They are useful for Stockfish-style engines, but they are not guaranteed by the UCI spec.
@@ -135,8 +135,8 @@ Those two helpers rely on non-standard engine behavior. They are useful for Stoc
 | `GoAsync(parameters, ct)`              | Runs a bounded search and returns a parsed `SearchResult`.                       |
 | `GoFireAndForgetAsync(parameters, ct)` | Starts a search without waiting for `bestmove`.                                  |
 | `StopSearchAsync(ct)`                  | Sends `stop`.                                                                    |
-| `GetFenViaDAsync(ct)`                  | Requests current FEN using the non-standard `d` command.                         |
-| `GetLegalMovesViaGoPerft1Async(ct)`    | Requests legal moves using the non-standard `go perft 1` listing.                |
+| `TryGetFenViaDisplayBoardAsync(ct)`    | Requests current FEN using the non-standard `d` command.                         |
+| `GetLegalMovesViaPerftAsync(ct)`       | Requests legal moves using the non-standard `go perft 1` listing.                |
 | `BuildGoCommand(parameters)`           | Utility for building a raw UCI `go` command string.                              |
 | `IsUciMoveString(value)`               | Validates raw UCI move notation like `e2e4` or `a7a8q`.                          |
 | `EngineInfo`                           | Engine name/author parsed during handshake.                                      |

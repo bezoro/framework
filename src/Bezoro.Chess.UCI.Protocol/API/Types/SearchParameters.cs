@@ -10,6 +10,7 @@ public record struct SearchParameters
 	/// <summary> Search indefinitely until a 'stop' command is sent. </summary>
 	public bool Infinite { get; init; }
 
+	/// <summary> Start the search in pondering mode. </summary>
 	public bool Ponder { get; init; }
 
 	/// <summary> Restrict search to a list of moves. </summary>
@@ -24,6 +25,7 @@ public record struct SearchParameters
 	/// <summary> Search for a mate in a specific number of moves. </summary>
 	public int? Mate { get; init; }
 
+	/// <summary> Number of moves remaining until the next time control. </summary>
 	public int? MovesToGo { get; init; }
 
 	/// <summary> Search for a fixed amount of time in milliseconds. </summary>

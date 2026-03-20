@@ -1,8 +1,6 @@
-using Bezoro.Core.Extensions;
-using Bezoro.Chess.UCI.API.Types;
-using Bezoro.Chess.UCI.Domain;
 using Bezoro.Chess.UCI.Domain.Engines;
 using Bezoro.Chess.UCI.Tests.TestHelpers;
+using Bezoro.Core.Extensions;
 using FluentAssertions;
 using JetBrains.Annotations;
 

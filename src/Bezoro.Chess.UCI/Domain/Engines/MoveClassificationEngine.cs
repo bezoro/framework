@@ -279,10 +279,10 @@ internal sealed class MoveClassificationEngine(
 						if (string.IsNullOrWhiteSpace(m)) continue;
 
 						await _client.SetPositionAsync(fen.Value, new[] { m }, token).ConfigureAwait(false);
-						var repliesF = await _client.GetLegalMovesViaGoPerft1Async(token).ConfigureAwait(false);
+						var repliesF = await _client.GetLegalMovesViaPerftAsync(token).ConfigureAwait(false);
 						if (repliesF is not { Count: 0 }) continue;
 
-						var  fenF     = await _client.GetFenViaDAsync(token).ConfigureAwait(false);
+						var  fenF     = await _client.TryGetFenViaDisplayBoardAsync(token).ConfigureAwait(false);
 						bool inCheckF = fenF.HasValue && !string.IsNullOrEmpty(fenF.Value.Checkers);
 						if (inCheckF) continue;
 
@@ -470,14 +470,14 @@ internal sealed class MoveClassificationEngine(
 		{
 			// Apply the move and inspect the resulting position with the main client.
 			await _client!.SetPositionAsync(fen, [move], ct).ConfigureAwait(false);
-			var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
+			var replies = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
 			if (replies is { Count: > 0 })
 			{
 				_isMateCache[key] = false;
 				return false;
 			}
 
-			var  afterFen = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
+			var  afterFen = await _client.TryGetFenViaDisplayBoardAsync(ct).ConfigureAwait(false);
 			bool inCheck  = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
 			bool isMate   = inCheck;
 			_isMateCache[key] = isMate;
@@ -522,7 +522,7 @@ internal sealed class MoveClassificationEngine(
 		try
 		{
 			await _client!.SetPositionAsync(fen, new[] { move }, ct).ConfigureAwait(false);
-			var replies = await _client.GetLegalMovesViaGoPerft1Async(ct).ConfigureAwait(false);
+			var replies = await _client.GetLegalMovesViaPerftAsync(ct).ConfigureAwait(false);
 			if (replies is { Count: > 0 })
 			{
 				// Double-check with the quick engine in case of transient client issues
@@ -549,7 +549,7 @@ internal sealed class MoveClassificationEngine(
 			}
 
 			// No legal replies: it's stalemate if the side to move is not in check
-			var  afterFen    = await _client.GetFenViaDAsync(ct).ConfigureAwait(false);
+			var  afterFen    = await _client.TryGetFenViaDisplayBoardAsync(ct).ConfigureAwait(false);
 			bool inCheck     = afterFen.HasValue && !string.IsNullOrEmpty(afterFen.Value.Checkers);
 			bool isStalemate = !inCheck;
 

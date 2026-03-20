@@ -1,7 +1,5 @@
-using System.Collections.Concurrent;
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.API.Types;
-using Bezoro.Chess.UCI.Domain;
 using Bezoro.Chess.UCI.Domain.Engines;
 using Bezoro.Chess.UCI.Tests.Attributes;
 using Bezoro.Chess.UCI.Tests.Domain;
@@ -17,6 +15,92 @@ namespace Bezoro.Chess.UCI.Tests.API;
 [Collection("Stockfish")]
 public class UciCoordinatorTests
 {
+	[Fact]
+	public async Task ApplyClassifiedMoveForTests_WhenGenerationIsStale_ShouldIgnoreMoveEvenIfNotationStillMatches()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		int staleGeneration = coordinator.AcceptedClassificationGenerationForTests;
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		coordinator.AcceptedClassificationGenerationForTests.Should().NotBe(staleGeneration);
+
+		var board = BoardState.FromFen(Fen.Default);
+		board.HasValue.Should().BeTrue();
+
+		var staleMove = new Move(
+			"e2e4",
+			MoveAnalysis.Analyze("e2e4", board!.Value, MoveScore.FromCp(25), false)
+		);
+
+		coordinator.ApplyClassifiedMoveForTests(staleMove, staleGeneration);
+
+		coordinator.State.ClassifiedMoves.Should().NotContainKey("e2e4");
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task ApplyPonderBestMoveForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		await coordinator.StartSearchAsync(Fen.Default);
+		await coordinator.StopSearchAsync();
+		coordinator.ApplyPonderBestMoveForTests(
+			ParsedMove.FromNotation("e2e4"),
+			ParsedMove.FromNotation("e7e5"),
+			1
+		);
+
+		coordinator.State.BestMove.Should().BeNull();
+		coordinator.State.PonderMove.Should().BeNull();
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task ApplyPonderBestMoveForTests_WhenSearchIsRetargeted_ShouldIgnoreOldGenerationOutput()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		mateFen.Should().NotBeNull();
+
+		await coordinator.StartSearchAsync(Fen.Default);
+		int staleGeneration = coordinator.AcceptedPonderGenerationForTests;
+
+		await coordinator.StartSearchAsync(mateFen!.Value);
+		coordinator.AcceptedPonderGenerationForTests.Should().NotBe(staleGeneration);
+
+		coordinator.ApplyPonderBestMoveForTests(
+			ParsedMove.FromNotation("e2e4"),
+			ParsedMove.FromNotation("e7e5"),
+			staleGeneration
+		);
+
+		coordinator.State.BestMove?.Raw.Should().NotBe("e2e4");
+		coordinator.State.PonderMove?.Raw.Should().NotBe("e7e5");
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task ApplyPonderInfoForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var pv = new PrincipalVariation(4, 6, 1, 20, null, 100, 1000, 0, 10, ["e2e4"], "e2e4");
+
+		await coordinator.StartSearchAsync(Fen.Default);
+		await coordinator.StopSearchAsync();
+		coordinator.ApplyPonderInfoForTests(pv, 1);
+
+		coordinator.State.Evaluation.Should().BeNull();
+		await coordinator.StopAsync();
+	}
+
 	[Fact]
 	public async Task BestSearch_WhenStartedAndStopped_ShouldRestartCleanly()
 	{
@@ -66,6 +150,24 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task ClassifyMoveForStateAsync_WhenCoordinatorStateHasChanged_ShouldUseCapturedSnapshotFen()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		var snapshot = coordinator.State;
+		snapshot.LegalMoves.Should().Contain("e2e4");
+		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+		await coordinator.WaitForClassificationAsync();
+
+		var move = await coordinator.ClassifyMoveForStateAsync(snapshot, "e2e4");
+
+		move.Notation.Should().Be("e2e4");
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
 	public async Task ClearState_WhenCalled_ShouldCancelClassificationTokenSource()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
@@ -101,10 +203,10 @@ public class UciCoordinatorTests
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		var exceptions = new ConcurrentBag<Exception>();
-		var tasks      = new List<Task>();
+		var exceptions  = new ConcurrentBag<Exception>();
+		var tasks       = new List<Task>();
 		var releaseGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var firstFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		var firstFen    = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
 		firstFen.Should().NotBeNull();
 		var secondFen = Fen.Parse(TestConstants.ITALIAN_GAME_FEN);
 		secondFen.Should().NotBeNull();
@@ -433,6 +535,49 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
+	public async Task SearchAsync_WhenSearchMovesIsSpecified_ShouldRestrictBestMoveToProvidedMoves()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		var result = await coordinator.SearchAsync(
+						 new()
+						 {
+							 Depth       = 4,
+							 SearchMoves = ["a2a3"]
+						 }
+					 );
+
+		result.BestMove.Should().Be("a2a3");
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenClassifierStartupFails_ShouldRollbackPreviouslyStartedEngines()
+	{
+		var quick  = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
+		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		var classifier = new MoveClassificationEngine(
+			TestResourcePaths.STOCKFISH_PATH,
+			null,
+			null,
+			static (_, _) => throw new InvalidOperationException("startup failure")
+		);
+
+		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+
+		await FluentActions.Awaiting(() => coordinator.StartAsync())
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>()
+						   .WithMessage("startup failure");
+
+		quick.IsStarted.Should().BeFalse();
+		ponder.IsStarted.Should().BeFalse();
+		classifier.IsStarted.Should().BeFalse();
+	}
+
+	[Fact]
 	public async Task StartAsync_WhenCompleted_ShouldAllowGetCurrentFenAsync()
 	{
 		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
@@ -457,34 +602,6 @@ public class UciCoordinatorTests
 		coordinator.AvailableOptions.Should().Contain(x => x.Name == "Hash");
 		coordinator.Capabilities.DisplayBoardFen.Should().Be(UciCapabilityState.Supported);
 		coordinator.Capabilities.PerftMoveListing.Should().Be(UciCapabilityState.Supported);
-	}
-
-	[Fact]
-	public async Task StartAsync_WhenRequiredExtensionsAreUnavailable_ShouldFailEarlyWithClearMessage()
-	{
-		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
-		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
-				 .Do(async _ =>
-					 {
-						 await channel.Writer.WriteAsync("id name Minimal Engine");
-						 await channel.Writer.WriteAsync("id author Test Harness");
-						 await channel.Writer.WriteAsync("option name Ponder type check default false");
-						 await channel.Writer.WriteAsync("uciok");
-					 }
-				 );
-		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-				 .Do(_ => channel.Writer.TryWrite("readyok"));
-
-		var quick = new QuickInfoEngine(new UciEngineClient(transport));
-		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		var classifier = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
-
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
-
-		await FluentActions.Awaiting(() => coordinator.StartAsync())
-						   .Should()
-						   .ThrowAsync<NotSupportedException>()
-						   .WithMessage("*DisplayBoardFen=Unsupported*PerftMoveListing=Unsupported*");
 	}
 
 	[Fact]
@@ -523,6 +640,35 @@ public class UciCoordinatorTests
 			UciEngineClient.IsUciMoveString(bestPair.ponder.Value.Raw).Should().BeTrue();
 
 		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartAsync_WhenRequiredExtensionsAreUnavailable_ShouldFailEarlyWithClearMessage()
+	{
+		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
+		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
+				 .Do(async _ =>
+					 {
+						 await channel.Writer.WriteAsync("id name Minimal Engine");
+						 await channel.Writer.WriteAsync("id author Test Harness");
+						 await channel.Writer.WriteAsync("option name Ponder type check default false");
+						 await channel.Writer.WriteAsync("uciok");
+					 }
+				 );
+
+		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+				 .Do(_ => channel.Writer.TryWrite("readyok"));
+
+		var quick      = new QuickInfoEngine(new(transport));
+		var ponder     = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		var classifier = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
+
+		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+
+		await FluentActions.Awaiting(() => coordinator.StartAsync())
+						   .Should()
+						   .ThrowAsync<NotSupportedException>()
+						   .WithMessage("*DisplayBoardFen=Unsupported*PerftMoveListing=Unsupported*");
 	}
 
 	[Fact]
@@ -614,6 +760,50 @@ public class UciCoordinatorTests
 			UciEngineClient.IsUciMoveString(ponder.Value.Raw).Should().BeTrue();
 	}
 
+	[Fact]
+	public async Task StartSearchAsync_WhenCalledForNewPositionWhileAlreadySearching_ShouldRetargetPonderEngine()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		mateFen.Should().NotBeNull();
+
+		var mateMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
+		coordinator.StateChanged += state =>
+		{
+			if (state.BestMove is { } best && best.Raw == "f7g7")
+				mateMoveTcs.TrySetResult(best);
+		};
+
+		await coordinator.StartSearchAsync(Fen.Default);
+		await Task.Delay(TestConstants.MediumDelay);
+		await coordinator.StartSearchAsync(mateFen!.Value);
+
+		var bestMove = await mateMoveTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		bestMove.Raw.Should().Be("f7g7");
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenCanceled_ShouldNotLeaveSearchingStateTrue()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
+
+		await FluentActions.Awaiting(() => coordinator.StartSearchAsync(Fen.Default, null, cts.Token))
+						   .Should()
+						   .ThrowAsync<OperationCanceledException>();
+
+		coordinator.State.IsSearching.Should().BeFalse();
+
+		await coordinator.StopAsync();
+	}
+
 	[Fact(Timeout = 10000)]
 	public async Task StartSearchAsyncAndStopSearchAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
@@ -670,234 +860,39 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenCanceled_ShouldNotLeaveSearchingStateTrue()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		using var cts = new CancellationTokenSource();
-		await cts.CancelAsync();
-
-		await FluentActions.Awaiting(() => coordinator.StartSearchAsync(Fen.Default, null, cts.Token))
-						   .Should()
-						   .ThrowAsync<OperationCanceledException>();
-
-		coordinator.State.IsSearching.Should().BeFalse();
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task SearchAsync_WhenSearchMovesIsSpecified_ShouldRestrictBestMoveToProvidedMoves()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		var result = await coordinator.SearchAsync(
-						 new SearchParameters
-						 {
-							 Depth       = 4,
-							 SearchMoves = ["a2a3"]
-						 }
-					 );
-
-		result.BestMove.Should().Be("a2a3");
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task StartAsync_WhenClassifierStartupFails_ShouldRollbackPreviouslyStartedEngines()
+	public async Task StopAsync_WhenMultipleEnginesFailToStop_ShouldThrowAggregateAfterCleanup()
 	{
 		var quick = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		var ponder = new PonderEngine(
+			TestResourcePaths.STOCKFISH_PATH,
+			null,
+			null,
+			static _ => throw new InvalidOperationException("ponder stop failed")
+		);
+
 		var classifier = new MoveClassificationEngine(
 			TestResourcePaths.STOCKFISH_PATH,
 			null,
 			null,
-			static (_, _) => throw new InvalidOperationException("startup failure")
+			null,
+			static _ => throw new InvalidOperationException("classifier stop failed")
 		);
 
 		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
-
-		await FluentActions.Awaiting(() => coordinator.StartAsync())
-						   .Should()
-						   .ThrowAsync<InvalidOperationException>()
-						   .WithMessage("startup failure");
-
-		quick.IsStarted.Should().BeFalse();
-		ponder.IsStarted.Should().BeFalse();
-		classifier.IsStarted.Should().BeFalse();
-	}
-
-	[Fact]
-	public async Task StartSearchAsync_WhenCalledForNewPositionWhileAlreadySearching_ShouldRetargetPonderEngine()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-
-		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
-		mateFen.Should().NotBeNull();
-
-		var mateMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
-		coordinator.StateChanged += state =>
-		{
-			if (state.BestMove is { } best && best.Raw == "f7g7")
-				mateMoveTcs.TrySetResult(best);
-		};
-
 		await coordinator.StartSearchAsync(Fen.Default);
-		await Task.Delay(TestConstants.MediumDelay);
-		await coordinator.StartSearchAsync(mateFen!.Value);
 
-		var bestMove = await mateMoveTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
-		bestMove.Raw.Should().Be("f7g7");
+		var act    = async () => await coordinator.StopAsync();
+		var thrown = await Assert.ThrowsAsync<AggregateException>(act);
 
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task ApplyPonderInfoForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var pv = new PrincipalVariation(4, 6, 1, 20, null, 100, 1000, 0, 10, ["e2e4"], "e2e4");
-
-		await coordinator.StartSearchAsync(Fen.Default);
-		await coordinator.StopSearchAsync();
-		coordinator.ApplyPonderInfoForTests(pv, generation: 1);
-
-		coordinator.State.Evaluation.Should().BeNull();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task ApplyPonderBestMoveForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		await coordinator.StartSearchAsync(Fen.Default);
-		await coordinator.StopSearchAsync();
-		coordinator.ApplyPonderBestMoveForTests(
-			ParsedMove.FromNotation("e2e4"),
-			ParsedMove.FromNotation("e7e5"),
-			generation: 1
-		);
-
-		coordinator.State.BestMove.Should().BeNull();
-		coordinator.State.PonderMove.Should().BeNull();
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task ApplyPonderBestMoveForTests_WhenSearchIsRetargeted_ShouldIgnoreOldGenerationOutput()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-
-		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
-		mateFen.Should().NotBeNull();
-
-		await coordinator.StartSearchAsync(Fen.Default);
-		int staleGeneration = coordinator.AcceptedPonderGenerationForTests;
-
-		await coordinator.StartSearchAsync(mateFen!.Value);
-		coordinator.AcceptedPonderGenerationForTests.Should().NotBe(staleGeneration);
-
-		coordinator.ApplyPonderBestMoveForTests(
-			ParsedMove.FromNotation("e2e4"),
-			ParsedMove.FromNotation("e7e5"),
-			staleGeneration
-		);
-
-		coordinator.State.BestMove?.Raw.Should().NotBe("e2e4");
-		coordinator.State.PonderMove?.Raw.Should().NotBe("e7e5");
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task ApplyClassifiedMoveForTests_WhenGenerationIsStale_ShouldIgnoreMoveEvenIfNotationStillMatches()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		int staleGeneration = coordinator.AcceptedClassificationGenerationForTests;
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-		coordinator.AcceptedClassificationGenerationForTests.Should().NotBe(staleGeneration);
-
-		var board = BoardState.FromFen(Fen.Default);
-		board.HasValue.Should().BeTrue();
-
-		var staleMove = new Move(
-			"e2e4",
-			MoveAnalysis.Analyze("e2e4", board!.Value, MoveScore.FromCp(25), false)
-		);
-
-		coordinator.ApplyClassifiedMoveForTests(staleMove, staleGeneration);
-
-		coordinator.State.ClassifiedMoves.Should().NotContainKey("e2e4");
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task WaitForClassificationAsync_WhenPositionChanges_ShouldCancel()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		var waitTask = coordinator.WaitForClassificationAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
-
-		await FluentActions.Awaiting(() => waitTask)
-						   .Should()
-						   .ThrowAsync<OperationCanceledException>();
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task WaitForClassificationAsync_WhenNewGameStarts_ShouldCancel()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		var waitTask = coordinator.WaitForClassificationAsync();
-		await coordinator.NewGameAsync();
-
-		await FluentActions.Awaiting(() => waitTask)
-						   .Should()
-						   .ThrowAsync<OperationCanceledException>();
-
-		await coordinator.StopAsync();
-	}
-
-	[Fact]
-	public async Task ClassifyMoveForStateAsync_WhenCoordinatorStateHasChanged_ShouldUseCapturedSnapshotFen()
-	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
-		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
-
-		var snapshot = coordinator.State;
-		snapshot.LegalMoves.Should().Contain("e2e4");
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
-		await coordinator.WaitForClassificationAsync();
-
-		var move = await coordinator.ClassifyMoveForStateAsync(snapshot, "e2e4");
-
-		move.Notation.Should().Be("e2e4");
-		await coordinator.StopAsync();
+		thrown.InnerExceptions.Should().HaveCount(2);
+		coordinator.State.Should().Be(UciState.Default);
 	}
 
 	[Fact]
 	public async Task StopAsync_WhenOneEngineStopFails_ShouldResetStateRaiseStoppedAndThrow()
 	{
-		var quick = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
+		var quick  = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
 		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
 		var classifier = new MoveClassificationEngine(
 			TestResourcePaths.STOCKFISH_PATH,
@@ -921,35 +916,6 @@ public class UciCoordinatorTests
 
 		coordinator.State.Should().Be(UciState.Default);
 		stoppedRaised.Should().BeTrue();
-	}
-
-	[Fact]
-	public async Task StopAsync_WhenMultipleEnginesFailToStop_ShouldThrowAggregateAfterCleanup()
-	{
-		var quick = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		var ponder = new PonderEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			static _ => throw new InvalidOperationException("ponder stop failed")
-		);
-		var classifier = new MoveClassificationEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			null,
-			static _ => throw new InvalidOperationException("classifier stop failed")
-		);
-
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
-		await coordinator.StartAsync();
-		await coordinator.StartSearchAsync(Fen.Default);
-
-		var act = async () => await coordinator.StopAsync();
-		var thrown = await Assert.ThrowsAsync<AggregateException>(act);
-
-		thrown.InnerExceptions.Should().HaveCount(2);
-		coordinator.State.Should().Be(UciState.Default);
 	}
 
 	[Fact]
@@ -1070,12 +1036,47 @@ public class UciCoordinatorTests
 							 TimeSpan.FromMilliseconds(10),
 							 TestConstants.DefaultTimeout
 						 );
+
 		populated.Should().BeTrue("legal moves should be populated within the standard timeout");
 
 		var legal = coordinator.State.LegalMoves;
 		legal.Should().NotBeNull();
 		legal.Count.Should().BeGreaterThan(0);
 		legal.Should().Contain(["e2e4", "d2d4", "g1f3", "c2c4"]);
+	}
+
+	[Fact]
+	public async Task WaitForClassificationAsync_WhenNewGameStarts_ShouldCancel()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		var waitTask = coordinator.WaitForClassificationAsync();
+		await coordinator.NewGameAsync();
+
+		await FluentActions.Awaiting(() => waitTask)
+						   .Should()
+						   .ThrowAsync<OperationCanceledException>();
+
+		await coordinator.StopAsync();
+	}
+
+	[Fact]
+	public async Task WaitForClassificationAsync_WhenPositionChanges_ShouldCancel()
+	{
+		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await coordinator.StartAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, null);
+
+		var waitTask = coordinator.WaitForClassificationAsync();
+		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+
+		await FluentActions.Awaiting(() => waitTask)
+						   .Should()
+						   .ThrowAsync<OperationCanceledException>();
+
+		await coordinator.StopAsync();
 	}
 
 	[IntegrationTest]

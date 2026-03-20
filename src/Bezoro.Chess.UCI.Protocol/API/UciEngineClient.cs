@@ -1,12 +1,10 @@
-using System.Collections.Immutable;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.Protocol.API.Abstractions;
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
+using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
 
@@ -18,12 +16,12 @@ namespace Bezoro.Chess.UCI.Protocol.API;
 public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 {
 	private readonly EngineActivityTracker _activityTracker = new();
-	private readonly object                _metadataLock = new();
 	/// <summary>
 	///     Underlying transport abstraction for communicating with the engine.
 	/// </summary>
 	private readonly IUciTransport _transport;
 	private readonly object                 _lifecycleLock = new();
+	private readonly object                 _metadataLock  = new();
 	private readonly UciEngineCommandModule _commandModule;
 
 	/// <summary>
@@ -38,11 +36,11 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Cancellation source for the read loop and engine lifetime.
 	/// </summary>
 	private CancellationTokenSource? _cts;
-	private UciEngineCapabilities    _capabilities    = UciEngineCapabilities.Unknown;
-	private UciEngineInfo            _engineInfo      = UciEngineInfo.Empty;
 	private ImmutableArray<UciEngineOption> _availableOptions = ImmutableArray<UciEngineOption>.Empty;
 
-	private Task? _readerTask;
+	private Task?                 _readerTask;
+	private UciEngineCapabilities _capabilities = UciEngineCapabilities.Unknown;
+	private UciEngineInfo         _engineInfo   = UciEngineInfo.Empty;
 
 	/// <summary>
 	///     Occurs when the engine transitions between <see cref="EngineActivity" /> states.
@@ -59,6 +57,11 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public event Action<string, string>? BestMoveReceived;
 
 	/// <summary>
+	///     Raised when the transport or client internals observe an unexpected protocol-processing failure.
+	/// </summary>
+	public event Action<Exception>? Error;
+
+	/// <summary>
 	///     Raised for principal variation ("info ... pv ...") lines.
 	/// </summary>
 	public event Action<PrincipalVariation>? InfoPvReceived;
@@ -68,12 +71,19 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public event Action<string>? LineReceived;
 
+	/// <summary>
+	///     Initializes a new client backed by a process transport for the supplied engine executable.
+	/// </summary>
+	/// <param name="enginePath">Path to the engine executable.</param>
+	/// <param name="args">Optional process arguments passed to the engine.</param>
+	/// <param name="workingDirectory">Optional working directory used when starting the engine process.</param>
 	public UciEngineClient(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
 		: this(new ProcessUciTransport(enginePath, args, workingDirectory)) { }
 
 	internal UciEngineClient(IUciTransport transport)
 	{
-		_transport = transport ?? throw new ArgumentNullException(nameof(transport));
+		_transport       =  transport ?? throw new ArgumentNullException(nameof(transport));
+		_transport.Error += OnTransportError;
 
 		_searchCoordinator = new(
 			_transport,
@@ -102,9 +112,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public EngineActivity Activity => _activityTracker.Current;
 
 	/// <summary>
-	///     Engine process/transport status.
+	///     Gets the options advertised by the engine during handshake.
 	/// </summary>
-	public TransportStatus Status => _transport.Status;
 	public IReadOnlyList<UciEngineOption> AvailableOptions
 	{
 		get
@@ -115,6 +124,15 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			}
 		}
 	}
+
+	/// <summary>
+	///     Engine process/transport status.
+	/// </summary>
+	public TransportStatus Status => _transport.Status;
+
+	/// <summary>
+	///     Gets the standard and extension capabilities discovered for the current engine.
+	/// </summary>
 	public UciEngineCapabilities Capabilities
 	{
 		get
@@ -125,6 +143,10 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			}
 		}
 	}
+
+	/// <summary>
+	///     Gets the engine metadata captured from <c>id name</c> and <c>id author</c> output.
+	/// </summary>
 	public UciEngineInfo EngineInfo
 	{
 		get
@@ -162,15 +184,9 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public Task IsReadyAsync(CancellationToken ct) => _commandModule.IsReadyAsync(ct);
 
 	/// <summary>
-	///     Sends a "setoption" command to the engine.
+	///     Sends the standard UCI <c>ponderhit</c> command.
 	/// </summary>
-	public Task SetOptionAsync(string name, string? value, CancellationToken ct) =>
-		_commandModule.SetOptionAsync(name, value, ct);
-
-	/// <summary>
-	///     Sends the standard UCI <c>debug on/off</c> command.
-	/// </summary>
-	public Task SetDebugAsync(bool enabled, CancellationToken ct) => _commandModule.SetDebugAsync(enabled, ct);
+	public Task PonderHitAsync(CancellationToken ct) => _commandModule.PonderHitAsync(ct);
 
 	/// <summary>
 	///     Sends the standard UCI <c>register</c> command.
@@ -179,9 +195,15 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		_commandModule.RegisterAsync(registration, ct);
 
 	/// <summary>
-	///     Sends the standard UCI <c>ponderhit</c> command.
+	///     Sends the standard UCI <c>debug on/off</c> command.
 	/// </summary>
-	public Task PonderHitAsync(CancellationToken ct) => _commandModule.PonderHitAsync(ct);
+	public Task SetDebugAsync(bool enabled, CancellationToken ct) => _commandModule.SetDebugAsync(enabled, ct);
+
+	/// <summary>
+	///     Sends a "setoption" command to the engine.
+	/// </summary>
+	public Task SetOptionAsync(string name, string? value, CancellationToken ct) =>
+		_commandModule.SetOptionAsync(name, value, ct);
 
 	/// <summary>
 	///     Sets the board position using a FEN and (optionally) a move list.
@@ -305,16 +327,18 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public Task UciNewGameAsync(CancellationToken ct) => _commandModule.UciNewGameAsync(ct);
 
 	/// <summary>
-	///     Requests the current engine FEN using the "d" command and parses "fen ..." and "checkers ..." output.
+	///     Requests the current engine FEN using the non-standard <c>d</c> command and parses
+	///     <c>fen ...</c> and <c>checkers ...</c> output.
 	/// </summary>
-	public Task<Fen?> GetFenViaDAsync(CancellationToken ct) => _commandModule.GetFenViaDAsync(ct);
+	public Task<Fen?> TryGetFenViaDisplayBoardAsync(CancellationToken ct) =>
+		_commandModule.TryGetFenViaDisplayBoardAsync(ct);
 
 	/// <summary>
-	///     Issues a "go perft 1" command and harvests all legal moves listed in the output.
+	///     Issues the non-standard <c>go perft 1</c> command and harvests all legal moves listed in the output.
 	///     Waits for "readyok" for completion.
 	/// </summary>
-	public Task<IReadOnlyCollection<string>> GetLegalMovesViaGoPerft1Async(CancellationToken ct) =>
-		_commandModule.GetLegalMovesViaGoPerft1Async(ct);
+	public Task<IReadOnlyCollection<string>> GetLegalMovesViaPerftAsync(CancellationToken ct) =>
+		_commandModule.GetLegalMovesViaPerftAsync(ct);
 
 	/// <summary>
 	///     Runs a search with the supplied parameters and returns a <see cref="SearchResult" /> from "bestmove" and info
@@ -329,6 +353,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
+		_transport.Error -= OnTransportError;
+
 		try
 		{
 			await StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -339,14 +365,6 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		}
 
 		await _transport.DisposeAsync();
-	}
-
-	IDisposable IUciLineSource.Subscribe(Action<string> handler)
-	{
-		if (handler is null) throw new ArgumentNullException(nameof(handler));
-
-		LineReceived += handler;
-		return new EventSubscription(() => LineReceived -= handler);
 	}
 
 	internal void SetExtensionCapabilities(
@@ -361,6 +379,27 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 				PerftMoveListing = perftMoveListing
 			};
 		}
+	}
+
+	IDisposable IUciLineSource.Subscribe(Action<string> handler)
+	{
+		if (handler is null) throw new ArgumentNullException(nameof(handler));
+
+		LineReceived += handler;
+		return new EventSubscription(() => LineReceived -= handler);
+	}
+
+	private static bool TryParseIdLine(string line, string idToken, out string value)
+	{
+		var prefix = $"{UciConstants.Prefixes.ID} {idToken} ";
+		if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+		{
+			value = line[prefix.Length..].Trim();
+			return true;
+		}
+
+		value = string.Empty;
+		return false;
 	}
 
 	/// <summary>
@@ -400,42 +439,25 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 				{
 					_outputDispatcher.Process(line);
 				}
-				catch
+				catch (Exception ex)
 				{
-					// Keep loop alive if output dispatch hits an unexpected failure.
+					ReportInternalError(ex);
 				}
 			}
 		}
-		catch
+		catch (OperationCanceledException) when (token.IsCancellationRequested)
 		{
-			// gracefully end
+			// Graceful shutdown.
+		}
+		catch (Exception ex)
+		{
+			ReportInternalError(ex);
 		}
 		finally
 		{
 			_outputDispatcher.OnShutdown();
 			SetActivity(EngineActivity.Idle);
 		}
-	}
-
-	/// <summary>
-	///     Atomically sets the engine activity state and publishes activity change notifications, if the state changed.
-	/// </summary>
-	private void SetActivity(EngineActivity next)
-	{
-		_activityTracker.Set(next);
-	}
-
-	private static bool TryParseIdLine(string line, string idToken, out string value)
-	{
-		string prefix = $"{UciConstants.Prefixes.ID} {idToken} ";
-		if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-		{
-			value = line[prefix.Length..].Trim();
-			return true;
-		}
-
-		value = string.Empty;
-		return false;
 	}
 
 	private void ObserveProtocolLine(string line)
@@ -467,7 +489,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		lock (_metadataLock)
 		{
 			var builder = _availableOptions.ToBuilder();
-			int index = -1;
+			int index   = -1;
 			for (var i = 0; i < builder.Count; i++)
 			{
 				if (!string.Equals(builder[i].Name, option.Name, StringComparison.OrdinalIgnoreCase)) continue;
@@ -486,6 +508,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		}
 	}
 
+	private void OnTransportError(Exception ex) => ReportInternalError(ex);
+
 	private void PromoteStandardCapabilities()
 	{
 		lock (_metadataLock)
@@ -497,7 +521,10 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private void PromoteStandardCapabilities_NoLock()
 	{
 		bool supportsPonder = _availableOptions.Any(static option =>
-			string.Equals(option.Name, "Ponder", StringComparison.OrdinalIgnoreCase));
+														string.Equals(
+															option.Name, "Ponder", StringComparison.OrdinalIgnoreCase
+														)
+		);
 
 		_capabilities = _capabilities with
 		{
@@ -505,16 +532,6 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			RegisterCommand = UciCapabilityState.Supported,
 			PonderHit = supportsPonder ? UciCapabilityState.Supported : UciCapabilityState.Unknown
 		};
-	}
-
-	private void ResetHandshakeMetadata()
-	{
-		lock (_metadataLock)
-		{
-			_engineInfo       = UciEngineInfo.Empty;
-			_availableOptions = ImmutableArray<UciEngineOption>.Empty;
-			_capabilities     = UciEngineCapabilities.Unknown;
-		}
 	}
 
 	private void PublishBestMoveSafe(string bestMove, string ponderMove)
@@ -539,6 +556,36 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		{
 			// External subscribers must not interfere with PV capture.
 		}
+	}
+
+	private void ReportInternalError(Exception ex)
+	{
+		try
+		{
+			Error?.Invoke(ex);
+		}
+		catch
+		{
+			// External subscribers must not interfere with client teardown or protocol handling.
+		}
+	}
+
+	private void ResetHandshakeMetadata()
+	{
+		lock (_metadataLock)
+		{
+			_engineInfo       = UciEngineInfo.Empty;
+			_availableOptions = ImmutableArray<UciEngineOption>.Empty;
+			_capabilities     = UciEngineCapabilities.Unknown;
+		}
+	}
+
+	/// <summary>
+	///     Atomically sets the engine activity state and publishes activity change notifications, if the state changed.
+	/// </summary>
+	private void SetActivity(EngineActivity next)
+	{
+		_activityTracker.Set(next);
 	}
 
 	private sealed class EventSubscription(Action unsubscribe) : IDisposable

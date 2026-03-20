@@ -1,5 +1,4 @@
 using Bezoro.Chess.UCI.API.Types;
-using Bezoro.Chess.UCI.Domain;
 using Bezoro.Chess.UCI.Domain.Engines;
 using Bezoro.Chess.UCI.Tests.TestHelpers;
 using FluentAssertions;
@@ -515,36 +514,6 @@ public class PonderEngineTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenRetargetedToDifferentPosition_ShouldRestartOnNewPosition()
-	{
-		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
-		mateFen.Should().NotBeNull();
-
-		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		await engine.StartAsync();
-
-		var initialInfoTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var mateMoveTcs = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		engine.InfoPv += _ => initialInfoTcs.TrySetResult(true);
-		engine.BestMove += (best, _) =>
-		{
-			if (best.Raw == "f7g7")
-				mateMoveTcs.TrySetResult(best);
-		};
-
-		await engine.StartSearchAsync(Fen.Default, null);
-		await initialInfoTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
-
-		await engine.StartSearchAsync(mateFen!.Value, null);
-
-		var bestMove = await mateMoveTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
-		bestMove.Raw.Should().Be("f7g7");
-
-		await engine.StopSearchAsync();
-	}
-
-	[Fact]
 	public async Task StartSearchAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
 		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
@@ -569,6 +538,36 @@ public class PonderEngineTests
 
 		await engine.StopSearchAsync();
 		engine.Activity.Should().Be(EngineActivity.Idle);
+	}
+
+	[Fact]
+	public async Task StartSearchAsync_WhenRetargetedToDifferentPosition_ShouldRestartOnNewPosition()
+	{
+		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
+		mateFen.Should().NotBeNull();
+
+		await using var engine = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
+		await engine.StartAsync();
+
+		var initialInfoTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var mateMoveTcs    = new TaskCompletionSource<ParsedMove>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		engine.InfoPv += _ => initialInfoTcs.TrySetResult(true);
+		engine.BestMove += (best, _) =>
+		{
+			if (best.Raw == "f7g7")
+				mateMoveTcs.TrySetResult(best);
+		};
+
+		await engine.StartSearchAsync(Fen.Default, null);
+		await initialInfoTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+
+		await engine.StartSearchAsync(mateFen!.Value, null);
+
+		var bestMove = await mateMoveTcs.Task.WaitAsync(TestConstants.ExtendedTimeout);
+		bestMove.Raw.Should().Be("f7g7");
+
+		await engine.StopSearchAsync();
 	}
 
 	[Fact]

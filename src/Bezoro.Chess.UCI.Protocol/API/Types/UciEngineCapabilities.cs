@@ -23,7 +23,7 @@ public readonly record struct UciEngineCapabilities(
 	);
 
 	/// <summary>
-	///     Gets a value indicating whether the extensions required by <see cref="Bezoro.Chess.UCI.Protocol.API.UciCoordinator" />
+	///     Gets a value indicating whether the non-standard extensions required by the higher-level coordinator layer
 	///     are available.
 	/// </summary>
 	public bool SupportsCoordinatorExtensions =>

@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -10,7 +9,7 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 {
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldFilterInvalidMoves()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldFilterInvalidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -18,7 +17,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("e2e4 ; bad");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();
@@ -30,7 +29,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldHandleMixedValidAndInvalidMoves()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldHandleMixedValidAndInvalidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -38,7 +37,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("e2e4, e7e5 ; bad | a7a8q : h7h8N");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();
@@ -53,7 +52,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParseMultipleValidMoves()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldParseMultipleValidMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -61,7 +60,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("e2e4, e7e5");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();
@@ -73,7 +72,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParsePromotionMoves()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldParsePromotionMoves()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -81,7 +80,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("a7a8q : h7h8N");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();
@@ -93,7 +92,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldParseValidMove()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldParseValidMove()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -101,7 +100,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("e2e4");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();
@@ -112,7 +111,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 	}
 
 	[Fact]
-	public async Task GetLegalMovesViaGoPerft1Async_WhenCalled_ShouldSendGoPerftCommand()
+	public async Task GetLegalMovesViaPerftAsync_WhenCalled_ShouldSendGoPerftCommand()
 	{
 		// Arrange
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
@@ -120,7 +119,7 @@ public class UciEngineClientGetLegalMovesViaGoPerft1Tests
 		var completeReady = UciEngineClientTestHelpers.SetupDelayedReadyResponse(transport, channel);
 
 		// Act
-		var perftTask = client.GetLegalMovesViaGoPerft1Async(CancellationToken.None);
+		var perftTask = client.GetLegalMovesViaPerftAsync(CancellationToken.None);
 		await channel.Writer.WriteAsync("e2e4");
 		await Task.Delay(TestConstants.MediumDelay);
 		completeReady();

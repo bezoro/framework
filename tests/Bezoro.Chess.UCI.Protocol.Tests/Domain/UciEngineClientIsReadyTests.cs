@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -9,20 +8,6 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 [TestSubject(typeof(UciEngineClient))]
 public class UciEngineClientIsReadyTests
 {
-	[Fact]
-	public async Task IsReadyAsync_WhenCancelled_ShouldThrowOperationCanceledException()
-	{
-		// Arrange
-		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
-		var cts = new CancellationTokenSource(TestConstants.CancellationTimeout);
-
-		// Act + Assert
-		await FluentActions
-			  .Awaiting(() => client.IsReadyAsync(cts.Token))
-			  .Should()
-			  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
-	}
-
 	[Fact(Timeout = 4000)]
 	public async Task IsReadyAsync_WhenCalledConcurrently_ShouldSerializeReadyChecks()
 	{
@@ -38,8 +23,7 @@ public class UciEngineClientIsReadyTests
 
 		transport.ClearReceivedCalls();
 		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-				 .Do(
-					 async _ =>
+				 .Do(async _ =>
 					 {
 						 int invocation = Interlocked.Increment(ref readyCommandCount);
 						 if (invocation == 1)
@@ -58,8 +42,8 @@ public class UciEngineClientIsReadyTests
 				 );
 
 		// Act
-		Task firstReadyTask  = client.IsReadyAsync(CancellationToken.None);
-		Task secondReadyTask = client.IsReadyAsync(CancellationToken.None);
+		var firstReadyTask  = client.IsReadyAsync(CancellationToken.None);
+		var secondReadyTask = client.IsReadyAsync(CancellationToken.None);
 
 		// Assert
 		await firstCommandIssued.Task.WaitAsync(TestConstants.DefaultTimeout);
@@ -76,5 +60,19 @@ public class UciEngineClientIsReadyTests
 
 		secondReadyResponseGate.TrySetResult();
 		await secondReadyTask.WaitAsync(TestConstants.DefaultTimeout);
+	}
+
+	[Fact]
+	public async Task IsReadyAsync_WhenCancelled_ShouldThrowOperationCanceledException()
+	{
+		// Arrange
+		var (_, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
+		var cts = new CancellationTokenSource(TestConstants.CancellationTimeout);
+
+		// Act + Assert
+		await FluentActions
+			  .Awaiting(() => client.IsReadyAsync(cts.Token))
+			  .Should()
+			  .ThrowAsync<OperationCanceledException>("operation should be cancelled");
 	}
 }

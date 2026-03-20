@@ -1,5 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.API.Types;
-
 namespace Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 
 /// <summary>

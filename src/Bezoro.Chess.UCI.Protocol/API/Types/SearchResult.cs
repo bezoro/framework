@@ -1,8 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
+/// <summary>
+///     Represents the parsed result of a completed UCI search, including the final best move and any captured PVs.
+/// </summary>
 public readonly record struct SearchResult
 {
 	/// <summary>
@@ -41,35 +45,86 @@ public readonly record struct SearchResult
 	}
 
 	/// <summary>True if any PV is a mate line.</summary>
-	public bool HasMate => PrincipalVariations.Any(v => v.ScoreMate.HasValue);
+	public bool HasMate => GetPrincipalVariations().Any(v => v.ScoreMate.HasValue);
 
 	/// <summary>Returns the centipawn score for the best PV (MultiPV=1), or null if not available.</summary>
-	public int? BestCpScore => PrincipalVariations.Max(v => v.ScoreCp);
+	public int? BestCpScore
+	{
+		get
+		{
+			var principalVariations = GetPrincipalVariations();
+			return principalVariations.Count == 0 ? null : principalVariations.Max(v => v.ScoreCp);
+		}
+	}
 
 	/// <summary>Returns the shortest mate found (positive for winning, negative for losing), or null if none.</summary>
 	public int? MateScore =>
-		PrincipalVariations
+		GetPrincipalVariations()
 			.Where(v => v.ScoreMate.HasValue)
 			.Select(v => v.ScoreMate!.Value)
 			.OrderBy(Math.Abs)
 			.FirstOrDefault();
 
+	/// <summary>
+	///     Returns the highest-scoring principal variation, or <see langword="null" /> when none were captured.
+	/// </summary>
 	public PrincipalVariation? BestPv =>
-		PrincipalVariations
+		GetPrincipalVariations()
 			.OrderByDescending(v => v.ScoreCp)
 			.Select(v => (PrincipalVariation?)v)
 			.FirstOrDefault();
 
-	public IReadOnlyList<PrincipalVariation> PrincipalVariations { get; init; }
-	public string                            BestMove            { get; init; }
-	public string                            PonderMove          { get; init; }
-	public uint                              MultiPvValue        { get; init; }
-	public uint                              ReachedDepth        { get; init; }
-	public uint                              ReachedSelDepth     { get; init; }
-	public uint                              TotalNodesSearched  { get; init; }
-	public uint                              TotalSearchTimeMs   { get; init; }
-	public uint                              TotalTbHits         { get; init; }
+	/// <summary>
+	///     Gets the principal variations captured from <c>info ... pv ...</c> lines.
+	/// </summary>
+	public IReadOnlyList<PrincipalVariation> PrincipalVariations { get; init; } = Array.Empty<PrincipalVariation>();
 
+	/// <summary>
+	///     Gets the move reported by the engine in the final <c>bestmove</c> line.
+	/// </summary>
+	public string BestMove { get; init; } = string.Empty;
+
+	/// <summary>
+	///     Gets the optional ponder move reported alongside <see cref="BestMove" />.
+	/// </summary>
+	public string PonderMove { get; init; } = string.Empty;
+
+	/// <summary>
+	///     Gets the last observed MultiPV value.
+	/// </summary>
+	public uint MultiPvValue { get; init; }
+
+	/// <summary>
+	///     Gets the deepest reported search depth.
+	/// </summary>
+	public uint ReachedDepth { get; init; }
+
+	/// <summary>
+	///     Gets the deepest reported selective depth.
+	/// </summary>
+	public uint ReachedSelDepth { get; init; }
+
+	/// <summary>
+	///     Gets the sum of nodes reported across parsed PV lines.
+	/// </summary>
+	public uint TotalNodesSearched { get; init; }
+
+	/// <summary>
+	///     Gets the sum of elapsed milliseconds reported across parsed PV lines.
+	/// </summary>
+	public uint TotalSearchTimeMs { get; init; }
+
+	/// <summary>
+	///     Gets the sum of tablebase hits reported across parsed PV lines.
+	/// </summary>
+	public uint TotalTbHits { get; init; }
+
+	/// <summary>
+	///     Attempts to parse a completed search transcript into a <see cref="SearchResult" />.
+	/// </summary>
+	/// <param name="lines">Captured engine output lines for a single search.</param>
+	/// <param name="result">Parsed result when the transcript contains a valid <c>bestmove</c> line.</param>
+	/// <returns><see langword="true" /> when parsing succeeds; otherwise <see langword="false" />.</returns>
 	public static bool TryParse(IReadOnlyCollection<string> lines, out SearchResult result)
 	{
 		result = default;
@@ -84,18 +139,24 @@ public readonly record struct SearchResult
 		List<PrincipalVariation> principalVariations = [];
 
 		string bestMove = string.Empty, ponderMove = string.Empty;
+		var    foundValidBestMove = false;
 
 		foreach (string? line in lines)
 		{
-			string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+			if (string.IsNullOrWhiteSpace(line)) continue;
 
 			if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
 			{
-				if (tokens.Length < 2)
+				if (!BestMoveLine.TryParse(line, out var bestMoveLine) ||
+					!UciCommandBuilder.IsUciMoveString(bestMoveLine.BestMove) ||
+					(bestMoveLine.HasPonder && !UciCommandBuilder.IsUciMoveString(bestMoveLine.PonderMove!)))
+				{
 					return false;
+				}
 
-				bestMove   = tokens[1];
-				ponderMove = tokens.Length > 3 && tokens[2] == "ponder" ? tokens[3] : string.Empty;
+				bestMove           = bestMoveLine.BestMove;
+				ponderMove         = bestMoveLine.PonderMove ?? string.Empty;
+				foundValidBestMove = true;
 			}
 
 			if (!PrincipalVariation.TryParse(line, out var pv)) continue;
@@ -108,6 +169,9 @@ public readonly record struct SearchResult
 			totalSearchTimeMs  += pv.Time;
 			principalVariations.Add(pv);
 		}
+
+		if (!foundValidBestMove)
+			return false;
 
 		result = new(
 			reachedDepth,
@@ -126,14 +190,17 @@ public readonly record struct SearchResult
 
 	/// <summary>True if any PV contains the given move in UCI notation.</summary>
 	public bool ContainsMove(string move) =>
-		PrincipalVariations.Any(v => v.Moves.Contains(move.ToLowerInvariant()));
+		GetPrincipalVariations().Any(v => v.Moves.Contains(move.ToLowerInvariant()));
 
+	/// <summary>
+	///     Returns the first principal variation containing the supplied move, or <see langword="null" /> when absent.
+	/// </summary>
 	public PrincipalVariation? GetVariationContaining(string move) =>
-		PrincipalVariations.FirstOrDefault(pv => pv.Moves.Contains(move.ToLowerInvariant()));
+		GetPrincipalVariations().FirstOrDefault(pv => pv.Moves.Contains(move.ToLowerInvariant()));
 
 	/// <summary>Returns the PV that starts with the given move, or null if none.</summary>
 	public PrincipalVariation? GetVariationStartingWith(string move) =>
-		PrincipalVariations.FirstOrDefault(v => v.Moves.FirstOrDefault() == move.ToLowerInvariant());
+		GetPrincipalVariations().FirstOrDefault(v => v.Moves.FirstOrDefault() == move.ToLowerInvariant());
 
 	/// <summary>
 	///     Deconstructs the search result into its constituent parts.
@@ -168,4 +235,7 @@ public readonly record struct SearchResult
 		bestMove            = BestMove;
 		ponderMove          = PonderMove;
 	}
+
+	private IReadOnlyList<PrincipalVariation> GetPrincipalVariations() =>
+		PrincipalVariations ?? Array.Empty<PrincipalVariation>();
 }

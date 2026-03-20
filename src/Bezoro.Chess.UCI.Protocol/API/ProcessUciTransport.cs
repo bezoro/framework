@@ -4,14 +4,15 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 using Bezoro.Logging;
 using Bezoro.Logging.Types;
-using Bezoro.Chess.UCI.Protocol.API.Abstractions;
-using Bezoro.Chess.UCI.Protocol.API.Types;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
 
+/// <summary>
+///     Provides a process-backed UCI transport that owns engine startup, async line I/O, and teardown behavior.
+/// </summary>
 public sealed class ProcessUciTransport : IUciTransport
 {
 	private readonly BackgroundLoopManager      _loopManager;
@@ -28,13 +29,37 @@ public sealed class ProcessUciTransport : IUciTransport
 	private Channel<string>? _outgoing;
 	private Process?         _process;
 
-	public event Action<Exception>?     Error;
-	public event Action<int?, string?>? Exited;
-	public event Action<string>?        StderrReceived;
+	/// <summary>
+	///     Raised when an internal transport error is observed.
+	/// </summary>
+	public event Action<Exception>? Error;
 
+	/// <summary>
+	///     Raised when the engine process exits.
+	/// </summary>
+	public event Action<int?, string?>? Exited;
+
+	/// <summary>
+	///     Raised for lines received from redirected stderr.
+	/// </summary>
+	public event Action<string>? StderrReceived;
+
+	/// <summary>
+	///     Initializes a new process-backed transport with default transport options.
+	/// </summary>
+	/// <param name="path">Path to the engine executable.</param>
+	/// <param name="args">Optional process arguments passed to the engine.</param>
+	/// <param name="workingDirectory">Optional working directory used when starting the engine.</param>
 	public ProcessUciTransport(string path, IEnumerable<string>? args = null, string? workingDirectory = null)
 		: this(path, args, workingDirectory, null) { }
 
+	/// <summary>
+	///     Initializes a new process-backed transport with explicit options.
+	/// </summary>
+	/// <param name="path">Path to the engine executable.</param>
+	/// <param name="args">Optional process arguments passed to the engine.</param>
+	/// <param name="workingDirectory">Optional working directory used when starting the engine.</param>
+	/// <param name="options">Transport behavior overrides; when <see langword="null" />, defaults are used.</param>
 	public ProcessUciTransport(
 		string                      path,
 		IEnumerable<string>?        args,
@@ -63,12 +88,35 @@ public sealed class ProcessUciTransport : IUciTransport
 		);
 	}
 
-	public bool            IsHealthy          => IsStarted && ProcessIsAlive() && _loopManager.AreLoopsHealthy();
-	public bool            IsStarted          => _stateManager.IsStarted;
-	public long            BackpressureEvents => _metrics.BackpressureEvents;
-	public long            LinesRead          => _metrics.LinesRead;
-	public long            LinesWritten       => _metrics.LinesWritten;
-	public TransportStatus Status             => _stateManager.Status;
+	/// <summary>
+	///     Gets a best-effort signal indicating whether the process and background loops are still healthy.
+	/// </summary>
+	public bool IsHealthy => IsStarted && ProcessIsAlive() && _loopManager.AreLoopsHealthy();
+
+	/// <summary>
+	///     Gets a value indicating whether the transport has been started and not yet fully stopped or disposed.
+	/// </summary>
+	public bool IsStarted => _stateManager.IsStarted;
+
+	/// <summary>
+	///     Gets the number of times a write encountered channel backpressure.
+	/// </summary>
+	public long BackpressureEvents => _metrics.BackpressureEvents;
+
+	/// <summary>
+	///     Gets the number of stdout lines read from the engine.
+	/// </summary>
+	public long LinesRead => _metrics.LinesRead;
+
+	/// <summary>
+	///     Gets the number of command lines written to the engine.
+	/// </summary>
+	public long LinesWritten => _metrics.LinesWritten;
+
+	/// <summary>
+	///     Gets the current lifecycle state for the transport.
+	/// </summary>
+	public TransportStatus Status => _stateManager.Status;
 
 	/// <summary>
 	///     Asynchronously reads lines from the UCI engine's stdout.
@@ -306,7 +354,10 @@ public sealed class ProcessUciTransport : IUciTransport
 		}
 	}
 
-
+	/// <summary>
+	///     Asynchronously disposes the transport and the underlying engine process.
+	/// </summary>
+	/// <returns>A task that completes when teardown has finished.</returns>
 	public async ValueTask DisposeAsync()
 	{
 		if (!_stateManager.TryMarkDisposed()) return;
@@ -781,6 +832,34 @@ public sealed class ProcessUciTransport : IUciTransport
 		Logger.Log(finalLog, category: LogCategory.Uci);
 	}
 
+	private Task WaitForProcessExitCoreAsync(Process process, CancellationToken ct) =>
+		_options.WaitForProcessExitAsyncOverride is { } waitOverride
+			? waitOverride(process, ct)
+			: ProcessHelper.WaitForProcessExitAsync(process, ct);
+
+	private async Task WaitForProcessExitWithTimeoutAsync(
+		Process  process,
+		TimeSpan timeout,
+		string   operationDescription)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
+		var       waitToken  = timeoutCts?.Token ?? CancellationToken.None;
+
+		try
+		{
+			await WaitForProcessExitCoreAsync(process, waitToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (timeoutCts is { IsCancellationRequested: true })
+		{
+			throw new TimeoutException($"Timed out awaiting {operationDescription}.");
+		}
+
+		if (!ProcessHasExitedSafe(process))
+			throw new InvalidOperationException($"Process remained alive after {operationDescription}.");
+	}
+
 	/// <summary>
 	///     Waits for the process to exit gracefully within the grace period.
 	/// </summary>
@@ -798,52 +877,6 @@ public sealed class ProcessUciTransport : IUciTransport
 		{
 			return ProcessHasExitedSafe(process);
 		}
-	}
-
-	private void KillProcessOrThrow(Process process)
-	{
-		if (ProcessHasExitedSafe(process)) return;
-
-		try
-		{
-#if NET5_0_OR_GREATER
-			process.Kill(_options.KillEntireProcessTree);
-#else
-			process.Kill();
-#endif
-		}
-		catch (Exception) when (ProcessHasExitedSafe(process))
-		{
-			// The process exited between the liveness check and the kill attempt.
-		}
-	}
-
-	private Task WaitForProcessExitCoreAsync(Process process, CancellationToken ct) =>
-		_options.WaitForProcessExitAsyncOverride is { } waitOverride
-			? waitOverride(process, ct)
-			: ProcessHelper.WaitForProcessExitAsync(process, ct);
-
-	private async Task WaitForProcessExitWithTimeoutAsync(
-		Process  process,
-		TimeSpan timeout,
-		string   operationDescription)
-	{
-		if (ProcessHasExitedSafe(process)) return;
-
-		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
-		CancellationToken waitToken = timeoutCts?.Token ?? CancellationToken.None;
-
-		try
-		{
-			await WaitForProcessExitCoreAsync(process, waitToken).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (timeoutCts is { IsCancellationRequested: true })
-		{
-			throw new TimeoutException($"Timed out awaiting {operationDescription}.");
-		}
-
-		if (!ProcessHasExitedSafe(process))
-			throw new InvalidOperationException($"Process remained alive after {operationDescription}.");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -953,6 +986,24 @@ public sealed class ProcessUciTransport : IUciTransport
 		_streams.Stdin  = streams.Stdin;
 		_streams.Stdout = streams.Stdout;
 		_streams.Stderr = streams.Stderr;
+	}
+
+	private void KillProcessOrThrow(Process process)
+	{
+		if (ProcessHasExitedSafe(process)) return;
+
+		try
+		{
+#if NET5_0_OR_GREATER
+			process.Kill(_options.KillEntireProcessTree);
+#else
+			process.Kill();
+#endif
+		}
+		catch (Exception) when (ProcessHasExitedSafe(process))
+		{
+			// The process exited between the liveness check and the kill attempt.
+		}
 	}
 
 	private void PrepareForStart()

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
@@ -43,6 +42,9 @@ internal static class UciCommandBuilder
 
 		return normalized ?? (IReadOnlyList<string>)Array.Empty<string>();
 	}
+
+	public static string BuildDebugCommand(bool enabled) =>
+		$"{UciConstants.Commands.DEBUG} {(enabled ? UciConstants.Keywords.ON : UciConstants.Keywords.OFF)}";
 
 	/// <summary>
 	///     Builds a UCI-compliant "go ..." command from <paramref name="parameters" />.
@@ -93,9 +95,6 @@ internal static class UciCommandBuilder
 
 		return string.Join(' ', parts);
 	}
-
-	public static string BuildDebugCommand(bool enabled) =>
-		$"{UciConstants.Commands.DEBUG} {(enabled ? UciConstants.Keywords.ON : UciConstants.Keywords.OFF)}";
 
 	public static string BuildPositionCommand(Fen fen, IEnumerable<string>? moves)
 	{
