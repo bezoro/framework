@@ -40,10 +40,12 @@ public class UciEngineClientBuildGoCommandTests
 	}
 
 	[Fact]
-	public void BuildGoCommand_WhenNoLimitsAreProvided_ShouldAddDefaultDepth()
+	public void BuildGoCommand_WhenNoLimitsAreProvided_ShouldThrowArgumentException()
 	{
-		string cmd = UciEngineClient.BuildGoCommand(new());
-		cmd.Should().Be("go depth 6", "default depth should be 6");
+		var act = () => UciEngineClient.BuildGoCommand(new());
+
+		act.Should().Throw<ArgumentException>()
+		   .WithMessage("*At least one explicit go limit*");
 	}
 
 	[Fact]
@@ -56,11 +58,12 @@ public class UciEngineClientBuildGoCommandTests
 	[Fact]
 	public void BuildGoCommand_WhenSearchMovesAreProvided_ShouldFilterAndLowercaseMoves()
 	{
-		string cmd = UciEngineClient.BuildGoCommand(
+		var act = () => UciEngineClient.BuildGoCommand(
 			new() { SearchMoves = ["E2E4", "bad", "a7a8Q", ""] }
 		);
 
-		cmd.Should().Be("go depth 6 searchmoves e2e4 a7a8q", "searchmoves should be filtered and lowercased");
+		act.Should().Throw<ArgumentException>()
+		   .WithMessage("*At least one explicit go limit*");
 	}
 
 	[Fact]
@@ -74,5 +77,21 @@ public class UciEngineClientBuildGoCommandTests
 			"go wtime 1000 btime 2000 winc 10 binc 20",
 			"time controls should be formatted correctly"
 		);
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenDepthIsZero_ShouldThrowArgumentOutOfRangeException()
+	{
+		var act = () => UciEngineClient.BuildGoCommand(new() { Depth = 0 });
+
+		act.Should().Throw<ArgumentOutOfRangeException>();
+	}
+
+	[Fact]
+	public void BuildGoCommand_WhenMoveTimeIsNotPositive_ShouldThrowArgumentOutOfRangeException()
+	{
+		var act = () => UciEngineClient.BuildGoCommand(new() { MoveTimeMs = 0 });
+
+		act.Should().Throw<ArgumentOutOfRangeException>();
 	}
 }

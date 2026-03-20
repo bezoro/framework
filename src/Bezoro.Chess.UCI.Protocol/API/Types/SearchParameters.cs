@@ -42,4 +42,56 @@ public record struct SearchParameters
 
 	/// <summary> Search only to a specific depth. </summary>
 	public uint? Depth { get; init; }
+
+	/// <summary>
+	///     Returns <see langword="true" /> when at least one explicit search limit or mode was configured.
+	/// </summary>
+	public bool HasExplicitLimit =>
+		Infinite ||
+		Ponder ||
+		Depth.HasValue ||
+		Nodes.HasValue ||
+		Mate.HasValue ||
+		MoveTimeMs.HasValue ||
+		WhiteTimeMs.HasValue ||
+		BlackTimeMs.HasValue;
+
+	/// <summary>
+	///     Validates the configured parameters and throws when the request is internally inconsistent or too vague.
+	/// </summary>
+	public void Validate()
+	{
+		if (!HasExplicitLimit)
+			throw new ArgumentException(
+				"At least one explicit go limit or mode must be provided.",
+				nameof(SearchParameters)
+			);
+
+		if (Depth is 0)
+			throw new ArgumentOutOfRangeException(nameof(Depth), "Depth must be greater than zero.");
+
+		if (Nodes is <= 0)
+			throw new ArgumentOutOfRangeException(nameof(Nodes), "Nodes must be greater than zero.");
+
+		if (Mate is <= 0)
+			throw new ArgumentOutOfRangeException(nameof(Mate), "Mate must be greater than zero.");
+
+		if (MoveTimeMs is <= 0)
+			throw new ArgumentOutOfRangeException(nameof(MoveTimeMs), "MoveTimeMs must be greater than zero.");
+
+		if (WhiteTimeMs is <= 0)
+			throw new ArgumentOutOfRangeException(nameof(WhiteTimeMs), "WhiteTimeMs must be greater than zero.");
+
+		if (BlackTimeMs is <= 0)
+			throw new ArgumentOutOfRangeException(nameof(BlackTimeMs), "BlackTimeMs must be greater than zero.");
+
+		if (WhiteIncrementMs is < 0)
+			throw new ArgumentOutOfRangeException(nameof(WhiteIncrementMs), "WhiteIncrementMs cannot be negative.");
+
+		if (BlackIncrementMs is < 0)
+			throw new ArgumentOutOfRangeException(nameof(BlackIncrementMs), "BlackIncrementMs cannot be negative.");
+
+		if (MovesToGo is < 0)
+			throw new ArgumentOutOfRangeException(nameof(MovesToGo), "MovesToGo cannot be negative.");
+	}
 }

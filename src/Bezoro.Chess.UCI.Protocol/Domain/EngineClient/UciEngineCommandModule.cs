@@ -13,7 +13,8 @@ internal sealed class UciEngineCommandModule(
 	IUciTransport          transport,
 	UciLineWaiterRegistry  lineWaiters,
 	IUciLineSource         lineSource,
-	Action<EngineActivity> setActivity
+	Action<EngineActivity> setActivity,
+	UciClientOptions       options
 )
 {
 	private readonly Action<EngineActivity> _setActivity =
@@ -21,6 +22,7 @@ internal sealed class UciEngineCommandModule(
 	private readonly IUciLineSource _lineSource   = lineSource ?? throw new ArgumentNullException(nameof(lineSource));
 	private readonly IUciTransport  _transport    = transport ?? throw new ArgumentNullException(nameof(transport));
 	private readonly SemaphoreSlim  _protocolGate = new(1, 1);
+	private readonly UciClientOptions _options = options;
 	private readonly UciLineWaiterRegistry _lineWaiters =
 		lineWaiters ?? throw new ArgumentNullException(nameof(lineWaiters));
 
@@ -60,7 +62,8 @@ internal sealed class UciEngineCommandModule(
 
 	public async Task SetOptionAsync(string name, string? value, CancellationToken ct)
 	{
-		if (string.IsNullOrWhiteSpace(name)) return;
+		if (string.IsNullOrWhiteSpace(name))
+			throw new ArgumentException("Option name must be provided.", nameof(name));
 
 		await ExecuteSerializedCommandAsync(
 			async token =>
@@ -131,7 +134,7 @@ internal sealed class UciEngineCommandModule(
 				UciConstants.Responses.READY_OK,
 				StringComparison.OrdinalIgnoreCase
 			),
-			TimeSpan.FromSeconds(10),
+			_options.ReadyTimeout,
 			ct
 		);
 
@@ -146,7 +149,7 @@ internal sealed class UciEngineCommandModule(
 				UciConstants.Responses.UCI_OK,
 				StringComparison.OrdinalIgnoreCase
 			),
-			TimeSpan.FromSeconds(5),
+			_options.UciHandshakeTimeout,
 			ct
 		);
 
@@ -164,7 +167,7 @@ internal sealed class UciEngineCommandModule(
 
 	private async Task<Fen?> GetFenViaDisplayBoardCoreAsync(CancellationToken ct)
 	{
-		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), TimeSpan.FromSeconds(2), ct);
+		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), _options.DisplayBoardFenTimeout, ct);
 
 		using var checkersCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		var checkersTask = _lineWaiters.WaitForAsync(
@@ -191,7 +194,7 @@ internal sealed class UciEngineCommandModule(
 		}
 
 		if (!checkersTask.IsCompleted)
-			checkersCts.CancelAfter(TimeSpan.FromMilliseconds(750));
+			checkersCts.CancelAfter(_options.DisplayBoardCheckersGracePeriod);
 
 		string? checkersLine;
 		try

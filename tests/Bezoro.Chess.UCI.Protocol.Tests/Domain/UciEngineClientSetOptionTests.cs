@@ -8,16 +8,19 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 public class UciEngineClientSetOptionTests
 {
 	[Fact]
-	public async Task SetOptionAsync_WhenNameIsWhitespace_ShouldNotSendCommand()
+	public async Task SetOptionAsync_WhenNameIsWhitespace_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (transport, client) = UciEngineClientTestHelpers.CreateClientWithTransport();
 		var ct = CancellationToken.None;
 
 		// Act
-		await client.SetOptionAsync("   ", "ignored", ct);
+		var act = () => client.SetOptionAsync("   ", "ignored", ct);
 
 		// Assert
+		await FluentActions.Awaiting(act)
+						   .Should()
+						   .ThrowAsync<ArgumentException>();
 		await transport.DidNotReceiveWithAnyArgs().WriteLineAsync(default!);
 	}
 

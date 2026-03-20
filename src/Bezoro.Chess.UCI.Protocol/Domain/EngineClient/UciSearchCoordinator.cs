@@ -10,12 +10,12 @@ namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 internal sealed class UciSearchCoordinator(
 	IUciTransport               transport,
 	Action<EngineActivity>      setActivity,
-	Action<PrincipalVariation>? pvObserver,
-	Action<string, string>?     bestMoveObserver
+	UciClientOptions           options
 )
 {
 	private readonly Action<EngineActivity> _setActivity =
 		setActivity ?? throw new ArgumentNullException(nameof(setActivity));
+	private readonly UciClientOptions _options = options;
 
 	private readonly Func<string, bool> _bestMovePredicate =
 		static line => line.StartsWith($"{UciConstants.Prefixes.BEST_MOVE} ", StringComparison.OrdinalIgnoreCase);
@@ -38,22 +38,12 @@ internal sealed class UciSearchCoordinator(
 		}
 
 		_setActivity(EngineActivity.Idle);
-
-		if (BestMoveLine.TryParse(line, out var bestMove))
-		{
-			bestMoveObserver?.Invoke(bestMove.BestMove, bestMove.PonderMove ?? string.Empty);
-			return;
-		}
-
-		bestMoveObserver?.Invoke(string.Empty, string.Empty);
 	}
 
-	public void HandleInfoLine(string line)
+	public void HandleInfoLine(string line, PrincipalVariation? principalVariation = null)
 	{
-		if (PrincipalVariation.TryParse(line, out var pv))
-			pvObserver?.Invoke(pv);
-
-		_activeSession?.AddLine(line);
+		if (principalVariation.HasValue)
+			_activeSession?.AddLine(line);
 	}
 
 	public void HandleTransportTerminated()
@@ -62,21 +52,29 @@ internal sealed class UciSearchCoordinator(
 		session?.BestMoveCompletion.TrySetCanceled();
 	}
 
-	private static TimeSpan ComputeTimeout(SearchParameters parameters)
+	private TimeSpan ComputeTimeout(SearchParameters parameters)
 	{
 		if (parameters.MoveTimeMs is { } mt)
 		{
-			long buffered                = (long)mt + 750;
-			if (buffered < 500) buffered = 500;
+			double buffered = mt + _options.MoveTimeBuffer.TotalMilliseconds;
+			double minimum  = _options.MinimumMoveTimeTimeout.TotalMilliseconds;
+			if (buffered < minimum) buffered = minimum;
 
 			double capped = Math.Min(buffered, TimeSpan.MaxValue.TotalMilliseconds);
 			return TimeSpan.FromMilliseconds(capped);
 		}
 
-		if (parameters.Infinite) return TimeSpan.FromSeconds(120);
-		if (parameters.Depth is not { } depth) return TimeSpan.FromSeconds(parameters.Nodes is { } ? 60 : 30);
+		if (parameters.Infinite) return _options.InfiniteSearchTimeout;
+		if (parameters.Depth is not { } depth)
+			return parameters.Nodes is { }
+					   ? _options.NodeSearchTimeout
+					   : _options.DefaultSearchTimeout;
 
-		long seconds = Math.Clamp(depth * 2L, 10L, 90L);
+		long seconds = Math.Clamp(
+			depth * (long)_options.DepthTimeoutSecondsPerPly,
+			(long)_options.MinimumDepthSearchTimeout.TotalSeconds,
+			(long)_options.MaximumDepthSearchTimeout.TotalSeconds
+		);
 		return TimeSpan.FromSeconds(seconds);
 	}
 
@@ -184,7 +182,10 @@ internal sealed class UciSearchCoordinator(
 	{
 		try
 		{
-			var grace = await Task.WhenAny(bestTask, Task.Delay(TimeSpan.FromSeconds(2), ct)).ConfigureAwait(false);
+			var delay = _options.SearchStopGracePeriod > TimeSpan.Zero
+							? _options.SearchStopGracePeriod
+							: TimeSpan.FromSeconds(2);
+			var grace = await Task.WhenAny(bestTask, Task.Delay(delay, ct)).ConfigureAwait(false);
 
 			ct.ThrowIfCancellationRequested();
 

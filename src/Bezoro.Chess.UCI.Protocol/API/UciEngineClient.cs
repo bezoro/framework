@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
@@ -31,6 +30,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	private readonly UciOutputDispatcher _outputDispatcher;
 
 	private readonly UciSearchCoordinator _searchCoordinator;
+	private readonly UciClientOptions     _options;
 
 	/// <summary>
 	///     Cancellation source for the read loop and engine lifetime.
@@ -52,7 +52,12 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	}
 
 	/// <summary>
-	///     Notifies when the engine emits a "bestmove" line.
+	///     Notifies when the engine emits a parsed <c>bestmove</c> line.
+	/// </summary>
+	public event Action<UciBestMoveMessage>? BestMoveMessageReceived;
+
+	/// <summary>
+	///     Compatibility event for callers that only need the best move and ponder move strings.
 	/// </summary>
 	public event Action<string, string>? BestMoveReceived;
 
@@ -62,14 +67,34 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public event Action<Exception>? Error;
 
 	/// <summary>
-	///     Raised for principal variation ("info ... pv ...") lines.
+	///     Raised for parsed UCI <c>info</c> lines.
+	/// </summary>
+	public event Action<UciInfoMessage>? InfoReceived;
+
+	/// <summary>
+	///     Compatibility event raised for principal-variation-bearing <c>info ... pv ...</c> lines.
 	/// </summary>
 	public event Action<PrincipalVariation>? InfoPvReceived;
 
 	/// <summary>
-	///     Raised for every output line received from the engine.
+	///     Raised for every raw output line received from the engine.
+	/// </summary>
+	public event Action<string>? RawLineReceived;
+
+	/// <summary>
+	///     Compatibility event alias for <see cref="RawLineReceived" />.
 	/// </summary>
 	public event Action<string>? LineReceived;
+
+	/// <summary>
+	///     Raised for every parsed protocol message received from the engine.
+	/// </summary>
+	public event Action<UciProtocolMessage>? ProtocolMessageReceived;
+
+	/// <summary>
+	///     Raised for lines received on redirected stderr.
+	/// </summary>
+	public event Action<string>? StderrReceived;
 
 	/// <summary>
 	///     Initializes a new client backed by a process transport for the supplied engine executable.
@@ -77,23 +102,29 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <param name="enginePath">Path to the engine executable.</param>
 	/// <param name="args">Optional process arguments passed to the engine.</param>
 	/// <param name="workingDirectory">Optional working directory used when starting the engine process.</param>
-	public UciEngineClient(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
-		: this(new ProcessUciTransport(enginePath, args, workingDirectory)) { }
+	/// <param name="options">Optional client-level timeout and parsing overrides.</param>
+	public UciEngineClient(
+		string               enginePath,
+		IEnumerable<string>? args = null,
+		string?              workingDirectory = null,
+		UciClientOptions?    options = null)
+		: this(new ProcessUciTransport(enginePath, args, workingDirectory), options) { }
 
-	internal UciEngineClient(IUciTransport transport)
+	internal UciEngineClient(IUciTransport transport, UciClientOptions? options = null)
 	{
-		_transport       =  transport ?? throw new ArgumentNullException(nameof(transport));
-		_transport.Error += OnTransportError;
+		_transport                = transport ?? throw new ArgumentNullException(nameof(transport));
+		_transport.Error         += OnTransportError;
+		_transport.StderrReceived += OnTransportStderr;
+		_options                  = options ?? new UciClientOptions();
 
 		_searchCoordinator = new(
 			_transport,
 			SetActivity,
-			PublishInfoPvSafe,
-			PublishBestMoveSafe
+			_options
 		);
 
-		_outputDispatcher = new(_lineWaiters, _searchCoordinator, ObserveProtocolLine);
-		_commandModule    = new(_transport, _lineWaiters, this, SetActivity);
+		_outputDispatcher = new(_lineWaiters, _searchCoordinator, ObserveProtocolMessage);
+		_commandModule    = new(_transport, _lineWaiters, this, SetActivity, _options);
 	}
 
 	/// <summary>
@@ -110,6 +141,11 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Gets the current engine activity state.
 	/// </summary>
 	public EngineActivity Activity => _activityTracker.Current;
+
+	/// <summary>
+	///     Gets the client-level timeout and parsing configuration.
+	/// </summary>
+	public UciClientOptions Options => _options;
 
 	/// <summary>
 	///     Gets the options advertised by the engine during handshake.
@@ -170,6 +206,32 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <returns>Full "go ..." line to send to engine</returns>
 	public static string BuildGoCommand(SearchParameters parameters) =>
 		UciCommandBuilder.BuildGoCommand(parameters);
+
+	/// <summary>
+	///     Attempts to retrieve an advertised engine option by name.
+	/// </summary>
+	public bool TryGetOption(string name, out UciEngineOption option)
+	{
+		if (string.IsNullOrWhiteSpace(name))
+		{
+			option = default;
+			return false;
+		}
+
+		lock (_metadataLock)
+		{
+			foreach (var availableOption in _availableOptions)
+			{
+				if (!string.Equals(availableOption.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+
+				option = availableOption;
+				return true;
+			}
+		}
+
+		option = default;
+		return false;
+	}
 
 	/// <summary>
 	///     Starts a search with the given parameters and does not await engine termination nor the bestmove response.
@@ -354,6 +416,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	public async ValueTask DisposeAsync()
 	{
 		_transport.Error -= OnTransportError;
+		_transport.StderrReceived -= OnTransportStderr;
 
 		try
 		{
@@ -385,21 +448,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	{
 		if (handler is null) throw new ArgumentNullException(nameof(handler));
 
-		LineReceived += handler;
-		return new EventSubscription(() => LineReceived -= handler);
-	}
-
-	private static bool TryParseIdLine(string line, string idToken, out string value)
-	{
-		var prefix = $"{UciConstants.Prefixes.ID} {idToken} ";
-		if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-		{
-			value = line[prefix.Length..].Trim();
-			return true;
-		}
-
-		value = string.Empty;
-		return false;
+		RawLineReceived += handler;
+		return new EventSubscription(() => RawLineReceived -= handler);
 	}
 
 	/// <summary>
@@ -426,14 +476,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		{
 			await foreach (string line in _transport.ReadLinesAsync(token).ConfigureAwait(false))
 			{
-				try
-				{
-					LineReceived?.Invoke(line);
-				}
-				catch
-				{
-					// External subscribers must not interfere with protocol processing.
-				}
+				PublishRawLineSafe(line);
 
 				try
 				{
@@ -460,55 +503,74 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		}
 	}
 
-	private void ObserveProtocolLine(string line)
+	private void ObserveProtocolMessage(UciProtocolMessage message)
 	{
-		if (string.IsNullOrWhiteSpace(line)) return;
+		PublishProtocolMessageSafe(message);
 
-		if (TryParseIdLine(line, UciConstants.Keywords.NAME, out string name))
+		switch (message)
 		{
-			lock (_metadataLock)
-			{
-				_engineInfo = _engineInfo with { Name = name };
-			}
+			case UciIdMessage { Kind: UciIdKind.Name, Value: var name }:
+				lock (_metadataLock)
+				{
+					_engineInfo = _engineInfo with { Name = name };
+				}
 
-			return;
-		}
+				return;
+			case UciIdMessage { Kind: UciIdKind.Author, Value: var author }:
+				lock (_metadataLock)
+				{
+					_engineInfo = _engineInfo with { Author = author };
+				}
 
-		if (TryParseIdLine(line, UciConstants.Keywords.AUTHOR, out string author))
-		{
-			lock (_metadataLock)
-			{
-				_engineInfo = _engineInfo with { Author = author };
-			}
+				return;
+			case UciOptionMessage { Option: var option }:
+				lock (_metadataLock)
+				{
+					var builder = _availableOptions.ToBuilder();
+					int index   = -1;
+					for (var i = 0; i < builder.Count; i++)
+					{
+						if (!string.Equals(builder[i].Name, option.Name, StringComparison.OrdinalIgnoreCase)) continue;
 
-			return;
-		}
+						index = i;
+						break;
+					}
 
-		if (!UciEngineOption.TryParse(line, out var option)) return;
+					if (index >= 0)
+						builder[index] = option;
+					else
+						builder.Add(option);
 
-		lock (_metadataLock)
-		{
-			var builder = _availableOptions.ToBuilder();
-			int index   = -1;
-			for (var i = 0; i < builder.Count; i++)
-			{
-				if (!string.Equals(builder[i].Name, option.Name, StringComparison.OrdinalIgnoreCase)) continue;
+					_availableOptions = builder.ToImmutable();
+					PromoteStandardCapabilities_NoLock();
+				}
 
-				index = i;
-				break;
-			}
-
-			if (index >= 0)
-				builder[index] = option;
-			else
-				builder.Add(option);
-
-			_availableOptions = builder.ToImmutable();
-			PromoteStandardCapabilities_NoLock();
+				return;
+			case UciInfoMessage infoMessage:
+				PublishInfoReceivedSafe(infoMessage);
+				if (infoMessage.Payload.PrincipalVariation is { } pv)
+					PublishInfoPvSafe(pv);
+				return;
+			case UciBestMoveMessage bestMoveMessage:
+				PublishBestMoveMessageSafe(bestMoveMessage);
+				PublishBestMoveSafe(bestMoveMessage.BestMove, bestMoveMessage.PonderMove);
+				return;
 		}
 	}
 
 	private void OnTransportError(Exception ex) => ReportInternalError(ex);
+
+	private void OnTransportStderr(string line)
+	{
+		try
+		{
+			StderrReceived?.Invoke(line);
+		}
+		catch
+		{
+			// External subscribers must not interfere with transport processing.
+		}
+	}
 
 	private void PromoteStandardCapabilities()
 	{
@@ -546,6 +608,30 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		}
 	}
 
+	private void PublishBestMoveMessageSafe(UciBestMoveMessage message)
+	{
+		try
+		{
+			BestMoveMessageReceived?.Invoke(message);
+		}
+		catch
+		{
+			// External subscribers must not interfere with search completion.
+		}
+	}
+
+	private void PublishInfoReceivedSafe(UciInfoMessage message)
+	{
+		try
+		{
+			InfoReceived?.Invoke(message);
+		}
+		catch
+		{
+			// External subscribers must not interfere with info processing.
+		}
+	}
+
 	private void PublishInfoPvSafe(PrincipalVariation pv)
 	{
 		try
@@ -555,6 +641,39 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		catch
 		{
 			// External subscribers must not interfere with PV capture.
+		}
+	}
+
+	private void PublishProtocolMessageSafe(UciProtocolMessage message)
+	{
+		try
+		{
+			ProtocolMessageReceived?.Invoke(message);
+		}
+		catch
+		{
+			// External subscribers must not interfere with protocol handling.
+		}
+	}
+
+	private void PublishRawLineSafe(string line)
+	{
+		try
+		{
+			RawLineReceived?.Invoke(line);
+		}
+		catch
+		{
+			// External subscribers must not interfere with protocol handling.
+		}
+
+		try
+		{
+			LineReceived?.Invoke(line);
+		}
+		catch
+		{
+			// External subscribers must not interfere with protocol handling.
 		}
 	}
 

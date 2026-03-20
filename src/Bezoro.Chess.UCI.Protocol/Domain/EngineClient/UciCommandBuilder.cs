@@ -51,6 +51,8 @@ internal static class UciCommandBuilder
 	/// </summary>
 	public static string BuildGoCommand(SearchParameters parameters)
 	{
+		parameters.Validate();
+
 		var parts = new List<string> { UciConstants.Commands.GO };
 
 		if (parameters.Ponder) parts.Add(UciConstants.Parameters.PONDER);
@@ -76,18 +78,6 @@ internal static class UciCommandBuilder
 		if (parameters.Nodes.HasValue) parts.Add($"{UciConstants.Parameters.NODES} {parameters.Nodes.Value}");
 		if (parameters.Depth.HasValue) parts.Add($"{UciConstants.Parameters.DEPTH} {parameters.Depth.Value}");
 		if (parameters.Mate.HasValue) parts.Add($"{UciConstants.Parameters.MATE} {parameters.Mate.Value}");
-
-		bool hasAnyLimit =
-			parameters.Infinite ||
-			parameters.Depth.HasValue ||
-			parameters.Mate.HasValue ||
-			parameters.MoveTimeMs.HasValue ||
-			parameters.Nodes.HasValue ||
-			parameters.WhiteTimeMs.HasValue ||
-			parameters.BlackTimeMs.HasValue;
-
-		if (!hasAnyLimit)
-			parts.Add($"{UciConstants.Parameters.DEPTH} 6");
 
 		var searchMoves = NormalizeSearchMoves(parameters.SearchMoves);
 		if (searchMoves.Count > 0)
@@ -138,7 +128,9 @@ internal static class UciCommandBuilder
 	}
 
 	public static string BuildSetOptionCommand(string name, string? value) =>
-		value is null
+		string.IsNullOrWhiteSpace(name)
+			? throw new ArgumentException("Option name must be provided.", nameof(name))
+			: value is null
 			? $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name}"
 			: $"{UciConstants.Commands.SET_OPTION} {UciConstants.Keywords.NAME} {name} {UciConstants.Keywords.VALUE} {value}";
 

@@ -1,31 +1,38 @@
 # Bezoro.Chess.UCI.Protocol
-Low-level UCI transport and engine-client primitives for talking to chess engines safely.
+Low-level UCI transport, parsing, and engine-client orchestration for chess engines.
 
 ## Types
-| Type                         | Namespace                                    | Description                                                                   |
-|------------------------------|----------------------------------------------|-------------------------------------------------------------------------------|
-| `UciEngineClient`            | `Bezoro.Chess.UCI.Protocol.API`              | Main async client for handshake, search, options, and raw engine interaction. |
-| `ProcessUciTransport`        | `Bezoro.Chess.UCI.Protocol.API`              | Process-backed stdin/stdout/stderr transport for a UCI engine executable.     |
-| `ProcessUciTransportOptions` | `Bezoro.Chess.UCI.Protocol.API.Types`        | Buffering, teardown, encoding, and validation options for process transport.  |
-| `IUciTransport`              | `Bezoro.Chess.UCI.Protocol.API.Abstractions` | Transport abstraction used by the client.                                     |
-| `IUciLineSource`             | `Bezoro.Chess.UCI.Protocol.API.Abstractions` | Read-only line subscription surface for observing engine output.              |
-| `Fen`                        | `Bezoro.Chess.UCI.Protocol.API.Types`        | Parsed FEN value used by position and state APIs.                             |
-| `SearchParameters`           | `Bezoro.Chess.UCI.Protocol.API.Types`        | Standard UCI `go` parameters.                                                 |
-| `SearchResult`               | `Bezoro.Chess.UCI.Protocol.API.Types`        | Parsed result of a completed search.                                          |
-| `PrincipalVariation`         | `Bezoro.Chess.UCI.Protocol.API.Types`        | Parsed `info ... pv ...` line.                                                |
-| `UciEngineInfo`              | `Bezoro.Chess.UCI.Protocol.API.Types`        | Engine `id name` and `id author` metadata.                                    |
-| `UciEngineOption`            | `Bezoro.Chess.UCI.Protocol.API.Types`        | Typed option metadata parsed from `option name ...` lines.                    |
-| `UciEngineCapabilities`      | `Bezoro.Chess.UCI.Protocol.API.Types`        | Capability state for standard commands and detected extensions.               |
-| `UciRegistration`            | `Bezoro.Chess.UCI.Protocol.API.Types`        | Payload for the standard `register` command.                                  |
-| `EngineActivity`             | `Bezoro.Chess.UCI.Protocol.API.Types`        | Coarse engine activity state.                                                 |
-| `TransportStatus`            | `Bezoro.Chess.UCI.Protocol.API.Types`        | Transport lifecycle state.                                                    |
+| Type                    | Namespace                             | Description                                                                                               |
+|-------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `UciEngineClient`       | `Bezoro.Chess.UCI.Protocol.API`       | Main async client for handshake, search orchestration, typed protocol events, and raw engine interaction. |
+| `ProcessUciTransport`   | `Bezoro.Chess.UCI.Protocol.API`       | Process-backed stdin/stdout/stderr transport for a UCI engine executable.                                 |
+| `SearchParameters`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Standard UCI `go` parameters with explicit validation.                                                    |
+| `SearchResult`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed result of a completed search.                                                                      |
+| `UciClientOptions`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Client-level timeout and protocol-behavior configuration.                                                 |
+| `UciProtocolMessage`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Base type for parsed protocol output.                                                                     |
+| `UciInfoMessage`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `info ...` payload including score, depth, PV, refutation, and current line data.                   |
+| `UciBestMoveMessage`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `bestmove ...` payload.                                                                             |
+| `UciIdMessage`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `id name` / `id author` payload.                                                                    |
+| `UciOptionMessage`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `option name ...` payload.                                                                          |
+| `UciEngineOption`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed engine option metadata in advertised order.                                                        |
+| `UciEngineCapabilities` | `Bezoro.Chess.UCI.Protocol.API.Types` | Observed and probed capability state for standard commands and extensions.                                |
+| `UciRegistration`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Payload for the standard `register` command.                                                              |
+| `EngineActivity`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Coarse engine activity state.                                                                             |
+| `TransportStatus`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Transport lifecycle state.                                                                                |
 
 ## Quick Start
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var client = new UciEngineClient(enginePath);
+var options = new UciClientOptions
+{
+    UciHandshakeTimeout = TimeSpan.FromSeconds(5),
+    ReadyTimeout = TimeSpan.FromSeconds(10),
+    DefaultSearchTimeout = TimeSpan.FromSeconds(30)
+};
+
+await using var client = new UciEngineClient(enginePath, options: options);
 await client.StartAsync(cancellationToken);
 
 await client.SetPositionAsync(Fen.Default, null, cancellationToken);
@@ -36,63 +43,33 @@ var result = await client.GoAsync(
 
 Console.WriteLine($"Best move: {result.BestMove}");
 Console.WriteLine($"Ponder:    {result.PonderMove}");
-Console.WriteLine($"Eval cp:   {result.BestPv?.ScoreCp}");
+Console.WriteLine($"Eval cp:   {result.BestCpScore}");
 ```
 
-## Ideal Usage
-### Inspect engine metadata and options
-```csharp
-using Bezoro.Chess.UCI.Protocol.API;
-
-await using var client = new UciEngineClient(enginePath);
-await client.StartAsync(cancellationToken);
-
-Console.WriteLine($"{client.EngineInfo.Name} by {client.EngineInfo.Author}");
-
-foreach (var option in client.AvailableOptions)
-{
-    Console.WriteLine($"{option.Name} [{option.Type}] default={option.DefaultValue}");
-}
-```
-
-### Configure the engine and run a bounded search
+## Typed Protocol Stream
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
 await using var client = new UciEngineClient(enginePath);
-await client.StartAsync(cancellationToken);
 
-await client.SetOptionAsync("Threads", "4", cancellationToken);
-await client.SetOptionAsync("Hash", "256", cancellationToken);
-
-var fen = Fen.Parse("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")!.Value;
-await client.SetPositionAsync(fen, null, cancellationToken);
-
-var result = await client.GoAsync(
-    new SearchParameters
-    {
-        Depth = 15,
-        SearchMoves = ["f1b5", "d2d4", "c2c3"]
-    },
-    cancellationToken);
-```
-
-### Observe live search output
-```csharp
-using Bezoro.Chess.UCI.Protocol.API;
-using Bezoro.Chess.UCI.Protocol.API.Types;
-
-await using var client = new UciEngineClient(enginePath);
-client.InfoPvReceived += pv =>
+client.InfoReceived += message =>
 {
-    Console.WriteLine($"depth {pv.Depth}: {pv.RawPv}");
+    var payload = message.Payload;
+    if (payload.Depth is not uint depth || payload.PrincipalVariation is not { } pv)
+        return;
+
+    Console.WriteLine($"depth {depth}: {pv.RawPv}");
 };
 
-client.BestMoveReceived += (best, ponder) =>
-{
-    Console.WriteLine($"bestmove {best} ponder {ponder}");
-};
+client.BestMoveMessageReceived += message =>
+    Console.WriteLine($"bestmove {message.BestMove} ponder {message.PonderMove}");
+
+client.ProtocolMessageReceived += message =>
+    Console.WriteLine($"{message.Type}: {message.RawLine}");
+
+client.StderrReceived += line =>
+    Console.Error.WriteLine($"stderr: {line}");
 
 await client.StartAsync(cancellationToken);
 await client.SetPositionAsync(Fen.Default, null, cancellationToken);
@@ -103,7 +80,35 @@ await client.StopSearchAsync(cancellationToken);
 await client.IsReadyAsync(cancellationToken);
 ```
 
-### Use engine-specific escape hatches deliberately
+Compatibility events such as `InfoPvReceived`, `BestMoveReceived`, and `LineReceived` remain available for existing callers, but the typed events are the primary surface.
+
+## Option Discovery And Validation
+```csharp
+using Bezoro.Chess.UCI.Protocol.API;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+await using var client = new UciEngineClient(enginePath);
+await client.StartAsync(cancellationToken);
+
+Console.WriteLine($"{client.EngineInfo.Name} by {client.EngineInfo.Author}");
+
+if (client.TryGetOption("Threads", out var threads))
+{
+    Console.WriteLine($"Threads default: {threads.DefaultValue}");
+    await client.SetOptionAsync(threads.Name, "4", cancellationToken);
+}
+
+foreach (var option in client.AvailableOptions)
+{
+    Console.WriteLine($"{option.Name} [{option.Type}] default={option.DefaultValue}");
+}
+```
+
+`SearchParameters` now requires at least one explicit search limit or mode such as `Depth`, `Nodes`, `MoveTimeMs`, `WhiteTimeMs`/`BlackTimeMs`, `Mate`, `Infinite`, or `Ponder`. Empty `go` requests are rejected instead of silently defaulting to a fallback search.
+
+`SetOptionAsync` rejects blank option names with `ArgumentException` instead of silently no-oping.
+
+## Engine-Specific Escape Hatches
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
@@ -112,11 +117,14 @@ await using var client = new UciEngineClient(enginePath);
 await client.StartAsync(cancellationToken);
 await client.SetPositionAsync(Fen.Default, ["e2e4", "e7e5"], cancellationToken);
 
-Fen? currentFen = await client.TryGetFenViaDisplayBoardAsync(cancellationToken);
-IReadOnlyCollection<string> legalMoves = await client.GetLegalMovesViaPerftAsync(cancellationToken);
+if (client.Capabilities.SupportsCoordinatorExtensions)
+{
+    Fen? currentFen = await client.TryGetFenViaDisplayBoardAsync(cancellationToken);
+    IReadOnlyCollection<string> legalMoves = await client.GetLegalMovesViaPerftAsync(cancellationToken);
+}
 ```
 
-Those two helpers rely on non-standard engine behavior. They are useful for Stockfish-style engines, but they are not guaranteed by the UCI spec.
+`TryGetFenViaDisplayBoardAsync` and `GetLegalMovesViaPerftAsync` are deliberate non-standard helpers. They remain available because higher layers in this repo depend on them, but they should be treated as engine-specific extensions rather than standard UCI behavior.
 
 ## API Reference
 ### `UciEngineClient`
@@ -127,7 +135,7 @@ Those two helpers rely on non-standard engine behavior. They are useful for Stoc
 | `UciInitAsync(ct)`                     | Sends `uci` and waits for `uciok` and `readyok`. Usually called by `StartAsync`. |
 | `IsReadyAsync(ct)`                     | Sends `isready` and waits for `readyok`.                                         |
 | `UciNewGameAsync(ct)`                  | Sends `ucinewgame` and waits for readiness.                                      |
-| `SetOptionAsync(name, value, ct)`      | Sends `setoption`; completes after `readyok`.                                    |
+| `SetOptionAsync(name, value, ct)`      | Sends `setoption`; completes after `readyok`; throws on blank names.             |
 | `SetDebugAsync(enabled, ct)`           | Sends `debug on` or `debug off`.                                                 |
 | `RegisterAsync(registration, ct)`      | Sends the standard `register` command.                                           |
 | `PonderHitAsync(ct)`                   | Sends `ponderhit`.                                                               |
@@ -137,14 +145,17 @@ Those two helpers rely on non-standard engine behavior. They are useful for Stoc
 | `StopSearchAsync(ct)`                  | Sends `stop`.                                                                    |
 | `TryGetFenViaDisplayBoardAsync(ct)`    | Requests current FEN using the non-standard `d` command.                         |
 | `GetLegalMovesViaPerftAsync(ct)`       | Requests legal moves using the non-standard `go perft 1` listing.                |
-| `BuildGoCommand(parameters)`           | Utility for building a raw UCI `go` command string.                              |
-| `IsUciMoveString(value)`               | Validates raw UCI move notation like `e2e4` or `a7a8q`.                          |
-| `EngineInfo`                           | Engine name/author parsed during handshake.                                      |
-| `AvailableOptions`                     | Options advertised during handshake.                                             |
+| `BuildGoCommand(parameters)`           | Utility for building a validated raw UCI `go` command string.                    |
+| `TryGetOption(name, out option)`       | Looks up an advertised option with case-insensitive matching.                    |
+| `EngineInfo`                           | Engine name and author parsed during handshake.                                  |
+| `AvailableOptions`                     | Options advertised during handshake, preserved in advertised order.              |
 | `Capabilities`                         | Standard and extension capability state discovered so far.                       |
-| `InfoPvReceived`                       | Event for parsed PV lines during search.                                         |
-| `BestMoveReceived`                     | Event for `bestmove` output.                                                     |
-| `LineReceived`                         | Event for raw output lines.                                                      |
+| `Options`                              | Client-level timeout configuration.                                              |
+| `InfoReceived`                         | Event for parsed `UciInfoMessage` output.                                        |
+| `BestMoveMessageReceived`              | Event for parsed `UciBestMoveMessage` output.                                    |
+| `ProtocolMessageReceived`              | Event for all parsed protocol messages.                                          |
+| `RawLineReceived`                      | Event for every raw stdout line.                                                 |
+| `StderrReceived`                       | Event for redirected stderr lines.                                               |
 | `ActivityChanged`                      | Event for `Idle`/`Searching`/`Pondering` transitions.                            |
 
 ### `ProcessUciTransport`
@@ -161,31 +172,36 @@ Those two helpers rely on non-standard engine behavior. They are useful for Stoc
 | `LinesRead` / `LinesWritten` / `BackpressureEvents` | Transport counters useful during diagnostics.      |
 
 ### `SearchParameters`
-| Property                                | Meaning                                      |
-|-----------------------------------------|----------------------------------------------|
-| `Depth`                                 | Search to a fixed depth.                     |
-| `Nodes`                                 | Search a fixed number of nodes.              |
-| `MoveTimeMs`                            | Search for a fixed amount of time.           |
-| `WhiteTimeMs` / `BlackTimeMs`           | Remaining clock time.                        |
-| `WhiteIncrementMs` / `BlackIncrementMs` | Clock increments.                            |
-| `MovesToGo`                             | Number of moves until the next time control. |
-| `Mate`                                  | Search for a mate in N.                      |
-| `SearchMoves`                           | Restrict search to specific moves.           |
-| `Infinite`                              | Search until explicitly stopped.             |
-| `Ponder`                                | Start a ponder search.                       |
+| Property                                | Meaning                                                                |
+|-----------------------------------------|------------------------------------------------------------------------|
+| `Depth`                                 | Search to a fixed depth. Must be greater than zero when set.           |
+| `Nodes`                                 | Search a fixed number of nodes. Must be greater than zero when set.    |
+| `MoveTimeMs`                            | Search for a fixed amount of time. Must be greater than zero when set. |
+| `WhiteTimeMs` / `BlackTimeMs`           | Remaining clock time. Must be greater than zero when set.              |
+| `WhiteIncrementMs` / `BlackIncrementMs` | Clock increments. Must not be negative.                                |
+| `MovesToGo`                             | Number of moves until the next time control. Must not be negative.     |
+| `Mate`                                  | Search for a mate in N. Must be greater than zero when set.            |
+| `SearchMoves`                           | Restrict search to specific moves.                                     |
+| `Infinite`                              | Search until explicitly stopped.                                       |
+| `Ponder`                                | Start a ponder search.                                                 |
 
-### `UciEngineCapabilities`
-| Property                        | Meaning                                                         |
-|---------------------------------|-----------------------------------------------------------------|
-| `DebugCommand`                  | Whether `debug on/off` is supported.                            |
-| `RegisterCommand`               | Whether `register` is supported.                                |
-| `PonderHit`                     | Whether `ponderhit` is supported.                               |
-| `DisplayBoardFen`               | Whether `d`-based FEN retrieval works.                          |
-| `PerftMoveListing`              | Whether `go perft 1` move listing works.                        |
-| `SupportsCoordinatorExtensions` | Convenience flag for the higher-level coordinator requirements. |
+### `UciProtocolMessageType`
+| Value            | Meaning                                |
+|------------------|----------------------------------------|
+| `Id`             | Parsed `id name` / `id author` output. |
+| `Option`         | Parsed `option name ...` output.       |
+| `UciOk`          | Parsed `uciok` output.                 |
+| `ReadyOk`        | Parsed `readyok` output.               |
+| `Info`           | Parsed `info ...` output.              |
+| `BestMove`       | Parsed `bestmove ...` output.          |
+| `CopyProtection` | Parsed `copyprotection ...` output.    |
+| `Registration`   | Parsed `registration ...` output.      |
+
+## Sample
+See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for a minimal console sample that wires up typed protocol events, inspects engine options, runs a bounded search, and conditionally exercises the extension helpers.
 
 ## Design Notes
-- This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, and safe async protocol behavior.
-- The protocol layer is engine-agnostic for standard UCI behavior.
-- Extension probing exists here only as low-level escape-hatch functionality; higher-level policy about requiring those extensions belongs in `Bezoro.Chess.UCI`.
+- This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
+- The protocol layer stays engine-agnostic for standard UCI behavior.
+- Extension probing exists here only as an explicit low-level escape hatch; higher-level policy about requiring those extensions belongs in `Bezoro.Chess.UCI`.
 - `SetOptionAsync` waits for `readyok`, which makes option updates safe to compose in application code.

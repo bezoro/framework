@@ -116,6 +116,86 @@ public class SearchResultTests
 	}
 
 	[Fact]
+	public void MateScore_WhenNoMateLineExists_ShouldReturnNull()
+	{
+		var pv = new PrincipalVariation(
+			12,
+			14,
+			1,
+			32,
+			null,
+			10,
+			100,
+			0,
+			5,
+			["e2e4", "e7e5"],
+			"e2e4 e7e5"
+		);
+
+		var result = new SearchResult(
+			12,
+			14,
+			1,
+			10,
+			0,
+			5,
+			[pv],
+			"e2e4",
+			"e7e5"
+		);
+
+		result.HasMate.Should().BeFalse();
+		result.MateScore.Should().BeNull();
+	}
+
+	[Fact]
+	public void BestPvAndBestCpScore_WhenPrimaryVariationExists_ShouldPreferMultiPvOne()
+	{
+		var bestLine = new PrincipalVariation(
+			18,
+			20,
+			1,
+			28,
+			null,
+			1000,
+			100_000,
+			0,
+			20,
+			["e2e4", "e7e5"],
+			"e2e4 e7e5"
+		);
+
+		var secondaryLine = new PrincipalVariation(
+			18,
+			20,
+			2,
+			75,
+			null,
+			1000,
+			100_000,
+			0,
+			20,
+			["d2d4", "d7d5"],
+			"d2d4 d7d5"
+		);
+
+		var result = new SearchResult(
+			18,
+			20,
+			2,
+			2000,
+			0,
+			40,
+			[bestLine, secondaryLine],
+			"e2e4",
+			"e7e5"
+		);
+
+		result.BestCpScore.Should().Be(28);
+		result.BestPv.Should().Be(bestLine);
+	}
+
+	[Fact]
 	public void TryParse_WhenBestMoveLineIsMalformed_ShouldReturnFalse()
 	{
 		string[] lines =
@@ -192,6 +272,23 @@ public class SearchResultTests
 		result.PrincipalVariations.Count.Should().Be(2);
 		result.BestMove.Should().Be("e2e4");
 		result.PonderMove.Should().Be("e7e5");
+	}
+
+	[Fact]
+	public void TryParse_WhenDepthLinesArriveOutOfOrder_ShouldKeepDeepestDepth()
+	{
+		string[] lines =
+		[
+			"info depth 12 seldepth 18 multipv 1 score cp 35 nodes 3000 tbhits 0 time 30 pv e2e4 e7e5",
+			"info depth 8 seldepth 10 multipv 2 score cp 20 nodes 1500 tbhits 0 time 15 pv d2d4 d7d5",
+			"bestmove e2e4 ponder e7e5"
+		];
+
+		bool ok = SearchResult.TryParse(lines, out var result);
+
+		ok.Should().BeTrue();
+		result.ReachedDepth.Should().Be(12u);
+		result.ReachedSelDepth.Should().Be(18u);
 	}
 
 	[Fact]

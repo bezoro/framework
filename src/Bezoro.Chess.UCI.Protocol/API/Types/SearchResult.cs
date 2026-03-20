@@ -53,26 +53,55 @@ public readonly record struct SearchResult
 		get
 		{
 			var principalVariations = GetPrincipalVariations();
-			return principalVariations.Count == 0 ? null : principalVariations.Max(v => v.ScoreCp);
+			if (principalVariations.Count == 0) return null;
+			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
+				return primaryVariation.ScoreCp;
+
+			return principalVariations.Max(v => v.ScoreCp);
 		}
 	}
 
 	/// <summary>Returns the shortest mate found (positive for winning, negative for losing), or null if none.</summary>
-	public int? MateScore =>
-		GetPrincipalVariations()
-			.Where(v => v.ScoreMate.HasValue)
-			.Select(v => v.ScoreMate!.Value)
-			.OrderBy(Math.Abs)
-			.FirstOrDefault();
+	public int? MateScore
+	{
+		get
+		{
+			var principalVariations = GetPrincipalVariations();
+			if (principalVariations.Count == 0) return null;
+
+			int? shortestMate = null;
+			foreach (var principalVariation in principalVariations)
+			{
+				if (!principalVariation.ScoreMate.HasValue) continue;
+
+				int currentMate = principalVariation.ScoreMate.Value;
+				if (!shortestMate.HasValue || Math.Abs(currentMate) < Math.Abs(shortestMate.Value))
+					shortestMate = currentMate;
+			}
+
+			return shortestMate;
+		}
+	}
 
 	/// <summary>
-	///     Returns the highest-scoring principal variation, or <see langword="null" /> when none were captured.
+	///     Returns the primary principal variation (<c>multipv 1</c>) when available; otherwise the highest-scoring
+	///     captured variation.
 	/// </summary>
-	public PrincipalVariation? BestPv =>
-		GetPrincipalVariations()
-			.OrderByDescending(v => v.ScoreCp)
-			.Select(v => (PrincipalVariation?)v)
-			.FirstOrDefault();
+	public PrincipalVariation? BestPv
+	{
+		get
+		{
+			var principalVariations = GetPrincipalVariations();
+			if (principalVariations.Count == 0) return null;
+			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
+				return primaryVariation;
+
+			return principalVariations
+				.OrderByDescending(v => v.ScoreCp)
+				.Select(v => (PrincipalVariation?)v)
+				.FirstOrDefault();
+		}
+	}
 
 	/// <summary>
 	///     Gets the principal variations captured from <c>info ... pv ...</c> lines.
@@ -161,7 +190,7 @@ public readonly record struct SearchResult
 
 			if (!PrincipalVariation.TryParse(line, out var pv)) continue;
 
-			reachedDepth = pv.Depth;
+			if (pv.Depth > reachedDepth) reachedDepth = pv.Depth;
 			if (pv.SelDepth > reachedSelDepth) reachedSelDepth = pv.SelDepth;
 			multiPvValue       =  pv.MultiPv;
 			totalNodesSearched += pv.Nodes;
@@ -238,4 +267,20 @@ public readonly record struct SearchResult
 
 	private IReadOnlyList<PrincipalVariation> GetPrincipalVariations() =>
 		PrincipalVariations ?? Array.Empty<PrincipalVariation>();
+
+	private static bool TryGetPrimaryVariation(
+		IReadOnlyList<PrincipalVariation> principalVariations,
+		out PrincipalVariation            primaryVariation)
+	{
+		foreach (var principalVariation in principalVariations)
+		{
+			if (principalVariation.MultiPv != 1) continue;
+
+			primaryVariation = principalVariation;
+			return true;
+		}
+
+		primaryVariation = default;
+		return false;
+	}
 }
