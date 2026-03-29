@@ -7,7 +7,8 @@
             <BuiltOutputs Include="$(TargetDir)$(AssemblyName).dll"/>
             <BuiltOutputs Include="$(TargetDir)$(AssemblyName).pdb" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')"/>
         </ItemGroup>
-        <MakeDir Directories="$(UnityPluginDir)" Condition="!Exists('$(UnityPluginDir)')"/>
-        <Copy SourceFiles="@(BuiltOutputs)" DestinationFolder="$(UnityPluginDir)" SkipUnchangedFiles="true"/>
+        <!-- Unity mirroring is a convenience side effect and must not break normal solution builds. -->
+        <MakeDir Directories="$(UnityPluginDir)" Condition="!Exists('$(UnityPluginDir)')" ContinueOnError="WarnAndContinue"/>
+        <Copy SourceFiles="@(BuiltOutputs)" DestinationFolder="$(UnityPluginDir)" SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue"/>
     </Target>
 </Project>
