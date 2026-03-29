@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
@@ -231,6 +233,74 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 
 		option = default;
 		return false;
+	}
+
+	/// <summary>
+	///     Attempts to read the advertised Elo range for engines that support UCI strength limiting.
+	/// </summary>
+	/// <param name="minElo">Minimum advertised Elo when available.</param>
+	/// <param name="maxElo">Maximum advertised Elo when available.</param>
+	/// <returns>
+	///     <see langword="true" /> when the engine advertises both <c>UCI_LimitStrength</c> and a bounded
+	///     <c>UCI_Elo</c> option; otherwise <see langword="false" />.
+	/// </returns>
+	public bool TryGetStrengthLimitRange(out int minElo, out int maxElo)
+	{
+		minElo = default;
+		maxElo = default;
+
+		if (!TryGetStrengthOptions(out _, out var eloOption))
+			return false;
+
+		if (eloOption.Min is not int min || eloOption.Max is not int max)
+			return false;
+
+		minElo = min;
+		maxElo = max;
+		return true;
+	}
+
+	/// <summary>
+	///     Enables Elo-limited play for engines that advertise the standard <c>UCI_LimitStrength</c> and
+	///     <c>UCI_Elo</c> options.
+	/// </summary>
+	/// <param name="elo">Desired engine Elo.</param>
+	/// <param name="ct">Cancellation token for the composed option updates.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Thrown when <paramref name="elo" /> falls outside the engine's advertised range.
+	/// </exception>
+	/// <exception cref="NotSupportedException">
+	///     Thrown when the engine does not advertise the standard strength-limit options.
+	/// </exception>
+	public async Task SetStrengthLimitAsync(int elo, CancellationToken ct = default)
+	{
+		if (!TryGetStrengthOptions(out var limitStrengthOption, out var eloOption))
+		{
+			throw new NotSupportedException(
+				"Engine does not advertise the standard UCI_LimitStrength and UCI_Elo options required for Elo-limited play."
+			);
+		}
+
+		if (eloOption.Min is int minElo && elo < minElo)
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(elo),
+				elo,
+				$"Engine strength Elo must be greater than or equal to {minElo.ToString(CultureInfo.InvariantCulture)}."
+			);
+		}
+
+		if (eloOption.Max is int maxElo && elo > maxElo)
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(elo),
+				elo,
+				$"Engine strength Elo must be less than or equal to {maxElo.ToString(CultureInfo.InvariantCulture)}."
+			);
+		}
+
+		await SetOptionAsync(limitStrengthOption.Name, "true", ct).ConfigureAwait(false);
+		await SetOptionAsync(eloOption.Name, elo.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -697,6 +767,25 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			_availableOptions = ImmutableArray<UciEngineOption>.Empty;
 			_capabilities     = UciEngineCapabilities.Unknown;
 		}
+	}
+
+	private bool TryGetStrengthOptions(out UciEngineOption limitStrengthOption, out UciEngineOption eloOption)
+	{
+		if (!TryGetOption(UciConstants.Options.LIMIT_STRENGTH, out limitStrengthOption) ||
+			limitStrengthOption.Type != UciOptionType.Check)
+		{
+			eloOption = default;
+			return false;
+		}
+
+		if (!TryGetOption(UciConstants.Options.ELO, out eloOption) ||
+			eloOption.Type != UciOptionType.Spin)
+		{
+			limitStrengthOption = default;
+			return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>

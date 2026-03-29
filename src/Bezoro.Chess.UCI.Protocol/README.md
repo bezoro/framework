@@ -110,11 +110,19 @@ foreach (var option in client.AvailableOptions)
 {
     Console.WriteLine($"{option.Name} [{option.Type}] default={option.DefaultValue}");
 }
+
+if (client.TryGetStrengthLimitRange(out int minElo, out int maxElo))
+{
+    int targetElo = Math.Clamp(1500, minElo, maxElo);
+    await client.SetStrengthLimitAsync(targetElo, cancellationToken);
+}
 ```
 
 `SearchParameters` now requires at least one explicit search limit or mode such as `Depth`, `Nodes`, `MoveTimeMs`, `WhiteTimeMs`/`BlackTimeMs`, `Mate`, `Infinite`, or `Ponder`. Empty `go` requests are rejected instead of silently defaulting to a fallback search.
 
 `SetOptionAsync` rejects blank option names with `ArgumentException` instead of silently no-oping.
+
+`TryGetStrengthLimitRange` and `SetStrengthLimitAsync` are small ergonomic helpers over the standard `UCI_LimitStrength` / `UCI_Elo` option pair. They keep raw option-name plumbing out of application code while still respecting the engine's advertised metadata.
 
 ## Engine-Specific Escape Hatches
 ```csharp
@@ -155,6 +163,8 @@ if (client.Capabilities.SupportsCoordinatorExtensions)
 | `GetLegalMovesViaPerftAsync(ct)`       | Requests legal moves using the non-standard `go perft 1` listing.                |
 | `BuildGoCommand(parameters)`           | Utility for building a validated raw UCI `go` command string.                    |
 | `TryGetOption(name, out option)`       | Looks up an advertised option with case-insensitive matching.                    |
+| `TryGetStrengthLimitRange(out min, out max)` | Reads the advertised Elo range for engines that support `UCI_LimitStrength`. |
+| `SetStrengthLimitAsync(elo, ct)`       | Enables `UCI_LimitStrength` and sets `UCI_Elo` with range-aware validation.      |
 | `EngineInfo`                           | Engine name and author parsed during handshake.                                  |
 | `AvailableOptions`                     | Options advertised during handshake, preserved in advertised order.              |
 | `Capabilities`                         | Standard and extension capability state discovered so far.                       |
@@ -206,7 +216,7 @@ if (client.Capabilities.SupportsCoordinatorExtensions)
 | `Registration`   | Parsed `registration ...` output.      |
 
 ## Sample
-See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for a minimal console sample that wires up typed protocol events, inspects engine options, runs a bounded search, and conditionally exercises the extension helpers.
+See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches.
 
 ## Design Notes
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
