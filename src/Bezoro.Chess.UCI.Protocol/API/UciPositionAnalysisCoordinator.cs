@@ -22,7 +22,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	private readonly Dictionary<string, TaskCompletionSource<PositionAnalysisResult>> _waiters =
 		new(StringComparer.Ordinal);
 	private CancellationTokenSource _lifetimeCts = new();
-	private string? _currentProcessingPositionKey;
 	private Task? _workerTask;
 
 	/// <summary>
@@ -72,17 +71,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	}
 
 	/// <summary>
-	///     Compatibility alias for <see cref="Enqueue" />.
-	/// </summary>
-	public void EnqueueLatest(
-		string                 positionKey,
-		IReadOnlyList<string>  moves,
-		char                   sideToMove,
-		char                   playerColor,
-		ImmutableArray<string> legalMoves) =>
-		Enqueue(positionKey, moves, sideToMove, playerColor, legalMoves);
-
-	/// <summary>
 	///     Attempts to read a completed analysis for the supplied position.
 	/// </summary>
 	public bool TryGetAnalysis(string positionKey, out PositionAnalysisResult analysis)
@@ -96,12 +84,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 		analysis = default;
 		return false;
 	}
-
-	/// <summary>
-	///     Compatibility alias for <see cref="TryGetAnalysis" />.
-	/// </summary>
-	public bool TryGetLatestAnalysis(string positionKey, out PositionAnalysisResult analysis) =>
-		TryGetAnalysis(positionKey, out analysis);
 
 	/// <summary>
 	///     Awaits completion of the supplied position when it has been queued for analysis.
@@ -138,7 +120,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 			_waiters.Clear();
 			_trackedPositionKeys.Clear();
 			_completedAnalyses.Clear();
-			_currentProcessingPositionKey = null;
 			_workerTask                 = null;
 		}
 
@@ -176,7 +157,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 					return;
 				}
 
-				_currentProcessingPositionKey = request.PositionKey;
 				token                         = _lifetimeCts.Token;
 			}
 
@@ -197,7 +177,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 				{
 					_completedAnalyses[request.PositionKey] = analysis;
 					_trackedPositionKeys.Remove(request.PositionKey);
-					_currentProcessingPositionKey = null;
 					if (_waiters.TryGetValue(request.PositionKey, out waiter))
 						_waiters.Remove(request.PositionKey);
 				}
@@ -208,7 +187,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 			{
 				lock (_sync)
 				{
-					_currentProcessingPositionKey = null;
 					_workerTask                   = null;
 				}
 
@@ -220,7 +198,6 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 				lock (_sync)
 				{
 					_trackedPositionKeys.Remove(request.PositionKey);
-					_currentProcessingPositionKey = null;
 					if (_waiters.TryGetValue(request.PositionKey, out waiter))
 						_waiters.Remove(request.PositionKey);
 				}

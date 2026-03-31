@@ -47,7 +47,6 @@ public static class UciEngineClientAnalysisExtensions
 	/// <param name="sideToMove">Side to move for the current position: <c>w</c> or <c>b</c>.</param>
 	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
 	/// <param name="legalMoves">Legal moves in lowercase UCI notation.</param>
-	/// <param name="currentScore">Current position score. Retained for compatibility; move evaluations are absolute.</param>
 	/// <param name="multiPvMoveTimeMs">Search time in milliseconds when running a MultiPV search.</param>
 	/// <param name="fallbackMoveTimeMs">Per-move search time in milliseconds when falling back to single-move searches.</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -57,14 +56,12 @@ public static class UciEngineClientAnalysisExtensions
 		char                    sideToMove,
 		char                    playerColor,
 		IEnumerable<string>     legalMoves,
-		PositionScore           currentScore,
 		int                     multiPvMoveTimeMs  = 3_000,
 		int                     fallbackMoveTimeMs = 250,
 		CancellationToken       ct                 = default)
 	{
 		if (client is null) throw new ArgumentNullException(nameof(client));
 		if (legalMoves is null) throw new ArgumentNullException(nameof(legalMoves));
-		_ = currentScore;
 
 		ImmutableArray<string> legalMovesSnapshot = legalMoves.NormalizeUciMoves();
 		if (legalMovesSnapshot.IsDefaultOrEmpty)

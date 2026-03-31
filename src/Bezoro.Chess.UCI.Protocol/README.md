@@ -31,7 +31,6 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `UciRegistration`            | `Bezoro.Chess.UCI.Protocol.API.Types` | Payload for the standard `register` command.                                                              |
 | `EngineActivity`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Coarse engine activity state.                                                                             |
 | `TransportStatus`            | `Bezoro.Chess.UCI.Protocol.API.Types` | Transport lifecycle state.                                                                                |
-| `UciMoveAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`       | Cancellable cached move-analysis helper for clients that keep a secondary analysis engine warm.           |
 | `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
 | `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful human-versus-engine match coordinator over playing, snapshot, and full-strength analysis clients. |
 
@@ -218,7 +217,6 @@ var moveEvaluations = await client.AnalyzeLegalMovesAsync(
     currentFen.ActiveColor,
     playerColor: 'w',
     legalMoves,
-    advantage.Score,
     ct: cancellationToken);
 
 var positionAnalysis = await client.AnalyzePositionAsync(

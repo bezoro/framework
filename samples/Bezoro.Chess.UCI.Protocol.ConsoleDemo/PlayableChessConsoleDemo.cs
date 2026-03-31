@@ -549,9 +549,7 @@ internal static class PlayableChessConsoleDemo
 
 	private static void PrintMoveHistory(UciPlayableMatchSession session)
 	{
-		string[] lines =
-			session.MoveHistory.ToDisplayLines(move => session.TryGetPlayedMoveScore(move, out var score) ? score : null
-			);
+		string[] lines = session.GetMoveHistoryDisplayLines();
 
 		foreach (string line in lines)
 			Console.WriteLine(line);

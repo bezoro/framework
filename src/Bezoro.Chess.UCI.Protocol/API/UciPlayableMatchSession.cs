@@ -58,31 +58,6 @@ public sealed class UciPlayableMatchSession
 	}
 
 	/// <summary>
-	///     Creates a playable match session while accepting an unused compatibility move-classification client parameter.
-	/// </summary>
-	public UciPlayableMatchSession(
-		UciEngineClient  playingClient,
-		UciEngineClient  analysisClient,
-		UciEngineClient  moveListClient,
-		UciEngineClient? classificationClient,
-		char             playerColor,
-		int              engineMoveTimeMs       = 1_000,
-		int              moveListAnalysisTimeMs = 3_000,
-		int              moveListFallbackTimeMs = 250)
-		: this(
-			playingClient,
-			analysisClient,
-			moveListClient,
-			playerColor,
-			engineMoveTimeMs,
-			moveListAnalysisTimeMs,
-			moveListFallbackTimeMs
-		)
-	{
-		_ = classificationClient;
-	}
-
-	/// <summary>
 	///     Gets the engine's side.
 	/// </summary>
 	public char EngineColor => PlayerColor == 'w' ? 'b' : 'w';
@@ -139,10 +114,7 @@ public sealed class UciPlayableMatchSession
 	///     Tries to resolve a played move's high-quality score from the cached parent-position analysis.
 	/// </summary>
 	public bool TryGetPlayedMoveScore(PlayedMove move, out PositionScore score) =>
-		move.TryResolveScore(
-			key => TryGetPositionAnalysis(key, out var analysis) ? analysis : null,
-			out score
-		);
+		move.TryResolveScore(ResolvePositionAnalysis, out score);
 
 	/// <summary>
 	///     Tries to resolve a cached full-strength analysis for the supplied position key.
@@ -165,7 +137,7 @@ public sealed class UciPlayableMatchSession
 		return _moveHistory.ResolveCurrentAdvantage(
 			state.PositionKey,
 			state.LegalMoves.Length,
-			key => TryGetPositionAnalysis(key, out var analysis) ? analysis : null
+			ResolvePositionAnalysis
 		);
 	}
 
@@ -173,7 +145,7 @@ public sealed class UciPlayableMatchSession
 	///     Builds simple debugging lines for the played-move history using the best completed cached scores available so far.
 	/// </summary>
 	public string[] GetMoveHistoryDisplayLines() =>
-		_moveHistory.ToDisplayLines(move => TryGetPlayedMoveScore(move, out var score) ? score : null);
+		_moveHistory.ToDisplayLines(ResolvePlayedMoveScore);
 
 	/// <summary>
 	///     Loads an arbitrary base position and optional played-move sequence into the session.
@@ -288,7 +260,7 @@ public sealed class UciPlayableMatchSession
 		var advantage = _moveHistory.ResolveCurrentAdvantage(
 			positionKey,
 			legalMoves.Length,
-			key => TryGetPositionAnalysis(key, out var analysis) ? analysis : null
+			ResolvePositionAnalysis
 		);
 
 		var classifications = GetKnownMoveClassifications(positionKey);
@@ -424,18 +396,16 @@ public sealed class UciPlayableMatchSession
 		}
 	}
 
-	private async Task ClassifyPositionAsync(PendingClassificationPosition position, CancellationToken ct)
+	private Task ClassifyPositionAsync(PendingClassificationPosition position, CancellationToken ct)
 	{
 		foreach (string move in position.LegalMoves)
 		{
 			ct.ThrowIfCancellationRequested();
 
-			var structural = GetKnownMoveClassifications(position.PositionKey).TryGetValue(move, out var current)
-								 ? current
-								 : position.Fen.ClassifyMove(move);
-
-			var resolved = await ResolveTacticalClassificationAsync(position.Fen, move, structural, ct)
-							   .ConfigureAwait(false);
+			var resolved = GetKnownMoveClassifications(position.PositionKey).TryGetValue(move, out var current) &&
+						   current.IsResolved
+							   ? current
+							   : position.Fen.ClassifyMoveFully(move);
 
 			lock (_classificationSync)
 			{
@@ -450,6 +420,8 @@ public sealed class UciPlayableMatchSession
 			var completed = GetKnownMoveClassifications(position.PositionKey);
 			GetOrCreateClassificationCompletion(position.PositionKey).TrySetResult(completed);
 		}
+
+		return Task.CompletedTask;
 	}
 
 	private async Task RunClassificationWorkerAsync(CancellationToken ct)
@@ -487,18 +459,6 @@ public sealed class UciPlayableMatchSession
 				throw;
 			}
 		}
-	}
-
-	private async Task<MoveClassification> ResolveTacticalClassificationAsync(
-		Fen                fen,
-		string             move,
-		MoveClassification structural,
-		CancellationToken  ct)
-	{
-		ct.ThrowIfCancellationRequested();
-		await Task.Yield();
-		ct.ThrowIfCancellationRequested();
-		return fen.ClassifyMoveFully(move);
 	}
 
 	private TaskCompletionSource<ImmutableDictionary<string, MoveClassification>> GetOrCreateClassificationCompletion(
@@ -622,6 +582,12 @@ public sealed class UciPlayableMatchSession
 			)
 		);
 	}
+
+	private PositionAnalysisResult? ResolvePositionAnalysis(string positionKey) =>
+		TryGetPositionAnalysis(positionKey, out var analysis) ? analysis : null;
+
+	private PositionScore? ResolvePlayedMoveScore(PlayedMove move) =>
+		TryGetPlayedMoveScore(move, out var score) ? score : null;
 
 	private readonly record struct PendingClassificationPosition(
 		string                 PositionKey,
