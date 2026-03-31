@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Collections.Immutable;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 
@@ -10,15 +9,15 @@ namespace Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
 /// </summary>
 internal sealed class SearchSession(bool ponder)
 {
-	private readonly object _sync = new();
 	private readonly List<PrincipalVariation> _principalVariations = [];
-	private UciBestMoveMessage? _bestMove;
-	private uint _reachedDepth;
-	private uint _reachedSelDepth;
-	private uint _multiPvValue;
-	private uint _totalNodesSearched;
-	private uint _totalTbHits;
-	private uint _totalSearchTimeMs;
+	private readonly object                   _sync                = new();
+	private          UciBestMoveMessage?      _bestMove;
+	private          uint                     _multiPvValue;
+	private          uint                     _reachedDepth;
+	private          uint                     _reachedSelDepth;
+	private          uint                     _totalNodesSearched;
+	private          uint                     _totalSearchTimeMs;
+	private          uint                     _totalTbHits;
 
 	/// <summary>True if this session was started in pondering mode.</summary>
 	public bool Ponder { get; } = ponder;
@@ -42,36 +41,6 @@ internal sealed class SearchSession(bool ponder)
 	}
 
 	/// <summary>
-	///     Records a principal variation emitted during the active search.
-	/// </summary>
-	public void RecordInfo(PrincipalVariation principalVariation)
-	{
-		lock (_sync)
-		{
-			_principalVariations.Add(principalVariation);
-			if (principalVariation.Depth > _reachedDepth) _reachedDepth = principalVariation.Depth;
-			if (principalVariation.SelDepth > _reachedSelDepth) _reachedSelDepth = principalVariation.SelDepth;
-			_multiPvValue       = principalVariation.MultiPv;
-			_totalNodesSearched += principalVariation.Nodes;
-			_totalTbHits        += principalVariation.TbHits;
-			_totalSearchTimeMs  += principalVariation.Time;
-		}
-	}
-
-	/// <summary>
-	///     Completes the best move task with the supplied parsed message.
-	/// </summary>
-	public void CompleteBestMove(UciBestMoveMessage message)
-	{
-		lock (_sync)
-		{
-			_bestMove = message;
-		}
-
-		BestMoveCompletion.TrySetResult(message);
-	}
-
-	/// <summary>
 	///     Builds the final immutable search result from the accumulated state.
 	/// </summary>
 	public SearchResult BuildResult(UciBestMoveMessage bestMove)
@@ -89,6 +58,36 @@ internal sealed class SearchSession(bool ponder)
 				bestMove.BestMove,
 				bestMove.PonderMove
 			);
+		}
+	}
+
+	/// <summary>
+	///     Completes the best move task with the supplied parsed message.
+	/// </summary>
+	public void CompleteBestMove(UciBestMoveMessage message)
+	{
+		lock (_sync)
+		{
+			_bestMove = message;
+		}
+
+		BestMoveCompletion.TrySetResult(message);
+	}
+
+	/// <summary>
+	///     Records a principal variation emitted during the active search.
+	/// </summary>
+	public void RecordInfo(PrincipalVariation principalVariation)
+	{
+		lock (_sync)
+		{
+			_principalVariations.Add(principalVariation);
+			if (principalVariation.Depth > _reachedDepth) _reachedDepth          = principalVariation.Depth;
+			if (principalVariation.SelDepth > _reachedSelDepth) _reachedSelDepth = principalVariation.SelDepth;
+			_multiPvValue       =  principalVariation.MultiPv;
+			_totalNodesSearched += principalVariation.Nodes;
+			_totalTbHits        += principalVariation.TbHits;
+			_totalSearchTimeMs  += principalVariation.Time;
 		}
 	}
 }

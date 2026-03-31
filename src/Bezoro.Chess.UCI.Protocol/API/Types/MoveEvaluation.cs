@@ -5,7 +5,8 @@ namespace Bezoro.Chess.UCI.Protocol.API.Types;
 /// </summary>
 /// <param name="Move">Move in UCI notation.</param>
 /// <param name="Score">Absolute player-relative score for the resulting position.</param>
-public readonly record struct MoveEvaluation(string Move, PositionScore Score)
+/// <param name="Classification">Move classification metadata when available.</param>
+public readonly record struct MoveEvaluation(string Move, PositionScore Score, MoveClassification Classification = default)
 {
 	/// <summary>
 	///     Gets a compact player-relative display string for the resulting position score.

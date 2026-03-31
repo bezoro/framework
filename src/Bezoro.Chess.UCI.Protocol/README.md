@@ -11,7 +11,14 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `UciClientOptions`           | `Bezoro.Chess.UCI.Protocol.API.Types` | Client-level timeout and protocol-behavior configuration.                                                 |
 | `PositionScore`              | `Bezoro.Chess.UCI.Protocol.API.Types` | Player-relative centipawn or mate score with compact display/sort helpers.                                |
 | `PositionAdvantage`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Normalized player-relative advantage summary for lightweight UIs.                                         |
-| `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Absolute player-relative score for a legal move candidate's resulting position.                           |
+| `MoveClassificationFlags`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Structural and tactical flags such as capture, promotion, check, mate, and stalemate.                    |
+| `MoveClassification`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Fully typed move metadata including moving piece, captured piece, promotion piece, and resolved flags.    |
+| `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Absolute player-relative score for a legal move candidate's resulting position plus classification data.  |
+| `PlayableMatchCommand`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed textual command for playable-match workflows such as UCI moves, history, and FEN loading.         |
+| `PlayableMatchCommandKind`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Command discriminator for `PlayableMatchCommand`.                                                          |
+| `PlayedMove`                 | `Bezoro.Chess.UCI.Protocol.API.Types` | Chronological played-move record including parent/result positions and best-known classification.         |
+| `PlayableMatchState`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Current playable-match snapshot including position, legal moves, move classifications, advantage, and history. |
+| `EngineMoveResult`           | `Bezoro.Chess.UCI.Protocol.API.Types` | Engine move and search result produced during a playable match turn.                                      |
 | `MoveAnalysisResult`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Immutable snapshot of analyzed legal moves for a position.                                                |
 | `PositionAnalysisResult`     | `Bezoro.Chess.UCI.Protocol.API.Types` | Shared current-position advantage and legal-move analysis snapshot from the same search flow.             |
 | `UciProtocolMessage`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Immutable envelope for parsed protocol output with typed optional payload fields keyed by `Type`.         |
@@ -26,6 +33,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `TransportStatus`            | `Bezoro.Chess.UCI.Protocol.API.Types` | Transport lifecycle state.                                                                                |
 | `UciMoveAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`       | Cancellable cached move-analysis helper for clients that keep a secondary analysis engine warm.           |
 | `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
+| `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful human-versus-engine match coordinator over playing, snapshot, and full-strength analysis clients. |
 
 ## Quick Start
 ```csharp
@@ -149,6 +157,50 @@ if (client.Capabilities.SupportsCoordinatorExtensions)
 
 `TryGetFenViaDisplayBoardAsync` and `GetLegalMovesViaPerftAsync` are deliberate non-standard helpers. They remain available because higher layers in this repo depend on them, but they should be treated as engine-specific extensions rather than standard UCI behavior.
 
+## Move Classification Helpers
+```csharp
+using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+Fen fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value;
+
+MoveClassification structuralOnly = fen.ClassifyMove("f7g7");
+MoveClassification full = fen.ClassifyMoveFully("f7g7");
+
+Console.WriteLine(structuralOnly.IsResolved); // false
+Console.WriteLine(full.IsCheck);              // true
+Console.WriteLine(full.IsMate);               // true
+```
+
+`ClassifyMove` and `ClassifyMoves` are the zero-search structural fast path. `ClassifyMoveFully` and `ClassifyMovesFully` resolve check, mate, and stalemate locally from FEN plus UCI move notation, without engine round-trips.
+
+Debug-display helpers are also available for simple text UIs:
+```csharp
+using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+
+string evaluationText = evaluation.ToDebugDisplayString();
+string historySuffix = playedMove.Classification.ToDebugSuffix();
+```
+
+`PlayedMoveHistoryExtensions.ToDisplayLines` now includes those classification suffixes automatically when the played moves carry them.
+
+## Playable Match Command Parsing
+```csharp
+using Bezoro.Chess.UCI.Protocol.API;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+PlayableMatchCommand command = PlayableMatchCommandParser.Parse(
+    "loadfen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5");
+
+if (command.Kind == PlayableMatchCommandKind.LoadFen)
+{
+    Fen fen = command.Fen!.Value;
+    var moves = command.Moves;
+}
+```
+
+This parser is intended for terminal apps or debug tooling built on top of `UciPlayableMatchSession`. It recognizes UCI moves, `moves`, `history`, `quit`, and `loadfen <fen> [moves ...]`.
+
 ## Analysis Helpers
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
@@ -180,6 +232,48 @@ var positionAnalysis = await client.AnalyzePositionAsync(
 
 `AnalyzePositionAsync` and `UciPositionAnalysisCoordinator` are intended for non-blocking UIs that want the current advantage bar and legal-move list to come from the same full-strength analysis stream. The coordinator processes queued positions in FIFO order, caches each completed result by position key, and never skips earlier queued positions in favor of newer ones.
 
+## Playable Match Workflow
+```csharp
+using Bezoro.Chess.UCI.Protocol.API;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+await using var playingClient = new UciEngineClient(enginePath);
+await using var analysisClient = new UciEngineClient(enginePath);
+await using var moveListClient = new UciEngineClient(enginePath);
+
+await Task.WhenAll(
+    playingClient.StartAsync(cancellationToken),
+    analysisClient.StartAsync(cancellationToken),
+    moveListClient.StartAsync(cancellationToken));
+
+var session = new UciPlayableMatchSession(
+    playingClient,
+    analysisClient,
+    moveListClient,
+    playerColor: 'w');
+
+await session.StartNewGameAsync(cancellationToken);
+
+PlayableMatchState state = await session.RefreshAsync(cancellationToken);
+var openingAnalysis = await session.GetLegalMoveAnalysisAsync(cancellationToken);
+var legalMoveClassifications = state.LegalMoveClassifications;
+
+session.ApplyHumanMove("e2e4");
+state = await session.RefreshAsync(cancellationToken);
+
+if (state.Fen.ActiveColor == session.EngineColor)
+{
+    EngineMoveResult engineMove = await session.PlayEngineMoveAsync(cancellationToken);
+    state = await session.RefreshAsync(cancellationToken);
+}
+
+await session.WaitForCurrentMoveClassificationsAsync(cancellationToken);
+string[] historyLines = session.GetMoveHistoryDisplayLines();
+PositionAdvantage liveAdvantage = session.ResolveCurrentAdvantage();
+```
+
+`UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: position refresh, legal-move loading, local move-type resolution, move-history tracking, engine-turn execution, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
+
 ## Text Formatting Helpers
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
@@ -193,6 +287,27 @@ string playerEngineLine = result.ToPlayerDisplayString(sideToMove: 'b', playerCo
 These helpers are intentionally lightweight. They are suitable for samples, diagnostics, or simple terminal UIs without forcing consumers into a richer board-rendering abstraction.
 
 ## API Reference
+### `UciPlayableMatchSession`
+| Member                           | Description                                                                 |
+|----------------------------------|-----------------------------------------------------------------------------|
+| `StartNewGameAsync(ct)`          | Clears local state and sends `ucinewgame` to the playing, snapshot, and move-list clients. |
+| `RefreshAsync(ct)`               | Reloads the current FEN, legal moves, move history, and live non-blocking advantage. |
+| `GetLegalMoveAnalysisAsync(ct)`  | Awaits the full-strength move analysis for the current position.           |
+| `GetCurrentLegalMoveClassifications()` | Returns the latest cached move-type map for the current position.    |
+| `WaitForCurrentMoveClassificationsAsync(ct)` | Awaits completion of background check/mate/stalemate resolution for the current position. |
+| `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
+| `ApplyHumanMove(move)`           | Validates and applies a human move in UCI notation.                        |
+| `PlayEngineMoveAsync(ct)`        | Plays the engine's next move using the configured engine move time.        |
+| `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
+| `TryGetPlayedMoveClassification(move, out classification)` | Resolves the latest known classification for a played move. |
+| `TryGetPositionAnalysis(key, out analysis)` | Reads a completed cached position analysis when available.           |
+| `ResolveCurrentAdvantage()`      | Resolves the best completed current advantage without blocking gameplay.    |
+| `GetMoveHistoryDisplayLines()`   | Builds simple debugging lines for played-move history.                     |
+| `CancelAnalysis()`               | Cancels in-flight full-strength analysis.                                  |
+| `PlayerColor` / `EngineColor`    | Human and engine sides.                                                    |
+| `PlayedMoves` / `MoveHistory`    | Current raw played moves and structured played-move history.               |
+| `CurrentState`                   | Latest refreshed match snapshot.                                           |
+
 ### `UciEngineClient`
 | Member                                       | Description                                                                      |
 |----------------------------------------------|----------------------------------------------------------------------------------|
@@ -266,7 +381,7 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `Registration`   | Parsed `registration ...` output.      |
 
 ## Sample
-See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches. The `moves` command, `history` command, and current cp bar all resolve from the same full-strength move evaluations, with positions analyzed in move order instead of skipping ahead to the latest position.
+See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches. The `moves` command, `history` command, and current cp bar all resolve from the same full-strength move evaluations, with positions analyzed in move order instead of skipping ahead to the latest position. Move types such as capture, en passant, promotion, castling, check, mate, and stalemate are resolved through the protocol library and carried through both legal-move lists and played-move history. The sample also supports `loadfen <fen> [moves ...]` for targeted debugging of specific positions and edge cases.
 
 ## Design Notes
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
