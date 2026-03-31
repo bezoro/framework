@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Bezoro.Chess.UCI.Protocol.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Bezoro.Chess.UCI.Protocol\Bezoro.Chess.UCI.Protocol.csproj" />
   </ItemGroup>
 

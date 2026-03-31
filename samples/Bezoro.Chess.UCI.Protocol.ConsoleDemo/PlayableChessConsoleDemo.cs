@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Bezoro.Chess.UCI.Protocol.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -6,12 +7,12 @@ namespace Bezoro.Chess.UCI.Protocol.ConsoleDemo;
 
 internal static class PlayableChessConsoleDemo
 {
-	private const int ADVANTAGE_BAR_HEIGHT   = 8;
-	private const int ADVANTAGE_BAR_WIDTH    = 3;
-	private const int ADVANTAGE_CP_DEAD_ZONE = 30;
-	private const int ADVANTAGE_CP_DECISIVE  = 500;
-	private const int ADVANTAGE_EVAL_TIME_MS = 250;
-	private const int ENGINE_MOVE_TIME_MS    = 1_000;
+	private const int ADVANTAGE_BAR_HEIGHT       = 8;
+	private const int ADVANTAGE_BAR_WIDTH        = 3;
+	private const int ADVANTAGE_EVAL_TIME_MS     = 250;
+	private const int ENGINE_MOVE_TIME_MS        = 1_000;
+	private const int MOVE_LIST_ANALYSIS_TIME_MS = 3_000;
+	private const int MOVE_LIST_FALLBACK_TIME_MS = 250;
 
 	public static async Task<int> RunAsync(string[] args)
 	{
@@ -34,12 +35,19 @@ internal static class PlayableChessConsoleDemo
 			MoveTimeBuffer                  = TimeSpan.FromSeconds(1)
 		};
 
-		await using var client = new UciEngineClient(enginePath, options: options);
-		client.StderrReceived += static line => Console.Error.WriteLine($"stderr: {line}");
+		await using var playingClient  = new UciEngineClient(enginePath, options: options);
+		await using var analysisClient = new UciEngineClient(enginePath, options: options);
+		await using var moveListClient = new UciEngineClient(enginePath, options: options);
+
+		playingClient.StderrReceived  += static line => Console.Error.WriteLine($"play stderr: {line}");
+		analysisClient.StderrReceived += static line => Console.Error.WriteLine($"analysis stderr: {line}");
+		moveListClient.StderrReceived += static line => Console.Error.WriteLine($"moves stderr: {line}");
 
 		try
 		{
-			await client.StartAsync(CancellationToken.None);
+			await playingClient.StartAsync(CancellationToken.None);
+			await analysisClient.StartAsync(CancellationToken.None);
+			await moveListClient.StartAsync(CancellationToken.None);
 		}
 		catch (Exception ex)
 		{
@@ -47,15 +55,16 @@ internal static class PlayableChessConsoleDemo
 			return 1;
 		}
 
-		Console.WriteLine($"{client.EngineInfo.Name} by {client.EngineInfo.Author}");
+		Console.WriteLine($"{playingClient.EngineInfo.Name} by {playingClient.EngineInfo.Author}");
 		Console.WriteLine($"Engine executable: {enginePath}");
 		Console.WriteLine();
 
-		if (client.TryGetStrengthLimitRange(out int minElo, out int maxElo))
+		if (playingClient.TryGetStrengthLimitRange(out int minElo, out int maxElo))
 		{
 			int elo = PromptElo(minElo, maxElo);
-			await client.SetStrengthLimitAsync(elo, CancellationToken.None);
+			await playingClient.SetStrengthLimitAsync(elo, CancellationToken.None);
 			Console.WriteLine($"Engine strength limited to {elo} Elo.");
+			Console.WriteLine("Analysis remains at full engine strength.");
 		}
 		else
 		{
@@ -69,8 +78,13 @@ internal static class PlayableChessConsoleDemo
 
 		try
 		{
-			await client.UciNewGameAsync(CancellationToken.None);
-			await RunGameLoopAsync(client, playerColor);
+			await Task.WhenAll(
+				playingClient.UciNewGameAsync(CancellationToken.None),
+				analysisClient.UciNewGameAsync(CancellationToken.None),
+				moveListClient.UciNewGameAsync(CancellationToken.None)
+			);
+
+			await RunGameLoopAsync(playingClient, analysisClient, moveListClient, playerColor);
 			return 0;
 		}
 		catch (NotSupportedException ex)
@@ -93,6 +107,15 @@ internal static class PlayableChessConsoleDemo
 				return true;
 		}
 
+		return false;
+	}
+
+	private static bool TryGetMultiPvOption(UciEngineClient client, out UciEngineOption option)
+	{
+		if (client.TryGetOption("MultiPV", out option) && option.Type == UciOptionType.Spin)
+			return true;
+
+		option = default;
 		return false;
 	}
 
@@ -121,6 +144,12 @@ internal static class PlayableChessConsoleDemo
 		return builder.ToImmutable();
 	}
 
+	private static int GetPlayerPerspectiveCp(int? rawCpScore, char sideToMove, char playerColor)
+	{
+		int perspective = sideToMove == playerColor ? 1 : -1;
+		return (rawCpScore ?? 0) * perspective;
+	}
+
 	private static int PromptElo(int minElo, int maxElo)
 	{
 		while (true)
@@ -144,18 +173,37 @@ internal static class PlayableChessConsoleDemo
 		}
 	}
 
+	private static MoveEvaluation BuildMoveEvaluation(
+		string        move,
+		int?          rawCpScore,
+		int?          rawMateScore,
+		char          sideToMove,
+		char          playerColor,
+		int           baselineCp,
+		PositionScore currentScore)
+	{
+		var moveScore = CreatePositionScore(rawCpScore, rawMateScore, sideToMove, playerColor, baselineCp);
+		if (currentScore.Mate is int || moveScore.Mate is int)
+			return new(move, moveScore.ToDisplayString(), moveScore.ToSortValue());
+
+		int    deltaCp   = moveScore.Cp!.Value - currentScore.Cp!.Value;
+		string sign      = deltaCp >= 0 ? "+" : string.Empty;
+		var    displayCp = $"{sign}{deltaCp.ToString(CultureInfo.InvariantCulture)} cp";
+		return new(move, displayCp, deltaCp);
+	}
+
 	private static PositionAdvantage BuildAdvantage(
 		int? rawCpScore,
 		int? rawMateScore,
 		char sideToMove,
-		char playerColor)
+		char playerColor,
+		int  baselineCp)
 	{
-		int perspective = sideToMove == playerColor ? 1 : -1;
+		var score = CreatePositionScore(rawCpScore, rawMateScore, sideToMove, playerColor, baselineCp);
 
-		if (rawMateScore is int mateScore)
+		if (score.Mate is int adjustedMate)
 		{
-			int adjustedMate = mateScore * perspective;
-			int plyToMate    = Math.Abs(adjustedMate);
+			int plyToMate = Math.Abs(adjustedMate);
 			double magnitude = plyToMate switch
 			{
 				<= 1 => 1.0,
@@ -167,37 +215,40 @@ internal static class PlayableChessConsoleDemo
 
 			double mateNormalized = adjustedMate > 0 ? magnitude : -magnitude;
 			string mateSummary = adjustedMate > 0
-									 ? $"Advantage +{mateNormalized:F2} | You mate in {plyToMate}"
-									 : $"Advantage {mateNormalized:F2} | Engine mate in {plyToMate}";
+									 ? $"Advantage +{mateNormalized.ToString("0.00", CultureInfo.InvariantCulture)} | You mate in {plyToMate}"
+									 : $"Advantage {mateNormalized.ToString("0.00", CultureInfo.InvariantCulture)} | Engine mate in {plyToMate}";
 
-			return new(mateNormalized, mateSummary);
+			return new(mateNormalized, mateSummary, score);
 		}
 
-		int    adjustedCp = (rawCpScore ?? 0) * perspective;
-		int    absoluteCp = Math.Abs(adjustedCp);
-		double normalized;
-
-		if (absoluteCp <= ADVANTAGE_CP_DEAD_ZONE)
-		{
-			normalized = 0;
-		}
-		else
-		{
-			double scaled = (absoluteCp - ADVANTAGE_CP_DEAD_ZONE) /
-							(double)(ADVANTAGE_CP_DECISIVE - ADVANTAGE_CP_DEAD_ZONE);
-
-			double magnitude = Math.Min(0.95, Math.Pow(Math.Clamp(scaled, 0, 1), 0.8) * 0.95);
-			normalized = adjustedCp > 0 ? magnitude : -magnitude;
-		}
+		int    adjustedCp = score.Cp ?? 0;
+		double normalized = AdvantageScale.NormalizeCp(adjustedCp);
 
 		string summary = normalized switch
 		{
-			> 0 => $"Advantage +{normalized:F2} | You {adjustedCp / 100.0:+0.0;-0.0;0.0} pawns",
-			< 0 => $"Advantage {normalized:F2} | Engine {Math.Abs(adjustedCp) / 100.0:0.0} pawns",
-			_   => "Advantage 0.00 | Even"
+			> 0 =>
+				$"Advantage +{normalized.ToString("0.00", CultureInfo.InvariantCulture)} | You +{(adjustedCp / 100.0).ToString("0.0", CultureInfo.InvariantCulture)} pawns ({adjustedCp.ToString(CultureInfo.InvariantCulture)} cp)",
+			< 0 =>
+				$"Advantage {normalized.ToString("0.00", CultureInfo.InvariantCulture)} | Engine +{(Math.Abs(adjustedCp) / 100.0).ToString("0.0", CultureInfo.InvariantCulture)} pawns ({Math.Abs(adjustedCp).ToString(CultureInfo.InvariantCulture)} cp)",
+			_ => "Advantage 0.00 | Even (0 cp)"
 		};
 
-		return new(normalized, summary);
+		return new(normalized, summary, score);
+	}
+
+	private static PositionScore CreatePositionScore(
+		int? rawCpScore,
+		int? rawMateScore,
+		char sideToMove,
+		char playerColor,
+		int  baselineCp)
+	{
+		int perspective = sideToMove == playerColor ? 1 : -1;
+
+		if (rawMateScore is int mateScore)
+			return new(null, mateScore * perspective);
+
+		return new((rawCpScore ?? 0) * perspective - baselineCp, null);
 	}
 
 	private static string ExpandRank(string encodedRank)
@@ -262,39 +313,6 @@ internal static class PlayableChessConsoleDemo
 		}
 	}
 
-	private static string PromptHumanMove(ImmutableArray<string> legalMoves)
-	{
-		while (true)
-		{
-			Console.Write("Your move: ");
-			string move = NormalizeInput(ReadRequiredLine()).ToLowerInvariant();
-
-			if (move is "quit" or "exit")
-				return "quit";
-
-			if (move == "moves")
-			{
-				PrintLegalMoves(legalMoves);
-				continue;
-			}
-
-			if (!UciEngineClient.IsUciMoveString(move))
-			{
-				Console.WriteLine("Enter a move in UCI notation such as e2e4 or a7a8q.");
-				continue;
-			}
-
-			if (!ContainsMove(legalMoves, move))
-			{
-				Console.WriteLine("That move is not legal in the current position.");
-				PrintLegalMoves(legalMoves);
-				continue;
-			}
-
-			return move;
-		}
-	}
-
 	private static string ReadRequiredLine()
 	{
 		string? line = Console.ReadLine();
@@ -310,13 +328,16 @@ internal static class PlayableChessConsoleDemo
 			"  +" + new string('-', ADVANTAGE_BAR_WIDTH) + "+"
 		};
 
-		var filledRows = (int)Math.Round((advantage.Normalized + 1.0) / 2.0 * ADVANTAGE_BAR_HEIGHT);
-		filledRows = Math.Clamp(filledRows, 0, ADVANTAGE_BAR_HEIGHT);
+		var playerRows = (int)Math.Round((advantage.Normalized + 1.0) / 2.0 * ADVANTAGE_BAR_HEIGHT);
+		playerRows = Math.Clamp(playerRows, 0, ADVANTAGE_BAR_HEIGHT);
+		int engineRows = ADVANTAGE_BAR_HEIGHT - playerRows;
 
 		for (var row = 0; row < ADVANTAGE_BAR_HEIGHT; row++)
 		{
-			bool   filled = row >= ADVANTAGE_BAR_HEIGHT - filledRows;
-			string fill   = filled ? new('#', ADVANTAGE_BAR_WIDTH) : new string(' ', ADVANTAGE_BAR_WIDTH);
+			string fill = row < engineRows
+							  ? new('=', ADVANTAGE_BAR_WIDTH)
+							  : new string('#', ADVANTAGE_BAR_WIDTH);
+
 			lines.Add($"  |{fill}|");
 		}
 
@@ -377,38 +398,80 @@ internal static class PlayableChessConsoleDemo
 		return lines.ToArray();
 	}
 
-	private static async Task RunGameLoopAsync(UciEngineClient client, char playerColor)
+	private static async Task PrintLegalMovesAsync(
+		MoveListAnalysisCoordinator moveListAnalysis,
+		string                      positionKey)
 	{
-		var playedMoves = new List<string>();
+		var analysis = await moveListAnalysis.GetAnalysisAsync(positionKey);
+		if (analysis.Evaluations.IsDefaultOrEmpty)
+		{
+			Console.WriteLine("No legal moves are available.");
+			return;
+		}
+
+		Console.WriteLine("Showing cached legal move analysis...");
+
+		foreach (var evaluation in analysis.Evaluations)
+			Console.WriteLine($"  {evaluation.Move,-6} {evaluation.Display}");
+	}
+
+	private static async Task RunGameLoopAsync(
+		UciEngineClient playingClient,
+		UciEngineClient analysisClient,
+		UciEngineClient moveListClient,
+		char            playerColor)
+	{
+		var playedMoves      = new List<string>();
+		int baselineCp       = await EvaluateBaselineCpAsync(playingClient, analysisClient, playerColor);
+		var moveListAnalysis = new MoveListAnalysisCoordinator(moveListClient);
 
 		while (true)
 		{
-			var snapshot   = await LoadSnapshotAsync(client, playerColor, playedMoves);
-			var fen        = snapshot.Fen;
+			var snapshot = await LoadSnapshotAsync(playingClient, analysisClient, playerColor, playedMoves, baselineCp);
+			var fen = snapshot.Fen;
 			var legalMoves = snapshot.LegalMoves;
+			string positionKey = fen.Raw;
+			moveListAnalysis.EnsureStarted(
+				positionKey,
+				playedMoves,
+				fen.ActiveColor,
+				playerColor,
+				legalMoves,
+				baselineCp,
+				snapshot.Advantage.Score
+			);
+
 			PrintBoard(fen, playerColor, legalMoves.Length, snapshot.Advantage);
 
 			if (legalMoves.Length == 0)
 			{
+				moveListAnalysis.Cancel();
 				PrintGameOver(fen, playerColor);
 				return;
 			}
 
 			if (fen.ActiveColor == playerColor)
 			{
-				string move = PromptHumanMove(legalMoves);
+				string move = await PromptHumanMoveAsync(moveListAnalysis, positionKey, legalMoves);
+
 				if (move == "quit")
 				{
+					moveListAnalysis.Cancel();
 					Console.WriteLine("Game aborted by user.");
 					return;
 				}
 
+				moveListAnalysis.Cancel();
 				playedMoves.Add(move);
 				continue;
 			}
 
+			moveListAnalysis.Cancel();
 			Console.WriteLine("Engine is thinking...");
-			var    result = await client.GoAsync(new() { MoveTimeMs = ENGINE_MOVE_TIME_MS }, CancellationToken.None);
+			var result = await playingClient.GoAsync(
+							 new() { MoveTimeMs = ENGINE_MOVE_TIME_MS }, CancellationToken.None
+						 );
+
 			string engineMove = result.BestMove.ToLowerInvariant();
 
 			if (!ContainsMove(legalMoves, engineMove))
@@ -421,33 +484,228 @@ internal static class PlayableChessConsoleDemo
 		}
 	}
 
+	private static async Task<int> EvaluateBaselineCpAsync(
+		UciEngineClient playingClient,
+		UciEngineClient analysisClient,
+		char            playerColor)
+	{
+		await Task.WhenAll(
+			playingClient.SetPositionAsync(Fen.Default, [], CancellationToken.None),
+			analysisClient.SetPositionAsync(Fen.Default, [], CancellationToken.None)
+		);
+
+		var evaluation = await analysisClient.GoAsync(
+							 new() { MoveTimeMs = ADVANTAGE_EVAL_TIME_MS },
+							 CancellationToken.None
+						 );
+
+		if (evaluation.MateScore is { })
+			return 0;
+
+		return GetPlayerPerspectiveCp(evaluation.BestCpScore, Fen.Default.ActiveColor, playerColor);
+	}
+
+	private static async Task<List<MoveEvaluation>> BuildMoveEvaluationsFromMultiPvAsync(
+		UciEngineClient        client,
+		SearchResult           result,
+		char                   sideToMove,
+		char                   playerColor,
+		ImmutableArray<string> legalMoves,
+		int                    baselineCp,
+		PositionScore          currentScore,
+		CancellationToken      ct)
+	{
+		var capturedVariations = new Dictionary<string, PrincipalVariation>(StringComparer.Ordinal);
+
+		foreach (var variation in result.PrincipalVariations)
+		{
+			if (variation.Moves.IsDefaultOrEmpty)
+				continue;
+
+			string move = variation.Moves[0];
+			if (!ContainsMove(legalMoves, move))
+				continue;
+
+			if (!capturedVariations.TryGetValue(move, out var existing) ||
+				variation.Depth > existing.Depth ||
+				variation.Depth == existing.Depth && variation.SelDepth >= existing.SelDepth)
+				capturedVariations[move] = variation;
+		}
+
+		var evaluations = new List<MoveEvaluation>(legalMoves.Length);
+		foreach (string move in legalMoves)
+		{
+			if (capturedVariations.TryGetValue(move, out var variation))
+			{
+				evaluations.Add(
+					BuildMoveEvaluation(
+						move,
+						variation.ScoreCp,
+						variation.ScoreMate,
+						sideToMove,
+						playerColor,
+						baselineCp,
+						currentScore
+					)
+				);
+
+				continue;
+			}
+
+			var fallback = await EvaluateSingleMoveAsync(
+							   client, move, sideToMove, playerColor, baselineCp, currentScore, ct
+						   );
+
+			evaluations.Add(fallback);
+		}
+
+		evaluations.Sort(static (left, right) => right.SortValue.CompareTo(left.SortValue));
+		return evaluations;
+	}
+
+	private static async Task<List<MoveEvaluation>> EvaluateMovesAsync(
+		UciEngineClient        client,
+		char                   sideToMove,
+		char                   playerColor,
+		ImmutableArray<string> legalMoves,
+		int                    baselineCp,
+		PositionScore          currentScore,
+		CancellationToken      ct)
+	{
+		if (!TryGetMultiPvOption(client, out var multiPvOption))
+			return await EvaluateMovesIndividuallyAsync(
+					   client, sideToMove, playerColor, legalMoves, baselineCp, currentScore, ct
+				   );
+
+		int requestedMultiPv = legalMoves.Length;
+		if (multiPvOption.Max is int maxMultiPv)
+			requestedMultiPv = Math.Min(requestedMultiPv, maxMultiPv);
+
+		requestedMultiPv = Math.Max(1, requestedMultiPv);
+
+		string restoreValue = string.IsNullOrWhiteSpace(multiPvOption.DefaultValue)
+								  ? "1"
+								  : multiPvOption.DefaultValue;
+
+		await client.SetOptionAsync(
+			multiPvOption.Name,
+			requestedMultiPv.ToString(CultureInfo.InvariantCulture),
+			ct
+		);
+
+		try
+		{
+			var result = await client.GoAsync(
+							 new()
+							 {
+								 MoveTimeMs = MOVE_LIST_ANALYSIS_TIME_MS
+							 },
+							 ct
+						 );
+
+			return await BuildMoveEvaluationsFromMultiPvAsync(
+					   client,
+					   result,
+					   sideToMove,
+					   playerColor,
+					   legalMoves,
+					   baselineCp,
+					   currentScore,
+					   ct
+				   );
+		}
+		finally
+		{
+			await client.SetOptionAsync(multiPvOption.Name, restoreValue, CancellationToken.None);
+		}
+	}
+
+	private static async Task<List<MoveEvaluation>> EvaluateMovesIndividuallyAsync(
+		UciEngineClient        client,
+		char                   sideToMove,
+		char                   playerColor,
+		ImmutableArray<string> legalMoves,
+		int                    baselineCp,
+		PositionScore          currentScore,
+		CancellationToken      ct)
+	{
+		var evaluations = new List<MoveEvaluation>(legalMoves.Length);
+
+		foreach (string move in legalMoves)
+		{
+			evaluations.Add(
+				await EvaluateSingleMoveAsync(
+					client, move, sideToMove, playerColor, baselineCp, currentScore, ct
+				)
+			);
+		}
+
+		evaluations.Sort(static (left, right) => right.SortValue.CompareTo(left.SortValue));
+		return evaluations;
+	}
+
+	private static async Task<MoveEvaluation> EvaluateSingleMoveAsync(
+		UciEngineClient   client,
+		string            move,
+		char              sideToMove,
+		char              playerColor,
+		int               baselineCp,
+		PositionScore     currentScore,
+		CancellationToken ct)
+	{
+		var result = await client.GoAsync(
+						 new()
+						 {
+							 MoveTimeMs  = MOVE_LIST_FALLBACK_TIME_MS,
+							 SearchMoves = [move]
+						 },
+						 ct
+					 );
+
+		return BuildMoveEvaluation(
+			move,
+			result.BestCpScore,
+			result.MateScore,
+			sideToMove,
+			playerColor,
+			baselineCp,
+			currentScore
+		);
+	}
+
 	private static async Task<PositionAdvantage> EvaluateAdvantageAsync(
 		UciEngineClient client,
 		char            sideToMove,
-		char            playerColor)
+		char            playerColor,
+		int             baselineCp)
 	{
 		var evaluation = await client.GoAsync(
 							 new() { MoveTimeMs = ADVANTAGE_EVAL_TIME_MS },
 							 CancellationToken.None
 						 );
 
-		return BuildAdvantage(evaluation.BestCpScore, evaluation.MateScore, sideToMove, playerColor);
+		return BuildAdvantage(evaluation.BestCpScore, evaluation.MateScore, sideToMove, playerColor, baselineCp);
 	}
 
 	private static async Task<PositionSnapshot> LoadSnapshotAsync(
-		UciEngineClient       client,
+		UciEngineClient       playingClient,
+		UciEngineClient       analysisClient,
 		char                  playerColor,
-		IReadOnlyList<string> moves)
+		IReadOnlyList<string> moves,
+		int                   baselineCp)
 	{
-		await client.SetPositionAsync(Fen.Default, moves, CancellationToken.None);
+		await Task.WhenAll(
+			playingClient.SetPositionAsync(Fen.Default, moves, CancellationToken.None),
+			analysisClient.SetPositionAsync(Fen.Default, moves, CancellationToken.None)
+		);
 
-		var fen = await client.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
+		var fen = await analysisClient.TryGetFenViaDisplayBoardAsync(CancellationToken.None);
 		if (!fen.HasValue)
 			throw new NotSupportedException(
 				"This sample requires an engine that supports the non-standard 'd' command and returns a FEN line."
 			);
 
-		var legalMoves = NormalizeMoves(await client.GetLegalMovesViaPerftAsync(CancellationToken.None));
+		var legalMoves = NormalizeMoves(await analysisClient.GetLegalMovesViaPerftAsync(CancellationToken.None));
 		if (moves.Count == 0 && legalMoves.Length == 0)
 			throw new NotSupportedException(
 				"This sample requires an engine that supports legal-move listing via the non-standard 'go perft 1' command."
@@ -455,9 +713,51 @@ internal static class PlayableChessConsoleDemo
 
 		var advantage = legalMoves.Length == 0
 							? PositionAdvantage.GameOver()
-							: await EvaluateAdvantageAsync(client, fen.Value.ActiveColor, playerColor);
+							: moves.Count == 0
+								? PositionAdvantage.GameStart()
+								: await EvaluateAdvantageAsync(
+									  analysisClient, fen.Value.ActiveColor, playerColor, baselineCp
+								  );
 
 		return new(fen.Value, legalMoves, advantage);
+	}
+
+	private static async Task<string> PromptHumanMoveAsync(
+		MoveListAnalysisCoordinator moveListAnalysis,
+		string                      positionKey,
+		ImmutableArray<string>      legalMoves)
+	{
+		while (true)
+		{
+			Console.Write("Your move: ");
+			string move = NormalizeInput(ReadRequiredLine()).ToLowerInvariant();
+
+			if (move is "quit" or "exit")
+				return "quit";
+
+			if (move == "moves")
+			{
+				await PrintLegalMovesAsync(moveListAnalysis, positionKey);
+
+				continue;
+			}
+
+			if (!UciEngineClient.IsUciMoveString(move))
+			{
+				Console.WriteLine("Enter a move in UCI notation such as e2e4 or a7a8q.");
+				continue;
+			}
+
+			if (!ContainsMove(legalMoves, move))
+			{
+				Console.WriteLine("That move is not legal in the current position.");
+				await PrintLegalMovesAsync(moveListAnalysis, positionKey);
+
+				continue;
+			}
+
+			return move;
+		}
 	}
 
 	private static void PrintBoard(
@@ -495,22 +795,185 @@ internal static class PlayableChessConsoleDemo
 		Console.WriteLine("Stalemate.");
 	}
 
-	private static void PrintLegalMoves(ImmutableArray<string> legalMoves)
+	private readonly record struct MoveEvaluation(string Move, string Display, double SortValue);
+
+	private sealed class MoveListAnalysisCoordinator(UciEngineClient client)
 	{
-		if (legalMoves.IsDefaultOrEmpty)
+		private readonly object                        _sync = new();
+		private          CancellationTokenSource?      _cts;
+		private          MoveListAnalysisResult?       _cachedResult;
+		private          string?                       _positionKey;
+		private          Task<MoveListAnalysisResult>? _runningTask;
+
+		public async Task<MoveListAnalysisResult> GetAnalysisAsync(string positionKey)
 		{
-			Console.WriteLine("No legal moves are available.");
-			return;
+			Task<MoveListAnalysisResult>? runningTask;
+			MoveListAnalysisResult?       cachedResult;
+
+			lock (_sync)
+			{
+				if (!string.Equals(_positionKey, positionKey, StringComparison.Ordinal))
+					throw new InvalidOperationException("Move analysis is not available for the current position.");
+
+				cachedResult = _cachedResult;
+				runningTask  = _runningTask;
+			}
+
+			if (cachedResult.HasValue)
+				return cachedResult.Value;
+
+			if (runningTask is null)
+				return MoveListAnalysisResult.Empty;
+
+			return await runningTask;
 		}
 
-		const int PREVIEW_COUNT = 24;
-		string    suffix        = legalMoves.Length > PREVIEW_COUNT ? ", ..." : string.Empty;
-		Console.WriteLine($"Legal moves: {string.Join(", ", legalMoves.Take(PREVIEW_COUNT))}{suffix}");
+		public void Cancel()
+		{
+			CancellationTokenSource? ctsToCancel;
+			lock (_sync)
+			{
+				ctsToCancel   = _cts;
+				_cts          = null;
+				_positionKey  = null;
+				_runningTask  = null;
+				_cachedResult = null;
+			}
+
+			if (ctsToCancel is null)
+				return;
+
+			try
+			{
+				ctsToCancel.Cancel();
+			}
+			finally
+			{
+				ctsToCancel.Dispose();
+			}
+		}
+
+		public void EnsureStarted(
+			string                 positionKey,
+			IReadOnlyList<string>  moves,
+			char                   sideToMove,
+			char                   playerColor,
+			ImmutableArray<string> legalMoves,
+			int                    baselineCp,
+			PositionScore          currentScore)
+		{
+			CancellationTokenSource? ctsToCancel = null;
+
+			lock (_sync)
+			{
+				if (string.Equals(_positionKey, positionKey, StringComparison.Ordinal) &&
+					(_cachedResult.HasValue || _runningTask is { }))
+					return;
+
+				ctsToCancel   = _cts;
+				_cts          = new();
+				_positionKey  = positionKey;
+				_cachedResult = null;
+
+				ImmutableArray<string> movesCopy = [.. moves];
+				var                    token     = _cts.Token;
+				_runningTask = AnalyzeAndCacheAsync(
+					positionKey,
+					movesCopy,
+					sideToMove,
+					playerColor,
+					legalMoves,
+					baselineCp,
+					currentScore,
+					token
+				);
+			}
+
+			if (ctsToCancel is null)
+				return;
+
+			try
+			{
+				ctsToCancel.Cancel();
+			}
+			finally
+			{
+				ctsToCancel.Dispose();
+			}
+		}
+
+		private async Task<MoveListAnalysisResult> AnalyzeAndCacheAsync(
+			string                 positionKey,
+			ImmutableArray<string> moves,
+			char                   sideToMove,
+			char                   playerColor,
+			ImmutableArray<string> legalMoves,
+			int                    baselineCp,
+			PositionScore          currentScore,
+			CancellationToken      ct)
+		{
+			try
+			{
+				await client.SetPositionAsync(Fen.Default, moves, ct);
+				var evaluations = await EvaluateMovesAsync(
+									  client,
+									  sideToMove,
+									  playerColor,
+									  legalMoves,
+									  baselineCp,
+									  currentScore,
+									  ct
+								  );
+
+				var result = new MoveListAnalysisResult([.. evaluations]);
+				lock (_sync)
+				{
+					if (string.Equals(_positionKey, positionKey, StringComparison.Ordinal) &&
+						_cts is { IsCancellationRequested: false })
+					{
+						_cachedResult = result;
+						_runningTask  = null;
+					}
+				}
+
+				return result;
+			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested)
+			{
+				return MoveListAnalysisResult.Empty;
+			}
+		}
 	}
 
-	private readonly record struct PositionAdvantage(double Normalized, string Summary)
+	private readonly record struct MoveListAnalysisResult(ImmutableArray<MoveEvaluation> Evaluations)
 	{
-		public static PositionAdvantage GameOver() => new(0, "Game over");
+		public static MoveListAnalysisResult Empty => new([]);
+	}
+
+	private readonly record struct PositionAdvantage(double Normalized, string Summary, PositionScore Score)
+	{
+		public static PositionAdvantage GameOver()  => new(0, "Game over", new(0, null));
+		public static PositionAdvantage GameStart() => new(0, "Advantage 0.00 | Even (0 cp)", new(0, null));
+	}
+
+	private readonly record struct PositionScore(int? Cp, int? Mate)
+	{
+		public double ToSortValue()
+		{
+			if (Mate is int mate)
+				return mate > 0 ? 100_000 - Math.Abs(mate) : -100_000 + Math.Abs(mate);
+
+			return Cp ?? 0;
+		}
+
+		public string ToDisplayString()
+		{
+			if (Mate is int mate)
+				return mate > 0 ? $"+M{Math.Abs(mate)}" : $"-M{Math.Abs(mate)}";
+
+			int cp = Cp ?? 0;
+			return $"{(cp >= 0 ? "+" : string.Empty)}{cp.ToString(CultureInfo.InvariantCulture)} cp";
+		}
 	}
 
 	private readonly record struct PositionSnapshot(
