@@ -2,13 +2,14 @@
 Unit and integration tests for `Bezoro.Chess.UCI.Protocol`.
 
 ## Test Areas
-| Folder | Source Mirror | Description |
-| --- | --- | --- |
-| `API/Types` | `src/Bezoro.Chess.UCI.Protocol/API/Types` | FEN parsing, search result parsing, PV parsing, and metadata types. |
-| `Domain` | `src/Bezoro.Chess.UCI.Protocol/Domain` | `ProcessUciTransport`, `UciEngineClient`, command emission, lifecycle, and integration behavior. |
-| `Domain/Common/Helpers` | `src/Bezoro.Chess.UCI.Protocol/Domain/Common/Helpers` | UCI parsing and validation helpers. |
-| `TestHelpers` | Test-only | Shared builders, fake transports, fixtures, and constants. |
-| `TestResources/Engine` | Test-only | Bundled Stockfish executable/resources used by integration tests. |
+| Folder                  | Source Mirror                                         | Description                                                                                      |
+|-------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `API/Types`             | `src/Bezoro.Chess.UCI.Protocol/API/Types`             | FEN parsing, search result parsing, PV parsing, and metadata types.                              |
+| `API/Common/Extensions` | `src/Bezoro.Chess.UCI.Protocol/API/Common/Extensions` | Consumer-facing formatting, move-analysis, and move-normalization extensions.                    |
+| `Domain`                | `src/Bezoro.Chess.UCI.Protocol/Domain`                | `ProcessUciTransport`, `UciEngineClient`, command emission, lifecycle, and integration behavior. |
+| `Domain/Common/Helpers` | `src/Bezoro.Chess.UCI.Protocol/Domain/Common/Helpers` | UCI parsing and validation helpers.                                                              |
+| `TestHelpers`           | Test-only                                             | Shared builders, fake transports, fixtures, and constants.                                       |
+| `TestResources/Engine`  | Test-only                                             | Bundled Stockfish executable/resources used by integration tests.                                |
 
 ## Quick Start
 ```bash
