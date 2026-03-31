@@ -23,7 +23,6 @@ public class UciEngineClientAnalysisExtensionsIntegrationTests(StockfishFixture 
 			playerColor: 'w',
 			legalMoves: legalMoves,
 			currentScore: PositionScore.FromEngineScore(0, null, 'w', 'w'),
-			baselineCp: 0,
 			ct: CancellationToken.None
 		);
 

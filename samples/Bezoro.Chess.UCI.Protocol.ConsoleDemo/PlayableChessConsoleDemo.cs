@@ -9,7 +9,6 @@ internal static class PlayableChessConsoleDemo
 {
 	private const int ADVANTAGE_BAR_HEIGHT       = 8;
 	private const int ADVANTAGE_BAR_WIDTH        = 3;
-	private const int ADVANTAGE_EVAL_TIME_MS     = 250;
 	private const int ENGINE_MOVE_TIME_MS        = 1_000;
 	private const int MOVE_LIST_ANALYSIS_TIME_MS = 3_000;
 	private const int MOVE_LIST_FALLBACK_TIME_MS = 250;
@@ -20,7 +19,7 @@ internal static class PlayableChessConsoleDemo
 		Console.WriteLine("Bezoro Chess UCI Protocol Console Demo");
 		Console.WriteLine("--------------------------------------");
 		Console.WriteLine("Play against a UCI engine using UCI move notation such as e2e4 or a7a8q.");
-		Console.WriteLine("Type 'moves' to list legal moves. Type 'quit' to exit.");
+		Console.WriteLine("Type 'moves' to list legal moves, 'history' to show move eval history, or 'quit' to exit.");
 		Console.WriteLine();
 
 		string enginePath = PromptEnginePath(args);
@@ -168,10 +167,10 @@ internal static class PlayableChessConsoleDemo
 	}
 
 	private static async Task PrintLegalMovesAsync(
-		UciMoveAnalysisCoordinator moveListAnalysis,
+		UciPositionAnalysisCoordinator positionAnalysis,
 		string                     positionKey)
 	{
-		var analysis = await moveListAnalysis.GetAnalysisAsync(positionKey);
+		var analysis = await positionAnalysis.GetAnalysisAsync(positionKey);
 		if (analysis.Evaluations.IsDefaultOrEmpty)
 		{
 			Console.WriteLine("No legal moves are available.");
@@ -190,9 +189,9 @@ internal static class PlayableChessConsoleDemo
 		UciEngineClient moveListClient,
 		char            playerColor)
 	{
-		var playedMoves      = new List<string>();
-		int baselineCp       = await analysisClient.EvaluateBaselineCpAsync(playerColor, ADVANTAGE_EVAL_TIME_MS, CancellationToken.None);
-		var moveListAnalysis = new UciMoveAnalysisCoordinator(
+		var playedMoves       = new List<string>();
+		var moveHistory      = new List<MoveHistoryEntry>();
+		var positionAnalysis = new UciPositionAnalysisCoordinator(
 			moveListClient,
 			MOVE_LIST_ANALYSIS_TIME_MS,
 			MOVE_LIST_FALLBACK_TIME_MS
@@ -200,46 +199,55 @@ internal static class PlayableChessConsoleDemo
 
 		while (true)
 		{
-			var snapshot = await LoadSnapshotAsync(playingClient, analysisClient, playerColor, playedMoves, baselineCp);
+			var snapshot = await LoadSnapshotAsync(playingClient, analysisClient, playedMoves);
 			var fen = snapshot.Fen;
 			var legalMoves = snapshot.LegalMoves;
 			string positionKey = fen.Raw;
-			moveListAnalysis.EnsureStarted(
-				positionKey,
-				playedMoves,
-				fen.ActiveColor,
-				playerColor,
-				legalMoves,
-				baselineCp,
-				snapshot.Advantage.Score
-			);
-
-			PrintBoard(fen, playerColor, legalMoves.Length, snapshot.Advantage);
+			UpdateMoveHistory(moveHistory, playedMoves, positionKey);
+			if (legalMoves.Length > 0)
+				positionAnalysis.Enqueue(positionKey, playedMoves, fen.ActiveColor, playerColor, legalMoves);
 
 			if (legalMoves.Length == 0)
 			{
-				moveListAnalysis.Cancel();
+				PrintBoard(
+					fen,
+					playerColor,
+					legalMoves.Length,
+					ResolveAdvantage(positionAnalysis, moveHistory, positionKey, legalMoves.Length)
+				);
+				positionAnalysis.Cancel();
 				PrintGameOver(fen, playerColor);
 				return;
 			}
 
 			if (fen.ActiveColor == playerColor)
 			{
-				string move = await PromptHumanMoveAsync(moveListAnalysis, positionKey, legalMoves);
+				string move = await PromptHumanMoveAsync(
+					positionAnalysis,
+					moveHistory,
+					positionKey,
+					fen,
+					playerColor,
+					legalMoves
+				);
 
 				if (move == "quit")
 				{
-					moveListAnalysis.Cancel();
+					positionAnalysis.Cancel();
 					Console.WriteLine("Game aborted by user.");
 					return;
 				}
 
-				moveListAnalysis.Cancel();
 				playedMoves.Add(move);
 				continue;
 			}
 
-			moveListAnalysis.Cancel();
+			PrintBoard(
+				fen,
+				playerColor,
+				legalMoves.Length,
+				ResolveAdvantage(positionAnalysis, moveHistory, positionKey, legalMoves.Length)
+			);
 			Console.WriteLine("Engine is thinking...");
 			var result = await playingClient.GoAsync(
 							 new() { MoveTimeMs = ENGINE_MOVE_TIME_MS }, CancellationToken.None
@@ -252,7 +260,9 @@ internal static class PlayableChessConsoleDemo
 					$"Engine produced '{result.BestMove}', which is not legal in the current position."
 				);
 
-			Console.WriteLine($"Engine plays {engineMove}{result.ToDisplayString()}");
+			Console.WriteLine(
+				$"Engine plays {engineMove}{result.ToPlayerDisplayString(GetOpponentColor(playerColor), playerColor)}"
+			);
 			playedMoves.Add(engineMove);
 		}
 	}
@@ -260,9 +270,7 @@ internal static class PlayableChessConsoleDemo
 	private static async Task<PositionSnapshot> LoadSnapshotAsync(
 		UciEngineClient       playingClient,
 		UciEngineClient       analysisClient,
-		char                  playerColor,
-		IReadOnlyList<string> moves,
-		int                   baselineCp)
+		IReadOnlyList<string> moves)
 	{
 		await Task.WhenAll(
 			playingClient.SetPositionAsync(Fen.Default, moves, CancellationToken.None),
@@ -281,28 +289,56 @@ internal static class PlayableChessConsoleDemo
 				"This sample requires an engine that supports legal-move listing via the non-standard 'go perft 1' command."
 			);
 
-		var advantage = legalMoves.Length == 0
-							? PositionAdvantage.GameOver()
-							: moves.Count == 0
-								? PositionAdvantage.GameStart()
-								: await analysisClient.EvaluateAdvantageAsync(
-									  fen.Value.ActiveColor,
-									  playerColor,
-									  baselineCp,
-									  ADVANTAGE_EVAL_TIME_MS,
-									  CancellationToken.None
-								  );
-
-		return new(fen.Value, legalMoves, advantage);
+		return new(fen.Value, legalMoves);
 	}
 
 	private static async Task<string> PromptHumanMoveAsync(
-		UciMoveAnalysisCoordinator moveListAnalysis,
+		UciPositionAnalysisCoordinator positionAnalysis,
+		IReadOnlyList<MoveHistoryEntry> moveHistory,
 		string                     positionKey,
+		Fen                        fen,
+		char                       playerColor,
 		ImmutableArray<string>     legalMoves)
+	{
+		if (Console.IsInputRedirected || Console.IsOutputRedirected)
+		{
+			return await PromptHumanMoveRedirectedAsync(
+				positionAnalysis,
+				moveHistory,
+				positionKey,
+				fen,
+				playerColor,
+				legalMoves
+			);
+		}
+
+		return await PromptHumanMoveInteractiveAsync(
+			positionAnalysis,
+			moveHistory,
+			positionKey,
+			fen,
+			playerColor,
+			legalMoves
+		);
+	}
+
+	private static async Task<string> PromptHumanMoveRedirectedAsync(
+		UciPositionAnalysisCoordinator positionAnalysis,
+		IReadOnlyList<MoveHistoryEntry> moveHistory,
+		string                         positionKey,
+		Fen                            fen,
+		char                           playerColor,
+		ImmutableArray<string>         legalMoves)
 	{
 		while (true)
 		{
+			PrintBoard(
+				fen,
+				playerColor,
+				legalMoves.Length,
+				ResolveAdvantage(positionAnalysis, moveHistory, positionKey, legalMoves.Length)
+			);
+
 			Console.Write("Your move: ");
 			string move = NormalizeInput(ReadRequiredLine()).ToLowerInvariant();
 
@@ -311,8 +347,13 @@ internal static class PlayableChessConsoleDemo
 
 			if (move == "moves")
 			{
-				await PrintLegalMovesAsync(moveListAnalysis, positionKey);
+				await PrintLegalMovesAsync(positionAnalysis, positionKey);
+				continue;
+			}
 
+			if (move == "history")
+			{
+				PrintMoveHistory(positionAnalysis, moveHistory);
 				continue;
 			}
 
@@ -325,13 +366,207 @@ internal static class PlayableChessConsoleDemo
 			if (!legalMoves.ContainsUciMove(move))
 			{
 				Console.WriteLine("That move is not legal in the current position.");
-				await PrintLegalMovesAsync(moveListAnalysis, positionKey);
-
+				await PrintLegalMovesAsync(positionAnalysis, positionKey);
 				continue;
 			}
 
 			return move;
 		}
+	}
+
+	private static async Task<string> PromptHumanMoveInteractiveAsync(
+		UciPositionAnalysisCoordinator positionAnalysis,
+		IReadOnlyList<MoveHistoryEntry> moveHistory,
+		string                         positionKey,
+		Fen                            fen,
+		char                           playerColor,
+		ImmutableArray<string>         legalMoves)
+	{
+		while (true)
+		{
+			string move = NormalizeInput(
+				await ReadInteractiveInputAsync(
+					() => ResolveAdvantage(positionAnalysis, moveHistory, positionKey, legalMoves.Length),
+					advantage => BuildPromptFrame(fen, playerColor, legalMoves.Length, advantage)
+				)
+			).ToLowerInvariant();
+
+			if (move is "quit" or "exit")
+				return "quit";
+
+			if (move == "moves")
+			{
+				await PrintLegalMovesAsync(positionAnalysis, positionKey);
+				continue;
+			}
+
+			if (move == "history")
+			{
+				PrintMoveHistory(positionAnalysis, moveHistory);
+				continue;
+			}
+
+			if (!UciEngineClient.IsUciMoveString(move))
+			{
+				Console.WriteLine("Enter a move in UCI notation such as e2e4 or a7a8q.");
+				continue;
+			}
+
+			if (!legalMoves.ContainsUciMove(move))
+			{
+				Console.WriteLine("That move is not legal in the current position.");
+				await PrintLegalMovesAsync(positionAnalysis, positionKey);
+				continue;
+			}
+
+			return move;
+		}
+	}
+
+	private static async Task<string> ReadInteractiveInputAsync(
+		Func<PositionAdvantage>            getAdvantage,
+		Func<PositionAdvantage, string[]> buildFrame)
+	{
+		var currentInput = string.Empty;
+		var lastAdvantage = getAdvantage();
+		var frame = buildFrame(lastAdvantage);
+
+		if (!ConsolePromptLayout.CanRenderInPlace(frame.Length, Console.BufferHeight))
+		{
+			foreach (string line in frame[..^1])
+				Console.WriteLine(line);
+
+			Console.Write(frame[^1]);
+			return ReadRequiredLine();
+		}
+
+		var frameSize = WriteFreshFrame(frame);
+		var topRow = frameSize.topRow;
+
+		while (true)
+		{
+			while (Console.KeyAvailable)
+			{
+				var key = Console.ReadKey(intercept: true);
+
+				switch (key.Key)
+				{
+					case ConsoleKey.Enter:
+						Console.WriteLine();
+						return currentInput;
+					case ConsoleKey.Backspace when currentInput.Length > 0:
+						currentInput = currentInput[..^1];
+						var backspaceFrame = RenderFrame(topRow, frame, currentInput, frameSize.width, frameSize.height);
+						frameSize = (topRow, backspaceFrame.width, backspaceFrame.height);
+						break;
+					default:
+						if (!char.IsControl(key.KeyChar))
+						{
+							currentInput += key.KeyChar;
+							var typedFrame = RenderFrame(topRow, frame, currentInput, frameSize.width, frameSize.height);
+							frameSize = (topRow, typedFrame.width, typedFrame.height);
+						}
+
+						break;
+				}
+			}
+
+			var latestAdvantage = getAdvantage();
+			if (latestAdvantage != lastAdvantage)
+			{
+				lastAdvantage = latestAdvantage;
+				frame = buildFrame(latestAdvantage);
+				var updatedFrame = RenderFrame(topRow, frame, currentInput, frameSize.width, frameSize.height);
+				frameSize = (topRow, updatedFrame.width, updatedFrame.height);
+			}
+
+			await Task.Delay(100);
+		}
+	}
+
+	private static string[] BuildPromptFrame(
+		Fen               fen,
+		char              playerColor,
+		int               legalMoveCount,
+		PositionAdvantage advantage)
+	{
+		string[] boardLines = BuildBoardLines(fen, playerColor, legalMoveCount, advantage);
+		return [.. boardLines, "Your move: "];
+	}
+
+	private static string[] BuildBoardLines(
+		Fen               fen,
+		char              playerColor,
+		int               legalMoveCount,
+		PositionAdvantage advantage)
+	{
+		string[] boardLines     = fen.ToDisplayLines(playerColor, legalMoveCount);
+		string[] advantageLines = advantage.ToDisplayBarLines(ADVANTAGE_BAR_HEIGHT, ADVANTAGE_BAR_WIDTH);
+		int      lineCount      = Math.Max(boardLines.Length, advantageLines.Length);
+		int      boardWidth     = boardLines.Length == 0 ? 0 : boardLines.Max(static line => line.Length);
+		var      renderedLines  = new string[lineCount + 1];
+
+		renderedLines[0] = string.Empty;
+		for (var i = 0; i < lineCount; i++)
+		{
+			string boardLine     = i < boardLines.Length ? boardLines[i] : string.Empty;
+			string advantageLine = i < advantageLines.Length ? advantageLines[i] : string.Empty;
+			renderedLines[i + 1] = $"{boardLine.PadRight(boardWidth)}   {advantageLine}";
+		}
+
+		return renderedLines;
+	}
+
+	private static (int width, int height) RenderFrame(
+		int      topRow,
+		string[] frame,
+		string   currentInput,
+		int      previousWidth  = 0,
+		int      previousHeight = 0)
+	{
+		const string promptPrefix = "Your move: ";
+		int width = Math.Max(
+			previousWidth,
+			frame.Select(static line => line.Length).DefaultIfEmpty().Max() + currentInput.Length
+		);
+		int height = Math.Max(previousHeight, frame.Length);
+		topRow = ConsolePromptLayout.GetSafeTopRow(topRow, Console.BufferHeight, height);
+
+		Console.SetCursorPosition(0, topRow);
+
+		for (var i = 0; i < height; i++)
+		{
+			string line = i < frame.Length ? frame[i] : string.Empty;
+			if (i == frame.Length - 1 && i < frame.Length)
+				line += currentInput;
+
+			Console.Write(line.PadRight(width));
+			if (i < height - 1)
+				Console.WriteLine();
+		}
+
+		Console.SetCursorPosition(promptPrefix.Length + currentInput.Length, topRow + frame.Length - 1);
+		return (width, height);
+	}
+
+	private static (int topRow, int width, int height) WriteFreshFrame(string[] frame)
+	{
+		int width = frame.Select(static line => line.Length).DefaultIfEmpty().Max();
+
+		for (var i = 0; i < frame.Length; i++)
+		{
+			if (i == frame.Length - 1)
+			{
+				Console.Write(frame[i]);
+			}
+			else
+			{
+				Console.WriteLine(frame[i].PadRight(width));
+			}
+		}
+
+		int topRow = ConsolePromptLayout.GetTopRowFromBottomRow(Console.CursorTop, Console.BufferHeight, frame.Length);
+		return (topRow, width, frame.Length);
 	}
 
 	private static void PrintBoard(
@@ -340,19 +575,8 @@ internal static class PlayableChessConsoleDemo
 		int               legalMoveCount,
 		PositionAdvantage advantage)
 	{
-		Console.WriteLine();
-
-		string[] boardLines     = fen.ToDisplayLines(playerColor, legalMoveCount);
-		string[] advantageLines = advantage.ToDisplayBarLines(ADVANTAGE_BAR_HEIGHT, ADVANTAGE_BAR_WIDTH);
-		int      lineCount      = Math.Max(boardLines.Length, advantageLines.Length);
-		int      boardWidth     = boardLines.Length == 0 ? 0 : boardLines.Max(static line => line.Length);
-
-		for (var i = 0; i < lineCount; i++)
-		{
-			string boardLine     = i < boardLines.Length ? boardLines[i] : string.Empty;
-			string advantageLine = i < advantageLines.Length ? advantageLines[i] : string.Empty;
-			Console.WriteLine($"{boardLine.PadRight(boardWidth)}   {advantageLine}");
-		}
+		foreach (string line in BuildBoardLines(fen, playerColor, legalMoveCount, advantage))
+			Console.WriteLine(line);
 	}
 
 	private static void PrintGameOver(Fen fen, char playerColor)
@@ -369,9 +593,66 @@ internal static class PlayableChessConsoleDemo
 		Console.WriteLine("Stalemate.");
 	}
 
+	private static char GetOpponentColor(char playerColor) => playerColor == 'w' ? 'b' : 'w';
+
+	private static void PrintMoveHistory(
+		UciPositionAnalysisCoordinator positionAnalysis,
+		IReadOnlyList<MoveHistoryEntry> moveHistory)
+	{
+		string[] lines = MoveHistoryFormatter.BuildLines(
+			moveHistory,
+			entry => PlayedPositionEvaluationResolver.TryResolveScore(
+				entry,
+				positionKey => positionAnalysis.TryGetAnalysis(positionKey, out var analysis) ? analysis : null,
+				out var score
+			)
+				? score
+				: null
+		);
+
+		foreach (string line in lines)
+			Console.WriteLine(line);
+	}
+
+	private static void UpdateMoveHistory(
+		List<MoveHistoryEntry>  moveHistory,
+		IReadOnlyList<string>   playedMoves,
+		string                  currentPositionKey)
+	{
+		if (moveHistory.Count == playedMoves.Count)
+			return;
+
+		if (moveHistory.Count != playedMoves.Count - 1)
+			throw new InvalidOperationException("Move history can only be extended by one move per position snapshot.");
+
+		int moveIndex = moveHistory.Count;
+		moveHistory.Add(
+			new(
+				(moveIndex / 2) + 1,
+				moveIndex % 2 == 0 ? 'w' : 'b',
+				playedMoves[moveIndex],
+				moveIndex == 0 ? Fen.Default.Raw : moveHistory[^1].PositionKey,
+				currentPositionKey
+			)
+		);
+	}
+
+	private static PositionAdvantage ResolveAdvantage(
+		UciPositionAnalysisCoordinator positionAnalysis,
+		IReadOnlyList<MoveHistoryEntry> moveHistory,
+		string                         positionKey,
+		int                            legalMoveCount)
+	{
+		return PlayedPositionEvaluationResolver.ResolveCurrentAdvantage(
+			positionKey,
+			moveHistory,
+			legalMoveCount,
+			key => positionAnalysis.TryGetAnalysis(key, out var analysis) ? analysis : null
+		);
+	}
+
 	private readonly record struct PositionSnapshot(
 		Fen                    Fen,
-		ImmutableArray<string> LegalMoves,
-		PositionAdvantage      Advantage
+		ImmutableArray<string> LegalMoves
 	);
 }

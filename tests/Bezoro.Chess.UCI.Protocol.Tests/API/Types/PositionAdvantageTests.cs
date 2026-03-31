@@ -7,14 +7,33 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.API.Types;
 public class PositionAdvantageTests
 {
 	[Fact]
+	public void FromScore_WhenCentipawnScoreIsPositive_ShouldProducePlayerRelativeSummary()
+	{
+		var advantage = PositionAdvantage.FromScore(new(48, null));
+
+		advantage.Score.Cp.Should().Be(48);
+		advantage.Summary.Should().Contain("48 cp");
+		advantage.Normalized.Should().BePositive();
+	}
+
+	[Fact]
+	public void FromScore_WhenMateScoreFavoursPlayer_ShouldDescribeWinningMate()
+	{
+		var advantage = PositionAdvantage.FromScore(new(null, 2));
+
+		advantage.Score.Mate.Should().Be(2);
+		advantage.Summary.Should().Contain("You mate in 2");
+		advantage.Normalized.Should().BePositive();
+	}
+
+	[Fact]
 	public void FromEngineScore_WhenScoreIsEven_ShouldProduceNeutralSummary()
 	{
 		var advantage = PositionAdvantage.FromEngineScore(
 			rawCpScore: 0,
 			rawMateScore: null,
 			sideToMove: 'w',
-			playerColor: 'w',
-			baselineCp: 0
+			playerColor: 'w'
 		);
 
 		advantage.Normalized.Should().Be(0);
@@ -29,12 +48,25 @@ public class PositionAdvantageTests
 			rawCpScore: null,
 			rawMateScore: 2,
 			sideToMove: 'w',
-			playerColor: 'w',
-			baselineCp: 0
+			playerColor: 'w'
 		);
 
 		advantage.Normalized.Should().BePositive();
 		advantage.Summary.Should().Contain("You mate in 2");
 		advantage.Score.Mate.Should().Be(2);
+	}
+
+	[Fact]
+	public void FromEngineScore_WhenBlackToMoveIsLosingForWhitePlayer_ShouldReturnPositiveWhiteAdvantage()
+	{
+		var advantage = PositionAdvantage.FromEngineScore(
+			rawCpScore: -95,
+			rawMateScore: null,
+			sideToMove: 'b',
+			playerColor: 'w'
+		);
+
+		advantage.Score.Cp.Should().Be(95);
+		advantage.Summary.Should().Contain("95 cp");
 	}
 }

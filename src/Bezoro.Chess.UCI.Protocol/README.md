@@ -11,8 +11,9 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `UciClientOptions`           | `Bezoro.Chess.UCI.Protocol.API.Types` | Client-level timeout and protocol-behavior configuration.                                                 |
 | `PositionScore`              | `Bezoro.Chess.UCI.Protocol.API.Types` | Player-relative centipawn or mate score with compact display/sort helpers.                                |
 | `PositionAdvantage`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Normalized player-relative advantage summary for lightweight UIs.                                         |
-| `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Player-relative score delta for a legal move candidate.                                                   |
+| `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Absolute player-relative score for a legal move candidate's resulting position.                           |
 | `MoveAnalysisResult`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Immutable snapshot of analyzed legal moves for a position.                                                |
+| `PositionAnalysisResult`     | `Bezoro.Chess.UCI.Protocol.API.Types` | Shared current-position advantage and legal-move analysis snapshot from the same search flow.             |
 | `UciProtocolMessage`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Immutable envelope for parsed protocol output with typed optional payload fields keyed by `Type`.         |
 | `UciInfoMessage`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `info ...` payload including score, depth, PV, refutation, and current line data.                   |
 | `UciBestMoveMessage`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Typed `bestmove ...` payload.                                                                             |
@@ -24,6 +25,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `EngineActivity`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Coarse engine activity state.                                                                             |
 | `TransportStatus`            | `Bezoro.Chess.UCI.Protocol.API.Types` | Transport lifecycle state.                                                                                |
 | `UciMoveAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`       | Cancellable cached move-analysis helper for clients that keep a secondary analysis engine warm.           |
+| `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
 
 ## Quick Start
 ```csharp
@@ -166,9 +168,17 @@ var moveEvaluations = await client.AnalyzeLegalMovesAsync(
     legalMoves,
     advantage.Score,
     ct: cancellationToken);
+
+var positionAnalysis = await client.AnalyzePositionAsync(
+    currentFen.ActiveColor,
+    playerColor: 'w',
+    legalMoves,
+    ct: cancellationToken);
 ```
 
-`EvaluateBaselineCpAsync`, `EvaluateAdvantageAsync`, and `AnalyzeLegalMovesAsync` package the score-normalization, MultiPV probing, fallback single-move evaluation, and display-friendly move delta logic that previously only lived in the console sample.
+`EvaluateAdvantageAsync` and `AnalyzeLegalMovesAsync` package the score-normalization, MultiPV probing, fallback single-move evaluation, and display-friendly absolute move-score logic that previously only lived in the console sample. Their centipawn values are player-relative current evaluations; they are not offset against a start-position calibration.
+
+`AnalyzePositionAsync` and `UciPositionAnalysisCoordinator` are intended for non-blocking UIs that want the current advantage bar and legal-move list to come from the same full-strength analysis stream. The coordinator processes queued positions in FIFO order, caches each completed result by position key, and never skips earlier queued positions in favor of newer ones.
 
 ## Text Formatting Helpers
 ```csharp
@@ -177,6 +187,7 @@ using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 string[] boardLines = fen.ToDisplayLines(playerColor: 'w', legalMoveCount: legalMoves.Length);
 string[] advantageLines = advantage.ToDisplayBarLines();
 string engineLine = result.ToDisplayString();
+string playerEngineLine = result.ToPlayerDisplayString(sideToMove: 'b', playerColor: 'w');
 ```
 
 These helpers are intentionally lightweight. They are suitable for samples, diagnostics, or simple terminal UIs without forcing consumers into a richer board-rendering abstraction.
@@ -255,7 +266,7 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `Registration`   | Parsed `registration ...` output.      |
 
 ## Sample
-See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches.
+See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches. The `moves` command, `history` command, and current cp bar all resolve from the same full-strength move evaluations, with positions analyzed in move order instead of skipping ahead to the latest position.
 
 ## Design Notes
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.

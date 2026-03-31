@@ -82,15 +82,13 @@ public sealed class UciMoveAnalysisCoordinator(UciEngineClient client, int multi
 	/// <param name="sideToMove">Side to move for the position: <c>w</c> or <c>b</c>.</param>
 	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
 	/// <param name="legalMoves">Legal moves in lowercase UCI notation.</param>
-	/// <param name="baselineCp">Optional centipawn baseline to subtract after perspective normalization.</param>
-	/// <param name="currentScore">Current position score used to compute move deltas.</param>
+	/// <param name="currentScore">Current position score. Retained for compatibility; move evaluations are absolute.</param>
 	public void EnsureStarted(
 		string                 positionKey,
 		IReadOnlyList<string>  moves,
 		char                   sideToMove,
 		char                   playerColor,
 		ImmutableArray<string> legalMoves,
-		int                    baselineCp,
 		PositionScore          currentScore)
 	{
 		CancellationTokenSource? ctsToCancel = null;
@@ -116,7 +114,6 @@ public sealed class UciMoveAnalysisCoordinator(UciEngineClient client, int multi
 				sideToMove,
 				playerColor,
 				legalMoves,
-				baselineCp,
 				currentScore,
 				token
 			);
@@ -141,7 +138,6 @@ public sealed class UciMoveAnalysisCoordinator(UciEngineClient client, int multi
 		char                   sideToMove,
 		char                   playerColor,
 		ImmutableArray<string> legalMoves,
-		int                    baselineCp,
 		PositionScore          currentScore,
 		CancellationToken      ct)
 	{
@@ -153,7 +149,6 @@ public sealed class UciMoveAnalysisCoordinator(UciEngineClient client, int multi
 				playerColor,
 				legalMoves,
 				currentScore,
-				baselineCp,
 				multiPvMoveTimeMs,
 				fallbackMoveTimeMs,
 				ct

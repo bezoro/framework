@@ -4,6 +4,16 @@ namespace Bezoro.Chess.UCI.Protocol.API.Types;
 ///     Represents a scored legal move candidate from the player's perspective.
 /// </summary>
 /// <param name="Move">Move in UCI notation.</param>
-/// <param name="Display">Human-readable score delta or mate summary.</param>
-/// <param name="SortValue">Numeric value suitable for descending sort order.</param>
-public readonly record struct MoveEvaluation(string Move, string Display, double SortValue);
+/// <param name="Score">Absolute player-relative score for the resulting position.</param>
+public readonly record struct MoveEvaluation(string Move, PositionScore Score)
+{
+	/// <summary>
+	///     Gets a compact player-relative display string for the resulting position score.
+	/// </summary>
+	public string Display => Score.ToDisplayString();
+
+	/// <summary>
+	///     Gets a descending-sort-friendly numeric value for the resulting position score.
+	/// </summary>
+	public double SortValue => Score.ToSortValue();
+}

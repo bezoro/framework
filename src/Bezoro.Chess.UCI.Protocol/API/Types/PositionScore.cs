@@ -16,21 +16,19 @@ public readonly record struct PositionScore(int? Cp, int? Mate)
 	/// <param name="rawMateScore">Engine mate score, from side-to-move perspective.</param>
 	/// <param name="sideToMove">Side to move for the evaluated position: <c>w</c> or <c>b</c>.</param>
 	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
-	/// <param name="baselineCp">Optional centipawn baseline to subtract after perspective normalization.</param>
 	/// <returns>Normalized position score for the player.</returns>
 	public static PositionScore FromEngineScore(
 		int? rawCpScore,
 		int? rawMateScore,
 		char sideToMove,
-		char playerColor,
-		int  baselineCp = 0)
+		char playerColor)
 	{
 		int perspective = sideToMove == playerColor ? 1 : -1;
 
 		if (rawMateScore is int mateScore)
 			return new(null, mateScore * perspective);
 
-		return new((rawCpScore ?? 0) * perspective - baselineCp, null);
+		return new((rawCpScore ?? 0) * perspective, null);
 	}
 
 	/// <summary>

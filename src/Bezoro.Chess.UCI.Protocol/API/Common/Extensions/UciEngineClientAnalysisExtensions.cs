@@ -13,37 +13,11 @@ namespace Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 public static class UciEngineClientAnalysisExtensions
 {
 	/// <summary>
-	///     Evaluates the starting position and returns a player-relative centipawn baseline.
-	/// </summary>
-	/// <param name="client">Client used for the evaluation search.</param>
-	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
-	/// <param name="moveTimeMs">Search time in milliseconds.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <returns>Baseline centipawn score from the player's perspective.</returns>
-	public static async Task<int> EvaluateBaselineCpAsync(
-		this UciEngineClient client,
-		char                 playerColor,
-		int                  moveTimeMs = 250,
-		CancellationToken    ct         = default)
-	{
-		if (client is null) throw new ArgumentNullException(nameof(client));
-
-		await client.SetPositionAsync(Fen.Default, [], ct).ConfigureAwait(false);
-		var evaluation = await client.GoAsync(new() { MoveTimeMs = moveTimeMs }, ct).ConfigureAwait(false);
-
-		if (evaluation.MateScore is { })
-			return 0;
-
-		return GetPlayerPerspectiveCp(evaluation.BestCpScore, Fen.Default.ActiveColor, playerColor);
-	}
-
-	/// <summary>
 	///     Evaluates the current position and returns a player-relative advantage summary.
 	/// </summary>
 	/// <param name="client">Client used for the evaluation search.</param>
 	/// <param name="sideToMove">Side to move for the current position: <c>w</c> or <c>b</c>.</param>
 	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
-	/// <param name="baselineCp">Optional centipawn baseline to subtract after perspective normalization.</param>
 	/// <param name="moveTimeMs">Search time in milliseconds.</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>Normalized position advantage.</returns>
@@ -51,7 +25,6 @@ public static class UciEngineClientAnalysisExtensions
 		this UciEngineClient client,
 		char                 sideToMove,
 		char                 playerColor,
-		int                  baselineCp = 0,
 		int                  moveTimeMs = 250,
 		CancellationToken    ct         = default)
 	{
@@ -62,8 +35,7 @@ public static class UciEngineClientAnalysisExtensions
 			evaluation.BestCpScore,
 			evaluation.MateScore,
 			sideToMove,
-			playerColor,
-			baselineCp
+			playerColor
 		);
 	}
 
@@ -75,8 +47,7 @@ public static class UciEngineClientAnalysisExtensions
 	/// <param name="sideToMove">Side to move for the current position: <c>w</c> or <c>b</c>.</param>
 	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
 	/// <param name="legalMoves">Legal moves in lowercase UCI notation.</param>
-	/// <param name="currentScore">Current position score used to compute move deltas.</param>
-	/// <param name="baselineCp">Optional centipawn baseline to subtract after perspective normalization.</param>
+	/// <param name="currentScore">Current position score. Retained for compatibility; move evaluations are absolute.</param>
 	/// <param name="multiPvMoveTimeMs">Search time in milliseconds when running a MultiPV search.</param>
 	/// <param name="fallbackMoveTimeMs">Per-move search time in milliseconds when falling back to single-move searches.</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -87,13 +58,13 @@ public static class UciEngineClientAnalysisExtensions
 		char                    playerColor,
 		IEnumerable<string>     legalMoves,
 		PositionScore           currentScore,
-		int                     baselineCp         = 0,
 		int                     multiPvMoveTimeMs  = 3_000,
 		int                     fallbackMoveTimeMs = 250,
 		CancellationToken       ct                 = default)
 	{
 		if (client is null) throw new ArgumentNullException(nameof(client));
 		if (legalMoves is null) throw new ArgumentNullException(nameof(legalMoves));
+		_ = currentScore;
 
 		ImmutableArray<string> legalMovesSnapshot = legalMoves.NormalizeUciMoves();
 		if (legalMovesSnapshot.IsDefaultOrEmpty)
@@ -106,8 +77,6 @@ public static class UciEngineClientAnalysisExtensions
 				sideToMove,
 				playerColor,
 				legalMovesSnapshot,
-				baselineCp,
-				currentScore,
 				fallbackMoveTimeMs,
 				ct
 			).ConfigureAwait(false);
@@ -138,11 +107,94 @@ public static class UciEngineClientAnalysisExtensions
 				sideToMove,
 				playerColor,
 				legalMovesSnapshot,
-				baselineCp,
-				currentScore,
 				fallbackMoveTimeMs,
 				ct
 			).ConfigureAwait(false);
+		}
+		finally
+		{
+			await client.SetOptionAsync(multiPvOption.Name, restoreValue, CancellationToken.None).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	///     Evaluates the current position and its legal moves using a single high-quality analysis flow whenever
+	///     MultiPV is available.
+	/// </summary>
+	public static async Task<PositionAnalysisResult> AnalyzePositionAsync(
+		this UciEngineClient    client,
+		char                    sideToMove,
+		char                    playerColor,
+		IEnumerable<string>     legalMoves,
+		int                     multiPvMoveTimeMs  = 3_000,
+		int                     fallbackMoveTimeMs = 250,
+		CancellationToken       ct                 = default)
+	{
+		if (client is null) throw new ArgumentNullException(nameof(client));
+		if (legalMoves is null) throw new ArgumentNullException(nameof(legalMoves));
+
+		ImmutableArray<string> legalMovesSnapshot = legalMoves.NormalizeUciMoves();
+		if (legalMovesSnapshot.IsDefaultOrEmpty)
+			return new(PositionAdvantage.GameOver(), []);
+
+		if (!TryGetMultiPvOption(client, out var multiPvOption))
+		{
+			var advantage = await client.EvaluateAdvantageAsync(
+				sideToMove,
+				playerColor,
+				multiPvMoveTimeMs,
+				ct
+			).ConfigureAwait(false);
+
+			var evaluations = await EvaluateMovesIndividuallyAsync(
+				client,
+				sideToMove,
+				playerColor,
+				legalMovesSnapshot,
+				fallbackMoveTimeMs,
+				ct
+			).ConfigureAwait(false);
+
+			return new(advantage, evaluations);
+		}
+
+		int requestedMultiPv = legalMovesSnapshot.Length;
+		if (multiPvOption.Max is int maxMultiPv)
+			requestedMultiPv = Math.Min(requestedMultiPv, maxMultiPv);
+
+		requestedMultiPv = Math.Max(1, requestedMultiPv);
+
+		string restoreValue = string.IsNullOrWhiteSpace(multiPvOption.DefaultValue)
+			? "1"
+			: multiPvOption.DefaultValue;
+
+		await client.SetOptionAsync(
+			multiPvOption.Name,
+			requestedMultiPv.ToString(CultureInfo.InvariantCulture),
+			ct
+		).ConfigureAwait(false);
+
+		try
+		{
+			var result = await client.GoAsync(new() { MoveTimeMs = multiPvMoveTimeMs }, ct).ConfigureAwait(false);
+			var advantage = PositionAdvantage.FromEngineScore(
+				result.BestCpScore,
+				result.MateScore,
+				sideToMove,
+				playerColor
+			);
+
+			var evaluations = await BuildMoveEvaluationsFromMultiPvAsync(
+				client,
+				result,
+				sideToMove,
+				playerColor,
+				legalMovesSnapshot,
+				fallbackMoveTimeMs,
+				ct
+			).ConfigureAwait(false);
+
+			return new(advantage, evaluations);
 		}
 		finally
 		{
@@ -155,28 +207,16 @@ public static class UciEngineClientAnalysisExtensions
 		int?          rawCpScore,
 		int?          rawMateScore,
 		char          sideToMove,
-		char          playerColor,
-		int           baselineCp,
-		PositionScore currentScore)
+		char          playerColor)
 	{
 		var moveScore = PositionScore.FromEngineScore(
 			rawCpScore,
 			rawMateScore,
 			sideToMove,
-			playerColor,
-			baselineCp
+			playerColor
 		);
 
-		if (currentScore.Mate is int || moveScore.Mate is int)
-			return new(move, moveScore.ToDisplayString(), moveScore.ToSortValue());
-
-		int deltaCp = moveScore.Cp!.Value - currentScore.Cp!.Value;
-		string sign = deltaCp >= 0 ? "+" : string.Empty;
-		return new(
-			move,
-			$"{sign}{deltaCp.ToString(CultureInfo.InvariantCulture)} cp",
-			deltaCp
-		);
+		return new(move, moveScore);
 	}
 
 	private static async Task<ImmutableArray<MoveEvaluation>> BuildMoveEvaluationsFromMultiPvAsync(
@@ -185,8 +225,6 @@ public static class UciEngineClientAnalysisExtensions
 		char                   sideToMove,
 		char                   playerColor,
 		ImmutableArray<string> legalMoves,
-		int                    baselineCp,
-		PositionScore          currentScore,
 		int                    fallbackMoveTimeMs,
 		CancellationToken      ct)
 	{
@@ -220,9 +258,7 @@ public static class UciEngineClientAnalysisExtensions
 						variation.ScoreCp,
 						variation.ScoreMate,
 						sideToMove,
-						playerColor,
-						baselineCp,
-						currentScore
+						playerColor
 					)
 				);
 
@@ -235,8 +271,6 @@ public static class UciEngineClientAnalysisExtensions
 					move,
 					sideToMove,
 					playerColor,
-					baselineCp,
-					currentScore,
 					fallbackMoveTimeMs,
 					ct
 				).ConfigureAwait(false)
@@ -252,8 +286,6 @@ public static class UciEngineClientAnalysisExtensions
 		char                   sideToMove,
 		char                   playerColor,
 		ImmutableArray<string> legalMoves,
-		int                    baselineCp,
-		PositionScore          currentScore,
 		int                    fallbackMoveTimeMs,
 		CancellationToken      ct)
 	{
@@ -267,8 +299,6 @@ public static class UciEngineClientAnalysisExtensions
 					move,
 					sideToMove,
 					playerColor,
-					baselineCp,
-					currentScore,
 					fallbackMoveTimeMs,
 					ct
 				).ConfigureAwait(false)
@@ -284,8 +314,6 @@ public static class UciEngineClientAnalysisExtensions
 		string            move,
 		char              sideToMove,
 		char              playerColor,
-		int               baselineCp,
-		PositionScore     currentScore,
 		int               fallbackMoveTimeMs,
 		CancellationToken ct)
 	{
@@ -303,16 +331,8 @@ public static class UciEngineClientAnalysisExtensions
 			result.BestCpScore,
 			result.MateScore,
 			sideToMove,
-			playerColor,
-			baselineCp,
-			currentScore
+			playerColor
 		);
-	}
-
-	private static int GetPlayerPerspectiveCp(int? rawCpScore, char sideToMove, char playerColor)
-	{
-		int perspective = sideToMove == playerColor ? 1 : -1;
-		return (rawCpScore ?? 0) * perspective;
 	}
 
 	private static bool TryGetMultiPvOption(UciEngineClient client, out UciEngineOption option)

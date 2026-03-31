@@ -12,29 +12,12 @@ namespace Bezoro.Chess.UCI.Protocol.API.Types;
 public readonly record struct PositionAdvantage(double Normalized, string Summary, PositionScore Score)
 {
 	/// <summary>
-	///     Creates a player-relative advantage summary from raw engine output.
+	///     Creates a player-relative advantage summary from a normalized player-relative score.
 	/// </summary>
-	/// <param name="rawCpScore">Engine centipawn score, from side-to-move perspective.</param>
-	/// <param name="rawMateScore">Engine mate score, from side-to-move perspective.</param>
-	/// <param name="sideToMove">Side to move for the evaluated position: <c>w</c> or <c>b</c>.</param>
-	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
-	/// <param name="baselineCp">Optional centipawn baseline to subtract after perspective normalization.</param>
+	/// <param name="score">Player-relative score.</param>
 	/// <returns>A normalized advantage summary.</returns>
-	public static PositionAdvantage FromEngineScore(
-		int? rawCpScore,
-		int? rawMateScore,
-		char sideToMove,
-		char playerColor,
-		int  baselineCp = 0)
+	public static PositionAdvantage FromScore(PositionScore score)
 	{
-		var score = PositionScore.FromEngineScore(
-			rawCpScore,
-			rawMateScore,
-			sideToMove,
-			playerColor,
-			baselineCp
-		);
-
 		if (score.Mate is int adjustedMate)
 		{
 			int plyToMate = Math.Abs(adjustedMate);
@@ -70,6 +53,34 @@ public readonly record struct PositionAdvantage(double Normalized, string Summar
 
 		return new(normalized, summary, score);
 	}
+
+	/// <summary>
+	///     Creates a player-relative advantage summary from raw engine output.
+	/// </summary>
+	/// <param name="rawCpScore">Engine centipawn score, from side-to-move perspective.</param>
+	/// <param name="rawMateScore">Engine mate score, from side-to-move perspective.</param>
+	/// <param name="sideToMove">Side to move for the evaluated position: <c>w</c> or <c>b</c>.</param>
+	/// <param name="playerColor">Player side: <c>w</c> or <c>b</c>.</param>
+	/// <returns>A normalized advantage summary.</returns>
+	public static PositionAdvantage FromEngineScore(
+		int? rawCpScore,
+		int? rawMateScore,
+		char sideToMove,
+		char playerColor)
+	{
+		var score = PositionScore.FromEngineScore(
+			rawCpScore,
+			rawMateScore,
+			sideToMove,
+			playerColor
+		);
+		return FromScore(score);
+	}
+
+	/// <summary>
+	///     Returns a neutral advantage representing an in-progress analysis.
+	/// </summary>
+	public static PositionAdvantage Pending() => new(0, "Analyzing...", new(0, null));
 
 	/// <summary>
 	///     Returns a neutral advantage representing game over.

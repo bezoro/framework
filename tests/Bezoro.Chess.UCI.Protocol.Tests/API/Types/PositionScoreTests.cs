@@ -7,17 +7,16 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.API.Types;
 public class PositionScoreTests
 {
 	[Fact]
-	public void FromEngineScore_WhenCentipawnScoreIsFromOpponentPerspective_ShouldFlipAndApplyBaseline()
+	public void FromEngineScore_WhenCentipawnScoreIsFromOpponentPerspective_ShouldFlipPerspective()
 	{
 		var score = PositionScore.FromEngineScore(
 			rawCpScore: 120,
 			rawMateScore: null,
 			sideToMove: 'b',
-			playerColor: 'w',
-			baselineCp: 30
+			playerColor: 'w'
 		);
 
-		score.Cp.Should().Be(-150);
+		score.Cp.Should().Be(-120);
 		score.Mate.Should().BeNull();
 	}
 
