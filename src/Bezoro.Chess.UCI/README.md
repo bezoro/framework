@@ -1,10 +1,10 @@
 # Bezoro.Chess.UCI
-High-level chess-analysis orchestration built on `Bezoro.Chess.UCI.Protocol`.
+High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 
 ## Types
 | Type                             | Namespace                           | Description                                                                                    |
 |----------------------------------|-------------------------------------|------------------------------------------------------------------------------------------------|
-| `UciCoordinator`                 | `Bezoro.Chess.UCI.API`              | Game-engine-facing facade for synchronized position state, search updates, move classification, and UI events. |
+| `UciGameEngineSession`           | `Bezoro.Chess.UCI.API`              | Preferred game-engine-facing facade for synchronized position state, search updates, move classification, and UI events. |
 | `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, and classification depth.                                  |
 | `UciState`                       | `Bezoro.Chess.UCI.API.Types`        | Immutable snapshot of board, search, and move-classification state.                            |
 | `Move`                           | `Bezoro.Chess.UCI.API.Types`        | Classified move plus semantic UI-facing analysis.                                              |
@@ -27,17 +27,17 @@ High-level chess-analysis orchestration built on `Bezoro.Chess.UCI.Protocol`.
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var coordinator = await UciCoordinator.CreateAsync(
+await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
     ct: cancellationToken);
 
-await coordinator.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 
-var result = await coordinator.SearchAsync(
+var result = await session.SearchAsync(
     new SearchParameters { Depth = 12 },
     cancellationToken);
 
-var move = await coordinator.ClassifyMoveAsync(result.BestMove, cancellationToken);
+var move = await session.ClassifyMoveAsync(result.BestMove, cancellationToken);
 
 Console.WriteLine($"Best move: {move.Notation}");
 Console.WriteLine($"Capture:   {move.Analysis.IsCapture}");
@@ -45,25 +45,25 @@ Console.WriteLine($"Castling:  {move.Analysis.IsCastling}");
 ```
 
 ## Ideal Usage
-### Use the coordinator as a game-facing facade
+### Use the game-engine session facade
 ```csharp
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var coordinator = await UciCoordinator.CreateAsync(enginePath, ct: cancellationToken);
+await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
 
-await coordinator.ResetAsync(cancellationToken);
+await session.ResetAsync(cancellationToken);
 
-coordinator.StateChanged += state =>
+session.StateChanged += state =>
 {
     Console.WriteLine($"Moves: {state.TotalLegalMoves}, classified: {state.ClassifiedMovesCount}");
 };
 
-var engineResult = await coordinator.SearchAsync(
+var engineResult = await session.SearchAsync(
     new SearchParameters { Depth = 10 },
     cancellationToken);
 
-await coordinator.MakeMoveAsync(engineResult.BestMove, cancellationToken);
+await session.MakeMoveAsync(engineResult.BestMove, cancellationToken);
 ```
 
 ### Drive UI feedback from classified moves
@@ -71,10 +71,10 @@ await coordinator.MakeMoveAsync(engineResult.BestMove, cancellationToken);
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var coordinator = await UciCoordinator.CreateAsync(enginePath, ct: cancellationToken);
-await coordinator.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
+await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 
-await foreach (var move in coordinator.StreamClassifiedMovesAsync(cancellationToken))
+await foreach (var move in session.StreamClassifiedMovesAsync(cancellationToken))
 {
     string color = move.Analysis switch
     {
@@ -97,26 +97,26 @@ using Bezoro.Chess.UCI.Protocol.API.Types;
 
 SynchronizationContext uiContext = SynchronizationContext.Current!;
 
-await using var coordinator = await UciCoordinator.CreateAsync(
+await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
     syncContext: uiContext,
     ct: cancellationToken);
 
-coordinator.Ready += () => Console.WriteLine("Engine ready");
-coordinator.PositionChanged += state =>
+session.Ready += () => Console.WriteLine("Engine ready");
+session.PositionChanged += state =>
 {
     // Safe to bind UI here because callbacks are marshaled to uiContext.
     Console.WriteLine(state.CurrentFen.Raw);
 };
-coordinator.MoveMade += move => Console.WriteLine($"{move.Actor}: {move.Notation} [{move.KindFlags}]");
-coordinator.PromotionRequired += request => ShowPromotionButtons(request.AllowedPromotionPieces);
-coordinator.MoveClassificationUpdated += move => Console.WriteLine($"Highlight {move.Notation}");
-coordinator.EvaluationUpdated += pv => Console.WriteLine(pv.Raw);
-coordinator.EngineThinkingStarted += _ => ShowThinking(true);
-coordinator.EngineThinkingStopped += _ => ShowThinking(false);
+session.MoveMade += move => Console.WriteLine($"{move.Actor}: {move.Notation} [{move.KindFlags}]");
+session.PromotionRequired += request => ShowPromotionButtons(request.AllowedPromotionPieces);
+session.MoveClassificationUpdated += move => Console.WriteLine($"Highlight {move.Notation}");
+session.EvaluationUpdated += pv => Console.WriteLine(pv.Raw);
+session.EngineThinkingStarted += _ => ShowThinking(true);
+session.EngineThinkingStopped += _ => ShowThinking(false);
 
-await coordinator.UpdatePositionAsync(Fen.Default, null, cancellationToken);
-await coordinator.StartSearchAsync(cancellationToken);
+await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.StartSearchAsync(cancellationToken);
 ```
 
 ### Drive a promotion request/response flow
@@ -125,14 +125,14 @@ using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var coordinator = await UciCoordinator.CreateAsync(enginePath, ct: cancellationToken);
-await coordinator.UpdatePositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, null, cancellationToken);
+await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
+await session.UpdatePositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, null, cancellationToken);
 
 PromotionRequiredEvent pending = default;
-coordinator.PromotionRequired += request => pending = request;
+session.PromotionRequired += request => pending = request;
 
-await coordinator.MakeMoveAsync("a7a8", cancellationToken);
-await coordinator.ChoosePromotionAsync(pending.PendingPromotionId, PieceType.Queen, cancellationToken);
+await session.MakeMoveAsync("a7a8", cancellationToken);
+await session.ChoosePromotionAsync(pending.PendingPromotionId, PieceType.Queen, cancellationToken);
 ```
 
 ### Configure coordinator-level engine behavior
@@ -146,23 +146,23 @@ var options = new UciCoordinatorOptions(
     MultiPv: 3,
     ClassificationDepth: 8);
 
-await using var coordinator = await UciCoordinator.CreateAsync(
+await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
     options,
     ct: cancellationToken);
 
-await coordinator.SetOptionAsync("Hash", "256", cancellationToken);
-await coordinator.SetDebugAsync(false, cancellationToken);
+await session.SetOptionAsync("Hash", "256", cancellationToken);
+await session.SetDebugAsync(false, cancellationToken);
 ```
 
 ## API Reference
-### `UciCoordinator`
+### `UciGameEngineSession`
 | Member                                                            | Description                                                         |
 |-------------------------------------------------------------------|---------------------------------------------------------------------|
-| `CreateAsync(enginePath, options, syncContext, ct)`               | Constructs and starts a ready-to-use coordinator.                   |
+| `CreateAsync(enginePath, options, syncContext, ct)`               | Constructs and starts a ready-to-use game-engine session.           |
 | `StartAsync(ct)` / `StopAsync(ct)`                                | Starts or stops all internal engine instances.                      |
 | `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Resets position state or starts a fresh engine game context.        |
-| `UpdatePositionAsync(fen, playedMoves, ct)`                       | Synchronizes quick, ponder, and classifier engines to a position.   |
+| `UpdatePositionAsync(fen, playedMoves, ct)`                       | Synchronizes protocol-backed snapshot, ponder, and classification flows to a position. |
 | `SetPositionAsync(fenString, ct)`                                 | Convenience wrapper that parses a FEN string.                       |
 | `StartSearchAsync(ct)` / `StartSearchAsync(fen, playedMoves, ct)` | Starts infinite pondering search.                                   |
 | `StopSearchAsync(ct)`                                             | Stops the current ponder search.                                    |
@@ -178,7 +178,7 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 | `RegisterAsync(registration, ct)`                                 | Broadcasts the standard `register` command to all internal engines. |
 | `GetCurrentFenAsync(ct)`                                          | Returns the engine-reported current FEN if available.               |
 | `State`                                                           | Current immutable snapshot.                                         |
-| `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the quick engine.                  |
+| `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the snapshot client.               |
 | `GameStarted`                                                     | Raised when a fresh gameplay session starts.                        |
 | `MoveMade`                                                        | Canonical rich move event for applied moves.                        |
 | `CaptureMade` / `CastlingMade` / `EnPassantMade`                  | Convenience move projections for common UI hooks.                   |
@@ -189,7 +189,7 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 | `TurnChanged`                                                     | Raised when the active side changes.                                |
 | `PositionLoaded` / `PositionChanged`                              | Raised for explicit loads and visible board snapshot updates.       |
 | `LegalMovesUpdated`                                               | Raised when the visible legal move set changes.                     |
-| `SearchStateChanged`                                              | Raised when the coordinator enters or leaves searching state.       |
+| `SearchStateChanged`                                              | Raised when the session enters or leaves searching state.           |
 | `EngineThinkingStarted` / `EngineThinkingStopped`                 | Raised for UI-facing engine-think lifecycle transitions.            |
 | `EvaluationChanged` / `EvaluationUpdated`                         | Raised for new principal variations from the ponder engine.         |
 | `BestMoveChanged`                                                 | Raised when the current best/ponder move pair changes.              |
@@ -247,8 +247,7 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
-- `UciCoordinator` owns quick evaluation, pondering, background move classification, and optional `SynchronizationContext` dispatch for single-threaded engines and UI threads.
-- The coordinator exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
-- The coordinator currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
+- The session exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
+- The session currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
-- Search and metadata snapshots exposed by the protocol layer are immutable, so coordinator state can safely retain and rebroadcast them across threads.
+- Search and metadata snapshots exposed by the protocol layer are immutable, so session state can safely retain and rebroadcast them across threads.

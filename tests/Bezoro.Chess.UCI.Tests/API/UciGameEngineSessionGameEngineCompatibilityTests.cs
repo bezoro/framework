@@ -6,16 +6,16 @@ using JetBrains.Annotations;
 
 namespace Bezoro.Chess.UCI.Tests.API;
 
-[TestSubject(typeof(UciCoordinator))]
+[TestSubject(typeof(UciGameEngineSession))]
 [Trait("Category", "Integration")]
 [Collection("Stockfish")]
-public class UciCoordinatorGameEngineCompatibilityTests
+public class UciGameEngineSessionGameEngineCompatibilityTests
 {
 	[Fact]
 	public async Task UpdatePositionAsync_WhenPositionIsUpdated_ShouldRaisePositionChangedOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -43,7 +43,7 @@ public class UciCoordinatorGameEngineCompatibilityTests
 	public async Task UpdatePositionAsync_WhenMovesAreClassified_ShouldRaiseClassificationEventsOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -82,7 +82,7 @@ public class UciCoordinatorGameEngineCompatibilityTests
 	public async Task UpdatePositionAsync_WhenSearchProducesUpdates_ShouldRaiseSearchEventsOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -135,7 +135,7 @@ public class UciCoordinatorGameEngineCompatibilityTests
 	public async Task UpdatePositionAsync_WhenTerminalPositionIsLoaded_ShouldRaiseGameOverOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None

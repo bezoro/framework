@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+using Bezoro.Chess.UCI.Protocol.Internal;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
 
@@ -13,25 +14,17 @@ namespace Bezoro.Chess.UCI.Protocol.API;
 /// </summary>
 public sealed class UciPlayableMatchSession
 {
-	private readonly Dictionary<string, ImmutableDictionary<string, MoveClassification>> _classificationsByPosition =
-		new(StringComparer.Ordinal);
-	private readonly Dictionary<string, TaskCompletionSource<ImmutableDictionary<string, MoveClassification>>>
-		_classificationCompletionByPosition = new(StringComparer.Ordinal);
-	private readonly HashSet<string>                      _queuedClassificationPositions = new(StringComparer.Ordinal);
-	private readonly int                                  _engineMoveTimeMs;
-	private readonly List<PlayedMove>                     _moveHistory         = [];
-	private readonly List<string>                         _playedMoves         = [];
-	private readonly object                               _classificationSync  = new();
-	private readonly Queue<PendingClassificationPosition> _classificationQueue = new();
-	private readonly UciEngineClient                      _analysisClient;
-	private readonly UciEngineClient                      _moveListClient;
-	private readonly UciEngineClient                      _playingClient;
-	private readonly UciPositionAnalysisCoordinator       _positionAnalysis;
-	private          bool                                 _hasCurrentState;
-	private          CancellationTokenSource              _classificationCts = new();
-	private          Fen                                  _baseFen           = Fen.Default;
-	private          PlayableMatchState                   _currentState;
-	private          Task?                                _classificationWorker;
+	private readonly MoveClassificationCoordinator  _classifications = new();
+	private readonly int                            _engineMoveTimeMs;
+	private readonly List<PlayedMove>               _moveHistory = [];
+	private readonly List<string>                   _playedMoves = [];
+	private readonly UciEngineClient                _analysisClient;
+	private readonly UciEngineClient                _moveListClient;
+	private readonly UciEngineClient                _playingClient;
+	private readonly UciPositionAnalysisCoordinator _positionAnalysis;
+	private          bool                           _hasCurrentState;
+	private          Fen                            _baseFen = Fen.Default;
+	private          PlayableMatchState             _currentState;
 
 	/// <summary>
 	///     Creates a playable match session.
@@ -102,7 +95,7 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public bool TryGetPlayedMoveClassification(PlayedMove move, out MoveClassification classification)
 	{
-		var classifications = GetKnownMoveClassifications(move.ParentPositionKey);
+		var classifications = _classifications.GetKnown(move.ParentPositionKey);
 		if (classifications.TryGetValue(move.Move, out classification))
 			return true;
 
@@ -126,7 +119,7 @@ public sealed class UciPlayableMatchSession
 	///     Gets the latest cached legal-move classifications for the current position.
 	/// </summary>
 	public ImmutableDictionary<string, MoveClassification> GetCurrentLegalMoveClassifications() =>
-		GetKnownMoveClassifications(CurrentState.PositionKey);
+		_classifications.GetKnown(CurrentState.PositionKey);
 
 	/// <summary>
 	///     Resolves the current position advantage from the best completed cached analysis available so far.
@@ -182,7 +175,7 @@ public sealed class UciPlayableMatchSession
 
 		var retainedPositionKeys = CollectRetainedPositionKeys();
 		_positionAnalysis.CancelPendingAndRetainCompleted(retainedPositionKeys);
-		ResetClassificationWorker(retainedPositionKeys);
+		_classifications.CancelPendingAndRetain(retainedPositionKeys);
 
 		_hasCurrentState = false;
 		_currentState    = default;
@@ -252,17 +245,7 @@ public sealed class UciPlayableMatchSession
 		CancellationToken ct = default)
 	{
 		string                                                positionKey = CurrentState.PositionKey;
-		Task<ImmutableDictionary<string, MoveClassification>> completionTask;
-
-		lock (_classificationSync)
-		{
-			if (_classificationCompletionByPosition.TryGetValue(positionKey, out var completion))
-				completionTask = completion.Task;
-			else
-				return GetKnownMoveClassifications(positionKey);
-		}
-
-		return await WaitWithCancellationAsync(completionTask, ct).ConfigureAwait(false);
+		return await _classifications.WaitAsync(positionKey, ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -292,7 +275,7 @@ public sealed class UciPlayableMatchSession
 
 		string positionKey = fen.Value.Raw;
 		UpdateMoveHistory(positionKey);
-		EnsureMoveClassifications(positionKey, fen.Value, legalMoves);
+		_classifications.Enqueue(positionKey, fen.Value, legalMoves);
 		EnrichMoveHistoryClassifications();
 
 		if (legalMoves.Length > 0)
@@ -304,7 +287,7 @@ public sealed class UciPlayableMatchSession
 			ResolvePositionAnalysis
 		);
 
-		var classifications = GetKnownMoveClassifications(positionKey);
+		var classifications = _classifications.GetKnown(positionKey);
 		_currentState    = new(fen.Value, positionKey, legalMoves, classifications, advantage, [.. _moveHistory]);
 		_hasCurrentState = true;
 		return _currentState;
@@ -356,7 +339,7 @@ public sealed class UciPlayableMatchSession
 	public void CancelAnalysis()
 	{
 		_positionAnalysis.Cancel();
-		ResetClassificationWorker(new HashSet<string>(StringComparer.Ordinal));
+		_classifications.Cancel();
 	}
 
 	private static char NormalizeColor(char color, string paramName)
@@ -365,26 +348,6 @@ public sealed class UciPlayableMatchSession
 			return color;
 
 		throw new ArgumentOutOfRangeException(paramName, "Color must be 'w' or 'b'.");
-	}
-
-	private static ImmutableDictionary<string, MoveClassification> MergeClassifications(
-		ImmutableDictionary<string, MoveClassification> structural,
-		ImmutableDictionary<string, MoveClassification> existing)
-	{
-		if (existing.Count == 0)
-			return structural;
-
-		var builder = structural.ToBuilder();
-		foreach ((string move, var classification) in existing)
-		{
-			if (!classification.IsResolved)
-				continue;
-
-			if (builder.ContainsKey(move))
-				builder[move] = classification;
-		}
-
-		return builder.ToImmutable();
 	}
 
 	private static int ValidatePositive(int value, string paramName)
@@ -406,119 +369,12 @@ public sealed class UciPlayableMatchSession
 		return normalizedMove;
 	}
 
-	private static async Task<T> WaitWithCancellationAsync<T>(Task<T> task, CancellationToken ct)
-	{
-#if NET9_0
-		return await task.WaitAsync(ct).ConfigureAwait(false);
-#else
-		if (!ct.CanBeCanceled)
-			return await task.ConfigureAwait(false);
-
-		var cancellationTask = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		using var registration = ct.Register(
-			static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
-			cancellationTask
-		);
-
-		if (task != await Task.WhenAny(task, cancellationTask.Task).ConfigureAwait(false))
-			throw new OperationCanceledException(ct);
-
-		return await task.ConfigureAwait(false);
-#endif
-	}
-
-	private ImmutableDictionary<string, MoveClassification> GetKnownMoveClassifications(string positionKey)
-	{
-		lock (_classificationSync)
-		{
-			return _classificationsByPosition.TryGetValue(positionKey, out var classifications)
-					   ? classifications
-					   : ImmutableDictionary<string, MoveClassification>.Empty.WithComparers(StringComparer.Ordinal);
-		}
-	}
-
-	private Task ClassifyPositionAsync(PendingClassificationPosition position, CancellationToken ct)
-	{
-		foreach (string move in position.LegalMoves)
-		{
-			ct.ThrowIfCancellationRequested();
-
-			var resolved = GetKnownMoveClassifications(position.PositionKey).TryGetValue(move, out var current) &&
-						   current.IsResolved
-							   ? current
-							   : position.Fen.ClassifyMoveFully(move);
-
-			lock (_classificationSync)
-			{
-				var updated = GetKnownMoveClassifications(position.PositionKey).SetItem(move, resolved);
-				_classificationsByPosition[position.PositionKey] = updated;
-			}
-		}
-
-		lock (_classificationSync)
-		{
-			_queuedClassificationPositions.Remove(position.PositionKey);
-			var completed = GetKnownMoveClassifications(position.PositionKey);
-			GetOrCreateClassificationCompletion(position.PositionKey).TrySetResult(completed);
-		}
-
-		return Task.CompletedTask;
-	}
-
-	private async Task RunClassificationWorkerAsync(CancellationToken ct)
-	{
-		while (true)
-		{
-			PendingClassificationPosition position;
-			lock (_classificationSync)
-			{
-				if (_classificationQueue.Count == 0)
-				{
-					_classificationWorker = null;
-					return;
-				}
-
-				position = _classificationQueue.Dequeue();
-			}
-
-			try
-			{
-				await ClassifyPositionAsync(position, ct).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) when (ct.IsCancellationRequested)
-			{
-				return;
-			}
-			catch (Exception ex)
-			{
-				lock (_classificationSync)
-				{
-					_queuedClassificationPositions.Remove(position.PositionKey);
-					GetOrCreateClassificationCompletion(position.PositionKey).TrySetException(ex);
-				}
-
-				throw;
-			}
-		}
-	}
-
-	private TaskCompletionSource<ImmutableDictionary<string, MoveClassification>> GetOrCreateClassificationCompletion(
-		string positionKey)
-	{
-		if (_classificationCompletionByPosition.TryGetValue(positionKey, out var completion))
-			return completion;
-
-		completion                                       = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		_classificationCompletionByPosition[positionKey] = completion;
-		return completion;
-	}
-
 	private void EnrichMoveHistoryClassifications()
 	{
 		for (var i = 0; i < _moveHistory.Count; i++)
 		{
 			var move            = _moveHistory[i];
-			var classifications = GetKnownMoveClassifications(move.ParentPositionKey);
+			var classifications = _classifications.GetKnown(move.ParentPositionKey);
 			if (!classifications.TryGetValue(move.Move, out var classification))
 				continue;
 
@@ -529,81 +385,10 @@ public sealed class UciPlayableMatchSession
 		}
 	}
 
-	private void EnsureClassificationWorkerStarted()
-	{
-		if (_classificationWorker is { IsCompleted: false })
-			return;
-
-		_classificationWorker = RunClassificationWorkerAsync(_classificationCts.Token);
-	}
-
-	private void EnsureMoveClassifications(string positionKey, Fen fen, ImmutableArray<string> legalMoves)
-	{
-		var structural = fen.ClassifyMoves(legalMoves);
-		lock (_classificationSync)
-		{
-			if (_classificationsByPosition.TryGetValue(positionKey, out var existing))
-				structural = MergeClassifications(structural, existing);
-
-			_classificationsByPosition[positionKey] = structural;
-
-			var completion = GetOrCreateClassificationCompletion(positionKey);
-			if (legalMoves.IsDefaultOrEmpty ||
-				structural.Values.All(static classification => classification.IsResolved))
-			{
-				completion.TrySetResult(structural);
-				return;
-			}
-
-			if (_queuedClassificationPositions.Add(positionKey))
-			{
-				_classificationQueue.Enqueue(new(positionKey, fen, legalMoves));
-				EnsureClassificationWorkerStarted();
-			}
-		}
-	}
-
 	private void ResetBackgroundState()
 	{
 		_positionAnalysis.Cancel();
-		ResetClassificationWorker(new HashSet<string>(StringComparer.Ordinal));
-		lock (_classificationSync)
-		{
-			_classificationsByPosition.Clear();
-		}
-	}
-
-	private void ResetClassificationWorker(ISet<string> retainedPositionKeys)
-	{
-		if (retainedPositionKeys is null)
-			throw new ArgumentNullException(nameof(retainedPositionKeys));
-
-		var cts = Interlocked.Exchange(ref _classificationCts, new());
-		try
-		{
-			cts.Cancel();
-		}
-		finally
-		{
-			cts.Dispose();
-		}
-
-		lock (_classificationSync)
-		{
-			foreach (var completion in _classificationCompletionByPosition.Values)
-				completion.TrySetCanceled();
-
-			foreach (var positionKey in _classificationsByPosition.Keys.ToArray())
-			{
-				if (!retainedPositionKeys.Contains(positionKey))
-					_classificationsByPosition.Remove(positionKey);
-			}
-
-			_classificationCompletionByPosition.Clear();
-			_classificationQueue.Clear();
-			_queuedClassificationPositions.Clear();
-			_classificationWorker = null;
-		}
+		_classifications.Cancel();
 	}
 
 	private HashSet<string> CollectRetainedPositionKeys()
@@ -628,7 +413,7 @@ public sealed class UciPlayableMatchSession
 
 		int    moveIndex         = _moveHistory.Count;
 		string parentPositionKey = moveIndex == 0 ? _baseFen.Raw : _moveHistory[^1].PositionKey;
-		var classification = GetKnownMoveClassifications(parentPositionKey)
+		var classification = _classifications.GetKnown(parentPositionKey)
 								 .TryGetValue(_playedMoves[moveIndex], out var knownClassification)
 								 ? knownClassification
 								 : MoveClassification.Unknown();
@@ -650,10 +435,4 @@ public sealed class UciPlayableMatchSession
 
 	private PositionScore? ResolvePlayedMoveScore(PlayedMove move) =>
 		TryGetPlayedMoveScore(move, out var score) ? score : null;
-
-	private readonly record struct PendingClassificationPosition(
-		string                 PositionKey,
-		Fen                    Fen,
-		ImmutableArray<string> LegalMoves
-	);
 }

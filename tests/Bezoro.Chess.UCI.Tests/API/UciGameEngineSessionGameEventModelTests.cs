@@ -7,16 +7,16 @@ using JetBrains.Annotations;
 
 namespace Bezoro.Chess.UCI.Tests.API;
 
-[TestSubject(typeof(UciCoordinator))]
+[TestSubject(typeof(UciGameEngineSession))]
 [Trait("Category", "Integration")]
 [Collection("Stockfish")]
-public class UciCoordinatorGameEventModelTests
+public class UciGameEngineSessionGameEventModelTests
 {
 	[Fact]
 	public async Task MakeMoveAsync_WhenNormalMoveIsApplied_ShouldRaiseOrderedRichEventsOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -81,7 +81,7 @@ public class UciCoordinatorGameEventModelTests
 	public async Task MakeMoveAsync_WhenCaptureIsApplied_ShouldRaiseCaptureMadeWithTypedPayload()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -115,7 +115,7 @@ public class UciCoordinatorGameEventModelTests
 	public async Task MakeMoveAsync_WhenPromotionChoiceIsRequired_ShouldRaisePromotionRequiredWithoutChangingPosition()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -153,7 +153,7 @@ public class UciCoordinatorGameEventModelTests
 	public async Task ChoosePromotionAsync_WhenPendingPromotionIsResolved_ShouldRaisePromotionChosenThenMoveMade()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -202,7 +202,7 @@ public class UciCoordinatorGameEventModelTests
 	public async Task MakeMoveAsync_WhenMoveIsIllegal_ShouldRaiseIllegalMoveRejectedOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None
@@ -235,7 +235,7 @@ public class UciCoordinatorGameEventModelTests
 	public async Task UndoAsync_WhenMovesAreUndone_ShouldRaiseMoveUndoneTurnChangedAndPositionChanged()
 	{
 		var syncContext = new RecordingSynchronizationContext();
-		await using var coordinator = await UciCoordinator.CreateAsync(
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
 			ct: CancellationToken.None

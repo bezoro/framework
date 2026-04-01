@@ -1,6 +1,9 @@
+using System.Threading.Channels;
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.API.Types;
-using Bezoro.Chess.UCI.Domain.Engines;
+using Bezoro.Chess.UCI.Protocol.API;
+using Bezoro.Chess.UCI.Protocol.API.Abstractions;
+using Bezoro.Chess.UCI.Protocol.Internal;
 using Bezoro.Chess.UCI.Tests.Attributes;
 using Bezoro.Chess.UCI.Tests.Domain;
 using Bezoro.Chess.UCI.Tests.TestHelpers;
@@ -10,15 +13,15 @@ using NSubstitute;
 
 namespace Bezoro.Chess.UCI.Tests.API;
 
-[TestSubject(typeof(UciCoordinator))]
+[TestSubject(typeof(UciGameEngineSession))]
 [Trait("Category", "Integration")]
 [Collection("Stockfish")]
-public class UciCoordinatorTests
+public class UciGameEngineSessionTests
 {
 	[Fact]
 	public async Task ApplyClassifiedMoveForTests_WhenGenerationIsStale_ShouldIgnoreMoveEvenIfNotationStillMatches()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
@@ -43,7 +46,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ApplyPonderBestMoveForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		await coordinator.StartSearchAsync(Fen.Default);
@@ -62,7 +65,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ApplyPonderBestMoveForTests_WhenSearchIsRetargeted_ShouldIgnoreOldGenerationOutput()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -88,7 +91,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ApplyPonderInfoForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var pv = new PrincipalVariation(4, 6, 1, 20, null, 100, 1000, 0, 10, ["e2e4"], "e2e4");
@@ -104,7 +107,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task BestSearch_WhenStartedAndStopped_ShouldRestartCleanly()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var bestTcs1 =
@@ -152,7 +155,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ClassifyMoveForStateAsync_WhenCoordinatorStateHasChanged_ShouldUseCapturedSnapshotFen()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
@@ -170,7 +173,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ClearState_WhenCalled_ShouldCancelClassificationTokenSource()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var classificationStarted = false;
@@ -200,7 +203,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task ClearState_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var exceptions  = new ConcurrentBag<Exception>();
@@ -253,7 +256,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task CurrentLegalMoves_WhenAccessedConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
@@ -313,7 +316,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalled_ShouldUnsubscribeFromEngineEvents()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var stateChangeCount = 0;
@@ -343,7 +346,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalledAfterSearchAndClassification_ShouldNotThrow()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Start search to create _bestCts
@@ -364,7 +367,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalledWithActiveSearches_ShouldDisposeAllTokenSourcesSafely()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Start search to create _bestCts
@@ -427,7 +430,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task FullGame_WhenScholarMate_ShouldValidateFlow()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Scholar's Mate sequence:
@@ -500,7 +503,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task NewGameAsync_WhenCalledAfterSearch_ShouldResetStateAndAllowRestart()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var firstInfo =
@@ -537,7 +540,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task SearchAsync_WhenSearchMovesIsSpecified_ShouldRestrictBestMoveToProvidedMoves()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
@@ -556,23 +559,18 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WhenClassifierStartupFails_ShouldRollbackPreviouslyStartedEngines()
 	{
-		var quick  = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		var classifier = new MoveClassificationEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			static (_, _) => throw new InvalidOperationException("startup failure")
-		);
+		var snapshotClient = new UciEngineClient(TestResourcePaths.STOCKFISH_PATH);
+		var ponder = new UciPonderRuntime(new UciEngineClient(TestResourcePaths.STOCKFISH_PATH));
+		var classifier = CreateClientThatFailsStart("startup failure");
 
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+		await using var coordinator = new UciGameEngineSession(snapshotClient, ponder, classifier);
 
 		await FluentActions.Awaiting(() => coordinator.StartAsync())
 						   .Should()
 						   .ThrowAsync<InvalidOperationException>()
 						   .WithMessage("startup failure");
 
-		quick.IsStarted.Should().BeFalse();
+		snapshotClient.IsStarted.Should().BeFalse();
 		ponder.IsStarted.Should().BeFalse();
 		classifier.IsStarted.Should().BeFalse();
 	}
@@ -580,7 +578,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WhenCompleted_ShouldAllowGetCurrentFenAsync()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var fen = coordinator.CurrentFen;
@@ -592,7 +590,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WhenCompleted_ShouldExposeEngineMetadataAndCapabilities()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 
 		await coordinator.StartAsync();
 
@@ -607,7 +605,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WhenFenIsProvided_ShouldStartSearchAndBroadcastLegalMovesAndBestMove()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 
 		var legalTcs =
 			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -645,25 +643,11 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartAsync_WhenRequiredExtensionsAreUnavailable_ShouldFailEarlyWithClearMessage()
 	{
-		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
-		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
-				 .Do(async _ =>
-					 {
-						 await channel.Writer.WriteAsync("id name Minimal Engine");
-						 await channel.Writer.WriteAsync("id author Test Harness");
-						 await channel.Writer.WriteAsync("option name Ponder type check default false");
-						 await channel.Writer.WriteAsync("uciok");
-					 }
-				 );
+		var snapshotClient = CreateClientWithoutCoordinatorExtensions();
+		var ponder = new UciPonderRuntime(new UciEngineClient(TestResourcePaths.STOCKFISH_PATH));
+		var classifier = new UciEngineClient(TestResourcePaths.STOCKFISH_PATH);
 
-		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
-				 .Do(_ => channel.Writer.TryWrite("readyok"));
-
-		var quick      = new QuickInfoEngine(new(transport));
-		var ponder     = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		var classifier = new MoveClassificationEngine(TestResourcePaths.STOCKFISH_PATH);
-
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+		await using var coordinator = new UciGameEngineSession(snapshotClient, ponder, classifier);
 
 		await FluentActions.Awaiting(() => coordinator.StartAsync())
 						   .Should()
@@ -674,7 +658,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WhenBestLineIsUpdated_ShouldRaiseBestMoveFromSingleEngineStream()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var bestLineTcs =
@@ -700,7 +684,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WhenCalled_ShouldRaisePonderInfo()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -722,7 +706,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => coordinator.StartSearchAsync(Fen.Empty()));
@@ -731,7 +715,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartPonderAsync_WhenStopped_ShouldRaisePonderBestMove()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		ParsedMove? best   = null;
@@ -761,9 +745,9 @@ public class UciCoordinatorTests
 	}
 
 	[Fact]
-	public async Task StartSearchAsync_WhenCalledForNewPositionWhileAlreadySearching_ShouldRetargetPonderEngine()
+	public async Task StartSearchAsync_WhenCalledForNewPositionWhileAlreadySearching_ShouldRetargetPonderRuntime()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -789,7 +773,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StartSearchAsync_WhenCanceled_ShouldNotLeaveSearchingStateTrue()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		using var cts = new CancellationTokenSource();
@@ -807,7 +791,7 @@ public class UciCoordinatorTests
 	[Fact(Timeout = 10000)]
 	public async Task StartSearchAsyncAndStopSearchAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var exceptions = new ConcurrentBag<Exception>();
@@ -862,23 +846,14 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StopAsync_WhenMultipleEnginesFailToStop_ShouldThrowAggregateAfterCleanup()
 	{
-		var quick = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		var ponder = new PonderEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
+		var snapshotClient = new UciEngineClient(TestResourcePaths.STOCKFISH_PATH);
+		var ponder = new UciPonderRuntime(
+			new UciEngineClient(TestResourcePaths.STOCKFISH_PATH),
 			static _ => throw new InvalidOperationException("ponder stop failed")
 		);
+		var classifier = CreateClientThatFailsStop("classifier stop failed");
 
-		var classifier = new MoveClassificationEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			null,
-			static _ => throw new InvalidOperationException("classifier stop failed")
-		);
-
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+		await using var coordinator = new UciGameEngineSession(snapshotClient, ponder, classifier);
 		await coordinator.StartAsync();
 		await coordinator.StartSearchAsync(Fen.Default);
 
@@ -892,17 +867,11 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StopAsync_WhenOneEngineStopFails_ShouldResetStateRaiseStoppedAndThrow()
 	{
-		var quick  = new QuickInfoEngine(TestResourcePaths.STOCKFISH_PATH);
-		var ponder = new PonderEngine(TestResourcePaths.STOCKFISH_PATH);
-		var classifier = new MoveClassificationEngine(
-			TestResourcePaths.STOCKFISH_PATH,
-			null,
-			null,
-			null,
-			static _ => throw new InvalidOperationException("classifier stop failed")
-		);
+		var snapshotClient = new UciEngineClient(TestResourcePaths.STOCKFISH_PATH);
+		var ponder = new UciPonderRuntime(new UciEngineClient(TestResourcePaths.STOCKFISH_PATH));
+		var classifier = CreateClientThatFailsStop("classifier stop failed");
 
-		await using var coordinator = new UciCoordinator(quick, ponder, classifier);
+		await using var coordinator = new UciGameEngineSession(snapshotClient, ponder, classifier);
 		await coordinator.StartAsync();
 		await coordinator.StartSearchAsync(Fen.Default);
 
@@ -921,7 +890,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task StreamClassifiedMovesAsync_WhenPositionIsSet_ShouldYieldClassifiedMoves()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Set a standard position and trigger background classification
@@ -950,7 +919,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task UpdatePositionAsync_WhenApplyingWhiteE2E4_ShouldProvideBlackResponsesAndClassifiedMove()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Initial position: expect legal moves including e2e4
@@ -1026,7 +995,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task UpdatePositionAsync_WhenCalledWithDefaultFen_ShouldPopulateLegalMoves()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		// Start background processing for the default position
@@ -1048,7 +1017,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task WaitForClassificationAsync_WhenNewGameStarts_ShouldCancel()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
@@ -1065,7 +1034,7 @@ public class UciCoordinatorTests
 	[Fact]
 	public async Task WaitForClassificationAsync_WhenPositionChanges_ShouldCancel()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 		await coordinator.UpdatePositionAsync(Fen.Default, null);
 
@@ -1083,7 +1052,7 @@ public class UciCoordinatorTests
 	[Trait("Requires", "Stockfish")]
 	public async Task AnalysisStream_WhenStarted_ShouldYieldPvWithScore()
 	{
-		await using var coordinator = new UciCoordinator(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1101,5 +1070,55 @@ public class UciCoordinatorTests
 		(pvLine.ScoreCp.HasValue || pvLine.ScoreMate.HasValue).Should().BeTrue();
 
 		await coordinator.StopSearchAsync();
+	}
+
+	private static UciEngineClient CreateClientThatFailsStart(string message)
+	{
+		var transport = Substitute.For<IUciTransport>();
+		transport.StartAsync(Arg.Any<CancellationToken>())
+				 .Returns<Task>(_ => throw new InvalidOperationException(message));
+		transport.WriteLineAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+		return new UciEngineClient(transport);
+	}
+
+	private static UciEngineClient CreateClientThatFailsStop(string message)
+	{
+		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
+		ConfigureMinimalHandshake(transport, channel);
+		transport.StopAsync(Arg.Any<CancellationToken>())
+				 .Returns<Task>(_ => throw new InvalidOperationException(message));
+		return new UciEngineClient(transport);
+	}
+
+	private static UciEngineClient CreateClientWithoutCoordinatorExtensions()
+	{
+		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
+		ConfigureMinimalHandshake(transport, channel);
+
+		transport.When(x => x.WriteLineAsync("d", Arg.Any<CancellationToken>()))
+				 .Do(_ =>
+					 {
+						 channel.Writer.TryWrite("fen invalid");
+						 channel.Writer.TryWrite("checkers");
+					 }
+				 );
+
+		return new UciEngineClient(transport);
+	}
+
+	private static void ConfigureMinimalHandshake(IUciTransport transport, Channel<string> channel)
+	{
+		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
+				 .Do(async _ =>
+					 {
+						 await channel.Writer.WriteAsync("id name Minimal Engine");
+						 await channel.Writer.WriteAsync("id author Test Harness");
+						 await channel.Writer.WriteAsync("option name Ponder type check default false");
+						 await channel.Writer.WriteAsync("uciok");
+					 }
+				 );
+
+		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
+				 .Do(_ => channel.Writer.TryWrite("readyok"));
 	}
 }

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.API.Types;
 using Bezoro.Chess.UCI.Internal;
-using Bezoro.Chess.UCI.Domain.Engines;
+using Bezoro.Chess.UCI.Protocol.Internal;
 
 namespace Bezoro.Chess.UCI.API;
 
@@ -17,21 +17,20 @@ namespace Bezoro.Chess.UCI.API;
 ///     Orchestrates updating positions, synchronized pondering, background classification, and emits unified events
 ///     updating UI or consumers.
 /// </summary>
-public sealed class UciCoordinator : IAsyncDisposable, IDisposable
+public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 {
-	private readonly MoveClassificationEngine _classifier;
-	private readonly object                   _sync = new();
-	private readonly PonderEngine             _ponder;
-	private readonly QuickInfoEngine          _quick;
-	private readonly SynchronizationContext?  _syncContext;
+	private readonly SerializedUciEngineClientRuntime _classificationClient;
+	private readonly CoordinatorClassificationRuntime _classificationRuntime;
+	private readonly GameEngineEventDispatcher        _events;
+	private readonly object                           _sync = new();
+	private readonly UciPonderRuntime                 _ponder;
+	private readonly SerializedUciEngineClientRuntime _snapshotClient;
 
 	private readonly UciCoordinatorOptions _options;
 
 	private CancellationTokenSource? _bestCts;
 	private CancellationTokenSource? _classificationCts;
-	private TaskCompletionSource<IReadOnlyDictionary<string, Move>>? _classificationCompletion;
 	private int                      _acceptedPonderGeneration;
-	private int                      _classificationGeneration;
 	private Guid                     _gameId = Guid.NewGuid();
 	private long                     _nextMoveId;
 	private long                     _nextPendingPromotionId;
@@ -196,7 +195,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action? Stopped;
 
 	/// <summary>
-	///     Constructs a new UciCoordinator with engines initialized for the given enginePath, arguments, and working
+	///     Constructs a new UciGameEngineSession with engines initialized for the given enginePath, arguments, and working
 	///     directory.
 	/// </summary>
 	/// <param name="enginePath">Path to the UCI engine executable.</param>
@@ -204,32 +203,33 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="workingDirectory">Optional working directory.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
 	/// <param name="options">Optional configuration options for the coordinator.</param>
-	public UciCoordinator(
+	public UciGameEngineSession(
 		string                  enginePath,
 		IEnumerable<string>?    args             = null,
 		string?                 workingDirectory = null,
 		SynchronizationContext? syncContext      = null,
 		UciCoordinatorOptions?  options          = null)
 		: this(
-			new QuickInfoEngine(enginePath, args, workingDirectory),
-			new PonderEngine(enginePath, args, workingDirectory),
-			new MoveClassificationEngine(enginePath, args, workingDirectory),
+			new UciEngineClient(enginePath, args, workingDirectory),
+			new UciPonderRuntime(new UciEngineClient(enginePath, args, workingDirectory)),
+			new UciEngineClient(enginePath, args, workingDirectory),
 			syncContext,
 			options
 		) { }
 
-	internal UciCoordinator(
-		QuickInfoEngine         quick,
-		PonderEngine            ponder,
-		MoveClassificationEngine classifier,
+	internal UciGameEngineSession(
+		UciEngineClient         snapshotClient,
+		UciPonderRuntime        ponder,
+		UciEngineClient         classificationClient,
 		SynchronizationContext? syncContext = null,
 		UciCoordinatorOptions?  options     = null)
 	{
-		_syncContext = syncContext;
+		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
-		_quick       = quick ?? throw new ArgumentNullException(nameof(quick));
+		_snapshotClient = new(snapshotClient ?? throw new ArgumentNullException(nameof(snapshotClient)));
 		_ponder      = ponder ?? throw new ArgumentNullException(nameof(ponder));
-		_classifier  = classifier ?? throw new ArgumentNullException(nameof(classifier));
+		_classificationClient = new(classificationClient ?? throw new ArgumentNullException(nameof(classificationClient)));
+		_classificationRuntime = new(_sync);
 
 		_ponder.InfoPvWithGeneration   += OnPonderInfo;
 		_ponder.BestMoveWithGeneration += PonderOnBestMove;
@@ -238,12 +238,12 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines are healthy and responsive.
 	/// </summary>
-	public bool IsHealthy => _quick.IsHealthy && _ponder.IsHealthy && _classifier.IsHealthy;
+	public bool IsHealthy => _snapshotClient.IsHealthy && _ponder.IsHealthy && _classificationClient.IsHealthy;
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines have been started.
 	/// </summary>
-	public bool IsStarted => _quick.IsStarted && _ponder.IsStarted && _classifier.IsStarted;
+	public bool IsStarted => _snapshotClient.IsStarted && _ponder.IsStarted && _classificationClient.IsStarted;
 
 	/// <summary>
 	///     Gets the current position FEN (after all played moves).
@@ -271,19 +271,19 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public UciCoordinatorOptions Options => _options;
 
 	/// <summary>
-	///     Gets the engine metadata reported by the quick engine instance.
+	///     Gets the engine metadata reported by the snapshot client instance.
 	/// </summary>
-	public UciEngineInfo EngineInfo => _quick.EngineInfo;
+	public UciEngineInfo EngineInfo => _snapshotClient.EngineInfo;
 
 	/// <summary>
-	///     Gets the options advertised by the quick engine instance during handshake.
+	///     Gets the options advertised by the snapshot client instance during handshake.
 	/// </summary>
-	public ImmutableArray<UciEngineOption> AvailableOptions => _quick.AvailableOptions;
+	public ImmutableArray<UciEngineOption> AvailableOptions => _snapshotClient.AvailableOptions;
 
 	/// <summary>
 	///     Gets the capability state detected for the configured engine.
 	/// </summary>
-	public UciEngineCapabilities Capabilities => _quick.Capabilities;
+	public UciEngineCapabilities Capabilities => _snapshotClient.Capabilities;
 
 	/// <summary>
 	///     Gets the current state of the coordinator.
@@ -304,25 +304,25 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 				_state = value;
 			}
 
-			Raise(StateChanged, value);
+			_events.Raise(StateChanged, value);
 		}
 	}
 
 	/// <summary>
-	///     Creates and starts a new UciCoordinator with engines initialized and ready.
+	///     Creates and starts a new UciGameEngineSession with engines initialized and ready.
 	/// </summary>
 	/// <param name="enginePath">Path to the UCI engine executable.</param>
 	/// <param name="options">Configuration options for the coordinator.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>A fully initialized and started coordinator.</returns>
-	public static async Task<UciCoordinator> CreateAsync(
+	public static async Task<UciGameEngineSession> CreateAsync(
 		string                  enginePath,
 		UciCoordinatorOptions?  options     = null,
 		SynchronizationContext? syncContext = null,
 		CancellationToken       ct          = default)
 	{
-		var coordinator = new UciCoordinator(enginePath, null, null, syncContext, options);
+		var coordinator = new UciGameEngineSession(enginePath, null, null, syncContext, options);
 		await coordinator.StartAsync(ct).ConfigureAwait(false);
 		return coordinator;
 	}
@@ -344,7 +344,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		lock (_sync)
 		{
 			initialState   = _state;
-			completionTask = _classificationCompletion?.Task;
+			completionTask = _classificationRuntime.CompletionTask;
 		}
 
 		foreach (var kvp in initialState.ClassifiedMoves)
@@ -456,18 +456,18 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public async Task NewGameAsync(CancellationToken ct = default)
 	{
 		InvalidatePonderState(clearTransientState: true);
-		CancelAndDispose(ref _bestCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 		ClearState();
 		await Task.WhenAll(
-			_quick.NewGameAsync(ct),
+			_snapshotClient.NewGameAsync(ct),
 			_ponder.NewGameAsync(ct),
-			_classifier.NewGameAsync(ct)
+			_classificationClient.NewGameAsync(ct)
 		).ConfigureAwait(false);
 
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		ResetGameplaySession();
 		State = UciState.Default;
-		Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
+		_events.Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
 	}
 
 	/// <summary>
@@ -485,9 +485,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_quick.SetOptionAsync(name, value, ct),
+			_snapshotClient.SetOptionAsync(name, value, ct),
 			_ponder.SetOptionAsync(name, value, ct),
-			_classifier.SetOptionAsync(name, value, ct)
+			_classificationClient.SetOptionAsync(name, value, ct)
 		);
 
 	/// <summary>
@@ -495,9 +495,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task SetDebugAsync(bool enabled, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_quick.SetDebugAsync(enabled, ct),
+			_snapshotClient.SetDebugAsync(enabled, ct),
 			_ponder.SetDebugAsync(enabled, ct),
-			_classifier.SetDebugAsync(enabled, ct)
+			_classificationClient.SetDebugAsync(enabled, ct)
 		);
 
 	/// <summary>
@@ -505,9 +505,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_quick.RegisterAsync(registration, ct),
+			_snapshotClient.RegisterAsync(registration, ct),
 			_ponder.RegisterAsync(registration, ct),
-			_classifier.RegisterAsync(registration, ct)
+			_classificationClient.RegisterAsync(registration, ct)
 		);
 
 	/// <summary>
@@ -530,20 +530,20 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
-		var quickStarted      = false;
+		var snapshotStarted   = false;
 		var ponderStarted     = false;
 		var classifierStarted = false;
 
 		try
 		{
-			await _quick.StartAsync(ct).ConfigureAwait(false);
-			quickStarted = true;
-			EnsureCoordinatorCapabilities(_quick.Capabilities);
+			await _snapshotClient.StartWithCoordinatorCapabilitiesAsync(ct).ConfigureAwait(false);
+			CoordinatorRuntimeUtilities.EnsureCoordinatorCapabilities(_snapshotClient.Capabilities);
+			snapshotStarted = true;
 
 			await _ponder.StartAsync(ct).ConfigureAwait(false);
 			ponderStarted = true;
 
-			await _classifier.StartAsync(ct).ConfigureAwait(false);
+			await _classificationClient.StartAsync(ct).ConfigureAwait(false);
 			classifierStarted = true;
 
 			// Configure ponder engine based on options.
@@ -554,12 +554,12 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			ResetGameplaySession();
 			State = UciState.Default;
 
-			Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
-			Raise(Ready);
+			_events.Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
+			_events.Raise(Ready);
 		}
 		catch
 		{
-			await RollbackStartAsync(quickStarted, ponderStarted, classifierStarted).ConfigureAwait(false);
+			await RollbackStartAsync(snapshotStarted, ponderStarted, classifierStarted).ConfigureAwait(false);
 			throw;
 		}
 	}
@@ -586,7 +586,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		var newCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		var token  = newCts.Token;
-		CancelAndDispose(ref _bestCts, newCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts, newCts);
 
 		try
 		{
@@ -596,7 +596,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 		catch
 		{
-			if (CancelAndDisposeIfCurrent(ref _bestCts, newCts))
+			if (CoordinatorRuntimeUtilities.CancelAndDisposeIfCurrent(ref _bestCts, newCts))
 				SetSearchingState(false);
 
 			throw;
@@ -620,7 +620,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			reportErrors: false
 		).ConfigureAwait(false);
 		cancellationRequested = await TryStopStepAsync(
-			token => _classifier.StopAsync(token),
+			_classificationClient.StopAsync,
 			cancellationRequested,
 			stopFailures,
 			ct
@@ -632,7 +632,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			ct
 		).ConfigureAwait(false);
 		cancellationRequested = await TryStopStepAsync(
-			token => _quick.StopAsync(token),
+			_snapshotClient.StopAsync,
 			cancellationRequested,
 			stopFailures,
 			ct
@@ -641,8 +641,8 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 
-		Raise(Stopped);
-		ThrowStopFailures(stopFailures, cancellationRequested, ct);
+		_events.Raise(Stopped);
+		CoordinatorRuntimeUtilities.ThrowStopFailures(stopFailures, cancellationRequested, ct);
 	}
 
 	/// <summary>
@@ -685,14 +685,14 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		ResetGameplaySession();
 		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
 
-		Raise(
+		_events.Raise(
 			PositionLoaded,
 			new(_gameId, snapshot.BaseFen, snapshot.CurrentFen, [.. snapshot.PlayedMoves], DateTimeOffset.UtcNow)
 		);
 		PublishPositionChanged(snapshot);
-		Raise(LegalMovesUpdated, snapshot);
+		_events.Raise(LegalMovesUpdated, snapshot);
 		if (previousTurn != snapshot.CurrentFen.ActiveColor)
-			Raise(
+			_events.Raise(
 				TurnChanged,
 				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
 			);
@@ -707,7 +707,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The current position FEN, or null if not available.</returns>
 	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
-		_quick.GetCurrentFenAsync(ct);
+		_snapshotClient.GetFenAsync(ct);
 
 	/// <summary>
 	///     Waits until all legal moves in the current position have been classified.
@@ -722,7 +722,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			if (_state.IsClassificationComplete)
 				return _state.ClassifiedMoves;
 
-			waitTask = _classificationCompletion?.Task ??
+			waitTask = _classificationRuntime.CompletionTask ??
 					   Task.FromResult<IReadOnlyDictionary<string, Move>>(_state.ClassifiedMoves);
 		}
 
@@ -762,14 +762,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		if (currentState.ClassifiedMoves.TryGetValue(move, out var existing))
 			return existing;
 
-		// Use the classifier to classify this specific move
-		var result = await _classifier.ClassifyMoveAsync(currentState.CurrentFen, move, _options.ClassificationDepth, ct)
-									  .ConfigureAwait(false);
-
-		if (!result.HasValue)
-			throw new InvalidOperationException($"Failed to classify move '{move}'.");
-
-		return result.Value;
+		return await ClassifyMoveWithClassificationClientAsync(currentState.CurrentFen, move, ct).ConfigureAwait(false);
 	}
 
 	private async Task<Move> ClassifyMoveForEventAsync(
@@ -794,7 +787,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The search result containing the best move and evaluation.</returns>
 	public Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default) =>
-		_quick.SearchAsync(parameters, CurrentFen, null, ct);
+		_snapshotClient.SearchAsync(CurrentFen, null, parameters, ct);
 
 	/// <summary>
 	///     Applies a move to the current position and updates the engines.
@@ -862,7 +855,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 				);
 			}
 
-			Raise(PromotionRequired, request);
+			_events.Raise(PromotionRequired, request);
 			return currentState;
 		}
 
@@ -959,14 +952,14 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			_appliedMoveHistory = appliedMoves[..Math.Max(0, appliedMoves.Length - removedMoves.Length)];
 		}
 
-		Raise(MoveUndone, new(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow));
+		_events.Raise(MoveUndone, new(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow));
 		if (previousTurn != snapshot.CurrentFen.ActiveColor)
-			Raise(
+			_events.Raise(
 				TurnChanged,
 				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
 			);
 		PublishPositionChanged(snapshot);
-		Raise(LegalMovesUpdated, snapshot);
+		_events.Raise(LegalMovesUpdated, snapshot);
 		PublishGameOver(snapshot);
 
 		await StartBackgroundWorkAsync(
@@ -993,11 +986,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		// Dispose cancellation token sources
 		// (ClearState() already handled _classificationCts)
-		CancelAndDispose(ref _bestCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 
-		await _classifier.DisposeAsync();
+		await _classificationClient.DisposeAsync();
 		await _ponder.DisposeAsync();
-		await _quick.DisposeAsync();
+		await _snapshotClient.DisposeAsync();
 	}
 
 	/// <summary>
@@ -1010,57 +1003,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Atomically cancels and disposes a CancellationTokenSource field, optionally replacing it.
-	/// </summary>
-	private static void CancelAndDispose(
-		ref CancellationTokenSource? ctsField,
-		CancellationTokenSource?     replacement = null)
-	{
-		var old = Interlocked.Exchange(ref ctsField, replacement);
-		try
-		{
-			old?.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling
-		}
-		finally
-		{
-			old?.Dispose();
-		}
-	}
-
-	private static bool CancelAndDisposeIfCurrent(
-		ref CancellationTokenSource? ctsField,
-		CancellationTokenSource      candidate)
-	{
-		var current = Interlocked.CompareExchange(ref ctsField, null, candidate);
-		if (!ReferenceEquals(current, candidate)) return false;
-
-		try
-		{
-			candidate.Cancel();
-		}
-		catch
-		{
-			// Best-effort: ignore errors when canceling
-		}
-		finally
-		{
-			candidate.Dispose();
-		}
-
-		return true;
-	}
-
-	/// <summary>
 	///     Cancels background move classification and clears all cached per-move results.
 	/// </summary>
 	private void ClearState()
 	{
-		_classifier.StopClassification();
-		CancelAndDispose(ref _classificationCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts);
 		CancelClassificationCompletion();
 	}
 
@@ -1076,6 +1023,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 	}
 
+	private async Task<Move> ClassifyMoveWithClassificationClientAsync(
+		Fen               fen,
+		string            move,
+		CancellationToken ct)
+	{
+		var result = await _classificationClient.SearchMoveAsync(fen, move, _options.ClassificationDepth, ct)
+												.ConfigureAwait(false);
+		var boardState = BoardState.FromFen(fen) ??
+						 throw new InvalidOperationException(
+							 $"Unable to build board state from FEN '{fen.Raw}' for move classification."
+						 );
+		var score = MoveScore.FromSearchResult(result);
+		return new Move(move, MoveAnalysis.Analyze(move, boardState, score, false));
+	}
+
 	private async Task<UciState> LoadPositionSnapshotAsync(
 		Fen                 fen,
 		IReadOnlyCollection<string> moves,
@@ -1084,11 +1046,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		await StopSearchAsync(ct).ConfigureAwait(false);
 		ClearState();
 
-		await _quick.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
+		await _snapshotClient.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
 		await _ponder.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
 
-		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false) ?? fen;
+		var legalMoves = await _snapshotClient.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		var effectiveFen = await _snapshotClient.GetFenAsync(ct).ConfigureAwait(false) ?? fen;
 
 		lock (_sync)
 		{
@@ -1137,22 +1099,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		var classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		var classificationToken = classificationCts.Token;
-		CancelAndDispose(ref _classificationCts, classificationCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts, classificationCts);
 
 		_ = Task.Run(
 			async () =>
 			{
 				try
 				{
-					await foreach (var move in _classifier
-											.ClassifyAsync(
-												currentFen,
-												_options.ClassificationDepth,
-												legalMoves,
-												classificationToken
-											)
-											.ConfigureAwait(false))
+					foreach (var legalMove in legalMoves)
 					{
+						classificationToken.ThrowIfCancellationRequested();
+						var move = await ClassifyMoveWithClassificationClientAsync(
+							currentFen,
+							legalMove,
+							classificationToken
+						).ConfigureAwait(false);
 						ApplyClassifiedMove(move, classificationGeneration);
 					}
 
@@ -1201,26 +1162,26 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		if (promotionChosenEvent.HasValue)
-			Raise(PromotionChosen, promotionChosenEvent.Value);
+			_events.Raise(PromotionChosen, promotionChosenEvent.Value);
 
-		Raise(MoveMade, moveEvent);
+		_events.Raise(MoveMade, moveEvent);
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.Capture))
-			Raise(CaptureMade, moveEvent);
+			_events.Raise(CaptureMade, moveEvent);
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.KingsideCastling) ||
 			moveEvent.KindFlags.HasFlag(GameMoveKindFlags.QueensideCastling))
-			Raise(CastlingMade, moveEvent);
+			_events.Raise(CastlingMade, moveEvent);
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.EnPassant))
-			Raise(EnPassantMade, moveEvent);
+			_events.Raise(EnPassantMade, moveEvent);
 		if (moveEvent.IsCheck)
-			Raise(Check, moveEvent);
+			_events.Raise(Check, moveEvent);
 		if (moveEvent.IsCheckmate)
-			Raise(Checkmate, moveEvent);
+			_events.Raise(Checkmate, moveEvent);
 		if (moveEvent.IsStalemate)
-			Raise(Stalemated, moveEvent);
+			_events.Raise(Stalemated, moveEvent);
 
 		PublishGameOver(snapshot);
 		if (previousState.CurrentFen.ActiveColor != snapshot.CurrentFen.ActiveColor)
-			Raise(
+			_events.Raise(
 				TurnChanged,
 				new(
 					_gameId,
@@ -1231,7 +1192,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 				)
 			);
 		PublishPositionChanged(snapshot);
-		Raise(LegalMovesUpdated, snapshot);
+		_events.Raise(LegalMovesUpdated, snapshot);
 
 		await StartBackgroundWorkAsync(
 			previousState.BaseFen,
@@ -1249,19 +1210,19 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		IReadOnlyList<string>  legalMoves,
 		bool                   isPromotionChoicePending)
 	{
-		Raise(
+		_events.Raise(
 			IllegalMoveRejected,
 			new(_gameId, move, reason, [.. legalMoves], isPromotionChoicePending, DateTimeOffset.UtcNow)
 		);
 		throw new ArgumentException(reason, nameof(move));
 	}
 
-	private async Task RollbackStartAsync(bool quickStarted, bool ponderStarted, bool classifierStarted)
+	private async Task RollbackStartAsync(bool snapshotStarted, bool ponderStarted, bool classifierStarted)
 	{
 		if (classifierStarted)
 			try
 			{
-				await _classifier.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await _classificationClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1278,10 +1239,10 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 				/* best-effort */
 			}
 
-		if (quickStarted)
+		if (snapshotStarted)
 			try
 			{
-				await _quick.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await _snapshotClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1309,9 +1270,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		PublishSearchStateChanged(snapshot);
 		if (isSearching)
-			Raise(EngineThinkingStarted, snapshot);
+			_events.Raise(EngineThinkingStarted, snapshot);
 		else
-			Raise(EngineThinkingStopped, snapshot);
+			_events.Raise(EngineThinkingStopped, snapshot);
 	}
 
 	private void AcceptPonderGeneration(int generation) =>
@@ -1322,10 +1283,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		get
 		{
-			lock (_sync)
-			{
-				return _classificationGeneration;
-			}
+			return _classificationRuntime.Generation;
 		}
 	}
 
@@ -1369,104 +1327,34 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			PublishSearchStateChanged(snapshot);
 	}
 
-	private int BeginClassificationRun()
-	{
-		lock (_sync)
-		{
-			_classificationGeneration++;
-			_classificationCompletion = CreateClassificationCompletionSource();
-			return _classificationGeneration;
-		}
-	}
+	private int BeginClassificationRun() => _classificationRuntime.BeginRun();
 
 	private void ApplyClassifiedMove(Move move, int generation)
 	{
-		UciState snapshot;
-		lock (_sync)
-		{
-			if (_classificationGeneration != generation) return;
-			if (!_state.LegalMoves.Contains(move.Notation)) return;
+		_classificationRuntime.ApplyClassifiedMove(ref _state, move, generation, out var snapshot);
+		if (!snapshot.HasValue)
+			return;
 
-			var newClassified = _state.ClassifiedMoves.SetItem(move.Notation, move);
-			_state = _state with { ClassifiedMoves = newClassified };
-			snapshot = _state;
-		}
-
-		Raise(StateChanged, snapshot);
-		Raise(MoveClassified, move);
-		Raise(MoveClassificationUpdated, move);
+		_events.Raise(StateChanged, snapshot.Value);
+		_events.Raise(MoveClassified, move);
+		_events.Raise(MoveClassificationUpdated, move);
 	}
 
 	private void CompleteClassificationRun(int generation)
 	{
-		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
-		IReadOnlyDictionary<string, Move> result;
-		UciState snapshot;
-		lock (_sync)
-		{
-			if (_classificationGeneration != generation) return;
-
-			completion = _classificationCompletion;
-			result     = _state.ClassifiedMoves;
-			snapshot   = _state;
-		}
-
-		completion?.TrySetResult(result);
-		Raise(ClassificationCompleted, snapshot);
+		_classificationRuntime.CompleteRun(State, generation, out var snapshot);
+		if (snapshot.HasValue)
+			_events.Raise(ClassificationCompleted, snapshot.Value);
 	}
 
-	private void FaultClassificationRun(int generation, Exception ex)
-	{
-		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
-		lock (_sync)
-		{
-			if (_classificationGeneration != generation) return;
+	private void FaultClassificationRun(int generation, Exception ex) =>
+		_classificationRuntime.FaultRun(generation, ex);
 
-			completion = _classificationCompletion;
-		}
+	private void CancelClassificationRunIfActive(int generation) =>
+		_classificationRuntime.CancelRunIfActive(generation);
 
-		completion?.TrySetException(ex);
-	}
-
-	private void CancelClassificationRunIfActive(int generation)
-	{
-		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
-		lock (_sync)
-		{
-			if (_classificationGeneration != generation) return;
-
-			completion = _classificationCompletion;
-		}
-
-		completion?.TrySetCanceled();
-	}
-
-	private void CancelClassificationCompletion()
-	{
-		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
-		lock (_sync)
-		{
-			_classificationGeneration++;
-			completion = _classificationCompletion;
-			_classificationCompletion = null;
-		}
-
-		completion?.TrySetCanceled();
-	}
-
-	private static TaskCompletionSource<IReadOnlyDictionary<string, Move>> CreateClassificationCompletionSource() =>
-		new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-	private static void EnsureCoordinatorCapabilities(UciEngineCapabilities capabilities)
-	{
-		if (capabilities.SupportsCoordinatorExtensions) return;
-
-		throw new NotSupportedException(
-			$"UciCoordinator requires engine support for display-board FEN retrieval and perft move listing. " +
-			$"Detected capabilities: DisplayBoardFen={capabilities.DisplayBoardFen}, " +
-			$"PerftMoveListing={capabilities.PerftMoveListing}."
-		);
-	}
+	private void CancelClassificationCompletion() =>
+		_classificationRuntime.CancelCompletion();
 
 	/// <summary>
 	///     Forwards ponder engine PV updates.
@@ -1485,16 +1373,20 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			snapshot = _state;
 		}
 
-		Raise(StateChanged, snapshot);
-		Raise(EvaluationChanged, pv);
-		Raise(EvaluationUpdated, pv);
+		_events.Raise(StateChanged, snapshot);
+		_events.Raise(EvaluationChanged, pv);
+		_events.Raise(EvaluationUpdated, pv);
 	}
 
 	/// <summary>
 	///     Forwards the best move (and optional ponder move) found by the ponder engine.
 	/// </summary>
-	private void PonderOnBestMove(ParsedMove best, ParsedMove? ponder, int generation) =>
-		ApplyPonderBestMove(best, ponder, generation);
+	private void PonderOnBestMove(string best, string? ponder, int generation) =>
+		ApplyPonderBestMove(
+			ParsedMove.FromNotation(best),
+			string.IsNullOrWhiteSpace(ponder) ? null : ParsedMove.FromNotation(ponder),
+			generation
+		);
 
 	private void ApplyPonderBestMove(ParsedMove best, ParsedMove? ponder, int generation)
 	{
@@ -1507,46 +1399,26 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			snapshot = _state;
 		}
 
-		Raise(StateChanged, snapshot);
-		Raise(BestMoveChanged, snapshot);
+		_events.Raise(StateChanged, snapshot);
+		_events.Raise(BestMoveChanged, snapshot);
 	}
 
 	private void PublishPositionChanged(UciState snapshot)
 	{
-		Raise(StateChanged, snapshot);
-		Raise(PositionChanged, snapshot);
+		_events.Raise(StateChanged, snapshot);
+		_events.Raise(PositionChanged, snapshot);
 	}
 
 	private void PublishGameOver(UciState snapshot)
 	{
 		if (snapshot.IsGameOver)
-			Raise(GameOver, snapshot);
+			_events.Raise(GameOver, snapshot);
 	}
 
 	private void PublishSearchStateChanged(UciState snapshot)
 	{
-		Raise(StateChanged, snapshot);
-		Raise(SearchStateChanged, snapshot);
-	}
-
-	private void Raise(Action? handler)
-	{
-		if (handler == null) return;
-
-		if (_syncContext != null)
-			_syncContext.Post(_ => handler(), null);
-		else
-			handler();
-	}
-
-	private void Raise<T>(Action<T>? handler, T args)
-	{
-		if (handler == null) return;
-
-		if (_syncContext != null)
-			_syncContext.Post(_ => handler(args), null);
-		else
-			handler(args);
+		_events.Raise(StateChanged, snapshot);
+		_events.Raise(SearchStateChanged, snapshot);
 	}
 
 	/// <summary>
@@ -1554,33 +1426,14 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// </summary>
 	private void RaiseError(Exception ex)
 	{
-		Raise(Error, ex);
-		Raise(EngineError, ex);
-	}
-
-	private static void ThrowStopFailures(
-		IReadOnlyList<Exception> failures,
-		bool                     cancellationRequested,
-		CancellationToken        ct)
-	{
-		if (failures.Count == 0)
-		{
-			if (cancellationRequested)
-				throw new OperationCanceledException(ct);
-
-			return;
-		}
-
-		if (failures.Count == 1)
-			throw failures[0];
-
-		throw new AggregateException(failures);
+		_events.Raise(Error, ex);
+		_events.Raise(EngineError, ex);
 	}
 
 	private async Task StopSearchCoreAsync(CancellationToken ct)
 	{
 		InvalidatePonderState(clearTransientState: true);
-		CancelAndDispose(ref _bestCts);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 
 		try
 		{

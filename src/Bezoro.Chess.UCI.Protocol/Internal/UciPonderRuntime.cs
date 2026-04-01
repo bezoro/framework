@@ -1,15 +1,16 @@
 using System.Collections.Generic;
+
 using System.Threading;
 using System.Threading.Tasks;
-using Bezoro.Chess.UCI.API.Types;
+using Bezoro.Chess.UCI.Protocol.API.Types;
 
-namespace Bezoro.Chess.UCI.Domain.Engines;
+namespace Bezoro.Chess.UCI.Protocol.Internal;
 
-internal sealed class PonderEngine : IAsyncDisposable, IDisposable
+internal sealed class UciPonderRuntime : IAsyncDisposable, IDisposable
 {
-	private readonly object          _scoreLock = new();
-	private readonly UciEngineClient _client;
-	private readonly Func<CancellationToken, Task>? _stopHook;
+	private readonly object                          _scoreLock = new();
+	private readonly UciEngineClient                 _client;
+	private readonly Func<CancellationToken, Task>?  _stopHook;
 
 	private int? _lastScoreCp;
 	private int? _lastScoreMate;
@@ -17,29 +18,21 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	private int  _forwardingGeneration;
 	private int  _searchGeneration;
 
-	public event Action<ParsedMove, ParsedMove?>? BestMove;
-	public event Action<PrincipalVariation>?      InfoPv;
-	internal event Action<ParsedMove, ParsedMove?, int>? BestMoveWithGeneration;
-	internal event Action<PrincipalVariation, int>?      InfoPvWithGeneration;
-
-	public PonderEngine(string enginePath, IEnumerable<string>? args = null, string? workingDirectory = null)
-		: this(enginePath, args, workingDirectory, null) { }
-
-	internal PonderEngine(
-		string                          enginePath,
-		IEnumerable<string>?            args,
-		string?                         workingDirectory,
-		Func<CancellationToken, Task>?  stopHook)
+	public UciPonderRuntime(UciEngineClient client, Func<CancellationToken, Task>? stopHook = null)
 	{
-		var transport = new ProcessUciTransport(enginePath, args, workingDirectory);
-		_client                = new(transport);
-		_stopHook              = stopHook;
+		_client     = client ?? throw new ArgumentNullException(nameof(client));
+		_stopHook   = stopHook;
 		_client.InfoPvReceived += OnClientInfoPvReceived;
 	}
 
+	public event Action<string, string?>?                  BestMove;
+	public event Action<PrincipalVariation>?               InfoPv;
+	internal event Action<string, string?, int>?           BestMoveWithGeneration;
+	internal event Action<PrincipalVariation, int>?        InfoPvWithGeneration;
+
 	public bool IsHealthy => _client.IsHealthy;
 	public bool IsStarted => _client.IsStarted;
-	internal int CurrentSearchGeneration => Volatile.Read(ref _searchGeneration);
+	public int CurrentSearchGeneration => Volatile.Read(ref _searchGeneration);
 
 	public EngineActivity  Activity => _client.Activity;
 	public TransportStatus Status   => _client.Status;
@@ -48,13 +41,9 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	{
 		await StopSearchAsync(ct).ConfigureAwait(false);
 		await _client.UciNewGameAsync(ct).ConfigureAwait(false);
-
 		ClearLastScores();
 	}
 
-	/// <summary>
-	///     Forwards option setting to the underlying engine client.
-	/// </summary>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		_client.SetOptionAsync(name, value, ct);
 
@@ -64,9 +53,6 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
 		_client.RegisterAsync(registration, ct);
 
-	/// <summary>
-	///     Sets the engine position without starting a search. Keeps ponder engine state synchronized with other engines.
-	/// </summary>
 	public Task SetPositionAsync(Fen fen, IEnumerable<string>? moves = null, CancellationToken ct = default) =>
 		_client.SetPositionAsync(fen, moves, ct);
 
@@ -76,10 +62,6 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		ClearLastScores();
 	}
 
-	/// <summary>
-	///     Starts an infinite search on the client. InfoPv is forwarded for each PV update and
-	///     BestMove is raised when the PV improves (mate over cp; higher is better).
-	/// </summary>
 	public async Task StartSearchAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
@@ -88,7 +70,6 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		if (Volatile.Read(ref _searchActive) == 1)
 			await StopSearchAsync(ct).ConfigureAwait(false);
 
-		// Reset last scores when starting a new search to synchronize internal evaluation state
 		ClearLastScores();
 		DisableOutputForwarding();
 		int generation = Interlocked.Increment(ref _searchGeneration);
@@ -118,9 +99,6 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			await _stopHook(ct).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	///     Stops any ongoing search (best or ponder).
-	/// </summary>
 	public async Task StopSearchAsync(CancellationToken ct = default)
 	{
 		DisableOutputForwarding();
@@ -133,13 +111,18 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			_lastScoreCp   = null;
 		}
 
-		if (!_client.IsStarted) return;
+		if (!_client.IsStarted)
+			return;
 
 		await _client.StopSearchAsync(ct).ConfigureAwait(false);
 		await _client.IsReadyAsync(ct).ConfigureAwait(false);
 	}
 
-	public ValueTask DisposeAsync() => _client.DisposeAsync();
+	public async ValueTask DisposeAsync()
+	{
+		_client.InfoPvReceived -= OnClientInfoPvReceived;
+		await _client.DisposeAsync().ConfigureAwait(false);
+	}
 
 	public void Dispose()
 	{
@@ -152,64 +135,46 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		EnableOutputForwarding(generation);
 	}
 
-	/// <summary>
-	///     Determines if the new score represents an improvement over the last score.
-	///     For mate scores: positive = winning (lower is better), negative = losing (higher/less negative is better).
-	///     For cp scores: higher is better.
-	///     Mate scores are always preferred over cp scores when both are winning or both are losing.
-	/// </summary>
 	internal static bool IsScoreImproved(int? newMate, int? newCp, int? lastMate, int? lastCp)
 	{
 		if (newMate.HasValue)
 		{
-			// New score is a mate score
 			if (lastMate.HasValue)
 			{
-				// Both are mate scores: compare correctly based on sign
-				// Positive (winning): lower is better (mate in 1 < mate in 5)
-				// Negative (losing): higher/less negative is better (mate in -1 > mate in -5)
 				if (newMate.Value > 0 && lastMate.Value > 0)
-					return newMate.Value < lastMate.Value; // Both winning: lower is better
+					return newMate.Value < lastMate.Value;
 
 				if (newMate.Value < 0 && lastMate.Value < 0)
-					return newMate.Value > lastMate.Value; // Both losing: higher (less negative) is better
+					return newMate.Value > lastMate.Value;
 
-				// Different signs: positive is always better
 				return newMate.Value > lastMate.Value;
 			}
 
-			// Transition from cp to mate: mate is always better than cp
 			return true;
 		}
 
-		// New score is a cp score
-		if (!newCp.HasValue) return false; // No valid score
+		if (!newCp.HasValue)
+			return false;
 
 		if (lastMate.HasValue)
 		{
-			// Transition from mate to cp
-			// Positive mate (winning) is always better than any cp
-			if (lastMate.Value > 0) return false;
+			if (lastMate.Value > 0)
+				return false;
 
-			// Negative mate (losing) vs cp:
-			// - If cp is positive (winning), it's better than losing mate
-			// - If cp is negative (losing), compare: higher cp is better
-			if (newCp.Value > 0) return true; // Winning cp is better than losing mate
+			if (newCp.Value > 0)
+				return true;
 
-			// Both losing: compare cp values (higher is better)
-			// Note: We can't directly compare mate distance to cp, but if we're transitioning
-			// from mate to cp and both are losing, we prefer the higher cp score
 			return !lastCp.HasValue || newCp.Value > lastCp.Value;
 		}
 
-		// Both are cp scores: higher is better
 		return !lastCp.HasValue || newCp.Value > lastCp.Value;
 	}
 
 	internal void OnClientInfoPvReceived(PrincipalVariation pv)
 	{
 		int generation = Volatile.Read(ref _forwardingGeneration);
-		if (generation == 0) return;
+		if (generation == 0)
+			return;
 
 		InfoPvWithGeneration?.Invoke(pv, generation);
 		InfoPv?.Invoke(pv);
@@ -221,7 +186,6 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 		lock (_scoreLock)
 		{
 			improved = IsScoreImproved(newMate, newCp, _lastScoreMate, _lastScoreCp);
-
 			if (improved)
 			{
 				_lastScoreMate = newMate;
@@ -229,23 +193,23 @@ internal sealed class PonderEngine : IAsyncDisposable, IDisposable
 			}
 		}
 
-		if (!improved) return;
+		if (!improved)
+			return;
 
 		string bestStr = pv.Moves.Length > 0 ? pv.Moves[0] : string.Empty;
-		if (string.IsNullOrWhiteSpace(bestStr)) return;
+		if (string.IsNullOrWhiteSpace(bestStr))
+			return;
 
-		var bestParsed = ParsedMove.FromNotation(bestStr);
-
-		ParsedMove? ponderParsed = null;
+		string? ponderStr = null;
 		if (pv.Moves.Length > 1)
 		{
-			string ponderStr = pv.Moves[1];
-			if (!string.IsNullOrWhiteSpace(ponderStr))
-				ponderParsed = ParsedMove.FromNotation(ponderStr);
+			string candidate = pv.Moves[1];
+			if (!string.IsNullOrWhiteSpace(candidate))
+				ponderStr = candidate;
 		}
 
-		BestMoveWithGeneration?.Invoke(bestParsed, ponderParsed, generation);
-		BestMove?.Invoke(bestParsed, ponderParsed);
+		BestMoveWithGeneration?.Invoke(bestStr, ponderStr, generation);
+		BestMove?.Invoke(bestStr, ponderStr);
 	}
 
 	private void ClearLastScores()
