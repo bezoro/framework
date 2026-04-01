@@ -1,5 +1,6 @@
 using Bezoro.Core.Extensions;
 using Bezoro.Chess.UCI.API.Common.Enums;
+using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 
 namespace Bezoro.Chess.UCI.API.Types;
 
@@ -23,7 +24,8 @@ public readonly record struct MoveAnalysis
 
 	/// <summary>
 	///     Synchronous analyzer used when an engine-derived score is available.
-	///     Computes structural move characteristics and sets mate/check from the score.
+	///     Delegates structural and tactical move semantics to the protocol-layer FEN classifier,
+	///     then overlays the supplied engine score onto the result.
 	/// </summary>
 	internal static MoveAnalysis Analyze(string moveNotation, BoardState boardState, MoveScore score, bool isStalemate)
 	{
@@ -38,95 +40,22 @@ public readonly record struct MoveAnalysis
 				nameof(boardState)
 			);
 
-		bool isCaptureOnToSquare = boardState.TryGetPieceAt(parsedMove.To, out var targetPiece) && targetPiece.HasValue;
-
-		bool isCapture   = false,
-			 isCastling  = false,
-			 isCheck     = false,
-			 isEnpassant = false,
-			 isMate      = false,
-			 isNormal    = false,
-			 isPromotion = false;
-
-		if (CheckIsCastling(parsedMove, movingPiece, boardState))
-			isCastling = true;
-
-		if (CheckIsEnPassant(parsedMove, movingPiece.Value, isCaptureOnToSquare, boardState))
-		{
-			isCapture   = true;
-			isEnpassant = true;
-		}
-
-		if (CheckIsPromotion(parsedMove, movingPiece.Value)) isPromotion = true;
-
-		if (isCaptureOnToSquare)
-			isCapture = true;
-
-		isNormal = !isCapture && !isCastling && !isEnpassant && !isPromotion;
-
-		// Derive mate/check from the engine score:
-		// In UCI, a negative mate score from the side to move indicates that side is getting mated.
-		// After our move, opponent is to move; mate in 1 for us is therefore -1.
-		if (score.ScoreMate.HasValue)
-		{
-			isMate  = score.ScoreMate.Value == -1;
-			isCheck = isMate;
-		}
+		var classification = boardState.Fen.ClassifyMoveFully(parsedMove.Raw.ToLowerInvariant());
+		bool isMate = classification.IsMate || score.ScoreMate == -1;
+		bool isCheck = classification.IsCheck || isMate;
 
 		return new()
 		{
-			IsCapture   = isCapture,
-			IsCastling  = isCastling,
+			IsCapture   = classification.IsCapture,
+			IsCastling  = classification.IsCastling,
 			IsCheck     = isCheck,
-			IsEnPassant = isEnpassant,
+			IsEnPassant = classification.IsEnPassant,
 			IsMate      = isMate,
-			IsNormal    = isNormal,
-			IsPromotion = isPromotion,
-			IsStalemate = isStalemate,
+			IsNormal    = classification.IsNormal,
+			IsPromotion = classification.IsPromotion,
+			IsStalemate = classification.IsStalemate || isStalemate,
 			Score       = score,
 			MovingPiece = movingPiece
 		};
-	}
-
-	private static bool CheckIsCastling(ParsedMove move, Piece? movingPiece, BoardState boardState)
-	{
-		move.ThrowIfNull();
-		boardState.ThrowIfNull();
-
-		if (!movingPiece.HasValue) return false;
-		if (char.ToLower(movingPiece.Value.Char) != 'k' || Math.Abs(move.From[0] - move.To[0]) != 2) return false;
-
-		bool isKingside = move.To[0] == 'g';
-		return boardState.ActiveColor switch
-		{
-			PieceColor.White => isKingside
-									? boardState.Fen.CastlingRights.Contains('K')
-									: boardState.Fen.CastlingRights.Contains('Q'),
-			PieceColor.Black => isKingside
-									? boardState.Fen.CastlingRights.Contains('k')
-									: boardState.Fen.CastlingRights.Contains('q'),
-			_ => false
-		};
-	}
-
-	private static bool CheckIsEnPassant(ParsedMove move, Piece movingPiece, bool isCapture, BoardState boardState)
-	{
-		move.ThrowIfNull();
-		movingPiece.ThrowIfNull();
-		boardState.ThrowIfNull();
-
-		return char.ToLower(movingPiece.Char) == 'p' &&
-			   move.From[0] != move.To[0] &&
-			   !isCapture &&
-			   move.To.Equals(boardState.Fen.EnPassantTarget, StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static bool CheckIsPromotion(ParsedMove move, Piece movingPiece)
-	{
-		if (char.ToLower(movingPiece.Char) != 'p') return false;
-
-		char toRank      = move.To[1];
-		bool isWhitePawn = char.IsUpper(movingPiece.Char);
-		return isWhitePawn && toRank == '8' || !isWhitePawn && toRank == '1';
 	}
 }

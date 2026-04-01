@@ -65,4 +65,33 @@ public class MoveAnalysisTests
 		analysis.IsCastling.Should().BeTrue();
 		analysis.IsNormal.Should().BeFalse();
 	}
+
+	[Fact]
+	public void Analyze_WhenMoveProducesCheckmateWithoutMateScore_ShouldSetCheckAndMateTrue()
+	{
+		var fen = Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1");
+		fen.Should().NotBeNull();
+
+		var board = BoardState.FromFen(fen!.Value);
+		board.Should().NotBeNull();
+
+		var analysis = MoveAnalysis.Analyze("f7g7", board!.Value, MoveScore.FromCp(0), false);
+
+		analysis.IsCheck.Should().BeTrue();
+		analysis.IsMate.Should().BeTrue();
+	}
+
+	[Fact]
+	public void Analyze_WhenMoveProducesStalemateWithoutExternalFlag_ShouldSetIsStalemateTrue()
+	{
+		var fen = Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1");
+		fen.Should().NotBeNull();
+
+		var board = BoardState.FromFen(fen!.Value);
+		board.Should().NotBeNull();
+
+		var analysis = MoveAnalysis.Analyze("b7b6", board!.Value, MoveScore.FromCp(0), false);
+
+		analysis.IsStalemate.Should().BeTrue();
+	}
 }

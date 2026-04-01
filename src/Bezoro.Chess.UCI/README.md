@@ -13,7 +13,14 @@ High-level chess-analysis orchestration built on `Bezoro.Chess.UCI.Protocol`.
 | `ParsedMove`                     | `Bezoro.Chess.UCI.API.Types`        | Parsed move notation with source/target squares and promotion info.                            |
 | `MoveScore`                      | `Bezoro.Chess.UCI.API.Types`        | Evaluation score for a move in centipawns or mate distance.                                    |
 | `Piece`, `Position`, `Promotion` | `Bezoro.Chess.UCI.API.Types`        | Chess-semantic types used by classification and UI layers.                                     |
+| `GameMoveEvent`                  | `Bezoro.Chess.UCI.API.Types`        | Rich canonical move payload for UI-facing gameplay events.                                     |
+| `PromotionRequiredEvent`         | `Bezoro.Chess.UCI.API.Types`        | Pending-promotion payload for request/response UI flows.                                       |
+| `PromotionChosenEvent`           | `Bezoro.Chess.UCI.API.Types`        | Promotion-resolution payload emitted before the move is applied.                               |
+| `MoveUndoneEvent`                | `Bezoro.Chess.UCI.API.Types`        | Undo payload carrying removed moves and the resulting position.                                |
+| `TurnChangedEvent`               | `Bezoro.Chess.UCI.API.Types`        | Active-side transition payload for board and HUD updates.                                      |
+| `PositionLoadedEvent`            | `Bezoro.Chess.UCI.API.Types`        | Explicit load payload for save/load, replay, or editor workflows.                              |
 | `PieceColor`, `PieceType`        | `Bezoro.Chess.UCI.API.Common.Enums` | Chess enums used by move and board analysis.                                                   |
+| `GameMoveActor`, `GameMoveKindFlags` | `Bezoro.Chess.UCI.API.Common.Enums` | UI-facing enums describing move initiators and structural move kinds.                        |
 
 ## Quick Start
 ```csharp
@@ -85,6 +92,7 @@ await foreach (var move in coordinator.StreamClassifiedMovesAsync(cancellationTo
 ### Keep a Unity, Godot, or UI thread synchronized
 ```csharp
 using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
 SynchronizationContext uiContext = SynchronizationContext.Current!;
@@ -100,12 +108,31 @@ coordinator.PositionChanged += state =>
     // Safe to bind UI here because callbacks are marshaled to uiContext.
     Console.WriteLine(state.CurrentFen.Raw);
 };
-coordinator.MoveClassified += move => Console.WriteLine($"Highlight {move.Notation}");
-coordinator.BestMoveChanged += state => Console.WriteLine(state.BestMove?.Raw);
-coordinator.GameOver += state => Console.WriteLine(state.IsCheckmate ? "Mate" : "Draw");
+coordinator.MoveMade += move => Console.WriteLine($"{move.Actor}: {move.Notation} [{move.KindFlags}]");
+coordinator.PromotionRequired += request => ShowPromotionButtons(request.AllowedPromotionPieces);
+coordinator.MoveClassificationUpdated += move => Console.WriteLine($"Highlight {move.Notation}");
+coordinator.EvaluationUpdated += pv => Console.WriteLine(pv.Raw);
+coordinator.EngineThinkingStarted += _ => ShowThinking(true);
+coordinator.EngineThinkingStopped += _ => ShowThinking(false);
 
 await coordinator.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 await coordinator.StartSearchAsync(cancellationToken);
+```
+
+### Drive a promotion request/response flow
+```csharp
+using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Common.Enums;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+await using var coordinator = await UciCoordinator.CreateAsync(enginePath, ct: cancellationToken);
+await coordinator.UpdatePositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, null, cancellationToken);
+
+PromotionRequiredEvent pending = default;
+coordinator.PromotionRequired += request => pending = request;
+
+await coordinator.MakeMoveAsync("a7a8", cancellationToken);
+await coordinator.ChoosePromotionAsync(pending.PendingPromotionId, PieceType.Queen, cancellationToken);
 ```
 
 ### Configure coordinator-level engine behavior
@@ -143,7 +170,8 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 | `ClassifyMoveAsync(move, ct)`                                     | Returns semantic move analysis for one legal move.                  |
 | `StreamClassifiedMovesAsync(ct)`                                  | Streams classifications as they complete.                           |
 | `WaitForClassificationAsync(ct)`                                  | Waits for all legal moves to be classified.                         |
-| `MakeMoveAsync(move, ct)`                                         | Applies a legal move and refreshes state.                           |
+| `MakeMoveAsync(move, ct)` / `MakeMoveAsync(move, actor, ct)`      | Applies a legal move and refreshes state, optionally tagging the actor. |
+| `ChoosePromotionAsync(id, pieceType, ct)`                         | Resolves a pending promotion request and applies the completed move. |
 | `UndoAsync(count, ct)`                                            | Rewinds one or more played moves.                                   |
 | `SetOptionAsync(name, value, ct)`                                 | Applies a UCI option to all internal engine instances.              |
 | `SetDebugAsync(enabled, ct)`                                      | Broadcasts `debug on/off` to all internal engines.                  |
@@ -151,14 +179,37 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 | `GetCurrentFenAsync(ct)`                                          | Returns the engine-reported current FEN if available.               |
 | `State`                                                           | Current immutable snapshot.                                         |
 | `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the quick engine.                  |
-| `PositionChanged`                                                 | Raised when the visible board snapshot changes.                     |
+| `GameStarted`                                                     | Raised when a fresh gameplay session starts.                        |
+| `MoveMade`                                                        | Canonical rich move event for applied moves.                        |
+| `CaptureMade` / `CastlingMade` / `EnPassantMade`                  | Convenience move projections for common UI hooks.                   |
+| `PromotionRequired` / `PromotionChosen`                           | Promotion request/response events for UI-driven choice flows.       |
+| `Check` / `Checkmate` / `Stalemated`                              | Tactical end-state events for applied moves.                        |
+| `MoveUndone`                                                      | Raised when moves are undone.                                       |
+| `IllegalMoveRejected`                                             | Raised before an illegal move call throws.                          |
+| `TurnChanged`                                                     | Raised when the active side changes.                                |
+| `PositionLoaded` / `PositionChanged`                              | Raised for explicit loads and visible board snapshot updates.       |
+| `LegalMovesUpdated`                                               | Raised when the visible legal move set changes.                     |
 | `SearchStateChanged`                                              | Raised when the coordinator enters or leaves searching state.       |
-| `EvaluationChanged`                                               | Raised for new principal variations from the ponder engine.         |
+| `EngineThinkingStarted` / `EngineThinkingStopped`                 | Raised for UI-facing engine-think lifecycle transitions.            |
+| `EvaluationChanged` / `EvaluationUpdated`                         | Raised for new principal variations from the ponder engine.         |
 | `BestMoveChanged`                                                 | Raised when the current best/ponder move pair changes.              |
-| `MoveClassified`                                                  | Raised for each newly classified legal move.                        |
+| `MoveClassified` / `MoveClassificationUpdated`                    | Raised for each newly classified legal move.                        |
 | `ClassificationCompleted`                                         | Raised when the current position's move classification is complete. |
 | `GameOver`                                                        | Raised when the current position has no legal moves.                |
-| `StateChanged`, `Ready`, `Stopped`, `Error`                       | Coarser lifecycle and integration events.                           |
+| `StateChanged`, `Ready`, `Stopped`, `Error`, `EngineError`        | Coarser lifecycle and integration events.                           |
+
+### `GameMoveEvent`
+| Property | Meaning |
+| --- | --- |
+| `GameId` / `MoveId` / `Ply` | Stable gameplay identifiers for event-driven UI logic. |
+| `Actor` | Who initiated the move, such as `Human` or `Engine`. |
+| `Notation`, `From`, `To` | Raw UCI move text plus origin and destination squares. |
+| `KindFlags` | Structural move kinds such as capture, en passant, castling, promotion, and double pawn push. |
+| `MovingPiece`, `CapturedPiece`, `PromotionPiece` | Fully typed piece payloads for board animation and VFX hooks. |
+| `SecondaryPieceMove` | Auxiliary piece movement such as the rook leg of castling. |
+| `PreviousFen`, `ResultingFen` | Exact before/after board states. |
+| `IsCheck`, `IsCheckmate`, `IsStalemate` | Tactical end-state flags after the move is applied. |
+| `Evaluation` | Optional engine evaluation for the resulting position when available. |
 
 ### `UciState`
 | Property                                              | Meaning                                                        |
@@ -197,7 +248,7 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
 - `UciCoordinator` owns quick evaluation, pondering, background move classification, and optional `SynchronizationContext` dispatch for single-threaded engines and UI threads.
-- The coordinator exposes granular UI-oriented events so a game engine can react to board snapshots, search updates, move classification, and terminal positions without diffing `StateChanged` manually.
+- The coordinator exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
 - The coordinator currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so coordinator state can safely retain and rebroadcast them across threads.

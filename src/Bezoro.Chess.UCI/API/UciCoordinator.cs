@@ -5,7 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.API.Types;
+using Bezoro.Chess.UCI.Internal;
 using Bezoro.Chess.UCI.Domain.Engines;
 
 namespace Bezoro.Chess.UCI.API;
@@ -30,6 +32,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	private TaskCompletionSource<IReadOnlyDictionary<string, Move>>? _classificationCompletion;
 	private int                      _acceptedPonderGeneration;
 	private int                      _classificationGeneration;
+	private Guid                     _gameId = Guid.NewGuid();
+	private long                     _nextMoveId;
+	private long                     _nextPendingPromotionId;
+	private ImmutableArray<GameMoveEvent> _appliedMoveHistory = [];
+	private PendingPromotionRequest? _pendingPromotion;
 
 	private UciState _state = UciState.Default;
 
@@ -44,6 +51,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action? Ready;
 
 	/// <summary>
+	///     Raised when a new gameplay session starts.
+	/// </summary>
+	public event Action<GameStartedEvent>? GameStarted;
+
+	/// <summary>
 	///     Raised when the coordinator state changes.
 	/// </summary>
 	public event Action<UciState>? StateChanged;
@@ -52,6 +64,16 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	///     Raised when the visible game position snapshot changes, including legal moves and terminal-state transitions.
 	/// </summary>
 	public event Action<UciState>? PositionChanged;
+
+	/// <summary>
+	///     Raised when a full position is loaded directly into the coordinator.
+	/// </summary>
+	public event Action<PositionLoadedEvent>? PositionLoaded;
+
+	/// <summary>
+	///     Raised when the legal move set for the visible position changes.
+	/// </summary>
+	public event Action<UciState>? LegalMovesUpdated;
 
 	/// <summary>
 	///     Raised when the search lifecycle toggles between searching and idle.
@@ -64,6 +86,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action<PrincipalVariation>? EvaluationChanged;
 
 	/// <summary>
+	///     Raised when the ponder engine publishes a new principal variation for UI-facing evaluation displays.
+	/// </summary>
+	public event Action<PrincipalVariation>? EvaluationUpdated;
+
+	/// <summary>
 	///     Raised when the ponder engine produces a new best-move pair for the current search.
 	/// </summary>
 	public event Action<UciState>? BestMoveChanged;
@@ -74,6 +101,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action<Move>? MoveClassified;
 
 	/// <summary>
+	///     Raised for each move classification produced for the current position using a UI-oriented event name.
+	/// </summary>
+	public event Action<Move>? MoveClassificationUpdated;
+
+	/// <summary>
 	///     Raised when all legal moves for the current position have been classified.
 	/// </summary>
 	public event Action<UciState>? ClassificationCompleted;
@@ -82,6 +114,81 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	///     Raised when the current visible position is terminal and no legal moves remain.
 	/// </summary>
 	public event Action<UciState>? GameOver;
+
+	/// <summary>
+	///     Raised when a move is fully applied.
+	/// </summary>
+	public event Action<GameMoveEvent>? MoveMade;
+
+	/// <summary>
+	///     Raised when an applied move captures a piece.
+	/// </summary>
+	public event Action<GameMoveEvent>? CaptureMade;
+
+	/// <summary>
+	///     Raised when an applied move castles.
+	/// </summary>
+	public event Action<GameMoveEvent>? CastlingMade;
+
+	/// <summary>
+	///     Raised when an applied move captures en passant.
+	/// </summary>
+	public event Action<GameMoveEvent>? EnPassantMade;
+
+	/// <summary>
+	///     Raised when a move requires a promotion choice before it can be applied.
+	/// </summary>
+	public event Action<PromotionRequiredEvent>? PromotionRequired;
+
+	/// <summary>
+	///     Raised when a pending promotion choice is resolved.
+	/// </summary>
+	public event Action<PromotionChosenEvent>? PromotionChosen;
+
+	/// <summary>
+	///     Raised when an applied move gives check.
+	/// </summary>
+	public event Action<GameMoveEvent>? Check;
+
+	/// <summary>
+	///     Raised when an applied move checkmates the opposing side.
+	/// </summary>
+	public event Action<GameMoveEvent>? Checkmate;
+
+	/// <summary>
+	///     Raised when an applied move stalemates the opposing side.
+	/// </summary>
+	public event Action<GameMoveEvent>? Stalemated;
+
+	/// <summary>
+	///     Raised when the side to move changes.
+	/// </summary>
+	public event Action<TurnChangedEvent>? TurnChanged;
+
+	/// <summary>
+	///     Raised when a move application is rejected.
+	/// </summary>
+	public event Action<IllegalMoveRejectedEvent>? IllegalMoveRejected;
+
+	/// <summary>
+	///     Raised when one or more moves are undone.
+	/// </summary>
+	public event Action<MoveUndoneEvent>? MoveUndone;
+
+	/// <summary>
+	///     Raised when the engine starts thinking for the current position.
+	/// </summary>
+	public event Action<UciState>? EngineThinkingStarted;
+
+	/// <summary>
+	///     Raised when the engine stops thinking for the current position.
+	/// </summary>
+	public event Action<UciState>? EngineThinkingStopped;
+
+	/// <summary>
+	///     Raised when an error occurs in engine-facing operations using a game-engine-oriented name.
+	/// </summary>
+	public event Action<Exception>? EngineError;
 
 	/// <summary>
 	///     Raised when the coordinator has fully stopped.
@@ -358,7 +465,9 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		).ConfigureAwait(false);
 
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
+		ResetGameplaySession();
 		State = UciState.Default;
+		Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
 	}
 
 	/// <summary>
@@ -442,8 +551,10 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
 
 			ClearState();
+			ResetGameplaySession();
 			State = UciState.Default;
 
+			Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
 			Raise(Ready);
 		}
 		catch
@@ -568,98 +679,26 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default)
 	{
-		// Stop previous searches and any ongoing classification
-		await StopSearchAsync(ct).ConfigureAwait(false);
-		ClearState();
-
 		var movesList = playedMoves?.ToList() ?? new List<string>();
+		var previousTurn = State.CurrentFen.ActiveColor;
 
-		// Set the position and publish legal moves
-		await _quick.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
-		// Keep ponder engine synchronized with the quick engine position
-		await _ponder.SetPositionAsync(fen, movesList, ct).ConfigureAwait(false);
+		ResetGameplaySession();
+		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
 
-		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
-
-		// Get the effective FEN (actual position after moves)
-		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false);
-
-		lock (_sync)
-		{
-			_state = new(
-				fen,
-				effectiveFen ?? fen,
-				movesList.ToImmutableList(),
-				legalMoves.ToImmutableList(),
-				ImmutableDictionary<string, Move>.Empty,
-				null,
-				null,
-				null,
-				false
+		Raise(
+			PositionLoaded,
+			new(_gameId, snapshot.BaseFen, snapshot.CurrentFen, [.. snapshot.PlayedMoves], DateTimeOffset.UtcNow)
+		);
+		PublishPositionChanged(snapshot);
+		Raise(LegalMovesUpdated, snapshot);
+		if (previousTurn != snapshot.CurrentFen.ActiveColor)
+			Raise(
+				TurnChanged,
+				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
 			);
-		}
+		PublishGameOver(snapshot);
 
-		PublishPositionChanged(_state);
-
-		// Start pondering for the new position
-		try
-		{
-			await StartSearchAsync(fen, movesList, ct).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (ct.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			RaiseError(ex);
-		}
-
-		int classificationGeneration = BeginClassificationRun();
-
-		// Start background classification (events will propagate results)
-		if (effectiveFen is { } currentFen)
-		{
-			var classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-			var classificationToken = classificationCts.Token;
-			CancelAndDispose(ref _classificationCts, classificationCts);
-
-			_ = Task.Run(
-				async () =>
-				{
-					try
-					{
-						await foreach (var move in _classifier
-												.ClassifyAsync(
-													currentFen,
-													_options.ClassificationDepth,
-													legalMoves,
-													classificationToken
-												)
-												.ConfigureAwait(false))
-						{
-							ApplyClassifiedMove(move, classificationGeneration);
-						}
-
-						CompleteClassificationRun(classificationGeneration);
-					}
-					catch (OperationCanceledException)
-					{
-						CancelClassificationRunIfActive(classificationGeneration);
-					}
-					catch (Exception ex)
-					{
-						FaultClassificationRun(classificationGeneration, ex);
-						RaiseError(ex);
-					}
-				},
-				CancellationToken.None
-			);
-		}
-		else
-		{
-			CompleteClassificationRun(classificationGeneration);
-		}
+		await StartBackgroundWorkAsync(fen, movesList, snapshot.CurrentFen, snapshot.LegalMoves, ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -733,6 +772,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		return result.Value;
 	}
 
+	private async Task<Move> ClassifyMoveForEventAsync(
+		UciState           currentState,
+		string             move,
+		CancellationToken  ct = default)
+	{
+		try
+		{
+			return await ClassifyMoveForStateAsync(currentState, move, ct).ConfigureAwait(false);
+		}
+		catch (Exception) when (CoordinatorMoveFactory.TryBuildFallbackMove(currentState.CurrentFen, move, out var fallbackMove))
+		{
+			return fallbackMove;
+		}
+	}
+
 	/// <summary>
 	///     Performs a blocking search with the specified parameters and returns the result.
 	/// </summary>
@@ -752,18 +806,120 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <exception cref="ArgumentException">Thrown when the move is not legal in the current position.</exception>
 	public async Task<UciState> MakeMoveAsync(string move, CancellationToken ct = default)
 	{
+		return await MakeMoveAsync(move, GameMoveActor.Human, ct).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Applies a move to the current position and updates the engines with an explicit actor classification.
+	/// </summary>
+	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
+	/// <param name="actor">Who initiated the move.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The new state after the move is applied.</returns>
+	/// <exception cref="ArgumentException">Thrown when the move is not legal in the current position.</exception>
+	public async Task<UciState> MakeMoveAsync(string move, GameMoveActor actor, CancellationToken ct = default)
+	{
 		UciState currentState;
+		PendingPromotionRequest? pendingPromotion;
 		lock (_sync)
 		{
-			currentState = _state;
+			currentState     = _state;
+			pendingPromotion = _pendingPromotion;
 		}
 
-		if (!currentState.LegalMoves.Contains(move))
-			throw new ArgumentException($"Move '{move}' is not legal in the current position.", nameof(move));
+		string normalizedMove = move?.Trim().ToLowerInvariant() ?? string.Empty;
 
-		var newMoves = new List<string>(currentState.PlayedMoves) { move };
-		await UpdatePositionAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
-		return State;
+		if (pendingPromotion.HasValue)
+		{
+			RejectIllegalMove(
+				normalizedMove,
+				"A promotion choice is pending. Resolve it before applying another move.",
+				currentState.LegalMoves,
+				true
+			);
+		}
+
+		long pendingPromotionId = Interlocked.Increment(ref _nextPendingPromotionId);
+
+		if (CoordinatorMoveFactory.TryCreatePromotionRequest(
+				_gameId,
+				pendingPromotionId,
+				currentState,
+				normalizedMove,
+				actor,
+				out var request))
+		{
+			lock (_sync)
+			{
+				_pendingPromotion = new(
+					request.PendingPromotionId,
+					request.Actor,
+					request.From,
+					request.To,
+					request.MovingPiece,
+					request.AllowedPromotionPieces,
+					currentState
+				);
+			}
+
+			Raise(PromotionRequired, request);
+			return currentState;
+		}
+
+		if (!currentState.LegalMoves.Contains(normalizedMove))
+			RejectIllegalMove(
+				normalizedMove,
+				$"Move '{normalizedMove}' is not legal in the current position.",
+				currentState.LegalMoves,
+				false
+			);
+
+		var classifiedMove = await ClassifyMoveForEventAsync(currentState, normalizedMove, ct).ConfigureAwait(false);
+		return await ApplyMoveAsync(currentState, normalizedMove, classifiedMove, actor, null, ct).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Resolves a pending promotion choice and applies the completed move.
+	/// </summary>
+	/// <param name="pendingPromotionId">The identifier previously published in <see cref="PromotionRequired" />.</param>
+	/// <param name="pieceType">The chosen promotion piece type.</param>
+	/// <param name="ct">Cancellation token.</param>
+	public async Task<UciState> ChoosePromotionAsync(
+		long             pendingPromotionId,
+		PieceType        pieceType,
+		CancellationToken ct = default)
+	{
+		PendingPromotionRequest pending;
+		lock (_sync)
+		{
+			if (!_pendingPromotion.HasValue || _pendingPromotion.Value.Id != pendingPromotionId)
+				throw new InvalidOperationException("No matching pending promotion request exists.");
+
+			pending           = _pendingPromotion.Value;
+			_pendingPromotion = null;
+		}
+
+		string? notation = CoordinatorMoveFactory.ResolvePromotionMoveNotation(pending, pieceType);
+		if (notation is null)
+			throw new ArgumentException($"Promotion piece '{pieceType}' is not allowed for the pending move.", nameof(pieceType));
+
+		var promotionChosen = new PromotionChosenEvent(
+			_gameId,
+			pending.Id,
+			notation,
+			pieceType,
+			DateTimeOffset.UtcNow
+		);
+
+		var classifiedMove = await ClassifyMoveForEventAsync(pending.State, notation, ct).ConfigureAwait(false);
+		return await ApplyMoveAsync(
+			pending.State,
+			notation,
+			classifiedMove,
+			pending.Actor,
+			promotionChosen,
+			ct
+		).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -778,9 +934,12 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			throw new ArgumentOutOfRangeException(nameof(count), "Count must be at least 1.");
 
 		UciState currentState;
+		ImmutableArray<GameMoveEvent> appliedMoves;
 		lock (_sync)
 		{
 			currentState = _state;
+			appliedMoves = _appliedMoveHistory;
+			_pendingPromotion = null;
 		}
 
 		if (currentState.PlayedMoves.Count == 0)
@@ -788,8 +947,35 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		int movesToRemove = Math.Min(count, currentState.PlayedMoves.Count);
 		var newMoves      = currentState.PlayedMoves.Take(currentState.PlayedMoves.Count - movesToRemove).ToList();
+		var previousTurn = currentState.CurrentFen.ActiveColor;
+		var snapshot = await LoadPositionSnapshotAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
 
-		await UpdatePositionAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
+		var removedMoves = appliedMoves.Length >= movesToRemove
+							   ? appliedMoves[^movesToRemove..]
+							   : appliedMoves;
+
+		lock (_sync)
+		{
+			_appliedMoveHistory = appliedMoves[..Math.Max(0, appliedMoves.Length - removedMoves.Length)];
+		}
+
+		Raise(MoveUndone, new(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow));
+		if (previousTurn != snapshot.CurrentFen.ActiveColor)
+			Raise(
+				TurnChanged,
+				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
+			);
+		PublishPositionChanged(snapshot);
+		Raise(LegalMovesUpdated, snapshot);
+		PublishGameOver(snapshot);
+
+		await StartBackgroundWorkAsync(
+			currentState.BaseFen,
+			newMoves,
+			snapshot.CurrentFen,
+			snapshot.LegalMoves,
+			ct
+		).ConfigureAwait(false);
 		return State;
 	}
 
@@ -878,6 +1064,198 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		CancelClassificationCompletion();
 	}
 
+	private void ResetGameplaySession()
+	{
+		lock (_sync)
+		{
+			_gameId               = Guid.NewGuid();
+			_nextMoveId           = 0;
+			_nextPendingPromotionId = 0;
+			_appliedMoveHistory   = [];
+			_pendingPromotion     = null;
+		}
+	}
+
+	private async Task<UciState> LoadPositionSnapshotAsync(
+		Fen                 fen,
+		IReadOnlyCollection<string> moves,
+		CancellationToken   ct)
+	{
+		await StopSearchAsync(ct).ConfigureAwait(false);
+		ClearState();
+
+		await _quick.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
+		await _ponder.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
+
+		var legalMoves = await _quick.GetLegalMovesAsync(ct).ConfigureAwait(false);
+		var effectiveFen = await _quick.GetCurrentFenAsync(ct).ConfigureAwait(false) ?? fen;
+
+		lock (_sync)
+		{
+			_state = new(
+				fen,
+				effectiveFen,
+				moves.ToImmutableList(),
+				legalMoves.ToImmutableList(),
+				ImmutableDictionary<string, Move>.Empty,
+				null,
+				null,
+				null,
+				false
+			);
+
+			return _state;
+		}
+	}
+
+	private async Task StartBackgroundWorkAsync(
+		Fen                  baseFen,
+		IReadOnlyCollection<string> moves,
+		Fen                  currentFen,
+		ImmutableList<string> legalMoves,
+		CancellationToken    ct)
+	{
+		try
+		{
+			await StartSearchAsync(baseFen, moves, ct).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			RaiseError(ex);
+		}
+
+		int classificationGeneration = BeginClassificationRun();
+		if (legalMoves.Count == 0)
+		{
+			CompleteClassificationRun(classificationGeneration);
+			return;
+		}
+
+		var classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		var classificationToken = classificationCts.Token;
+		CancelAndDispose(ref _classificationCts, classificationCts);
+
+		_ = Task.Run(
+			async () =>
+			{
+				try
+				{
+					await foreach (var move in _classifier
+											.ClassifyAsync(
+												currentFen,
+												_options.ClassificationDepth,
+												legalMoves,
+												classificationToken
+											)
+											.ConfigureAwait(false))
+					{
+						ApplyClassifiedMove(move, classificationGeneration);
+					}
+
+					CompleteClassificationRun(classificationGeneration);
+				}
+				catch (OperationCanceledException)
+				{
+					CancelClassificationRunIfActive(classificationGeneration);
+				}
+				catch (Exception ex)
+				{
+					FaultClassificationRun(classificationGeneration, ex);
+					RaiseError(ex);
+				}
+			},
+			CancellationToken.None
+		);
+	}
+
+	private async Task<UciState> ApplyMoveAsync(
+		UciState                previousState,
+		string                  moveNotation,
+		Move                    classifiedMove,
+		GameMoveActor           actor,
+		PromotionChosenEvent?   promotionChosenEvent,
+		CancellationToken       ct)
+	{
+		var newMoves = new List<string>(previousState.PlayedMoves) { moveNotation };
+		var snapshot = await LoadPositionSnapshotAsync(previousState.BaseFen, newMoves, ct).ConfigureAwait(false);
+		long moveId = Interlocked.Increment(ref _nextMoveId);
+
+		var moveEvent = CoordinatorMoveFactory.BuildGameMoveEvent(
+			_gameId,
+			moveId,
+			previousState,
+			snapshot,
+			moveNotation,
+			classifiedMove,
+			actor
+		);
+
+		lock (_sync)
+		{
+			_appliedMoveHistory = _appliedMoveHistory.Add(moveEvent);
+			_pendingPromotion   = null;
+		}
+
+		if (promotionChosenEvent.HasValue)
+			Raise(PromotionChosen, promotionChosenEvent.Value);
+
+		Raise(MoveMade, moveEvent);
+		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.Capture))
+			Raise(CaptureMade, moveEvent);
+		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.KingsideCastling) ||
+			moveEvent.KindFlags.HasFlag(GameMoveKindFlags.QueensideCastling))
+			Raise(CastlingMade, moveEvent);
+		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.EnPassant))
+			Raise(EnPassantMade, moveEvent);
+		if (moveEvent.IsCheck)
+			Raise(Check, moveEvent);
+		if (moveEvent.IsCheckmate)
+			Raise(Checkmate, moveEvent);
+		if (moveEvent.IsStalemate)
+			Raise(Stalemated, moveEvent);
+
+		PublishGameOver(snapshot);
+		if (previousState.CurrentFen.ActiveColor != snapshot.CurrentFen.ActiveColor)
+			Raise(
+				TurnChanged,
+				new(
+					_gameId,
+					previousState.CurrentFen.ActiveColor,
+					snapshot.CurrentFen.ActiveColor,
+					snapshot.CurrentFen,
+					DateTimeOffset.UtcNow
+				)
+			);
+		PublishPositionChanged(snapshot);
+		Raise(LegalMovesUpdated, snapshot);
+
+		await StartBackgroundWorkAsync(
+			previousState.BaseFen,
+			newMoves,
+			snapshot.CurrentFen,
+			snapshot.LegalMoves,
+			ct
+		).ConfigureAwait(false);
+		return State;
+	}
+
+	private void RejectIllegalMove(
+		string                 move,
+		string                 reason,
+		IReadOnlyList<string>  legalMoves,
+		bool                   isPromotionChoicePending)
+	{
+		Raise(
+			IllegalMoveRejected,
+			new(_gameId, move, reason, [.. legalMoves], isPromotionChoicePending, DateTimeOffset.UtcNow)
+		);
+		throw new ArgumentException(reason, nameof(move));
+	}
+
 	private async Task RollbackStartAsync(bool quickStarted, bool ponderStarted, bool classifierStarted)
 	{
 		if (classifierStarted)
@@ -930,6 +1308,10 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		PublishSearchStateChanged(snapshot);
+		if (isSearching)
+			Raise(EngineThinkingStarted, snapshot);
+		else
+			Raise(EngineThinkingStopped, snapshot);
 	}
 
 	private void AcceptPonderGeneration(int generation) =>
@@ -1012,6 +1394,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		Raise(StateChanged, snapshot);
 		Raise(MoveClassified, move);
+		Raise(MoveClassificationUpdated, move);
 	}
 
 	private void CompleteClassificationRun(int generation)
@@ -1104,6 +1487,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 
 		Raise(StateChanged, snapshot);
 		Raise(EvaluationChanged, pv);
+		Raise(EvaluationUpdated, pv);
 	}
 
 	/// <summary>
@@ -1131,6 +1515,10 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	{
 		Raise(StateChanged, snapshot);
 		Raise(PositionChanged, snapshot);
+	}
+
+	private void PublishGameOver(UciState snapshot)
+	{
 		if (snapshot.IsGameOver)
 			Raise(GameOver, snapshot);
 	}
@@ -1164,7 +1552,11 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Raises the Error event with the specified exception.
 	/// </summary>
-	private void RaiseError(Exception ex) => Raise(Error, ex);
+	private void RaiseError(Exception ex)
+	{
+		Raise(Error, ex);
+		Raise(EngineError, ex);
+	}
 
 	private static void ThrowStopFailures(
 		IReadOnlyList<Exception> failures,
