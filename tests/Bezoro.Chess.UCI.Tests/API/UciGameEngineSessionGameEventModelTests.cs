@@ -1,6 +1,7 @@
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.API.Types;
+using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -326,5 +327,125 @@ public class UciGameEngineSessionGameEventModelTests
 		await FluentActions.Awaiting(() => coordinator.PlayControlledMoveAsync(CancellationToken.None))
 						   .Should()
 						   .ThrowAsync<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task ResignAsync_WhenCalled_ShouldExposeTerminalResultAndRaiseResultChangedThenGameOver()
+	{
+		var syncContext = new RecordingSynchronizationContext();
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			syncContext: syncContext,
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var order = new List<string>();
+		var resultChanged = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var gameOver = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.ResultChanged += state =>
+		{
+			order.Add(nameof(coordinator.ResultChanged));
+			resultChanged.TrySetResult(state);
+		};
+		coordinator.GameOver += state =>
+		{
+			order.Add(nameof(coordinator.GameOver));
+			gameOver.TrySetResult(state);
+		};
+
+		var state = await coordinator.ResignAsync(CancellationToken.None);
+		var resultState = await resultChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
+		var gameOverState = await gameOver.Task.WaitAsync(TestConstants.DefaultTimeout);
+
+		order.Should().ContainInOrder(nameof(coordinator.ResultChanged), nameof(coordinator.GameOver));
+		state.Result.Should().Be(new PlayableMatchResult(PlayableMatchResultReason.Resignation, 'b'));
+		state.IsGameOver.Should().BeTrue();
+		resultState.Result.Should().Be(state.Result);
+		gameOverState.Result.Should().Be(state.Result);
+	}
+
+	[Fact]
+	public async Task DrawFlow_WhenOfferAndAcceptAreUsed_ShouldExposeOfferAndTerminalDraw()
+	{
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			options: new UciCoordinatorOptions(),
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var offered = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var resultChanged = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		coordinator.DrawOffered += state => offered.TrySetResult(state);
+		coordinator.ResultChanged += state => resultChanged.TrySetResult(state);
+
+		var offeredState = await coordinator.OfferDrawAsync(CancellationToken.None);
+		var offeredEventState = await offered.Task.WaitAsync(TestConstants.DefaultTimeout);
+		var acceptedState = await coordinator.AcceptDrawAsync(CancellationToken.None);
+		var resultState = await resultChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
+
+		offeredState.DrawOfferedBy.Should().Be('w');
+		offeredEventState.DrawOfferedBy.Should().Be('w');
+		acceptedState.Result.Should().Be(new PlayableMatchResult(PlayableMatchResultReason.DrawAgreement, null));
+		resultState.Result.Should().Be(acceptedState.Result);
+	}
+
+	[Fact]
+	public async Task ClaimDrawAsync_WhenClaimableDrawExists_ShouldExposeTerminalDrawResult()
+	{
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			options: new UciCoordinatorOptions(
+				ClaimableDrawPolicy: PlayableMatchClaimableDrawPolicy.ClaimRequired
+			),
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		foreach (var move in new[] { "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8" })
+			await coordinator.MakeMoveAsync(move, CancellationToken.None);
+
+		coordinator.State.Result.Should().Be(default(PlayableMatchResult));
+		coordinator.State.ClaimableResult.Should().Be(new PlayableMatchResult(PlayableMatchResultReason.ThreefoldRepetition, null));
+
+		var state = await coordinator.ClaimDrawAsync(CancellationToken.None);
+
+		state.Result.Should().Be(new PlayableMatchResult(PlayableMatchResultReason.ThreefoldRepetition, null));
+		state.IsGameOver.Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task PauseAndResumeClockAsync_WhenTimeControlIsConfigured_ShouldExposeClockStateAndEvents()
+	{
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			options: new UciCoordinatorOptions(
+				TimeControl: new PlayableMatchTimeControl(TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromSeconds(2))
+			),
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var pausedEvent = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var resumedEvent = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
+		coordinator.ClockPaused += state => pausedEvent.TrySetResult(state);
+		coordinator.ClockResumed += state => resumedEvent.TrySetResult(state);
+
+		var pausedState = await coordinator.PauseClockAsync(CancellationToken.None);
+		var pausedEventState = await pausedEvent.Task.WaitAsync(TestConstants.DefaultTimeout);
+		var resumedState = await coordinator.ResumeClockAsync(CancellationToken.None);
+		var resumedEventState = await resumedEvent.Task.WaitAsync(TestConstants.DefaultTimeout);
+
+		pausedState.Clock.Should().NotBeNull();
+		pausedState.Clock!.Value.IsPaused.Should().BeTrue();
+		pausedEventState.Clock!.Value.IsPaused.Should().BeTrue();
+		resumedState.Clock!.Value.IsPaused.Should().BeFalse();
+		resumedEventState.Clock!.Value.IsPaused.Should().BeFalse();
 	}
 }

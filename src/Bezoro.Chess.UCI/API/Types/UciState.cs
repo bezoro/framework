@@ -1,3 +1,4 @@
+using Bezoro.Chess.UCI.Protocol.API.Types;
 using System.Collections.Immutable;
 
 namespace Bezoro.Chess.UCI.API.Types;
@@ -14,7 +15,11 @@ public readonly record struct UciState(
 	ParsedMove?                       BestMove,
 	ParsedMove?                       PonderMove,
 	PrincipalVariation?               Evaluation,
-	bool                              IsSearching
+	bool                              IsSearching,
+	PlayableMatchResult               Result           = default,
+	PlayableMatchResult?              ClaimableResult  = null,
+	char?                             DrawOfferedBy    = null,
+	PlayableMatchClockState?          Clock            = null
 )
 {
 	/// <summary>
@@ -41,7 +46,9 @@ public readonly record struct UciState(
 	///     Gets a value indicating whether the current position is checkmate.
 	///     True when there are no legal moves and the king is in check.
 	/// </summary>
-	public bool IsCheckmate => LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers);
+	public bool IsCheckmate =>
+		Result.Reason == PlayableMatchResultReason.Checkmate ||
+		(LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers));
 
 	/// <summary>
 	///     Gets a value indicating whether all legal moves have been classified.
@@ -51,13 +58,15 @@ public readonly record struct UciState(
 	/// <summary>
 	///     Gets a value indicating whether the game is over (no legal moves available).
 	/// </summary>
-	public bool IsGameOver => LegalMoves.Count == 0;
+	public bool IsGameOver => Result.IsTerminal || LegalMoves.Count == 0;
 
 	/// <summary>
 	///     Gets a value indicating whether the current position is stalemate.
 	///     True when there are no legal moves but the king is not in check.
 	/// </summary>
-	public bool IsStalemate => LegalMoves.Count == 0 && string.IsNullOrEmpty(CurrentFen.Checkers);
+	public bool IsStalemate =>
+		Result.Reason == PlayableMatchResultReason.Stalemate ||
+		(LegalMoves.Count == 0 && string.IsNullOrEmpty(CurrentFen.Checkers));
 
 	/// <summary>
 	///     Gets the classification progress as a value between 0.0 and 1.0.

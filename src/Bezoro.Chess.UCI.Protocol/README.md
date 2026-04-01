@@ -15,6 +15,23 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `MoveClassification`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Fully typed move metadata including moving piece, captured piece, promotion piece, and resolved flags.    |
 | `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Absolute player-relative score for a legal move candidate's resulting position plus classification data.  |
 | `MatchSideControllerKind`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Per-side control mode for playable matches: manual or engine-driven.                                      |
+| `PlayableMatchClaimableDrawPolicy` | `Bezoro.Chess.UCI.Protocol.API.Types` | Controls whether repetition and fifty-move draws are automatic or must be explicitly claimed.        |
+| `PlayableMatchDrawOfferPolicy` | `Bezoro.Chess.UCI.Protocol.API.Types` | Controls whether pending draw offers expire on the next move or persist until answered.                  |
+| `PlayableMatchControlledMoveFallbackPolicy` | `Bezoro.Chess.UCI.Protocol.API.Types` | Controls whether engine-controlled turns fall back to a local legal move or throw on search failure. |
+| `PlayableMatchTimeoutPolicy` | `Bezoro.Chess.UCI.Protocol.API.Types` | Controls whether flag fall is automatic loss or ignored by the protocol session.                          |
+| `PlayableMatchTimeControl`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Symmetric clock configuration with increment, delay, timeout policy, and optional staged controls.        |
+| `PlayableMatchTimeControlStage` | `Bezoro.Chess.UCI.Protocol.API.Types` | Additional staged time-control segment triggered after a per-side move count.                          |
+| `PlayableMatchClockState`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Snapshot of both clocks for the current turn.                                                             |
+| `PlayableMatchResult`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Adjudicated terminal result with winner information when decisive.                                        |
+| `PlayableMatchResultReason`  | `Bezoro.Chess.UCI.Protocol.API.Types` | Terminal reason such as checkmate, stalemate, repetition, fifty-move rule, insufficient material, or timeout. |
+| `PendingPromotionRequest`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Promotion request/response payload for moves that still need a promotion piece.                           |
+| `PlayableMatchMoveData`      | `Bezoro.Chess.UCI.Protocol.API.Types` | Canonical applied-move payload including from/to, pieces, classification, and previous/resulting FEN.    |
+| `PlayableMatchPiece`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Lightweight piece payload for move events with side, normalized kind, and original symbol.               |
+| `PlayableMatchSecondaryMove` | `Bezoro.Chess.UCI.Protocol.API.Types` | Secondary piece motion payload used for castling rook movement.                                           |
+| `PlayableMatchEvent`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Canonical protocol-side event payload emitted by a playable match session.                                |
+| `PlayableMatchEventKind`     | `Bezoro.Chess.UCI.Protocol.API.Types` | Event discriminator for `PlayableMatchEvent`.                                                             |
+| `PlayableMatchRequest`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Serializable request DTO for server-authoritative or transport-driven playable sessions.                  |
+| `PlayableMatchRequestKind`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Request discriminator for `PlayableMatchRequest`.                                                         |
 | `PlayableMatchCommand`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed textual command for playable-match workflows such as UCI moves, history, and FEN loading.         |
 | `PlayableMatchCommandKind`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Command discriminator for `PlayableMatchCommand`.                                                          |
 | `PlayedMove`                 | `Bezoro.Chess.UCI.Protocol.API.Types` | Chronological played-move record including parent/result positions and best-known classification.         |
@@ -279,7 +296,29 @@ if (session.CanUndoMoves())
 }
 ```
 
-`UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: position refresh, legal-move loading, local move-type resolution, move-history tracking, controller-driven automatic engine turns, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
+`UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: local legal-move generation and FEN ownership, move-history tracking, controller-driven automatic engine turns, request/response promotion flow, draw and timeout adjudication, optional clocks, serializable request processing, canonical protocol-side events, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
+
+`EventOccurred` is intentionally transport-friendly: every event carries `SchemaVersion`, the resulting `PlayableMatchState` when available, and a canonical `MoveData` payload for applied moves so UI or server consumers do not need to reverse-engineer captures, promotion pieces, or castling rook movement from raw UCI strings.
+
+The event ordering contract is stable and tested for the important flows:
+- promotion: `PromotionRequired` -> `PromotionChosen` -> `MoveApplied`
+- terminal applied move: `MoveApplied` -> `ResultChanged`
+- batch processing: events are returned in the same order they were emitted
+
+`ProcessAsync` supports request-driven orchestration for local tools or server-authoritative play, including:
+- `StartNewGame`
+- `LoadPosition`
+- `Refresh`
+- `ApplyMove`
+- `ChoosePromotion`
+- `PlayControlledMove`
+- `UndoMoves`
+- `OfferDraw` / `AcceptDraw` / `DeclineDraw` / `ClaimDraw`
+- `Resign`
+- `PauseClock` / `ResumeClock`
+- `CancelAnalysis`
+
+For server-oriented consumers, `ProcessBatchAsync(requests, ct)` applies a sequence of `PlayableMatchRequest` values and returns the ordered `PlayableMatchEvent` values emitted while doing so.
 
 ## Text Formatting Helpers
 ```csharp
@@ -297,30 +336,41 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 ### `UciPlayableMatchSession`
 | Member                           | Description                                                                 |
 |----------------------------------|-----------------------------------------------------------------------------|
-| `StartNewGameAsync(ct)`          | Clears local state and sends `ucinewgame` to the playing, snapshot, and move-list clients. |
-| `RefreshAsync(ct)`               | Reloads the current FEN, legal moves, move history, and live non-blocking advantage. |
+| `StartNewGameAsync(ct)`          | Clears local state, resets protocol-owned clocks/promotion/result state, and sends `ucinewgame` to the playing, snapshot, and move-list clients. |
+| `RefreshAsync(ct)`               | Rebuilds the current local FEN, legal moves, result, clock snapshot, move history, and live non-blocking advantage. |
 | `GetLegalMoveAnalysisAsync(ct)`  | Awaits the full-strength move analysis for the current position.           |
 | `GetCurrentLegalMoveClassifications()` | Returns the latest cached move-type map for the current position.    |
 | `WaitForCurrentMoveClassificationsAsync(ct)` | Awaits completion of background check/mate/stalemate resolution for the current position. |
 | `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
-| `ApplyMove(move)`                | Validates and applies a move for the current manually controlled side.     |
+| `ApplyMove(move)`                | Validates and applies a move for the current manually controlled side, or raises a pending promotion request when a promotion suffix is still needed. |
 | `ApplyHumanMove(move)`           | Compatibility alias for `ApplyMove` in human-versus-engine flows.          |
+| `ChoosePromotion(piece)`         | Completes the current pending promotion using `q`, `r`, `b`, or `n`.       |
 | `PlayControlledMoveAsync(ct)`    | Plays the current side's move when that side is engine-controlled.         |
 | `PlayEngineMoveAsync(ct)`        | Compatibility alias for `PlayControlledMoveAsync` in human-versus-engine flows. |
+| `PlayUntilTerminalAsync(maxPlies, ct)` | Plays engine-controlled turns in sequence until the game is terminal or the ply cap is reached. |
 | `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
 | `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
+| `ProcessAsync(request, ct)`      | Applies a serializable `PlayableMatchRequest` against the session.         |
+| `ProcessBatchAsync(requests, ct)` | Applies a request batch and returns the ordered emitted events for that batch. |
 | `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
 | `TryGetPlayedMoveClassification(move, out classification)` | Resolves the latest known classification for a played move. |
 | `TryGetPositionAnalysis(key, out analysis)` | Reads a completed cached position analysis when available.           |
 | `ResolveCurrentAdvantage()`      | Resolves the best completed current advantage without blocking gameplay.    |
 | `GetMoveHistoryDisplayLines()`   | Builds simple debugging lines for played-move history.                     |
 | `CancelAnalysis()`               | Cancels in-flight full-strength analysis.                                  |
+| `PendingPromotion`               | Current pending promotion request, when a move still needs a promotion choice. |
+| `EventOccurred`                  | Canonical versioned event stream with ordered match events and rich applied-move payloads. |
 | `PerspectiveColor`               | Side used for board-orientation and player-relative evaluation helpers.    |
 | `WhiteController` / `BlackController` | Per-side controller kinds (`Manual` or `Engine`).                    |
 | `GetController(side)`            | Returns the configured controller for `w` or `b`.                          |
 | `PlayerColor` / `EngineColor`    | Compatibility helpers for single-human/single-engine sessions only.        |
 | `PlayedMoves` / `MoveHistory`    | Current raw played moves and structured played-move history.               |
-| `CurrentState`                   | Latest refreshed match snapshot.                                           |
+| `CurrentState`                   | Latest refreshed match snapshot including optional pending promotion, claimable draw state, clock, and adjudicated result. |
+
+Constructor policies:
+- `claimableDrawPolicy`: automatic vs explicit claim for repetition and fifty-move draws
+- `drawOfferPolicy`: expire on move vs persist until explicit response
+- `controlledMoveFallbackPolicy`: local fallback vs throw when an engine turn cannot produce a valid `bestmove`
 
 ### `UciEngineClient`
 | Member                                       | Description                                                                      |
@@ -395,10 +445,17 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `Registration`   | Parsed `registration ...` output.      |
 
 ## Sample
-See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from engine-reported FEN, validates human moves against the engine's legal-move listing, and lets the engine answer with timed searches. The `moves` command, `history` command, and current cp bar all resolve from the same full-strength move evaluations, with positions analyzed in move order instead of skipping ahead to the latest position. Move types such as capture, en passant, promotion, castling, check, mate, and stalemate are resolved through the protocol library and carried through both legal-move lists and played-move history. The sample also supports `loadfen <fen> [moves ...]` for targeted debugging of specific positions and edge cases.
+See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable console sample. It prompts for engine Elo and player color, renders the board from protocol-owned FEN state, validates human moves against protocol-owned legal moves, and lets the engine answer with timed searches. The `moves` command, `history` command, and current cp bar all resolve from the same full-strength move evaluations, with positions analyzed in move order instead of skipping ahead to the latest position. Move types such as capture, en passant, promotion, castling, check, mate, and stalemate are resolved through the protocol library and carried through both legal-move lists and played-move history. The sample also supports `loadfen <fen> [moves ...]` for targeted debugging of specific positions and edge cases.
+
+## Benchmarks
+```bash
+dotnet run -c Release --project benchmarks/Bezoro.Chess.UCI.Protocol.Benchmarks/Bezoro.Chess.UCI.Protocol.Benchmarks.csproj
+```
+
+The protocol benchmark project currently focuses on the local-rules hot paths that now back playable-match orchestration: legal move generation and full move classification.
 
 ## Design Notes
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
 - The protocol layer stays engine-agnostic for standard UCI behavior.
-- Extension probing exists here only as an explicit low-level escape hatch; higher-level policy about requiring those extensions belongs in `Bezoro.Chess.UCI`.
+- Extension probing exists here only as an explicit low-level escape hatch for engines that support them; playable-match orchestration no longer depends on those non-standard commands.
 - `SetOptionAsync` waits for `readyok`, which makes option updates safe to compose in application code.

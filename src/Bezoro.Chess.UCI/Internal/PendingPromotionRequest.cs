@@ -4,7 +4,7 @@ using Bezoro.Chess.UCI.API.Types;
 
 namespace Bezoro.Chess.UCI.Internal;
 
-internal readonly record struct PendingPromotionRequest(
+internal readonly record struct CoordinatorPendingPromotionRequest(
 	long                      Id,
 	GameMoveActor             Actor,
 	string                    From,

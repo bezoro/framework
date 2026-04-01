@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.API.Types;
 using Bezoro.Chess.UCI.Internal;
+using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+using Bezoro.Chess.UCI.Protocol.API.Types;
 using Bezoro.Chess.UCI.Protocol.Internal;
 
 namespace Bezoro.Chess.UCI.API;
@@ -21,12 +23,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 {
 	private readonly SerializedUciEngineClientRuntime _classificationClient;
 	private readonly CoordinatorClassificationRuntime _classificationRuntime;
+	private readonly PlayableMatchClaimableDrawPolicy _claimableDrawPolicy;
+	private readonly PlayableMatchControlledMoveFallbackPolicy _controlledMoveFallbackPolicy;
+	private readonly PlayableMatchDrawOfferPolicy _drawOfferPolicy;
 	private readonly GameEngineEventDispatcher        _events;
 	private readonly MatchSideControllerKind          _blackController;
+	private readonly List<ClockCheckpoint>            _clockHistory = [];
 	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
 	private readonly UciPonderRuntime                 _ponder;
 	private readonly SerializedUciEngineClientRuntime _snapshotClient;
+	private readonly PlayableMatchTimeControl?        _timeControl;
 	private readonly MatchSideControllerKind          _whiteController;
 
 	private readonly UciCoordinatorOptions _options;
@@ -38,7 +45,12 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private long                     _nextMoveId;
 	private long                     _nextPendingPromotionId;
 	private ImmutableArray<GameMoveEvent> _appliedMoveHistory = [];
-	private PendingPromotionRequest? _pendingPromotion;
+	private PlayableMatchResult      _forcedResult;
+	private PlayableMatchResult?     _claimableResult;
+	private char?                    _drawOfferedBy;
+	private bool                     _isClockPaused;
+	private PlayableMatchResult      _lastResult;
+	private CoordinatorPendingPromotionRequest? _pendingPromotion;
 
 	private UciState _state = UciState.Default;
 
@@ -118,6 +130,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<UciState>? GameOver;
 
 	/// <summary>
+	///     Raised when the match result changes.
+	/// </summary>
+	public event Action<UciState>? ResultChanged;
+
+	/// <summary>
 	///     Raised when a move is fully applied.
 	/// </summary>
 	public event Action<GameMoveEvent>? MoveMade;
@@ -171,6 +188,26 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	///     Raised when a move application is rejected.
 	/// </summary>
 	public event Action<IllegalMoveRejectedEvent>? IllegalMoveRejected;
+
+	/// <summary>
+	///     Raised when a draw offer is published.
+	/// </summary>
+	public event Action<UciState>? DrawOffered;
+
+	/// <summary>
+	///     Raised when a draw offer is declined or cleared explicitly.
+	/// </summary>
+	public event Action<UciState>? DrawDeclined;
+
+	/// <summary>
+	///     Raised when the match clock is paused.
+	/// </summary>
+	public event Action<UciState>? ClockPaused;
+
+	/// <summary>
+	///     Raised when the match clock is resumed.
+	/// </summary>
+	public event Action<UciState>? ClockResumed;
 
 	/// <summary>
 	///     Raised when one or more moves are undone.
@@ -245,6 +282,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_perspectiveColor      = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
 		_whiteController       = whiteController;
 		_blackController       = blackController;
+		_timeControl           = _options.TimeControl;
+		_timeControl?.Validate();
+		_claimableDrawPolicy   = _options.ClaimableDrawPolicy;
+		_drawOfferPolicy       = _options.DrawOfferPolicy;
+		_controlledMoveFallbackPolicy = _options.ControlledMoveFallbackPolicy;
 
 		_ponder.InfoPvWithGeneration   += OnPonderInfo;
 		_ponder.BestMoveWithGeneration += PonderOnBestMove;
@@ -726,6 +768,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		ResetGameplaySession();
 		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
+		InitializeClocks(snapshot.CurrentFen.ActiveColor);
+		var metadata = ApplyMatchMetadata(snapshot);
+		snapshot = metadata.Snapshot;
+		if (metadata.ResultChanged)
+			_events.Raise(ResultChanged, snapshot);
 
 		_events.Raise(
 			PositionLoaded,
@@ -852,9 +899,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (GetController(CurrentFen.ActiveColor) != MatchSideControllerKind.Engine)
 			throw new InvalidOperationException("The current side is not configured for engine control.");
 
-		var result = await SearchAsync(new() { MoveTimeMs = _options.EngineMoveTimeMs }, ct).ConfigureAwait(false);
-		await MakeMoveAsync(result.BestMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
-		return new(result.BestMove.ToLowerInvariant(), result);
+		try
+		{
+			var result = await SearchAsync(new() { MoveTimeMs = _options.EngineMoveTimeMs }, ct).ConfigureAwait(false);
+			await MakeMoveAsync(result.BestMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
+			return new(result.BestMove.ToLowerInvariant(), result);
+		}
+		catch (InvalidOperationException) when (
+			_controlledMoveFallbackPolicy == PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback &&
+			TryResolveFallbackControlledMove(State, out var fallbackMove))
+		{
+			await MakeMoveAsync(fallbackMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
+			return new(fallbackMove, default);
+		}
 	}
 
 	/// <summary>
@@ -868,7 +925,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public async Task<UciState> MakeMoveAsync(string move, GameMoveActor actor, CancellationToken ct = default)
 	{
 		UciState currentState;
-		PendingPromotionRequest? pendingPromotion;
+		CoordinatorPendingPromotionRequest? pendingPromotion;
 		lock (_sync)
 		{
 			currentState     = _state;
@@ -876,6 +933,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		}
 
 		string normalizedMove = move?.Trim().ToLowerInvariant() ?? string.Empty;
+		EnsureTurnHasTimeRemaining();
 
 		if (pendingPromotion.HasValue)
 		{
@@ -937,7 +995,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		PieceType        pieceType,
 		CancellationToken ct = default)
 	{
-		PendingPromotionRequest pending;
+		CoordinatorPendingPromotionRequest pending;
 		lock (_sync)
 		{
 			if (!_pendingPromotion.HasValue || _pendingPromotion.Value.Id != pendingPromotionId)
@@ -997,6 +1055,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		var newMoves      = currentState.PlayedMoves.Take(currentState.PlayedMoves.Count - movesToRemove).ToList();
 		var previousTurn = currentState.CurrentFen.ActiveColor;
 		var snapshot = await LoadPositionSnapshotAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
+		InitializeClocks(snapshot.CurrentFen.ActiveColor);
+		var metadata = ApplyMatchMetadata(snapshot);
+		snapshot = metadata.Snapshot;
 
 		var removedMoves = appliedMoves.Length >= movesToRemove
 							   ? appliedMoves[^movesToRemove..]
@@ -1008,6 +1069,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		}
 
 		_events.Raise(MoveUndone, new(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow));
+		if (metadata.ResultChanged)
+			_events.Raise(ResultChanged, snapshot);
 		if (previousTurn != snapshot.CurrentFen.ActiveColor)
 			_events.Raise(
 				TurnChanged,
@@ -1025,6 +1088,101 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			ct
 		).ConfigureAwait(false);
 		return State;
+	}
+
+	/// <summary>
+	///     Offers a draw from the current side.
+	/// </summary>
+	public Task<UciState> OfferDrawAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor);
+		_events.Raise(DrawOffered, snapshot);
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Accepts the current pending draw offer and ends the game as a draw.
+	/// </summary>
+	public Task<UciState> AcceptDrawAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		var snapshot = SetForcedResult(new(PlayableMatchResultReason.DrawAgreement, null));
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Declines the current pending draw offer.
+	/// </summary>
+	public Task<UciState> DeclineDrawAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: null);
+		_events.Raise(DrawDeclined, snapshot);
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Claims the currently claimable draw result when available.
+	/// </summary>
+	public Task<UciState> ClaimDrawAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		if (!State.ClaimableResult.HasValue)
+			throw new InvalidOperationException("There is no claimable draw available.");
+
+		var snapshot = SetForcedResult(State.ClaimableResult.Value);
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Resigns on behalf of the current side.
+	/// </summary>
+	public Task<UciState> ResignAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		var snapshot = SetForcedResult(new(PlayableMatchResultReason.Resignation, Opposite(CurrentFen.ActiveColor)));
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Pauses the active match clock when time control is enabled.
+	/// </summary>
+	public Task<UciState> PauseClockAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		if (!_timeControl.HasValue || _isClockPaused || _clockHistory.Count == 0)
+			return Task.FromResult(State);
+
+		var checkpoint = _clockHistory[^1];
+		_clockHistory[^1] = checkpoint with { PausedAtUtc = DateTimeOffset.UtcNow };
+		_isClockPaused = true;
+		var snapshot = UpdateMatchMetadata();
+		_events.Raise(ClockPaused, snapshot);
+		return Task.FromResult(snapshot);
+	}
+
+	/// <summary>
+	///     Resumes the active match clock when paused.
+	/// </summary>
+	public Task<UciState> ResumeClockAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		if (!_timeControl.HasValue || !_isClockPaused || _clockHistory.Count == 0)
+			return Task.FromResult(State);
+
+		var checkpoint = _clockHistory[^1];
+		var now = DateTimeOffset.UtcNow;
+		var pausedDuration = checkpoint.PausedAtUtc.HasValue ? now - checkpoint.PausedAtUtc.Value : TimeSpan.Zero;
+		_clockHistory[^1] = checkpoint with
+		{
+			PausedAccumulated = checkpoint.PausedAccumulated + pausedDuration,
+			PausedAtUtc = null
+		};
+		_isClockPaused = false;
+		var snapshot = UpdateMatchMetadata();
+		_events.Raise(ClockResumed, snapshot);
+		return Task.FromResult(snapshot);
 	}
 
 	/// <summary>
@@ -1079,11 +1237,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	{
 		lock (_sync)
 		{
-			_gameId               = Guid.NewGuid();
-			_nextMoveId           = 0;
+			_gameId                 = Guid.NewGuid();
+			_nextMoveId             = 0;
 			_nextPendingPromotionId = 0;
-			_appliedMoveHistory   = [];
-			_pendingPromotion     = null;
+			_appliedMoveHistory     = [];
+			_pendingPromotion       = null;
+			_forcedResult           = default;
+			_claimableResult        = null;
+			_drawOfferedBy          = null;
+			_isClockPaused          = false;
+			_clockHistory.Clear();
+			_lastResult = default;
 		}
 	}
 
@@ -1213,7 +1377,12 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		PromotionChosenEvent?   promotionChosenEvent,
 		CancellationToken       ct)
 	{
+		AdvanceClockForCompletedMove(previousState.CurrentFen.ActiveColor);
 		var newMoves = new List<string>(previousState.PlayedMoves) { moveNotation };
+		_forcedResult = default;
+		if (_drawOfferPolicy == PlayableMatchDrawOfferPolicy.ExpireOnMove)
+			_drawOfferedBy = null;
+
 		var snapshot = await LoadPositionSnapshotAsync(previousState.BaseFen, newMoves, ct).ConfigureAwait(false);
 		long moveId = Interlocked.Increment(ref _nextMoveId);
 
@@ -1233,6 +1402,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			_pendingPromotion   = null;
 		}
 
+		var metadata = ApplyMatchMetadata(snapshot);
+		snapshot = metadata.Snapshot;
+
 		if (promotionChosenEvent.HasValue)
 			_events.Raise(PromotionChosen, promotionChosenEvent.Value);
 
@@ -1250,6 +1422,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			_events.Raise(Checkmate, moveEvent);
 		if (moveEvent.IsStalemate)
 			_events.Raise(Stalemated, moveEvent);
+		if (metadata.ResultChanged)
+			_events.Raise(ResultChanged, snapshot);
 
 		PublishGameOver(snapshot);
 		if (previousState.CurrentFen.ActiveColor != snapshot.CurrentFen.ActiveColor)
@@ -1288,6 +1462,330 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		);
 		throw new ArgumentException(reason, nameof(move));
 	}
+
+	private UciState UpdateMatchMetadata(char? drawOfferedBy = null)
+	{
+		if (drawOfferedBy.HasValue || _drawOfferedBy.HasValue)
+			_drawOfferedBy = drawOfferedBy;
+
+		var update = ApplyMatchMetadata(State);
+		if (update.ResultChanged)
+		{
+			_events.Raise(ResultChanged, update.Snapshot);
+			PublishGameOver(update.Snapshot);
+		}
+
+		return update.Snapshot;
+	}
+
+	private UciState SetForcedResult(PlayableMatchResult result)
+	{
+		_forcedResult = result;
+		_claimableResult = null;
+		_drawOfferedBy = null;
+		return UpdateMatchMetadata();
+	}
+
+	private MetadataUpdate ApplyMatchMetadata(UciState state)
+	{
+		var clock = GetClockSnapshot();
+		var outcome = EvaluateOutcome(state.CurrentFen, state.LegalMoves, clock);
+		var snapshot = state with
+		{
+			Result = outcome.Result,
+			ClaimableResult = outcome.ClaimableResult,
+			DrawOfferedBy = _drawOfferedBy,
+			Clock = clock
+		};
+
+		bool resultChanged;
+		lock (_sync)
+		{
+			resultChanged = _lastResult != outcome.Result;
+			_claimableResult = outcome.ClaimableResult;
+			_lastResult = outcome.Result;
+			_state = snapshot;
+		}
+
+		return new(snapshot, resultChanged);
+	}
+
+	private static bool TryResolveFallbackControlledMove(UciState state, out string move)
+	{
+		move = string.Empty;
+		if (state.LegalMoves.Count == 0)
+			return false;
+
+		string? checkMove = null;
+		string? captureMove = null;
+		string? promotionMove = null;
+
+		foreach (var legalMove in state.LegalMoves)
+		{
+			var classification = state.CurrentFen.ClassifyMoveFully(legalMove);
+			if (classification.IsMate)
+			{
+				move = legalMove;
+				return true;
+			}
+
+			if (checkMove is null && classification.IsCheck)
+				checkMove = legalMove;
+
+			if (captureMove is null && classification.IsCapture)
+				captureMove = legalMove;
+
+			if (promotionMove is null && classification.IsPromotion)
+				promotionMove = legalMove;
+		}
+
+		move = checkMove ?? captureMove ?? promotionMove ?? state.LegalMoves[0];
+		return true;
+	}
+
+	private void InitializeClocks(char activeColor)
+	{
+		_clockHistory.Clear();
+		if (!_timeControl.HasValue)
+			return;
+
+		_clockHistory.Add(
+			new(
+				_timeControl.Value.InitialTime,
+				_timeControl.Value.InitialTime,
+				activeColor,
+				0,
+				0,
+				0,
+				DateTimeOffset.UtcNow,
+				null,
+				TimeSpan.Zero
+			)
+		);
+	}
+
+	private void AdvanceClockForCompletedMove(char movingSide, DateTimeOffset? completedAtUtc = null)
+	{
+		if (!_timeControl.HasValue || _clockHistory.Count == 0)
+			return;
+
+		var checkpoint = _clockHistory[^1];
+		var now = completedAtUtc ?? DateTimeOffset.UtcNow;
+		var elapsed = ComputeElapsed(checkpoint, now);
+		var whiteRemaining = checkpoint.WhiteRemaining;
+		var blackRemaining = checkpoint.BlackRemaining;
+		var whiteMoves = checkpoint.WhiteMovesCompleted;
+		var blackMoves = checkpoint.BlackMovesCompleted;
+
+		var stage = GetStageForSide(checkpoint, movingSide);
+		var delay = stage.DelayPerMove;
+		var mainElapsed = elapsed > delay ? elapsed - delay : TimeSpan.Zero;
+
+		if (movingSide == 'w')
+		{
+			whiteRemaining = whiteRemaining - mainElapsed;
+			if (whiteRemaining > TimeSpan.Zero)
+			{
+				whiteMoves++;
+				whiteRemaining += stage.IncrementPerMove;
+				whiteRemaining += GetAddedStageTime(whiteMoves);
+			}
+			else
+				whiteRemaining = TimeSpan.Zero;
+		}
+		else
+		{
+			blackRemaining = blackRemaining - mainElapsed;
+			if (blackRemaining > TimeSpan.Zero)
+			{
+				blackMoves++;
+				blackRemaining += stage.IncrementPerMove;
+				blackRemaining += GetAddedStageTime(blackMoves);
+			}
+			else
+				blackRemaining = TimeSpan.Zero;
+		}
+
+		_clockHistory.Add(
+			new(
+				whiteRemaining,
+				blackRemaining,
+				Opposite(movingSide),
+				whiteMoves,
+				blackMoves,
+				GetStageIndexForSide(Opposite(movingSide) == 'w' ? whiteMoves : blackMoves),
+				now,
+				null,
+				TimeSpan.Zero
+			)
+		);
+	}
+
+	private PlayableMatchClockState? GetClockSnapshot(DateTimeOffset? snapshotUtc = null)
+	{
+		if (!_timeControl.HasValue || _clockHistory.Count == 0)
+			return null;
+
+		var checkpoint = _clockHistory[^1];
+		var now = snapshotUtc ?? DateTimeOffset.UtcNow;
+		var elapsed = ComputeElapsed(checkpoint, now);
+		var whiteRemaining = checkpoint.WhiteRemaining;
+		var blackRemaining = checkpoint.BlackRemaining;
+		var stage = GetStageForSide(checkpoint, checkpoint.ActiveColor);
+		var delayRemaining = elapsed < stage.DelayPerMove ? stage.DelayPerMove - elapsed : TimeSpan.Zero;
+		var mainElapsed = elapsed > stage.DelayPerMove ? elapsed - stage.DelayPerMove : TimeSpan.Zero;
+
+		if (checkpoint.ActiveColor == 'w')
+			whiteRemaining = ClampToZero(whiteRemaining - mainElapsed);
+		else
+			blackRemaining = ClampToZero(blackRemaining - mainElapsed);
+
+		return new(
+			whiteRemaining,
+			blackRemaining,
+			checkpoint.ActiveColor,
+			delayRemaining,
+			_isClockPaused,
+			checkpoint.ActiveStageIndex,
+			now
+		);
+	}
+
+	private void EnsureTurnHasTimeRemaining(DateTimeOffset? snapshotUtc = null)
+	{
+		if (_timeControl.HasValue && _timeControl.Value.TimeoutPolicy == PlayableMatchTimeoutPolicy.Ignore)
+			return;
+
+		var clock = GetClockSnapshot(snapshotUtc);
+		if (!clock.HasValue)
+			return;
+
+		var currentRemaining = clock.Value.ActiveColor == 'w'
+			? clock.Value.WhiteRemaining
+			: clock.Value.BlackRemaining;
+		if (currentRemaining > TimeSpan.Zero)
+			return;
+
+		throw new InvalidOperationException("The current side has already lost on time.");
+	}
+
+	private MatchOutcome EvaluateOutcome(
+		Fen                    fen,
+		IReadOnlyList<string>  legalMoves,
+		PlayableMatchClockState? clock)
+	{
+		if (_forcedResult.IsTerminal)
+			return new(_forcedResult, null);
+
+		if (clock.HasValue)
+		{
+			var activeRemaining = fen.ActiveColor == 'w'
+				? clock.Value.WhiteRemaining
+				: clock.Value.BlackRemaining;
+			if (_timeControl.HasValue &&
+				_timeControl.Value.TimeoutPolicy == PlayableMatchTimeoutPolicy.AutomaticLoss &&
+				activeRemaining <= TimeSpan.Zero)
+			{
+				return new(new(PlayableMatchResultReason.Timeout, Opposite(fen.ActiveColor)), null);
+			}
+		}
+
+		if (legalMoves.Count == 0)
+		{
+			return LocalFenRules.IsCurrentPlayerInCheck(fen)
+				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
+				: new(new(PlayableMatchResultReason.Stalemate, null), null);
+		}
+
+		if (fen.HalfmoveClock >= 100)
+			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
+
+		if (LocalFenRules.HasInsufficientMaterial(fen))
+			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
+
+		if (CountRepetitions(fen) >= 3)
+			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.ThreefoldRepetition);
+
+		return new(default, null);
+	}
+
+	private int CountRepetitions(Fen currentFen)
+	{
+		string currentKey = LocalFenRules.BuildRepetitionKey(currentFen);
+		var count = LocalFenRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
+		foreach (var move in _appliedMoveHistory)
+		{
+			if (LocalFenRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
+				count++;
+		}
+
+		return count;
+	}
+
+	private MatchOutcome CreateClaimableOrAutomaticResult(PlayableMatchResultReason reason)
+	{
+		var drawResult = new PlayableMatchResult(reason, null);
+		return _claimableDrawPolicy == PlayableMatchClaimableDrawPolicy.Automatic
+			? new(drawResult, null)
+			: new(default, drawResult);
+	}
+
+	private static TimeSpan ClampToZero(TimeSpan remaining) =>
+		remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
+
+	private TimeSpan ComputeElapsed(ClockCheckpoint checkpoint, DateTimeOffset now)
+	{
+		var effectiveNow = checkpoint.PausedAtUtc ?? now;
+		var elapsed = effectiveNow - checkpoint.TurnStartedAtUtc - checkpoint.PausedAccumulated;
+		return elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed;
+	}
+
+	private StageSettings GetStageForSide(ClockCheckpoint checkpoint, char side)
+	{
+		var movesCompleted = side == 'w' ? checkpoint.WhiteMovesCompleted : checkpoint.BlackMovesCompleted;
+		var stageIndex = GetStageIndexForSide(movesCompleted);
+		if (!_timeControl.HasValue || stageIndex == 0)
+		{
+			return new(
+				_timeControl?.IncrementPerMove ?? TimeSpan.Zero,
+				_timeControl?.DelayPerMove ?? TimeSpan.Zero
+			);
+		}
+
+		var stage = _timeControl.Value.AdditionalStages[stageIndex - 1];
+		return new(stage.IncrementPerMove, stage.DelayPerMove);
+	}
+
+	private int GetStageIndexForSide(int movesCompleted)
+	{
+		if (!_timeControl.HasValue || _timeControl.Value.AdditionalStages.IsDefaultOrEmpty)
+			return 0;
+
+		var index = 0;
+		for (var i = 0; i < _timeControl.Value.AdditionalStages.Length; i++)
+		{
+			if (movesCompleted >= _timeControl.Value.AdditionalStages[i].TriggerMovesPerSide)
+				index = i + 1;
+		}
+
+		return index;
+	}
+
+	private TimeSpan GetAddedStageTime(int movesCompleted)
+	{
+		if (!_timeControl.HasValue || _timeControl.Value.AdditionalStages.IsDefaultOrEmpty)
+			return TimeSpan.Zero;
+
+		foreach (var stage in _timeControl.Value.AdditionalStages)
+		{
+			if (movesCompleted == stage.TriggerMovesPerSide)
+				return stage.AddedTime;
+		}
+
+		return TimeSpan.Zero;
+	}
+
+	private static char Opposite(char color) => color == 'w' ? 'b' : 'w';
 
 	private async Task RollbackStartAsync(bool snapshotStarted, bool ponderStarted, bool classifierStarted)
 	{
@@ -1546,4 +2044,31 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return cancellationRequested;
 		}
 	}
+
+	private readonly record struct ClockCheckpoint(
+		TimeSpan        WhiteRemaining,
+		TimeSpan        BlackRemaining,
+		char            ActiveColor,
+		int             WhiteMovesCompleted,
+		int             BlackMovesCompleted,
+		int             ActiveStageIndex,
+		DateTimeOffset  TurnStartedAtUtc,
+		DateTimeOffset? PausedAtUtc,
+		TimeSpan        PausedAccumulated
+	);
+
+	private readonly record struct MatchOutcome(
+		PlayableMatchResult  Result,
+		PlayableMatchResult? ClaimableResult
+	);
+
+	private readonly record struct StageSettings(
+		TimeSpan IncrementPerMove,
+		TimeSpan DelayPerMove
+	);
+
+	private readonly record struct MetadataUpdate(
+		UciState Snapshot,
+		bool     ResultChanged
+	);
 }

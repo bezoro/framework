@@ -27,4 +27,6 @@ dotnet test tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Test
 - Standard UCI commands are serialized correctly.
 - Handshake lines (`id`, `option`, `uciok`, `readyok`) are parsed and surfaced correctly.
 - Transport lifecycle is safe across start, stop, disposal, and backpressure conditions.
-- Engine-specific escape hatches (`d`, `go perft 1`) continue to work for supported engines.
+- Engine-specific escape hatches (`d`, `go perft 1`) continue to work for supported engines, but playable-match session tests now also cover the protocol-owned local FEN/legal-move path that does not depend on those extensions.
+- The playable-match contract stays stable for canonical events, rich move payloads, promotion request/response, claimable draws, clocks, and engine-vs-engine loop helpers.
+- Event ordering, draw-offer policies, controlled-move fallback policies, and batch request processing remain consumer-facing tested behavior.

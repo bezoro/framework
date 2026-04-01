@@ -5,8 +5,8 @@ High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 | Type                             | Namespace                           | Description                                                                                    |
 |----------------------------------|-------------------------------------|------------------------------------------------------------------------------------------------|
 | `UciGameEngineSession`           | `Bezoro.Chess.UCI.API`              | Preferred game-engine-facing facade for synchronized position state, search updates, move classification, and UI events. |
-| `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, classification depth, and engine-controlled move time.     |
-| `UciState`                       | `Bezoro.Chess.UCI.API.Types`        | Immutable snapshot of board, search, and move-classification state.                            |
+| `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, classification depth, engine move time, draw policy, and clocks. |
+| `UciState`                       | `Bezoro.Chess.UCI.API.Types`        | Immutable snapshot of board, search, move-classification, result, draw-offer, and clock state. |
 | `Move`                           | `Bezoro.Chess.UCI.API.Types`        | Classified move plus semantic UI-facing analysis.                                              |
 | `MoveAnalysis`                   | `Bezoro.Chess.UCI.API.Types`        | Flags such as capture, castling, check, mate, promotion, and stalemate.                        |
 | `BoardState`                     | `Bezoro.Chess.UCI.API.Types`        | Board model derived from FEN for move classification logic.                                    |
@@ -120,6 +120,9 @@ session.MoveClassificationUpdated += move => Console.WriteLine($"Highlight {move
 session.EvaluationUpdated += pv => Console.WriteLine(pv.Raw);
 session.EngineThinkingStarted += _ => ShowThinking(true);
 session.EngineThinkingStopped += _ => ShowThinking(false);
+session.ResultChanged += state => Console.WriteLine($"Result: {state.Result.Reason}");
+session.DrawOffered += state => Console.WriteLine($"Draw offered by {state.DrawOfferedBy}");
+session.ClockPaused += state => Console.WriteLine($"Clock paused: {state.Clock?.IsPaused}");
 
 await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 await session.StartSearchAsync(cancellationToken);
@@ -151,7 +154,11 @@ var options = new UciCoordinatorOptions(
     PonderThreads: 2,
     MultiPv: 3,
     ClassificationDepth: 8,
-    EngineMoveTimeMs: 750);
+    EngineMoveTimeMs: 750,
+    TimeControl: new PlayableMatchTimeControl(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(2)),
+    ClaimableDrawPolicy: PlayableMatchClaimableDrawPolicy.ClaimRequired,
+    DrawOfferPolicy: PlayableMatchDrawOfferPolicy.ExpireOnMove,
+    ControlledMoveFallbackPolicy: PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback);
 
 await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
@@ -181,6 +188,9 @@ await session.SetDebugAsync(false, cancellationToken);
 | `MakeMoveAsync(move, ct)` / `MakeMoveAsync(move, actor, ct)`      | Applies a legal move and refreshes state, optionally tagging the actor. |
 | `ChoosePromotionAsync(id, pieceType, ct)`                         | Resolves a pending promotion request and applies the completed move. |
 | `UndoAsync(count, ct)`                                            | Rewinds one or more played moves.                                   |
+| `ResignAsync(ct)`                                                 | Ends the current game immediately by resignation for the side to move. |
+| `OfferDrawAsync(ct)` / `AcceptDrawAsync(ct)` / `DeclineDrawAsync(ct)` / `ClaimDrawAsync(ct)` | Drives draw-offer and claimable-draw flows backed by protocol rules. |
+| `PauseClockAsync(ct)` / `ResumeClockAsync(ct)`                    | Pauses or resumes the configured match clock.                       |
 | `SetOptionAsync(name, value, ct)`                                 | Applies a UCI option to all internal engine instances.              |
 | `SetDebugAsync(enabled, ct)`                                      | Broadcasts `debug on/off` to all internal engines.                  |
 | `RegisterAsync(registration, ct)`                                 | Broadcasts the standard `register` command to all internal engines. |
@@ -196,6 +206,9 @@ await session.SetDebugAsync(false, cancellationToken);
 | `Check` / `Checkmate` / `Stalemated`                              | Tactical end-state events for applied moves.                        |
 | `MoveUndone`                                                      | Raised when moves are undone.                                       |
 | `IllegalMoveRejected`                                             | Raised before an illegal move call throws.                          |
+| `ResultChanged`                                                   | Raised when the adjudicated match result changes.                   |
+| `DrawOffered` / `DrawDeclined`                                    | Raised when a draw offer is published or cleared.                   |
+| `ClockPaused` / `ClockResumed`                                    | Raised when the configured match clock is paused or resumed.        |
 | `TurnChanged`                                                     | Raised when the active side changes.                                |
 | `PositionLoaded` / `PositionChanged`                              | Raised for explicit loads and visible board snapshot updates.       |
 | `LegalMovesUpdated`                                               | Raised when the visible legal move set changes.                     |
@@ -232,6 +245,9 @@ await session.SetDebugAsync(false, cancellationToken);
 | `BestMove` / `PonderMove`                             | Best and ponder moves from the current search, when available. |
 | `Evaluation`                                          | Latest principal variation from the ponder engine.             |
 | `IsSearching`                                         | Whether a ponder search is active.                             |
+| `Result` / `ClaimableResult`                          | Current terminal result or a draw that must still be claimed.  |
+| `DrawOfferedBy`                                       | Side that currently has an unanswered draw offer, when any.    |
+| `Clock`                                               | Current protocol-backed chess-clock snapshot, when configured. |
 | `IsCheck`, `IsCheckmate`, `IsStalemate`, `IsGameOver` | Derived convenience flags.                                     |
 | `ClassificationProgress`                              | Fraction of legal moves already classified.                    |
 
@@ -254,12 +270,17 @@ await session.SetDebugAsync(false, cancellationToken);
 | `MultiPv`             | MultiPV value applied to the ponder engine.   |
 | `ClassificationDepth` | Search depth used during move classification. |
 | `EngineMoveTimeMs`    | Move time budget used by `PlayControlledMoveAsync`. |
+| `TimeControl`         | Optional protocol-side chess clock configuration. |
+| `ClaimableDrawPolicy` | Whether repetition and fifty-move draws are automatic or require an explicit claim. |
+| `DrawOfferPolicy`     | Whether pending draw offers expire on the next move. |
+| `ControlledMoveFallbackPolicy` | Whether engine-controlled turns may fall back to a legal local move. |
 | `Default`             | Safe default configuration.                   |
 
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
 - The session now uses the protocol layer's controller-neutral side model, so the same facade can represent manual/manual, manual/engine, or engine/engine local sessions.
 - The session exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
-- The session currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
+- Resign, draw offer/claim, adjudicated result, and chess-clock state are projected from protocol-backed match rules rather than reimplemented by the consumer.
+- The session builds on protocol-owned local FEN and legal-move generation for playable match flow, while engine-specific `d` and `go perft 1` remain available only as optional low-level escape hatches on `UciEngineClient`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so session state can safely retain and rebroadcast them across threads.

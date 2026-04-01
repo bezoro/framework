@@ -115,7 +115,7 @@ internal static class CoordinatorMoveFactory
 		return true;
 	}
 
-	public static string? ResolvePromotionMoveNotation(PendingPromotionRequest pending, PieceType pieceType)
+	public static string? ResolvePromotionMoveNotation(CoordinatorPendingPromotionRequest pending, PieceType pieceType)
 	{
 		char suffix = pieceType switch
 		{
