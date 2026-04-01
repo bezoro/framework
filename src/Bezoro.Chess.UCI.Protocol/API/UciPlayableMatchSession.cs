@@ -9,8 +9,8 @@ using Bezoro.Chess.UCI.Protocol.Internal;
 namespace Bezoro.Chess.UCI.Protocol.API;
 
 /// <summary>
-///     Coordinates a playable human-versus-engine match using separate playing, snapshot, and full-strength analysis
-///     clients, plus local background move classification.
+///     Coordinates a playable match using separate playing, snapshot, and full-strength analysis clients, plus local
+///     background move classification.
 /// </summary>
 public sealed class UciPlayableMatchSession
 {
@@ -30,19 +30,23 @@ public sealed class UciPlayableMatchSession
 	///     Creates a playable match session.
 	/// </summary>
 	public UciPlayableMatchSession(
-		UciEngineClient playingClient,
-		UciEngineClient analysisClient,
-		UciEngineClient moveListClient,
-		char            playerColor,
-		int             engineMoveTimeMs       = 1_000,
-		int             moveListAnalysisTimeMs = 3_000,
-		int             moveListFallbackTimeMs = 250)
+		UciEngineClient         playingClient,
+		UciEngineClient         analysisClient,
+		UciEngineClient         moveListClient,
+		char                    perspectiveColor,
+		MatchSideControllerKind whiteController,
+		MatchSideControllerKind blackController,
+		int                     engineMoveTimeMs       = 1_000,
+		int                     moveListAnalysisTimeMs = 3_000,
+		int                     moveListFallbackTimeMs = 250)
 	{
 		_playingClient    = playingClient ?? throw new ArgumentNullException(nameof(playingClient));
 		_analysisClient   = analysisClient ?? throw new ArgumentNullException(nameof(analysisClient));
 		_moveListClient   = moveListClient ?? throw new ArgumentNullException(nameof(moveListClient));
 		_engineMoveTimeMs = ValidatePositive(engineMoveTimeMs, nameof(engineMoveTimeMs));
-		PlayerColor       = NormalizeColor(playerColor, nameof(playerColor));
+		PerspectiveColor  = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
+		WhiteController   = whiteController;
+		BlackController   = blackController;
 		_positionAnalysis = new(
 			_moveListClient,
 			ValidatePositive(moveListAnalysisTimeMs, nameof(moveListAnalysisTimeMs)),
@@ -51,14 +55,55 @@ public sealed class UciPlayableMatchSession
 	}
 
 	/// <summary>
-	///     Gets the engine's side.
+	///     Creates a human-versus-engine playable match session using the supplied player color as the analysis
+	///     perspective.
 	/// </summary>
-	public char EngineColor => PlayerColor == 'w' ? 'b' : 'w';
+	public UciPlayableMatchSession(
+		UciEngineClient playingClient,
+		UciEngineClient analysisClient,
+		UciEngineClient moveListClient,
+		char            playerColor,
+		int             engineMoveTimeMs       = 1_000,
+		int             moveListAnalysisTimeMs = 3_000,
+		int             moveListFallbackTimeMs = 250)
+		: this(
+			playingClient,
+			analysisClient,
+			moveListClient,
+			perspectiveColor: playerColor,
+			whiteController: playerColor == 'w' ? MatchSideControllerKind.Manual : MatchSideControllerKind.Engine,
+			blackController: playerColor == 'b' ? MatchSideControllerKind.Manual : MatchSideControllerKind.Engine,
+			engineMoveTimeMs,
+			moveListAnalysisTimeMs,
+			moveListFallbackTimeMs
+		) { }
 
 	/// <summary>
-	///     Gets the player's side: <c>w</c> or <c>b</c>.
+	///     Gets the side used for player-relative advantage and board-orientation helpers.
 	/// </summary>
-	public char PlayerColor { get; }
+	public char PerspectiveColor { get; }
+
+	/// <summary>
+	///     Gets the controller kind for White.
+	/// </summary>
+	public MatchSideControllerKind WhiteController { get; }
+
+	/// <summary>
+	///     Gets the controller kind for Black.
+	/// </summary>
+	public MatchSideControllerKind BlackController { get; }
+
+	/// <summary>
+	///     Gets the single manual side for compatibility with human-versus-engine workflows.
+	///     This member is only valid when exactly one side is manual.
+	/// </summary>
+	public char PlayerColor => ResolveSingleControllerColor(MatchSideControllerKind.Manual, nameof(PlayerColor));
+
+	/// <summary>
+	///     Gets the single engine-controlled side for compatibility with human-versus-engine workflows.
+	///     This member is only valid when exactly one side is engine-controlled.
+	/// </summary>
+	public char EngineColor => ResolveSingleControllerColor(MatchSideControllerKind.Engine, nameof(EngineColor));
 
 	/// <summary>
 	///     Gets the current played-move history.
@@ -218,12 +263,19 @@ public sealed class UciPlayableMatchSession
 
 	/// <summary>
 	///     Plays the engine's next move using the configured engine move time.
+	///     This compatibility alias is only valid when the current side is engine-controlled.
 	/// </summary>
 	public async Task<EngineMoveResult> PlayEngineMoveAsync(CancellationToken ct = default)
+		=> await PlayControlledMoveAsync(ct).ConfigureAwait(false);
+
+	/// <summary>
+	///     Plays the current side's move when that side is engine-controlled.
+	/// </summary>
+	public async Task<EngineMoveResult> PlayControlledMoveAsync(CancellationToken ct = default)
 	{
 		var state = CurrentState;
-		if (state.Fen.ActiveColor == PlayerColor)
-			throw new InvalidOperationException("An engine move can only be played on the engine's turn.");
+		if (GetController(state.Fen.ActiveColor) != MatchSideControllerKind.Engine)
+			throw new InvalidOperationException("The current side is not engine-controlled.");
 
 		var result = await _playingClient.GoAsync(new() { MoveTimeMs = _engineMoveTimeMs }, ct).ConfigureAwait(false);
 		string move = result.BestMove.ToLowerInvariant();
@@ -279,7 +331,7 @@ public sealed class UciPlayableMatchSession
 		EnrichMoveHistoryClassifications();
 
 		if (legalMoves.Length > 0)
-			_positionAnalysis.Enqueue(positionKey, _playedMoves, fen.Value.ActiveColor, PlayerColor, legalMoves);
+			_positionAnalysis.Enqueue(positionKey, _playedMoves, fen.Value.ActiveColor, PerspectiveColor, legalMoves);
 
 		var advantage = _moveHistory.ResolveCurrentAdvantage(
 			positionKey,
@@ -317,14 +369,20 @@ public sealed class UciPlayableMatchSession
 
 	/// <summary>
 	///     Applies a validated human move to the current match state.
+	///     This compatibility alias is only valid when the current side is manually controlled.
 	/// </summary>
-	public void ApplyHumanMove(string move)
+	public void ApplyHumanMove(string move) => ApplyMove(move);
+
+	/// <summary>
+	///     Applies a validated move for the current side when that side is externally controlled.
+	/// </summary>
+	public void ApplyMove(string move)
 	{
 		string normalizedMove = NormalizeMove(move);
 		var    state          = CurrentState;
 
-		if (state.Fen.ActiveColor != PlayerColor)
-			throw new InvalidOperationException("A human move can only be applied on the player's turn.");
+		if (GetController(state.Fen.ActiveColor) == MatchSideControllerKind.Engine)
+			throw new InvalidOperationException("A manual move cannot be applied on an engine-controlled turn.");
 
 		if (!state.LegalMoves.ContainsUciMove(normalizedMove))
 			throw new InvalidOperationException("The move is not legal in the current position.");
@@ -342,6 +400,16 @@ public sealed class UciPlayableMatchSession
 		_classifications.Cancel();
 	}
 
+	/// <summary>
+	///     Returns the configured controller kind for the supplied side.
+	/// </summary>
+	/// <param name="side">The side to inspect: <c>w</c> or <c>b</c>.</param>
+	public MatchSideControllerKind GetController(char side) => NormalizeColor(side, nameof(side)) switch
+	{
+		'w' => WhiteController,
+		_ => BlackController
+	};
+
 	private static char NormalizeColor(char color, string paramName)
 	{
 		if (color is 'w' or 'b')
@@ -356,6 +424,19 @@ public sealed class UciPlayableMatchSession
 			return value;
 
 		throw new ArgumentOutOfRangeException(paramName, "Value must be greater than zero.");
+	}
+
+	private char ResolveSingleControllerColor(MatchSideControllerKind controller, string memberName)
+	{
+		if (WhiteController == controller && BlackController != controller)
+			return 'w';
+
+		if (BlackController == controller && WhiteController != controller)
+			return 'b';
+
+		throw new InvalidOperationException(
+			$"{memberName} is only available when exactly one side uses the {controller} controller."
+		);
 	}
 
 	private static string NormalizeMove(string move)

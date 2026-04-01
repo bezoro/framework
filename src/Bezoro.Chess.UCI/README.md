@@ -5,7 +5,7 @@ High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 | Type                             | Namespace                           | Description                                                                                    |
 |----------------------------------|-------------------------------------|------------------------------------------------------------------------------------------------|
 | `UciGameEngineSession`           | `Bezoro.Chess.UCI.API`              | Preferred game-engine-facing facade for synchronized position state, search updates, move classification, and UI events. |
-| `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, and classification depth.                                  |
+| `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, classification depth, and engine-controlled move time.     |
 | `UciState`                       | `Bezoro.Chess.UCI.API.Types`        | Immutable snapshot of board, search, and move-classification state.                            |
 | `Move`                           | `Bezoro.Chess.UCI.API.Types`        | Classified move plus semantic UI-facing analysis.                                              |
 | `MoveAnalysis`                   | `Bezoro.Chess.UCI.API.Types`        | Flags such as capture, castling, check, mate, promotion, and stalemate.                        |
@@ -29,6 +29,9 @@ using Bezoro.Chess.UCI.Protocol.API.Types;
 
 await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
+    perspectiveColor: 'b',
+    whiteController: MatchSideControllerKind.Engine,
+    blackController: MatchSideControllerKind.Manual,
     ct: cancellationToken);
 
 await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
@@ -100,6 +103,9 @@ SynchronizationContext uiContext = SynchronizationContext.Current!;
 await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
     syncContext: uiContext,
+    perspectiveColor: 'w',
+    whiteController: MatchSideControllerKind.Manual,
+    blackController: MatchSideControllerKind.Engine,
     ct: cancellationToken);
 
 session.Ready += () => Console.WriteLine("Engine ready");
@@ -144,7 +150,8 @@ using Bezoro.Chess.UCI.Protocol.API.Types;
 var options = new UciCoordinatorOptions(
     PonderThreads: 2,
     MultiPv: 3,
-    ClassificationDepth: 8);
+    ClassificationDepth: 8,
+    EngineMoveTimeMs: 750);
 
 await using var session = await UciGameEngineSession.CreateAsync(
     enginePath,
@@ -159,7 +166,7 @@ await session.SetDebugAsync(false, cancellationToken);
 ### `UciGameEngineSession`
 | Member                                                            | Description                                                         |
 |-------------------------------------------------------------------|---------------------------------------------------------------------|
-| `CreateAsync(enginePath, options, syncContext, ct)`               | Constructs and starts a ready-to-use game-engine session.           |
+| `CreateAsync(enginePath, options, syncContext, perspectiveColor, whiteController, blackController, ct)` | Constructs and starts a ready-to-use game-engine session. |
 | `StartAsync(ct)` / `StopAsync(ct)`                                | Starts or stops all internal engine instances.                      |
 | `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Resets position state or starts a fresh engine game context.        |
 | `UpdatePositionAsync(fen, playedMoves, ct)`                       | Synchronizes protocol-backed snapshot, ponder, and classification flows to a position. |
@@ -167,6 +174,7 @@ await session.SetDebugAsync(false, cancellationToken);
 | `StartSearchAsync(ct)` / `StartSearchAsync(fen, playedMoves, ct)` | Starts infinite pondering search.                                   |
 | `StopSearchAsync(ct)`                                             | Stops the current ponder search.                                    |
 | `SearchAsync(parameters, ct)`                                     | Runs a bounded quick search and returns `SearchResult`.             |
+| `PlayControlledMoveAsync(ct)`                                     | Plays the current side automatically when that side is engine-controlled. |
 | `ClassifyMoveAsync(move, ct)`                                     | Returns semantic move analysis for one legal move.                  |
 | `StreamClassifiedMovesAsync(ct)`                                  | Streams classifications as they complete.                           |
 | `WaitForClassificationAsync(ct)`                                  | Waits for all legal moves to be classified.                         |
@@ -177,6 +185,8 @@ await session.SetDebugAsync(false, cancellationToken);
 | `SetDebugAsync(enabled, ct)`                                      | Broadcasts `debug on/off` to all internal engines.                  |
 | `RegisterAsync(registration, ct)`                                 | Broadcasts the standard `register` command to all internal engines. |
 | `GetCurrentFenAsync(ct)`                                          | Returns the engine-reported current FEN if available.               |
+| `PerspectiveColor` / `WhiteController` / `BlackController`        | Controller-neutral playable-side configuration mirrored from protocol. |
+| `GetController(side)`                                             | Returns the configured controller for `w` or `b`.                   |
 | `State`                                                           | Current immutable snapshot.                                         |
 | `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the snapshot client.               |
 | `GameStarted`                                                     | Raised when a fresh gameplay session starts.                        |
@@ -243,10 +253,12 @@ await session.SetDebugAsync(false, cancellationToken);
 | `PonderThreads`       | Thread count applied to the ponder engine.    |
 | `MultiPv`             | MultiPV value applied to the ponder engine.   |
 | `ClassificationDepth` | Search depth used during move classification. |
+| `EngineMoveTimeMs`    | Move time budget used by `PlayControlledMoveAsync`. |
 | `Default`             | Safe default configuration.                   |
 
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
+- The session now uses the protocol layer's controller-neutral side model, so the same facade can represent manual/manual, manual/engine, or engine/engine local sessions.
 - The session exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
 - The session currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.

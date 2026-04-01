@@ -281,6 +281,123 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 		session.CancelAnalysis();
 	}
 
+	[IntegrationTest]
+	public async Task PlayControlledMoveAsync_WhenHumanChoosesBlack_ShouldLetEnginePlayWhiteFirst()
+	{
+		await using var playingClient = new UciEngineClient(fixture.StockfishPath);
+		await using var analysisClient = new UciEngineClient(fixture.StockfishPath);
+		await using var moveListClient = new UciEngineClient(fixture.StockfishPath);
+		await Task.WhenAll(
+			playingClient.StartAsync(CancellationToken.None),
+			analysisClient.StartAsync(CancellationToken.None),
+			moveListClient.StartAsync(CancellationToken.None)
+		);
+
+		var session = new UciPlayableMatchSession(
+			playingClient,
+			analysisClient,
+			moveListClient,
+			perspectiveColor: 'b',
+			whiteController: MatchSideControllerKind.Engine,
+			blackController: MatchSideControllerKind.Manual,
+			engineMoveTimeMs: 100,
+			moveListAnalysisTimeMs: 500,
+			moveListFallbackTimeMs: 100
+		);
+
+		session.WhiteController.Should().Be(MatchSideControllerKind.Engine);
+		session.BlackController.Should().Be(MatchSideControllerKind.Manual);
+		session.PerspectiveColor.Should().Be('b');
+
+		await session.StartNewGameAsync(CancellationToken.None);
+		var opening = await session.RefreshAsync(CancellationToken.None);
+		opening.Fen.ActiveColor.Should().Be('w');
+
+		var engineMove = await session.PlayControlledMoveAsync(CancellationToken.None);
+		engineMove.Move.Should().NotBeNullOrWhiteSpace();
+
+		var afterEngine = await session.RefreshAsync(CancellationToken.None);
+		afterEngine.Fen.ActiveColor.Should().Be('b');
+		afterEngine.MoveHistory.Should().ContainSingle();
+		session.CancelAnalysis();
+	}
+
+	[IntegrationTest]
+	public async Task ApplyMove_WhenBothSidesAreManual_ShouldAllowHumanVsHumanPlay()
+	{
+		await using var playingClient = new UciEngineClient(fixture.StockfishPath);
+		await using var analysisClient = new UciEngineClient(fixture.StockfishPath);
+		await using var moveListClient = new UciEngineClient(fixture.StockfishPath);
+		await Task.WhenAll(
+			playingClient.StartAsync(CancellationToken.None),
+			analysisClient.StartAsync(CancellationToken.None),
+			moveListClient.StartAsync(CancellationToken.None)
+		);
+
+		var session = new UciPlayableMatchSession(
+			playingClient,
+			analysisClient,
+			moveListClient,
+			perspectiveColor: 'w',
+			whiteController: MatchSideControllerKind.Manual,
+			blackController: MatchSideControllerKind.Manual,
+			engineMoveTimeMs: 100,
+			moveListAnalysisTimeMs: 500,
+			moveListFallbackTimeMs: 100
+		);
+
+		await session.StartNewGameAsync(CancellationToken.None);
+		await session.RefreshAsync(CancellationToken.None);
+
+		session.ApplyMove("e2e4");
+		var afterWhite = await session.RefreshAsync(CancellationToken.None);
+		afterWhite.Fen.ActiveColor.Should().Be('b');
+
+		session.ApplyMove("e7e5");
+		var afterBlack = await session.RefreshAsync(CancellationToken.None);
+		afterBlack.Fen.ActiveColor.Should().Be('w');
+		afterBlack.MoveHistory.Select(static move => move.Move).Should().Equal(["e2e4", "e7e5"]);
+		session.CancelAnalysis();
+	}
+
+	[IntegrationTest]
+	public async Task PlayControlledMoveAsync_WhenBothSidesAreEngine_ShouldAllowEngineVsEnginePlay()
+	{
+		await using var playingClient = new UciEngineClient(fixture.StockfishPath);
+		await using var analysisClient = new UciEngineClient(fixture.StockfishPath);
+		await using var moveListClient = new UciEngineClient(fixture.StockfishPath);
+		await Task.WhenAll(
+			playingClient.StartAsync(CancellationToken.None),
+			analysisClient.StartAsync(CancellationToken.None),
+			moveListClient.StartAsync(CancellationToken.None)
+		);
+
+		var session = new UciPlayableMatchSession(
+			playingClient,
+			analysisClient,
+			moveListClient,
+			perspectiveColor: 'w',
+			whiteController: MatchSideControllerKind.Engine,
+			blackController: MatchSideControllerKind.Engine,
+			engineMoveTimeMs: 100,
+			moveListAnalysisTimeMs: 500,
+			moveListFallbackTimeMs: 100
+		);
+
+		await session.StartNewGameAsync(CancellationToken.None);
+		await session.RefreshAsync(CancellationToken.None);
+
+		await session.PlayControlledMoveAsync(CancellationToken.None);
+		var afterWhite = await session.RefreshAsync(CancellationToken.None);
+		afterWhite.Fen.ActiveColor.Should().Be('b');
+
+		await session.PlayControlledMoveAsync(CancellationToken.None);
+		var afterBlack = await session.RefreshAsync(CancellationToken.None);
+		afterBlack.Fen.ActiveColor.Should().Be('w');
+		afterBlack.MoveHistory.Should().HaveCount(2);
+		session.CancelAnalysis();
+	}
+
 	[Fact]
 	public void UndoMoves_WhenCountIsNotPositive_ShouldThrowArgumentOutOfRangeException()
 	{

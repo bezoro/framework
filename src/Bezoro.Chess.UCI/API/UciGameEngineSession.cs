@@ -22,9 +22,12 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private readonly SerializedUciEngineClientRuntime _classificationClient;
 	private readonly CoordinatorClassificationRuntime _classificationRuntime;
 	private readonly GameEngineEventDispatcher        _events;
+	private readonly MatchSideControllerKind          _blackController;
+	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
 	private readonly UciPonderRuntime                 _ponder;
 	private readonly SerializedUciEngineClientRuntime _snapshotClient;
+	private readonly MatchSideControllerKind          _whiteController;
 
 	private readonly UciCoordinatorOptions _options;
 
@@ -208,13 +211,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		IEnumerable<string>?    args             = null,
 		string?                 workingDirectory = null,
 		SynchronizationContext? syncContext      = null,
-		UciCoordinatorOptions?  options          = null)
+		UciCoordinatorOptions?  options          = null,
+		char                    perspectiveColor = 'w',
+		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
+		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
 		: this(
 			new UciEngineClient(enginePath, args, workingDirectory),
 			new UciPonderRuntime(new UciEngineClient(enginePath, args, workingDirectory)),
 			new UciEngineClient(enginePath, args, workingDirectory),
 			syncContext,
-			options
+			options,
+			perspectiveColor,
+			whiteController,
+			blackController
 		) { }
 
 	internal UciGameEngineSession(
@@ -222,7 +231,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciPonderRuntime        ponder,
 		UciEngineClient         classificationClient,
 		SynchronizationContext? syncContext = null,
-		UciCoordinatorOptions?  options     = null)
+		UciCoordinatorOptions?  options     = null,
+		char                    perspectiveColor = 'w',
+		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
+		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
 	{
 		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
@@ -230,6 +242,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_ponder      = ponder ?? throw new ArgumentNullException(nameof(ponder));
 		_classificationClient = new(classificationClient ?? throw new ArgumentNullException(nameof(classificationClient)));
 		_classificationRuntime = new(_sync);
+		_perspectiveColor      = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
+		_whiteController       = whiteController;
+		_blackController       = blackController;
 
 		_ponder.InfoPvWithGeneration   += OnPonderInfo;
 		_ponder.BestMoveWithGeneration += PonderOnBestMove;
@@ -286,6 +301,21 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public UciEngineCapabilities Capabilities => _snapshotClient.Capabilities;
 
 	/// <summary>
+	///     Gets the side used for board-orientation and player-relative evaluation helpers.
+	/// </summary>
+	public char PerspectiveColor => _perspectiveColor;
+
+	/// <summary>
+	///     Gets the configured controller for White.
+	/// </summary>
+	public MatchSideControllerKind WhiteController => _whiteController;
+
+	/// <summary>
+	///     Gets the configured controller for Black.
+	/// </summary>
+	public MatchSideControllerKind BlackController => _blackController;
+
+	/// <summary>
 	///     Gets the current state of the coordinator.
 	/// </summary>
 	public UciState State
@@ -320,9 +350,21 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		string                  enginePath,
 		UciCoordinatorOptions?  options     = null,
 		SynchronizationContext? syncContext = null,
+		char                    perspectiveColor = 'w',
+		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
+		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual,
 		CancellationToken       ct          = default)
 	{
-		var coordinator = new UciGameEngineSession(enginePath, null, null, syncContext, options);
+		var coordinator = new UciGameEngineSession(
+			enginePath,
+			null,
+			null,
+			syncContext,
+			options,
+			perspectiveColor,
+			whiteController,
+			blackController
+		);
 		await coordinator.StartAsync(ct).ConfigureAwait(false);
 		return coordinator;
 	}
@@ -803,6 +845,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
+	///     Plays the current side automatically when that side is configured as engine-controlled.
+	/// </summary>
+	public async Task<EngineMoveResult> PlayControlledMoveAsync(CancellationToken ct = default)
+	{
+		if (GetController(CurrentFen.ActiveColor) != MatchSideControllerKind.Engine)
+			throw new InvalidOperationException("The current side is not configured for engine control.");
+
+		var result = await SearchAsync(new() { MoveTimeMs = _options.EngineMoveTimeMs }, ct).ConfigureAwait(false);
+		await MakeMoveAsync(result.BestMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
+		return new(result.BestMove.ToLowerInvariant(), result);
+	}
+
+	/// <summary>
 	///     Applies a move to the current position and updates the engines with an explicit actor classification.
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
@@ -973,6 +1028,15 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
+	///     Returns the configured controller for the supplied side.
+	/// </summary>
+	public MatchSideControllerKind GetController(char side) => NormalizeColor(side, nameof(side)) switch
+	{
+		'w' => _whiteController,
+		_ => _blackController
+	};
+
+	/// <summary>
 	///     Disposes all underlying engines and cancels outstanding classification.
 	/// </summary>
 	public async ValueTask DisposeAsync()
@@ -1021,6 +1085,14 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			_appliedMoveHistory   = [];
 			_pendingPromotion     = null;
 		}
+	}
+
+	private static char NormalizeColor(char color, string paramName)
+	{
+		if (color is 'w' or 'b')
+			return color;
+
+		throw new ArgumentOutOfRangeException(paramName, "Color must be 'w' or 'b'.");
 	}
 
 	private async Task<Move> ClassifyMoveWithClassificationClientAsync(

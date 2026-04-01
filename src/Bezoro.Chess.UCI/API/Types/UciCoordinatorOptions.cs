@@ -6,7 +6,8 @@ namespace Bezoro.Chess.UCI.API.Types;
 public readonly record struct UciCoordinatorOptions(
 	int  PonderThreads       = 2,
 	int  MultiPv             = 1,
-	uint ClassificationDepth = 6
+	uint ClassificationDepth = 6,
+	int  EngineMoveTimeMs    = 1_000
 )
 {
 	/// <summary>

@@ -23,6 +23,7 @@ dotnet test tests/Bezoro.Chess.UCI.Tests/Bezoro.Chess.UCI.Tests.csproj --filter 
 
 ## What These Tests Guarantee
 - `UciGameEngineSession` exposes the preferred game-engine-facing API and event model.
+- `UciGameEngineSession` mirrors the protocol layer's controller-neutral side model for manual/manual, manual/engine, and engine/engine local play.
 - `UciGameEngineSession` keeps protocol-backed snapshot, ponder, and classification flows synchronized.
 - Move classification produces stable chess/UI semantics such as capture, castling, promotion, check, and mate flags.
 - Session startup fails clearly when required engine extensions are unavailable.

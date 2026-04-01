@@ -272,4 +272,59 @@ public class UciGameEngineSessionGameEventModelTests
 		payload.Moves[0].Notation.Should().Be("e7e5");
 		state.PlayedMoves.Should().Equal(["e2e4"]);
 	}
+
+	[Fact]
+	public async Task PlayControlledMoveAsync_WhenCurrentSideIsEngineControlled_ShouldApplyEngineMoveAndRaiseMoveMade()
+	{
+		var syncContext = new RecordingSynchronizationContext();
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			syncContext: syncContext,
+			perspectiveColor: 'b',
+			whiteController: MatchSideControllerKind.Engine,
+			blackController: MatchSideControllerKind.Manual,
+			ct: CancellationToken.None
+		);
+
+		coordinator.PerspectiveColor.Should().Be('b');
+		coordinator.WhiteController.Should().Be(MatchSideControllerKind.Engine);
+		coordinator.BlackController.Should().Be(MatchSideControllerKind.Manual);
+		coordinator.GetController('w').Should().Be(MatchSideControllerKind.Engine);
+		coordinator.GetController('b').Should().Be(MatchSideControllerKind.Manual);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var moveMade = new TaskCompletionSource<GameMoveEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+		coordinator.MoveMade += payload =>
+		{
+			if (payload.Actor == GameMoveActor.Engine)
+				moveMade.TrySetResult(payload);
+		};
+
+		var result = await coordinator.PlayControlledMoveAsync(CancellationToken.None);
+		var payload = await moveMade.Task.WaitAsync(TestConstants.DefaultTimeout);
+
+		result.Move.Should().Be(payload.Notation);
+		payload.Actor.Should().Be(GameMoveActor.Engine);
+		coordinator.State.PlayedMoves.Should().ContainSingle();
+		coordinator.State.CurrentFen.ActiveColor.Should().Be('b');
+	}
+
+	[Fact]
+	public async Task PlayControlledMoveAsync_WhenCurrentSideIsManual_ShouldThrowInvalidOperationException()
+	{
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			perspectiveColor: 'w',
+			whiteController: MatchSideControllerKind.Manual,
+			blackController: MatchSideControllerKind.Engine,
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		await FluentActions.Awaiting(() => coordinator.PlayControlledMoveAsync(CancellationToken.None))
+						   .Should()
+						   .ThrowAsync<InvalidOperationException>();
+	}
 }

@@ -14,6 +14,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `MoveClassificationFlags`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Structural and tactical flags such as capture, promotion, check, mate, and stalemate.                    |
 | `MoveClassification`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Fully typed move metadata including moving piece, captured piece, promotion piece, and resolved flags.    |
 | `MoveEvaluation`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Absolute player-relative score for a legal move candidate's resulting position plus classification data.  |
+| `MatchSideControllerKind`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Per-side control mode for playable matches: manual or engine-driven.                                      |
 | `PlayableMatchCommand`       | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed textual command for playable-match workflows such as UCI moves, history, and FEN loading.         |
 | `PlayableMatchCommandKind`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Command discriminator for `PlayableMatchCommand`.                                                          |
 | `PlayedMove`                 | `Bezoro.Chess.UCI.Protocol.API.Types` | Chronological played-move record including parent/result positions and best-known classification.         |
@@ -32,7 +33,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `EngineActivity`             | `Bezoro.Chess.UCI.Protocol.API.Types` | Coarse engine activity state.                                                                             |
 | `TransportStatus`            | `Bezoro.Chess.UCI.Protocol.API.Types` | Transport lifecycle state.                                                                                |
 | `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
-| `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful human-versus-engine match coordinator over playing, snapshot, and full-strength analysis clients. |
+| `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful playable-match coordinator with manual/manual, manual/engine, or engine/engine side control. |
 
 ## Quick Start
 ```csharp
@@ -248,7 +249,9 @@ var session = new UciPlayableMatchSession(
     playingClient,
     analysisClient,
     moveListClient,
-    playerColor: 'w');
+    perspectiveColor: 'w',
+    whiteController: MatchSideControllerKind.Manual,
+    blackController: MatchSideControllerKind.Engine);
 
 await session.StartNewGameAsync(cancellationToken);
 
@@ -256,12 +259,12 @@ PlayableMatchState state = await session.RefreshAsync(cancellationToken);
 var openingAnalysis = await session.GetLegalMoveAnalysisAsync(cancellationToken);
 var legalMoveClassifications = state.LegalMoveClassifications;
 
-session.ApplyHumanMove("e2e4");
+session.ApplyMove("e2e4");
 state = await session.RefreshAsync(cancellationToken);
 
-if (state.Fen.ActiveColor == session.EngineColor)
+if (session.GetController(state.Fen.ActiveColor) == MatchSideControllerKind.Engine)
 {
-    EngineMoveResult engineMove = await session.PlayEngineMoveAsync(cancellationToken);
+    EngineMoveResult engineMove = await session.PlayControlledMoveAsync(cancellationToken);
     state = await session.RefreshAsync(cancellationToken);
 }
 
@@ -276,7 +279,7 @@ if (session.CanUndoMoves())
 }
 ```
 
-`UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: position refresh, legal-move loading, local move-type resolution, move-history tracking, engine-turn execution, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
+`UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: position refresh, legal-move loading, local move-type resolution, move-history tracking, controller-driven automatic engine turns, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
 
 ## Text Formatting Helpers
 ```csharp
@@ -300,8 +303,10 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `GetCurrentLegalMoveClassifications()` | Returns the latest cached move-type map for the current position.    |
 | `WaitForCurrentMoveClassificationsAsync(ct)` | Awaits completion of background check/mate/stalemate resolution for the current position. |
 | `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
-| `ApplyHumanMove(move)`           | Validates and applies a human move in UCI notation.                        |
-| `PlayEngineMoveAsync(ct)`        | Plays the engine's next move using the configured engine move time.        |
+| `ApplyMove(move)`                | Validates and applies a move for the current manually controlled side.     |
+| `ApplyHumanMove(move)`           | Compatibility alias for `ApplyMove` in human-versus-engine flows.          |
+| `PlayControlledMoveAsync(ct)`    | Plays the current side's move when that side is engine-controlled.         |
+| `PlayEngineMoveAsync(ct)`        | Compatibility alias for `PlayControlledMoveAsync` in human-versus-engine flows. |
 | `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
 | `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
 | `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
@@ -310,7 +315,10 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `ResolveCurrentAdvantage()`      | Resolves the best completed current advantage without blocking gameplay.    |
 | `GetMoveHistoryDisplayLines()`   | Builds simple debugging lines for played-move history.                     |
 | `CancelAnalysis()`               | Cancels in-flight full-strength analysis.                                  |
-| `PlayerColor` / `EngineColor`    | Human and engine sides.                                                    |
+| `PerspectiveColor`               | Side used for board-orientation and player-relative evaluation helpers.    |
+| `WhiteController` / `BlackController` | Per-side controller kinds (`Manual` or `Engine`).                    |
+| `GetController(side)`            | Returns the configured controller for `w` or `b`.                          |
+| `PlayerColor` / `EngineColor`    | Compatibility helpers for single-human/single-engine sessions only.        |
 | `PlayedMoves` / `MoveHistory`    | Current raw played moves and structured played-move history.               |
 | `CurrentState`                   | Latest refreshed match snapshot.                                           |
 
