@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Bezoro.Chess.UCI.Protocol.API;
 
 /// <summary>
-///     Parses simple textual commands for playable-match workflows such as UCI moves, history, and FEN loading.
+///     Parses simple textual commands for playable-match workflows such as UCI moves, history, undo, and FEN loading.
 /// </summary>
 public static class PlayableMatchCommandParser
 {
@@ -27,6 +27,9 @@ public static class PlayableMatchCommandParser
 
 		if (lower == "history")
 			return new(PlayableMatchCommandKind.History);
+
+		if (lower == "undo")
+			return new(PlayableMatchCommandKind.Undo);
 
 		if (lower.StartsWith("loadfen ", StringComparison.Ordinal))
 			return ParseLoadFen(normalized["loadfen ".Length..]);

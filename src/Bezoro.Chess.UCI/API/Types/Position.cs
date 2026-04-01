@@ -11,5 +11,5 @@ public readonly record struct Position()
 	public static Position Create(string notation, Piece? piece) => new(notation, piece);
 
 	public Piece? Piece    { get; }
-	public string Notation { get; }
+	public string Notation { get; } = string.Empty;
 }

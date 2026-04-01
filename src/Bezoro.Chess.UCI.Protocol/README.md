@@ -198,7 +198,7 @@ if (command.Kind == PlayableMatchCommandKind.LoadFen)
 }
 ```
 
-This parser is intended for terminal apps or debug tooling built on top of `UciPlayableMatchSession`. It recognizes UCI moves, `moves`, `history`, `quit`, and `loadfen <fen> [moves ...]`.
+This parser is intended for terminal apps or debug tooling built on top of `UciPlayableMatchSession`. It recognizes UCI moves, `moves`, `history`, `undo`, `quit`, and `loadfen <fen> [moves ...]`.
 
 ## Analysis Helpers
 ```csharp
@@ -268,6 +268,12 @@ if (state.Fen.ActiveColor == session.EngineColor)
 await session.WaitForCurrentMoveClassificationsAsync(cancellationToken);
 string[] historyLines = session.GetMoveHistoryDisplayLines();
 PositionAdvantage liveAdvantage = session.ResolveCurrentAdvantage();
+
+if (session.CanUndoMoves())
+{
+    session.UndoMoves();
+    state = await session.RefreshAsync(cancellationToken);
+}
 ```
 
 `UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: position refresh, legal-move loading, local move-type resolution, move-history tracking, engine-turn execution, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
@@ -296,6 +302,8 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
 | `ApplyHumanMove(move)`           | Validates and applies a human move in UCI notation.                        |
 | `PlayEngineMoveAsync(ct)`        | Plays the engine's next move using the configured engine move time.        |
+| `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
+| `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
 | `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
 | `TryGetPlayedMoveClassification(move, out classification)` | Resolves the latest known classification for a played move. |
 | `TryGetPositionAnalysis(key, out analysis)` | Reads a completed cached position analysis when available.           |

@@ -47,6 +47,14 @@ public class PlayableConsoleCommandParserTests
 	}
 
 	[Fact]
+	public void Parse_WhenUndoCommandIsProvided_ShouldReturnUndo()
+	{
+		var command = PlayableMatchCommandParser.Parse("undo");
+
+		command.Kind.Should().Be(PlayableMatchCommandKind.Undo);
+	}
+
+	[Fact]
 	public void Parse_WhenQuitCommandIsProvided_ShouldReturnQuit()
 	{
 		var command = PlayableMatchCommandParser.Parse("quit");

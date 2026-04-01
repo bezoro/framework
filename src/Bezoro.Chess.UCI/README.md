@@ -4,7 +4,7 @@ High-level chess-analysis orchestration built on `Bezoro.Chess.UCI.Protocol`.
 ## Types
 | Type                             | Namespace                           | Description                                                                                    |
 |----------------------------------|-------------------------------------|------------------------------------------------------------------------------------------------|
-| `UciCoordinator`                 | `Bezoro.Chess.UCI.API`              | Public facade for quick search, pondering, move classification, and synchronized engine state. |
+| `UciCoordinator`                 | `Bezoro.Chess.UCI.API`              | Game-engine-facing facade for synchronized position state, search updates, move classification, and UI events. |
 | `UciCoordinatorOptions`          | `Bezoro.Chess.UCI.API.Types`        | Tuning for ponder threads, MultiPV, and classification depth.                                  |
 | `UciState`                       | `Bezoro.Chess.UCI.API.Types`        | Immutable snapshot of board, search, and move-classification state.                            |
 | `Move`                           | `Bezoro.Chess.UCI.API.Types`        | Classified move plus semantic UI-facing analysis.                                              |
@@ -82,7 +82,7 @@ await foreach (var move in coordinator.StreamClassifiedMovesAsync(cancellationTo
 }
 ```
 
-### Keep a Unity or UI thread synchronized
+### Keep a Unity, Godot, or UI thread synchronized
 ```csharp
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
@@ -95,11 +95,14 @@ await using var coordinator = await UciCoordinator.CreateAsync(
     ct: cancellationToken);
 
 coordinator.Ready += () => Console.WriteLine("Engine ready");
-coordinator.StateChanged += state =>
+coordinator.PositionChanged += state =>
 {
     // Safe to bind UI here because callbacks are marshaled to uiContext.
     Console.WriteLine(state.CurrentFen.Raw);
 };
+coordinator.MoveClassified += move => Console.WriteLine($"Highlight {move.Notation}");
+coordinator.BestMoveChanged += state => Console.WriteLine(state.BestMove?.Raw);
+coordinator.GameOver += state => Console.WriteLine(state.IsCheckmate ? "Mate" : "Draw");
 
 await coordinator.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 await coordinator.StartSearchAsync(cancellationToken);
@@ -148,7 +151,14 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 | `GetCurrentFenAsync(ct)`                                          | Returns the engine-reported current FEN if available.               |
 | `State`                                                           | Current immutable snapshot.                                         |
 | `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the quick engine.                  |
-| `StateChanged`, `Ready`, `Stopped`, `Error`                       | High-level events for application integration.                      |
+| `PositionChanged`                                                 | Raised when the visible board snapshot changes.                     |
+| `SearchStateChanged`                                              | Raised when the coordinator enters or leaves searching state.       |
+| `EvaluationChanged`                                               | Raised for new principal variations from the ponder engine.         |
+| `BestMoveChanged`                                                 | Raised when the current best/ponder move pair changes.              |
+| `MoveClassified`                                                  | Raised for each newly classified legal move.                        |
+| `ClassificationCompleted`                                         | Raised when the current position's move classification is complete. |
+| `GameOver`                                                        | Raised when the current position has no legal moves.                |
+| `StateChanged`, `Ready`, `Stopped`, `Error`                       | Coarser lifecycle and integration events.                           |
 
 ### `UciState`
 | Property                                              | Meaning                                                        |
@@ -186,7 +196,8 @@ await coordinator.SetDebugAsync(false, cancellationToken);
 
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
-- `UciCoordinator` owns quick evaluation, pondering, background move classification, and optional `SynchronizationContext` dispatch for UI threads.
+- `UciCoordinator` owns quick evaluation, pondering, background move classification, and optional `SynchronizationContext` dispatch for single-threaded engines and UI threads.
+- The coordinator exposes granular UI-oriented events so a game engine can react to board snapshots, search updates, move classification, and terminal positions without diffing `StateChanged` manually.
 - The coordinator currently depends on engine-specific `d` and `go perft 1` support to derive current FEN and legal moves. Those requirements are probed at startup and exposed through `Capabilities`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so coordinator state can safely retain and rebroadcast them across threads.

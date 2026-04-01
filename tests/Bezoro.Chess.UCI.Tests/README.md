@@ -26,4 +26,4 @@ dotnet test tests/Bezoro.Chess.UCI.Tests/Bezoro.Chess.UCI.Tests.csproj --filter 
 - `UciCoordinator` keeps quick, ponder, and classifier engines synchronized.
 - Move classification produces stable chess/UI semantics such as capture, castling, promotion, check, and mate flags.
 - Coordinator startup fails clearly when required engine extensions are unavailable.
-- State streaming and event dispatch remain safe for app or UI integration.
+- State streaming, granular game-engine events, and `SynchronizationContext` dispatch remain safe for app or UI integration.

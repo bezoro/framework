@@ -17,6 +17,9 @@ public enum PlayableMatchCommandKind
 	/// <summary>The caller requested played-move history output.</summary>
 	History,
 
+	/// <summary>The caller requested undoing recently played moves.</summary>
+	Undo,
+
 	/// <summary>The caller requested loading an explicit FEN and optional move sequence.</summary>
 	LoadFen,
 

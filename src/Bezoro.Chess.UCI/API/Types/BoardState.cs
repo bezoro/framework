@@ -12,13 +12,16 @@ public readonly record struct BoardState()
 		Positions = positions;
 	}
 
-	public Fen                           Fen       { get; }
-	public IReadOnlyCollection<Position> Positions { get; }
+	public Fen                           Fen       { get; } = Fen.Empty();
+	public IReadOnlyCollection<Position> Positions { get; } = Array.Empty<Position>();
 
 	public PieceColor ActiveColor => Fen.ActiveColor switch
 	{
 		'w' => PieceColor.White,
-		'b' => PieceColor.Black
+		'b' => PieceColor.Black,
+		_ => throw new InvalidOperationException(
+			$"Unsupported active color '{Fen.ActiveColor}' in board state."
+		)
 	};
 
 	public static BoardState? FromFen(Fen fen)

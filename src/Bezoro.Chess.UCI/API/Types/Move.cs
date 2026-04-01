@@ -17,9 +17,9 @@ public readonly record struct Move()
 	public MoveAnalysis Analysis   { get; }
 	public Piece        Piece      { get; }
 	public PieceColor   MovingSide => Piece.Color;
-	public string       From       { get; }
-	public string       Notation   { get; }
-	public string       To         { get; }
+	public string       From       { get; } = string.Empty;
+	public string       Notation   { get; } = string.Empty;
+	public string       To         { get; } = string.Empty;
 
 	private static Piece ResolvePiece(ParsedMove parsedMove, MoveAnalysis analysis, string notation)
 	{

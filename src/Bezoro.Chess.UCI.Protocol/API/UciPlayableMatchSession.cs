@@ -148,6 +148,47 @@ public sealed class UciPlayableMatchSession
 		_moveHistory.ToDisplayLines(ResolvePlayedMoveScore);
 
 	/// <summary>
+	///     Returns whether the requested number of played moves can currently be undone.
+	/// </summary>
+	/// <param name="count">Number of moves to undo.</param>
+	/// <returns><see langword="true" /> when at least <paramref name="count" /> moves have been played.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="count" /> is not greater than zero.</exception>
+	public bool CanUndoMoves(int count = 1)
+	{
+		ValidatePositive(count, nameof(count));
+		return _playedMoves.Count >= count;
+	}
+
+	/// <summary>
+	///     Undoes the requested number of played moves, preserving cached analysis and classifications for the retained
+	///     move prefix while canceling obsolete background work.
+	/// </summary>
+	/// <param name="count">Number of moves to undo.</param>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="count" /> is not greater than zero.</exception>
+	/// <exception cref="InvalidOperationException">Thrown when fewer than <paramref name="count" /> moves have been played.</exception>
+	public void UndoMoves(int count = 1)
+	{
+		ValidatePositive(count, nameof(count));
+		if (!CanUndoMoves(count))
+			throw new InvalidOperationException("Cannot undo more moves than have been played.");
+
+		int remainingMoveCount = _playedMoves.Count - count;
+		if (_playedMoves.Count > remainingMoveCount)
+			_playedMoves.RemoveRange(remainingMoveCount, _playedMoves.Count - remainingMoveCount);
+
+		int retainedHistoryCount = Math.Min(_moveHistory.Count, remainingMoveCount);
+		if (_moveHistory.Count > retainedHistoryCount)
+			_moveHistory.RemoveRange(retainedHistoryCount, _moveHistory.Count - retainedHistoryCount);
+
+		var retainedPositionKeys = CollectRetainedPositionKeys();
+		_positionAnalysis.CancelPendingAndRetainCompleted(retainedPositionKeys);
+		ResetClassificationWorker(retainedPositionKeys);
+
+		_hasCurrentState = false;
+		_currentState    = default;
+	}
+
+	/// <summary>
 	///     Loads an arbitrary base position and optional played-move sequence into the session.
 	/// </summary>
 	public async Task LoadPositionAsync(
@@ -315,7 +356,7 @@ public sealed class UciPlayableMatchSession
 	public void CancelAnalysis()
 	{
 		_positionAnalysis.Cancel();
-		ResetClassificationWorker();
+		ResetClassificationWorker(new HashSet<string>(StringComparer.Ordinal));
 	}
 
 	private static char NormalizeColor(char color, string paramName)
@@ -525,18 +566,18 @@ public sealed class UciPlayableMatchSession
 	private void ResetBackgroundState()
 	{
 		_positionAnalysis.Cancel();
-		ResetClassificationWorker();
+		ResetClassificationWorker(new HashSet<string>(StringComparer.Ordinal));
 		lock (_classificationSync)
 		{
 			_classificationsByPosition.Clear();
-			_classificationCompletionByPosition.Clear();
-			_classificationQueue.Clear();
-			_queuedClassificationPositions.Clear();
 		}
 	}
 
-	private void ResetClassificationWorker()
+	private void ResetClassificationWorker(ISet<string> retainedPositionKeys)
 	{
+		if (retainedPositionKeys is null)
+			throw new ArgumentNullException(nameof(retainedPositionKeys));
+
 		var cts = Interlocked.Exchange(ref _classificationCts, new());
 		try
 		{
@@ -552,8 +593,29 @@ public sealed class UciPlayableMatchSession
 			foreach (var completion in _classificationCompletionByPosition.Values)
 				completion.TrySetCanceled();
 
+			foreach (var positionKey in _classificationsByPosition.Keys.ToArray())
+			{
+				if (!retainedPositionKeys.Contains(positionKey))
+					_classificationsByPosition.Remove(positionKey);
+			}
+
+			_classificationCompletionByPosition.Clear();
+			_classificationQueue.Clear();
+			_queuedClassificationPositions.Clear();
 			_classificationWorker = null;
 		}
+	}
+
+	private HashSet<string> CollectRetainedPositionKeys()
+	{
+		var retainedPositionKeys = new HashSet<string>(StringComparer.Ordinal) { _baseFen.Raw };
+		foreach (var move in _moveHistory)
+		{
+			retainedPositionKeys.Add(move.ParentPositionKey);
+			retainedPositionKeys.Add(move.PositionKey);
+		}
+
+		return retainedPositionKeys;
 	}
 
 	private void UpdateMoveHistory(string currentPositionKey)

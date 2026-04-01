@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
@@ -121,6 +122,45 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 			_trackedPositionKeys.Clear();
 			_completedAnalyses.Clear();
 			_workerTask                 = null;
+		}
+
+		try
+		{
+			lifetimeCts.Cancel();
+		}
+		finally
+		{
+			lifetimeCts.Dispose();
+		}
+
+		foreach (var waiter in waiters)
+			waiter.TrySetCanceled();
+	}
+
+	internal void CancelPendingAndRetainCompleted(ISet<string> retainedPositionKeys)
+	{
+		if (retainedPositionKeys is null)
+			throw new ArgumentNullException(nameof(retainedPositionKeys));
+
+		CancellationTokenSource lifetimeCts;
+		TaskCompletionSource<PositionAnalysisResult>[] waiters;
+
+		lock (_sync)
+		{
+			lifetimeCts  = _lifetimeCts;
+			_lifetimeCts = new();
+			waiters      = [.. _waiters.Values];
+
+			_pendingRequests.Clear();
+			_waiters.Clear();
+			_trackedPositionKeys.Clear();
+			_workerTask = null;
+
+			foreach (var positionKey in _completedAnalyses.Keys.ToArray())
+			{
+				if (!retainedPositionKeys.Contains(positionKey))
+					_completedAnalyses.Remove(positionKey);
+			}
 		}
 
 		try

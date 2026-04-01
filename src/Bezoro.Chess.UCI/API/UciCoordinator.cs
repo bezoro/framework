@@ -49,6 +49,41 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 	public event Action<UciState>? StateChanged;
 
 	/// <summary>
+	///     Raised when the visible game position snapshot changes, including legal moves and terminal-state transitions.
+	/// </summary>
+	public event Action<UciState>? PositionChanged;
+
+	/// <summary>
+	///     Raised when the search lifecycle toggles between searching and idle.
+	/// </summary>
+	public event Action<UciState>? SearchStateChanged;
+
+	/// <summary>
+	///     Raised when the ponder engine publishes a new principal variation.
+	/// </summary>
+	public event Action<PrincipalVariation>? EvaluationChanged;
+
+	/// <summary>
+	///     Raised when the ponder engine produces a new best-move pair for the current search.
+	/// </summary>
+	public event Action<UciState>? BestMoveChanged;
+
+	/// <summary>
+	///     Raised for each move classification produced for the current position.
+	/// </summary>
+	public event Action<Move>? MoveClassified;
+
+	/// <summary>
+	///     Raised when all legal moves for the current position have been classified.
+	/// </summary>
+	public event Action<UciState>? ClassificationCompleted;
+
+	/// <summary>
+	///     Raised when the current visible position is terminal and no legal moves remain.
+	/// </summary>
+	public event Action<UciState>? GameOver;
+
+	/// <summary>
 	///     Raised when the coordinator has fully stopped.
 	/// </summary>
 	public event Action? Stopped;
@@ -564,7 +599,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			);
 		}
 
-		Raise(StateChanged, _state);
+		PublishPositionChanged(_state);
 
 		// Start pondering for the new position
 		try
@@ -894,7 +929,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 			snapshot = _state;
 		}
 
-		Raise(StateChanged, snapshot);
+		PublishSearchStateChanged(snapshot);
 	}
 
 	private void AcceptPonderGeneration(int generation) =>
@@ -949,7 +984,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		if (changed)
-			Raise(StateChanged, snapshot);
+			PublishSearchStateChanged(snapshot);
 	}
 
 	private int BeginClassificationRun()
@@ -976,21 +1011,25 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		Raise(StateChanged, snapshot);
+		Raise(MoveClassified, move);
 	}
 
 	private void CompleteClassificationRun(int generation)
 	{
 		TaskCompletionSource<IReadOnlyDictionary<string, Move>>? completion;
 		IReadOnlyDictionary<string, Move> result;
+		UciState snapshot;
 		lock (_sync)
 		{
 			if (_classificationGeneration != generation) return;
 
 			completion = _classificationCompletion;
 			result     = _state.ClassifiedMoves;
+			snapshot   = _state;
 		}
 
 		completion?.TrySetResult(result);
+		Raise(ClassificationCompleted, snapshot);
 	}
 
 	private void FaultClassificationRun(int generation, Exception ex)
@@ -1064,6 +1103,7 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		Raise(StateChanged, snapshot);
+		Raise(EvaluationChanged, pv);
 	}
 
 	/// <summary>
@@ -1084,6 +1124,21 @@ public sealed class UciCoordinator : IAsyncDisposable, IDisposable
 		}
 
 		Raise(StateChanged, snapshot);
+		Raise(BestMoveChanged, snapshot);
+	}
+
+	private void PublishPositionChanged(UciState snapshot)
+	{
+		Raise(StateChanged, snapshot);
+		Raise(PositionChanged, snapshot);
+		if (snapshot.IsGameOver)
+			Raise(GameOver, snapshot);
+	}
+
+	private void PublishSearchStateChanged(UciState snapshot)
+	{
+		Raise(StateChanged, snapshot);
+		Raise(SearchStateChanged, snapshot);
 	}
 
 	private void Raise(Action? handler)

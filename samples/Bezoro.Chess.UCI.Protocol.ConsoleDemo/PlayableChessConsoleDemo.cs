@@ -19,7 +19,7 @@ internal static class PlayableChessConsoleDemo
 		Console.WriteLine("--------------------------------------");
 		Console.WriteLine("Play against a UCI engine using UCI move notation such as e2e4 or a7a8q.");
 		Console.WriteLine(
-			"Type 'moves' to list legal moves, 'history' to show move eval history, 'loadfen <fen>' to jump to a position, or 'quit' to exit."
+			"Type 'moves' to list legal moves, 'history' to show move eval history, 'undo' to rewind moves, 'loadfen <fen>' to jump to a position, or 'quit' to exit."
 		);
 
 		Console.WriteLine("Debug FENs to paste:");
@@ -317,6 +317,12 @@ internal static class PlayableChessConsoleDemo
 					continue;
 				}
 
+				if (command.Kind == PlayableMatchCommandKind.Undo)
+				{
+					UndoMostRecentTurn(session, state);
+					continue;
+				}
+
 				session.ApplyHumanMove(command.Move!);
 				continue;
 			}
@@ -373,13 +379,15 @@ internal static class PlayableChessConsoleDemo
 			if (command.Kind == PlayableMatchCommandKind.Quit)
 				return command;
 
-			if (command.Kind == PlayableMatchCommandKind.Moves)
+			if (PlayableTurnCommandRouter.ShouldHandleInsidePrompt(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.Moves)
 			{
 				await PrintLegalMovesAsync(session);
 				continue;
 			}
 
-			if (command.Kind == PlayableMatchCommandKind.History)
+			if (PlayableTurnCommandRouter.ShouldHandleInsidePrompt(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.History)
 			{
 				PrintMoveHistory(session);
 				continue;
@@ -388,11 +396,15 @@ internal static class PlayableChessConsoleDemo
 			if (command.Kind == PlayableMatchCommandKind.LoadFen)
 				return command;
 
-			if (command.Kind == PlayableMatchCommandKind.Invalid)
+			if (PlayableTurnCommandRouter.ShouldValidateAsMove(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.Invalid)
 			{
 				Console.WriteLine(command.Error);
 				continue;
 			}
+
+			if (!PlayableTurnCommandRouter.ShouldValidateAsMove(command.Kind))
+				return command;
 
 			if (!state.LegalMoves.ContainsUciMove(command.Move!))
 			{
@@ -424,13 +436,15 @@ internal static class PlayableChessConsoleDemo
 			if (command.Kind == PlayableMatchCommandKind.Quit)
 				return command;
 
-			if (command.Kind == PlayableMatchCommandKind.Moves)
+			if (PlayableTurnCommandRouter.ShouldHandleInsidePrompt(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.Moves)
 			{
 				await PrintLegalMovesAsync(session);
 				continue;
 			}
 
-			if (command.Kind == PlayableMatchCommandKind.History)
+			if (PlayableTurnCommandRouter.ShouldHandleInsidePrompt(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.History)
 			{
 				PrintMoveHistory(session);
 				continue;
@@ -439,11 +453,15 @@ internal static class PlayableChessConsoleDemo
 			if (command.Kind == PlayableMatchCommandKind.LoadFen)
 				return command;
 
-			if (command.Kind == PlayableMatchCommandKind.Invalid)
+			if (PlayableTurnCommandRouter.ShouldValidateAsMove(command.Kind) &&
+				command.Kind == PlayableMatchCommandKind.Invalid)
 			{
 				Console.WriteLine(command.Error);
 				continue;
 			}
+
+			if (!PlayableTurnCommandRouter.ShouldValidateAsMove(command.Kind))
+				return command;
 
 			if (!state.LegalMoves.ContainsUciMove(command.Move!))
 			{
@@ -553,5 +571,18 @@ internal static class PlayableChessConsoleDemo
 
 		foreach (string line in lines)
 			Console.WriteLine(line);
+	}
+
+	private static void UndoMostRecentTurn(UciPlayableMatchSession session, PlayableMatchState state)
+	{
+		int undoCount = state.Fen.ActiveColor == session.PlayerColor ? 2 : 1;
+		if (!session.CanUndoMoves(undoCount))
+		{
+			Console.WriteLine("Not enough played moves are available to undo.");
+			return;
+		}
+
+		session.UndoMoves(undoCount);
+		Console.WriteLine(undoCount == 1 ? "Undid the last move." : "Undid the last full turn.");
 	}
 }
