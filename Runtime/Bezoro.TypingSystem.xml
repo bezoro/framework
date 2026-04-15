@@ -1,0 +1,357 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Bezoro.TypingSystem</name>
+    </assembly>
+    <members>
+        <member name="T:Bezoro.TypingSystem.Abstractions.IWordProvider">
+            <summary>
+                Provides words for the typing system.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Abstractions.IWordProvider.HasMoreWords">
+            <summary>
+                Gets a value indicating whether there are more words available.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Abstractions.IWordProvider.WordCount">
+            <summary>
+                Gets the total number of words available.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.GetNextWord">
+            <summary>
+                Gets the next word from the provider.
+            </summary>
+            <returns>A <see cref="T:System.ReadOnlyMemory`1" /> containing the next word.</returns>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.AddWord(System.ReadOnlyMemory{System.Char})">
+            <summary>
+                Adds a word to the provider.
+            </summary>
+            <param name="word">The word to add.</param>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.AddWords(System.Collections.Generic.IEnumerable{System.ReadOnlyMemory{System.Char}})">
+            <summary>
+                Adds multiple words to the provider.
+            </summary>
+            <param name="words">The words to add.</param>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.AddWordsFromFile(System.String)">
+            <summary>
+                Adds words from a file to the provider.
+            </summary>
+            <param name="filePath">The path to the file containing words.</param>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.ClearWords">
+            <summary>
+                Clears all words from the provider.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Abstractions.IWordProvider.RemoveWord(System.ReadOnlyMemory{System.Char})">
+            <summary>
+                Removes a specific word from the provider.
+            </summary>
+            <param name="word">The word to remove.</param>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.ArrayWordProvider">
+            <summary>
+                A word provider that uses an internal array (via <see cref="T:Bezoro.Core.Types.SwapbackArray`1" />) to store words.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.#ctor(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+                Initializes a new instance of the <see cref="T:Bezoro.TypingSystem.Types.ArrayWordProvider" /> class with the specified words.
+            </summary>
+            <param name="words">The collection of words to initialize the provider with.</param>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.ArrayWordProvider.HasMoreWords">
+            <inheritdoc />
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.ArrayWordProvider.WordCount">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.AddWord(System.ReadOnlyMemory{System.Char})">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.AddWords(System.Collections.Generic.IEnumerable{System.ReadOnlyMemory{System.Char}})">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.AddWordsFromFile(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.ClearWords">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.ArrayWordProvider.RemoveWord(System.ReadOnlyMemory{System.Char})">
+            <inheritdoc />
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.TypingMetrics">
+            <summary>
+                Calculates and tracks typing performance metrics.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingMetrics.#ctor">
+            <summary>
+                Initializes a new instance of the <see cref="T:Bezoro.TypingSystem.Types.TypingMetrics" /> class.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.Accuracy">
+            <summary>
+                Gets the typing accuracy as a value between 0 and 1.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.CharactersPerMinute">
+            <summary>
+                Gets the number of correct characters typed per minute.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.Elapsed">
+            <summary>
+                Gets the total time elapsed since the metrics tracking started.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.TotalEvaluated">
+            <summary>
+                Gets the total number of non-faulted inputs evaluated.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.CorrectInputs">
+            <summary>
+                Gets the number of correct inputs.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.FaultedInputs">
+            <summary>
+                Gets the number of faulted inputs (e.g., out of range).
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.MistakeInputs">
+            <summary>
+                Gets the number of mistake inputs (mismatches).
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingMetrics.TotalInputs">
+            <summary>
+                Gets the total number of inputs recorded.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingMetrics.Record(Bezoro.TypingSystem.Types.TypingResult)">
+            <summary>
+                Records a validation result and updates the metrics.
+            </summary>
+            <param name="result">The validation result to record.</param>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingMetrics.Reset">
+            <summary>
+                Resets all tracked metrics and restarts the timer.
+            </summary>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.TypingValidationStatus">
+            <summary>
+                Represents the status of a typing validation.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.Undefined">
+            <summary>
+                The status is undefined.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.Match">
+            <summary>
+                The input character matches the expected character.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.Completed">
+            <summary>
+                The input character matches the last character of the target sequence.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.Mismatch">
+            <summary>
+                The input character does not match the expected character.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.EmptyTarget">
+            <summary>
+                The target sequence is empty.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingValidationStatus.PositionOutOfRange">
+            <summary>
+                The validation position is out of range for the target sequence.
+            </summary>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.TypingResult">
+            <summary>
+                Represents the result of a typing validation operation.
+            </summary>
+            <remarks>
+                Initializes a new instance of the <see cref="T:Bezoro.TypingSystem.Types.TypingResult" /> struct.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingResult.#ctor(Bezoro.TypingSystem.Types.TypingValidationStatus,System.Char,System.Byte,System.Char,System.Boolean,System.Boolean,System.Byte,System.Byte)">
+            <summary>
+                Represents the result of a typing validation operation.
+            </summary>
+            <remarks>
+                Initializes a new instance of the <see cref="T:Bezoro.TypingSystem.Types.TypingResult" /> struct.
+            </remarks>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.IsComplete">
+            <summary>
+                Gets a value indicating whether the typing operation is complete.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.IsCorrect">
+            <summary>
+                Gets a value indicating whether the input was correct.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.IsFaulted">
+            <summary>
+                Gets a value indicating whether the validation failed due to an error (e.g., out of range).
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.Expected">
+            <summary>
+                Gets the expected character at the validation position.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.Input">
+            <summary>
+                Gets the input character that was validated.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.NextPosition">
+            <summary>
+                Gets the next position to validate in the target sequence.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.Position">
+            <summary>
+                Gets the position in the target sequence where the validation occurred.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.TargetLength">
+            <summary>
+                Gets the total length of the target sequence.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingResult.Status">
+            <summary>
+                Gets the status of the validation.
+            </summary>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.TypingState">
+            <summary>
+                Represents the current state of a typing operation for a single word.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingState.CorrectCount">
+            <summary>
+                The number of correctly typed characters.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingState.Position">
+            <summary>
+                The current position in the target sequence.
+            </summary>
+        </member>
+        <member name="F:Bezoro.TypingSystem.Types.TypingState.MistakeCount">
+            <summary>
+                The number of mistakes made during typing.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingState.#ctor(System.Byte,System.Byte,System.UInt16)">
+            <summary>
+                Initializes a new instance of the <see cref="T:Bezoro.TypingSystem.Types.TypingState" /> struct.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingState.Initial">
+            <summary>
+                Gets the initial typing state.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingState.IsComplete(System.Byte)">
+            <summary>
+                Checks if the typing operation is complete for the given target length.
+            </summary>
+            <param name="targetLength">The length of the target sequence.</param>
+            <returns><see langword="true" /> if complete; otherwise, <see langword="false" />.</returns>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingState.WithCorrect">
+            <summary>
+                Creates a new state reflecting a correct input.
+            </summary>
+            <returns>A new <see cref="T:Bezoro.TypingSystem.Types.TypingState" /> instance.</returns>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Types.TypingState.WithMistake">
+            <summary>
+                Creates a new state reflecting a mistake input.
+            </summary>
+            <returns>A new <see cref="T:Bezoro.TypingSystem.Types.TypingState" /> instance.</returns>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Types.TypingValidatorOptions">
+            <summary>
+                Provides options for configuring the typing validation process.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.OnCompleted">
+            <summary>
+                Action to execute when a word is successfully completed.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.OnFault">
+            <summary>
+                Action to execute when a validation fault occurs (e.g., out of range).
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.OnMatch">
+            <summary>
+                Action to execute when an input character matches.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.OnMismatch">
+            <summary>
+                Action to execute when an input character does not match.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.OnValidated">
+            <summary>
+                Action to execute after any validation has occurred.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.IgnoreCase">
+            <summary>
+                Gets or sets a value indicating whether to ignore case during validation.
+            </summary>
+        </member>
+        <member name="P:Bezoro.TypingSystem.Types.TypingValidatorOptions.Metrics">
+            <summary>
+                Gets or sets the metrics collector to use during validation.
+            </summary>
+        </member>
+        <member name="T:Bezoro.TypingSystem.Utilities.TypingValidator">
+            <summary>
+                Provides core logic for validating typing input against target sequences.
+            </summary>
+        </member>
+        <member name="M:Bezoro.TypingSystem.Utilities.TypingValidator.ValidateInput(System.ReadOnlySpan{System.Char},System.Byte,System.Char,Bezoro.TypingSystem.Types.TypingValidatorOptions)">
+            <summary>
+                Validates the input character against the target sequence at the given position.
+                Expected to be used to validate words one by one.
+            </summary>
+            <param name="target">The target sequence to validate against.</param>
+            <param name="position">The position in the target sequence to validate against.</param>
+            <param name="inputChar">The input character to validate.</param>
+            <param name="options">Optional validation options.</param>
+            <returns>The result of the validation.</returns>
+        </member>
+        <member name="T:System.Runtime.CompilerServices.IsExternalInit">
+            <summary>
+                Enables C# 9 init-only setters on older frameworks.
+            </summary>
+        </member>
+    </members>
+</doc>
