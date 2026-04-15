@@ -1,0 +1,40 @@
+name: Publish Unity Package
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-unity-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build release binaries
+        run: dotnet build bezoro.framework.sln -c Release
+
+      - name: Build Unity package
+        shell: pwsh
+        run: ./scripts/Build-UnityPackage.ps1 -Configuration Release -OutputPath ./artifacts/unity-package
+
+      - name: Publish upm branch
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: ./scripts/Publish-UnityPackageBranch.ps1 -PackagePath ./artifacts/unity-package -Branch upm
