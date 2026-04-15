@@ -1,6 +1,7 @@
 # Bezoro Framework for Unity
 
 This package publishes the precompiled `netstandard2.1` Bezoro Framework assemblies for Unity through a Git URL.
+The build pipeline stages the assemblies under `Runtime/Plugins` so Unity imports them as managed plugins using its default importer behavior.
 
 ## Install
 
