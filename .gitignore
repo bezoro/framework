@@ -99,6 +99,8 @@ StyleCopReport.xml
 *_h.h
 *.ilk
 *.meta
+!unity-package/*.meta
+!unity-package/**/*.meta
 *.obj
 *.iobj
 *.pch

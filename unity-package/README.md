@@ -1,7 +1,7 @@
 # Bezoro Framework for Unity
 
 This package publishes the precompiled `netstandard2.1` Bezoro Framework assemblies for Unity through a Git URL.
-The build pipeline stages the assemblies under `Runtime/Plugins` and ships the required Unity `.meta` files because package contents live in immutable folders.
+The build pipeline stages the assemblies under `Runtime` and copies the checked-in Unity-authored `.meta` files from this package template.
 
 ## Install
 
