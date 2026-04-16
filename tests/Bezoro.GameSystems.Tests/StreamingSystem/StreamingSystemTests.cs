@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -23,11 +24,31 @@ public class StreamingSystemTests
 		var systemType = typeof(StreamingSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(ReadsAttribute<Position>),                    true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<StreamState>),                true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsResourceAttribute<StreamingConfig>),     true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<StreamingRuntimeState>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<StreamingEventsResource>), true).Should().BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(Position))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(StreamState))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsResourceAttribute), true)
+				  .Cast<ReadsResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(StreamingConfig))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(StreamingRuntimeState))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(StreamingEventsResource))
+				  .Should()
+				  .BeTrue();
 	}
 
 	[Fact]

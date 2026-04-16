@@ -11,10 +11,10 @@ namespace Bezoro.GameSystems.InputSystem.Services;
 /// <summary>
 ///     Converts held movement intent into per-entity velocity for movement simulation.
 /// </summary>
-[Reads<InputControl>]
-[Reads<MovementInputSettings>]
-[Writes<MovementIntent>]
-[Writes<Velocity>]
+[Reads(typeof(InputControl))]
+[Reads(typeof(MovementInputSettings))]
+[Writes(typeof(MovementIntent))]
+[Writes(typeof(Velocity))]
 public sealed class IntentToVelocitySystem : ISystem
 {
 	private QueryHandle<IntentToVelocityQuerySpec> _query;

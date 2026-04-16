@@ -11,9 +11,9 @@ namespace Bezoro.GameSystems.HealthSystem.Services;
 /// <summary>
 ///     ECS system that applies queued health mutations to health components.
 /// </summary>
-[Writes<Health>]
-[Reads<HealthMutationRequest>]
-[WritesResource<HealthEventsResource>]
+[Writes(typeof(Health))]
+[Reads(typeof(HealthMutationRequest))]
+[WritesResource(typeof(HealthEventsResource))]
 public sealed class HealthSystem : ISystem
 {
 	/// <summary>
@@ -186,5 +186,5 @@ public sealed class HealthSystem : ISystem
 }
 
 [Query]
-[With<HealthMutationRequest>]
+[With(typeof(HealthMutationRequest))]
 internal readonly partial struct HealthMutationRequestQuery;

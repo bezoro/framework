@@ -11,12 +11,12 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 /// <summary>
 ///     ECS system that applies activation cancellation, ordering, and per-tick activation budget.
 /// </summary>
-[Writes<ActivationEntry>]
-[Reads<ActivationCancellationRequest>]
-[ReadsResource<ActivationConfig>]
-[WritesResource<ActivationRuntimeState>]
-[WritesResource<ActivationEventsResource>]
-[WritesResource<ActivationDispatchQueueResource>]
+[Writes(typeof(ActivationEntry))]
+[Reads(typeof(ActivationCancellationRequest))]
+[ReadsResource(typeof(ActivationConfig))]
+[WritesResource(typeof(ActivationRuntimeState))]
+[WritesResource(typeof(ActivationEventsResource))]
+[WritesResource(typeof(ActivationDispatchQueueResource))]
 public sealed class ActivationProcessingSystem : ISystem
 {
 	/// <summary>
@@ -190,9 +190,9 @@ public sealed class ActivationProcessingSystem : ISystem
 }
 
 [Query]
-[With<ActivationEntry>]
+[With(typeof(ActivationEntry))]
 internal readonly partial struct ActivationEntryQuery;
 
 [Query]
-[With<ActivationCancellationRequest>]
+[With(typeof(ActivationCancellationRequest))]
 internal readonly partial struct ActivationCancellationQuery;

@@ -445,7 +445,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenUndeclaredAndDeclaredReadSystemsShareStage_ShouldBatchTogether()
 	{
 		// After fix 2a: undeclared systems default to isExclusive=false.
-		// An undeclared system and a [Reads<Counter>] system have no conflicts, so they run in the same batch.
+		// An undeclared system and a [Reads(typeof(Counter))] system have no conflicts, so they run in the same batch.
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
 		var       probe = new ConcurrencyProbe();
 
@@ -458,7 +458,7 @@ public class SystemManagerTests
 		probe.MaxConcurrent.Should().BeGreaterThan(1);
 	}
 
-	[After<AnchorDependencySystem>]
+	[After(typeof(AnchorDependencySystem))]
 	private sealed class AfterDependencySystem(OrderingProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context)
@@ -475,7 +475,7 @@ public class SystemManagerTests
 		}
 	}
 
-	[Before<BeforeTargetSystem>]
+	[Before(typeof(BeforeTargetSystem))]
 	private sealed class BeforeDependencySystem(OrderingProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context)
@@ -548,7 +548,7 @@ public class SystemManagerTests
 		}
 	}
 
-	[RunIf<SchedulerGateRunCondition>]
+	[RunIf(typeof(SchedulerGateRunCondition))]
 	private sealed class ConditionallyEnabledCounterSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }
@@ -567,19 +567,19 @@ public class SystemManagerTests
 		public void Build(ref QueryBuilder builder) => builder.All<Counter>();
 	}
 
-	[After<CyclicAfterSystemB>]
+	[After(typeof(CyclicAfterSystemB))]
 	private sealed class CyclicAfterSystemA : ISystem
 	{
 		public void Update(in SystemContext context) { }
 	}
 
-	[After<CyclicAfterSystemA>]
+	[After(typeof(CyclicAfterSystemA))]
 	private sealed class CyclicAfterSystemB : ISystem
 	{
 		public void Update(in SystemContext context) { }
 	}
 
-	[Reads<Counter>]
+	[Reads(typeof(Counter))]
 	private sealed class DeclaredReadProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context) =>
@@ -645,7 +645,7 @@ public class SystemManagerTests
 		}
 	}
 
-	[Reads<Counter>]
+	[Reads(typeof(Counter))]
 	private sealed class ReadCounterSystem : ISystem
 	{
 		private QueryHandle<CounterQuerySpec> _query;
@@ -694,14 +694,14 @@ public class SystemManagerTests
 		}
 	}
 
-	[ReadsResource<SchedulerResource>]
+	[ReadsResource(typeof(SchedulerResource))]
 	private sealed class ResourceReadProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context) =>
 			probe.Enter();
 	}
 
-	[WritesResource<SchedulerResource>]
+	[WritesResource(typeof(SchedulerResource))]
 	private sealed class ResourceWriteProbeSystem(ConcurrencyProbe probe) : ISystem
 	{
 		public void Update(in SystemContext context) =>
@@ -721,7 +721,7 @@ public class SystemManagerTests
 
 	private sealed class SchedulerResource;
 
-	[SystemSet<SimulationSystemSet>]
+	[SystemSet(typeof(SimulationSystemSet))]
 	private sealed class SecondarySetCounterSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }
@@ -730,7 +730,7 @@ public class SystemManagerTests
 			UpdateCount++;
 	}
 
-	[SystemSet<SimulationSystemSet>]
+	[SystemSet(typeof(SimulationSystemSet))]
 	private sealed class SetCounterSystem : ISystem
 	{
 		public int UpdateCount { get; private set; }
@@ -775,7 +775,7 @@ public class SystemManagerTests
 			probe.Enter();
 	}
 
-	[Writes<Counter>]
+	[Writes(typeof(Counter))]
 	private sealed class WriteCounterSystem(int value) : ISystem
 	{
 		private QueryHandle<CounterQuerySpec> _query;

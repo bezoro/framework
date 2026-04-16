@@ -34,7 +34,7 @@ world.Query<PositionQuery>().ForEach(
     });
 
 [Query]
-[With<Position>]
+[With(typeof(Position))]
 readonly partial struct PositionQuery;
 
 struct Position { public float X; public float Y; }
@@ -58,10 +58,10 @@ Within this solution, application code should reference `Bezoro.ECS`; the source
 
 ## Scheduling Model
 - Systems run by `SystemLoopPhase` (`Tick`, `FixedTick`, `LateTick`) and ordered `Stage` (`Input`, `PreTick`, `Tick`, `PostTick`, `Render`).
-- The scheduler batches systems for parallel execution using read/write metadata (`[Reads<T>]`, `[Writes<T>]`, `[ReadsResource<T>]`, `[WritesResource<T>]`, `[Exclusive]`).
-- Explicit ordering constraints are supported with `[Before<TSystem>]` and `[After<TSystem>]` within the same phase+stage plan.
-- Systems can be grouped into sets via `[SystemSet<TSet>]` and toggled at runtime with `SetSystemSetEnabled<TSet>(...)`.
-- Conditional execution is supported via `[RunIf<TRunCondition>]` (per-system) and `SetSystemSetRunCondition<TSet>(...)` (per-set), both implementing `ISystemRunCondition`.
+- The scheduler batches systems for parallel execution using read/write metadata (`[Reads(typeof(...))]`, `[Writes(typeof(...))]`, `[ReadsResource(typeof(...))]`, `[WritesResource(typeof(...))]`, `[Exclusive]`).
+- Explicit ordering constraints are supported with `[Before(typeof(...))]` and `[After(typeof(...))]` within the same phase+stage plan.
+- Systems can be grouped into sets via `[SystemSet(typeof(...))]` and toggled at runtime with `SetSystemSetEnabled<TSet>(...)`.
+- Conditional execution is supported via `[RunIf(typeof(...))]` (per-system) and `SetSystemSetRunCondition<TSet>(...)` (per-set), both implementing `ISystemRunCondition`.
 - Structural writes are recorded per-system in command streams and flushed deterministically after each batch.
 - Fixed-interval scheduling is supported via `SystemUpdateSettings.FixedInterval(...)` with bounded catch-up.
 

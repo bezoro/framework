@@ -202,21 +202,21 @@ public class WorldErgonomicApiTests
 }
 
 [Query]
-[With<ErgonomicPosition>]
+[With(typeof(ErgonomicPosition))]
 internal readonly partial struct ErgonomicPositionQuery;
 
 [Query]
-[With<ErgonomicPosition>]
-[With<ErgonomicVelocity>]
+[With(typeof(ErgonomicPosition))]
+[With(typeof(ErgonomicVelocity))]
 internal readonly partial struct ErgonomicPositionVelocityQuery;
 
 [Query]
-[With<ErgonomicManagedNote>]
+[With(typeof(ErgonomicManagedNote))]
 internal readonly partial struct ErgonomicManagedNoteQuery;
 
 [Query]
-[With<ErgonomicManagedNote>]
-[With<ErgonomicVelocity>]
+[With(typeof(ErgonomicManagedNote))]
+[With(typeof(ErgonomicVelocity))]
 internal readonly partial struct ErgonomicManagedNoteVelocityQuery;
 
 internal struct ErgonomicManagedNote

@@ -331,11 +331,11 @@ internal struct GeneratedAcceleration
 }
 
 [Query]
-[Added<GeneratedPosition>]
+[Added(typeof(GeneratedPosition))]
 internal readonly partial struct GeneratedAddedPositionQuery;
 
 [Query]
-[Changed<GeneratedPosition>]
+[Changed(typeof(GeneratedPosition))]
 internal readonly partial struct GeneratedChangedPositionQuery;
 
 internal struct GeneratedFrozen;
@@ -368,19 +368,19 @@ internal struct GeneratedPosition
 }
 
 [Query]
-[All<GeneratedPosition>]
-[Any<GeneratedVelocity, GeneratedAcceleration>]
-[None<GeneratedFrozen>]
+[All(typeof(GeneratedPosition))]
+[Any(typeof(GeneratedVelocity), typeof(GeneratedAcceleration))]
+[None(typeof(GeneratedFrozen))]
 internal readonly partial struct GeneratedPositionMotionQuery;
 
 [Query]
-[All<GeneratedPosition>]
-[Optional<GeneratedVelocity>]
+[All(typeof(GeneratedPosition))]
+[Optional(typeof(GeneratedVelocity))]
 internal readonly partial struct GeneratedPositionOptionalVelocityQuery;
 
 [Query]
-[All<GeneratedPosition>]
-[All<GeneratedVelocity>]
+[All(typeof(GeneratedPosition))]
+[All(typeof(GeneratedVelocity))]
 internal readonly partial struct GeneratedPositionVelocityQuery;
 
 internal struct GeneratedVelocity

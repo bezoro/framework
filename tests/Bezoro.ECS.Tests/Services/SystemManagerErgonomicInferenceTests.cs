@@ -214,8 +214,8 @@ internal sealed class ErgonomicWriteResourceSystem(ErgonomicConcurrencyProbe pro
 }
 
 [Query]
-[With<ErgonomicJobPosition>]
-[With<ErgonomicJobVelocity>]
+[With(typeof(ErgonomicJobPosition))]
+[With(typeof(ErgonomicJobVelocity))]
 internal readonly partial struct ErgonomicJobQuery;
 
 internal struct ErgonomicJobPosition
@@ -309,7 +309,7 @@ internal sealed class ErgonomicRegularCursorJobSystem(ErgonomicConcurrencyProbe 
 }
 
 [Query]
-[With<ErgonomicReadOnlyNote>]
+[With(typeof(ErgonomicReadOnlyNote))]
 internal readonly partial struct ErgonomicReadOnlyNoteQuery;
 
 internal struct ErgonomicReadOnlyNote
@@ -352,11 +352,11 @@ internal sealed class ErgonomicMutableQueryViewSystem(ErgonomicConcurrencyProbe 
 }
 
 [Query]
-[With<ErgonomicParallelA>]
+[With(typeof(ErgonomicParallelA))]
 internal readonly partial struct ErgonomicParallelQueryA;
 
 [Query]
-[With<ErgonomicParallelB>]
+[With(typeof(ErgonomicParallelB))]
 internal readonly partial struct ErgonomicParallelQueryB;
 
 internal struct ErgonomicParallelA

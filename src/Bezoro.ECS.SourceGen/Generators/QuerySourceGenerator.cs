@@ -94,41 +94,41 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 
 			if (attributeClass.Name is "AllAttribute" or "WithAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					all.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					all.Add(componentType);
 			}
 			else if (attributeClass.Name is "NoneAttribute" or "WithoutAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					none.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					none.Add(componentType);
 			}
 			else if (attributeClass.Name == "AnyAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 2)
+				if (TryGetPairAttributeTypeNames(attribute, out var firstType, out var secondType))
 				{
-					any.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
-					any.Add(ToFullyQualified(attributeClass.TypeArguments[1]));
+					any.Add(firstType);
+					any.Add(secondType);
 				}
 			}
 			else if (attributeClass.Name == "AnyOfAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					any.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					any.Add(componentType);
 			}
 			else if (attributeClass.Name == "OptionalAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					optional.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					optional.Add(componentType);
 			}
 			else if (attributeClass.Name == "ChangedAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					changed.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					changed.Add(componentType);
 			}
 			else if (attributeClass.Name == "AddedAttribute")
 			{
-				if (attributeClass.TypeArguments.Length == 1)
-					added.Add(ToFullyQualified(attributeClass.TypeArguments[0]));
+				if (TryGetSingleAttributeTypeName(attribute, out var componentType))
+					added.Add(componentType);
 			}
 			else if (attributeClass.Name != "QueryAttribute")
 			{
@@ -215,6 +215,65 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 
 	private static string ToFullyQualified(ITypeSymbol symbol) =>
 		symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+	private static bool TryGetSingleAttributeTypeName(AttributeData attribute, out string typeName)
+	{
+		typeName = string.Empty;
+		if (TryGetSingleAttributeType(attribute, out var type))
+		{
+			typeName = ToFullyQualified(type);
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool TryGetPairAttributeTypeNames(AttributeData attribute, out string firstType, out string secondType)
+	{
+		firstType = string.Empty;
+		secondType = string.Empty;
+		var attributeClass = attribute.AttributeClass;
+		if (attributeClass is { TypeArguments.Length: 2 })
+		{
+			firstType = ToFullyQualified(attributeClass.TypeArguments[0]);
+			secondType = ToFullyQualified(attributeClass.TypeArguments[1]);
+			return true;
+		}
+
+		if (attribute.ConstructorArguments.Length == 2 &&
+			attribute.ConstructorArguments[0].Kind == TypedConstantKind.Type &&
+			attribute.ConstructorArguments[0].Value is ITypeSymbol firstSymbol &&
+			attribute.ConstructorArguments[1].Kind == TypedConstantKind.Type &&
+			attribute.ConstructorArguments[1].Value is ITypeSymbol secondSymbol)
+		{
+			firstType = ToFullyQualified(firstSymbol);
+			secondType = ToFullyQualified(secondSymbol);
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool TryGetSingleAttributeType(AttributeData attribute, out ITypeSymbol type)
+	{
+		type = null!;
+		var attributeClass = attribute.AttributeClass;
+		if (attributeClass is { TypeArguments.Length: 1 })
+		{
+			type = attributeClass.TypeArguments[0];
+			return true;
+		}
+
+		if (attribute.ConstructorArguments.Length == 1 &&
+			attribute.ConstructorArguments[0].Kind == TypedConstantKind.Type &&
+			attribute.ConstructorArguments[0].Value is ITypeSymbol constructorType)
+		{
+			type = constructorType;
+			return true;
+		}
+
+		return false;
+	}
 
 	private sealed class QueryModel(
 		string      typeNamespace,

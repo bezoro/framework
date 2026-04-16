@@ -12,11 +12,11 @@ namespace Bezoro.GameSystems.StreamingSystem.Services;
 /// <summary>
 ///     ECS system that applies distance-based streaming transitions.
 /// </summary>
-[Reads<Position>]
-[Writes<StreamState>]
-[ReadsResource<StreamingConfig>]
-[WritesResource<StreamingRuntimeState>]
-[WritesResource<StreamingEventsResource>]
+[Reads(typeof(Position))]
+[Writes(typeof(StreamState))]
+[ReadsResource(typeof(StreamingConfig))]
+[WritesResource(typeof(StreamingRuntimeState))]
+[WritesResource(typeof(StreamingEventsResource))]
 public sealed class StreamingSystem : ISystem
 {
 	private const float DEFAULT_STREAM_IN_DISTANCE    = 100f;
@@ -240,6 +240,6 @@ public sealed class StreamingSystem : ISystem
 }
 
 [Query]
-[With<Position>]
-[With<StreamState>]
+[With(typeof(Position))]
+[With(typeof(StreamState))]
 internal readonly partial struct StreamingQuery;

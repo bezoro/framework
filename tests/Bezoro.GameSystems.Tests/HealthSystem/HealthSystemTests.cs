@@ -1,3 +1,4 @@
+using System.Linq;
 using Bezoro.Core.Types;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -20,9 +21,21 @@ public class HealthSystemTests
 		var systemType = typeof(HealthSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Health>),                        true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<HealthMutationRequest>),          true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<HealthEventsResource>), true).Should().BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(Health))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(HealthMutationRequest))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(HealthEventsResource))
+				  .Should()
+				  .BeTrue();
 	}
 
 	[Fact]

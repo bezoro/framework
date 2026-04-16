@@ -70,46 +70,47 @@ internal sealed class SystemRegistrationInspector(GeneratedSystemMetadataResolve
 			if (attribute is null)
 				continue;
 
-			if (attribute is ExclusiveAttribute)
+			switch (attribute)
 			{
-				isExclusive = true;
-				continue;
-			}
-
-			var attributeType = attribute.GetType();
-			if (!attributeType.IsGenericType)
-				continue;
-
-			var generic = attributeType.GetGenericTypeDefinition();
-			if (generic == typeof(ReadsAttribute<>))
-			{
-				AddReadType(world, readSet, writeSet, attributeType.GetGenericArguments()[0]);
-				hasAttributeAccessMetadata = true;
-			}
-			else if (generic == typeof(WritesAttribute<>))
-			{
-				AddWriteType(world, readSet, writeSet, attributeType.GetGenericArguments()[0]);
-				hasAttributeAccessMetadata = true;
-			}
-			else if (generic == typeof(ReadsResourceAttribute<>))
-			{
-				AddReadResourceType(readSet, writeSet, attributeType.GetGenericArguments()[0], resourceAccessIdResolver);
-				hasAttributeAccessMetadata = true;
-			}
-			else if (generic == typeof(WritesResourceAttribute<>))
-			{
-				AddWriteResourceType(readSet, writeSet, attributeType.GetGenericArguments()[0], resourceAccessIdResolver);
-				hasAttributeAccessMetadata = true;
-			}
-			else if (generic == typeof(SystemSetAttribute<>))
-			{
-				var setType = attributeType.GetGenericArguments()[0];
-				systemSetTypes.Add(setType);
-				ensureSystemSetKnown(setType);
-			}
-			else if (generic == typeof(RunIfAttribute<>))
-			{
-				(runConditions ??= []).Add(CreateRunCondition(attributeType.GetGenericArguments()[0]));
+				case ExclusiveAttribute:
+					isExclusive = true;
+					continue;
+				case ReadsAttribute readsAttribute:
+					AddReadType(world, readSet, writeSet, readsAttribute.ComponentType);
+					hasAttributeAccessMetadata = true;
+					continue;
+				case WritesAttribute writesAttribute:
+					AddWriteType(world, readSet, writeSet, writesAttribute.ComponentType);
+					hasAttributeAccessMetadata = true;
+					continue;
+				case ReadsResourceAttribute readsResourceAttribute:
+					AddReadResourceType(
+						readSet,
+						writeSet,
+						readsResourceAttribute.ResourceType,
+						resourceAccessIdResolver
+					);
+					hasAttributeAccessMetadata = true;
+					continue;
+				case WritesResourceAttribute writesResourceAttribute:
+					AddWriteResourceType(
+						readSet,
+						writeSet,
+						writesResourceAttribute.ResourceType,
+						resourceAccessIdResolver
+					);
+					hasAttributeAccessMetadata = true;
+					continue;
+				case SystemSetAttribute systemSetAttribute:
+				{
+					var setType = systemSetAttribute.SetType;
+					systemSetTypes.Add(setType);
+					ensureSystemSetKnown(setType);
+					continue;
+				}
+				case RunIfAttribute runIfAttribute:
+					(runConditions ??= []).Add(CreateRunCondition(runIfAttribute.RunConditionType));
+					continue;
 			}
 		}
 
@@ -193,15 +194,15 @@ internal sealed class SystemRegistrationInspector(GeneratedSystemMetadataResolve
 			if (attribute is null)
 				continue;
 
-			var attributeType = attribute.GetType();
-			if (!attributeType.IsGenericType)
-				continue;
-
-			var generic = attributeType.GetGenericTypeDefinition();
-			if (generic == typeof(BeforeAttribute<>))
-				beforeSet.Add(attributeType.GetGenericArguments()[0]);
-			else if (generic == typeof(AfterAttribute<>))
-				afterSet.Add(attributeType.GetGenericArguments()[0]);
+			switch (attribute)
+			{
+				case BeforeAttribute beforeAttribute:
+					beforeSet.Add(beforeAttribute.SystemType);
+					break;
+				case AfterAttribute afterAttribute:
+					afterSet.Add(afterAttribute.SystemType);
+					break;
+			}
 		}
 	}
 

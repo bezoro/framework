@@ -1,3 +1,4 @@
+using System.Linq;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -203,9 +204,25 @@ public class InputMovementSystemsTests
 		var systemType = typeof(IntentToVelocitySystem);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(ReadsAttribute<InputControl>),          true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<MovementInputSettings>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<MovementIntent>),       true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesAttribute<Velocity>),             true).Should().BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(InputControl))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(MovementInputSettings))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(MovementIntent))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(Velocity))
+				  .Should()
+				  .BeTrue();
 	}
 }

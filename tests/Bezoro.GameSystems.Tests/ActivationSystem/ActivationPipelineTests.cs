@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.GameSystems.ActivationSystem.Extensions;
@@ -19,12 +20,36 @@ public class ActivationPipelineTests
 	{
 		var systemType = typeof(ActivationProcessingSystem);
 
-		systemType.IsDefined(typeof(WritesAttribute<ActivationEntry>),                         true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<ActivationCancellationRequest>),            true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsResourceAttribute<ActivationConfig>),                 true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationRuntimeState>),          true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationEventsResource>),        true).Should().BeTrue();
-		systemType.IsDefined(typeof(WritesResourceAttribute<ActivationDispatchQueueResource>), true).Should().BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(ActivationEntry))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(ActivationCancellationRequest))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsResourceAttribute), true)
+				  .Cast<ReadsResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(ActivationConfig))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(ActivationRuntimeState))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(ActivationEventsResource))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesResourceAttribute), true)
+				  .Cast<WritesResourceAttribute>()
+				  .Any(attribute => attribute.ResourceType == typeof(ActivationDispatchQueueResource))
+				  .Should()
+				  .BeTrue();
 	}
 
 	[Fact]

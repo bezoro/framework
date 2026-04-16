@@ -64,14 +64,14 @@ public class GeneratedSystemMetadataResolverTests
 	}
 }
 
-[Reads<ResolverReadComponent>]
+[Reads(typeof(ResolverReadComponent))]
 [Exclusive]
 internal abstract class ResolverBaseSystem : ISystem
 {
 	public abstract void Update(in SystemContext context);
 }
 
-[Writes<ResolverWriteComponent>]
+[Writes(typeof(ResolverWriteComponent))]
 internal sealed class ResolverDerivedSystem : ResolverBaseSystem
 {
 	public override void Update(in SystemContext context) { }
@@ -79,8 +79,8 @@ internal sealed class ResolverDerivedSystem : ResolverBaseSystem
 
 internal static class ResolverNestedSystems
 {
-	[Reads<ResolverReadComponent>]
-	[Writes<ResolverWriteComponent>]
+	[Reads(typeof(ResolverReadComponent))]
+	[Writes(typeof(ResolverWriteComponent))]
 	internal sealed class NestedSystem : ISystem
 	{
 		public void Update(in SystemContext context) { }
@@ -89,8 +89,8 @@ internal static class ResolverNestedSystems
 
 internal struct ResolverReadComponent;
 
-[Reads<ResolverReadComponent>]
-[Writes<ResolverWriteComponent>]
+[Reads(typeof(ResolverReadComponent))]
+[Writes(typeof(ResolverWriteComponent))]
 [Exclusive]
 internal struct ResolverStructSystem : ISystem
 {

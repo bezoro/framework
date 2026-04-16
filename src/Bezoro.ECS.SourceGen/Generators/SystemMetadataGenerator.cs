@@ -625,22 +625,18 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				if (namespaceName != "Bezoro.ECS.Attributes")
 					continue;
 
-				if (attributeClass.Name == "ReadsAttribute" && attributeClass.TypeArguments.Length == 1)
-					reads.Add(
-						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-					);
-				else if (attributeClass.Name == "WritesAttribute" && attributeClass.TypeArguments.Length == 1)
-					writes.Add(
-						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-					);
-				else if (attributeClass.Name == "ReadsResourceAttribute" && attributeClass.TypeArguments.Length == 1)
-					readResources.Add(
-						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-					);
-				else if (attributeClass.Name == "WritesResourceAttribute" && attributeClass.TypeArguments.Length == 1)
-					writeResources.Add(
-						attributeClass.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-					);
+				if (attributeClass.Name == "ReadsAttribute" &&
+					TryGetSingleAttributeTypeName(attribute, out var readTypeName))
+					reads.Add(readTypeName);
+				else if (attributeClass.Name == "WritesAttribute" &&
+						 TryGetSingleAttributeTypeName(attribute, out var writeTypeName))
+					writes.Add(writeTypeName);
+				else if (attributeClass.Name == "ReadsResourceAttribute" &&
+						 TryGetSingleAttributeTypeName(attribute, out var readResourceTypeName))
+					readResources.Add(readResourceTypeName);
+				else if (attributeClass.Name == "WritesResourceAttribute" &&
+						 TryGetSingleAttributeTypeName(attribute, out var writeResourceTypeName))
+					writeResources.Add(writeResourceTypeName);
 				else if (attributeClass.Name == "ExclusiveAttribute")
 					isExclusive = true;
 			}
@@ -968,5 +964,38 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		public IReadOnlyList<string> Writes         { get; } = writes;
 
 		public string SystemType { get; } = systemType;
+	}
+
+	private static bool TryGetSingleAttributeTypeName(AttributeData attribute, out string typeName)
+	{
+		typeName = string.Empty;
+		if (TryGetSingleAttributeType(attribute, out var type))
+		{
+			typeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool TryGetSingleAttributeType(AttributeData attribute, out ITypeSymbol type)
+	{
+		type = null!;
+		var attributeClass = attribute.AttributeClass;
+		if (attributeClass is { TypeArguments.Length: 1 })
+		{
+			type = attributeClass.TypeArguments[0];
+			return true;
+		}
+
+		if (attribute.ConstructorArguments.Length == 1 &&
+			attribute.ConstructorArguments[0].Kind == TypedConstantKind.Type &&
+			attribute.ConstructorArguments[0].Value is ITypeSymbol constructorType)
+		{
+			type = constructorType;
+			return true;
+		}
+
+		return false;
 	}
 }

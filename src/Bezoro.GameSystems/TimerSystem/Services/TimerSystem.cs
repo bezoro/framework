@@ -10,8 +10,8 @@ namespace Bezoro.GameSystems.TimerSystem.Services;
 /// <summary>
 ///     ECS system that advances running timers and emits lifecycle callbacks.
 /// </summary>
-[Writes<Timer>]
-[WritesResource<TimerEventsResource>]
+[Writes(typeof(Timer))]
+[WritesResource(typeof(TimerEventsResource))]
 public sealed class TimerSystem : ISystem
 {
 	/// <summary>
@@ -173,5 +173,5 @@ public sealed class TimerSystem : ISystem
 }
 
 [Query]
-[With<Timer>]
+[With(typeof(Timer))]
 internal readonly partial struct TimerQuery;

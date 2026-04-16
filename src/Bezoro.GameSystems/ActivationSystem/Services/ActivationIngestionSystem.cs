@@ -11,8 +11,8 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 /// <summary>
 ///     ECS system that drains externally queued activation commands.
 /// </summary>
-[Writes<ActivationEntry>]
-[Writes<ActivationCancellationRequest>]
+[Writes(typeof(ActivationEntry))]
+[Writes(typeof(ActivationCancellationRequest))]
 public sealed class ActivationIngestionSystem : ISystem
 {
 	public Stage Stage => Stage.Input;

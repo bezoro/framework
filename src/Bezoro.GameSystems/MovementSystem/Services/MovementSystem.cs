@@ -14,8 +14,8 @@ namespace Bezoro.GameSystems.MovementSystem.Services;
 /// <remarks>
 ///     Uses typed query iteration for cache-friendly sequential processing.
 /// </remarks>
-[Writes<Position>]
-[Reads<Velocity>]
+[Writes(typeof(Position))]
+[Reads(typeof(Velocity))]
 public sealed class MovementSystem : ISystem
 {
 	private QueryHandle<MovementQuerySpec> _query;

@@ -1,3 +1,4 @@
+using System.Linq;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -76,7 +77,15 @@ public class MovementSystemTests
 		var systemType = typeof(MovementSystemType);
 
 		// Act / Assert
-		systemType.IsDefined(typeof(WritesAttribute<Position>), true).Should().BeTrue();
-		systemType.IsDefined(typeof(ReadsAttribute<Velocity>),  true).Should().BeTrue();
+		systemType.GetCustomAttributes(typeof(WritesAttribute), true)
+				  .Cast<WritesAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(Position))
+				  .Should()
+				  .BeTrue();
+		systemType.GetCustomAttributes(typeof(ReadsAttribute), true)
+				  .Cast<ReadsAttribute>()
+				  .Any(attribute => attribute.ComponentType == typeof(Velocity))
+				  .Should()
+				  .BeTrue();
 	}
 }
