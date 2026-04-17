@@ -1,7 +1,7 @@
 # Bezoro Framework for Unity
 
 This package publishes the precompiled `netstandard2.1` Bezoro Framework assemblies for Unity through a Git URL.
-The build pipeline stages the assemblies under `Runtime` and copies the checked-in Unity-authored `.meta` files from this package template.
+The build pipeline stages the assemblies under `Runtime`, copies each project README beside its corresponding DLL as `<AssemblyName>.README.md`, and copies the checked-in Unity-authored `.meta` files from this package template.
 
 ## Install
 
@@ -31,5 +31,10 @@ To move to the latest published package:
 - `Bezoro.GameSystems.dll`
 - `Bezoro.Logging.dll`
 - `Bezoro.TypingSystem.dll`
+
+Each assembly is accompanied by a sibling README, for example:
+
+- `Runtime/Bezoro.Core.dll`
+- `Runtime/Bezoro.Core.README.md`
 
 `Bezoro.ECS.SourceGen` is not part of the Unity package. This package is intended for consuming the precompiled runtime assemblies.

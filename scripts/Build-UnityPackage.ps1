@@ -34,15 +34,22 @@ $projects = Get-ChildItem (Join-Path $repositoryRoot "src") -Recurse -Filter "*.
 foreach ($project in $projects) {
 	$assemblyName = $project.BaseName
 	$buildOutputDirectory = Join-Path $project.Directory.FullName "bin\$Configuration\netstandard2.1"
+	$readmePath = Join-Path $project.Directory.FullName "README.md"
 
 	if (-not (Test-Path $buildOutputDirectory)) {
 		throw "Expected build output for '$assemblyName' at '$buildOutputDirectory'. Run 'dotnet build bezoro.framework.sln -c $Configuration' first."
 	}
 
+	if (-not (Test-Path $readmePath)) {
+		throw "Expected README for '$assemblyName' at '$readmePath'."
+	}
+
 	$artifactPath = Join-Path $buildOutputDirectory "$assemblyName.dll"
 	if (Test-Path $artifactPath) {
 		$destinationPath = Join-Path $runtimeRoot "$assemblyName.dll"
+		$destinationReadmePath = Join-Path $runtimeRoot "$assemblyName.README.md"
 		Copy-Item $artifactPath $destinationPath -Force
+		Copy-Item $readmePath $destinationReadmePath -Force
 	}
 }
 
