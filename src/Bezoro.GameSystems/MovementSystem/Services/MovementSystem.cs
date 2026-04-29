@@ -44,15 +44,19 @@ public sealed class MovementSystem : ISystem
 	public SystemUpdateSettings UpdateSettings { get; }
 
 	/// <summary>
-	///     Performs the movement update for all matching entities.
+	///     Compiles the movement query used during updates.
 	/// </summary>
-	/// <param name="context">The update context for this execution.</param>
+	/// <param name="world">The world that owns this system.</param>
 	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		_query = world.Compile<MovementQuerySpec>();
 	}
 
+	/// <summary>
+	///     Performs the movement update for all matching entities.
+	/// </summary>
+	/// <param name="context">The update context for this execution.</param>
 	public void Update(in SystemContext context)
 	{
 		float deltaTime = context.DeltaTime;
