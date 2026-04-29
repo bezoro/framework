@@ -206,7 +206,7 @@ public readonly struct ArrayElementInfo<T> : IEquatable<ArrayElementInfo<T>>
 	///     </code>
 	/// </example>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static ArrayElementInfo<T> NotFound(T searchedElement, uint arrayLength) =>
+	public static ArrayElementInfo<T> NotFound(T? searchedElement, uint arrayLength) =>
 		new(null, searchedElement, arrayLength);
 
 	/// <inheritdoc />
