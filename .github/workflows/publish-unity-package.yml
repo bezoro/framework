@@ -1,6 +1,9 @@
 name: Publish Unity Package
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -10,7 +13,34 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.203
+
+      - name: Restore
+        run: dotnet restore bezoro.framework.sln
+
+      - name: Build release binaries
+        run: dotnet build bezoro.framework.sln -c Release --no-restore
+
+      - name: Check public API baseline
+        shell: pwsh
+        run: ./scripts/Export-PublicApi.ps1 -Check
+
+      - name: Run release tests
+        run: dotnet test bezoro.framework.sln -c Release --no-build --verbosity minimal
+
   publish-unity-package:
+    needs: validate
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +52,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 10.0.203
 
       - name: Build release binaries
         run: dotnet build bezoro.framework.sln -c Release

@@ -1,8 +1,0 @@
-<Project>
-    <PropertyGroup>
-        <LangVersion>latest</LangVersion>
-        <Nullable>enable</Nullable>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <Company>Bezoro</Company>
-    </PropertyGroup>
-</Project>
