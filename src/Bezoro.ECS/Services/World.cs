@@ -32,6 +32,7 @@ public class World : IWorld, IDisposable
 	private readonly WorldLifecycleService       _lifecycleService;
 	private readonly WorldQueryEngine            _queryEngine;
 	private readonly WorldQueryRuntime           _queryRuntime;
+	private readonly WorldResourceFacade        _resources;
 	private readonly WorldRelationIndex          _relationIndex = new();
 	private readonly WorldResourceStore          _resourceStore = new();
 	private readonly WorldSnapshotCoordinator    _snapshotCoordinator;
@@ -53,6 +54,7 @@ public class World : IWorld, IDisposable
 		_entityStore            = new(this, _config, _relationIndex);
 		_changeTracker          = new(_entityStore, _config);
 		_queryRuntime           = new(_entityStore, _relationIndex, _changeTracker);
+		_resources              = new(_resourceStore);
 		_directIterationService = new(this);
 		_queryEngine            = new(this, _config);
 		_snapshotService = new(
@@ -182,7 +184,7 @@ public class World : IWorld, IDisposable
 	public bool HasResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
-		return _resourceStore.Has<T>();
+		return _resources.Has<T>();
 	}
 
 	public bool IsAlive(Entity entity)
@@ -247,7 +249,7 @@ public class World : IWorld, IDisposable
 	public bool RemoveResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
-		return _resourceStore.Remove<T>();
+		return _resources.Remove<T>();
 	}
 
 	public bool TryGet<T>(Entity entity, out T component) where T : struct
@@ -278,7 +280,7 @@ public class World : IWorld, IDisposable
 	public bool TryReadResource<T>(out T resource) where T : notnull
 	{
 		ThrowIfDisposed();
-		return _resourceStore.TryRead(out resource);
+		return _resources.TryRead(out resource);
 	}
 
 	public bool TryWrite<T>(Entity entity, out ComponentRef<T> component) where T : struct
@@ -439,19 +441,19 @@ public class World : IWorld, IDisposable
 	public ref T GetOrCreateResource<T>() where T : notnull, new()
 	{
 		ThrowIfDisposed();
-		return ref _resourceStore.GetOrCreate<T>();
+		return ref _resources.GetOrCreate<T>();
 	}
 
 	public ref T GetOrCreateResource<T>(Func<T> factory) where T : notnull
 	{
 		ThrowIfDisposed();
-		return ref _resourceStore.GetOrCreate(factory);
+		return ref _resources.GetOrCreate(factory);
 	}
 
 	public ref T GetResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
-		return ref _resourceStore.Get<T>();
+		return ref _resources.Get<T>();
 	}
 
 	public ref readonly T Read<T>(Entity entity) where T : struct
@@ -965,7 +967,7 @@ public class World : IWorld, IDisposable
 	public void SetResource<T>(T resource) where T : notnull
 	{
 		ThrowIfDisposed();
-		_resourceStore.Set(resource);
+		_resources.Set(resource);
 	}
 
 	public void SetSystemSetEnabled<TSet>(bool enabled)
@@ -1542,7 +1544,7 @@ public class World : IWorld, IDisposable
 
 	internal void SetResourceBoxedFromSnapshot(Type resourceType, object value)
 	{
-		_resourceStore.SetBoxed(resourceType, value);
+		_resources.SetBoxed(resourceType, value);
 	}
 
 	internal void TrackPotentialAccessorRefWrite(
