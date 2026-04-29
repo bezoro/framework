@@ -19,6 +19,7 @@ High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 | `MoveUndoneEvent`                | `Bezoro.Chess.UCI.API.Types`        | Undo payload carrying removed moves and the resulting position.                                |
 | `TurnChangedEvent`               | `Bezoro.Chess.UCI.API.Types`        | Active-side transition payload for board and HUD updates.                                      |
 | `PositionLoadedEvent`            | `Bezoro.Chess.UCI.API.Types`        | Explicit load payload for save/load, replay, or editor workflows.                              |
+| `UciGameEngineSessionEvent` / `UciGameEngineSessionEventKind` | `Bezoro.Chess.UCI.API.Types` | Compact typed event stream payload and kind enum for session integrations. |
 | `PieceColor`, `PieceType`        | `Bezoro.Chess.UCI.API.Common.Enums` | Chess enums used by move and board analysis.                                                   |
 | `GameMoveActor`, `GameMoveKindFlags` | `Bezoro.Chess.UCI.API.Common.Enums` | UI-facing enums describing move initiators and structural move kinds.                        |
 
@@ -116,8 +117,8 @@ session.PositionChanged += state =>
 };
 session.MoveMade += move => Console.WriteLine($"{move.Actor}: {move.Notation} [{move.KindFlags}]");
 session.PromotionRequired += request => ShowPromotionButtons(request.AllowedPromotionPieces);
-session.MoveClassificationUpdated += move => Console.WriteLine($"Highlight {move.Notation}");
-session.EvaluationUpdated += pv => Console.WriteLine(pv.Raw);
+session.MoveClassified += move => Console.WriteLine($"Highlight {move.Notation}");
+session.EvaluationChanged += pv => Console.WriteLine(pv.Raw);
 session.EngineThinkingStarted += _ => ShowThinking(true);
 session.EngineThinkingStopped += _ => ShowThinking(false);
 session.ResultChanged += state => Console.WriteLine($"Result: {state.Result.Reason}");
@@ -126,6 +127,35 @@ session.ClockPaused += state => Console.WriteLine($"Clock paused: {state.Clock?.
 
 await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 await session.StartSearchAsync(cancellationToken);
+```
+
+### Prefer the compact typed event stream for new integrations
+```csharp
+using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Types;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
+
+session.EventPublished += sessionEvent =>
+{
+    switch (sessionEvent)
+    {
+        case { Kind: UciGameEngineSessionEventKind.MoveMade, Move: { } move }:
+            Console.WriteLine($"{move.Actor}: {move.Notation}");
+            break;
+
+        case { Kind: UciGameEngineSessionEventKind.PositionChanged, State: { } state }:
+            Console.WriteLine(state.CurrentFen.Raw);
+            break;
+
+        case { Kind: UciGameEngineSessionEventKind.PromotionRequired, PromotionRequired: { } request }:
+            ShowPromotionButtons(request.AllowedPromotionPieces);
+            break;
+    }
+};
+
+await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
 ```
 
 ### Drive a promotion request/response flow
@@ -199,6 +229,7 @@ await session.SetDebugAsync(false, cancellationToken);
 | `GetController(side)`                                             | Returns the configured controller for `w` or `b`.                   |
 | `State`                                                           | Current immutable snapshot.                                         |
 | `EngineInfo` / `AvailableOptions` / `Capabilities`                | Handshake metadata surfaced from the snapshot client.               |
+| `EventPublished`                                                   | Compact typed event stream for new integrations.                    |
 | `GameStarted`                                                     | Raised when a fresh gameplay session starts.                        |
 | `MoveMade`                                                        | Canonical rich move event for applied moves.                        |
 | `CaptureMade` / `CastlingMade` / `EnPassantMade`                  | Convenience move projections for common UI hooks.                   |
@@ -214,12 +245,15 @@ await session.SetDebugAsync(false, cancellationToken);
 | `LegalMovesUpdated`                                               | Raised when the visible legal move set changes.                     |
 | `SearchStateChanged`                                              | Raised when the session enters or leaves searching state.           |
 | `EngineThinkingStarted` / `EngineThinkingStopped`                 | Raised for UI-facing engine-think lifecycle transitions.            |
-| `EvaluationChanged` / `EvaluationUpdated`                         | Raised for new principal variations from the ponder engine.         |
+| `EvaluationChanged`                                                | Raised for new principal variations from the ponder engine.         |
+| `EvaluationUpdated`                                                | Obsolete alias for `EvaluationChanged`; prefer `EvaluationChanged` or `EventPublished`. |
 | `BestMoveChanged`                                                 | Raised when the current best/ponder move pair changes.              |
-| `MoveClassified` / `MoveClassificationUpdated`                    | Raised for each newly classified legal move.                        |
+| `MoveClassified`                                                   | Raised for each newly classified legal move.                        |
+| `MoveClassificationUpdated`                                       | Obsolete alias for `MoveClassified`; prefer `MoveClassified` or `EventPublished`. |
 | `ClassificationCompleted`                                         | Raised when the current position's move classification is complete. |
 | `GameOver`                                                        | Raised when the current position has no legal moves.                |
-| `StateChanged`, `Ready`, `Stopped`, `Error`, `EngineError`        | Coarser lifecycle and integration events.                           |
+| `StateChanged`, `Ready`, `Stopped`, `Error`                       | Coarser lifecycle and integration events.                           |
+| `EngineError`                                                     | Obsolete alias for `Error`; prefer `Error` or `EventPublished`.     |
 
 ### `GameMoveEvent`
 | Property | Meaning |
@@ -280,6 +314,8 @@ await session.SetDebugAsync(false, cancellationToken);
 - This project hides transport/protocol complexity behind one game-facing facade.
 - The session now uses the protocol layer's controller-neutral side model, so the same facade can represent manual/manual, manual/engine, or engine/engine local sessions.
 - The session exposes one canonical rich `MoveMade` payload plus convenience events so a game engine can react to board snapshots, search updates, move semantics, undo, promotion, and terminal states without reverse-engineering chess rules from raw UCI strings.
+- New integrations should prefer `EventPublished`; focused subscriptions should use canonical named events such as `EvaluationChanged`, `MoveClassified`, and `Error`.
+- Obsolete compatibility aliases (`EvaluationUpdated`, `MoveClassificationUpdated`, and `EngineError`) remain for source compatibility only.
 - Resign, draw offer/claim, adjudicated result, and chess-clock state are projected from protocol-backed match rules rather than reimplemented by the consumer.
 - The session builds on protocol-owned local FEN and legal-move generation for playable match flow, while engine-specific `d` and `go perft 1` remain available only as optional low-level escape hatches on `UciEngineClient`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.

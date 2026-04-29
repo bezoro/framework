@@ -100,8 +100,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<PrincipalVariation>? EvaluationChanged;
 
 	/// <summary>
-	///     Raised when the ponder engine publishes a new principal variation for UI-facing evaluation displays.
+	///     Obsolete alias for <see cref="EvaluationChanged"/>.
 	/// </summary>
+	[Obsolete("Use EvaluationChanged or EventPublished instead.")]
 	public event Action<PrincipalVariation>? EvaluationUpdated;
 
 	/// <summary>
@@ -115,8 +116,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<Move>? MoveClassified;
 
 	/// <summary>
-	///     Raised for each move classification produced for the current position using a UI-oriented event name.
+	///     Obsolete alias for <see cref="MoveClassified"/>.
 	/// </summary>
+	[Obsolete("Use MoveClassified or EventPublished instead.")]
 	public event Action<Move>? MoveClassificationUpdated;
 
 	/// <summary>
@@ -225,14 +227,20 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<UciState>? EngineThinkingStopped;
 
 	/// <summary>
-	///     Raised when an error occurs in engine-facing operations using a game-engine-oriented name.
+	///     Obsolete alias for <see cref="Error"/>.
 	/// </summary>
+	[Obsolete("Use Error or EventPublished instead.")]
 	public event Action<Exception>? EngineError;
 
 	/// <summary>
 	///     Raised when the coordinator has fully stopped.
 	/// </summary>
 	public event Action? Stopped;
+
+	/// <summary>
+	///     Raised for every canonical session event through a compact typed stream.
+	/// </summary>
+	public event Action<UciGameEngineSessionEvent>? EventPublished;
 
 	/// <summary>
 	///     Constructs a new UciGameEngineSession with engines initialized for the given enginePath, arguments, and working
@@ -243,6 +251,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="workingDirectory">Optional working directory.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
 	/// <param name="options">Optional configuration options for the coordinator.</param>
+	/// <param name="perspectiveColor">The board perspective color, either <c>w</c> or <c>b</c>.</param>
+	/// <param name="whiteController">Controller kind for the white side.</param>
+	/// <param name="blackController">Controller kind for the black side.</param>
 	public UciGameEngineSession(
 		string                  enginePath,
 		IEnumerable<string>?    args             = null,
@@ -376,7 +387,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 				_state = value;
 			}
 
-			_events.Raise(StateChanged, value);
+			RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, value);
 		}
 	}
 
@@ -386,6 +397,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="enginePath">Path to the UCI engine executable.</param>
 	/// <param name="options">Configuration options for the coordinator.</param>
 	/// <param name="syncContext">Optional synchronization context to marshal events to (e.g. UI thread).</param>
+	/// <param name="perspectiveColor">The board perspective color, either <c>w</c> or <c>b</c>.</param>
+	/// <param name="whiteController">Controller kind for the white side.</param>
+	/// <param name="blackController">Controller kind for the black side.</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>A fully initialized and started coordinator.</returns>
 	public static async Task<UciGameEngineSession> CreateAsync(
@@ -551,7 +565,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		ResetGameplaySession();
 		State = UciState.Default;
-		_events.Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
+		var gameStarted = new GameStartedEvent(_gameId, Fen.Default, DateTimeOffset.UtcNow);
+		RaiseTypedEvent(GameStarted, gameStarted, UciGameEngineSessionEvent.ForGameStarted(gameStarted));
 	}
 
 	/// <summary>
@@ -638,8 +653,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			ResetGameplaySession();
 			State = UciState.Default;
 
-			_events.Raise(GameStarted, new(_gameId, Fen.Default, DateTimeOffset.UtcNow));
-			_events.Raise(Ready);
+			var gameStarted = new GameStartedEvent(_gameId, Fen.Default, DateTimeOffset.UtcNow);
+			RaiseTypedEvent(GameStarted, gameStarted, UciGameEngineSessionEvent.ForGameStarted(gameStarted));
+			RaiseSessionEvent(Ready, UciGameEngineSessionEventKind.Ready);
 		}
 		catch
 		{
@@ -725,7 +741,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 
-		_events.Raise(Stopped);
+		RaiseSessionEvent(Stopped, UciGameEngineSessionEventKind.Stopped);
 		CoordinatorRuntimeUtilities.ThrowStopFailures(stopFailures, cancellationRequested, ct);
 	}
 
@@ -772,19 +788,29 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		var metadata = ApplyMatchMetadata(snapshot);
 		snapshot = metadata.Snapshot;
 		if (metadata.ResultChanged)
-			_events.Raise(ResultChanged, snapshot);
+			RaiseStateEvent(ResultChanged, UciGameEngineSessionEventKind.ResultChanged, snapshot);
 
-		_events.Raise(
-			PositionLoaded,
-			new(_gameId, snapshot.BaseFen, snapshot.CurrentFen, [.. snapshot.PlayedMoves], DateTimeOffset.UtcNow)
+		var positionLoaded = new PositionLoadedEvent(
+			_gameId,
+			snapshot.BaseFen,
+			snapshot.CurrentFen,
+			[.. snapshot.PlayedMoves],
+			DateTimeOffset.UtcNow
 		);
+		RaiseTypedEvent(PositionLoaded, positionLoaded, UciGameEngineSessionEvent.ForPositionLoaded(positionLoaded));
 		PublishPositionChanged(snapshot);
-		_events.Raise(LegalMovesUpdated, snapshot);
+		RaiseStateEvent(LegalMovesUpdated, UciGameEngineSessionEventKind.LegalMovesUpdated, snapshot);
 		if (previousTurn != snapshot.CurrentFen.ActiveColor)
-			_events.Raise(
-				TurnChanged,
-				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
+		{
+			var turnChanged = new TurnChangedEvent(
+				_gameId,
+				previousTurn,
+				snapshot.CurrentFen.ActiveColor,
+				snapshot.CurrentFen,
+				DateTimeOffset.UtcNow
 			);
+			RaiseTypedEvent(TurnChanged, turnChanged, UciGameEngineSessionEvent.ForTurnChanged(turnChanged));
+		}
 		PublishGameOver(snapshot);
 
 		await StartBackgroundWorkAsync(fen, movesList, snapshot.CurrentFen, snapshot.LegalMoves, ct).ConfigureAwait(false);
@@ -968,7 +994,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 				);
 			}
 
-			_events.Raise(PromotionRequired, request);
+			RaiseTypedEvent(
+				PromotionRequired,
+				request,
+				UciGameEngineSessionEvent.ForPromotionRequired(request)
+			);
 			return currentState;
 		}
 
@@ -1068,16 +1098,23 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			_appliedMoveHistory = appliedMoves[..Math.Max(0, appliedMoves.Length - removedMoves.Length)];
 		}
 
-		_events.Raise(MoveUndone, new(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow));
+		var moveUndone = new MoveUndoneEvent(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow);
+		RaiseTypedEvent(MoveUndone, moveUndone, UciGameEngineSessionEvent.ForMoveUndone(moveUndone));
 		if (metadata.ResultChanged)
-			_events.Raise(ResultChanged, snapshot);
+			RaiseStateEvent(ResultChanged, UciGameEngineSessionEventKind.ResultChanged, snapshot);
 		if (previousTurn != snapshot.CurrentFen.ActiveColor)
-			_events.Raise(
-				TurnChanged,
-				new(_gameId, previousTurn, snapshot.CurrentFen.ActiveColor, snapshot.CurrentFen, DateTimeOffset.UtcNow)
+		{
+			var turnChanged = new TurnChangedEvent(
+				_gameId,
+				previousTurn,
+				snapshot.CurrentFen.ActiveColor,
+				snapshot.CurrentFen,
+				DateTimeOffset.UtcNow
 			);
+			RaiseTypedEvent(TurnChanged, turnChanged, UciGameEngineSessionEvent.ForTurnChanged(turnChanged));
+		}
 		PublishPositionChanged(snapshot);
-		_events.Raise(LegalMovesUpdated, snapshot);
+		RaiseStateEvent(LegalMovesUpdated, UciGameEngineSessionEventKind.LegalMovesUpdated, snapshot);
 		PublishGameOver(snapshot);
 
 		await StartBackgroundWorkAsync(
@@ -1097,7 +1134,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	{
 		ct.ThrowIfCancellationRequested();
 		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor);
-		_events.Raise(DrawOffered, snapshot);
+		RaiseStateEvent(DrawOffered, UciGameEngineSessionEventKind.DrawOffered, snapshot);
 		return Task.FromResult(snapshot);
 	}
 
@@ -1118,7 +1155,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	{
 		ct.ThrowIfCancellationRequested();
 		var snapshot = UpdateMatchMetadata(drawOfferedBy: null);
-		_events.Raise(DrawDeclined, snapshot);
+		RaiseStateEvent(DrawDeclined, UciGameEngineSessionEventKind.DrawDeclined, snapshot);
 		return Task.FromResult(snapshot);
 	}
 
@@ -1158,7 +1195,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_clockHistory[^1] = checkpoint with { PausedAtUtc = DateTimeOffset.UtcNow };
 		_isClockPaused = true;
 		var snapshot = UpdateMatchMetadata();
-		_events.Raise(ClockPaused, snapshot);
+		RaiseStateEvent(ClockPaused, UciGameEngineSessionEventKind.ClockPaused, snapshot);
 		return Task.FromResult(snapshot);
 	}
 
@@ -1181,7 +1218,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		};
 		_isClockPaused = false;
 		var snapshot = UpdateMatchMetadata();
-		_events.Raise(ClockResumed, snapshot);
+		RaiseStateEvent(ClockResumed, UciGameEngineSessionEventKind.ClockResumed, snapshot);
 		return Task.FromResult(snapshot);
 	}
 
@@ -1406,39 +1443,43 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		snapshot = metadata.Snapshot;
 
 		if (promotionChosenEvent.HasValue)
-			_events.Raise(PromotionChosen, promotionChosenEvent.Value);
+			RaiseTypedEvent(
+				PromotionChosen,
+				promotionChosenEvent.Value,
+				UciGameEngineSessionEvent.ForPromotionChosen(promotionChosenEvent.Value)
+			);
 
-		_events.Raise(MoveMade, moveEvent);
+		RaiseTypedEvent(MoveMade, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.MoveMade, moveEvent));
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.Capture))
-			_events.Raise(CaptureMade, moveEvent);
+			RaiseTypedEvent(CaptureMade, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.CaptureMade, moveEvent));
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.KingsideCastling) ||
 			moveEvent.KindFlags.HasFlag(GameMoveKindFlags.QueensideCastling))
-			_events.Raise(CastlingMade, moveEvent);
+			RaiseTypedEvent(CastlingMade, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.CastlingMade, moveEvent));
 		if (moveEvent.KindFlags.HasFlag(GameMoveKindFlags.EnPassant))
-			_events.Raise(EnPassantMade, moveEvent);
+			RaiseTypedEvent(EnPassantMade, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.EnPassantMade, moveEvent));
 		if (moveEvent.IsCheck)
-			_events.Raise(Check, moveEvent);
+			RaiseTypedEvent(Check, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.Check, moveEvent));
 		if (moveEvent.IsCheckmate)
-			_events.Raise(Checkmate, moveEvent);
+			RaiseTypedEvent(Checkmate, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.Checkmate, moveEvent));
 		if (moveEvent.IsStalemate)
-			_events.Raise(Stalemated, moveEvent);
+			RaiseTypedEvent(Stalemated, moveEvent, UciGameEngineSessionEvent.ForMove(UciGameEngineSessionEventKind.Stalemated, moveEvent));
 		if (metadata.ResultChanged)
-			_events.Raise(ResultChanged, snapshot);
+			RaiseStateEvent(ResultChanged, UciGameEngineSessionEventKind.ResultChanged, snapshot);
 
 		PublishGameOver(snapshot);
 		if (previousState.CurrentFen.ActiveColor != snapshot.CurrentFen.ActiveColor)
-			_events.Raise(
-				TurnChanged,
-				new(
-					_gameId,
-					previousState.CurrentFen.ActiveColor,
-					snapshot.CurrentFen.ActiveColor,
-					snapshot.CurrentFen,
-					DateTimeOffset.UtcNow
-				)
+		{
+			var turnChanged = new TurnChangedEvent(
+				_gameId,
+				previousState.CurrentFen.ActiveColor,
+				snapshot.CurrentFen.ActiveColor,
+				snapshot.CurrentFen,
+				DateTimeOffset.UtcNow
 			);
+			RaiseTypedEvent(TurnChanged, turnChanged, UciGameEngineSessionEvent.ForTurnChanged(turnChanged));
+		}
 		PublishPositionChanged(snapshot);
-		_events.Raise(LegalMovesUpdated, snapshot);
+		RaiseStateEvent(LegalMovesUpdated, UciGameEngineSessionEventKind.LegalMovesUpdated, snapshot);
 
 		await StartBackgroundWorkAsync(
 			previousState.BaseFen,
@@ -1456,10 +1497,15 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		IReadOnlyList<string>  legalMoves,
 		bool                   isPromotionChoicePending)
 	{
-		_events.Raise(
-			IllegalMoveRejected,
-			new(_gameId, move, reason, [.. legalMoves], isPromotionChoicePending, DateTimeOffset.UtcNow)
+		var illegalMove = new IllegalMoveRejectedEvent(
+			_gameId,
+			move,
+			reason,
+			[.. legalMoves],
+			isPromotionChoicePending,
+			DateTimeOffset.UtcNow
 		);
+		RaiseTypedEvent(IllegalMoveRejected, illegalMove, UciGameEngineSessionEvent.ForIllegalMove(illegalMove));
 		throw new ArgumentException(reason, nameof(move));
 	}
 
@@ -1471,7 +1517,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		var update = ApplyMatchMetadata(State);
 		if (update.ResultChanged)
 		{
-			_events.Raise(ResultChanged, update.Snapshot);
+			RaiseStateEvent(ResultChanged, UciGameEngineSessionEventKind.ResultChanged, update.Snapshot);
 			PublishGameOver(update.Snapshot);
 		}
 
@@ -1840,9 +1886,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		PublishSearchStateChanged(snapshot);
 		if (isSearching)
-			_events.Raise(EngineThinkingStarted, snapshot);
+			RaiseStateEvent(EngineThinkingStarted, UciGameEngineSessionEventKind.EngineThinkingStarted, snapshot);
 		else
-			_events.Raise(EngineThinkingStopped, snapshot);
+			RaiseStateEvent(EngineThinkingStopped, UciGameEngineSessionEventKind.EngineThinkingStopped, snapshot);
 	}
 
 	private void AcceptPonderGeneration(int generation) =>
@@ -1905,16 +1951,22 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (!snapshot.HasValue)
 			return;
 
-		_events.Raise(StateChanged, snapshot.Value);
-		_events.Raise(MoveClassified, move);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, snapshot.Value);
+		RaiseTypedEvent(MoveClassified, move, UciGameEngineSessionEvent.ForClassifiedMove(move));
+#pragma warning disable CS0618
 		_events.Raise(MoveClassificationUpdated, move);
+#pragma warning restore CS0618
 	}
 
 	private void CompleteClassificationRun(int generation)
 	{
 		_classificationRuntime.CompleteRun(State, generation, out var snapshot);
 		if (snapshot.HasValue)
-			_events.Raise(ClassificationCompleted, snapshot.Value);
+			RaiseStateEvent(
+				ClassificationCompleted,
+				UciGameEngineSessionEventKind.ClassificationCompleted,
+				snapshot.Value
+			);
 	}
 
 	private void FaultClassificationRun(int generation, Exception ex) =>
@@ -1943,9 +1995,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			snapshot = _state;
 		}
 
-		_events.Raise(StateChanged, snapshot);
-		_events.Raise(EvaluationChanged, pv);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, snapshot);
+		RaiseTypedEvent(EvaluationChanged, pv, UciGameEngineSessionEvent.ForEvaluation(pv));
+#pragma warning disable CS0618
 		_events.Raise(EvaluationUpdated, pv);
+#pragma warning restore CS0618
 	}
 
 	/// <summary>
@@ -1969,26 +2023,50 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			snapshot = _state;
 		}
 
-		_events.Raise(StateChanged, snapshot);
-		_events.Raise(BestMoveChanged, snapshot);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, snapshot);
+		RaiseStateEvent(BestMoveChanged, UciGameEngineSessionEventKind.BestMoveChanged, snapshot);
+	}
+
+	private void RaiseSessionEvent(Action? legacyHandler, UciGameEngineSessionEventKind kind)
+	{
+		_events.Raise(legacyHandler);
+		_events.Raise(EventPublished, UciGameEngineSessionEvent.Create(kind));
+	}
+
+	private void RaiseStateEvent(
+		Action<UciState>?              legacyHandler,
+		UciGameEngineSessionEventKind  kind,
+		UciState                       state)
+	{
+		_events.Raise(legacyHandler, state);
+		_events.Raise(EventPublished, UciGameEngineSessionEvent.ForState(kind, state));
+	}
+
+	private void RaiseTypedEvent<T>(
+		Action<T>?                     legacyHandler,
+		T                              payload,
+		UciGameEngineSessionEvent      sessionEvent)
+	{
+		_events.Raise(legacyHandler, payload);
+		_events.Raise(EventPublished, sessionEvent);
 	}
 
 	private void PublishPositionChanged(UciState snapshot)
 	{
-		_events.Raise(StateChanged, snapshot);
-		_events.Raise(PositionChanged, snapshot);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, snapshot);
+		RaiseStateEvent(PositionChanged, UciGameEngineSessionEventKind.PositionChanged, snapshot);
 	}
 
 	private void PublishGameOver(UciState snapshot)
 	{
 		if (snapshot.IsGameOver)
-			_events.Raise(GameOver, snapshot);
+			RaiseStateEvent(GameOver, UciGameEngineSessionEventKind.GameOver, snapshot);
 	}
 
 	private void PublishSearchStateChanged(UciState snapshot)
 	{
-		_events.Raise(StateChanged, snapshot);
-		_events.Raise(SearchStateChanged, snapshot);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, snapshot);
+		RaiseStateEvent(SearchStateChanged, UciGameEngineSessionEventKind.SearchStateChanged, snapshot);
 	}
 
 	/// <summary>
@@ -1996,8 +2074,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	private void RaiseError(Exception ex)
 	{
-		_events.Raise(Error, ex);
+		RaiseTypedEvent(Error, ex, UciGameEngineSessionEvent.ForError(ex));
+#pragma warning disable CS0618
 		_events.Raise(EngineError, ex);
+#pragma warning restore CS0618
 	}
 
 	private async Task StopSearchCoreAsync(CancellationToken ct)

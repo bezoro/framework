@@ -14,6 +14,53 @@ namespace Bezoro.Chess.UCI.Tests.API;
 public class UciGameEngineSessionGameEventModelTests
 {
 	[Fact]
+	public async Task EventPublished_WhenNormalMoveIsApplied_ShouldRaiseCompactTypedStreamOnProvidedSynchronizationContext()
+	{
+		var syncContext = new RecordingSynchronizationContext();
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			syncContext: syncContext,
+			ct: CancellationToken.None
+		);
+
+		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+
+		var eventOrder = new List<UciGameEngineSessionEventKind>();
+		SynchronizationContext? eventContext = null;
+		var positionChanged = new TaskCompletionSource<UciGameEngineSessionEvent>(
+			TaskCreationOptions.RunContinuationsAsynchronously
+		);
+
+		coordinator.EventPublished += sessionEvent =>
+		{
+			if (sessionEvent.Kind is not (
+				    UciGameEngineSessionEventKind.MoveMade or
+				    UciGameEngineSessionEventKind.TurnChanged or
+				    UciGameEngineSessionEventKind.PositionChanged))
+				return;
+
+			eventContext = SynchronizationContext.Current;
+			eventOrder.Add(sessionEvent.Kind);
+
+			if (sessionEvent is { Kind: UciGameEngineSessionEventKind.PositionChanged, State.PlayedMoves.Count: 1 })
+				positionChanged.TrySetResult(sessionEvent);
+		};
+
+		await coordinator.MakeMoveAsync("e2e4", CancellationToken.None);
+
+		var payload = await positionChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
+
+		eventContext.Should().BeSameAs(syncContext);
+		eventOrder.Should().ContainInOrder(
+			UciGameEngineSessionEventKind.MoveMade,
+			UciGameEngineSessionEventKind.TurnChanged,
+			UciGameEngineSessionEventKind.PositionChanged
+		);
+		payload.State.Should().NotBeNull();
+		payload.State!.Value.PlayedMoves.Should().ContainSingle("e2e4");
+	}
+
+	[Fact]
 	public async Task MakeMoveAsync_WhenNormalMoveIsApplied_ShouldRaiseOrderedRichEventsOnProvidedSynchronizationContext()
 	{
 		var syncContext = new RecordingSynchronizationContext();

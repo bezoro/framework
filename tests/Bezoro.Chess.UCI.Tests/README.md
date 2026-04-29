@@ -28,4 +28,4 @@ dotnet test tests/Bezoro.Chess.UCI.Tests/Bezoro.Chess.UCI.Tests.csproj --filter 
 - Move classification produces stable chess/UI semantics such as capture, castling, promotion, check, and mate flags.
 - Result adjudication, draw-offer flow, claimable draws, and protocol-backed chess clocks remain visible through the game-engine facade.
 - Session startup fails clearly when required engine extensions are unavailable.
-- State streaming, rich move payloads, promotion request/response events, undo events, and `SynchronizationContext` dispatch remain safe for app or UI integration.
+- State streaming, the compact typed `EventPublished` stream, rich move payloads, promotion request/response events, undo events, and `SynchronizationContext` dispatch remain safe for app or UI integration.
