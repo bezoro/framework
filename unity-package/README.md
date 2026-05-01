@@ -3,6 +3,16 @@
 This package publishes the precompiled `netstandard2.1` Bezoro Framework assemblies for Unity through a Git URL.
 The build pipeline stages the assemblies under `Runtime`, copies each project README beside its corresponding DLL as `<AssemblyName>.README.md`, and copies the checked-in Unity-authored `.meta` files from this package template.
 
+## Versioning
+
+The published package version is resolved from SemVer Git tags by `scripts/Get-PackageVersion.ps1`.
+
+- A commit tagged `v1.2.3` or `1.2.3` publishes `1.2.3`.
+- Commits after `v1.2.3` publish the next patch preview, for example `1.2.4-preview.1`.
+- Repositories with no SemVer tags publish from the initial preview line, for example `0.1.0-preview.1`.
+
+Set `BEZORO_PACKAGE_VERSION` or pass `-PackageVersion` to `scripts/Build-UnityPackage.ps1` to override the resolved version for local staging.
+
 ## Install
 
 In Unity, open `Window > Package Manager`, choose `Install package from git URL`, and use:

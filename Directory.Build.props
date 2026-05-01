@@ -6,6 +6,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
     <Company>Bezoro</Company>
+    <Version Condition="'$(BEZORO_PACKAGE_VERSION)' != ''">$(BEZORO_PACKAGE_VERSION)</Version>
+    <PackageVersion Condition="'$(BEZORO_PACKAGE_VERSION)' != ''">$(BEZORO_PACKAGE_VERSION)</PackageVersion>
+    <InformationalVersion Condition="'$(BEZORO_PACKAGE_VERSION)' != ''">$(BEZORO_PACKAGE_VERSION)</InformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\src\')) Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/src/'))">

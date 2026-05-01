@@ -19,17 +19,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.203
 
+      - name: Resolve package version
+        id: package-version
+        shell: pwsh
+        run: |
+          $version = ./scripts/Get-PackageVersion.ps1
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Resolved package version $version"
+
       - name: Restore
         run: dotnet restore bezoro.framework.sln
 
       - name: Build release binaries
-        run: dotnet build bezoro.framework.sln -c Release --no-restore
+        run: dotnet build bezoro.framework.sln -c Release --no-restore /p:ContinuousIntegrationBuild=true /p:Version=${{ steps.package-version.outputs.version }} /p:PackageVersion=${{ steps.package-version.outputs.version }} /p:InformationalVersion=${{ steps.package-version.outputs.version }}
 
       - name: Check public API baseline
         shell: pwsh
@@ -54,12 +64,20 @@ jobs:
         with:
           dotnet-version: 10.0.203
 
+      - name: Resolve package version
+        id: package-version
+        shell: pwsh
+        run: |
+          $version = ./scripts/Get-PackageVersion.ps1
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Resolved package version $version"
+
       - name: Build release binaries
-        run: dotnet build bezoro.framework.sln -c Release
+        run: dotnet build bezoro.framework.sln -c Release /p:ContinuousIntegrationBuild=true /p:Version=${{ steps.package-version.outputs.version }} /p:PackageVersion=${{ steps.package-version.outputs.version }} /p:InformationalVersion=${{ steps.package-version.outputs.version }}
 
       - name: Build Unity package
         shell: pwsh
-        run: ./scripts/Build-UnityPackage.ps1 -Configuration Release -OutputPath ./artifacts/unity-package
+        run: ./scripts/Build-UnityPackage.ps1 -Configuration Release -OutputPath ./artifacts/unity-package -PackageVersion "${{ steps.package-version.outputs.version }}"
 
       - name: Publish upm branch
         shell: pwsh
