@@ -50,7 +50,7 @@ public class SystemManagerErgonomicInferenceTests
 	public void UpdateAll_WhenSystemsUseReadOnlyResourceApisOnSameType_ShouldAllowConcurrentExecution()
 	{
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ErgonomicConcurrencyProbe();
+		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 		world.SetResource(new ErgonomicSchedulerResource());
 
 		world.AddSystem(new ErgonomicReadResourceSystem(probe));
@@ -119,7 +119,7 @@ public class SystemManagerErgonomicInferenceTests
 	public void UpdateAll_WhenSystemsUseReadOnlyQueryViewForEachOnSameManagedComponent_ShouldAllowConcurrentExecution()
 	{
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ErgonomicConcurrencyProbe();
+		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 
 		world.Spawn(new ErgonomicReadOnlyNote { Label = "ready" });
 
@@ -135,7 +135,7 @@ public class SystemManagerErgonomicInferenceTests
 	public void UpdateAll_WhenSystemsUseWorldRunParallelOnDisjointComponents_ShouldAllowConcurrentExecution()
 	{
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ErgonomicConcurrencyProbe();
+		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 
 		world.Spawn(new ErgonomicParallelA { Value = 1 });
 		world.Spawn(new ErgonomicParallelB { Value = 2 });
@@ -149,7 +149,7 @@ public class SystemManagerErgonomicInferenceTests
 	}
 }
 
-internal sealed class ErgonomicConcurrencyProbe
+internal sealed class ErgonomicConcurrencyProbe(System.TimeSpan firstWorkerWait)
 {
 	private readonly System.Threading.ManualResetEventSlim _release = new(false);
 	private          int                                   _maxConcurrent;
@@ -157,13 +157,18 @@ internal sealed class ErgonomicConcurrencyProbe
 
 	public int MaxConcurrent => System.Threading.Volatile.Read(ref _maxConcurrent);
 
+	public ErgonomicConcurrencyProbe() : this(System.TimeSpan.FromMilliseconds(200)) { }
+
+	public static ErgonomicConcurrencyProbe ForParallelAssertion() =>
+		new(System.TimeSpan.FromSeconds(5));
+
 	public void Enter()
 	{
 		int running = System.Threading.Interlocked.Increment(ref _running);
 		UpdateMax(running);
 
 		if (running == 1)
-			_release.Wait(System.TimeSpan.FromMilliseconds(200));
+			_release.Wait(firstWorkerWait);
 		else
 			_release.Set();
 

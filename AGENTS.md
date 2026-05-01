@@ -107,3 +107,8 @@ Reason: Why this matters here.
 Context: Unity package staging and CI release builds.
 Rule: Resolve package versions with `scripts/Get-PackageVersion.ps1` from SemVer Git tags; use `BEZORO_PACKAGE_VERSION` or `-PackageVersion` only for explicit local overrides.
 Reason: `unity-package/package.json`, release assembly metadata, and CI publishing should stay on one version source.
+
+### Scheduler Parallelism Tests
+Context: ECS tests that assert permitted parallel execution through a concurrency probe.
+Rule: Give parallel-allowed assertions enough time for GitHub Actions worker threads to start; keep short waits only for tests that expect serialized execution.
+Reason: Hosted Windows runners can delay ThreadPool worker startup long enough for a short probe gate to report sequential execution.

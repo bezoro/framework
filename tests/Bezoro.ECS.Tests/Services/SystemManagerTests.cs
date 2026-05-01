@@ -373,7 +373,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
 	{
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ConcurrencyProbe();
+		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 
@@ -386,7 +386,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsDeclareResourceReadMetadata_ShouldAllowParallelExecution()
 	{
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ConcurrencyProbe();
+		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new ResourceReadProbeSystem(probe));
 		world.AddSystem(new ResourceReadProbeSystem(probe));
 
@@ -419,7 +419,7 @@ public class SystemManagerTests
 	{
 		// Systems with no declared access metadata default to non-exclusive and may run concurrently.
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ConcurrencyProbe();
+		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 
@@ -447,7 +447,7 @@ public class SystemManagerTests
 		// After fix 2a: undeclared systems default to isExclusive=false.
 		// An undeclared system and a [Reads(typeof(Counter))] system have no conflicts, so they run in the same batch.
 		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
-		var       probe = new ConcurrencyProbe();
+		var       probe = ConcurrencyProbe.ForParallelAssertion();
 
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
@@ -513,7 +513,7 @@ public class SystemManagerTests
 		}
 	}
 
-	private sealed class ConcurrencyProbe
+	private sealed class ConcurrencyProbe(TimeSpan firstWorkerWait)
 	{
 		private readonly ManualResetEventSlim _release = new(false);
 		private          int                  _maxConcurrent;
@@ -521,13 +521,18 @@ public class SystemManagerTests
 
 		public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
 
+		public ConcurrencyProbe() : this(TimeSpan.FromMilliseconds(200)) { }
+
+		public static ConcurrencyProbe ForParallelAssertion() =>
+			new(TimeSpan.FromSeconds(5));
+
 		public void Enter()
 		{
 			int running = Interlocked.Increment(ref _running);
 			UpdateMax(running);
 
 			if (running == 1)
-				_release.Wait(TimeSpan.FromMilliseconds(200));
+				_release.Wait(firstWorkerWait);
 			else
 				_release.Set();
 
