@@ -46,7 +46,25 @@ jobs:
         run: ./scripts/Export-PublicApi.ps1 -Check
 
       - name: Run release tests
-        run: dotnet test bezoro.framework.sln -c Release --no-build --verbosity minimal
+        shell: pwsh
+        run: |
+          $testProjects = @(
+            "tests/Bezoro.Build.Tests/Bezoro.Build.Tests.csproj",
+            "tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj",
+            "tests/Bezoro.Events.Tests/Bezoro.Events.Tests.csproj",
+            "tests/Bezoro.TypingSystem.Tests/Bezoro.TypingSystem.Tests.csproj",
+            "tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj",
+            "tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj",
+            "tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Tests.csproj",
+            "tests/Bezoro.Chess.UCI.Tests/Bezoro.Chess.UCI.Tests.csproj"
+          )
+
+          foreach ($project in $testProjects) {
+            dotnet test $project -c Release --no-build --verbosity minimal
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
 
   publish-unity-package:
     needs: validate
