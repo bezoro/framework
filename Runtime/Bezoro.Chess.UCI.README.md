@@ -206,7 +206,7 @@ await session.SetDebugAsync(false, cancellationToken);
 | `CreateAsync(enginePath, options, syncContext, perspectiveColor, whiteController, blackController, ct)` | Constructs and starts a ready-to-use game-engine session. |
 | `StartAsync(ct)` / `StopAsync(ct)`                                | Starts or stops all internal engine instances.                      |
 | `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Resets position state or starts a fresh engine game context.        |
-| `UpdatePositionAsync(fen, playedMoves, ct)`                       | Synchronizes protocol-backed snapshot, ponder, and classification flows to a position. |
+| `UpdatePositionAsync(fen, playedMoves, ct)` / `UpdatePositionAsync(fen, playedMoves, clockRestore, ct)` | Synchronizes protocol-backed snapshot, ponder, classification, and optional restored clock state to a position. |
 | `SetPositionAsync(fenString, ct)`                                 | Convenience wrapper that parses a FEN string.                       |
 | `StartSearchAsync(ct)` / `StartSearchAsync(fen, playedMoves, ct)` | Starts infinite pondering search.                                   |
 | `StopSearchAsync(ct)`                                             | Stops the current ponder search.                                    |
