@@ -23,6 +23,8 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `PlayableMatchTimeControlStage` | `Bezoro.Chess.UCI.Protocol.API.Types` | Additional staged time-control segment triggered after a per-side move count.                          |
 | `PlayableMatchClockState`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Snapshot of both clocks for the current turn.                                                             |
 | `PlayableMatchClockRestore`  | `Bezoro.Chess.UCI.Protocol.API.Types` | Authored clock snapshot used to restore arbitrary remaining time while loading a match position.          |
+| `PlayableMatchClockSetup`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Authored clock values for match setup loading; active side, move counts, and stage can be derived.       |
+| `PlayableMatchSetup`         | `Bezoro.Chess.UCI.Protocol.API.Types` | Complete authored or saved match state: base FEN, played moves, and optional clock setup.                |
 | `PlayableMatchResult`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Adjudicated terminal result with winner information when decisive.                                        |
 | `PlayableMatchResultReason`  | `Bezoro.Chess.UCI.Protocol.API.Types` | Terminal reason such as checkmate, stalemate, repetition, fifty-move rule, insufficient material, or timeout. |
 | `PendingPromotionRequest`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Promotion request/response payload for moves that still need a promotion piece.                           |
@@ -297,6 +299,20 @@ if (session.CanUndoMoves())
 }
 ```
 
+For authored tutorial positions, save states, and editor tooling, load a complete setup object instead of passing FEN, moves, and clocks through separate parameters:
+```csharp
+var setup = new PlayableMatchSetup(
+    Fen.Default,
+    ["e2e4", "e7e5"],
+    new PlayableMatchClockSetup(
+        whiteRemaining: TimeSpan.FromMinutes(3),
+        blackRemaining: TimeSpan.FromMinutes(2),
+        isPaused: true));
+
+PlayableMatchState loaded = await session.LoadMatchAsync(setup, cancellationToken);
+EngineMoveResult? reply = await session.PlayControlledMoveIfNeededAsync(cancellationToken);
+```
+
 `UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: local legal-move generation and FEN ownership, move-history tracking, controller-driven automatic engine turns, request/response promotion flow, draw and timeout adjudication, optional clocks, serializable request processing, canonical protocol-side events, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
 
 `EventOccurred` is intentionally transport-friendly: every event carries `SchemaVersion`, the resulting `PlayableMatchState` when available, and a canonical `MoveData` payload for applied moves so UI or server consumers do not need to reverse-engineer captures, promotion pieces, or castling rook movement from raw UCI strings.
@@ -338,6 +354,8 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | Member                           | Description                                                                 |
 |----------------------------------|-----------------------------------------------------------------------------|
 | `StartNewGameAsync(ct)`          | Clears local state, resets protocol-owned clocks/promotion/result state, and sends `ucinewgame` to the playing, snapshot, and move-list clients. |
+| `LoadMatchAsync(setup, ct)`      | Loads a complete `PlayableMatchSetup`, refreshes state, restores optional clock values, and returns the loaded state. |
+| `LoadPositionAsync(baseFen, moves, ct)` | Obsolete migration shim for older callers; prefer `LoadMatchAsync`. |
 | `RefreshAsync(ct)`               | Rebuilds the current local FEN, legal moves, result, clock snapshot, move history, and live non-blocking advantage. |
 | `GetLegalMoveAnalysisAsync(ct)`  | Awaits the full-strength move analysis for the current position.           |
 | `GetCurrentLegalMoveClassifications()` | Returns the latest cached move-type map for the current position.    |
@@ -347,6 +365,7 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `ApplyHumanMove(move)`           | Compatibility alias for `ApplyMove` in human-versus-engine flows.          |
 | `ChoosePromotion(piece)`         | Completes the current pending promotion using `q`, `r`, `b`, or `n`.       |
 | `PlayControlledMoveAsync(ct)`    | Plays the current side's move when that side is engine-controlled.         |
+| `PlayControlledMoveIfNeededAsync(ct)` | Plays only when the current side is engine-controlled and the match is still playable; otherwise returns `null`. |
 | `PlayEngineMoveAsync(ct)`        | Compatibility alias for `PlayControlledMoveAsync` in human-versus-engine flows. |
 | `PlayUntilTerminalAsync(maxPlies, ct)` | Plays engine-controlled turns in sequence until the game is terminal or the ply cap is reached. |
 | `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |

@@ -35,7 +35,7 @@ await using var session = await UciGameEngineSession.CreateAsync(
     blackController: MatchSideControllerKind.Manual,
     ct: cancellationToken);
 
-await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 
 var result = await session.SearchAsync(
     new SearchParameters { Depth = 12 },
@@ -76,7 +76,7 @@ using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
 await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
-await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 
 await foreach (var move in session.StreamClassifiedMovesAsync(cancellationToken))
 {
@@ -125,7 +125,7 @@ session.ResultChanged += state => Console.WriteLine($"Result: {state.Result.Reas
 session.DrawOffered += state => Console.WriteLine($"Draw offered by {state.DrawOfferedBy}");
 session.ClockPaused += state => Console.WriteLine($"Clock paused: {state.Clock?.IsPaused}");
 
-await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 await session.StartSearchAsync(cancellationToken);
 ```
 
@@ -155,7 +155,7 @@ session.EventPublished += sessionEvent =>
     }
 };
 
-await session.UpdatePositionAsync(Fen.Default, null, cancellationToken);
+await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 ```
 
 ### Drive a promotion request/response flow
@@ -165,7 +165,9 @@ using Bezoro.Chess.UCI.API.Common.Enums;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
 await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
-await session.UpdatePositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, null, cancellationToken);
+await session.LoadMatchAsync(
+    new PlayableMatchSetup(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value),
+    cancellationToken);
 
 PromotionRequiredEvent pending = default;
 session.PromotionRequired += request => pending = request;
@@ -199,6 +201,35 @@ await session.SetOptionAsync("Hash", "256", cancellationToken);
 await session.SetDebugAsync(false, cancellationToken);
 ```
 
+### Restore an authored match clock
+```csharp
+using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Types;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+var options = UciCoordinatorOptions.Default with
+{
+    TimeControl = new PlayableMatchTimeControl(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(2))
+};
+
+await using var session = await UciGameEngineSession.CreateAsync(
+    enginePath,
+    options,
+    ct: cancellationToken);
+
+var setup = new PlayableMatchSetup(
+    Fen.Default,
+    ["e2e4", "e7e5"],
+    new PlayableMatchClockSetup(
+        whiteRemaining: TimeSpan.FromMinutes(3),
+        blackRemaining: TimeSpan.FromMinutes(2),
+        delayRemaining: TimeSpan.FromSeconds(1)));
+
+await session.LoadMatchAsync(setup, cancellationToken);
+```
+
+Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchClockSetup` restores authored clock values while the session derives the active color, per-side completed move counts, and active time-control stage from the loaded position. `PlayableMatchClockSetup.FromExactRestore` remains available when a caller needs to provide every clock field explicitly.
+
 ## API Reference
 ### `UciGameEngineSession`
 | Member                                                            | Description                                                         |
@@ -206,12 +237,14 @@ await session.SetDebugAsync(false, cancellationToken);
 | `CreateAsync(enginePath, options, syncContext, perspectiveColor, whiteController, blackController, ct)` | Constructs and starts a ready-to-use game-engine session. |
 | `StartAsync(ct)` / `StopAsync(ct)`                                | Starts or stops all internal engine instances.                      |
 | `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Resets position state or starts a fresh engine game context.        |
-| `UpdatePositionAsync(fen, playedMoves, ct)` / `UpdatePositionAsync(fen, playedMoves, clockRestore, ct)` | Synchronizes protocol-backed snapshot, ponder, classification, and optional restored clock state to a position. |
+| `LoadMatchAsync(setup, ct)`                                        | Loads a complete `PlayableMatchSetup`, including base FEN, played moves, and optional clock setup. |
+| `UpdatePositionAsync(fen, playedMoves, ct)` / `UpdatePositionAsync(fen, playedMoves, clockRestore, ct)` | Obsolete migration shims for older callers; prefer `LoadMatchAsync`. |
 | `SetPositionAsync(fenString, ct)`                                 | Convenience wrapper that parses a FEN string.                       |
 | `StartSearchAsync(ct)` / `StartSearchAsync(fen, playedMoves, ct)` | Starts infinite pondering search.                                   |
 | `StopSearchAsync(ct)`                                             | Stops the current ponder search.                                    |
 | `SearchAsync(parameters, ct)`                                     | Runs a bounded quick search and returns `SearchResult`.             |
 | `PlayControlledMoveAsync(ct)`                                     | Plays the current side automatically when that side is engine-controlled. |
+| `PlayControlledMoveIfNeededAsync(ct)`                             | Plays only when the current side is engine-controlled and the match is still playable; otherwise returns `null`. |
 | `ClassifyMoveAsync(move, ct)`                                     | Returns semantic move analysis for one legal move.                  |
 | `StreamClassifiedMovesAsync(ct)`                                  | Streams classifications as they complete.                           |
 | `WaitForClassificationAsync(ct)`                                  | Waits for all legal moves to be classified.                         |
