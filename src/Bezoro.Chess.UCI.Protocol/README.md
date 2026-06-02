@@ -22,6 +22,7 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `PlayableMatchTimeControl`   | `Bezoro.Chess.UCI.Protocol.API.Types` | Symmetric clock configuration with increment, delay, timeout policy, and optional staged controls.        |
 | `PlayableMatchTimeControlStage` | `Bezoro.Chess.UCI.Protocol.API.Types` | Additional staged time-control segment triggered after a per-side move count.                          |
 | `PlayableMatchClockState`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Snapshot of both clocks for the current turn.                                                             |
+| `PlayableMatchClockRestore`  | `Bezoro.Chess.UCI.Protocol.API.Types` | Authored clock snapshot used to restore arbitrary remaining time while loading a match position.          |
 | `PlayableMatchResult`        | `Bezoro.Chess.UCI.Protocol.API.Types` | Adjudicated terminal result with winner information when decisive.                                        |
 | `PlayableMatchResultReason`  | `Bezoro.Chess.UCI.Protocol.API.Types` | Terminal reason such as checkmate, stalemate, repetition, fifty-move rule, insufficient material, or timeout. |
 | `PendingPromotionRequest`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Promotion request/response payload for moves that still need a promotion piece.                           |

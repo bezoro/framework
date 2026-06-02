@@ -30,6 +30,7 @@ Bezoro.Chess.UCI.Protocol.API.Types.MoveClassificationFlags | public enum | stab
 Bezoro.Chess.UCI.Protocol.API.Types.MoveEvaluation | public readonly record struct | stable-shape | API/Types/MoveEvaluation.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PendingPromotionRequest | public readonly record struct | stable-shape | API/Types/PendingPromotionRequest.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClaimableDrawPolicy | public enum | stable-shape | API/Types/PlayableMatchClaimableDrawPolicy.cs
+Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClockRestore | public readonly record struct | stable-shape | API/Types/PlayableMatchClockRestore.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClockState | public readonly record struct | stable-shape | API/Types/PlayableMatchClockState.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchCommand | public readonly record struct | stable-shape | API/Types/PlayableMatchCommand.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchCommandKind | public enum | stable-shape | API/Types/PlayableMatchCommandKind.cs

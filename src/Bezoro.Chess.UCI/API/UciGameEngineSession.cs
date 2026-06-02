@@ -774,17 +774,35 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="fen">Position FEN</param>
 	/// <param name="playedMoves">Optional moves played after the FEN</param>
 	/// <param name="ct">Cancellation token</param>
-	public async Task UpdatePositionAsync(
+	public Task UpdatePositionAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
-		CancellationToken    ct = default)
+		CancellationToken    ct = default) =>
+		UpdatePositionAsync(fen, playedMoves, null, ct);
+
+	/// <summary>
+	///     Fully updates the engines to reflect a new board position and optionally restores the match clock snapshot.
+	/// </summary>
+	/// <param name="fen">Position FEN</param>
+	/// <param name="playedMoves">Optional moves played after the FEN</param>
+	/// <param name="clockRestore">Optional clock snapshot to restore after the position is loaded.</param>
+	/// <param name="ct">Cancellation token</param>
+	public async Task UpdatePositionAsync(
+		Fen                         fen,
+		IEnumerable<string>?        playedMoves,
+		PlayableMatchClockRestore? clockRestore,
+		CancellationToken           ct = default)
 	{
 		var movesList = playedMoves?.ToList() ?? new List<string>();
 		var previousTurn = State.CurrentFen.ActiveColor;
 
 		ResetGameplaySession();
 		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
-		InitializeClocks(snapshot.CurrentFen.ActiveColor);
+		if (clockRestore.HasValue)
+			RestoreClock(snapshot.CurrentFen.ActiveColor, clockRestore.Value);
+		else
+			InitializeClocks(snapshot.CurrentFen.ActiveColor);
+
 		var metadata = ApplyMatchMetadata(snapshot);
 		snapshot = metadata.Snapshot;
 		if (metadata.ResultChanged)
@@ -906,7 +924,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	/// <summary>
 	///     Applies a move to the current position and updates the engines.
-	///     This is a convenience wrapper around <see cref="UpdatePositionAsync" />.
+	///     This is a convenience wrapper around the position update API.
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
 	/// <param name="ct">Cancellation token.</param>
@@ -1608,6 +1626,53 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 				TimeSpan.Zero
 			)
 		);
+	}
+
+	private void RestoreClock(char activeColor, PlayableMatchClockRestore restore)
+	{
+		restore.Validate();
+		if (!_timeControl.HasValue)
+			throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
+
+		if (restore.ActiveColor != activeColor)
+			throw new ArgumentException(
+				$"Restored active color '{restore.ActiveColor}' does not match loaded position active color '{activeColor}'.",
+				nameof(restore));
+
+		var restoredCheckpoint = new ClockCheckpoint(
+			restore.WhiteRemaining,
+			restore.BlackRemaining,
+			restore.ActiveColor,
+			restore.WhiteMovesCompleted,
+			restore.BlackMovesCompleted,
+			restore.ActiveStageIndex,
+			restore.SnapshotUtc,
+			null,
+			TimeSpan.Zero);
+		var stage = GetStageForSide(restoredCheckpoint, restore.ActiveColor);
+		if (restore.DelayRemaining > stage.DelayPerMove)
+			throw new ArgumentOutOfRangeException(nameof(restore), "Delay remaining cannot exceed the current stage delay.");
+
+		var expectedStageIndex = GetStageIndexForSide(
+			restore.ActiveColor == 'w'
+				? restore.WhiteMovesCompleted
+				: restore.BlackMovesCompleted);
+		if (restore.ActiveStageIndex != expectedStageIndex)
+			throw new ArgumentOutOfRangeException(
+				nameof(restore),
+				$"Active stage index '{restore.ActiveStageIndex}' does not match the restored move counts. Expected '{expectedStageIndex}'.");
+
+		var elapsedSinceTurnStart = stage.DelayPerMove - restore.DelayRemaining;
+		var turnStartedAtUtc = restore.SnapshotUtc - elapsedSinceTurnStart;
+		var pausedAtUtc = restore.IsPaused ? restore.SnapshotUtc : (DateTimeOffset?)null;
+
+		_clockHistory.Clear();
+		_clockHistory.Add(restoredCheckpoint with
+		{
+			TurnStartedAtUtc = turnStartedAtUtc,
+			PausedAtUtc = pausedAtUtc
+		});
+		_isClockPaused = restore.IsPaused;
 	}
 
 	private void AdvanceClockForCompletedMove(char movingSide, DateTimeOffset? completedAtUtc = null)
