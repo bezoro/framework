@@ -15,7 +15,7 @@ namespace Bezoro.Chess.UCI.Tests.API;
 public sealed class UciGameEngineSessionClockRestoreTests
 {
 	[IntegrationTest]
-	public async Task UpdatePositionAsync_WhenClockRestoreIsProvided_ShouldExposeRestoredClock()
+	public async Task LoadMatchAsync_WhenExactClockRestoreIsProvided_ShouldExposeRestoredClock()
 	{
 		var options = UciCoordinatorOptions.Default with
 		{
@@ -42,7 +42,12 @@ public sealed class UciGameEngineSessionClockRestoreTests
 			0,
 			DateTimeOffset.UtcNow);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4", "e7e5"], restore, CancellationToken.None);
+		await coordinator.LoadMatchAsync(
+			new(
+				Fen.Default,
+				["e2e4", "e7e5"],
+				PlayableMatchClockSetup.FromExactRestore(restore)),
+			CancellationToken.None);
 
 		coordinator.State.Clock.Should().NotBeNull();
 		coordinator.State.Clock!.Value.WhiteRemaining.Should().Be(TimeSpan.FromSeconds(135));
@@ -52,7 +57,52 @@ public sealed class UciGameEngineSessionClockRestoreTests
 	}
 
 	[IntegrationTest]
-	public async Task UpdatePositionAsync_WhenClockRestoreActiveColorDoesNotMatchPosition_ShouldThrow()
+	public async Task LoadMatchAsync_WhenClockSetupIsProvided_ShouldDeriveLoadedPositionClockDetails()
+	{
+		var options = UciCoordinatorOptions.Default with
+		{
+			TimeControl = new(
+				TimeSpan.FromMinutes(5),
+				TimeSpan.FromSeconds(2),
+				TimeSpan.FromSeconds(3),
+				PlayableMatchTimeoutPolicy.AutomaticLoss,
+				[
+					new(
+						1,
+						TimeSpan.Zero,
+						TimeSpan.FromSeconds(4),
+						TimeSpan.FromSeconds(5))
+				])
+		};
+
+		await using var coordinator = await UciGameEngineSession.CreateAsync(
+			TestResourcePaths.STOCKFISH_PATH,
+			options: options,
+			ct: CancellationToken.None);
+
+		var setup = new PlayableMatchSetup(
+			Fen.Default,
+			["e2e4", "e7e5"],
+			new PlayableMatchClockSetup(
+				TimeSpan.FromSeconds(135),
+				TimeSpan.FromSeconds(100),
+				TimeSpan.FromSeconds(4),
+				true,
+				DateTimeOffset.UtcNow));
+
+		await coordinator.LoadMatchAsync(setup, CancellationToken.None);
+
+		coordinator.State.Clock.Should().NotBeNull();
+		coordinator.State.Clock!.Value.WhiteRemaining.Should().Be(TimeSpan.FromSeconds(135));
+		coordinator.State.Clock.Value.BlackRemaining.Should().Be(TimeSpan.FromSeconds(100));
+		coordinator.State.Clock.Value.ActiveColor.Should().Be('w');
+		coordinator.State.Clock.Value.ActiveStageIndex.Should().Be(1);
+		coordinator.State.Clock.Value.DelayRemaining.Should().Be(TimeSpan.FromSeconds(4));
+		coordinator.State.Clock.Value.IsPaused.Should().BeTrue();
+	}
+
+	[IntegrationTest]
+	public async Task LoadMatchAsync_WhenExactClockRestoreActiveColorDoesNotMatchPosition_ShouldThrow()
 	{
 		var options = UciCoordinatorOptions.Default with
 		{
@@ -80,6 +130,8 @@ public sealed class UciGameEngineSessionClockRestoreTests
 			DateTimeOffset.UtcNow);
 
 		await Assert.ThrowsAsync<ArgumentException>(
-			() => coordinator.UpdatePositionAsync(Fen.Default, null, restore, CancellationToken.None));
+			() => coordinator.LoadMatchAsync(
+				new(Fen.Default, null, PlayableMatchClockSetup.FromExactRestore(restore)),
+				CancellationToken.None));
 	}
 }

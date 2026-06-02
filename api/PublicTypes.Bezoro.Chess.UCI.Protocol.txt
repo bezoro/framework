@@ -31,6 +31,7 @@ Bezoro.Chess.UCI.Protocol.API.Types.MoveEvaluation | public readonly record stru
 Bezoro.Chess.UCI.Protocol.API.Types.PendingPromotionRequest | public readonly record struct | stable-shape | API/Types/PendingPromotionRequest.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClaimableDrawPolicy | public enum | stable-shape | API/Types/PlayableMatchClaimableDrawPolicy.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClockRestore | public readonly record struct | stable-shape | API/Types/PlayableMatchClockRestore.cs
+Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClockSetup | public readonly record struct | stable-shape | API/Types/PlayableMatchClockSetup.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchClockState | public readonly record struct | stable-shape | API/Types/PlayableMatchClockState.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchCommand | public readonly record struct | stable-shape | API/Types/PlayableMatchCommand.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchCommandKind | public enum | stable-shape | API/Types/PlayableMatchCommandKind.cs
@@ -45,6 +46,7 @@ Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchRequestKind | public enum | sta
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchResult | public readonly record struct | stable-shape | API/Types/PlayableMatchResult.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchResultReason | public enum | stable-shape | API/Types/PlayableMatchResultReason.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchSecondaryMove | public readonly record struct | stable-shape | API/Types/PlayableMatchSecondaryMove.cs
+Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchSetup | public readonly record struct | stable-shape | API/Types/PlayableMatchSetup.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchState | public readonly record struct | stable-shape | API/Types/PlayableMatchState.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchTimeControl | public readonly record struct | stable-shape | API/Types/PlayableMatchTimeControl.cs
 Bezoro.Chess.UCI.Protocol.API.Types.PlayableMatchTimeControlStage | public readonly record struct | stable-shape | API/Types/PlayableMatchTimeControlStage.cs

@@ -23,10 +23,10 @@ public class UciGameEngineSessionTests
 	{
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		int staleGeneration = coordinator.AcceptedClassificationGenerationForTests;
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		coordinator.AcceptedClassificationGenerationForTests.Should().NotBe(staleGeneration);
 
 		var board = BoardState.FromFen(Fen.Default);
@@ -136,7 +136,7 @@ public class UciGameEngineSessionTests
 		};
 
 		// Start best search for current FEN
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await coordinator.StartSearchAsync();
 
 		var first = await bestTcs1.Task.WaitAsync(TestConstants.DefaultTimeout);
@@ -157,11 +157,11 @@ public class UciGameEngineSessionTests
 	{
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var snapshot = coordinator.State;
 		snapshot.LegalMoves.Should().Contain("e2e4");
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Default, ["e2e4"]));
 		await coordinator.WaitForClassificationAsync();
 
 		var move = await coordinator.ClassifyMoveForStateAsync(snapshot, "e2e4");
@@ -184,12 +184,12 @@ public class UciGameEngineSessionTests
 		};
 
 		// Start classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await Task.Delay(TestConstants.MediumDelay);
 
 		// ClearState should cancel classification
 		// This is called internally by UpdatePositionAsync, but we can verify it works
-		await coordinator.UpdatePositionAsync(Fen.Parse(TestConstants.ITALIAN_GAME_FEN)!.Value, null);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse(TestConstants.ITALIAN_GAME_FEN)!.Value));
 
 		// Wait to see if previous classification continues (it shouldn't)
 		await Task.Delay(TestConstants.MediumDelay);
@@ -223,7 +223,7 @@ public class UciGameEngineSessionTests
 						try
 						{
 							await releaseGate.Task.WaitAsync(TestConstants.DefaultTimeout);
-							await coordinator.UpdatePositionAsync(fen, null);
+							await coordinator.LoadMatchAsync(new PlayableMatchSetup(fen));
 						}
 						catch (OperationCanceledException)
 						{
@@ -259,7 +259,7 @@ public class UciGameEngineSessionTests
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		// Concurrent reads and writes
 		var tasks      = new List<Task>();
@@ -292,7 +292,7 @@ public class UciGameEngineSessionTests
 					{
 						for (var i = 0; i < 5; i++)
 						{
-							await coordinator.UpdatePositionAsync(Fen.Default, null);
+							await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 							await Task.Delay(TestConstants.ShortDelay);
 						}
 					}
@@ -324,7 +324,7 @@ public class UciGameEngineSessionTests
 		coordinator.StateChanged += _ => stateChangeCount++;
 
 		// Start some operations
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await Task.Delay(TestConstants.ShortDelay);
 
 		// Stop operations before disposing to prevent events from firing during disposal
@@ -354,7 +354,7 @@ public class UciGameEngineSessionTests
 		await Task.Delay(TestConstants.ShortDelay);
 
 		// Update position to create _classificationCts
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await Task.Delay(TestConstants.ShortDelay);
 
 		// Dispose should clean up both token sources
@@ -375,7 +375,7 @@ public class UciGameEngineSessionTests
 		await Task.Delay(TestConstants.ShortDelay);
 
 		// Update position to create _classificationCts
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await Task.Delay(TestConstants.ShortDelay);
 
 		// Start another search concurrently before disposing
@@ -452,7 +452,7 @@ public class UciGameEngineSessionTests
 		var currentMoves = new List<string>();
 
 		// Initial position update to start classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		foreach (string move in moves)
 		{
@@ -486,7 +486,7 @@ public class UciGameEngineSessionTests
 
 			// Apply the move
 			currentMoves.Add(move);
-			await coordinator.UpdatePositionAsync(Fen.Default, currentMoves);
+			await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Default, currentMoves));
 		}
 
 		var finalState = coordinator.State;
@@ -542,7 +542,7 @@ public class UciGameEngineSessionTests
 	{
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var result = await coordinator.SearchAsync(
 						 new()
@@ -624,7 +624,7 @@ public class UciGameEngineSessionTests
 
 		// Start engines, then set the initial position (this triggers search and legal moves)
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var legal = await legalTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		legal.Should().NotBeNull();
@@ -894,7 +894,7 @@ public class UciGameEngineSessionTests
 		await coordinator.StartAsync();
 
 		// Set a standard position and trigger background classification
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var moves = new List<Move>();
 		await foreach (var move in coordinator.StreamClassifiedMovesAsync())
@@ -932,7 +932,7 @@ public class UciGameEngineSessionTests
 				legalStartTcs.TrySetResult(state.LegalMoves);
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		var legalStart = await legalStartTcs.Task.WaitAsync(TestConstants.MediumTimeout);
 		legalStart.Should().Contain(["e2e4", "d2d4"]);
 
@@ -976,7 +976,7 @@ public class UciGameEngineSessionTests
 			}
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Default, ["e2e4"]));
 
 		var legalAfterWhite = await legalAfterWhiteTcs.Task.WaitAsync(TestConstants.DefaultTimeout);
 		legalAfterWhite.Should().Contain(x => x == "e7e5" || x == "c7c5");
@@ -999,7 +999,7 @@ public class UciGameEngineSessionTests
 		await coordinator.StartAsync();
 
 		// Start background processing for the default position
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		bool populated = await AsyncTestHelpers.WaitForConditionAsync(
 							 () => coordinator.State.LegalMoves.Count > 0,
 							 TimeSpan.FromMilliseconds(10),
@@ -1019,7 +1019,7 @@ public class UciGameEngineSessionTests
 	{
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var waitTask = coordinator.WaitForClassificationAsync();
 		await coordinator.NewGameAsync();
@@ -1036,10 +1036,10 @@ public class UciGameEngineSessionTests
 	{
 		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
 		await coordinator.StartAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
 		var waitTask = coordinator.WaitForClassificationAsync();
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4"]);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Default, ["e2e4"]));
 
 		await FluentActions.Awaiting(() => waitTask)
 						   .Should()
@@ -1062,7 +1062,7 @@ public class UciGameEngineSessionTests
 				tcs.TrySetResult(state.Evaluation.Value);
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await coordinator.StartSearchAsync();
 
 		var pvLine = await tcs.Task.WaitAsync(TestConstants.DefaultTimeout);

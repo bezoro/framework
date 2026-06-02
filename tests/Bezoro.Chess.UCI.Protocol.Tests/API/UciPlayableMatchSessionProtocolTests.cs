@@ -62,7 +62,7 @@ public sealed class UciPlayableMatchSessionProtocolTests
 		var events = new List<PlayableMatchEvent>();
 		session.EventOccurred += events.Add;
 
-		await session.LoadPositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.ApplyMove("a7a8");
@@ -90,7 +90,7 @@ public sealed class UciPlayableMatchSessionProtocolTests
 		var events = new List<PlayableMatchEvent>();
 		session.EventOccurred += events.Add;
 
-		await session.LoadPositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 		session.ApplyMove("a7a8");
 
@@ -102,6 +102,49 @@ public sealed class UciPlayableMatchSessionProtocolTests
 		state.Fen.Raw.Should().Be("Qr5k/8/8/8/8/8/8/K7 b - - 0 1");
 		events.Should().Contain(x => x.Kind == PlayableMatchEventKind.PromotionChosen && x.Move == "a7a8q");
 		events.Should().Contain(x => x.Kind == PlayableMatchEventKind.MoveApplied && x.Move == "a7a8q");
+		session.CancelAnalysis();
+	}
+
+	[Fact]
+	public async Task LoadMatchAsync_WhenSetupIncludesMovesAndClock_ShouldReturnRefreshedState()
+	{
+		await using var playingClient = await CreateStartedClientAsync();
+		await using var analysisClient = await CreateStartedClientAsync();
+		await using var moveListClient = await CreateStartedClientAsync();
+
+		var session = new UciPlayableMatchSession(
+			playingClient,
+			analysisClient,
+			moveListClient,
+			perspectiveColor: 'w',
+			whiteController: MatchSideControllerKind.Manual,
+			blackController: MatchSideControllerKind.Manual,
+			engineMoveTimeMs: 100,
+			moveListAnalysisTimeMs: 10,
+			moveListFallbackTimeMs: 10,
+			timeControl: new(
+				TimeSpan.FromSeconds(30),
+				TimeSpan.FromSeconds(1),
+				TimeSpan.FromSeconds(2)));
+		var setup = new PlayableMatchSetup(
+			Fen.Default,
+			["e2e4", "e7e5"],
+			new PlayableMatchClockSetup(
+				TimeSpan.FromSeconds(25),
+				TimeSpan.FromSeconds(20),
+				TimeSpan.FromSeconds(2),
+				isPaused: true));
+
+		var state = await session.LoadMatchAsync(setup, CancellationToken.None);
+
+		state.Fen.ActiveColor.Should().Be('w');
+		state.Clock.Should().NotBeNull();
+		state.Clock!.Value.WhiteRemaining.Should().Be(TimeSpan.FromSeconds(25));
+		state.Clock.Value.BlackRemaining.Should().Be(TimeSpan.FromSeconds(20));
+		state.Clock.Value.ActiveColor.Should().Be('w');
+		state.Clock.Value.DelayRemaining.Should().Be(TimeSpan.FromSeconds(2));
+		state.Clock.Value.IsPaused.Should().BeTrue();
+		session.PlayedMoves.Should().Equal(["e2e4", "e7e5"]);
 		session.CancelAnalysis();
 	}
 
@@ -118,7 +161,7 @@ public sealed class UciPlayableMatchSessionProtocolTests
 			moveListClient
 		);
 
-		await session.LoadPositionAsync(Fen.Parse("k7/8/1QK5/8/8/8/8/8 b - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("k7/8/1QK5/8/8/8/8/8 b - - 0 1")!.Value, []), CancellationToken.None);
 
 		var state = await session.RefreshAsync(CancellationToken.None);
 

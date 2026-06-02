@@ -31,7 +31,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 				positionChanged.TrySetResult(state);
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 		var snapshot = await positionChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
 
 		handlerContext.Should().BeSameAs(syncContext);
@@ -67,7 +67,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 			classificationCompleted.TrySetResult(state);
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 		var firstMove = await moveClassified.Task.WaitAsync(TestConstants.DefaultTimeout);
 		var completedState = await classificationCompleted.Task.WaitAsync(TestConstants.ExtendedTimeout);
 
@@ -118,7 +118,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 				bestMoveChanged.TrySetResult(state);
 		};
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 		var searchingState = await searchStateChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
 		var evaluation = await evaluationChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
 		var bestMoveState = await bestMoveChanged.Task.WaitAsync(TestConstants.DefaultTimeout);
@@ -153,7 +153,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 		var checkmateFen = Fen.Parse("7k/6Q1/7K/8/8/8/8/8 b - - 0 1");
 		checkmateFen.Should().NotBeNull();
 
-		await coordinator.UpdatePositionAsync(checkmateFen!.Value, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(checkmateFen!.Value), CancellationToken.None);
 		var finalState = await gameOver.Task.WaitAsync(TestConstants.DefaultTimeout);
 
 		handlerContext.Should().BeSameAs(syncContext);
