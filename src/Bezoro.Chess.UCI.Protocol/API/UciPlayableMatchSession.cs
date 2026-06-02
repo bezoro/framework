@@ -281,14 +281,37 @@ public sealed class UciPlayableMatchSession
 	}
 
 	/// <summary>
+	///     Loads a complete authored or saved match setup into the session and returns the refreshed state.
+	/// </summary>
+	/// <param name="setup">Complete match setup to load.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The refreshed match state after the setup is loaded.</returns>
+	public async Task<PlayableMatchState> LoadMatchAsync(PlayableMatchSetup setup, CancellationToken ct = default)
+	{
+		setup.Validate();
+		await LoadMatchCoreAsync(setup, ct).ConfigureAwait(false);
+		var state = await RefreshAsync(ct).ConfigureAwait(false);
+		RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: state);
+		return state;
+	}
+
+	/// <summary>
 	///     Loads an arbitrary base position and optional played-move sequence into the session.
 	/// </summary>
+	[Obsolete("Use LoadMatchAsync(new PlayableMatchSetup(baseFen, moves), ct) instead.")]
 	public async Task LoadPositionAsync(
 		Fen                  baseFen,
 		IEnumerable<string>? moves = null,
 		CancellationToken    ct    = default)
 	{
-		_baseFen = baseFen;
+		await LoadMatchCoreAsync(new(baseFen, moves), ct).ConfigureAwait(false);
+		RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: _hasCurrentState ? _currentState : null);
+	}
+
+	private async Task LoadMatchCoreAsync(PlayableMatchSetup setup, CancellationToken ct)
+	{
+		var currentFen = setup.ResolveCurrentFen();
+		_baseFen = setup.BaseFen;
 		_playedMoves.Clear();
 		_moveHistory.Clear();
 		_pendingPromotion = null;
@@ -298,11 +321,14 @@ public sealed class UciPlayableMatchSession
 		_drawOfferedBy = null;
 		_isClockPaused = false;
 
-		if (moves is { })
-			foreach (string move in moves)
-				_playedMoves.Add(NormalizeCompletedMove(move));
+		foreach (string move in setup.PlayedMoves)
+			_playedMoves.Add(move);
 
-		InitializeClocks(baseFen.ActiveColor);
+		var clockRestore = CreateClockRestore(currentFen, setup.Clock);
+		if (clockRestore.HasValue)
+			RestoreClock(currentFen.ActiveColor, clockRestore.Value);
+		else
+			InitializeClocks(currentFen.ActiveColor);
 		ResetBackgroundState();
 		_hasCurrentState = false;
 		_currentState    = default;
@@ -312,8 +338,6 @@ public sealed class UciPlayableMatchSession
 			_analysisClient.UciNewGameAsync(ct),
 			_moveListClient.UciNewGameAsync(ct)
 		).ConfigureAwait(false);
-
-		RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: _hasCurrentState ? _currentState : null);
 	}
 
 	/// <summary>
@@ -321,7 +345,8 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public async Task StartNewGameAsync(CancellationToken ct = default)
 	{
-		await LoadPositionAsync(Fen.Default, [], ct).ConfigureAwait(false);
+		await LoadMatchCoreAsync(PlayableMatchSetup.Standard, ct).ConfigureAwait(false);
+		RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: _hasCurrentState ? _currentState : null);
 		RaiseEvent(PlayableMatchEventKind.GameStarted);
 	}
 
@@ -364,6 +389,27 @@ public sealed class UciPlayableMatchSession
 
 		CompleteMove(move, state.Fen.ActiveColor);
 		return new(move, result);
+	}
+
+	/// <summary>
+	///     Plays the current side automatically when it is engine-controlled and the match is still playable.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>
+	///     The engine move result when a controlled move was played; otherwise <see langword="null" /> when the current
+	///     side is manually controlled or the match is terminal.
+	/// </returns>
+	public async Task<EngineMoveResult?> PlayControlledMoveIfNeededAsync(CancellationToken ct = default)
+	{
+		var state = _hasCurrentState ? _currentState : await RefreshAsync(ct).ConfigureAwait(false);
+		if (state.Result.IsTerminal ||
+			state.LegalMoves.IsDefaultOrEmpty ||
+			GetController(state.Fen.ActiveColor) != MatchSideControllerKind.Engine)
+		{
+			return null;
+		}
+
+		return await PlayControlledMoveAsync(ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -643,7 +689,8 @@ public sealed class UciPlayableMatchSession
 				if (!request.BaseFen.HasValue)
 					throw new InvalidOperationException("A base FEN is required for a load-position request.");
 
-				await LoadPositionAsync(request.BaseFen.Value, request.Moves, ct).ConfigureAwait(false);
+				await LoadMatchCoreAsync(new(request.BaseFen.Value, request.Moves), ct).ConfigureAwait(false);
+				RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: _hasCurrentState ? _currentState : null);
 				return;
 			case PlayableMatchRequestKind.Refresh:
 				await RefreshAsync(ct).ConfigureAwait(false);
@@ -831,26 +878,39 @@ public sealed class UciPlayableMatchSession
 		if (_moveHistory.Count == _playedMoves.Count)
 			return;
 
-		if (_moveHistory.Count != _playedMoves.Count - 1)
-			throw new InvalidOperationException("Move history can only be extended by one move per position snapshot.");
+		if (_moveHistory.Count > _playedMoves.Count)
+			throw new InvalidOperationException("Move history contains more entries than the played-move list.");
 
-		int moveIndex = _moveHistory.Count;
-		string parentPositionKey = moveIndex == 0 ? _baseFen.Raw : _moveHistory[^1].PositionKey;
-		var classification = _classifications.GetKnown(parentPositionKey)
-			.TryGetValue(_playedMoves[moveIndex], out var knownClassification)
-			? knownClassification
-			: MoveClassification.Unknown();
+		var current = _baseFen;
+		for (var i = 0; i < _moveHistory.Count; i++)
+			current = current.ApplyMove(_playedMoves[i]);
 
-		_moveHistory.Add(
-			new(
-				moveIndex / 2 + 1,
-				moveIndex % 2 == 0 ? 'w' : 'b',
-				_playedMoves[moveIndex],
-				parentPositionKey,
-				currentPositionKey,
-				classification
-			)
-		);
+		for (int moveIndex = _moveHistory.Count; moveIndex < _playedMoves.Count; moveIndex++)
+		{
+			string move = _playedMoves[moveIndex];
+			string parentPositionKey = current.Raw;
+			var classification = _classifications.GetKnown(parentPositionKey)
+				.TryGetValue(move, out var knownClassification)
+				? knownClassification
+				: MoveClassification.Unknown();
+			char movingSide = current.ActiveColor;
+			int ply = current.FullmoveNumber;
+			current = current.ApplyMove(move);
+
+			_moveHistory.Add(
+				new(
+					ply,
+					movingSide,
+					move,
+					parentPositionKey,
+					current.Raw,
+					classification
+				)
+			);
+		}
+
+		if (_moveHistory.Count > 0 && _moveHistory[^1].PositionKey != currentPositionKey)
+			throw new InvalidOperationException("Move history does not match the current position snapshot.");
 	}
 
 	private Fen BuildCurrentFen()
@@ -882,6 +942,88 @@ public sealed class UciPlayableMatchSession
 		RaiseEvent(PlayableMatchEventKind.MoveApplied, move: move, moveData: moveData);
 		if (immediateOutcome.Result.IsTerminal)
 			RaiseEvent(PlayableMatchEventKind.ResultChanged, move: move, moveData: moveData, result: immediateOutcome.Result);
+	}
+
+	private PlayableMatchClockRestore? CreateClockRestore(Fen currentFen, PlayableMatchClockSetup? setup)
+	{
+		if (!setup.HasValue)
+			return null;
+
+		var clockSetup = setup.Value;
+		clockSetup.Validate();
+		if (clockSetup.ExactRestore.HasValue)
+			return clockSetup.ExactRestore.Value;
+
+		var moveCounts = ResolveCompletedMoveCounts(currentFen);
+		var activeMovesCompleted = currentFen.ActiveColor == 'w'
+			? moveCounts.White
+			: moveCounts.Black;
+
+		return new(
+			clockSetup.WhiteRemaining,
+			clockSetup.BlackRemaining,
+			currentFen.ActiveColor,
+			clockSetup.DelayRemaining,
+			clockSetup.IsPaused,
+			moveCounts.White,
+			moveCounts.Black,
+			GetStageIndexForSide(activeMovesCompleted),
+			clockSetup.SnapshotUtc ?? _utcNowProvider()
+		);
+	}
+
+	private void RestoreClock(char activeColor, PlayableMatchClockRestore restore)
+	{
+		restore.Validate();
+		if (!_timeControl.HasValue)
+			throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
+
+		if (restore.ActiveColor != activeColor)
+			throw new ArgumentException(
+				$"Restored active color '{restore.ActiveColor}' does not match loaded position active color '{activeColor}'.",
+				nameof(restore));
+
+		var restoredCheckpoint = new ClockCheckpoint(
+			restore.WhiteRemaining,
+			restore.BlackRemaining,
+			restore.ActiveColor,
+			restore.WhiteMovesCompleted,
+			restore.BlackMovesCompleted,
+			restore.ActiveStageIndex,
+			restore.SnapshotUtc,
+			null,
+			TimeSpan.Zero);
+		var stage = GetStageForSide(restoredCheckpoint, restore.ActiveColor);
+		if (restore.DelayRemaining > stage.DelayPerMove)
+			throw new ArgumentOutOfRangeException(nameof(restore), "Delay remaining cannot exceed the current stage delay.");
+
+		var expectedStageIndex = GetStageIndexForSide(
+			restore.ActiveColor == 'w'
+				? restore.WhiteMovesCompleted
+				: restore.BlackMovesCompleted);
+		if (restore.ActiveStageIndex != expectedStageIndex)
+			throw new ArgumentOutOfRangeException(
+				nameof(restore),
+				$"Active stage index '{restore.ActiveStageIndex}' does not match the restored move counts. Expected '{expectedStageIndex}'.");
+
+		var elapsedSinceTurnStart = stage.DelayPerMove - restore.DelayRemaining;
+		var turnStartedAtUtc = restore.SnapshotUtc - elapsedSinceTurnStart;
+		var pausedAtUtc = restore.IsPaused ? restore.SnapshotUtc : (DateTimeOffset?)null;
+
+		_clockHistory.Clear();
+		_clockHistory.Add(restoredCheckpoint with
+		{
+			TurnStartedAtUtc = turnStartedAtUtc,
+			PausedAtUtc = pausedAtUtc
+		});
+		_isClockPaused = restore.IsPaused;
+	}
+
+	private static (int White, int Black) ResolveCompletedMoveCounts(Fen currentFen)
+	{
+		int blackMoves = Math.Max(0, currentFen.FullmoveNumber - 1);
+		int whiteMoves = currentFen.ActiveColor == 'b' ? blackMoves + 1 : blackMoves;
+		return (whiteMoves, blackMoves);
 	}
 
 	private void InitializeClocks(char activeColor)

@@ -23,7 +23,7 @@ public sealed class UciPlayableMatchSessionEventContractTests
 		var events = new List<PlayableMatchEvent>();
 		session.EventOccurred += events.Add;
 
-		await session.LoadPositionAsync(Fen.Parse("7k/8/8/3pP3/8/8/8/K7 w - d6 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("7k/8/8/3pP3/8/8/8/K7 w - d6 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.ApplyMove("e5d6");
@@ -53,7 +53,7 @@ public sealed class UciPlayableMatchSessionEventContractTests
 		var eventKinds = new List<PlayableMatchEventKind>();
 		session.EventOccurred += e => eventKinds.Add(e.Kind);
 
-		await session.LoadPositionAsync(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.ApplyMove("a7a8");
@@ -228,7 +228,7 @@ public sealed class UciPlayableMatchSessionEventContractTests
 			moveListFallbackTimeMs: 10
 		);
 
-		await session.LoadPositionAsync(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		var terminal = await session.PlayUntilTerminalAsync(maxPlies: 2, CancellationToken.None);
@@ -364,7 +364,7 @@ public sealed class UciPlayableMatchSessionEventContractTests
 		var events = new List<PlayableMatchEvent>();
 		session.EventOccurred += events.Add;
 
-		await session.LoadPositionAsync(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, []), CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.ApplyMove("f7g7");

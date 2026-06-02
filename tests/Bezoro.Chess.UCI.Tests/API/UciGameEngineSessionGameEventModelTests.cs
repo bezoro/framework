@@ -23,7 +23,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var eventOrder = new List<UciGameEngineSessionEventKind>();
 		SynchronizationContext? eventContext = null;
@@ -70,7 +70,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var eventOrder = new List<string>();
 		SynchronizationContext? moveContext = null;
@@ -135,7 +135,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, ["e2e4", "d7d5"], CancellationToken.None);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(Fen.Default, ["e2e4", "d7d5"]), CancellationToken.None);
 
 		SynchronizationContext? captureContext = null;
 		var captureMade = new TaskCompletionSource<GameMoveEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -171,7 +171,7 @@ public class UciGameEngineSessionGameEventModelTests
 
 		var fen = Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1");
 		fen.Should().NotBeNull();
-		await coordinator.UpdatePositionAsync(fen!.Value, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(fen!.Value), CancellationToken.None);
 
 		SynchronizationContext? requestContext = null;
 		var promotionRequired =
@@ -209,7 +209,7 @@ public class UciGameEngineSessionGameEventModelTests
 
 		var fen = Fen.Parse("1r5k/P7/8/8/8/8/8/K7 w - - 0 1");
 		fen.Should().NotBeNull();
-		await coordinator.UpdatePositionAsync(fen!.Value, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(new PlayableMatchSetup(fen!.Value), CancellationToken.None);
 
 		var order = new List<string>();
 		var promotionRequired =
@@ -256,7 +256,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		SynchronizationContext? handlerContext = null;
 		var rejected =
@@ -289,7 +289,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 		await coordinator.MakeMoveAsync("e2e4", CancellationToken.None);
 		await coordinator.MakeMoveAsync("e7e5", GameMoveActor.Engine, CancellationToken.None);
 
@@ -340,7 +340,7 @@ public class UciGameEngineSessionGameEventModelTests
 		coordinator.GetController('w').Should().Be(MatchSideControllerKind.Engine);
 		coordinator.GetController('b').Should().Be(MatchSideControllerKind.Manual);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var moveMade = new TaskCompletionSource<GameMoveEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
 		coordinator.MoveMade += payload =>
@@ -369,7 +369,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		await FluentActions.Awaiting(() => coordinator.PlayControlledMoveAsync(CancellationToken.None))
 						   .Should()
@@ -386,7 +386,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var order = new List<string>();
 		var resultChanged = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -423,7 +423,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var offered = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var resultChanged = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -453,7 +453,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 		foreach (var move in new[] { "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8" })
 			await coordinator.MakeMoveAsync(move, CancellationToken.None);
 
@@ -477,7 +477,7 @@ public class UciGameEngineSessionGameEventModelTests
 			ct: CancellationToken.None
 		);
 
-		await coordinator.UpdatePositionAsync(Fen.Default, null, CancellationToken.None);
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard, CancellationToken.None);
 
 		var pausedEvent = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var resumedEvent = new TaskCompletionSource<UciState>(TaskCreationOptions.RunContinuationsAsynchronously);

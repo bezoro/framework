@@ -312,7 +312,7 @@ internal static class PlayableChessConsoleDemo
 
 				if (command.Kind == PlayableMatchCommandKind.LoadFen)
 				{
-					await session.LoadPositionAsync(command.Fen!.Value, command.Moves, CancellationToken.None);
+					await session.LoadMatchAsync(new(command.Fen!.Value, command.Moves), CancellationToken.None);
 					Console.WriteLine($"Loaded FEN: {command.Fen.Value.Raw}");
 					continue;
 				}

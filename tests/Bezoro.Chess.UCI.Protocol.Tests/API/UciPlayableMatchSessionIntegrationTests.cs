@@ -107,7 +107,7 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 			moveListFallbackTimeMs: 100
 		);
 
-		await session.LoadPositionAsync(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("7k/5Q2/7K/8/8/8/8/8 w - - 0 1")!.Value, []), CancellationToken.None);
 
 		await session.RefreshAsync(CancellationToken.None);
 		var classifications = await session.WaitForCurrentMoveClassificationsAsync(CancellationToken.None);
@@ -140,7 +140,7 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 			moveListFallbackTimeMs: 100
 		);
 
-		await session.LoadPositionAsync(Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1")!.Value, [], CancellationToken.None);
+		await session.LoadMatchAsync(new PlayableMatchSetup(Fen.Parse("k7/1QK5/8/8/8/8/8/8 w - - 0 1")!.Value, []), CancellationToken.None);
 
 		await session.RefreshAsync(CancellationToken.None);
 		var classifications = await session.WaitForCurrentMoveClassificationsAsync(CancellationToken.None);

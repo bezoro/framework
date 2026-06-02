@@ -574,7 +574,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	/// <param name="ct">Cancellation token.</param>
 	public Task ResetAsync(CancellationToken ct = default) =>
-		UpdatePositionAsync(Fen.Default, null, ct);
+		LoadMatchAsync(PlayableMatchSetup.Standard, ct);
 
 	/// <summary>
 	///     Sets a UCI option on the ponder engine.
@@ -621,7 +621,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (!parsed.HasValue)
 			throw new ArgumentException($"Invalid FEN string: '{fen}'", nameof(fen));
 
-		return UpdatePositionAsync(parsed.Value, null, ct);
+		return LoadMatchAsync(new(parsed.Value), ct);
 	}
 
 	/// <summary>
@@ -765,6 +765,23 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
+	///     Loads a complete authored or saved match setup into the session and returns the refreshed state.
+	/// </summary>
+	/// <param name="setup">Complete match setup to load.</param>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>The refreshed state after the setup is loaded.</returns>
+	public async Task<UciState> LoadMatchAsync(PlayableMatchSetup setup, CancellationToken ct = default)
+	{
+		setup.Validate();
+		return await UpdatePositionCoreAsync(
+			setup.BaseFen,
+			setup.PlayedMoves,
+			currentFen => CreateClockRestore(currentFen, setup.Clock),
+			ct
+		).ConfigureAwait(false);
+	}
+
+	/// <summary>
 	///     Fully updates the engines to reflect a new board position:
 	///     - Stops prior search and cancels in-flight classification.
 	///     - Updates all engines to the new position.
@@ -774,11 +791,12 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="fen">Position FEN</param>
 	/// <param name="playedMoves">Optional moves played after the FEN</param>
 	/// <param name="ct">Cancellation token</param>
+	[Obsolete("Use LoadMatchAsync(new PlayableMatchSetup(fen, playedMoves), ct) instead.")]
 	public Task UpdatePositionAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default) =>
-		UpdatePositionAsync(fen, playedMoves, null, ct);
+		UpdatePositionCoreAsync(fen, playedMoves, null, ct);
 
 	/// <summary>
 	///     Fully updates the engines to reflect a new board position and optionally restores the match clock snapshot.
@@ -787,17 +805,31 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="playedMoves">Optional moves played after the FEN</param>
 	/// <param name="clockRestore">Optional clock snapshot to restore after the position is loaded.</param>
 	/// <param name="ct">Cancellation token</param>
-	public async Task UpdatePositionAsync(
+	[Obsolete("Use LoadMatchAsync(new PlayableMatchSetup(fen, playedMoves, clockSetup), ct) instead. Use PlayableMatchClockSetup.FromExactRestore for exact clock snapshots.")]
+	public Task UpdatePositionAsync(
 		Fen                         fen,
 		IEnumerable<string>?        playedMoves,
 		PlayableMatchClockRestore? clockRestore,
-		CancellationToken           ct = default)
+		CancellationToken           ct = default) =>
+		UpdatePositionCoreAsync(
+			fen,
+			playedMoves,
+			clockRestore.HasValue ? _ => clockRestore.Value : null,
+			ct
+		);
+
+	private async Task<UciState> UpdatePositionCoreAsync(
+		Fen                                    fen,
+		IEnumerable<string>?                   playedMoves,
+		Func<Fen, PlayableMatchClockRestore?>? resolveClockRestore,
+		CancellationToken                      ct)
 	{
 		var movesList = playedMoves?.ToList() ?? new List<string>();
 		var previousTurn = State.CurrentFen.ActiveColor;
 
 		ResetGameplaySession();
 		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
+		var clockRestore = resolveClockRestore?.Invoke(snapshot.CurrentFen);
 		if (clockRestore.HasValue)
 			RestoreClock(snapshot.CurrentFen.ActiveColor, clockRestore.Value);
 		else
@@ -832,6 +864,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		PublishGameOver(snapshot);
 
 		await StartBackgroundWorkAsync(fen, movesList, snapshot.CurrentFen, snapshot.LegalMoves, ct).ConfigureAwait(false);
+		return snapshot;
 	}
 
 	/// <summary>
@@ -956,6 +989,27 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			await MakeMoveAsync(fallbackMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
 			return new(fallbackMove, default);
 		}
+	}
+
+	/// <summary>
+	///     Plays the current side automatically when it is engine-controlled and the match is still playable.
+	/// </summary>
+	/// <param name="ct">Cancellation token.</param>
+	/// <returns>
+	///     The engine move result when a controlled move was played; otherwise <see langword="null" /> when the current
+	///     side is manually controlled or the match is terminal.
+	/// </returns>
+	public async Task<EngineMoveResult?> PlayControlledMoveIfNeededAsync(CancellationToken ct = default)
+	{
+		var state = State;
+		if (state.Result.IsTerminal ||
+			state.LegalMoves.Count == 0 ||
+			GetController(state.CurrentFen.ActiveColor) != MatchSideControllerKind.Engine)
+		{
+			return null;
+		}
+
+		return await PlayControlledMoveAsync(ct).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -1605,6 +1659,41 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		move = checkMove ?? captureMove ?? promotionMove ?? state.LegalMoves[0];
 		return true;
+	}
+
+	private PlayableMatchClockRestore? CreateClockRestore(Fen currentFen, PlayableMatchClockSetup? setup)
+	{
+		if (!setup.HasValue)
+			return null;
+
+		var clockSetup = setup.Value;
+		clockSetup.Validate();
+		if (clockSetup.ExactRestore.HasValue)
+			return clockSetup.ExactRestore.Value;
+
+		var moveCounts = ResolveCompletedMoveCounts(currentFen);
+		var activeMovesCompleted = currentFen.ActiveColor == 'w'
+			? moveCounts.White
+			: moveCounts.Black;
+
+		return new(
+			clockSetup.WhiteRemaining,
+			clockSetup.BlackRemaining,
+			currentFen.ActiveColor,
+			clockSetup.DelayRemaining,
+			clockSetup.IsPaused,
+			moveCounts.White,
+			moveCounts.Black,
+			GetStageIndexForSide(activeMovesCompleted),
+			clockSetup.SnapshotUtc ?? DateTimeOffset.UtcNow
+		);
+	}
+
+	private static (int White, int Black) ResolveCompletedMoveCounts(Fen currentFen)
+	{
+		var blackMoves = Math.Max(0, currentFen.FullmoveNumber - 1);
+		var whiteMoves = currentFen.ActiveColor == 'b' ? blackMoves + 1 : blackMoves;
+		return (whiteMoves, blackMoves);
 	}
 
 	private void InitializeClocks(char activeColor)
