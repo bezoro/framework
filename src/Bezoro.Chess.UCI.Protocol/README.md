@@ -9,6 +9,9 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `SearchParameters`           | `Bezoro.Chess.UCI.Protocol.API.Types` | Standard UCI `go` parameters with explicit validation.                                                    |
 | `SearchResult`               | `Bezoro.Chess.UCI.Protocol.API.Types` | Parsed result of a completed search.                                                                      |
 | `UciClientOptions`           | `Bezoro.Chess.UCI.Protocol.API.Types` | Client-level timeout and protocol-behavior configuration.                                                 |
+| `ChessSquare`                | `Bezoro.Chess.UCI.Protocol.API.Types` | Zero-based board-square value with algebraic parsing and formatting helpers.                              |
+| `UciCoordinateMove`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Strict parser and formatter for UCI coordinate moves, including promotion suffix validation.               |
+| `FenPiecePlacementParser`    | `Bezoro.Chess.UCI.Protocol.API.Common.Helpers` | FEN piece-placement parser for board renderers and setup tools that need occupied-square maps. |
 | `PositionScore`              | `Bezoro.Chess.UCI.Protocol.API.Types` | Player-relative centipawn or mate score with compact display/sort helpers.                                |
 | `PositionAdvantage`          | `Bezoro.Chess.UCI.Protocol.API.Types` | Normalized player-relative advantage summary for lightweight UIs.                                         |
 | `MoveClassificationFlags`    | `Bezoro.Chess.UCI.Protocol.API.Types` | Structural and tactical flags such as capture, promotion, check, mate, and stalemate.                    |
@@ -193,6 +196,32 @@ Console.WriteLine(full.IsMate);               // true
 ```
 
 `ClassifyMove` and `ClassifyMoves` are the zero-search structural fast path. `ClassifyMoveFully` and `ClassifyMovesFully` resolve check, mate, and stalemate locally from FEN plus UCI move notation, without engine round-trips.
+
+## Coordinate And Placement Helpers
+Use `UciCoordinateMove` when a caller needs strict UCI coordinate parsing with square values and promotion-travel validation:
+```csharp
+using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+if (" A7A8Q ".TryNormalizeCoordinateMove(out string moveText) &&
+    UciCoordinateMove.TryParse(moveText, out var move))
+{
+    ChessSquare from = move.From;
+    ChessSquare to = move.To;
+    char? promotion = move.PromotionPiece;
+}
+```
+
+`NormalizeUciMoves` remains a lightweight collection normalizer. It intentionally does not reject existing loose inputs. Use the strict helpers when validation matters.
+
+Board renderers and setup tools can parse occupied squares from either full FEN text or a placement field:
+```csharp
+using Bezoro.Chess.UCI.Protocol.API.Common.Helpers;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+var pieces = new Dictionary<ChessSquare, char>();
+bool parsed = FenPiecePlacementParser.TryParse(Fen.Default.Raw, pieces);
+```
 
 Debug-display helpers are also available for simple text UIs:
 ```csharp

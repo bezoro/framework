@@ -18,8 +18,10 @@ Bezoro.Chess.UCI.Protocol.API.Common.Extensions.SearchResultExtensions | public 
 Bezoro.Chess.UCI.Protocol.API.Common.Extensions.UciEngineClientAnalysisExtensions | public static class | stable-shape | API/Common/Extensions/UciEngineClientAnalysisExtensions.cs
 Bezoro.Chess.UCI.Protocol.API.Common.Extensions.UciMoveExtensions | public static class | stable-shape | API/Common/Extensions/UciMoveExtensions.cs
 Bezoro.Chess.UCI.Protocol.API.Common.Helpers.AdvantageScale | public static class | stable-shape | API/Common/Helpers/AdvantageScale.cs
+Bezoro.Chess.UCI.Protocol.API.Common.Helpers.FenPiecePlacementParser | public static class | stable-shape | API/Common/Helpers/FenPiecePlacementParser.cs
 Bezoro.Chess.UCI.Protocol.API.PlayableMatchCommandParser | public static class | stable-shape | API/PlayableMatchCommandParser.cs
 Bezoro.Chess.UCI.Protocol.API.ProcessUciTransport | public sealed class | stable-shape | API/ProcessUciTransport.cs
+Bezoro.Chess.UCI.Protocol.API.Types.ChessSquare | public readonly struct | stable-shape | API/Types/ChessSquare.cs
 Bezoro.Chess.UCI.Protocol.API.Types.EngineActivity | public enum | stable-shape | API/Types/EngineActivity.cs
 Bezoro.Chess.UCI.Protocol.API.Types.EngineMoveResult | public readonly record struct | stable-shape | API/Types/EngineMoveResult.cs
 Bezoro.Chess.UCI.Protocol.API.Types.Fen | public readonly record struct | stable-shape | API/Types/Fen.cs
@@ -63,6 +65,7 @@ Bezoro.Chess.UCI.Protocol.API.Types.TransportStatus | public enum | stable-shape
 Bezoro.Chess.UCI.Protocol.API.Types.UciBestMoveMessage | public readonly record struct | stable-shape | API/Types/UciBestMoveMessage.cs
 Bezoro.Chess.UCI.Protocol.API.Types.UciCapabilityState | public enum | stable-shape | API/Types/UciCapabilityState.cs
 Bezoro.Chess.UCI.Protocol.API.Types.UciClientOptions | public readonly struct | stable-shape | API/Types/UciClientOptions.cs
+Bezoro.Chess.UCI.Protocol.API.Types.UciCoordinateMove | public readonly record struct | stable-shape | API/Types/UciCoordinateMove.cs
 Bezoro.Chess.UCI.Protocol.API.Types.UciCopyProtectionMessage | public readonly record struct | stable-shape | API/Types/UciCopyProtectionMessage.cs
 Bezoro.Chess.UCI.Protocol.API.Types.UciEngineCapabilities | public readonly record struct | stable-shape | API/Types/UciEngineCapabilities.cs
 Bezoro.Chess.UCI.Protocol.API.Types.UciEngineInfo | public readonly record struct | stable-shape | API/Types/UciEngineInfo.cs

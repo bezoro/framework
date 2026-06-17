@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using Bezoro.Chess.UCI.Protocol.API.Types;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 
@@ -42,4 +43,22 @@ public static class UciMoveExtensions
 
 		return builder.ToImmutable();
 	}
+
+	/// <summary>
+	///     Attempts to parse a single strict UCI coordinate move.
+	/// </summary>
+	/// <param name="move">Candidate move such as <c>e2e4</c> or <c>a7a8q</c>.</param>
+	/// <param name="coordinateMove">Parsed coordinate move when successful.</param>
+	/// <returns><see langword="true" /> when the move has valid squares and a valid promotion suffix.</returns>
+	public static bool TryParseCoordinateMove(this string? move, out UciCoordinateMove coordinateMove) =>
+		UciCoordinateMove.TryParse(move, out coordinateMove);
+
+	/// <summary>
+	///     Attempts to normalize a single strict UCI coordinate move.
+	/// </summary>
+	/// <param name="move">Candidate move such as <c>e2e4</c> or <c>a7a8q</c>.</param>
+	/// <param name="normalizedMove">Lowercase normalized move when successful.</param>
+	/// <returns><see langword="true" /> when the move has valid squares and a valid promotion suffix.</returns>
+	public static bool TryNormalizeCoordinateMove(this string? move, out string normalizedMove) =>
+		UciCoordinateMove.TryNormalize(move, out normalizedMove);
 }
