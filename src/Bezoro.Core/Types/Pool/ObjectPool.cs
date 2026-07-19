@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Bezoro.Core.Abstractions;
 using Bezoro.Core.Extensions;
+using Bezoro.Core.Internal;
 
 namespace Bezoro.Core.Types.Pool;
 
@@ -15,10 +16,11 @@ namespace Bezoro.Core.Types.Pool;
 [DebuggerDisplay("Available={AvailableCount}, Total={TotalCount}, Max={MaxCapacity}")]
 public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 {
-	private readonly ConcurrentStack<T> _available;
-	private readonly IPoolPolicy<T>     _policy;
-	private readonly PoolOptions        _options;
-	private readonly SemaphoreSlim?     _asyncWaitSemaphore;
+	private readonly ConcurrentStack<T>                          _available;
+	private readonly ConcurrentDictionary<T, PoolItemState> _ownedItems;
+	private readonly IPoolPolicy<T>                          _policy;
+	private readonly PoolOptions                             _options;
+	private readonly SemaphoreSlim?                          _asyncWaitSemaphore;
 
 	private int  _disposed;
 	private int  _totalCount;
@@ -54,9 +56,10 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="policy" /> is <c>null</c>.</exception>
 	public ObjectPool(IPoolPolicy<T> policy, PoolOptions options = default)
 	{
-		_policy    = policy.ThrowIfNull();
-		_options   = options == default ? PoolOptions.Default : options;
-		_available = new();
+		_policy     = policy.ThrowIfNull();
+		_options    = options == default ? PoolOptions.Default : options;
+		_available  = new();
+		_ownedItems = new(ReferenceIdentityComparer<T>.Instance);
 
 		if (_options.EnableAsyncWait && _options.MaxCapacity > 0)
 			_asyncWaitSemaphore = new(0, _options.MaxCapacity);
@@ -82,55 +85,47 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	{
 		item.ThrowIfNull();
 
+		bool canReturn = ResetAndValidateForReturn(item);
+
+		if (!canReturn)
+		{
+			if (_ownedItems.TryGetValue(item, out var rejectedState) && rejectedState == PoolItemState.Available)
+				return false;
+
+			ReleaseReturnedItem(item);
+			return false;
+		}
+
 		if (Volatile.Read(ref _disposed) != 0)
 		{
-			DiscardItem(item);
+			ReleaseReturnedItem(item);
 			return false;
 		}
 
-		if (!ResetAndValidateForReturn(item))
+		while (true)
 		{
-			DiscardItem(item);
-			return false;
-		}
+			if (_ownedItems.TryGetValue(item, out var state))
+			{
+				if (state == PoolItemState.Available)
+					return false;
 
-		if (ShouldDiscard())
-		{
-			DiscardItem(item);
-			return false;
-		}
+				if (_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Rented))
+					return PublishReturnedItem(item);
 
-		_available.Push(item);
-		IncrementReturned();
-		TrySignalWaiters();
-		return true;
+				continue;
+			}
+
+			if (TryRegisterForeignItem(item, out bool retryOwnership))
+				return PublishReturnedItem(item);
+
+			if (!retryOwnership)
+				return false;
+		}
 	}
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool TryRent([NotNullWhen(true)] out T? item)
-	{
-		if (Volatile.Read(ref _disposed) != 0)
-		{
-			item = null;
-			return false;
-		}
-
-		while (_available.TryPop(out item))
-		{
-			if (!_options.ValidateOnRent || _policy.Validate(item))
-			{
-				IncrementRented();
-				NotifyRent(item);
-				return true;
-			}
-
-			DiscardItem(item);
-		}
-
-		item = null;
-		return false;
-	}
+	public bool TryRent([NotNullWhen(true)] out T? item) => TryAcquire(false, out item);
 
 	/// <inheritdoc />
 	public int TrimExcess(Percent targetUtilization = default)
@@ -149,8 +144,10 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 		while (toRemove > 0 && _available.TryPop(out var item))
 		{
-			DiscardItem(item);
-			Interlocked.Decrement(ref _totalCount);
+			if (!_ownedItems.TryGetValue(item, out var state) || state != PoolItemState.Available)
+				continue;
+
+			ReleaseOwnedItem(item, _policy.OnDiscard);
 			trimmed++;
 			toRemove--;
 		}
@@ -183,12 +180,8 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 		while (true)
 		{
-			if (TryRent(out var item))
+			if (TryAcquire(true, out var item))
 				return item;
-
-			// Atomically try to create a new item (if below max capacity)
-			if (TryCreateNewItem(out var newItem))
-				return newItem;
 
 			if (_asyncWaitSemaphore is null || !_options.EnableAsyncWait)
 				return null;
@@ -225,12 +218,8 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 		while (true)
 		{
-			if (TryRent(out var item))
+			if (TryAcquire(true, out var item))
 				return item;
-
-			// Atomically try to create a new item (if below max capacity)
-			if (TryCreateNewItem(out var newItem))
-				return newItem;
 
 			if (_asyncWaitSemaphore is null || !_options.EnableAsyncWait)
 				throw new PoolExhaustedException(typeof(T), _options.MaxCapacity);
@@ -243,18 +232,32 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		}
 	}
 
-	/// <inheritdoc />
-	public void Clear(bool disposeItems = true)
-	{
-		while (_available.TryPop(out var item))
-		{
-			if (disposeItems)
-				DisposeItem(item);
-			else
-				_policy.OnDiscard(item);
+	/// <summary>
+	///     Clears all available objects from the pool and directly disposes items that implement
+	///     <see cref="IDisposable" /> without invoking <see cref="IPoolPolicy{T}.OnDiscard" />.
+	/// </summary>
+	public void Clear() => ClearAvailable(DisposeItem);
 
-			Interlocked.Decrement(ref _totalCount);
-		}
+	/// <summary>
+	///     Clears all available objects from the pool by invoking <see cref="IPoolPolicy{T}.OnDiscard" />
+	///     for each item.
+	/// </summary>
+	public void ClearWithPolicyDiscard() => ClearAvailable(_policy.OnDiscard);
+
+	/// <summary>
+	///     Clears all available objects from the pool using the selected legacy release behavior.
+	/// </summary>
+	/// <param name="disposeItems">
+	///     If <c>true</c>, forwards to <see cref="Clear()" />; otherwise, forwards to
+	///     <see cref="ClearWithPolicyDiscard" />.
+	/// </param>
+	[Obsolete("Use Clear() or ClearWithPolicyDiscard() instead.")]
+	public void Clear(bool disposeItems)
+	{
+		if (disposeItems)
+			Clear();
+		else
+			ClearWithPolicyDiscard();
 	}
 
 	/// <summary>
@@ -285,94 +288,14 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool ResetAndValidateForReturn(T item) => _policy.Reset(item);
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool ShouldDiscard()
-	{
-		if (_options.MaxCapacity < 0)
-			return false;
-
-		return _available.Count >= _options.MaxCapacity;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool TryCreateNewItem([NotNullWhen(true)] out T? item)
-	{
-		// Atomically reserve a slot before creating the item to prevent race conditions
-		while (true)
-		{
-			int currentCount = Volatile.Read(ref _totalCount);
-
-			if (_options.MaxCapacity > 0 && currentCount >= _options.MaxCapacity)
-			{
-				item = null;
-				return false;
-			}
-
-			// Try to atomically increment the count to reserve a slot
-			if (Interlocked.CompareExchange(ref _totalCount, currentCount + 1, currentCount) == currentCount)
-				break;
-
-			// Another thread modified the count, retry
-		}
-
-		item = _policy.Create();
-
-		if (_options.TrackStatistics)
-			Interlocked.Increment(ref _totalCreated);
-
-		IncrementRented();
-		NotifyRent(item);
-		return true;
-	}
-
-	private PoolStatistics BuildStatistics()
-	{
-		int  total       = TotalCount;
-		int  available   = AvailableCount;
-		int  rented      = total - available;
-		byte utilization = total > 0 ? (byte)(rented * 100 / total) : (byte)0;
-
-		return new()
-		{
-			TotalRented     = Volatile.Read(ref _totalRented),
-			TotalReturned   = Volatile.Read(ref _totalReturned),
-			TotalCreated    = Volatile.Read(ref _totalCreated),
-			TotalDiscarded  = Volatile.Read(ref _totalDiscarded),
-			TotalAsyncWaits = Volatile.Read(ref _totalAsyncWaits),
-			TotalTimeouts   = Volatile.Read(ref _totalTimeouts),
-			Utilization     = new(utilization > 100 ? (byte)100 : utilization)
-		};
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private T CreateNewItem()
-	{
-		if (!TryCreateNewItem(out var item))
-			throw new PoolExhaustedException(typeof(T), _options.MaxCapacity);
-
-		return item;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private T RentCore()
+	private void ClearAvailable(Action<T> release)
 	{
 		while (_available.TryPop(out var item))
-		{
-			if (!_options.ValidateOnRent || _policy.Validate(item))
-			{
-				IncrementRented();
-				NotifyRent(item);
-				return item;
-			}
-
-			DiscardItem(item);
-		}
-
-		return CreateNewItem();
+			ReleaseOwnedItem(item, release);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void DiscardItem(T item)
+	private void DiscardUnownedItem(T item)
 	{
 		_policy.OnDiscard(item);
 
@@ -398,15 +321,224 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	{
 		for (var i = 0; i < _options.InitialCapacity; i++)
 		{
-			var item = _policy.Create();
-			_available.Push(item);
-			Interlocked.Increment(ref _totalCount);
+			if (!TryCreateOwnedItem(out var item))
+				break;
 
-			if (_options.TrackStatistics)
-				Interlocked.Increment(ref _totalCreated);
+			if (!_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Rented))
+			{
+				ReleaseOwnedItem(item, _policy.OnDiscard);
+				throw new InvalidOperationException("Failed to register a prewarmed item as available.");
+			}
+
+			_available.Push(item);
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool PublishReturnedItem(T item)
+	{
+		if (Volatile.Read(ref _disposed) != 0)
+		{
+			ReleaseOwnedItem(item, _policy.OnDiscard);
+			return false;
+		}
+
+		_available.Push(item);
+		IncrementReturned();
+		TrySignalWaiters();
+		return true;
+	}
+
+	private void ReleaseOwnedItem(T item, Action<T> release)
+	{
+		if (!_ownedItems.TryRemove(item, out _)) return;
+
+		try
+		{
+			release(item);
+		}
+		finally
+		{
+			Interlocked.Decrement(ref _totalCount);
+			if (_options.TrackStatistics) Interlocked.Increment(ref _totalDiscarded);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ReleaseReturnedItem(T item)
+	{
+		if (_ownedItems.ContainsKey(item))
+			ReleaseOwnedItem(item, _policy.OnDiscard);
+		else
+			DiscardUnownedItem(item);
+	}
+
+	private bool TryAcquire(bool allowCreate, [NotNullWhen(true)] out T? item)
+	{
+		if (Volatile.Read(ref _disposed) != 0)
+		{
+			item = null;
+			return false;
+		}
+
+		while (_available.TryPop(out var availableItem))
+		{
+			if (!_ownedItems.TryUpdate(availableItem, PoolItemState.Rented, PoolItemState.Available))
+				continue;
+
+			if (_options.ValidateOnRent && !_policy.Validate(availableItem))
+			{
+				ReleaseOwnedItem(availableItem, _policy.OnDiscard);
+				continue;
+			}
+
+			item = availableItem;
+			IncrementRented();
+			NotifyRent(item);
+			return true;
+		}
+
+		if (!allowCreate)
+		{
+			item = null;
+			return false;
+		}
+
+		if (!TryCreateOwnedItem(out item))
+			return false;
+
+		IncrementRented();
+		NotifyRent(item);
+		return true;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryCreateOwnedItem([NotNullWhen(true)] out T? item)
+	{
+		item = null;
+		if (!TryReserveCapacity())
+			return false;
+
+		try
+		{
+			var created = _policy.Create();
+			if (created is null)
+				throw new InvalidOperationException("Pool policy returned null from Create().");
+
+			if (!_ownedItems.TryAdd(created, PoolItemState.Rented))
+				throw new InvalidOperationException("Pool policy returned an instance already owned by the pool.");
+
+			item = created;
+
+			if (_options.TrackStatistics)
+				Interlocked.Increment(ref _totalCreated);
+
+			return true;
+		}
+		catch
+		{
+			Interlocked.Decrement(ref _totalCount);
+			throw;
+		}
+	}
+
+	private bool TryRegisterForeignItem(T item, out bool retryOwnership)
+	{
+		while (true)
+		{
+			retryOwnership = false;
+
+			if (TryReserveCapacity())
+			{
+				if (_ownedItems.TryAdd(item, PoolItemState.Available))
+					return true;
+
+				Interlocked.Decrement(ref _totalCount);
+				retryOwnership = true;
+				return false;
+			}
+
+			if (!_ownedItems.TryAdd(item, PoolItemState.Available))
+			{
+				retryOwnership = true;
+				return false;
+			}
+
+			if (TryReplaceRentedItem(item))
+				return true;
+
+			if (!TryRemoveOwnedItem(item, PoolItemState.Available))
+			{
+				retryOwnership = true;
+				return false;
+			}
+
+			if (_options.MaxCapacity <= 0 || Volatile.Read(ref _totalCount) < _options.MaxCapacity)
+				continue;
+
+			DiscardUnownedItem(item);
+			return false;
+		}
+	}
+
+	private bool TryReplaceRentedItem(T replacement)
+	{
+		foreach (var pair in _ownedItems)
+		{
+			if (ReferenceEquals(pair.Key, replacement) || pair.Value != PoolItemState.Rented)
+				continue;
+
+			if (TryRemoveOwnedItem(pair.Key, PoolItemState.Rented))
+				return true;
+		}
+
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryRemoveOwnedItem(T item, PoolItemState state) =>
+		((ICollection<KeyValuePair<T, PoolItemState>>)_ownedItems).Remove(new(item, state));
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryReserveCapacity()
+	{
+		while (true)
+		{
+			int currentCount = Volatile.Read(ref _totalCount);
+
+			if (_options.MaxCapacity > 0 && currentCount >= _options.MaxCapacity)
+				return false;
+
+			if (Interlocked.CompareExchange(ref _totalCount, currentCount + 1, currentCount) == currentCount)
+				return true;
+		}
+	}
+
+	private PoolStatistics BuildStatistics()
+	{
+		int  total       = TotalCount;
+		int  available   = AvailableCount;
+		int  rented      = total - available;
+		byte utilization = total > 0 ? (byte)(rented * 100 / total) : (byte)0;
+
+		return new()
+		{
+			TotalRented     = Volatile.Read(ref _totalRented),
+			TotalReturned   = Volatile.Read(ref _totalReturned),
+			TotalCreated    = Volatile.Read(ref _totalCreated),
+			TotalDiscarded  = Volatile.Read(ref _totalDiscarded),
+			TotalAsyncWaits = Volatile.Read(ref _totalAsyncWaits),
+			TotalTimeouts   = Volatile.Read(ref _totalTimeouts),
+			Utilization     = new(utilization > 100 ? (byte)100 : utilization)
+		};
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private T RentCore()
+	{
+		if (TryAcquire(true, out var item)) return item;
+		throw new PoolExhaustedException(typeof(T), _options.MaxCapacity);
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ThrowIfDisposed()

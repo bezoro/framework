@@ -83,8 +83,24 @@ public interface IPool<T> where T : class
 	ValueTask<T> RentAsync(CancellationToken cancellationToken = default);
 
 	/// <summary>
-	///     Clears all objects from the pool, optionally disposing them.
+	///     Clears all available objects from the pool and directly disposes items that implement
+	///     <see cref="IDisposable" /> without invoking <see cref="IPoolPolicy{T}.OnDiscard" />.
 	/// </summary>
-	/// <param name="disposeItems">If <c>true</c>, disposes items implementing <see cref="IDisposable" />.</param>
-	void Clear(bool disposeItems = true);
+	void Clear();
+
+	/// <summary>
+	///     Clears all available objects from the pool by invoking <see cref="IPoolPolicy{T}.OnDiscard" />
+	///     for each item.
+	/// </summary>
+	void ClearWithPolicyDiscard();
+
+	/// <summary>
+	///     Clears all available objects from the pool using the selected legacy release behavior.
+	/// </summary>
+	/// <param name="disposeItems">
+	///     If <c>true</c>, forwards to <see cref="Clear()" />; otherwise, forwards to
+	///     <see cref="ClearWithPolicyDiscard" />.
+	/// </param>
+	[Obsolete("Use Clear() or ClearWithPolicyDiscard() instead.")]
+	void Clear(bool disposeItems);
 }
