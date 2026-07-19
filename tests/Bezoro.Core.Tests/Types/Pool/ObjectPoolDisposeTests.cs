@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Bezoro.Core.Types;
 using Bezoro.Core.Types.Pool;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -14,13 +15,18 @@ public class ObjectPoolDisposeTests
 	public void ObjectPoolDispose_WhenCalled_ShouldShouldDisposeAllPooledItems()
 	{
 		var items = new List<DisposableObject>();
-		var pool = new ObjectPool<DisposableObject>(
+		var discardCount = 0;
+		var policy = new PoolPolicy<DisposableObject>(
 			() =>
 			{
 				var item = new DisposableObject();
 				items.Add(item);
 				return item;
 			},
+			onDiscard: _ => discardCount++
+		);
+		var pool = new ObjectPool<DisposableObject>(
+			policy,
 			new() { InitialCapacity = 3, MaxCapacity = -1 }
 		);
 
@@ -30,6 +36,7 @@ public class ObjectPoolDisposeTests
 		items.Should().OnlyContain(x => x.IsDisposed);
 		items.Should().OnlyContain(x => x.DisposeCount == 1);
 		pool.TotalCount.Should().Be(0);
+		discardCount.Should().Be(0);
 	}
 
 	[Fact]
