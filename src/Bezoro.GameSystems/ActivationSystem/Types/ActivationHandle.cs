@@ -31,7 +31,16 @@ public readonly struct ActivationHandle : IEquatable<ActivationHandle>
 	/// </summary>
 	public bool IsValid => Id > 0;
 
+	/// <summary>Determines whether two activation handles identify the same entry.</summary>
+	/// <param name="left">First handle to compare.</param>
+	/// <param name="right">Second handle to compare.</param>
+	/// <returns><c>true</c> when both handles have the same identifier.</returns>
 	public static bool operator ==(ActivationHandle left, ActivationHandle right) => left.Id == right.Id;
+
+	/// <summary>Determines whether two activation handles identify different entries.</summary>
+	/// <param name="left">First handle to compare.</param>
+	/// <param name="right">Second handle to compare.</param>
+	/// <returns><c>true</c> when the handles have different identifiers.</returns>
 	public static bool operator !=(ActivationHandle left, ActivationHandle right) => left.Id != right.Id;
 
 	#region Equality

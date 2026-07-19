@@ -19,10 +19,13 @@ public sealed class IntentToVelocitySystem : ISystem
 {
 	private QueryHandle<IntentToVelocityQuerySpec> _query;
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.PreTick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
+	/// <inheritdoc />
 	public void OnCreate(World world)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));

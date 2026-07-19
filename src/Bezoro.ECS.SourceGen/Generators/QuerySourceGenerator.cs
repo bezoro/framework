@@ -9,6 +9,9 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
 
+/// <summary>
+///     Generates compiled query specifications from ECS query attributes on partial structs.
+/// </summary>
 [Generator]
 public sealed class QuerySourceGenerator : IIncrementalGenerator
 {
@@ -22,6 +25,7 @@ public sealed class QuerySourceGenerator : IIncrementalGenerator
 		true
 	);
 
+	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var queryModels = context.SyntaxProvider.ForAttributeWithMetadataName(

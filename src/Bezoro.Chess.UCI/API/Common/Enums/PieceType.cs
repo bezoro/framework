@@ -7,5 +7,22 @@ public enum PieceType : byte
 {
 	/// <summary>No piece (empty square).</summary>
 	Empty,
-	Pawn, Knight, Bishop, Rook, Queen, King
+
+	/// <summary>A pawn.</summary>
+	Pawn,
+
+	/// <summary>A knight.</summary>
+	Knight,
+
+	/// <summary>A bishop.</summary>
+	Bishop,
+
+	/// <summary>A rook.</summary>
+	Rook,
+
+	/// <summary>A queen.</summary>
+	Queen,
+
+	/// <summary>A king.</summary>
+	King
 }

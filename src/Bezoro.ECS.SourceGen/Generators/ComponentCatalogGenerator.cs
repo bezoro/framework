@@ -6,9 +6,13 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
 
+/// <summary>
+///     Emits the compatibility component catalog used by the ECS runtime assembly.
+/// </summary>
 [Generator]
 public sealed class ComponentCatalogGenerator : IIncrementalGenerator
 {
+	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var components = context.CompilationProvider.Select(static (compilation, _) =>

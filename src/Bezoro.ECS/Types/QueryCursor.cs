@@ -268,6 +268,7 @@ public struct QueryCursor : IDisposable
 			   );
 	}
 
+	/// <inheritdoc />
 	public void Dispose()
 	{
 		if (_disposed)

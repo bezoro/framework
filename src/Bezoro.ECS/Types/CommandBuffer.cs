@@ -7,6 +7,11 @@ public readonly struct CommandBuffer(CommandStream stream)
 {
 	private readonly CommandStream _stream = stream ?? throw new ArgumentNullException(nameof(stream));
 
+	/// <summary>
+	///     Gets the underlying command stream represented by a command buffer.
+	/// </summary>
+	/// <param name="buffer">Command buffer to unwrap.</param>
+	/// <returns>The underlying command stream.</returns>
 	public static implicit operator CommandStream(CommandBuffer buffer) =>
 		buffer._stream;
 

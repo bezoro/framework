@@ -10,11 +10,15 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
 
+/// <summary>
+///     Generates deterministic component and resource access metadata for ECS systems.
+/// </summary>
 [Generator]
 public sealed class SystemMetadataGenerator : IIncrementalGenerator
 {
 	private const string DIRECT_ITERATION_CONFLICT_RESOURCE_KEY = "global::Bezoro.ECS.Services.World";
 
+	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var systems = context.CompilationProvider.Select(static (compilation, _) =>
