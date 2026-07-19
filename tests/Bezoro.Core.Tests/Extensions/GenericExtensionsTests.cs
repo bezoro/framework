@@ -150,6 +150,33 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
+	public void ThrowIfWhenExpressionPredicateIsTrueWithCustomException_ShouldThrowSameInstance()
+	{
+		var expectedException = new InvalidOperationException("Custom exception");
+		Action action;
+
+		#pragma warning disable CS0618
+		action = () => 5.ThrowIf(value => value > 0, customException: expectedException);
+		#pragma warning restore CS0618
+
+		action.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(expectedException);
+	}
+
+	[Fact]
+	public void ThrowIfWhenExpressionPredicateIsTrueWithExplicitParameterName_ShouldPreserveGeneratedExceptionDetails()
+	{
+		Action action;
+
+		#pragma warning disable CS0618
+		action = () => 5.ThrowIf(value => value > 0, paramName: "number");
+		#pragma warning restore CS0618
+
+		var exception = action.Should().Throw<ArgumentException>().Which;
+		exception.ParamName.Should().Be("number");
+		exception.Message.Should().Contain("value > 0").And.Contain("number").And.Contain("5");
+	}
+
+	[Fact]
 	public void Yield_WhenCalled_ShouldReturnEnumerableWithSingleItem()
 	{
 		var result = 42.Yield();
