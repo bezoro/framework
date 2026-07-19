@@ -26,22 +26,22 @@ public class ObjectPoolClearTests
 	[Fact]
 	public void WithDisposeTrue_WhenCalled_ShouldDisposeItems()
 	{
+		var items = new List<DisposableObject>();
 		var pool = new ObjectPool<DisposableObject>(
-			() => new(),
+			() =>
+			{
+				var item = new DisposableObject();
+				items.Add(item);
+				return item;
+			},
 			new() { InitialCapacity = 3, MaxCapacity = -1 }
 		);
 
-		var items = new List<DisposableObject>();
-		for (var i = 0; i < 3; i++)
-		{
-			var item = pool.Rent();
-			items.Add(item);
-			pool.Return(item);
-		}
-
 		pool.Clear();
 
+		items.Should().HaveCount(3).And.OnlyHaveUniqueItems();
 		items.Should().OnlyContain(x => x.IsDisposed);
+		items.Should().OnlyContain(x => x.DisposeCount == 1);
 		pool.TotalCount.Should().Be(0);
 	}
 

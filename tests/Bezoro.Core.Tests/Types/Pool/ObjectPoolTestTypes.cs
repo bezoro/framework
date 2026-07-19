@@ -6,7 +6,13 @@ namespace Bezoro.Core.Tests.Types.Pool;
 internal sealed class DisposableObject : IDisposable
 {
 	public bool IsDisposed { get; private set; }
-	public void Dispose()  => IsDisposed = true;
+	public int DisposeCount { get; private set; }
+
+	public void Dispose()
+	{
+		DisposeCount++;
+		IsDisposed = true;
+	}
 }
 
 internal sealed class TestObject : IPooledObject
