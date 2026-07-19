@@ -1,3 +1,4 @@
+using System;
 using Bezoro.Core.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -66,4 +67,36 @@ public class SwapbackArrayContainsTests
 
 		arr.Contains(null).Should().BeFalse();
 	}
+
+	[Fact]
+	public void WhenEquivalentReferenceItemIsUsedAcrossLookupOperations_ShouldUseDefaultEqualityComparer()
+	{
+		var stored     = new EqualityByIdentifier("stored");
+		var equivalent = new EqualityByIdentifier("STORED");
+		var arr        = new SwapbackArray<EqualityByIdentifier> { stored };
+
+		arr.Contains(equivalent).Should().BeTrue();
+		arr.IndexOf(equivalent).Should().Be(0);
+		arr.TryGetIndex(equivalent, out uint index).Should().BeTrue();
+		index.Should().Be(0);
+
+#pragma warning disable CS0618
+		arr.TryIndexOf(equivalent, out uint? legacyIndex).Should().BeTrue();
+#pragma warning restore CS0618
+
+		legacyIndex.Should().Be(0);
+		arr.TryRemove(equivalent).Should().BeTrue();
+		arr.Should().BeEmpty();
+	}
+}
+
+internal sealed class EqualityByIdentifier(string identifier)
+{
+	public string Identifier { get; } = identifier;
+
+	public override bool Equals(object? obj) =>
+		obj is EqualityByIdentifier other &&
+		string.Equals(Identifier, other.Identifier, StringComparison.OrdinalIgnoreCase);
+
+	public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Identifier);
 }

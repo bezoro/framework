@@ -17,7 +17,7 @@ public class SingletonTests
 	public async Task Singleton_WhenCalled_ShouldInstance_Is_ThreadSafe_Creates_Once()
 	{
 		// Arrange
-		Singleton<DefaultSingleton>.Reset(true);
+		Singleton<DefaultSingleton>.ResetAndDispose();
 		DefaultSingleton.ResetCounters();
 
 		// Act
@@ -48,7 +48,7 @@ public class SingletonTests
 	public void Factory_WhenCalled_ShouldReturnNull_Throws_TypeInitializationException()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 
 		// Act
 		Action act = () => Singleton<PublicCtorSingleton>.Override(() => null!);
@@ -61,14 +61,14 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldConfigureFactory_Recreate_Disposes_And_Uses_New_Factory()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 		PublicCtorSingleton.ResetCounters();
 
 		var first = Singleton<PublicCtorSingleton>.Instance;
 		first.Marker = 10;
 
 		// Act
-		Singleton<PublicCtorSingleton>.ConfigureFactory(() => new() { Marker = 42 }, true);
+		Singleton<PublicCtorSingleton>.ConfigureFactoryAndRecreate(() => new() { Marker = 42 });
 
 		// Assert
 		Singleton<PublicCtorSingleton>.Instance.Marker.Should().Be(42);
@@ -82,7 +82,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldDirectConstruction_Is_Disallowed()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 		PublicCtorSingleton.ResetCounters();
 
 		// Act
@@ -97,7 +97,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldFlags_Reflect_State_Correctly_With_Override_And_Default()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 
 		// Initially
 		Singleton<PublicCtorSingleton>.IsValueCreated.Should().BeFalse();
@@ -113,7 +113,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldInitialize_Sets_Override_And_Subsequent_Initialize_Fails()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 		PublicCtorSingleton.ResetCounters();
 
 		// Act
@@ -132,7 +132,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldLazyCreation_And_TryGet_And_IsValueCreated_Flow()
 	{
 		// Arrange
-		Singleton<DefaultSingleton>.Reset(true);
+		Singleton<DefaultSingleton>.ResetAndDispose();
 		DefaultSingleton.ResetCounters();
 
 		Singleton<DefaultSingleton>.IsValueCreated.Should().BeFalse();
@@ -154,7 +154,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldNull_Factory_Arguments_Throw()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 
 		// Act
 		var    cfg  = () => Singleton<PublicCtorSingleton>.ConfigureFactory(null!);
@@ -171,7 +171,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldOverride_Scope_Replaces_And_Restores_Instance()
 	{
 		// Arrange
-		Singleton<PublicCtorSingleton>.Reset(true);
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
 		PublicCtorSingleton.ResetCounters();
 
 		// Prime default instance
@@ -201,7 +201,7 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldReflectionConstruction_Is_Disallowed()
 	{
 		// Arrange
-		Singleton<DefaultSingleton>.Reset(true);
+		Singleton<DefaultSingleton>.ResetAndDispose();
 		DefaultSingleton.ResetCounters();
 
 		// Act
@@ -219,14 +219,70 @@ public class SingletonTests
 	public void Singleton_WhenCalled_ShouldReset_Swallows_Dispose_Errors()
 	{
 		// Arrange
-		Singleton<ThrowOnDisposeSingleton>.Reset(true);
+		Singleton<ThrowOnDisposeSingleton>.ResetAndDispose();
 		_ = Singleton<ThrowOnDisposeSingleton>.Instance;
 
 		// Act
-		var act = () => Singleton<ThrowOnDisposeSingleton>.Reset(true);
+		var act = () => Singleton<ThrowOnDisposeSingleton>.ResetAndDispose();
 
 		// Assert
 		act.Should().NotThrow("Dispose exceptions should be swallowed during reset");
+	}
+
+	[Fact]
+	public void ConfigureFactoryBooleanOverload_WhenFalse_ShouldPreserveTheCurrentInstance()
+	{
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
+		var instance = Singleton<PublicCtorSingleton>.Instance;
+
+#pragma warning disable CS0618
+		Singleton<PublicCtorSingleton>.ConfigureFactory(() => new() { Marker = 42 }, false);
+#pragma warning restore CS0618
+
+		Singleton<PublicCtorSingleton>.Instance.Should().BeSameAs(instance);
+	}
+
+	[Fact]
+	public void ConfigureFactoryBooleanOverload_WhenTrue_ShouldRecreateTheCurrentInstance()
+	{
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
+		PublicCtorSingleton.ResetCounters();
+		_ = Singleton<PublicCtorSingleton>.Instance;
+
+#pragma warning disable CS0618
+		Singleton<PublicCtorSingleton>.ConfigureFactory(() => new() { Marker = 42 }, true);
+#pragma warning restore CS0618
+
+		Singleton<PublicCtorSingleton>.Instance.Marker.Should().Be(42);
+		PublicCtorSingleton.DisposeCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void ResetBooleanOverload_WhenFalse_ShouldNotDisposeTheCurrentInstance()
+	{
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
+		PublicCtorSingleton.ResetCounters();
+		_ = Singleton<PublicCtorSingleton>.Instance;
+
+#pragma warning disable CS0618
+		Singleton<PublicCtorSingleton>.Reset(false);
+#pragma warning restore CS0618
+
+		PublicCtorSingleton.DisposeCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void ResetBooleanOverload_WhenTrue_ShouldDisposeTheCurrentInstance()
+	{
+		Singleton<PublicCtorSingleton>.ResetAndDispose();
+		PublicCtorSingleton.ResetCounters();
+		_ = Singleton<PublicCtorSingleton>.Instance;
+
+#pragma warning disable CS0618
+		Singleton<PublicCtorSingleton>.Reset(true);
+#pragma warning restore CS0618
+
+		PublicCtorSingleton.DisposeCount.Should().Be(1);
 	}
 }
 

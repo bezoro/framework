@@ -144,14 +144,31 @@ public abstract class Singleton<T> where T : class
 	}
 
 	/// <summary>
-	///     Configures the creation factory. Optionally recreates the instance(s).
+	///     Configures the creation factory for future singleton instances.
 	/// </summary>
 	/// <param name="factory">A non-null delegate that returns a non-null instance.</param>
-	/// <param name="recreateIfInitialized">
-	///     When true, disposes and recreates both override and default instances using the new factory.
-	/// </param>
 	/// <exception cref="ArgumentNullException">When factory is null.</exception>
-	public static void ConfigureFactory(Func<T> factory, bool recreateIfInitialized = false)
+	public static void ConfigureFactory(Func<T> factory) => ConfigureFactoryCore(factory, recreateIfInitialized: false);
+
+	/// <summary>
+	///     Configures the creation factory and recreates any initialized singleton instances.
+	/// </summary>
+	/// <param name="factory">A non-null delegate that returns a non-null instance.</param>
+	/// <exception cref="ArgumentNullException">When factory is null.</exception>
+	public static void ConfigureFactoryAndRecreate(Func<T> factory) =>
+		ConfigureFactoryCore(factory, recreateIfInitialized: true);
+
+	/// <summary>
+	///     Configures the creation factory and optionally recreates initialized singleton instances.
+	/// </summary>
+	/// <param name="factory">A non-null delegate that returns a non-null instance.</param>
+	/// <param name="recreateIfInitialized">Whether to dispose and recreate existing instances.</param>
+	/// <exception cref="ArgumentNullException">When factory is null.</exception>
+	[Obsolete("Use ConfigureFactory(Func<T>) or ConfigureFactoryAndRecreate(Func<T>) instead.")]
+	public static void ConfigureFactory(Func<T> factory, bool recreateIfInitialized) =>
+		ConfigureFactoryCore(factory, recreateIfInitialized);
+
+	private static void ConfigureFactoryCore(Func<T> factory, bool recreateIfInitialized)
 	{
 		if (factory is null) throw new ArgumentNullException(nameof(factory));
 
@@ -175,10 +192,23 @@ public abstract class Singleton<T> where T : class
 	}
 
 	/// <summary>
-	///     Resets the singleton to its initial state. Optionally disposes existing instances (override and default).
+	///     Resets the singleton to its initial state without disposing existing instances.
 	/// </summary>
-	/// <param name="disposeInstances">If true, disposes IDisposable instances before resetting.</param>
-	public static void Reset(bool disposeInstances = false)
+	public static void Reset() => ResetCore(disposeInstances: false);
+
+	/// <summary>
+	///     Disposes existing instances and resets the singleton to its initial state.
+	/// </summary>
+	public static void ResetAndDispose() => ResetCore(disposeInstances: true);
+
+	/// <summary>
+	///     Resets the singleton to its initial state and optionally disposes existing instances.
+	/// </summary>
+	/// <param name="disposeInstances">Whether to dispose IDisposable instances before resetting.</param>
+	[Obsolete("Use Reset() or ResetAndDispose() instead.")]
+	public static void Reset(bool disposeInstances) => ResetCore(disposeInstances);
+
+	private static void ResetCore(bool disposeInstances)
 	{
 		lock (Sync)
 		{

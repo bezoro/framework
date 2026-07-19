@@ -31,13 +31,13 @@ public class SwapbackArrayClearTests
 	}
 
 	[Fact]
-	public void WhenSuccessful_WhenWithoutTrim_ShouldMaintainCapacity()
+	public void ClearRetainingCapacity_WhenCalled_ShouldMaintainCapacity()
 	{
 		var arr = new SwapbackArray<int>(100);
 		for (var i = 0; i < 50; i++) arr.Add(i);
 		uint capacity = arr.Capacity;
 
-		arr.Clear(false);
+		arr.ClearRetainingCapacity();
 
 		arr.Capacity.Should().Be(capacity);
 	}
@@ -51,5 +51,21 @@ public class SwapbackArrayClearTests
 		arr.Clear();
 
 		arr.Capacity.Should().Be(arr.MinimumArraySize);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ClearBooleanOverload_WhenCalled_ShouldForwardToTheCorrespondingNamedOperation(bool trim)
+	{
+		var arr = new SwapbackArray<int>(100);
+		for (var i = 0; i < 50; i++) arr.Add(i);
+		uint capacity = arr.Capacity;
+
+#pragma warning disable CS0618
+		arr.Clear(trim);
+#pragma warning restore CS0618
+
+		arr.Capacity.Should().Be(trim ? arr.MinimumArraySize : capacity);
 	}
 }
