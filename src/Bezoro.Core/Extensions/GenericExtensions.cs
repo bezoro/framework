@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
@@ -15,8 +14,6 @@ namespace Bezoro.Core.Extensions;
 /// </summary>
 public static class GenericExtensions
 {
-	private static readonly ConcurrentDictionary<ExpressionCacheKey, Delegate> ExpressionCache = new();
-
 	/// <summary>
 	///     Determines whether <paramref name="value" /> is within the inclusive range defined by <paramref name="min" /> and
 	///     <paramref name="max" />.
@@ -160,8 +157,9 @@ public static class GenericExtensions
 	/// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate" /> is <c>null</c>.</exception>
 	/// <exception cref="ArgumentException">Thrown if the predicate evaluates to true for <paramref name="value" />.</exception>
 	/// <remarks>
-	///     Compiled expressions are cached for repeated invocations with the same predicate structure.
+	///     This compatibility overload evaluates the supplied predicate for every invocation.
 	/// </remarks>
+	[Obsolete("Use ThrowIf(bool, string?, string?) instead.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static T ThrowIf<T>(
 		this T                    value,
@@ -171,22 +169,18 @@ public static class GenericExtensions
 	{
 		predicate.ThrowIfNull();
 
-		var key      = new ExpressionCacheKey(typeof(T), predicate.ToString());
-		var compiled = (Func<T, bool>)ExpressionCache.GetOrAdd(key, _ => predicate.Compile());
+		if (!predicate.Compile()(value)) return value;
 
-		if (!compiled(value)) return value;
+		if (customException is not null) throw customException;
 
-		if (customException is { })
-			throw customException;
-
-		string name          = paramName ?? typeof(T).Name;
-		var    conditionText = predicate.Body.ToString();
-		var    msg           = $"Condition '{conditionText}' failed for parameter '{name}' with value '{value}'.";
-		throw new ArgumentException(msg, name);
+		string name    = paramName ?? typeof(T).Name;
+		string message = $"Condition '{predicate.Body}' failed for parameter '{name}' with value '{value}'.";
+		throw new ArgumentException(message, name);
 	}
 
 	/// <summary>
-	///     Throws an <see cref="ArgumentException" /> if the boolean <paramref name="condition" /> is <c>true</c>.
+	///     Returns <paramref name="value" /> when <paramref name="condition" /> is <c>false</c>; otherwise, throws an
+	///     <see cref="ArgumentException" />.
 	/// </summary>
 	/// <typeparam name="T">The type of value being checked.</typeparam>
 	/// <param name="value">The value being checked.</param>
@@ -286,5 +280,4 @@ public static class GenericExtensions
 	private static void ThrowEmptySequence(string? paramName) =>
 		throw new ArgumentException("Sequence cannot be empty.", paramName);
 
-	private readonly record struct ExpressionCacheKey(Type Type, string ExpressionString);
 }

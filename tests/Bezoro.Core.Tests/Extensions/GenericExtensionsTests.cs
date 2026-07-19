@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types.Exceptions;
 using FluentAssertions;
@@ -137,16 +138,14 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfWhenPredicateIsFalse_WhenCalled_ShouldReturnValue()
+	public void ThrowIf_WhenExpressionTextIsReused_ShouldEvaluateEachInstance()
 	{
-		int result = 5.ThrowIf(x => x < 0);
-		result.Should().Be(5);
-	}
+		static Expression<Func<int, bool>> GreaterThan(int threshold) => value => value > threshold;
 
-	[Fact]
-	public void ThrowIfWhenPredicateIsTrue_WhenCalled_ShouldThrowArgumentException()
-	{
-		var action = () => 5.ThrowIf(x => x > 0);
+		#pragma warning disable CS0618
+		5.ThrowIf(GreaterThan(10)).Should().Be(5);
+		Action action = () => 5.ThrowIf(GreaterThan(0));
+		#pragma warning restore CS0618
 		action.Should().Throw<ArgumentException>();
 	}
 

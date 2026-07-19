@@ -7,9 +7,20 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Helpers;
 
+#pragma warning disable CS0618
+
 [TestSubject(typeof(ExceptionHelper))]
 public class ExceptionHelperTests
 {
+	[Fact]
+	public void ExceptionHelper_WhenObsolete_ShouldExposeExpectedMessage()
+	{
+		var attribute = typeof(ExceptionHelper).GetCustomAttribute<ObsoleteAttribute>();
+		attribute.Should().NotBeNull();
+		attribute!.Message
+			.Should().Be("Use direct exception construction instead.");
+	}
+
 	[Fact]
 	public void FormatExceptionMessage_WhenCalled_ShouldIncludeParamTypes_WhenProvided_ViaReflection()
 	{
@@ -65,5 +76,7 @@ public class ExceptionHelperTests
 		ex.Message.Should().Be("InvalidOperationException occurred in Unknown");
 	}
 }
+
+#pragma warning restore CS0618
 
 internal sealed class Dummy;

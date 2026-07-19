@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Bezoro.Core.Helpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -7,9 +8,20 @@ using Xunit;
 
 namespace Bezoro.Core.Tests.Helpers;
 
+#pragma warning disable CS0618
+
 [TestSubject(typeof(ValidationHelper))]
 public class ValidationHelperTests
 {
+	[Fact]
+	public void ValidationHelper_WhenObsolete_ShouldExposeExpectedMessage()
+	{
+		var attribute = typeof(ValidationHelper).GetCustomAttribute<ObsoleteAttribute>();
+		attribute.Should().NotBeNull();
+		attribute!.Message
+			.Should().Be("Use focused guard extensions or direct validation instead.");
+	}
+
 	[Fact]
 	public void Condition_WhenCalled_ShouldNotThrow_WhenConditionIsTrue()
 	{
@@ -54,6 +66,13 @@ public class ValidationHelperTests
 	{
 		var act = () => ValidationHelper.IsFalse<ArgumentException>(true, "bad");
 		act.Should().Throw<ArgumentException>();
+	}
+
+	[Fact]
+	public void IsFalse_WhenGenericExceptionHasOnlyParameterlessConstructor_ShouldThrowSpecificException()
+	{
+		var act = () => ValidationHelper.IsFalse<ParameterlessException>(true, "ignored");
+		act.Should().Throw<ParameterlessException>();
 	}
 
 	[Fact]
@@ -214,4 +233,8 @@ public class ValidationHelperTests
 	internal sealed class DerivedType : BaseType;
 
 	internal sealed class Dummy;
+
+	internal sealed class ParameterlessException : Exception;
 }
+
+#pragma warning restore CS0618

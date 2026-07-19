@@ -6,6 +6,7 @@ namespace Bezoro.Core.Helpers;
 /// <summary>
 ///     Provides helper methods for constructing and throwing exceptions with rich context information.
 /// </summary>
+[Obsolete("Use direct exception construction instead.")]
 public static class ExceptionHelper
 {
 	/// <summary>

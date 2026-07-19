@@ -7,6 +7,7 @@ namespace Bezoro.Core.Helpers;
 ///     Provides helper static methods for parameter, invariant, and value validation,
 ///     throwing standard exceptions when preconditions are violated.
 /// </summary>
+[Obsolete("Use focused guard extensions or direct validation instead.")]
 public static class ValidationHelper
 {
 	/// <summary>
@@ -26,10 +27,8 @@ public static class ValidationHelper
 	)
 	{
 		if (!condition)
-			ExceptionHelper.ThrowException<InvalidOperationException>(
-				caller,
-				methodName ?? string.Empty,
-				errorMessage
+			throw new InvalidOperationException(
+				FormatExceptionMessage(nameof(InvalidOperationException), caller, methodName ?? string.Empty, errorMessage)
 			);
 	}
 
@@ -39,11 +38,10 @@ public static class ValidationHelper
 	/// <param name="condition">The condition that must not be true.</param>
 	/// <param name="errorMessage">The message for the exception.</param>
 	/// <exception cref="InvalidOperationException">If <paramref name="condition" /> is true.</exception>
-	public static void IsFalse(bool condition, string errorMessage = "") =>
-		IsFalse<InvalidOperationException>(
-			condition,
-			errorMessage
-		);
+	public static void IsFalse(bool condition, string errorMessage = "")
+	{
+		if (condition) throw new InvalidOperationException(errorMessage);
+	}
 
 	/// <summary>
 	///     Validates that the specified condition is <c>false</c>.
@@ -64,7 +62,7 @@ public static class ValidationHelper
 	public static void IsFalse<TException>(bool condition, string errorMessage = "")
 		where TException : Exception
 	{
-		if (condition) ExceptionHelper.ThrowException<TException>(errorMessage);
+		if (condition) throw CreateCompatibilityException<TException>(errorMessage);
 	}
 
 	/// <summary>
@@ -94,10 +92,13 @@ public static class ValidationHelper
 	)
 	{
 		if (value <= 0)
-			ExceptionHelper.ThrowException<ArgumentException>(
-				caller,
-				methodName ?? string.Empty,
-				$"{paramName} must be positive. Received: {value}"
+			throw new ArgumentException(
+				FormatExceptionMessage(
+					nameof(ArgumentException),
+					caller,
+					methodName ?? string.Empty,
+					$"{paramName} must be positive. Received: {value}"
+				)
 			);
 	}
 
@@ -112,10 +113,13 @@ public static class ValidationHelper
 	public static void IsSubclassOf<T>(object caller, string methodName, Type type)
 	{
 		if (!type.IsSubclassOf(typeof(T)))
-			ExceptionHelper.ThrowException<ArgumentException>(
-				caller,
-				methodName,
-				$"Type {type} is not a subclass of {typeof(T).Name}"
+			throw new ArgumentException(
+				FormatExceptionMessage(
+					nameof(ArgumentException),
+					caller,
+					methodName,
+					$"Type {type} is not a subclass of {typeof(T).Name}"
+				)
 			);
 	}
 
@@ -158,10 +162,8 @@ public static class ValidationHelper
 		list.ThrowIfNull();
 
 		if (list.Count == 0)
-			ExceptionHelper.ThrowException<ArgumentException>(
-				caller,
-				methodName ?? string.Empty,
-				$"{paramName} is null or empty"
+			throw new ArgumentException(
+				FormatExceptionMessage(nameof(ArgumentException), caller, methodName ?? string.Empty, $"{paramName} is null or empty")
 			);
 	}
 
@@ -182,10 +184,8 @@ public static class ValidationHelper
 	)
 	{
 		if (string.IsNullOrWhiteSpace(value))
-			ExceptionHelper.ThrowException<ArgumentException>(
-				caller,
-				methodName ?? string.Empty,
-				$"{paramName} is null or empty"
+			throw new ArgumentException(
+				FormatExceptionMessage(nameof(ArgumentException), caller, methodName ?? string.Empty, $"{paramName} is null or empty")
 			);
 	}
 
@@ -213,10 +213,8 @@ public static class ValidationHelper
 
 		if (!string.IsNullOrWhiteSpace(exceptionMessage)) messageBuilder.Append($"; {exceptionMessage}");
 
-		ExceptionHelper.ThrowException<ArgumentNullException>(
-			caller,
-			methodName ?? string.Empty,
-			messageBuilder.ToString()
+		throw new ArgumentNullException(
+			FormatExceptionMessage(nameof(ArgumentNullException), caller, methodName ?? string.Empty, messageBuilder.ToString())
 		);
 	}
 
@@ -241,10 +239,55 @@ public static class ValidationHelper
 	)
 	{
 		if (value > max)
-			ExceptionHelper.ThrowException<ArgumentException>(
-				caller,
-				methodName ?? string.Empty,
-				$"{valueName} cannot be greater than {maxName}. Received: {value}, Max: {max}"
+			throw new ArgumentException(
+				FormatExceptionMessage(
+					nameof(ArgumentException),
+					caller,
+					methodName ?? string.Empty,
+					$"{valueName} cannot be greater than {maxName}. Received: {value}, Max: {max}"
+				)
 			);
+	}
+
+	private static TException CreateCompatibilityException<TException>(string message)
+		where TException : Exception
+	{
+		try
+		{
+			if (Activator.CreateInstance(typeof(TException), message) is TException exception) return exception;
+		}
+		catch (MissingMethodException)
+		{
+			// Try the parameterless compatibility constructor.
+		}
+
+		try
+		{
+			if (Activator.CreateInstance(typeof(TException)) is TException exception) return exception;
+		}
+		catch (MissingMethodException)
+		{
+			// Preserve the legacy fallback when neither compatibility constructor exists.
+		}
+
+		throw new InvalidOperationException($"Could not create exception of type {typeof(TException).FullName}.");
+	}
+
+	private static string FormatExceptionMessage(
+		string  exceptionType,
+		object? objectInstance,
+		string? methodName,
+		string? message
+	)
+	{
+		string objectType = objectInstance?.GetType().Name ?? "Unknown";
+		string methodPart = !string.IsNullOrWhiteSpace(methodName) ? $".{methodName}" : string.Empty;
+
+		var messageBuilder = new StringBuilder();
+		messageBuilder.Append($"{exceptionType} occurred in {objectType}{methodPart}");
+
+		if (!string.IsNullOrWhiteSpace(message)) messageBuilder.Append($": {message}");
+
+		return messageBuilder.ToString();
 	}
 }
