@@ -100,9 +100,10 @@ public class ObjectPoolReturnTests
 	}
 
 	[Fact]
-	public void Return_WhenForeignItemFillsOpenSlot_ShouldRejectPreviouslyRentedItemWithoutCapacityInflation()
+	public void Return_WhenForeignItemReplacesRentedOwnedItem_ShouldDiscardLaterUnownedReturnWithoutReleasingCapacity()
 	{
-		var pool = new ObjectPool<object>(() => new(), new() { MaxCapacity = 1 });
+		var policy = new TrackingPoolPolicy();
+		var pool = new ObjectPool<object>(policy, new() { MaxCapacity = 1, TrackStatistics = true });
 		var poolCreatedItem = pool.Rent();
 		var foreign = new object();
 
@@ -111,5 +112,7 @@ public class ObjectPoolReturnTests
 
 		pool.AvailableCount.Should().Be(1);
 		pool.TotalCount.Should().Be(1);
+		pool.Statistics.TotalDiscarded.Should().Be(1);
+		policy.DiscardCount.Should().Be(1);
 	}
 }

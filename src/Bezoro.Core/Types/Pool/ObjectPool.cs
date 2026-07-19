@@ -349,9 +349,9 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		return true;
 	}
 
-	private void ReleaseOwnedItem(T item, Action<T> release)
+	private bool ReleaseOwnedItem(T item, Action<T> release)
 	{
-		if (!_ownedItems.TryRemove(item, out _)) return;
+		if (!_ownedItems.TryRemove(item, out _)) return false;
 
 		try
 		{
@@ -362,14 +362,14 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			Interlocked.Decrement(ref _totalCount);
 			if (_options.TrackStatistics) Interlocked.Increment(ref _totalDiscarded);
 		}
+
+		return true;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ReleaseReturnedItem(T item)
 	{
-		if (_ownedItems.ContainsKey(item))
-			ReleaseOwnedItem(item, _policy.OnDiscard);
-		else
+		if (!ReleaseOwnedItem(item, _policy.OnDiscard))
 			DiscardUnownedItem(item);
 	}
 
