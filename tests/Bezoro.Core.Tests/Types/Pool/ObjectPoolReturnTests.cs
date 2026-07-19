@@ -85,4 +85,31 @@ public class ObjectPoolReturnTests
 		result.Should().BeTrue();
 		pool.AvailableCount.Should().Be(1);
 	}
+
+	[Fact]
+	public void Return_WhenItemWasNotCreatedByPool_ShouldAcceptAndOwnAvailableCapacity()
+	{
+		var pool = new ObjectPool<object>(() => new(), new() { MaxCapacity = 1 });
+		var foreign = new object();
+
+		pool.Return(foreign).Should().BeTrue();
+
+		pool.TotalCount.Should().Be(1);
+		pool.AvailableCount.Should().Be(1);
+		pool.Rent().Should().BeSameAs(foreign);
+	}
+
+	[Fact]
+	public void Return_WhenForeignItemFillsOpenSlot_ShouldRejectPreviouslyRentedItemWithoutCapacityInflation()
+	{
+		var pool = new ObjectPool<object>(() => new(), new() { MaxCapacity = 1 });
+		var poolCreatedItem = pool.Rent();
+		var foreign = new object();
+
+		pool.Return(foreign).Should().BeTrue();
+		pool.Return(poolCreatedItem).Should().BeFalse();
+
+		pool.AvailableCount.Should().Be(1);
+		pool.TotalCount.Should().Be(1);
+	}
 }

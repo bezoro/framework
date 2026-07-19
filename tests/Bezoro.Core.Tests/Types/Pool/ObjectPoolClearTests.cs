@@ -28,7 +28,7 @@ public class ObjectPoolClearTests
 	{
 		var pool = new ObjectPool<DisposableObject>(
 			() => new(),
-			new() { InitialCapacity = 3 }
+			new() { InitialCapacity = 3, MaxCapacity = -1 }
 		);
 
 		var items = new List<DisposableObject>();
@@ -42,5 +42,19 @@ public class ObjectPoolClearTests
 		pool.Clear();
 
 		items.Should().OnlyContain(x => x.IsDisposed);
+		pool.TotalCount.Should().Be(0);
+	}
+
+	[Fact]
+	public void Clear_WhenDisposeItemsIsFalse_ShouldDiscardEachAvailableItemAndReleaseCapacity()
+	{
+		var policy = new TrackingPoolPolicy();
+		var pool = new ObjectPool<object>(policy, new() { InitialCapacity = 3, TrackStatistics = true });
+
+		pool.Clear(disposeItems: false);
+
+		pool.AvailableCount.Should().Be(0);
+		pool.TotalCount.Should().Be(0);
+		policy.DiscardCount.Should().Be(3);
 	}
 }

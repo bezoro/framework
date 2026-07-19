@@ -15,7 +15,7 @@ public class ObjectPoolDisposeTests
 	{
 		var pool = new ObjectPool<DisposableObject>(
 			() => new(),
-			new() { InitialCapacity = 3 }
+			new() { InitialCapacity = 3, MaxCapacity = -1 }
 		);
 
 		var items = new List<DisposableObject>();
@@ -29,6 +29,7 @@ public class ObjectPoolDisposeTests
 		pool.Dispose();
 
 		items.Should().OnlyContain(x => x.IsDisposed);
+		pool.TotalCount.Should().Be(0);
 	}
 
 	[Fact]
