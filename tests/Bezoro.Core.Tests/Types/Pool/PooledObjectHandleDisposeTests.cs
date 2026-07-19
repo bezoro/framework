@@ -59,4 +59,19 @@ public class PooledObjectHandleDisposeTests
 
 		pool.AvailableCount.Should().Be(1, "item should only be returned once despite multiple Dispose calls");
 	}
+
+	[Fact]
+	public void Dispose_WhenHandleWasCopied_ShouldReturnSharedValueExactlyOnce()
+	{
+		var pool   = new ObjectPool<object>(() => new());
+		var first  = pool.RentHandle();
+		var second = first;
+
+		first.Dispose();
+		second.Dispose();
+
+		pool.AvailableCount.Should().Be(1);
+		first.IsDisposed.Should().BeTrue();
+		second.IsDisposed.Should().BeTrue();
+	}
 }
