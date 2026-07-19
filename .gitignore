@@ -217,6 +217,9 @@ appsettings.Local.json
 # Claude Code settings
 .claude/
 
+# Isolated implementation worktrees
+.worktrees/
+
 # .NET SDK local files
 .dotnet/
 
