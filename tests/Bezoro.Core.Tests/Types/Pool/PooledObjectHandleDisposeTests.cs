@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Bezoro.Core.Types.Pool;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -73,5 +76,42 @@ public class PooledObjectHandleDisposeTests
 		pool.AvailableCount.Should().Be(1);
 		first.IsDisposed.Should().BeTrue();
 		second.IsDisposed.Should().BeTrue();
+	}
+
+	[Fact]
+	public void Dispose_WhenCopied_ShouldInvokePoolReturnExactlyOnce()
+	{
+		var pool   = new CountingPool<object>();
+		var first  = new PooledObjectHandle<object>(new(), pool);
+		var second = first;
+
+		first.Dispose();
+		second.Dispose();
+
+		pool.ReturnCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Dispose_WhenCopiedHandlesAreDisposedConcurrently_ShouldInvokePoolReturnExactlyOnce()
+	{
+		using var start  = new Barrier(2);
+		var       pool   = new CountingPool<object>();
+		var       first  = new PooledObjectHandle<object>(new(), pool);
+		var       second = first;
+
+		Parallel.Invoke(
+			() =>
+			{
+				start.SignalAndWait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+				first.Dispose();
+			},
+			() =>
+			{
+				start.SignalAndWait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+				second.Dispose();
+			}
+		);
+
+		pool.ReturnCount.Should().Be(1);
 	}
 }
