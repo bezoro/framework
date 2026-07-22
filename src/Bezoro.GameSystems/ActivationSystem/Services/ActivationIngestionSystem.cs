@@ -15,8 +15,10 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 [Writes(typeof(ActivationCancellationRequest))]
 public sealed class ActivationIngestionSystem : ISystem
 {
+	/// <inheritdoc />
 	public Stage Stage => Stage.Input;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />

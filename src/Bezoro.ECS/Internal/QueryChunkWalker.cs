@@ -5,65 +5,8 @@ using Bezoro.ECS.Types;
 
 namespace Bezoro.ECS.Internal;
 
-internal interface IChunkAction<T1> where T1 : struct
-{
-	void Invoke(ref T1 component1);
-}
-
-internal interface IChunkAction<T1, T2>
-	where T1 : struct
-	where T2 : struct
-{
-	void Invoke(ref T1 component1, in T2 component2);
-}
-
-internal interface IChunkAction<T1, T2, T3>
-	where T1 : struct
-	where T2 : struct
-	where T3 : struct
-{
-	void Invoke(ref T1 component1, in T2 component2, in T3 component3);
-}
-
-internal interface IChunkAction<T1, T2, T3, T4>
-	where T1 : struct
-	where T2 : struct
-	where T3 : struct
-	where T4 : struct
-{
-	void Invoke(ref T1 component1, in T2 component2, in T3 component3, in T4 component4);
-}
-
-internal interface IEntityChunkAction<T1> where T1 : struct
-{
-	void Invoke(Entity entity, ref T1 component1);
-}
-
-internal interface IEntityChunkAction<T1, T2>
-	where T1 : struct
-	where T2 : struct
-{
-	void Invoke(Entity entity, ref T1 component1, in T2 component2);
-}
-
-internal interface IEntityChunkAction<T1, T2, T3>
-	where T1 : struct
-	where T2 : struct
-	where T3 : struct
-{
-	void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3);
-}
-
-internal interface IEntityChunkAction<T1, T2, T3, T4>
-	where T1 : struct
-	where T2 : struct
-	where T3 : struct
-	where T4 : struct
-{
-	void Invoke(Entity entity, ref T1 component1, in T2 component2, in T3 component3, in T4 component4);
-}
-
-// TODO: [CODE SMELL - Duplicated code] This walker repeats near-identical arity-specific traversal loops for chunk and entity execution. Fix: collapse these overloads onto a smaller shared kernel only after confirming the extracted abstraction does not regress hot-path performance.
+// The arity-specific loops are intentionally specialized. They keep component access statically typed
+// and avoid per-entity dispatch or temporary collections on this benchmarked ECS hot path.
 internal static class QueryChunkWalker
 {
 	public static void Execute<TAction, T1>(

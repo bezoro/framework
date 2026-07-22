@@ -12,10 +12,13 @@ namespace Bezoro.GameSystems.InputSystem.Services;
 /// </summary>
 public sealed class InputIngestionSystem : ISystem
 {
+	/// <inheritdoc />
 	public Stage Stage => Stage.Input;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
+	/// <inheritdoc />
 	public void OnCreate(World world)
 	{
 		if (world is null)

@@ -8,7 +8,7 @@ Bezoro.Core.Abstractions.IPoolPolicy<T> | public interface | review-contract | A
 Bezoro.Core.Abstractions.IProcessable | public interface | review-contract | Abstractions/IProcessable.cs
 Bezoro.Core.CodeGen.CodeWriter | public class | review-unsealed-class | CodeGen/CodeWriter.cs
 Bezoro.Core.CodeGen.CSharpCodeBuilder | public class | review-unsealed-class | CodeGen/CSharpCodeBuilder.cs
-Bezoro.Core.CodeGen.CSharpFileGenerator | public class | review-unsealed-class | CodeGen/CodeWriter.cs
+Bezoro.Core.CodeGen.CSharpFileGenerator | public class | review-unsealed-class | CodeGen/CSharpFileGenerator.cs
 Bezoro.Core.Extensions.ActionExtensions | public static class | stable-shape | Extensions/ActionExtensions.cs
 Bezoro.Core.Extensions.ArrayExtensions | public static class | stable-shape | Extensions/ArrayExtensions.cs
 Bezoro.Core.Extensions.ByteExtensions | public static class | stable-shape | Extensions/ByteExtensions.cs
@@ -30,7 +30,7 @@ Bezoro.Core.Extensions.StringExtensions | public static partial class | stable-s
 Bezoro.Core.Extensions.TypeExtensions | public static class | stable-shape | Extensions/TypeExtensions.cs
 Bezoro.Core.Helpers.ArrayConverter | public static class | stable-shape | Helpers/ArrayConverter.cs
 Bezoro.Core.Helpers.ArrayHelper | public static class | stable-shape | Helpers/ArrayHelper.cs
-Bezoro.Core.Helpers.ArrayIsFullException | public sealed class | stable-shape | Helpers/ArrayHelper.cs
+Bezoro.Core.Helpers.ArrayIsFullException | public sealed class | stable-shape | Helpers/ArrayIsFullException.cs
 Bezoro.Core.Helpers.DoubleComparer | public static class | stable-shape | Helpers/DoubleComparer.cs
 Bezoro.Core.Helpers.ExceptionHelper | public static class | stable-shape | Helpers/ExceptionHelper.cs
 Bezoro.Core.Helpers.FloatComparer | public static class | stable-shape | Helpers/FloatComparer.cs
@@ -43,7 +43,7 @@ Bezoro.Core.Types.Exceptions.ValueTooLargeException | public class | review-unse
 Bezoro.Core.Types.Exceptions.ValueTooSmallException | public class | review-unsealed-class | Types/Exceptions/ValueTooSmallException.cs
 Bezoro.Core.Types.Grid2D<T> | public sealed class | stable-shape | Types/Grid2D.cs
 Bezoro.Core.Types.GridSpan2D<T> | public ref struct | review-mutable-struct | Types/GridSpan2D.cs
-Bezoro.Core.Types.IFailureReason | public interface | review-contract | Types/ResultFactory.cs
+Bezoro.Core.Types.IFailureReason | public interface | review-contract | Types/IFailureReason.cs
 Bezoro.Core.Types.MaxValueUpdateMode | public enum | stable-shape | Types/MaxValueUpdateMode.cs
 Bezoro.Core.Types.Percent | public readonly struct | stable-shape | Types/Percent.cs
 Bezoro.Core.Types.Pool.ObjectPool<T> | public sealed class | stable-shape | Types/Pool/ObjectPool.cs
@@ -52,8 +52,8 @@ Bezoro.Core.Types.Pool.PoolExhaustedException | public class | review-unsealed-c
 Bezoro.Core.Types.PoolOptions | public readonly record struct | stable-shape | Types/PoolOptions.cs
 Bezoro.Core.Types.PoolPolicy<T> | public sealed class | stable-shape | Types/PoolPolicy.cs
 Bezoro.Core.Types.PoolStatistics | public readonly record struct | stable-shape | Types/PoolStatistics.cs
-Bezoro.Core.Types.ReadOnlyGridSpan2D<T> | public readonly ref struct | stable-shape | Types/GridSpan2D.cs
-Bezoro.Core.Types.Result<T> | public readonly struct | stable-shape | Types/ResultFactory.cs
+Bezoro.Core.Types.ReadOnlyGridSpan2D<T> | public readonly ref struct | stable-shape | Types/ReadOnlyGridSpan2D.cs
+Bezoro.Core.Types.Result<T> | public readonly struct | stable-shape | Types/Result.cs
 Bezoro.Core.Types.ResultFactory | public static class | stable-shape | Types/ResultFactory.cs
 Bezoro.Core.Types.SingleItemEnumerable<T> | public readonly struct | stable-shape | Types/SingleItemEnumerable.cs
 Bezoro.Core.Types.Singleton<T> | public abstract class | review-contract | Types/Singleton.cs

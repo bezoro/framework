@@ -2,8 +2,17 @@ using Bezoro.Chess.UCI.API.Common.Enums;
 
 namespace Bezoro.Chess.UCI.API.Types;
 
+/// <summary>
+///     Represents a parsed chess move together with its analyzed board semantics.
+/// </summary>
 public readonly record struct Move()
 {
+	/// <summary>
+	///     Initializes a move from notation and a corresponding analysis result.
+	/// </summary>
+	/// <param name="notation">Coordinate move notation, optionally including a piece or promotion designator.</param>
+	/// <param name="analysis">The analyzed move semantics.</param>
+	/// <exception cref="InvalidOperationException">The moving piece cannot be resolved.</exception>
 	public Move(string notation, MoveAnalysis analysis) : this()
 	{
 		var parsedMove = ParsedMove.FromNotation(notation);
@@ -14,12 +23,23 @@ public readonly record struct Move()
 		Piece    = ResolvePiece(parsedMove, analysis, notation);
 	}
 
-	public MoveAnalysis Analysis   { get; }
-	public Piece        Piece      { get; }
+	/// <summary>Gets the analyzed move semantics.</summary>
+	public MoveAnalysis Analysis { get; }
+
+	/// <summary>Gets the piece that moves.</summary>
+	public Piece Piece { get; }
+
+	/// <summary>Gets the side that owns <see cref="Piece" />.</summary>
 	public PieceColor   MovingSide => Piece.Color;
-	public string       From       { get; } = string.Empty;
-	public string       Notation   { get; } = string.Empty;
-	public string       To         { get; } = string.Empty;
+
+	/// <summary>Gets the source square.</summary>
+	public string From { get; } = string.Empty;
+
+	/// <summary>Gets normalized coordinate notation.</summary>
+	public string Notation { get; } = string.Empty;
+
+	/// <summary>Gets the destination square.</summary>
+	public string To { get; } = string.Empty;
 
 	private static Piece ResolvePiece(ParsedMove parsedMove, MoveAnalysis analysis, string notation)
 	{

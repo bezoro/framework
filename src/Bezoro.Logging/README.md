@@ -207,6 +207,17 @@ When handling log events, you receive a `LogPayload` with:
 | `ExceptionType`    | Exception type name                    |
 | `GroupingContext`  | Computed grouping identifier           |
 
+## API Reference
+
+| API | Purpose |
+| --- | --- |
+| `Logger` | Emits conditional log records, exceptions, and performance timings through `OnLog`. |
+| `LoggerSettings` | Configures enablement, metadata, grouping, styling, and async context. |
+| `LogPayload` | Carries the immutable data delivered to log subscribers. |
+| `LogLevel` / `LogCategory` | Classifies severity and subsystem. |
+| `GroupingConfig` | Selects caller, category, thread, async-context, or time-window grouping. |
+| `PerformanceTimer` | Measures and logs a scoped operation duration. |
+
 ## Unity Integration
 
 The library targets .NET Standard 2.1 for Unity compatibility. Connect to Unity's console:
@@ -238,3 +249,10 @@ Logger.OnLog += payload =>
 
 - .NET 9.0
 - .NET Standard 2.1 (Unity)
+
+## Design Notes
+
+- Logging calls use conditional compilation so disabled release logging does not evaluate or dispatch payloads.
+- Output is event-driven; applications own console, file, Unity, or telemetry sinks.
+- Async context uses scoped state so nested operations restore their parent context on disposal.
+- Configuration remains static to keep call sites allocation-light and engine-independent.

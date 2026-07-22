@@ -10,15 +10,34 @@ namespace Bezoro.Chess.UCI.API.Types;
 /// </summary>
 public readonly record struct MoveAnalysis
 {
+	/// <summary>Gets whether the move captures an opposing piece.</summary>
 	public bool      IsCapture   { get; private init; }
+
+	/// <summary>Gets whether the move castles.</summary>
 	public bool      IsCastling  { get; private init; }
+
+	/// <summary>Gets whether the move gives check.</summary>
 	public bool      IsCheck     { get; private init; }
+
+	/// <summary>Gets whether the move is an en-passant capture.</summary>
 	public bool      IsEnPassant { get; private init; }
+
+	/// <summary>Gets whether the move checkmates the opposing king.</summary>
 	public bool      IsMate      { get; private init; }
+
+	/// <summary>Gets whether the move has no special tactical classification.</summary>
 	public bool      IsNormal    { get; private init; }
+
+	/// <summary>Gets whether the move promotes a pawn.</summary>
 	public bool      IsPromotion { get; private init; }
+
+	/// <summary>Gets whether the resulting position is stalemate.</summary>
 	public bool      IsStalemate { get; private init; }
+
+	/// <summary>Gets the engine score associated with the move.</summary>
 	public MoveScore Score       { get; private init; }
+
+	/// <summary>Gets the piece moved from the source square, when resolved.</summary>
 	public Piece?    MovingPiece { get; private init; }
 
 

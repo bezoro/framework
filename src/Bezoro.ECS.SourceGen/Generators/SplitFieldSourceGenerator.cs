@@ -5,12 +5,16 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
 
+/// <summary>
+///     Generates grouped ECS storage components and conversion helpers for split-field components.
+/// </summary>
 [Generator]
 public sealed class SplitFieldSourceGenerator : IIncrementalGenerator
 {
 	private const string SPLIT_FIELDS_ATTRIBUTE_NAME = "Bezoro.ECS.Attributes.SplitFieldsAttribute";
 	private const string SPLIT_GROUP_ATTRIBUTE_NAME  = "Bezoro.ECS.Attributes.SplitGroupAttribute";
 
+	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var models = context.CompilationProvider.Select(static (compilation, _) =>

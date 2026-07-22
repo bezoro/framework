@@ -21,10 +21,13 @@ public sealed class HealthSystem : ISystem
 	/// </summary>
 	public event Action<HealthChangedEvent>? Changed;
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.Tick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
+	/// <inheritdoc />
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
@@ -184,7 +187,3 @@ public sealed class HealthSystem : ISystem
 		return scaled > newMax ? newMax : scaled;
 	}
 }
-
-[Query]
-[With(typeof(HealthMutationRequest))]
-internal readonly partial struct HealthMutationRequestQuery;
