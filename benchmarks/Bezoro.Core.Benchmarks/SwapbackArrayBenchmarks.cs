@@ -9,6 +9,10 @@ namespace Bezoro.Core.Benchmarks;
 public class SwapbackArrayBenchmarks
 {
 	private static readonly int[] AddRangeBatch = Enumerable.Range(0, 1_000).ToArray();
+	private SwapbackArray<int> _removalComplexityLargeItems = null!;
+	private Random              _removalComplexityLargeRandom = null!;
+	private SwapbackArray<int> _removalComplexitySmallItems = null!;
+	private Random              _removalComplexitySmallRandom = null!;
 
 	[Benchmark(Description = "Add items one-by-one (10,000)")]
 	public void AddMany()
@@ -99,24 +103,34 @@ public class SwapbackArrayBenchmarks
 	[Benchmark(Description = "TryRemoveAt cost (100,000 items, 500 removals)")]
 	public void RemovalComplexityLarge()
 	{
-		var arr = new SwapbackArray<int>();
-		for (var i = 0; i < 100_000; i++)
-			arr.Add(i);
-
-		var random = new Random(42);
 		for (var i = 0; i < 500; i++)
-			arr.TryRemoveAt((uint)random.Next((int)arr.Count));
+			_removalComplexityLargeItems.TryRemoveAt((uint)_removalComplexityLargeRandom.Next((int)_removalComplexityLargeItems.Count));
+	}
+
+	[IterationSetup(Target = nameof(RemovalComplexityLarge))]
+	public void SetupRemovalComplexityLarge()
+	{
+		_removalComplexityLargeItems = new();
+		for (var i = 0; i < 100_000; i++)
+			_removalComplexityLargeItems.Add(i);
+
+		_removalComplexityLargeRandom = new(42);
 	}
 
 	[Benchmark(Description = "TryRemoveAt cost (1,000 items, 500 removals)")]
 	public void RemovalComplexitySmall()
 	{
-		var arr = new SwapbackArray<int>();
-		for (var i = 0; i < 1_000; i++)
-			arr.Add(i);
-
-		var random = new Random(42);
 		for (var i = 0; i < 500; i++)
-			arr.TryRemoveAt((uint)random.Next((int)arr.Count));
+			_removalComplexitySmallItems.TryRemoveAt((uint)_removalComplexitySmallRandom.Next((int)_removalComplexitySmallItems.Count));
+	}
+
+	[IterationSetup(Target = nameof(RemovalComplexitySmall))]
+	public void SetupRemovalComplexitySmall()
+	{
+		_removalComplexitySmallItems = new();
+		for (var i = 0; i < 1_000; i++)
+			_removalComplexitySmallItems.Add(i);
+
+		_removalComplexitySmallRandom = new(42);
 	}
 }
