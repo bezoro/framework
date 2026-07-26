@@ -25,6 +25,7 @@ public sealed class ArrayWordProvider : IWordProvider
 	}
 
 	/// <inheritdoc />
+	[Obsolete("Use TryGetNextWord(out ReadOnlyMemory<char>) instead.")]
 	public bool HasMoreWords => _index < _words.Count;
 
 	/// <inheritdoc />
@@ -64,14 +65,23 @@ public sealed class ArrayWordProvider : IWordProvider
 		_words.Remove(word.ToString());
 	}
 
+	/// <inheritdoc />
+	public bool TryGetNextWord(out ReadOnlyMemory<char> word)
+	{
+		if (_index >= _words.Count)
+		{
+			word = ReadOnlyMemory<char>.Empty;
+			return false;
+		}
+
+		word = _words[_index++].AsMemory();
+		return true;
+	}
+
 	ReadOnlyMemory<char> IWordProvider.GetNextWord()
 	{
-		if (!HasMoreWords) throw new InvalidOperationException("No more words available.");
+		if (!TryGetNextWord(out var word)) throw new InvalidOperationException("No more words available.");
 
-		uint index = _index++;
-		if (index >= _words.Count) throw new InvalidOperationException("No more words available.");
-
-		string word = _words[index];
-		return word.AsMemory();
+		return word;
 	}
 }
