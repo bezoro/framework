@@ -17,6 +17,15 @@
 - If `dotnet build` or `dotnet test` fails, diagnose the root cause, fix it, and rerun. Do not leave known failures behind.
 - When public API, types, or observable behavior changes, review the affected XML docs and project `README.md` files before finishing.
 
+## Multi-Agent Workflow
+
+- Except for the mandatory pre-commit review below, use multi-agent work only when it materially improves context gathering, planning, implementation, or independent review. Skip unnecessary exploration and planning agents for narrow, already-understood changes.
+- For code exploration or context gathering, use a focused read-only `gpt-5.6-sol` agent with low reasoning. Give it specific questions and synthesize its evidence before planning.
+- For materially complex planning, use a read-only `gpt-5.6-sol` agent with high reasoning. Base the plan on verified exploration results, explicit constraints, compatibility requirements, and validation evidence.
+- When implementation delegation materially improves the work, use a `gpt-5.6-sol` agent with medium reasoning whether or not a formal plan exists. Assign explicit file ownership and success criteria, require TDD where applicable, and prohibit staging or committing. Return review fixes to the original implementer when practical.
+- Before every commit, stage only the atomic candidate and dispatch a fresh read-only `gpt-5.6-sol` agent with high reasoning to review the exact staged tree. Resolve material findings, restage, and obtain approval from a fresh high-reasoning reviewer before committing. Any staged-tree change invalidates prior approval and requires another fresh review; if the reviewer is unavailable, do not commit.
+- Use repository-required `requirements_critic` and `change_reviewer` roles when applicable. A requirements critic supplements preflight and does not replace evidence-based planning unless it reviews the complete proposed plan. A change reviewer satisfies the independent review phase only when it reviews the exact required scope, including the exact staged tree when used for pre-commit approval.
+
 ## Repository Shape
 
 ```text
