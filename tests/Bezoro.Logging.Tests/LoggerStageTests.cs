@@ -13,12 +13,18 @@ public sealed class LoggerStageTests
 		var secondStage = $"second-{Guid.NewGuid():N}";
 		var currentStage = firstStage;
 		var frameProviderCalls = 0;
-		LoggerSettings.Stage = StageConfig.Create(() => currentStage);
+		var stageProviderCalls = 0;
+		LoggerSettings.Stage = StageConfig.Create(() =>
+		{
+			stageProviderCalls++;
+			return currentStage;
+		});
 		LoggerSettings.FrameCount = FrameCountConfig.Create(() =>
 		{
 			frameProviderCalls++;
 			return 42;
 		});
+		LoggerSettings.SequenceNumber = SequenceNumberConfig.On;
 		var payloads = new List<LogPayload>();
 		Action<LogPayload> handler = payloads.Add;
 		Logger.OnLog += handler;
@@ -51,6 +57,17 @@ public sealed class LoggerStageTests
 		payloads[3].Level.Should().Be(LogLevel.Info);
 		payloads[3].Message.Should().Be("repeated");
 		payloads[3].Stage.Should().Be(secondStage);
+
+		var firstSequence = ParseSequenceNumber(payloads[0]);
+		ParseSequenceNumber(payloads[2]).Should().Be(firstSequence + 1);
+		ParseSequenceNumber(payloads[3]).Should().Be(firstSequence + 2);
+		stageProviderCalls.Should().Be(3);
 		frameProviderCalls.Should().Be(3);
+	}
+
+	private static long ParseSequenceNumber(LogPayload payload)
+	{
+		var endIndex = payload.FormattedMessage.IndexOf(' ');
+		return long.Parse(payload.FormattedMessage[2..endIndex]);
 	}
 }
