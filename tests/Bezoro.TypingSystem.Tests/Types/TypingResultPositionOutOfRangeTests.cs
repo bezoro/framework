@@ -1,3 +1,4 @@
+using System.Reflection;
 using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -7,6 +8,15 @@ namespace Bezoro.TypingSystem.Tests.Types;
 [TestSubject(typeof(TypingResult))]
 public class TypingResultPositionOutOfRangeTests
 {
+	[Fact]
+	public void PositionOutOfRange_WhenInspected_ShouldBePublicFactory()
+	{
+		var method = typeof(TypingResult).GetMethod(nameof(TypingResult.PositionOutOfRange), BindingFlags.Public | BindingFlags.Static);
+
+		method.Should().NotBeNull();
+		method!.ReturnType.Should().Be<TypingResult>();
+	}
+
 	[Fact]
 	public void PositionOutOfRange_WhenPositionExceedsTargetLength_ShouldClampNextPosition()
 	{
