@@ -63,13 +63,14 @@ public sealed class LoggerPayloadTests
 	{
 		using var settings = new LoggerSettingsScope();
 		LoggerSettings.FileLocation = FileLocationConfig.FullPath;
+		var filePath = Path.Combine("source", "Widget.cs");
 		var payloads = new List<LogPayload>();
 		Action<LogPayload> handler = payloads.Add;
 		Logger.OnLog += handler;
 
 		try
 		{
-			Logger.Log("caller", captureCallerInfo: true, memberName: "Handle", filePath: @"C:\source\Widget.cs");
+			Logger.Log("caller", captureCallerInfo: true, memberName: "Handle", filePath: filePath);
 		}
 		finally
 		{
@@ -78,6 +79,6 @@ public sealed class LoggerPayloadTests
 
 		payloads.Should().ContainSingle();
 		payloads[0].CallerInfo.Should().Be("Widget.Handle()");
-		payloads[0].FormattedMessage.Should().Be("ℹ️ caller\n  └─ C:\\source\\Widget.cs :: Widget.Handle()");
+		payloads[0].FormattedMessage.Should().Be($"ℹ️ caller\n  └─ {filePath} :: Widget.Handle()");
 	}
 }

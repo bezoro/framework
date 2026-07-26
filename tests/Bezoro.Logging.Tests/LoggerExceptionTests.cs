@@ -10,6 +10,7 @@ public sealed class LoggerExceptionTests
 	{
 		using var settings = new LoggerSettingsScope();
 		var exception = CaptureException();
+		var filePath = "Worker.cs";
 		var payloads = new List<LogPayload>();
 		Action<LogPayload> handler = payloads.Add;
 		Logger.OnLog += handler;
@@ -22,7 +23,7 @@ public sealed class LoggerExceptionTests
 				LogCategory.Test,
 				captureCallerInfo: true,
 				memberName: "Run",
-				filePath: @"C:\source\Worker.cs");
+				filePath: filePath);
 		}
 		finally
 		{
