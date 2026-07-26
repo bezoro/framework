@@ -61,7 +61,7 @@ public sealed class LogPayload
 	public required string SeverityEmoji { get; init; }
 
 	/// <summary>
-	///     Formatted async context string (format depends on LoggerSettings.AsyncFormat).
+	///     Async context hierarchy joined with <c> &gt; </c> separators.
 	/// </summary>
 	public string? AsyncContext { get; init; }
 
@@ -81,7 +81,7 @@ public sealed class LogPayload
 	public string? ExceptionType { get; init; }
 
 	/// <summary>
-	///     Automatic grouping context based on LoggerSettings.GroupBy.
+	///     Automatic grouping context computed from <see cref="LoggerSettings.Grouping" />.
 	/// </summary>
 	public string? GroupingContext { get; init; }
 

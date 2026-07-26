@@ -26,19 +26,23 @@ public static class Logger
 	public static LogLevel MinimumLevel { get; set; } = LogLevel.Info;
 
 	/// <summary>
-	///     Begins a performance timer that logs the operation duration when disposed.
+	///     Begins a performance timer that logs the operation duration when disposed if the
+	///     Bezoro.Logging assembly is compiled with <c>DEBUG</c>.
 	/// </summary>
 	/// <param name="operationName">The name of the operation being timed.</param>
 	/// <param name="category">Optional log category.</param>
 	/// <param name="contextObject">Optional context object.</param>
-	/// <returns>A disposable timer that logs when disposed (fully compiled away if DEBUG is not defined).</returns>
+	/// <returns>
+	///     A scoped timer that records and logs elapsed time when the Bezoro.Logging assembly is compiled with <c>DEBUG</c>;
+	///     otherwise, its disposal performs no work.
+	/// </returns>
 	/// <example>
 	///     <code>
 	/// using (Logger.BeginTimer("LoadLevel", LogCategory.Loading))
 	/// {
 	///     // ... operation code ...
 	/// }
-	/// // Logs: [ℹ️] [⏳] LoadLevel completed in 123.45ms
+	/// // Output includes: ℹ️ [⏳] LoadLevel completed in 123.45ms
 	/// </code>
 	/// </example>
 	public static PerformanceTimer BeginTimer(
