@@ -72,7 +72,7 @@ provider.LoadWordsFromFile(path);
 - Case-insensitive validation uses invariant Unicode casing.
 - Callbacks distinguish matches, completion, mismatches, and validation faults.
 - Empty targets and out-of-range positions return fault results instead of throwing.
-- File loading is synchronous, streams lines from the file, and is intended for caller-controlled setup paths.
+- File loading is synchronous, reads all lines before appending any words, and is intended for caller-controlled setup paths.
 
 ## Design Notes
 

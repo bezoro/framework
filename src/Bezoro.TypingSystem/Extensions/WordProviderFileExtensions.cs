@@ -25,6 +25,8 @@ public static class WordProviderFileExtensions
 		if (provider is null) throw new ArgumentNullException(nameof(provider));
 		if (filePath is null) throw new ArgumentNullException(nameof(filePath));
 
-		foreach (string word in File.ReadLines(filePath)) provider.AddWord(word.AsMemory());
+		var words = File.ReadAllLines(filePath);
+
+		foreach (string word in words) provider.AddWord(word.AsMemory());
 	}
 }

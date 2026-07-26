@@ -73,14 +73,17 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void LoadWordsFromFile_WhenFileDoesNotExist_ShouldThrowFileNotFoundException()
+	public void LoadWordsFromFile_WhenFileDoesNotExist_ShouldLeaveProviderUnchanged()
 	{
-		var provider = new ArrayWordProvider(["one"]);
+		var provider = new ArrayWordProvider(["one", "two"]);
+		_ = provider.TryGetNextWord(out _);
 		var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
 
 		var action = () => provider.LoadWordsFromFile(filePath);
 
 		action.Should().Throw<FileNotFoundException>();
+		provider.WordCount.Should().Be(2);
+		Drain(provider).Should().Equal("two");
 	}
 
 	[Fact]
