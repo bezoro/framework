@@ -1,5 +1,6 @@
 using Bezoro.Core.Types.Exceptions;
 using Bezoro.TypingSystem.Abstractions;
+using Bezoro.TypingSystem.Extensions;
 using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -30,7 +31,7 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void AddWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
+	public void LoadWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
 	{
 		string filePath = Path.GetTempFileName();
 		File.WriteAllLines(filePath, ["two", "three"]);
@@ -38,21 +39,48 @@ public class ArrayWordProviderTests
 		try
 		{
 			var provider = new ArrayWordProvider(["one"]);
-
-			provider.AddWordsFromFile(filePath);
+			provider.LoadWordsFromFile(filePath);
 
 			provider.WordCount.Should().Be(3);
-			provider.TryGetNextWord(out var first).Should().BeTrue();
-			provider.TryGetNextWord(out var second).Should().BeTrue();
-			provider.TryGetNextWord(out var third).Should().BeTrue();
-			first.ToString().Should().Be("one");
-			second.ToString().Should().Be("two");
-			third.ToString().Should().Be("three");
+			Drain(provider).Should().Equal("one", "two", "three");
 		}
 		finally
 		{
 			File.Delete(filePath);
 		}
+	}
+
+	[Fact]
+	public void LoadWordsFromFile_WhenProviderIsNull_ShouldThrowArgumentNullException()
+	{
+		ArrayWordProvider provider = null!;
+
+		var action = () => provider.LoadWordsFromFile("words.txt");
+
+		action.Should().Throw<ArgumentNullException>()
+			.WithParameterName("provider");
+	}
+
+	[Fact]
+	public void LoadWordsFromFile_WhenFilePathIsNull_ShouldThrowArgumentNullException()
+	{
+		var provider = new ArrayWordProvider(["one"]);
+
+		var action = () => provider.LoadWordsFromFile(null!);
+
+		action.Should().Throw<ArgumentNullException>()
+			.WithParameterName("filePath");
+	}
+
+	[Fact]
+	public void LoadWordsFromFile_WhenFileDoesNotExist_ShouldThrowFileNotFoundException()
+	{
+		var provider = new ArrayWordProvider(["one"]);
+		var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+
+		var action = () => provider.LoadWordsFromFile(filePath);
+
+		action.Should().Throw<FileNotFoundException>();
 	}
 
 	[Fact]
@@ -128,5 +156,10 @@ public class ArrayWordProviderTests
 		provider.RemoveWord("two".AsMemory());
 
 		provider.WordCount.Should().Be(2);
+	}
+
+	private static IEnumerable<string> Drain(IWordSource source)
+	{
+		while (source.TryGetNextWord(out var word)) yield return word.ToString();
 	}
 }

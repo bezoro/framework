@@ -8,6 +8,38 @@ namespace Bezoro.TypingSystem.Tests.Types;
 public class WordProviderCompatibilityTests
 {
 	[Fact]
+	public void AddWordsFromFile_WhenCalledOnArrayWordProvider_ShouldForwardToFileAdapter()
+	{
+		string filePath = Path.GetTempFileName();
+		File.WriteAllLines(filePath, ["two", "three"]);
+
+		try
+		{
+			var provider = new ArrayWordProvider(["one"]);
+#pragma warning disable CS0618
+			provider.AddWordsFromFile(filePath);
+#pragma warning restore CS0618
+
+			Drain(provider).Should().Equal("one", "two", "three");
+		}
+		finally
+		{
+			File.Delete(filePath);
+		}
+	}
+
+	[Fact]
+	public void AddWordsFromFile_WhenInspectedOnArrayWordProvider_ShouldHaveExactObsoleteMessage()
+	{
+		var member = typeof(ArrayWordProvider).GetMethod(nameof(ArrayWordProvider.AddWordsFromFile));
+
+		var attribute = member!.GetCustomAttribute<ObsoleteAttribute>();
+
+		attribute.Should().NotBeNull();
+		attribute!.Message.Should().Be("Use WordProviderFileExtensions.LoadWordsFromFile instead.");
+	}
+
+	[Fact]
 	public void TryGetNextWord_WhenLegacyImplementerHasOnlyOldMembers_ShouldUseDefaultBridge()
 	{
 		IWordSource source = new LegacyWordProvider(["one"]);
@@ -140,5 +172,10 @@ public class WordProviderCompatibilityTests
 		{
 			_words.Remove(word.ToString());
 		}
+	}
+
+	private static IEnumerable<string> Drain(IWordSource source)
+	{
+		while (source.TryGetNextWord(out var word)) yield return word.ToString();
 	}
 }

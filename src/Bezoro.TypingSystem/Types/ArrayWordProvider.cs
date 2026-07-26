@@ -1,6 +1,7 @@
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types;
 using Bezoro.TypingSystem.Abstractions;
+using Bezoro.TypingSystem.Extensions;
 
 namespace Bezoro.TypingSystem.Types;
 
@@ -44,10 +45,8 @@ public sealed class ArrayWordProvider : IWordProvider
 	}
 
 	/// <inheritdoc />
-	public void AddWordsFromFile(string filePath)
-	{
-		foreach (string? word in File.ReadAllLines(filePath)) _words.Add(word);
-	}
+	[Obsolete("Use WordProviderFileExtensions.LoadWordsFromFile instead.")]
+	public void AddWordsFromFile(string filePath) => this.LoadWordsFromFile(filePath);
 
 	/// <inheritdoc />
 	public void ClearWords()

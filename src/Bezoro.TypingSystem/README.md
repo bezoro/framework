@@ -11,14 +11,18 @@ Engine-independent word provisioning, character validation, state transitions, c
 | `TypingState` | Tracks immutable position, correct-input, and mistake counts for one target. |
 | `TypingValidatorOptions` | Configures case handling, callbacks, and optional metrics collection. |
 | `TypingMetrics` | Tracks accuracy, correct characters per minute, mistakes, faults, and elapsed time. |
-| `IWordProvider` / `ArrayWordProvider` | Supplies and mutates a sequence of words. |
+| `IWordSource` | Atomically consumes words from a typing-session source. |
+| `ArrayWordProvider` | Stores words in insertion order and provides concrete mutation operations. |
+| `WordProviderFileExtensions` | Appends words from a text file to an `ArrayWordProvider`. |
 
 ## Quick Start
 
 ```csharp
+using Bezoro.TypingSystem.Abstractions;
 using Bezoro.TypingSystem.Types;
 using Bezoro.TypingSystem.Utilities;
 
+IWordSource source = new ArrayWordProvider(["hello", "world"]);
 var metrics = new TypingMetrics();
 var options = new TypingValidatorOptions
 {
@@ -26,11 +30,13 @@ var options = new TypingValidatorOptions
 	Metrics = metrics
 };
 
-ReadOnlySpan<char> target = "hello";
-var result = TypingValidator.ValidateInput(target, position: 0, inputChar: 'H', options);
+while (source.TryGetNextWord(out var word))
+{
+	var result = TypingValidator.ValidateInput(word.Span, position: 0, inputChar: 'H', options);
 
-if (result.IsCorrect)
-	Console.WriteLine($"Accuracy: {metrics.Accuracy:P0}");
+	if (result.IsCorrect)
+		Console.WriteLine($"Accuracy: {metrics.Accuracy:P0}");
+}
 ```
 
 ## API Reference
@@ -39,20 +45,34 @@ if (result.IsCorrect)
 
 `TypingValidator.ValidateInput` returns `Match`, `Completed`, `Mismatch`, `EmptyTarget`, or `PositionOutOfRange`. Targets longer than 255 characters throw `ArgumentOutOfRangeException` because positions are represented as bytes.
 
+Create `TypingResult` values through the public `TypingResult.Match`, `TypingResult.Mismatch`, `TypingResult.Completed`, `TypingResult.EmptyTarget`, and `TypingResult.PositionOutOfRange` factories. The public constructor remains available only as an obsolete compatibility shim for existing callers and serializers during migration.
+
 ### State And Metrics
 
 Use `TypingState.WithCorrect()` and `TypingState.WithMistake()` to derive the next immutable state. Pass a `TypingMetrics` instance through `TypingValidatorOptions` to record each validation automatically.
 
 ### Word Providers
 
-`IWordProvider` supports adding, removing, clearing, and reading words. `ArrayWordProvider` consumes its words in insertion order and throws `InvalidOperationException` when exhausted.
+Use `IWordSource.TryGetNextWord` as the consumption contract. It atomically reports exhaustion and returns empty memory when no word remains. `ArrayWordProvider` owns the concrete `AddWord`, `AddWords`, `RemoveWord`, `ClearWords`, and `WordCount` mutation and inspection operations.
+
+Load one word per line during caller-controlled setup through the focused file adapter:
+
+```csharp
+using Bezoro.TypingSystem.Extensions;
+using Bezoro.TypingSystem.Types;
+
+var provider = new ArrayWordProvider(["first"]);
+provider.LoadWordsFromFile(path);
+```
+
+`IWordProvider`, its split read/mutation members, and `ArrayWordProvider.AddWordsFromFile` remain available as obsolete compatibility shims during the migration window. New callers should consume through `IWordSource`, mutate the concrete provider, and load files through `WordProviderFileExtensions.LoadWordsFromFile`.
 
 ## Feature Notes
 
 - Case-insensitive validation uses invariant Unicode casing.
 - Callbacks distinguish matches, completion, mismatches, and validation faults.
 - Empty targets and out-of-range positions return fault results instead of throwing.
-- Word loading from files is synchronous and intended for caller-controlled setup paths.
+- File loading is synchronous, streams lines from the file, and is intended for caller-controlled setup paths.
 
 ## Design Notes
 
