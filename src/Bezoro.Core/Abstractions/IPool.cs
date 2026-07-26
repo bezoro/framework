@@ -86,13 +86,23 @@ public interface IPool<T> where T : class
 	///     Clears all available objects from the pool and directly disposes items that implement
 	///     <see cref="IDisposable" /> without invoking <see cref="IPoolPolicy{T}.OnDiscard" />.
 	/// </summary>
-	void Clear();
+	void Clear()
+	{
+#pragma warning disable CS0618 // Default interface bridge for legacy implementers.
+		Clear(disposeItems: true);
+#pragma warning restore CS0618
+	}
 
 	/// <summary>
 	///     Clears all available objects from the pool by invoking <see cref="IPoolPolicy{T}.OnDiscard" />
 	///     for each item.
 	/// </summary>
-	void ClearWithPolicyDiscard();
+	void ClearWithPolicyDiscard()
+	{
+#pragma warning disable CS0618 // Default interface bridge for legacy implementers.
+		Clear(disposeItems: false);
+#pragma warning restore CS0618
+	}
 
 	/// <summary>
 	///     Clears all available objects from the pool using the selected legacy release behavior.

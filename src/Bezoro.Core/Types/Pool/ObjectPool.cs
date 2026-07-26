@@ -18,6 +18,7 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 {
 	private readonly ConcurrentStack<T>                          _available;
 	private readonly ConcurrentDictionary<T, PoolItemState> _ownedItems;
+	private readonly object                                  _lifecycleGate = new();
 	private readonly IPoolPolicy<T>                          _policy;
 	private readonly PoolOptions                             _options;
 	private readonly SemaphoreSlim?                          _asyncWaitSemaphore;
@@ -84,6 +85,12 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	public bool Return(T item)
 	{
 		item.ThrowIfNull();
+
+		if (Volatile.Read(ref _disposed) != 0)
+		{
+			ReleaseReturnedItem(item);
+			return false;
+		}
 
 		bool canReturn = ResetAndValidateForReturn(item);
 
@@ -265,8 +272,13 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	/// </summary>
 	public void Dispose()
 	{
-		if (Interlocked.Exchange(ref _disposed, 1) != 0)
-			return;
+		lock (_lifecycleGate)
+		{
+			if (Volatile.Read(ref _disposed) != 0)
+				return;
+
+			Volatile.Write(ref _disposed, 1);
+		}
 
 		Clear();
 		_asyncWaitSemaphore?.Dispose();
@@ -337,16 +349,19 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool PublishReturnedItem(T item)
 	{
-		if (Volatile.Read(ref _disposed) != 0)
+		lock (_lifecycleGate)
 		{
-			ReleaseOwnedItem(item, _policy.OnDiscard);
-			return false;
+			if (Volatile.Read(ref _disposed) == 0)
+			{
+				_available.Push(item);
+				IncrementReturned();
+				TrySignalWaiters();
+				return true;
+			}
 		}
 
-		_available.Push(item);
-		IncrementReturned();
-		TrySignalWaiters();
-		return true;
+		ReleaseOwnedItem(item, _policy.OnDiscard);
+		return false;
 	}
 
 	private bool ReleaseOwnedItem(T item, Action<T> release)

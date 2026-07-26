@@ -96,4 +96,16 @@ public class ObjectPoolClearTests
 		pool.TotalCount.Should().Be(0);
 		policy.DiscardCount.Should().Be(1);
 	}
+
+	[Fact]
+	public void Clear_WhenLegacyInterfaceImplementerUsesCanonicalMethods_ShouldForwardToBooleanOverload()
+	{
+		var legacyPool = new LegacyClearPool<object>();
+		IPool<object> pool = legacyPool;
+
+		pool.Clear();
+		pool.ClearWithPolicyDiscard();
+
+		legacyPool.ClearArguments.Should().Equal(true, false);
+	}
 }
