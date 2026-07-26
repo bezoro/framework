@@ -14,6 +14,7 @@ Characterization tests for the public `Bezoro.Logging` behavior that must remain
 - Exception, inner-exception, stack-trace, custom-message, and caller details
 - Initial, changed, and repeated stage dispatch ordering
 - Async-context nested ordering and restoration, sibling-branch isolation, and idempotent scope disposal
+- Provider evaluation boundaries, immutable settings snapshots, and synchronous caller-thread dispatch
 
 The allocation benchmark project records both the ordinary and nested async-context paths.
 

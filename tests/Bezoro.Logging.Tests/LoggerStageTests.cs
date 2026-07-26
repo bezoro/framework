@@ -12,7 +12,13 @@ public sealed class LoggerStageTests
 		var firstStage = $"first-{Guid.NewGuid():N}";
 		var secondStage = $"second-{Guid.NewGuid():N}";
 		var currentStage = firstStage;
+		var frameProviderCalls = 0;
 		LoggerSettings.Stage = StageConfig.Create(() => currentStage);
+		LoggerSettings.FrameCount = FrameCountConfig.Create(() =>
+		{
+			frameProviderCalls++;
+			return 42;
+		});
 		var payloads = new List<LogPayload>();
 		Action<LogPayload> handler = payloads.Add;
 		Logger.OnLog += handler;
@@ -45,5 +51,6 @@ public sealed class LoggerStageTests
 		payloads[3].Level.Should().Be(LogLevel.Info);
 		payloads[3].Message.Should().Be("repeated");
 		payloads[3].Stage.Should().Be(secondStage);
+		frameProviderCalls.Should().Be(3);
 	}
 }
