@@ -1,21 +1,39 @@
-using Bezoro.Logging.Types;
-
 namespace Bezoro.Logging.Internal;
 
 internal sealed class AsyncContextScope : IDisposable
 {
-	private readonly AsyncContextNode? _previous;
+	private static readonly AsyncLocal<AsyncContextScope?> Current = new();
 	private int _disposed;
 
 	internal AsyncContextScope(string contextName)
 	{
-		_previous = LoggerSettings.GetCurrentAsyncContext();
-		LoggerSettings.SetCurrentAsyncContext(new(contextName, _previous));
+		Name = contextName;
+		Parent = Current.Value;
+		Depth = (Parent?.Depth ?? 0) + 1;
+		Current.Value = this;
 	}
+
+	internal int Depth { get; }
+
+	internal string Name { get; }
+
+	internal AsyncContextScope? Parent { get; }
+
+	internal static IReadOnlyList<string>? CurrentHierarchy => Current.Value?.ToHierarchy();
 
 	public void Dispose()
 	{
 		if (Interlocked.Exchange(ref _disposed, 1) == 0)
-			LoggerSettings.SetCurrentAsyncContext(_previous);
+			Current.Value = Parent;
+	}
+
+	private string[] ToHierarchy()
+	{
+		var hierarchy = new string[Depth];
+
+		for (AsyncContextScope? scope = this; scope != null; scope = scope.Parent)
+			hierarchy[scope.Depth - 1] = scope.Name;
+
+		return hierarchy;
 	}
 }

@@ -8,12 +8,6 @@ namespace Bezoro.Logging.Types;
 public static class LoggerSettings
 {
 	/// <summary>
-	///     AsyncLocal node that tracks async context hierarchy.
-	///     Automatically flows through async/await boundaries.
-	/// </summary>
-	private static readonly AsyncLocal<AsyncContextNode?> AsyncContext = new();
-
-	/// <summary>
 	///     Log sequence counter for tracking log order.
 	/// </summary>
 	private static long _sequenceNumber;
@@ -103,7 +97,7 @@ public static class LoggerSettings
 	/// <summary>
 	///     Gets the current async context hierarchy.
 	/// </summary>
-	internal static IReadOnlyList<string>? CurrentAsyncContextHierarchy => AsyncContext.Value?.ToHierarchy();
+	internal static IReadOnlyList<string>? CurrentAsyncContextHierarchy => AsyncContextScope.CurrentHierarchy;
 
 	/// <summary>
 	///     Begins a new async context that automatically flows through async/await.
@@ -111,10 +105,6 @@ public static class LoggerSettings
 	/// <param name="contextName">The name for this async context.</param>
 	/// <returns>A disposable that restores the previous context when disposed.</returns>
 	public static IDisposable BeginAsyncContext(string contextName) => new AsyncContextScope(contextName);
-
-	internal static AsyncContextNode? GetCurrentAsyncContext() => AsyncContext.Value;
-
-	internal static void SetCurrentAsyncContext(AsyncContextNode? context) => AsyncContext.Value = context;
 
 	/// <summary>
 	///     Gets the style for a specific log level.
