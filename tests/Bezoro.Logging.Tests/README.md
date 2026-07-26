@@ -13,8 +13,9 @@ Characterization tests for the public `Bezoro.Logging` behavior that must remain
 - Enabled, minimum-level, and muted-category filtering
 - Exception, inner-exception, stack-trace, custom-message, and caller details
 - Initial, changed, and repeated stage dispatch ordering
+- Async-context nested ordering and restoration, sibling-branch isolation, and idempotent scope disposal
 
-Async-context branch characterization is intentionally planned for the subsequent refactor task. The allocation benchmark project already records both the ordinary and nested async-context paths.
+The allocation benchmark project records both the ordinary and nested async-context paths.
 
 ## Run
 
