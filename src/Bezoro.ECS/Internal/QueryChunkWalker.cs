@@ -190,7 +190,8 @@ internal static class QueryChunkWalker
 		World             world,
 		QueryChunkMatch[] chunkMatches,
 		int               chunkMatchCount,
-		TAction           action)
+		TAction           action,
+		bool              trackWrites)
 		where TAction : struct, IEntityChunkAction<T1>
 		where T1 : struct
 	{
@@ -199,7 +200,9 @@ internal static class QueryChunkWalker
 		ArchetypeStorage? cachedArchetype    = null;
 		int               cachedColumnIndex1 = -1;
 		var versions = world.GetEntityVersionsForCursor();
-		world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+		if (trackWrites)
+			world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
+
 		for (var i = 0; i < chunkMatchCount; i++)
 		{
 			var match = chunkMatches[i];

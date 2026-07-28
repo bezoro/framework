@@ -44,7 +44,7 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 - Runtime and scheduler tests protect the three retained aliases as behavior-preserving forwarders, including mutable-write tracking and legacy access-metadata inference.
 - `SystemManagerTests` and `SystemManagerErgonomicInferenceTests` protect scheduler conflict detection for both attribute-driven and inferred access metadata.
 - `WorldAdvancedApiTests` protects snapshot fail-closed behavior, allow-list enforcement, no-mutation-on-rejection semantics, and query-iteration exclusion.
-- `WorldErgonomicApiTests` protects typed `QueryView` callbacks from playback and world reset/clear during both managed fallback and unmanaged direct iteration.
+- `WorldErgonomicApiTests` protects typed `QueryView` callbacks from playback and world reset/clear during both managed fallback and unmanaged direct iteration, and verifies that managed and unmanaged read-only callbacks do not advance `Changed<T>` tracking.
 - `WorldRuntimeAllocationTests` protects hot-path allocation expectations after warmup.
 - `GeneratedQueryAndJobSourceGenIntegrationTests` protects the generator-backed ergonomic API that application code is expected to use.
 

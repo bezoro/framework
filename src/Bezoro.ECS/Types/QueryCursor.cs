@@ -565,7 +565,13 @@ public struct QueryCursor : IDisposable
 		where T1 : struct
 	{
 		ValidateReadyForEnumeration();
-		QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, _chunkMatches, _chunkMatchCount, action);
+		QueryChunkWalker.ExecuteEntity<TAction, T1>(
+			_world,
+			_chunkMatches,
+			_chunkMatchCount,
+			action,
+			trackWrites: true
+		);
 	}
 
 	internal void ExecuteEntityAction<TAction, T1, T2>(TAction action)

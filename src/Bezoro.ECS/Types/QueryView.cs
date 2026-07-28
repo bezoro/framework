@@ -146,7 +146,11 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 
 		if (!TypeTraits<T1>.ContainsReferences)
 		{
-			_world.ExecuteDirectEntityAction<TQuery, ReadOnlyEntityAction<T1>, T1>(_handle, new(action));
+			_world.ExecuteDirectEntityAction<TQuery, ReadOnlyEntityAction<T1>, T1>(
+				_handle,
+				new(action),
+				trackWrites: false
+			);
 			return;
 		}
 
@@ -172,7 +176,11 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 
 		if (!TypeTraits<T1>.ContainsReferences)
 		{
-			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1>, T1>(_handle, new(action));
+			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1>, T1>(
+				_handle,
+				new(action),
+				trackWrites: true
+			);
 			return;
 		}
 

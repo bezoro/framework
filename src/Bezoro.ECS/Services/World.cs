@@ -1532,7 +1532,10 @@ public class World : IWorld, IDisposable
 	internal void EnableRefWriteTrackingForQuery(CompiledQueryPlan plan)
 		=> _changeTracker.EnableRefWriteTracking(plan);
 
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(
+		QueryHandle<TSpec> handle,
+		TAction            action,
+		bool               trackWrites)
 		where TSpec : struct, ICompiledQuerySpec
 		where TAction : struct, IEntityChunkAction<T1>
 		where T1 : struct
@@ -1541,7 +1544,11 @@ public class World : IWorld, IDisposable
 		_queryEngine.EnterQueryIteration();
 		try
 		{
-			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(
+				handle,
+				action,
+				trackWrites: trackWrites
+			);
 		}
 		finally
 		{

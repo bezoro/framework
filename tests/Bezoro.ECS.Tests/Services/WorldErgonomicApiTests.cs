@@ -120,6 +120,54 @@ public class WorldErgonomicApiTests
 	}
 
 	[Fact]
+	public void Query_WhenUsingTypedReadOnlyForEachWithManagedComponent_ShouldNotTrackPotentialWrites()
+	{
+		using var world = new World();
+
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		var changedHandle = world.Compile<ChangedErgonomicManagedNoteQuery>();
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+		}
+
+		var visitCount = 0;
+		world.Query<ErgonomicManagedNoteQuery>().ForEachRead<ErgonomicManagedNote>(
+			(Entity _, in ErgonomicManagedNote _) => visitCount++
+		);
+
+		visitCount.Should().Be(1);
+		using var changed = world.Execute(changedHandle);
+		changed.MoveNext().Should().BeTrue();
+		changed.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void Query_WhenUsingTypedReadOnlyForEachWithUnmanagedComponent_ShouldNotTrackPotentialWrites()
+	{
+		using var world = new World();
+
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+		var changedHandle = world.Compile<ChangedErgonomicPositionQuery>();
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+		}
+
+		var visitCount = 0;
+		world.Query<ErgonomicPositionQuery>().ForEachRead<ErgonomicPosition>(
+			(Entity _, in ErgonomicPosition _) => visitCount++
+		);
+
+		visitCount.Should().Be(1);
+		using var changed = world.Execute(changedHandle);
+		changed.MoveNext().Should().BeTrue();
+		changed.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
 	public void Query_WhenUsingTypedForEachWithManagedAndReadOnlyComponents_ShouldMutateWithoutManualLookups()
 	{
 		using var world = new World();

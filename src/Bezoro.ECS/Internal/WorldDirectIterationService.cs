@@ -969,7 +969,10 @@ internal sealed class WorldDirectIterationService(World world)
 		ExecuteDirectEntityValidated(handle, ref executor);
 	}
 
-	public void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+	public void ExecuteDirectEntityAction<TSpec, TAction, T1>(
+		QueryHandle<TSpec> handle,
+		TAction            action,
+		bool               trackWrites)
 		where TSpec : struct, ICompiledQuerySpec
 		where TAction : struct, IEntityChunkAction<T1>
 		where T1 : struct
@@ -987,7 +990,13 @@ internal sealed class WorldDirectIterationService(World world)
 			if (entityCount == 0)
 				return;
 
-			QueryChunkWalker.ExecuteEntity<TAction, T1>(_world, chunkMatches, chunkMatchCount, action);
+			QueryChunkWalker.ExecuteEntity<TAction, T1>(
+				_world,
+				chunkMatches,
+				chunkMatchCount,
+				action,
+				trackWrites: trackWrites
+			);
 		}
 		finally
 		{
