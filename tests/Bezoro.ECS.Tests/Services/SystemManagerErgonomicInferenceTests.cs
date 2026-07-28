@@ -131,7 +131,7 @@ public class SystemManagerErgonomicInferenceTests
 	}
 
 	[Fact]
-	public void UpdateAll_WhenSystemsUseWorldRunParallelOnDisjointComponents_ShouldAllowConcurrentExecution()
+	public void UpdateAll_WhenSystemsUseQueryViewRunParallelOnDisjointComponents_ShouldAllowConcurrentExecution()
 	{
 		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
@@ -139,8 +139,8 @@ public class SystemManagerErgonomicInferenceTests
 		world.Spawn(new ErgonomicParallelA { Value = 1 });
 		world.Spawn(new ErgonomicParallelB { Value = 2 });
 
-		world.AddSystem(new ErgonomicParallelWorldSystemA(probe));
-		world.AddSystem(new ErgonomicParallelWorldSystemB(probe));
+		world.AddSystem(new ErgonomicParallelQueryViewSystemA(probe));
+		world.AddSystem(new ErgonomicParallelQueryViewSystemB(probe));
 
 		world.Tick(1f / 60f);
 
@@ -391,28 +391,22 @@ internal readonly struct ErgonomicParallelJobB(ErgonomicConcurrencyProbe probe) 
 	}
 }
 
-internal sealed class ErgonomicParallelWorldSystemA(ErgonomicConcurrencyProbe probe) : ISystem
+internal sealed class ErgonomicParallelQueryViewSystemA(ErgonomicConcurrencyProbe probe) : ISystem
 {
 	public void Update(in SystemContext context)
 	{
 		var handle = context.World.Compile<ErgonomicParallelQueryA>();
-		context.World.RunParallel<ErgonomicParallelQueryA, ErgonomicParallelJobA, ErgonomicParallelA>(
-			handle,
-			new(probe),
-			2
-		);
+		var query  = new QueryView<ErgonomicParallelQueryA>(context.World, handle);
+		query.RunParallel<ErgonomicParallelJobA, ErgonomicParallelA>(new(probe), 2);
 	}
 }
 
-internal sealed class ErgonomicParallelWorldSystemB(ErgonomicConcurrencyProbe probe) : ISystem
+internal sealed class ErgonomicParallelQueryViewSystemB(ErgonomicConcurrencyProbe probe) : ISystem
 {
 	public void Update(in SystemContext context)
 	{
 		var handle = context.World.Compile<ErgonomicParallelQueryB>();
-		context.World.RunParallel<ErgonomicParallelQueryB, ErgonomicParallelJobB, ErgonomicParallelB>(
-			handle,
-			new(probe),
-			2
-		);
+		var query  = new QueryView<ErgonomicParallelQueryB>(context.World, handle);
+		query.RunParallel<ErgonomicParallelJobB, ErgonomicParallelB>(new(probe), 2);
 	}
 }

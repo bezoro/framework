@@ -12,7 +12,8 @@ public class EcsWorldComponentAccessBenchmarks
 	private QueryHandle<PositionQuerySpec>             _positionQueryHandle = default;
 	private Entity[]                                   _entities = null!;
 	private QueryHandle<PositionVelocityQuerySpec> _queryHandle = default;
-	private World                                    _world = null!;
+	private QueryView<PositionVelocityQuerySpec>   _queryView;
+	private World                                   _world = null!;
 
 	[Params(100_000)]
 	public int EntityCount { get; set; }
@@ -103,10 +104,10 @@ public class EcsWorldComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "World direct compiled query struct-job run")]
-	public int QueryDirectRun()
+	[Benchmark(Description = "QueryView compiled query struct-job run")]
+	public int QueryViewRun()
 	{
-		_world.Run<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(_queryHandle, new(0.016f));
+		_queryView.Run<IntegrateJob, Position, Velocity>(new(0.016f));
 		return _world.EntityCount;
 	}
 
@@ -132,6 +133,7 @@ public class EcsWorldComponentAccessBenchmarks
 
 		_world.Playback(commands);
 		_queryHandle = _world.Compile<PositionVelocityQuerySpec>();
+		_queryView = new(_world, _queryHandle);
 		_positionAccessor = _world.GetAccessor<Position>();
 
 		_positionQueryHandle = _world.Compile<PositionQuerySpec>();

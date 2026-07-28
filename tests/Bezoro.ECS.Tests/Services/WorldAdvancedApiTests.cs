@@ -625,7 +625,7 @@ public class WorldAdvancedApiTests
 	}
 
 	[Fact]
-	public void RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
+	public void QueryView_RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -649,28 +649,30 @@ public class WorldAdvancedApiTests
 		world.Playback(commands);
 
 		var       handle = world.Compile<PositionQuerySpec>();
+		var       query  = new QueryView<PositionQuerySpec>(world, handle);
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
 
-		world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 2);
+		query.RunParallel<AdvanceJob, Position>(new(), 2);
 
 		cursor.Get<Position>(0).X.Should().Be(1);
 	}
 
 	[Fact]
-	public void RunParallel_WhenDegreeOfParallelismIsInvalid_ShouldThrowArgumentOutOfRangeException()
+	public void QueryView_RunParallel_WhenDegreeOfParallelismIsInvalid_ShouldThrowArgumentOutOfRangeException()
 	{
 		using var world  = new World();
 		var       handle = world.Compile<PositionQuerySpec>();
+		var       query  = new QueryView<PositionQuerySpec>(world, handle);
 
-		var act = () => world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 0);
+		var act = () => query.RunParallel<AdvanceJob, Position>(new(), 0);
 
 		act.Should().Throw<ArgumentOutOfRangeException>()
 		   .WithParameterName("degreeOfParallelism");
 	}
 
 	[Fact]
-	public void RunParallel_WhenQueryMatches_ShouldProcessAllEntitiesExactlyOnce()
+	public void QueryView_RunParallel_WhenQueryMatches_ShouldProcessAllEntitiesExactlyOnce()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -694,12 +696,9 @@ public class WorldAdvancedApiTests
 
 		world.Playback(commands);
 		var handle = world.Compile<PositionVelocityQuerySpec>();
+		var query  = new QueryView<PositionVelocityQuerySpec>(world, handle);
 
-		world.RunParallel<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(
-			handle,
-			new(4f),
-			4
-		);
+		query.RunParallel<IntegrateJob, Position, Velocity>(new(4f), 4);
 
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();

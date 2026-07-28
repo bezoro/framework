@@ -408,7 +408,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void Run_WhenCompiledQueryUsesChanged_ShouldOnlyExecuteChangedEntities()
+	public void QueryView_Run_WhenCompiledQueryUsesChanged_ShouldOnlyExecuteChangedEntities()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -424,6 +424,7 @@ public partial class WorldRuntimeTests
 		var first  = world.Spawn(new Position { X = 1, Y = 10 });
 		var second = world.Spawn(new Position { X = 2, Y = 20 });
 		var handle = world.Compile<ChangedPositionQuerySpec>();
+		var query  = new QueryView<ChangedPositionQuerySpec>(world, handle);
 
 		using (var initial = world.Execute(handle))
 		{
@@ -440,7 +441,7 @@ public partial class WorldRuntimeTests
 		world.Set(first, new Position { X = 11, Y = 12 });
 
 		var visited = new List<int>();
-		world.Run<ChangedPositionQuerySpec, RecordingPositionJob, Position>(handle, new(visited));
+		query.Run<RecordingPositionJob, Position>(new(visited));
 
 		visited.Should().Equal(11);
 		world.Read<Position>(first).Y.Should().Be(112);
@@ -448,7 +449,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void RunEntity_WhenCompiledQueryUsesAdded_ShouldOnlyExecuteAddedEntities()
+	public void QueryView_RunEntity_WhenCompiledQueryUsesAdded_ShouldOnlyExecuteAddedEntities()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -464,6 +465,7 @@ public partial class WorldRuntimeTests
 		var first  = world.Spawn(new Position { X = 1, Y = 10 });
 		var second = world.Spawn();
 		var handle = world.Compile<AddedPositionQuerySpec>();
+		var query  = new QueryView<AddedPositionQuerySpec>(world, handle);
 
 		using (var initial = world.Execute(handle))
 		{
@@ -481,7 +483,7 @@ public partial class WorldRuntimeTests
 		world.Add(second, new Position { X = 22, Y = 30 });
 
 		var visited = new List<int>();
-		world.RunEntity<AddedPositionQuerySpec, RecordingEntityPositionJob, Position>(handle, new(visited));
+		query.RunEntity<RecordingEntityPositionJob, Position>(new(visited));
 
 		visited.Should().Equal(22);
 		world.Read<Position>(first).Y.Should().Be(10);
@@ -1015,7 +1017,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
+	public void QueryView_Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -1039,7 +1041,8 @@ public partial class WorldRuntimeTests
 		world.Playback(commands);
 
 		var handle = world.Compile<PositionAndVelocityQuerySpec>();
-		world.Run<PositionAndVelocityQuerySpec, IntegrateJob, Position, Velocity>(handle, new(2f));
+		var query  = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		query.Run<IntegrateJob, Position, Velocity>(new(2f));
 
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
@@ -1052,7 +1055,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void RunEntity_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponentsAndReceiveEntity()
+	public void QueryView_RunEntity_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponentsAndReceiveEntity()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -1076,8 +1079,9 @@ public partial class WorldRuntimeTests
 		world.Playback(commands);
 
 		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		var query  = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
 		var order  = new List<int>();
-		world.RunEntity<PositionAndVelocityQuerySpec, RecordingEntityIntegrateJob, Position, Velocity>(handle, new(order));
+		query.RunEntity<RecordingEntityIntegrateJob, Position, Velocity>(new(order));
 
 		order.Should().Equal(0, 1, 2);
 

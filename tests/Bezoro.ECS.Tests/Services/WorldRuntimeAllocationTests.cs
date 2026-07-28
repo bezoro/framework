@@ -488,7 +488,7 @@ public partial class WorldRuntimeTests
 
 
 	[Fact]
-	public void Run_WhenExecutingRepeatedHotPathAfterWarmup_ShouldNotAllocate()
+	public void QueryView_Run_WhenExecutingRepeatedHotPathAfterWarmup_ShouldNotAllocate()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -511,16 +511,17 @@ public partial class WorldRuntimeTests
 
 		world.Playback(commands);
 		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		var query  = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
 
 		// Warm up JIT/caches so the measurement captures steady-state allocations.
-		world.Run<PositionAndVelocityQuerySpec, IntegrateJob, Position, Velocity>(handle, new(0.5f));
+		query.Run<IntegrateJob, Position, Velocity>(new(0.5f));
 		GC.Collect();
 		GC.WaitForPendingFinalizers();
 		GC.Collect();
 
 		long before = GC.GetAllocatedBytesForCurrentThread();
 		for (var i = 0; i < 200; i++)
-			world.Run<PositionAndVelocityQuerySpec, IntegrateJob, Position, Velocity>(handle, new(0.5f));
+			query.Run<IntegrateJob, Position, Velocity>(new(0.5f));
 
 		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 		allocated.Should().Be(0);
