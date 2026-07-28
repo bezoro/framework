@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
-using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -28,7 +27,7 @@ public class SystemManagerTests
 	[Fact]
 	public void GetScheduleDiagnostics_WhenSystemsConflict_ShouldExposeSerializedBatches()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 1 });
 		world.AddSystem(new ReadCounterSystem());
 		world.AddSystem(new WriteCounterSystem(42));
 
@@ -54,7 +53,7 @@ public class SystemManagerTests
 	public void UpdateAll_ShouldRespectWriteReadDependenciesAcrossBatches()
 	{
 		// Arrange
-		using var world  = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world  = new World(new WorldConfig { MaxDegreeOfParallelism = 1 });
 		var       entity = world.Spawn();
 		world.Add(entity, new Counter { Value = 1 });
 
@@ -114,7 +113,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenDependenciesFormCycle_ShouldThrowInvalidOperationException()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 1 });
 		world.AddSystem(new CyclicAfterSystemA());
 		world.AddSystem(new CyclicAfterSystemB());
 
@@ -128,7 +127,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenExclusiveSystemIsRegistered_ShouldRunAloneEvenAlongsideUndeclaredSystems()
 	{
 		// [Exclusive] systems must still run alone; fix 2a only affects undeclared systems.
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ConcurrencyProbe();
 
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -164,7 +163,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenParallelSystemThrows_ShouldRethrowOriginalException()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		world.AddSystem(new NoOpSystem());
 		world.AddSystem(new ThrowingSystem());
 
@@ -259,7 +258,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDeclaresAfterDependency_ShouldRunAfterTargetEvenWhenRegisteredFirst()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 1 });
 		var       probe = new OrderingProbe();
 		world.AddSystem(new AfterDependencySystem(probe));
 		world.AddSystem(new AnchorDependencySystem(probe));
@@ -273,7 +272,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemDeclaresBeforeDependency_ShouldRunBeforeTargetEvenWhenRegisteredLast()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 1 });
 		var       probe = new OrderingProbe();
 		world.AddSystem(new BeforeTargetSystem(probe));
 		world.AddSystem(new BeforeDependencySystem(probe));
@@ -372,7 +371,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareReadMetadata_ShouldAllowParallelExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
 		world.AddSystem(new DeclaredReadProbeSystem(probe));
@@ -385,7 +384,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemsDeclareResourceReadMetadata_ShouldAllowParallelExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new ResourceReadProbeSystem(probe));
 		world.AddSystem(new ResourceReadProbeSystem(probe));
@@ -418,7 +417,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemsHaveNoMetadata_ShouldRunInParallel()
 	{
 		// Systems with no declared access metadata default to non-exclusive and may run concurrently.
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ConcurrencyProbe.ForParallelAssertion();
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));
@@ -431,7 +430,7 @@ public class SystemManagerTests
 	[Fact]
 	public void UpdateAll_WhenSystemWritesResourceAndAnotherReadsResource_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ConcurrencyProbe();
 		world.AddSystem(new ResourceWriteProbeSystem(probe));
 		world.AddSystem(new ResourceReadProbeSystem(probe));
@@ -446,7 +445,7 @@ public class SystemManagerTests
 	{
 		// After fix 2a: undeclared systems default to isExclusive=false.
 		// An undeclared system and a [Reads(typeof(Counter))] system have no conflicts, so they run in the same batch.
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ConcurrencyProbe.ForParallelAssertion();
 
 		world.AddSystem(new UndeclaredAccessProbeSystem(probe));

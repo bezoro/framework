@@ -1,6 +1,5 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
-using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -15,7 +14,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseExplicitResourceReadAndWriteApis_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ErgonomicConcurrencyProbe();
 		world.SetResource(new ErgonomicSchedulerResource());
 
@@ -30,7 +29,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseGeneratedEntityAwareQueryViewJobs_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ErgonomicConcurrencyProbe();
 
 		world.Spawn(
@@ -49,7 +48,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseReadOnlyResourceApisOnSameType_ShouldAllowConcurrentExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 		world.SetResource(new ErgonomicSchedulerResource());
 
@@ -64,7 +63,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseGeneratedEntityAwareWorldJobs_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ErgonomicConcurrencyProbe();
 
 		world.Spawn(
@@ -83,7 +82,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseGeneratedEntityAwareCursorJobs_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ErgonomicConcurrencyProbe();
 
 		world.Spawn(
@@ -102,7 +101,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseReadOnlyAndMutableQueryViewAccessOnSameManagedComponent_ShouldSerializeExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = new ErgonomicConcurrencyProbe();
 
 		world.Spawn(new ErgonomicReadOnlyNote { Label = "ready" });
@@ -118,7 +117,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseReadOnlyQueryViewForEachOnSameManagedComponent_ShouldAllowConcurrentExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 
 		world.Spawn(new ErgonomicReadOnlyNote { Label = "ready" });
@@ -134,7 +133,7 @@ public class SystemManagerErgonomicInferenceTests
 	[Fact]
 	public void UpdateAll_WhenSystemsUseWorldRunParallelOnDisjointComponents_ShouldAllowConcurrentExecution()
 	{
-		using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 4 });
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
 		var       probe = ErgonomicConcurrencyProbe.ForParallelAssertion();
 
 		world.Spawn(new ErgonomicParallelA { Value = 1 });
