@@ -180,6 +180,48 @@ public class WorldAdvancedApiTests
 	}
 
 	[Fact]
+	public void CaptureSnapshot_WhenQueryViewCallbackIsActive_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new Position { X = 1, Y = 2 });
+		var writer = new InMemorySnapshotWriter();
+
+		world.Query<PositionQuerySpec>().ForEach<Position>(
+			(Entity _, ref Position _) =>
+			{
+				var act = () => world.CaptureSnapshot(ref writer);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Snapshot capture cannot run while a query iteration is active.");
+			}
+		);
+
+		world.CaptureSnapshot(ref writer);
+		writer.Captured.Entities.Should().ContainSingle();
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenQueryViewCallbackIsActive_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new Position { X = 1, Y = 2 });
+		var reader = new InMemorySnapshotReader(CreateSnapshot());
+
+		world.Query<PositionQuerySpec>().ForEach<Position>(
+			(Entity _, ref Position _) =>
+			{
+				var act = () => world.RestoreSnapshot(ref reader);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Snapshot restore cannot run while a query iteration is active.");
+			}
+		);
+
+		world.RestoreSnapshot(ref reader);
+		world.EntityCount.Should().Be(0);
+	}
+
+	[Fact]
 	public void RestoreSnapshot_WhenComponentTypeIsNotAllowListed_ShouldThrowAndLeaveWorldUnchanged()
 	{
 		using var world = CreateWorldWithExistingState();

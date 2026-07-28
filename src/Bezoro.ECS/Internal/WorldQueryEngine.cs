@@ -17,10 +17,10 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 	private readonly QueryChunkMatch[] _queryChunkMatches = new QueryChunkMatch[config.QueryResultCapacity];
 	private readonly WorldConfig _config = config;
 	private readonly World _world = world;
-	private int _activeQueryCursors;
+	private int _activeQueryIterations;
 	private int _sharedQueryScratchInUse;
 
-	public bool HasActiveCursors => Volatile.Read(ref _activeQueryCursors) > 0;
+	public bool HasActiveQueryIterations => Volatile.Read(ref _activeQueryIterations) > 0;
 
 	public QueryChunkMatch[] SharedChunkMatches => _queryChunkMatches;
 
@@ -61,7 +61,7 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 				out int chunkMatchCount
 			);
 			var lease = RentQueryExecutionLease(chunkMatches, entities, usesSharedScratch);
-			Interlocked.Increment(ref _activeQueryCursors);
+			EnterQueryIteration();
 			return new(_world, chunkMatches, chunkMatchCount, entities, matchCount, lease);
 		}
 		catch
@@ -112,14 +112,6 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 			_compiledPlansBySpecType.Clear();
 	}
 
-	public void ExitCursors()
-	{
-		if (HasActiveCursors)
-			_activeQueryCursors = 0;
-
-		_sharedQueryScratchInUse = 0;
-	}
-
 	public void MaterializeQueryEntities(
 		QueryChunkMatch[] chunkMatches,
 		int               chunkMatchCount,
@@ -153,9 +145,15 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 		QueryExecutionLease lease)
 	{
 		ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
-		Interlocked.Decrement(ref _activeQueryCursors);
+		ExitQueryIteration();
 		_queryExecutionLeasePool.Add(lease);
 	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void EnterQueryIteration() => Interlocked.Increment(ref _activeQueryIterations);
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void ExitQueryIteration() => Interlocked.Decrement(ref _activeQueryIterations);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private QueryExecutionLease RentQueryExecutionLease(

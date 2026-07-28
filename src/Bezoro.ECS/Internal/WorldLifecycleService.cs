@@ -32,7 +32,6 @@ internal sealed class WorldLifecycleService(
 	public void Reset()
 	{
 		_entityStore.Reset();
-		_queryEngine.ExitCursors();
 		_changeTracker.Clear();
 	}
 }

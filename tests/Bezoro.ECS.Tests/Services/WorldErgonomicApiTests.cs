@@ -144,6 +144,71 @@ public class WorldErgonomicApiTests
 	}
 
 	[Fact]
+	public void Query_WhenManagedReadCallbackPlaysBackCommands_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		using var commands = world.CreateCommandStream();
+
+		world.Query<ErgonomicManagedNoteQuery>().ForEachRead<ErgonomicManagedNote>(
+			(Entity _, in ErgonomicManagedNote _) =>
+			{
+				var act = () => world.Playback(commands);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Playback cannot run while a query iteration is active.");
+			}
+		);
+
+		world.Playback(commands);
+	}
+
+	[Fact]
+	public void Query_WhenUnmanagedCallbackPlaysBackCommands_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+		using var commands = world.CreateCommandStream();
+
+		Action iterate = () => world.Query<ErgonomicPositionQuery>().ForEach<ErgonomicPosition>(
+			(Entity _, ref ErgonomicPosition _) =>
+			{
+				var act = () => world.Playback(commands);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Playback cannot run while a query iteration is active.");
+				throw new InvalidOperationException("Callback failed.");
+			}
+		);
+		iterate.Should().Throw<InvalidOperationException>().WithMessage("Callback failed.");
+
+		world.Playback(commands);
+	}
+
+	[Fact]
+	public void Query_WhenUnmanagedCallbackResetsOrClearsWorld_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+
+		world.Query<ErgonomicPositionQuery>().ForEach<ErgonomicPosition>(
+			(Entity _, ref ErgonomicPosition _) =>
+			{
+				Action reset = world.Reset;
+				Action clear = world.Clear;
+
+				reset.Should().Throw<InvalidOperationException>()
+				     .WithMessage("Reset cannot run while a query iteration is active.");
+				clear.Should().Throw<InvalidOperationException>()
+				     .WithMessage("Clear cannot run while a query iteration is active.");
+			}
+		);
+
+		world.Reset();
+		world.Clear();
+	}
+
+	[Fact]
 	public void Query_WhenCachedAndWorldDisposed_ShouldThrowOnUnmanagedFastPath()
 	{
 		var world = new World();

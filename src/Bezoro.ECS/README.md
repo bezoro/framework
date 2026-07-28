@@ -139,6 +139,7 @@ The retained command aliases and wrapper remain behavior-preserving while consum
 - Parallel QueryView entity-aware job style: `world.Query<MyQuery>().RunParallel(new IntegrateEntityJob(dt), degreeOfParallelism: 4)`
 - The public instance methods carrying entity-aware jobs are named `RunEntity(...)` / `RunParallelEntity(...)`; the source generator emits `Run(...)` / `RunParallel(...)` extensions for `IForEachEntity<T...>` jobs so gameplay code stays symmetrical with the non-entity-aware path.
 - Typed `QueryView.ForEach(...)` now works for any struct component, including structs that contain references.
+- Every typed `QueryView.ForEach(...)` and `ForEachRead(...)` callback runs during an active query iteration. Command playback, world reset/clear, and snapshot capture/restore are rejected until the callback returns.
 - `QueryView` job execution and the lower-level cursor/direct hot paths remain unmanaged-only and are still the performance-oriented escape hatch.
 
 ## Snapshot Serialization
@@ -212,7 +213,6 @@ world.RestoreSnapshot(
 ### Behavior Contract
 - Calling diagnostics does not advance incremental `Changed<T>`/`Added<T>` windows.
 - Diagnostics validates query-handle ownership exactly like direct query iteration APIs.
-- Diagnostics cannot run while an active `QueryCursor` exists.
 
 ### Query Diagnostics Example
 ```csharp
@@ -243,7 +243,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 ### Threading And Mutation Rules
 - `World` direct API access is not thread-safe.
 - `RunParallel` parallelizes component iteration only; structural world mutations still require command recording/playback.
-- Query cursor and direct/diagnostics APIs are mutually exclusive while a cursor is active.
+- Structural playback, world reset/clear, and snapshot capture/restore are prohibited during active `QueryCursor` lifetimes and typed `QueryView.ForEach(...)` / `ForEachRead(...)` callbacks.
 
 ## Support Boundaries
 - The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.

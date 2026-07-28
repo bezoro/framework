@@ -458,10 +458,11 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <param name="handle">Compiled query handle produced by <see cref="Compile{TSpec}" />.</param>
 	/// <returns>A <see cref="QueryCursor" /> that must be disposed after use.</returns>
-	/// <exception cref="InvalidOperationException">
-	///     Thrown when <paramref name="handle" /> belongs to a different world.
-	///     Structural world operations remain disallowed while any query cursor is active.
-	/// </exception>
+	/// <exception cref="InvalidOperationException">Thrown when <paramref name="handle" /> belongs to a different world.</exception>
+	/// <remarks>
+	///     While the returned cursor is active, command playback, <see cref="Reset" />, <see cref="Clear" />, and
+	///     snapshot capture/restore are rejected.
+	/// </remarks>
 	public QueryCursor Execute<TSpec>(QueryHandle<TSpec> handle) where TSpec : struct, ICompiledQuerySpec
 	{
 		ThrowIfDisposed();
@@ -629,6 +630,7 @@ public class World : IWorld, IDisposable
 	/// </summary>
 	/// <typeparam name="TSnapshotWriter">Writer type receiving the captured payload.</typeparam>
 	/// <param name="writer">Snapshot writer receiving the captured payload.</param>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void CaptureSnapshot<TSnapshotWriter>(ref TSnapshotWriter writer)
 		where TSnapshotWriter : struct, IWorldSnapshotWriter
 	{
@@ -639,9 +641,13 @@ public class World : IWorld, IDisposable
 	/// <summary>
 	///     Removes all entities, components, resources, and transient query state while retaining allocated capacity.
 	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void Clear()
 	{
 		ThrowIfDisposed();
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Clear cannot run while a query iteration is active.");
+
 		_lifecycleService.Clear();
 	}
 
@@ -786,6 +792,9 @@ public class World : IWorld, IDisposable
 	///     Applies all commands recorded in a stream owned by this world.
 	/// </summary>
 	/// <param name="stream">Command stream to apply.</param>
+	/// <exception cref="InvalidOperationException">
+	///     Thrown when <paramref name="stream" /> belongs to another world or a query iteration is active.
+	/// </exception>
 	public void Playback(CommandStream stream)
 	{
 		ThrowIfDisposed();
@@ -793,8 +802,8 @@ public class World : IWorld, IDisposable
 		if (!ReferenceEquals(stream.Owner, this))
 			throw new InvalidOperationException("Command stream belongs to a different world.");
 
-		if (_queryEngine.HasActiveCursors)
-			throw new InvalidOperationException("Playback cannot run while a query cursor is active.");
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Playback cannot run while a query iteration is active.");
 
 		stream.PlaybackInternal();
 	}
@@ -825,9 +834,13 @@ public class World : IWorld, IDisposable
 	/// <summary>
 	///     Resets runtime state and diagnostics to their initial values while retaining the world configuration.
 	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void Reset()
 	{
 		ThrowIfDisposed();
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Reset cannot run while a query iteration is active.");
+
 		_lifecycleService.Reset();
 	}
 
@@ -837,6 +850,7 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="TSnapshotReader">Reader type providing the snapshot payload.</typeparam>
 	/// <param name="reader">Snapshot reader providing restore payload.</param>
 	/// <param name="options">Optional type-allowlist and validation options.</param>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active or the snapshot is invalid.</exception>
 	public void RestoreSnapshot<TSnapshotReader>(
 		ref TSnapshotReader             reader,
 		SnapshotDeserializationOptions? options = null)
@@ -1524,7 +1538,15 @@ public class World : IWorld, IDisposable
 		where T1 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
@@ -1534,7 +1556,15 @@ public class World : IWorld, IDisposable
 		where T2 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
@@ -1545,7 +1575,15 @@ public class World : IWorld, IDisposable
 		where T3 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
@@ -1557,12 +1595,15 @@ public class World : IWorld, IDisposable
 		where T4 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
-	}
-
-	internal void ExitQueryCursor()
-	{
-		_queryEngine.ExitCursors();
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void HandleQueryOverflowForDirectIteration() => _changeTracker.HandleQueryOverflow();
