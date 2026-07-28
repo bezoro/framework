@@ -60,6 +60,21 @@ Captured with BenchmarkDotNet 0.14.0 on Windows 11, an AMD Ryzen 9 7900X, and .N
 
 BenchmarkDotNet reported multimodal distributions for QueryView sequential `Run`, parallel entity-aware execution, and the world cursor path. Treat small changes within the reported error and variance cautiously; use the release gates below for comparisons.
 
+## Direct Managed Traversal Validation (2026-07-28)
+
+Task 5c was measured with the same reliable command and machine as the baseline. A detached `4d41a63` control run was repeated immediately under current machine conditions because the untouched parallel case had drifted from the original fixed baseline. The control artifact was generated at `BenchmarkDotNet.Artifacts/results/Bezoro.ECS.Benchmarks.EcsWorldQueryViewBenchmarks-report-github.md` inside the temporary validation worktree; that worktree was removed after the results were captured. The post-change artifact remains at the same relative path in this worktree.
+
+| Benchmark | Current-condition control | Task 5c | Change | Control allocated | Task 5c allocated |
+|-----------|--------------------------:|--------:|-------:|------------------:|------------------:|
+| QueryView typed `ForEach` over unmanaged components | 105.99 μs | 106.83 μs | +0.8% | 0 B | 0 B |
+| QueryView struct-job `Run` over unmanaged components | 73.45 μs | 71.23 μs | -3.0% | 0 B | 0 B |
+| QueryView entity-aware struct-job `RunEntity` | 96.27 μs | 94.03 μs | -2.3% | 0 B | 0 B |
+| QueryView read-only `ForEach` over managed components | 757.19 μs | 85.93 μs | -88.7% | 3 B | 0 B |
+| QueryView mutable `ForEach` over managed components | 1,053.38 μs | 69.13 μs | -93.4% | 6 B | 0 B |
+| QueryView parallel entity-aware struct job | 218.77 μs | 213.90 μs | -2.2% | 377 B | 377 B |
+
+The two initial post-change runs produced stable managed results (85.95/68.62 μs and 85.93/69.13 μs). Their untouched parallel results (206.98 μs and 213.90 μs) differed materially from the original fixed 176.07 μs baseline, while the immediate pre-change control measured 218.77 μs. The current-condition control isolates that difference as machine-state drift: no touched case regressed by more than 5%, managed traversal improved materially, and allocations did not worsen.
+
 ## Interpreting Results
 
 - Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.

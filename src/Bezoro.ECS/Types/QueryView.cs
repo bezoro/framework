@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
 using Bezoro.ECS.Services;
@@ -24,20 +23,20 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T1 : struct;
 
 	/// <summary>
-	///     Delegate invoked for each matching entity with one mutable unmanaged component.
+	///     Delegate invoked for each matching entity with one mutable component.
 	/// </summary>
 	public delegate void EntityRefAction<T1>(Entity entity, ref T1 component1)
 		where T1 : struct;
 
 	/// <summary>
-	///     Delegate invoked for each matching entity with one mutable and one read-only unmanaged component.
+	///     Delegate invoked for each matching entity with one mutable and one read-only component.
 	/// </summary>
 	public delegate void EntityRefInAction<T1, T2>(Entity entity, ref T1 component1, in T2 component2)
 		where T1 : struct
 		where T2 : struct;
 
 	/// <summary>
-	///     Delegate invoked for each matching entity with one mutable and two read-only unmanaged components.
+	///     Delegate invoked for each matching entity with one mutable and two read-only components.
 	/// </summary>
 	public delegate void EntityRefInAction<T1, T2, T3>(Entity entity, ref T1 component1, in T2 component2, in T3 component3)
 		where T1 : struct
@@ -45,7 +44,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T3 : struct;
 
 	/// <summary>
-	///     Delegate invoked for each matching entity with one mutable and three read-only unmanaged components.
+	///     Delegate invoked for each matching entity with one mutable and three read-only components.
 	/// </summary>
 	public delegate void EntityRefInAction<T1, T2, T3, T4>(
 		Entity entity,
@@ -60,11 +59,6 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 
 	private readonly QueryHandle<TQuery> _handle = handle;
 	private readonly World               _world  = world ?? throw new ArgumentNullException(nameof(world));
-
-	private static class TypeTraits<T> where T : struct
-	{
-		internal static readonly bool ContainsReferences = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-	}
 
 	private readonly struct ReadOnlyEntityAction<T1>(EntityInAction<T1> action) : IEntityChunkAction<T1>
 		where T1 : struct
@@ -144,60 +138,30 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
-		if (!TypeTraits<T1>.ContainsReferences)
-		{
-			_world.ExecuteDirectEntityAction<TQuery, ReadOnlyEntityAction<T1>, T1>(
-				_handle,
-				new(action),
-				trackWrites: false
-			);
-			return;
-		}
-
-		using var cursor = _world.Execute(_handle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			ref readonly var component1 = ref _world.Read<T1>(entities[i]);
-			action(entities[i], in component1);
-		}
+		_world.ExecuteDirectEntityAction<TQuery, ReadOnlyEntityAction<T1>, T1>(
+			_handle,
+			new(action),
+			trackWrites: false
+		);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware loop over one mutable unmanaged component.
+	///     Executes an entity-aware loop over one mutable component.
 	/// </summary>
 	public void ForEach<T1>(EntityRefAction<T1> action)
 		where T1 : struct
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
-		if (!TypeTraits<T1>.ContainsReferences)
-		{
-			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1>, T1>(
-				_handle,
-				new(action),
-				trackWrites: true
-			);
-			return;
-		}
-
-		using var cursor = _world.Execute(_handle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			ref var component1 = ref _world.Write<T1>(entities[i]);
-			action(entities[i], ref component1);
-		}
+		_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1>, T1>(
+			_handle,
+			new(action),
+			trackWrites: true
+		);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware loop over one mutable and one read-only unmanaged component.
+	///     Executes an entity-aware loop over one mutable and one read-only component.
 	/// </summary>
 	public void ForEach<T1, T2>(EntityRefInAction<T1, T2> action)
 		where T1 : struct
@@ -205,28 +169,11 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
-		if (!TypeTraits<T1>.ContainsReferences &&
-			!TypeTraits<T2>.ContainsReferences)
-		{
-			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2>, T1, T2>(_handle, new(action));
-			return;
-		}
-
-		using var cursor = _world.Execute(_handle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			ref var component1 = ref _world.Write<T1>(entities[i]);
-			ref readonly var component2 = ref _world.Read<T2>(entities[i]);
-			action(entities[i], ref component1, in component2);
-		}
+		_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2>, T1, T2>(_handle, new(action));
 	}
 
 	/// <summary>
-	///     Executes an entity-aware loop over one mutable and two read-only unmanaged components.
+	///     Executes an entity-aware loop over one mutable and two read-only components.
 	/// </summary>
 	public void ForEach<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action)
 		where T1 : struct
@@ -235,30 +182,11 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
-		if (!TypeTraits<T1>.ContainsReferences &&
-			!TypeTraits<T2>.ContainsReferences &&
-			!TypeTraits<T3>.ContainsReferences)
-		{
-			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3>, T1, T2, T3>(_handle, new(action));
-			return;
-		}
-
-		using var cursor = _world.Execute(_handle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			ref var component1 = ref _world.Write<T1>(entities[i]);
-			ref readonly var component2 = ref _world.Read<T2>(entities[i]);
-			ref readonly var component3 = ref _world.Read<T3>(entities[i]);
-			action(entities[i], ref component1, in component2, in component3);
-		}
+		_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3>, T1, T2, T3>(_handle, new(action));
 	}
 
 	/// <summary>
-	///     Executes an entity-aware loop over one mutable and three read-only unmanaged components.
+	///     Executes an entity-aware loop over one mutable and three read-only components.
 	/// </summary>
 	public void ForEach<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action)
 		where T1 : struct
@@ -268,28 +196,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
 
-		if (!TypeTraits<T1>.ContainsReferences &&
-			!TypeTraits<T2>.ContainsReferences &&
-			!TypeTraits<T3>.ContainsReferences &&
-			!TypeTraits<T4>.ContainsReferences)
-		{
-			_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3, T4>, T1, T2, T3, T4>(_handle, new(action));
-			return;
-		}
-
-		using var cursor = _world.Execute(_handle);
-		if (!cursor.MoveNext())
-			return;
-
-		var entities = cursor.Current;
-		for (var i = 0; i < entities.Length; i++)
-		{
-			ref var component1 = ref _world.Write<T1>(entities[i]);
-			ref readonly var component2 = ref _world.Read<T2>(entities[i]);
-			ref readonly var component3 = ref _world.Read<T3>(entities[i]);
-			ref readonly var component4 = ref _world.Read<T4>(entities[i]);
-			action(entities[i], ref component1, in component2, in component3, in component4);
-		}
+		_world.ExecuteDirectEntityAction<TQuery, EntityAction<T1, T2, T3, T4>, T1, T2, T3, T4>(_handle, new(action));
 	}
 
 	/// <summary>

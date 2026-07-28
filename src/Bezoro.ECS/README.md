@@ -138,7 +138,8 @@ The retained command aliases and wrapper remain behavior-preserving while consum
 - Parallel direct style: `world.RunParallel(handle, job, degreeOfParallelism: 4)`
 - Parallel QueryView entity-aware job style: `world.Query<MyQuery>().RunParallel(new IntegrateEntityJob(dt), degreeOfParallelism: 4)`
 - The public instance methods carrying entity-aware jobs are named `RunEntity(...)` / `RunParallelEntity(...)`; the source generator emits `Run(...)` / `RunParallel(...)` extensions for `IForEachEntity<T...>` jobs so gameplay code stays symmetrical with the non-entity-aware path.
-- Typed `QueryView.ForEach(...)` now works for any struct component, including structs that contain references.
+- Typed `QueryView.ForEach(...)` and `ForEachRead(...)` work for any struct component, including structs that contain references. They traverse matching chunks directly without materializing entity results or performing per-entity world lookups.
+- Typed delegate traversal resolves component columns only after finding a matching chunk. An empty result therefore invokes no callbacks, throws no missing-component error, and does not register callback-only component types. If a nonempty matching archetype lacks a requested component, traversal throws `KeyNotFoundException` before invoking that chunk's first callback; earlier compatible chunks may already have completed.
 - Every typed `QueryView.ForEach(...)` and `ForEachRead(...)` callback runs during an active query iteration. Command playback, world reset/clear, and snapshot capture/restore are rejected until the callback returns.
 - `QueryView` job execution and the lower-level cursor/direct hot paths remain unmanaged-only and are still the performance-oriented escape hatch.
 
@@ -247,7 +248,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 
 ## Support Boundaries
 - The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.
-- `QueryView.ForEach...` supports any `struct` component, including structs with managed references.
+- `QueryView.ForEach...` supports any `struct` component, including structs with managed references, through direct chunk traversal without entity-result materialization.
 - Job-based query execution (`Run(...)`, `RunParallel(...)`, cursor/direct hot paths) remains the unmanaged-only performance tier.
 - `SystemContext.CommandStream` is the canonical deferred-mutation surface for systems. `CommandBuffer`, `SystemContext.Commands`, and the world command aliases remain available as obsolete compatibility vocabulary while consumers migrate.
 - Direct `World` access is single-threaded by contract; parallelism is coordinated through scheduler batches and `RunParallel`.

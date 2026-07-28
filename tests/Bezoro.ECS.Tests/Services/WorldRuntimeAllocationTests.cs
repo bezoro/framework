@@ -432,6 +432,60 @@ public partial class WorldRuntimeTests
 		allocated.Should().BeLessThanOrEqualTo(64);
 	}
 
+	[Fact]
+	public void QueryView_ForEachRead_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocateForManagedComponents()
+	{
+		using var world = new World(new WorldConfig { EntityCapacity = 512, ComponentTypeCapacity = 16 });
+		for (var i = 0; i < 256; i++)
+			world.Spawn(new ManagedTag { Payload = new($"payload-{i}") });
+
+		var query = world.Query<ManagedTagQuerySpec>();
+		QueryView<ManagedTagQuerySpec>.EntityInAction<ManagedTag> action =
+			static (Entity entity, in ManagedTag tag) => _ = tag.Payload;
+		query.ForEachRead(action);
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		for (var iteration = 0; iteration < 200; iteration++)
+			query.ForEachRead(action);
+
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for (var iteration = 0; iteration < 200; iteration++)
+			query.ForEachRead(action);
+
+		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		allocated.Should().Be(0);
+	}
+
+	[Fact]
+	public void QueryView_ForEach_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocateForManagedComponents()
+	{
+		using var world = new World(new WorldConfig { EntityCapacity = 512, ComponentTypeCapacity = 16 });
+		for (var i = 0; i < 256; i++)
+			world.Spawn(new ManagedTag { Payload = new($"payload-{i}") });
+
+		var query = world.Query<ManagedTagQuerySpec>();
+		QueryView<ManagedTagQuerySpec>.EntityRefAction<ManagedTag> action =
+			static (Entity entity, ref ManagedTag tag) => _ = tag.Payload;
+		query.ForEach(action);
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		for (var iteration = 0; iteration < 200; iteration++)
+			query.ForEach(action);
+
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for (var iteration = 0; iteration < 200; iteration++)
+			query.ForEach(action);
+
+		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		allocated.Should().Be(0);
+	}
+
 
 	[Fact]
 	public void Run_WhenExecutingRepeatedHotPathAfterWarmup_ShouldNotAllocate()
