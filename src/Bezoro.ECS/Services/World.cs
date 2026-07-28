@@ -350,16 +350,20 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Creates an ergonomic buffer for recording deferred structural commands.
+	///     Creates a retained compatibility wrapper over a canonical command stream.
 	/// </summary>
-	/// <returns>A command buffer owned by this world.</returns>
+	/// <returns>A compatibility command buffer owned by this world.</returns>
+	#pragma warning disable CS0618
+	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandBuffer CreateCommandBuffer() =>
 		new(CreateCommandStream());
+	#pragma warning restore CS0618
 
 	/// <summary>
-	///     Begins recording deferred structural commands.
+	///     Retained compatibility alias for <see cref="CreateCommandStream" />.
 	/// </summary>
 	/// <returns>A command stream owned by this world.</returns>
+	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandStream BeginCommands() => CreateCommandStream();
 
 	/// <summary>

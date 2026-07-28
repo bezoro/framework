@@ -8,7 +8,7 @@ High-performance fixed-capacity ECS runtime centered on `World`, `CommandStream`
 | `WorldConfig`                                                                                                              | Fixed-capacity runtime configuration (entity/component/query/command capacities, chunk capacity, parallelism, and overflow policy).          |
 | `WorldOptions`                                                                                                             | Obsolete compatibility surface retained while consumers migrate to `WorldConfig`.                                                            |
 | `Entity`                                                                                                                   | Stable entity handle (`id`, `version`) with stale-handle invalidation semantics.                                                             |
-| `CommandStream` / `CommandBuffer`                                                                                          | Deferred structural mutation recorder. `CommandStream` is canonical; `CommandBuffer` remains available as compatibility vocabulary.          |
+| `CommandStream` / `CommandBuffer`                                                                                          | Deferred structural mutation recorder. `CommandStream` is canonical; `CommandBuffer` is an obsolete compatibility wrapper.                   |
 | `QueryView<TSpec>` / `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`                          | Query authoring and execution surfaces. `QueryView<TSpec>` is the ergonomic path; handles/cursors remain the low-level hot-path APIs.        |
 | `QueryDiagnostics`                                                                                                         | Query introspection snapshot (filters, cache state, matching archetype/chunk/entity counts).                                                 |
 | `ISystem` / `SystemContext` / `SystemUpdateSettings` / `Stage` / `SystemLoopPhase`                                         | System contract and scheduling context for staged `Tick`/`FixedTick`/`LateTick` execution.                                                   |
@@ -66,6 +66,35 @@ The compatibility constructor maps a positive `WorldOptions.ChunkCapacity` exact
 | `CaptureSnapshot<TWriter>`, `RestoreSnapshot<TReader>`                                                                        | Snapshot capture/restore with serializer-owned transport via reader/writer abstractions. |
 | `GetScheduleDiagnostics`                                                                                                      | Snapshot of current scheduler phase/stage/batch plan and registered system count.        |
 | `GetDiagnostics`, `CommandStream.GetDiagnostics`                                                                              | Capacity/overflow/high-watermark diagnostics.                                            |
+
+### Deferred Commands
+
+Create a `CommandStream` directly from the world and play it back at an explicit structural-change boundary:
+
+```csharp
+using var commands = world.CreateCommandStream();
+var entity = commands.CreateEntity(new Position { X = 1, Y = 2 });
+world.Playback(commands);
+```
+
+Systems record deferred mutations through the canonical context property:
+
+```csharp
+public void Update(in SystemContext context)
+{
+    context.CommandStream.CreateEntity(new Position());
+}
+```
+
+The retained command aliases and wrapper remain behavior-preserving while consumers migrate. Each carries a non-error obsolete attribute:
+
+| Compatibility API | Migration message |
+|-------------------|-------------------|
+| `CommandBuffer` | `Use CommandStream instead.` |
+| `SystemContext.Commands` | `Use SystemContext.CommandStream instead.` |
+| `SystemContext(float, Stage, World, CommandBuffer)` | `Use SystemContext(float, Stage, World, CommandStream) instead.` |
+| `World.CreateCommandBuffer()` | `Use CreateCommandStream() instead.` |
+| `World.BeginCommands()` | `Use CreateCommandStream() instead.` |
 
 ### Component And Resource Access
 
@@ -220,7 +249,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 - The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.
 - `QueryView.ForEach...` supports any `struct` component, including structs with managed references.
 - Job-based query execution (`Run(...)`, `RunParallel(...)`, cursor/direct hot paths) remains the unmanaged-only performance tier.
-- `SystemContext.CommandStream` is the canonical deferred-mutation surface for systems. `CommandBuffer` and `SystemContext.Commands` remain available as compatibility vocabulary while consumers migrate.
+- `SystemContext.CommandStream` is the canonical deferred-mutation surface for systems. `CommandBuffer`, `SystemContext.Commands`, and the world command aliases remain available as obsolete compatibility vocabulary while consumers migrate.
 - Direct `World` access is single-threaded by contract; parallelism is coordinated through scheduler batches and `RunParallel`.
 
 ### Changed/Added Tracking Cost Model

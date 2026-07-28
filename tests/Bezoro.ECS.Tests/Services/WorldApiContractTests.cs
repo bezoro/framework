@@ -21,6 +21,11 @@ public class WorldApiContractTests
 	private const string TryGetManagedObsoleteMessage = "Use TryRead<T>(Entity, out T) instead.";
 	private const string WorldOptionsObsoleteMessage = "Use WorldConfig instead.";
 	private const string WorldOptionsConstructorObsoleteMessage = "Use World(WorldConfig) instead.";
+	private const string CommandBufferObsoleteMessage = "Use CommandStream instead.";
+	private const string SystemContextCommandsObsoleteMessage = "Use SystemContext.CommandStream instead.";
+	private const string SystemContextCommandBufferConstructorObsoleteMessage =
+		"Use SystemContext(float, Stage, World, CommandStream) instead.";
+	private const string WorldCommandAliasObsoleteMessage = "Use CreateCommandStream() instead.";
 
 	#pragma warning disable CS0618
 
@@ -235,12 +240,57 @@ public class WorldApiContractTests
 	{
 		using var world = new World();
 		using var stream = world.CreateCommandStream();
+		#pragma warning disable CS0618
 		var buffer = new CommandBuffer(stream);
 
 		var context = new SystemContext(0.25f, Stage.Tick, world, buffer);
 		CommandStream unwrapped = context.Commands;
+		#pragma warning restore CS0618
 
+		context.CommandStream.Should().BeSameAs(stream);
 		unwrapped.Should().BeSameAs(stream);
+	}
+
+	[Fact]
+	public void LegacyCommandSurface_WhenInspected_ShouldHaveExactNonErrorObsoleteAttributes()
+	{
+		#pragma warning disable CS0618
+		var commandBufferAttribute = typeof(CommandBuffer).GetCustomAttribute<ObsoleteAttribute>();
+		var contextConstructor = typeof(SystemContext).GetConstructor(
+			[typeof(float), typeof(Stage), typeof(World), typeof(CommandBuffer)]
+		);
+		var commandsProperty = typeof(SystemContext).GetProperty("Commands");
+		#pragma warning restore CS0618
+		var createCommandBuffer = typeof(World).GetMethod("CreateCommandBuffer", Type.EmptyTypes);
+		var beginCommands = typeof(World).GetMethod("BeginCommands", Type.EmptyTypes);
+
+		commandBufferAttribute.Should().NotBeNull();
+		commandBufferAttribute!.Message.Should().Be(CommandBufferObsoleteMessage);
+		commandBufferAttribute.IsError.Should().BeFalse();
+
+		contextConstructor.Should().NotBeNull();
+		var contextConstructorAttribute = contextConstructor!.GetCustomAttribute<ObsoleteAttribute>();
+		contextConstructorAttribute.Should().NotBeNull();
+		contextConstructorAttribute!.Message.Should().Be(SystemContextCommandBufferConstructorObsoleteMessage);
+		contextConstructorAttribute.IsError.Should().BeFalse();
+
+		commandsProperty.Should().NotBeNull();
+		var commandsPropertyAttribute = commandsProperty!.GetCustomAttribute<ObsoleteAttribute>();
+		commandsPropertyAttribute.Should().NotBeNull();
+		commandsPropertyAttribute!.Message.Should().Be(SystemContextCommandsObsoleteMessage);
+		commandsPropertyAttribute.IsError.Should().BeFalse();
+
+		createCommandBuffer.Should().NotBeNull();
+		var createCommandBufferAttribute = createCommandBuffer!.GetCustomAttribute<ObsoleteAttribute>();
+		createCommandBufferAttribute.Should().NotBeNull();
+		createCommandBufferAttribute!.Message.Should().Be(WorldCommandAliasObsoleteMessage);
+		createCommandBufferAttribute.IsError.Should().BeFalse();
+
+		beginCommands.Should().NotBeNull();
+		var beginCommandsAttribute = beginCommands!.GetCustomAttribute<ObsoleteAttribute>();
+		beginCommandsAttribute.Should().NotBeNull();
+		beginCommandsAttribute!.Message.Should().Be(WorldCommandAliasObsoleteMessage);
+		beginCommandsAttribute.IsError.Should().BeFalse();
 	}
 
 	[Fact]
@@ -271,11 +321,13 @@ public class WorldApiContractTests
 	[Fact]
 	public void PublicSystemSurface_WhenInspectingContracts_ShouldRetainCommandBufferCompatibilityProperty()
 	{
+		#pragma warning disable CS0618
 		typeof(SystemContext)
-			.GetProperty(nameof(SystemContext.Commands))!
+			.GetProperty("Commands")!
 			.PropertyType
 			.Should()
 			.Be(typeof(CommandBuffer));
+		#pragma warning restore CS0618
 	}
 
 	[Fact]

@@ -38,8 +38,8 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 
 ## Release Gates
 
-- `WorldApiContractTests` protects the intended public authoring surface, including exact non-error obsolete attributes and migration messages for `Get`, `GetResource`, `TryGetManaged`, `WorldOptions`, and `World(WorldOptions)`.
-- `SystemContext` coverage protects the canonical command-stream constructor and property, exact null validation, scalar/world values, scheduler stream lifecycle, and the retained command-buffer wrapper's underlying stream identity.
+- `WorldApiContractTests` protects the intended public authoring surface, including exact non-error obsolete attributes and migration messages for legacy access, world-options, and command APIs. Member-level reflection covers obsolete members that the public type exporter does not track.
+- `SystemContext` coverage protects the canonical command-stream constructor and property, exact null validation, scalar/world values, scheduler stream lifecycle, and both canonical-property and compatibility-wrapper identity with the original command stream.
 - Legacy world-options coverage characterizes exact chunk-capacity mapping, ignored byte-size hints, retained `WorldConfig` defaults, and preserved null and parallelism validation behavior.
 - Runtime and scheduler tests protect the three retained aliases as behavior-preserving forwarders, including mutable-write tracking and legacy access-metadata inference.
 - `SystemManagerTests` and `SystemManagerErgonomicInferenceTests` protect scheduler conflict detection for both attribute-driven and inferred access metadata.
