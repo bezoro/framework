@@ -284,25 +284,23 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public bool TryGet<T>(Entity entity, out T component) where T : struct
-	{
-		ThrowIfDisposed();
-		component = default;
-		if (!IsAliveUnchecked(entity))
-			return false;
-
-		int typeId = GetOrCreateComponentTypeId<T>();
-		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
-	}
+	public bool TryGet<T>(Entity entity, out T component) where T : struct =>
+		TryRead(entity, out component);
 
 	/// <summary>
-	///     Attempts to copy a managed-lane component from an entity.
+	///     Compatibility alias that attempts to read a copy of a managed-lane component from an entity.
 	/// </summary>
-	/// <typeparam name="T">Component type.</typeparam>
+	/// <typeparam name="T">Managed-lane component type.</typeparam>
 	/// <param name="entity">Entity to inspect.</param>
-	/// <param name="component">Receives the component value when present.</param>
+	/// <param name="component">Receives the component value when present; otherwise the default value.</param>
 	/// <returns><c>true</c> when the component exists; otherwise <c>false</c>.</returns>
-	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	[Obsolete("Use TryRead<T>(Entity, out T) instead.")]
+	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct =>
+		TryRead(entity, out component);
+
+	/// <inheritdoc />
+	public bool TryRead<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
 		component = default;
@@ -312,10 +310,6 @@ public class World : IWorld, IDisposable
 		int typeId = GetOrCreateComponentTypeId<T>();
 		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
-
-	/// <inheritdoc />
-	public bool TryRead<T>(Entity entity, out T component) where T : struct =>
-		TryGet(entity, out component);
 
 	/// <inheritdoc />
 	public bool TryReadResource<T>(out T resource) where T : notnull
@@ -503,15 +497,9 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref T Get<T>(Entity entity) where T : struct
-	{
-		ThrowIfDisposed();
-		EnsureAlive(entity);
-		int     typeId    = GetOrCreateComponentTypeId<T>();
-		ref var component = ref _entityStore.GetComponentRefUnchecked<T>(entity.Id, typeId);
-		TrackPotentialSingleRefWrite(entity.Id, typeId);
-		return ref component;
-	}
+	[Obsolete("Use Read<T>(Entity) for read-only access or Write<T>(Entity) for mutable access instead.")]
+	public ref T Get<T>(Entity entity) where T : struct =>
+		ref Write<T>(entity);
 
 	/// <inheritdoc />
 	public ref T GetOrCreateResource<T>() where T : notnull, new()
@@ -533,11 +521,9 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref T GetResource<T>() where T : notnull
-	{
-		ThrowIfDisposed();
-		return ref _resources.Get<T>();
-	}
+	[Obsolete("Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.")]
+	public ref T GetResource<T>() where T : notnull =>
+		ref WriteResource<T>();
 
 	/// <inheritdoc />
 	public ref readonly T Read<T>(Entity entity) where T : struct
@@ -549,16 +535,29 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref readonly T ReadResource<T>() where T : notnull =>
-		ref GetResource<T>();
+	public ref readonly T ReadResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		return ref _resources.Get<T>();
+	}
 
 	/// <inheritdoc />
-	public ref T Write<T>(Entity entity) where T : struct =>
-		ref Get<T>(entity);
+	public ref T Write<T>(Entity entity) where T : struct
+	{
+		ThrowIfDisposed();
+		EnsureAlive(entity);
+		int     typeId    = GetOrCreateComponentTypeId<T>();
+		ref var component = ref _entityStore.GetComponentRefUnchecked<T>(entity.Id, typeId);
+		TrackPotentialSingleRefWrite(entity.Id, typeId);
+		return ref component;
+	}
 
 	/// <inheritdoc />
-	public ref T WriteResource<T>() where T : notnull =>
-		ref GetResource<T>();
+	public ref T WriteResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		return ref _resources.Get<T>();
+	}
 
 	/// <inheritdoc />
 	public void Add<T>(Entity entity) where T : struct

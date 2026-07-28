@@ -14,7 +14,7 @@ Unit and integration tests for `Bezoro.ECS` runtime, scheduling, source generati
 | `WorldRuntimeRelationTests`                     | Relation API lifecycle and relation-filter query behavior.                                                                  |
 | `WorldRuntimeLifecycleTests`                    | Entity lifecycle semantics (`Reset`, despawn/respawn versioning, `IsAlive` invariants).                                     |
 | `WorldRuntimeOverflowTests`                     | Capacity and overflow policy behavior for playback and command recording.                                                   |
-| `WorldApiContractTests`                         | Public API surface and contract-level behavior checks for `World`/`IWorld`.                                                 |
+| `WorldApiContractTests`                         | Public API contracts for `World`/`IWorld`, including exact obsolete metadata on retained access aliases.                    |
 | `SystemManagerTests`                            | Scheduling behavior, access-conflict batching, and phase/stage execution semantics.                                         |
 | `SystemManagerErgonomicInferenceTests`          | Scheduler inference coverage for ergonomic APIs such as `QueryView`, direct resource methods, and generated job extensions. |
 | `WorldRelationIndexTests`                       | Internal relation-index lifecycle coverage for relation type-id reuse and target release cleanup.                            |
@@ -38,7 +38,8 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 
 ## Release Gates
 
-- `WorldApiContractTests` protects the intended public authoring surface, including `QueryView<TSpec>` and `SystemContext.Commands`.
+- `WorldApiContractTests` protects the intended public authoring surface, including exact non-error obsolete attributes and migration messages for `Get`, `GetResource`, and `TryGetManaged`.
+- Runtime and scheduler tests protect the three retained aliases as behavior-preserving forwarders, including mutable-write tracking and legacy access-metadata inference.
 - `SystemManagerTests` and `SystemManagerErgonomicInferenceTests` protect scheduler conflict detection for both attribute-driven and inferred access metadata.
 - `WorldAdvancedApiTests` protects snapshot fail-closed behavior, allow-list enforcement, and no-mutation-on-rejection semantics.
 - `WorldRuntimeAllocationTests` protects hot-path allocation expectations after warmup.

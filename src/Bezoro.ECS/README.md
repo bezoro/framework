@@ -56,6 +56,19 @@ Within this solution, application code should reference `Bezoro.ECS`; the source
 | `GetScheduleDiagnostics`                                                                                                      | Snapshot of current scheduler phase/stage/batch plan and registered system count.        |
 | `GetDiagnostics`, `CommandStream.GetDiagnostics`                                                                              | Capacity/overflow/high-watermark diagnostics.                                            |
 
+### Component And Resource Access
+
+- Use `Read<T>(entity)` or `TryRead<T>(entity, out component)` for explicit read-only component access; use `Write<T>(entity)` or `TryWrite<T>(entity, out component)` when mutation is intended.
+- Use `ReadResource<T>()` or `TryReadResource<T>(out resource)` for resource reads and `WriteResource<T>()` for mutable resource access.
+- `TryGet<T>(entity, out component)` remains supported and non-obsolete as a copy-read operation; `TryRead<T>` is the canonical explicit-intent spelling.
+- The retained `Get<T>` compatibility alias forwards to `Write<T>` and therefore preserves potential-write tracking for changed-component queries.
+
+| Compatibility member | Migration message |
+|----------------------|-------------------|
+| `Get<T>(Entity)` | `Use Read<T>(Entity) for read-only access or Write<T>(Entity) for mutable access instead.` |
+| `GetResource<T>()` | `Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.` |
+| `TryGetManaged<T>(Entity, out T)` | `Use TryRead<T>(Entity, out T) instead.` |
+
 ## Scheduling Model
 - Systems run by `SystemLoopPhase` (`Tick`, `FixedTick`, `LateTick`) and ordered `Stage` (`Input`, `PreTick`, `Tick`, `PostTick`, `Render`).
 - The scheduler batches systems for parallel execution using read/write metadata (`[Reads(typeof(...))]`, `[Writes(typeof(...))]`, `[ReadsResource(typeof(...))]`, `[WritesResource(typeof(...))]`, `[Exclusive]`).
@@ -71,7 +84,7 @@ Within this solution, application code should reference `Bezoro.ECS`; the source
 - Runtime-parameterized query instances are not part of the public 1.0 surface yet; ergonomic queries are compiled by specification type.
 - Supported runtime filters: `With<T>` / `All<T>`, `AnyOf<T>` / `Any<T>`, `Without<T>` / `None<T>`, `Optional<T>`, `Changed<T>`, `Added<T>`, `Related<TRelation>(target)` / `Related<TRelation>()`.
 - `Changed<T>` / `Added<T>` are evaluated incrementally per compiled handle execution.
-- Change tracking also covers mutable ref-based write surfaces (`World.Get`, component accessors, cursor/world `ForEach`, cursor/world `Run`, and `RunParallel`) once any changed/added query is compiled.
+- Change tracking also covers mutable ref-based write surfaces (`World.Write`, component accessors, cursor/world `ForEach`, cursor/world `Run`, and `RunParallel`) once any changed/added query is compiled.
 - `GetQueryDiagnostics(handle)` reports static filter makeup and current dynamic match counts without advancing incremental `Changed`/`Added` windows.
 - Execution styles:
 - QueryView style: `world.Query<MyQuery>().ForEach((entity, ref Position position) => { ... })`
@@ -184,7 +197,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 
 ### Practical Allocation Expectations
 - Hot-path query loops (`Run`, `ForEach`, cursor loops): target `0 B` steady-state.
-- Component `Get`/`TryGet` surfaces: optimized for throughput; tiny runtime-level allocations may still appear in certain benchmark environments.
+- Component `Read`/`TryRead` and `Write`/`TryWrite` surfaces: optimized for throughput; tiny runtime-level allocations may still appear in certain benchmark environments.
 - Command-stream burst scenarios: optimized for fixed-capacity reuse and deterministic playback; tiny runtime-level allocations can still surface in measurement noise.
 
 ### Threading And Mutation Rules
@@ -201,7 +214,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 
 ### Changed/Added Tracking Cost Model
 - `Changed<T>` and `Added<T>` tracking activates when at least one compiled query uses these filters.
-- Once active, mutable ref-based write surfaces (`Get`, accessors, cursor/direct runs, `RunParallel`) mark change metadata.
+- Once active, mutable ref-based write surfaces (`Write`, accessors, cursor/direct runs, `RunParallel`) mark change metadata.
 - This enables incremental query semantics but adds bookkeeping work proportional to touched entities/chunks.
 
 ### Benchmark References

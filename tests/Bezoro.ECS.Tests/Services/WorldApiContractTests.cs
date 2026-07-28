@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
@@ -12,6 +13,12 @@ namespace Bezoro.ECS.Tests.Services;
 [TestSubject(typeof(World))]
 public class WorldApiContractTests
 {
+	private const string GetObsoleteMessage =
+		"Use Read<T>(Entity) for read-only access or Write<T>(Entity) for mutable access instead.";
+	private const string GetResourceObsoleteMessage =
+		"Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.";
+	private const string TryGetManagedObsoleteMessage = "Use TryRead<T>(Entity, out T) instead.";
+
 	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
 	{
@@ -67,6 +74,28 @@ public class WorldApiContractTests
 		world.Has<ApiPosition>(entity).Should().BeTrue();
 		world.TryGet(entity, out ApiPosition position).Should().BeTrue();
 		position.Should().Be(new ApiPosition { X = 5f, Y = 8f });
+	}
+
+	[Theory]
+	[InlineData(typeof(World), nameof(World.Get), GetObsoleteMessage)]
+	[InlineData(typeof(IWorld), nameof(IWorld.Get), GetObsoleteMessage)]
+	[InlineData(typeof(World), nameof(World.GetResource), GetResourceObsoleteMessage)]
+	[InlineData(typeof(IWorld), nameof(IWorld.GetResource), GetResourceObsoleteMessage)]
+	[InlineData(typeof(World), nameof(World.TryGetManaged), TryGetManagedObsoleteMessage)]
+	public void LegacyAccessMember_WhenInspected_ShouldHaveExactNonErrorObsoleteAttribute(
+		Type   declaringType,
+		string memberName,
+		string expectedMessage)
+	{
+		var method = declaringType
+			.GetMethods()
+			.Single(candidate => candidate.Name == memberName && candidate.IsGenericMethodDefinition);
+
+		var attribute = method.GetCustomAttribute<ObsoleteAttribute>();
+
+		attribute.Should().NotBeNull();
+		attribute!.Message.Should().Be(expectedMessage);
+		attribute.IsError.Should().BeFalse();
 	}
 
 	[Fact]
