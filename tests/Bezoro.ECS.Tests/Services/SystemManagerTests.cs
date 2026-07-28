@@ -234,7 +234,7 @@ public class SystemManagerTests
 		world.AddSystem(second);
 
 		world.Tick(1f / 60f);
-		world.GetResource<SchedulerGateResource>().Enabled = true;
+		world.WriteResource<SchedulerGateResource>().Enabled = true;
 		world.Tick(1f / 60f);
 
 		first.UpdateCount.Should().Be(1);
@@ -345,7 +345,7 @@ public class SystemManagerTests
 		world.AddSystem(system);
 
 		world.Tick(1f / 60f);
-		world.GetResource<SchedulerGateResource>().Enabled = true;
+		world.WriteResource<SchedulerGateResource>().Enabled = true;
 		world.Tick(1f / 60f);
 
 		system.UpdateCount.Should().Be(1);
@@ -721,7 +721,7 @@ public class SystemManagerTests
 	private sealed class SchedulerGateRunCondition : ISystemRunCondition
 	{
 		public bool ShouldRun(in SystemRunConditionContext context) =>
-			context.World.GetResource<SchedulerGateResource>().Enabled;
+			context.World.ReadResource<SchedulerGateResource>().Enabled;
 	}
 
 	private sealed class SchedulerResource;

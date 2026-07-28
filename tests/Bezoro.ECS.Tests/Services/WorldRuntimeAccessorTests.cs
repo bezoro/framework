@@ -89,7 +89,7 @@ public partial class WorldRuntimeTests
 
 		for (var i = 0; i < entities.Length; i++)
 		{
-			var updated = world.Get<Position>(entities[i]);
+			var updated = world.Read<Position>(entities[i]);
 			updated.X.Should().Be(i + 10);
 			updated.Y.Should().Be(-i - 5);
 		}

@@ -155,7 +155,7 @@ public partial class WorldRuntimeTests
 		using var after = world.Execute(handle);
 		after.MoveNext().Should().BeTrue();
 		after.Current.Length.Should().Be(1);
-		world.Get<Position>(after.Current[0]).Should().Be(new Position { X = 42, Y = -7 });
+		world.Read<Position>(after.Current[0]).Should().Be(new Position { X = 42, Y = -7 });
 	}
 
 
@@ -372,7 +372,9 @@ public partial class WorldRuntimeTests
 		}
 
 		ClearChangedWindow();
+		#pragma warning disable CS0618
 		ref var fromWorldGet = ref world.Get<Position>(entity);
+		#pragma warning restore CS0618
 		fromWorldGet.X += 1;
 		AssertOnlyChangedEntity();
 
@@ -818,12 +820,12 @@ public partial class WorldRuntimeTests
 			var entity = cursor.Current[index];
 
 			ref var velocity         = ref cursor.Get<Velocity>(index);
-			var     expectedVelocity = world.Get<Velocity>(entity);
+			var     expectedVelocity = world.Read<Velocity>(entity);
 			velocity.X.Should().Be(expectedVelocity.X);
 			velocity.Y.Should().Be(expectedVelocity.Y);
 
 			ref var position         = ref cursor.Get<Position>(index);
-			var     expectedPosition = world.Get<Position>(entity);
+			var     expectedPosition = world.Read<Position>(entity);
 			position.X.Should().Be(expectedPosition.X);
 			position.Y.Should().Be(expectedPosition.Y);
 		}

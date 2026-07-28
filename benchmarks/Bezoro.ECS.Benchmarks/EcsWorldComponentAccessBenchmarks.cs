@@ -43,13 +43,13 @@ public class EcsWorldComponentAccessBenchmarks
 		return sum;
 	}
 
-	[Benchmark(Description = "World sequential component ref-write via Get<T>")]
-	public float SequentialGetWrite()
+	[Benchmark(Description = "World sequential component ref-write via Write<T>")]
+	public float SequentialWrite()
 	{
 		var sum = 0f;
 		for (var i = 0; i < _entities.Length; i++)
 		{
-			ref var position = ref _world.Get<Position>(_entities[i]);
+			ref var position = ref _world.Write<Position>(_entities[i]);
 			position.X += 0.125f;
 			position.Y -= 0.125f;
 			sum += position.X;
@@ -179,4 +179,3 @@ public class EcsWorldComponentAccessBenchmarks
 		public float Y;
 	}
 }
-

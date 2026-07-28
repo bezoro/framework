@@ -36,7 +36,7 @@ public sealed class IntentToVelocitySystem : ISystem
 	public void Update(in SystemContext context)
 	{
 		var world = context.World;
-		ref var queue = ref world.GetResource<InputCommandQueue>();
+		ref readonly var queue = ref world.ReadResource<InputCommandQueue>();
 		var now       = queue.SimulationTimeSeconds;
 
 		using var cursor = world.Execute(_query);

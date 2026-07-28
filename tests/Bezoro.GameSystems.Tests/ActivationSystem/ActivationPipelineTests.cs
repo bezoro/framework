@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
+using Bezoro.ECS.Types;
 using Bezoro.GameSystems.ActivationSystem.Extensions;
 using Bezoro.GameSystems.ActivationSystem.Services;
 using Bezoro.GameSystems.ActivationSystem.Types;
@@ -53,6 +54,35 @@ public class ActivationPipelineTests
 	}
 
 	[Fact]
+	public void Tick_WhenDispatchMayRecreateActivationConfig_ShouldSerializeConfigReaders()
+	{
+		using var world = new World(new WorldConfig { MaxDegreeOfParallelism = 4 });
+		var reader = new ActivationConfigReaderSystem();
+		world.AddSystem(new ActivationDispatchSystem(), Stage.PostTick);
+		world.AddSystem(reader,                         Stage.PostTick);
+		world.RemoveResource<ActivationConfig>().Should().BeTrue();
+
+		var diagnostics = world.GetScheduleDiagnostics();
+		var tickPhase = diagnostics.Phases.Should()
+								   .ContainSingle(phase => phase.LoopPhase == SystemLoopPhase.Tick)
+								   .Subject;
+		var postTickStage = tickPhase.Stages.Should()
+								  .ContainSingle(stage => stage.Stage == Stage.PostTick)
+								  .Subject;
+
+		postTickStage.Batches.Should().HaveCount(2);
+		postTickStage.Batches[0].SystemTypes.Should().ContainSingle()
+					 .Which.Should().Be(typeof(ActivationDispatchSystem));
+		postTickStage.Batches[1].SystemTypes.Should().ContainSingle()
+					 .Which.Should().Be(typeof(ActivationConfigReaderSystem));
+
+		world.Tick(0f);
+
+		world.HasResource<ActivationConfig>().Should().BeTrue();
+		reader.ObservedConfig.Should().BeTrue();
+	}
+
+	[Fact]
 	public void Tick_WhenActivationCompletes_ShouldPublishCompletionOncePerCompletionEdge()
 	{
 		var world = new World();
@@ -71,7 +101,7 @@ public class ActivationPipelineTests
 		queue.Register(() => { });
 		world.Tick(0f);
 
-		var events = world.GetResource<ActivationEventsResource>();
+		var events = world.ReadResource<ActivationEventsResource>();
 		events.Count.Should().Be(2);
 	}
 
@@ -109,7 +139,7 @@ public class ActivationPipelineTests
 		world.Tick(0f);
 
 		invoked.Should().BeFalse();
-		var runtime = world.GetResource<ActivationRuntimeState>();
+		var runtime = world.ReadResource<ActivationRuntimeState>();
 		runtime.ActivatedCount.Should().Be(0);
 		runtime.PendingCount.Should().Be(0);
 	}
@@ -156,7 +186,7 @@ public class ActivationPipelineTests
 
 		order.Should().Equal("high", "medium", "same-priority-first", "same-priority-second", "low");
 
-		var runtime = world.GetResource<ActivationRuntimeState>();
+		var runtime = world.ReadResource<ActivationRuntimeState>();
 		runtime.ActivatedCount.Should().Be(5);
 		runtime.PendingCount.Should().Be(0);
 		runtime.IsComplete.Should().BeTrue();

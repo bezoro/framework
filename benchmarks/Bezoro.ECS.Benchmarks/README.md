@@ -10,7 +10,7 @@ BenchmarkDotNet suite for core ECS performance targets.
 | `EcsWorldCommandStreamSetBurstBenchmarks`    | World fixed-capacity command-stream set bursts over existing components to track transition-stable update throughput.                                                         |
 | `EcsWorldCommandStreamRemoveBurstBenchmarks` | World fixed-capacity command-stream remove bursts over existing components to track structural transition throughput.                                                         |
 | `EcsWorldHotPathBenchmarks`                  | World compiled-query hot paths comparing cursor and direct struct-job (`Run`) loops on unmanaged components.                                                                  |
-| `EcsWorldComponentAccessBenchmarks`          | World sequential component access paths (`TryGet`/`Get`, cached accessor variants, and sequential `QueryCursor.Get`), plus cursor vs direct query struct-job loop comparison. |
+| `EcsWorldComponentAccessBenchmarks`          | World sequential component access paths (`TryGet`/`Write`, cached accessor variants, and sequential `QueryCursor.Get`), plus cursor vs direct query struct-job loop comparison. |
 | `EcsWorldQueryViewBenchmarks`                | Ergonomic `QueryView` paths covering managed read-only and mutable traversal, sequential and entity-aware struct jobs, and parallel entity-aware struct jobs.                  |
 
 ## Run

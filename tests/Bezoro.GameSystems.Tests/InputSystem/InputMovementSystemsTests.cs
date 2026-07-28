@@ -51,11 +51,11 @@ public class InputMovementSystemsTests
 		world.FixedTick(0.1f);
 
 		// Assert
-		var playerPosition = world.Get<Position>(player);
+		var playerPosition = world.Read<Position>(player);
 		playerPosition.X.Should().BeApproximately(0.3f, 0.0001f);
 		playerPosition.Y.Should().BeApproximately(0f, 0.0001f);
 
-		var enemyPosition = world.Get<Position>(enemy);
+		var enemyPosition = world.Read<Position>(enemy);
 		enemyPosition.X.Should().BeApproximately(0f, 0.0001f);
 		enemyPosition.Y.Should().BeApproximately(-0.5f, 0.0001f);
 	}
@@ -87,10 +87,10 @@ public class InputMovementSystemsTests
 		world.FixedTick(0.11f);
 
 		// Assert
-		var position = world.Get<Position>(entity);
+		var position = world.Read<Position>(entity);
 		position.X.Should().BeApproximately(0.1f, 0.0001f);
 
-		var velocity = world.Get<Velocity>(entity);
+		var velocity = world.Read<Velocity>(entity);
 		velocity.X.Should().Be(0f);
 		velocity.Y.Should().Be(0f);
 		velocity.Z.Should().Be(0f);
@@ -120,10 +120,10 @@ public class InputMovementSystemsTests
 
 		// Act
 		world.FixedTick(0.1f);
-		var afterFirstTick = world.Get<Position>(entity);
+		var afterFirstTick = world.Read<Position>(entity);
 
 		world.FixedTick(0.05f);
-		var afterSecondTick = world.Get<Position>(entity);
+		var afterSecondTick = world.Read<Position>(entity);
 
 		// Assert
 		afterFirstTick.X.Should().BeApproximately(0.4f, 0.0001f);
@@ -159,10 +159,10 @@ public class InputMovementSystemsTests
 		world.FixedTick(0.05f);
 
 		// Assert
-		var position = world.Get<Position>(entity);
+		var position = world.Read<Position>(entity);
 		position.X.Should().BeApproximately(0f, 0.0001f);
 
-		var velocity = world.Get<Velocity>(entity);
+		var velocity = world.Read<Velocity>(entity);
 		velocity.X.Should().Be(-3f);
 	}
 
@@ -193,7 +193,7 @@ public class InputMovementSystemsTests
 		world.FixedTick(0.1f);
 
 		// Assert
-		var position = world.Get<Position>(entity);
+		var position = world.Read<Position>(entity);
 		position.X.Should().BeApproximately(0.1f, 0.0001f);
 	}
 

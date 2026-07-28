@@ -26,7 +26,7 @@ public sealed class InputIngestionSystem : ISystem
 
 		try
 		{
-			_ = world.GetResource<InputCommandQueue>();
+			_ = world.ReadResource<InputCommandQueue>();
 		}
 		catch (KeyNotFoundException)
 		{
@@ -38,7 +38,7 @@ public sealed class InputIngestionSystem : ISystem
 	public void Update(in SystemContext context)
 	{
 		var world = context.World;
-		ref var queue = ref world.GetResource<InputCommandQueue>();
+		ref var queue = ref world.WriteResource<InputCommandQueue>();
 		queue.AdvanceTime(context.DeltaTime);
 		queue.Drain();
 	}

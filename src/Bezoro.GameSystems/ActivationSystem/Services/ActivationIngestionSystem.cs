@@ -35,7 +35,7 @@ public sealed class ActivationIngestionSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureCommandQueue(world);
 
-		ref var queue = ref world.GetResource<ActivationCommandQueue>();
+		ref var queue = ref world.WriteResource<ActivationCommandQueue>();
 		while (queue.TryDequeue(out var command))
 		{
 			switch (command.Kind)
@@ -62,7 +62,7 @@ public sealed class ActivationIngestionSystem : ISystem
 	{
 		try
 		{
-			_ = world.GetResource<ActivationCommandQueue>();
+			_ = world.ReadResource<ActivationCommandQueue>();
 		}
 		catch (KeyNotFoundException)
 		{

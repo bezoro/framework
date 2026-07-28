@@ -21,7 +21,7 @@ public class WorldApiContractTests
 		world.Add<ApiHealth>(entity);
 
 		world.Has<ApiHealth>(entity).Should().BeTrue();
-		world.Get<ApiHealth>(entity).Should().Be(default(ApiHealth));
+		world.Read<ApiHealth>(entity).Should().Be(default(ApiHealth));
 	}
 
 	[Fact]
@@ -41,7 +41,7 @@ public class WorldApiContractTests
 		cursor.Current.Length.Should().Be(1);
 
 		var created = cursor.Current[0];
-		world.Get<ApiPosition>(created).Should().Be(new ApiPosition { X = 11f, Y = 13f });
+		world.Read<ApiPosition>(created).Should().Be(new ApiPosition { X = 11f, Y = 13f });
 	}
 
 	[Fact]
@@ -163,10 +163,12 @@ public class WorldApiContractTests
 		using var world = new World();
 		world.SetResource(new ApiTuning { Gravity = 9.81f });
 
+		#pragma warning disable CS0618
 		ref var tuning = ref world.GetResource<ApiTuning>();
+		#pragma warning restore CS0618
 		tuning.Gravity = 12.5f;
 
-		world.GetResource<ApiTuning>().Gravity.Should().Be(12.5f);
+		world.ReadResource<ApiTuning>().Gravity.Should().Be(12.5f);
 	}
 
 	[Fact]
@@ -180,9 +182,9 @@ public class WorldApiContractTests
 			new ApiHealth { Current = 7, Max = 10 }
 		);
 
-		world.Get<ApiPosition>(entity).Should().Be(new ApiPosition { X   = 3f, Y  = 4f });
-		world.Get<ApiVelocity>(entity).Should().Be(new ApiVelocity { X   = 1f, Y  = -2f });
-		world.Get<ApiHealth>(entity).Should().Be(new ApiHealth { Current = 7, Max = 10 });
+		world.Read<ApiPosition>(entity).Should().Be(new ApiPosition { X   = 3f, Y  = 4f });
+		world.Read<ApiVelocity>(entity).Should().Be(new ApiVelocity { X   = 1f, Y  = -2f });
+		world.Read<ApiHealth>(entity).Should().Be(new ApiHealth { Current = 7, Max = 10 });
 	}
 
 	private readonly struct PositionQuerySpec : ICompiledQuerySpec

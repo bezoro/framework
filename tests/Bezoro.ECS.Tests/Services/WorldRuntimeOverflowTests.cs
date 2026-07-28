@@ -136,7 +136,7 @@ public partial class WorldRuntimeTests
 		verify.MoveNext().Should().BeTrue();
 		verify.Current.Length.Should().Be(32);
 		for (var i = 0; i < 32; i++)
-			world.Get<Position>(resolved[i]).X.Should().BeGreaterThanOrEqualTo(100);
+			world.Read<Position>(resolved[i]).X.Should().BeGreaterThanOrEqualTo(100);
 	}
 
 

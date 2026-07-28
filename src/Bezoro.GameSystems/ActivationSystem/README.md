@@ -40,7 +40,7 @@ queue.Cancel(handleC);
 
 world.Tick(0f);
 
-var runtime = world.GetResource<ActivationRuntimeState>();
+var runtime = world.ReadResource<ActivationRuntimeState>();
 Console.WriteLine($"Pending: {runtime.PendingCount}");
 Console.WriteLine($"Activated: {runtime.ActivatedCount}");
 Console.WriteLine($"Complete: {runtime.IsComplete}");

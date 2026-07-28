@@ -60,8 +60,8 @@ public class WorldAdvancedApiTests
 			}
 		);
 
-		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("alpha");
+		restored.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		restored.ReadResource<SnapshotTagResource>().Tag.Should().Be("alpha");
 
 		var handle    = restored.Compile<PositionQuerySpec>();
 		var positions = new List<Position>(2);
@@ -175,8 +175,8 @@ public class WorldAdvancedApiTests
 			}
 		);
 
-		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("trusted");
+		restored.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		restored.ReadResource<SnapshotTagResource>().Tag.Should().Be("trusted");
 	}
 
 	[Fact]
@@ -329,7 +329,7 @@ public class WorldAdvancedApiTests
 	{
 		using var world               = CreateWorldWithExistingState();
 		int       existingEntityCount = world.EntityCount;
-		float     existingGravity     = world.GetResource<SimulationSettings>().Gravity;
+		float     existingGravity     = world.ReadResource<SimulationSettings>().Gravity;
 		var snapshot = CreateSnapshot(
 			[
 				new(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
@@ -351,8 +351,8 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*not allow-listed*");
 
 		world.EntityCount.Should().Be(existingEntityCount);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
-		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
+		world.Read<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
@@ -507,8 +507,8 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*entity capacity*");
 
 		world.EntityCount.Should().Be(1);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		world.Read<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
@@ -579,7 +579,7 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*component type capacity*");
 
 		world.EntityCount.Should().Be(1);
-		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
+		world.Read<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
@@ -673,8 +673,8 @@ public class WorldAdvancedApiTests
 	private static void AssertWorldPreserved(World world)
 	{
 		world.EntityCount.Should().Be(1);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		world.Read<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	private static World CreateWorldWithExistingState()

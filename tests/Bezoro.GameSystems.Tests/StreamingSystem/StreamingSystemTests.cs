@@ -80,11 +80,11 @@ public class StreamingSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var streamState = world.Get<StreamState>(entity);
+		var streamState = world.Read<StreamState>(entity);
 		streamState.IsStreamedIn.Should().BeTrue();
 
 		changedCount.Should().Be(1);
-		var events = world.GetResource<StreamingEventsResource>();
+		var events = world.WriteResource<StreamingEventsResource>();
 		events.Count.Should().Be(1);
 		events.TryDequeue(out var evt).Should().BeTrue();
 		evt.TargetEntity.Should().Be(entity);
@@ -113,9 +113,9 @@ public class StreamingSystemTests
 		);
 
 		world.Tick(0f);
-		world.GetResource<StreamingEventsResource>().Clear();
+		world.WriteResource<StreamingEventsResource>().Clear();
 
-		var moved = world.Get<Position>(entity);
+		var moved = world.Read<Position>(entity);
 		moved.X = 20f;
 		moved.Y = 0f;
 		moved.Z = 0f;
@@ -125,10 +125,10 @@ public class StreamingSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var streamState = world.Get<StreamState>(entity);
+		var streamState = world.Read<StreamState>(entity);
 		streamState.IsStreamedIn.Should().BeFalse();
 
-		var events = world.GetResource<StreamingEventsResource>();
+		var events = world.WriteResource<StreamingEventsResource>();
 		events.Count.Should().Be(1);
 		events.TryDequeue(out var evt).Should().BeTrue();
 		evt.TargetEntity.Should().Be(entity);
@@ -157,9 +157,9 @@ public class StreamingSystemTests
 		);
 
 		world.Tick(0f);
-		world.GetResource<StreamingEventsResource>().Clear();
+		world.WriteResource<StreamingEventsResource>().Clear();
 
-		var moved = world.Get<Position>(entity);
+		var moved = world.Read<Position>(entity);
 		moved.X = 12f;
 		moved.Y = 0f;
 		moved.Z = 0f;
@@ -169,9 +169,9 @@ public class StreamingSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var streamState = world.Get<StreamState>(entity);
+		var streamState = world.Read<StreamState>(entity);
 		streamState.IsStreamedIn.Should().BeTrue();
-		world.GetResource<StreamingEventsResource>().Count.Should().Be(0);
+		world.ReadResource<StreamingEventsResource>().Count.Should().Be(0);
 	}
 
 	[Fact]
@@ -199,10 +199,10 @@ public class StreamingSystemTests
 		world.Tick(0f);
 
 		// Assert
-		var streamState = world.Get<StreamState>(entity);
+		var streamState = world.Read<StreamState>(entity);
 		streamState.IsStreamedIn.Should().BeFalse();
 
-		var events = world.GetResource<StreamingEventsResource>();
+		var events = world.ReadResource<StreamingEventsResource>();
 		events.Count.Should().Be(0);
 	}
 
@@ -292,7 +292,7 @@ public class StreamingSystemTests
 		var count = 0;
 		for (var i = 0; i < entities.Count; i++)
 		{
-			if (world.Get<StreamState>(entities[i]).IsStreamedIn)
+			if (world.Read<StreamState>(entities[i]).IsStreamedIn)
 				count++;
 		}
 
