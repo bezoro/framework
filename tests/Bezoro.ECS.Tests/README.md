@@ -21,7 +21,7 @@ Unit and integration tests for `Bezoro.ECS` runtime, scheduling, source generati
 | `WorldResourceStoreTests`                       | Internal resource-store lifecycle coverage for disposal and snapshot boxing round-trips.                                     |
 | `QueryGeneratorTests`                           | Compiled query usage and filtering behavior from a consumer perspective.                                                    |
 | `GeneratedQueryAndJobSourceGenIntegrationTests` | Source-generated query-spec and job-extension integration against runtime execution APIs.                                   |
-| `GeneratedSystemMetadataResolverTests`          | Generated system metadata discovery and resolver behavior.                                                                  |
+| `GeneratedSystemMetadataResolverTests`          | Generated system metadata discovery, resolver behavior, and legacy direct-access read/write classification.                 |
 
 ## Quick Start
 
