@@ -5,6 +5,40 @@ namespace Bezoro.Logging.Tests;
 
 public sealed class LoggerPayloadTests
 {
+	[Theory]
+	[InlineData(LogLevel.Error)]
+	[InlineData(LogLevel.Success)]
+	[InlineData(LogLevel.Warning)]
+	public void ConvenienceLogMethod_WhenCalledFromDebugConsumer_ShouldDispatchRequestedLevel(LogLevel level)
+	{
+		using var settings = new LoggerSettingsScope();
+		var payloads = new List<LogPayload>();
+		Action<LogPayload> handler = payloads.Add;
+		Logger.OnLog += handler;
+
+		try
+		{
+			switch (level)
+			{
+				case LogLevel.Error:
+					Logger.LogError("message");
+					break;
+				case LogLevel.Success:
+					Logger.LogSuccess("message");
+					break;
+				case LogLevel.Warning:
+					Logger.LogWarning("message");
+					break;
+			}
+		}
+		finally
+		{
+			Logger.OnLog -= handler;
+		}
+
+		payloads.Should().ContainSingle().Which.Level.Should().Be(level);
+	}
+
 	[Fact]
 	public void Log_WhenMetadataIsDisabled_ShouldDispatchCompletePayload()
 	{

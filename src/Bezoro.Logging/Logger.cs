@@ -75,7 +75,17 @@ public static class Logger
 		object?                    contextObject     = null,
 		bool                       captureCallerInfo = false,
 		[CallerMemberName] string? memberName        = null,
-		[CallerFilePath]   string? filePath          = null)
+		[CallerFilePath]   string? filePath          = null) =>
+		LogInternal(message, level, category, contextObject, captureCallerInfo, memberName, filePath);
+
+	private static void LogInternal(
+		object       message,
+		LogLevel     level,
+		LogCategory? category,
+		object?      contextObject,
+		bool         captureCallerInfo,
+		string?      memberName,
+		string?      filePath)
 	{
 		// Capture caller info if requested
 		string? callerInfo = null;
@@ -166,7 +176,7 @@ public static class Logger
 		bool                       captureCallerInfo = false,
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null) =>
-		Log(message, LogLevel.Error, category, contextObject, captureCallerInfo, memberName, filePath);
+		LogInternal(message, LogLevel.Error, category, contextObject, captureCallerInfo, memberName, filePath);
 
 	/// <summary>
 	///     Logs an exception with automatic detail extraction.
@@ -228,7 +238,7 @@ public static class Logger
 		bool                       captureCallerInfo = false,
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null) =>
-		Log(message, LogLevel.Success, category, contextObject, captureCallerInfo, memberName, filePath);
+		LogInternal(message, LogLevel.Success, category, contextObject, captureCallerInfo, memberName, filePath);
 
 	/// <summary>
 	///     Logs a warning message with optional complexity.
@@ -253,7 +263,7 @@ public static class Logger
 		bool                       captureCallerInfo = false,
 		[CallerMemberName] string? memberName        = null,
 		[CallerFilePath]   string? filePath          = null) =>
-		Log(message, LogLevel.Warning, category, contextObject, captureCallerInfo, memberName, filePath);
+		LogInternal(message, LogLevel.Warning, category, contextObject, captureCallerInfo, memberName, filePath);
 
 	private static bool ShouldSkipLog(LogLevel level, LogCategory? category)
 	{
@@ -368,18 +378,16 @@ public static class Logger
 			: null;
 		var normalizedStage = NormalizeStage(stage);
 		var stageChanged = TryUpdateStage(normalizedStage, out var previousStage);
-		var settings = LogSettingsSnapshot.Capture();
 		var asyncHierarchy = LoggerSettings.CurrentAsyncContextHierarchy;
 
 		TryEmitStageDividerPayload(
 			input,
-			settings,
-			stageSettings.DividerProvider,
 			previousStage,
 			normalizedStage,
 			stageChanged,
 			asyncHierarchy);
 
+		var settings = LogSettingsSnapshot.Capture();
 		var timestamp = DateTime.UtcNow;
 		var sequenceNumber = LoggerSettings.GetNextSequenceNumber();
 		var threadId = Environment.CurrentManagedThreadId;
@@ -443,8 +451,6 @@ public static class Logger
 
 	private static void TryEmitStageDividerPayload(
 		in LogInput input,
-		in LogSettingsSnapshot settings,
-		Func<string?, string?, string?>? dividerProvider,
 		string?                previousStage,
 		string?                stage,
 		bool                   stageChanged,
@@ -453,10 +459,12 @@ public static class Logger
 		if (!stageChanged)
 			return;
 
+		var dividerProvider = LoggerSettings.Stage.DividerProvider;
 		var dividerLine = GetStageDividerLine(dividerProvider, previousStage, stage);
 		if (dividerLine == null)
 			return;
 
+		var settings = LogSettingsSnapshot.Capture();
 		var context = new LogEventContext(
 			DateTime.UtcNow,
 			0,
