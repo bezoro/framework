@@ -10,7 +10,8 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class WorldQueryEngine(World world, WorldConfig config)
 {
-	private readonly Dictionary<Type, CompiledQueryPlan> _compiledPlansBySpecType = [];
+	private readonly ConcurrentDictionary<Type, CompiledQueryPlan> _compiledPlansBySpecType = [];
+	private readonly object _compiledPlansGate = new();
 	private readonly ConcurrentBag<QueryExecutionLease> _queryExecutionLeasePool = [];
 	private readonly Entity[] _queryEntities = new Entity[config.QueryResultCapacity];
 	private readonly QueryChunkMatch[] _queryChunkMatches = new QueryChunkMatch[config.QueryResultCapacity];
@@ -29,14 +30,20 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 		if (_compiledPlansBySpecType.TryGetValue(specType, out var existing))
 			return new(existing);
 
-		var builder = new QueryBuilder(_world);
-		var spec = default(TSpec);
-		spec.Build(ref builder);
-		var plan = builder.Build();
-		_world.EnableRefWriteTrackingForQuery(plan);
+		lock (_compiledPlansGate)
+		{
+			if (_compiledPlansBySpecType.TryGetValue(specType, out existing))
+				return new(existing);
 
-		_compiledPlansBySpecType[specType] = plan;
-		return new(plan);
+			var builder = new QueryBuilder(_world);
+			var spec = default(TSpec);
+			spec.Build(ref builder);
+			var plan = builder.Build();
+			_world.EnableRefWriteTrackingForQuery(plan);
+
+			_compiledPlansBySpecType[specType] = plan;
+			return new(plan);
+		}
 	}
 
 	public QueryCursor Execute<TSpec>(QueryHandle<TSpec> handle) where TSpec : struct, ICompiledQuerySpec
@@ -99,7 +106,11 @@ internal sealed class WorldQueryEngine(World world, WorldConfig config)
 		}
 	}
 
-	public void ClearCompiledPlans() => _compiledPlansBySpecType.Clear();
+	public void ClearCompiledPlans()
+	{
+		lock (_compiledPlansGate)
+			_compiledPlansBySpecType.Clear();
+	}
 
 	public void ExitCursors()
 	{

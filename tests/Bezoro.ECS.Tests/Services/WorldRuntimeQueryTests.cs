@@ -1,14 +1,97 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
 public partial class WorldRuntimeTests
 {
+	[Fact]
+	public async Task Compile_WhenSameColdSpecIsCompiledConcurrently_ShouldBuildOnceAndReturnUsableHandles()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var probe = new CoordinatedQueryCompileProbe();
+		CoordinatedPositionQuerySpec.Probe = probe;
+		Task<QueryHandle<CoordinatedPositionQuerySpec>>? firstCompile  = null;
+		Task<QueryHandle<CoordinatedPositionQuerySpec>>? secondCompile = null;
+		var secondBuildEntered = false;
+		try
+		{
+			firstCompile = Task.Factory.StartNew(
+				world.Compile<CoordinatedPositionQuerySpec>,
+				CancellationToken.None,
+				TaskCreationOptions.LongRunning,
+				TaskScheduler.Default
+			);
+			probe.FirstBuildEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+			secondCompile = Task.Factory.StartNew(
+				() =>
+				{
+					probe.SecondCompileStarting.Set();
+					return world.Compile<CoordinatedPositionQuerySpec>();
+				},
+				CancellationToken.None,
+				TaskCreationOptions.LongRunning,
+				TaskScheduler.Default
+			);
+			probe.SecondCompileStarting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+			secondBuildEntered = probe.SecondBuildEntered.Wait(TimeSpan.FromSeconds(5));
+		}
+		finally
+		{
+			probe.ReleaseFirstBuild.Set();
+			try
+			{
+				if (firstCompile is not null && secondCompile is not null)
+					await Task.WhenAll(firstCompile, secondCompile);
+				else if (firstCompile is not null)
+					await firstCompile;
+			}
+			finally
+			{
+				CoordinatedPositionQuerySpec.Probe = null;
+				probe.Dispose();
+			}
+		}
+
+		using (new AssertionScope())
+		{
+			secondBuildEntered.Should().BeFalse();
+			probe.BuildCount.Should().Be(1);
+		}
+
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		using (var firstCursor = world.Execute(await firstCompile!))
+		{
+			firstCursor.MoveNext().Should().BeTrue();
+			firstCursor.Current.Length.Should().Be(1);
+			firstCursor.Current[0].Should().Be(entity);
+		}
+
+		using var secondCursor = world.Execute(await secondCompile!);
+		secondCursor.MoveNext().Should().BeTrue();
+		secondCursor.Current.Length.Should().Be(1);
+		secondCursor.Current[0].Should().Be(entity);
+	}
+
 	[Fact]
 	public void Compile_WhenDifferentSpecTypesAreCached_ShouldKeepDistinctQueryPlans()
 	{
@@ -959,6 +1042,43 @@ public partial class WorldRuntimeTests
 		{
 			var updated = cursor.Get<Position>(i);
 			updated.Y.Should().Be((i * 10) + 3);
+		}
+	}
+
+	private sealed class CoordinatedQueryCompileProbe : IDisposable
+	{
+		public int BuildCount;
+		public ManualResetEventSlim FirstBuildEntered { get; } = new(false);
+		public ManualResetEventSlim ReleaseFirstBuild { get; } = new(false);
+		public ManualResetEventSlim SecondBuildEntered { get; } = new(false);
+		public ManualResetEventSlim SecondCompileStarting { get; } = new(false);
+
+		public void Dispose()
+		{
+			FirstBuildEntered.Dispose();
+			ReleaseFirstBuild.Dispose();
+			SecondBuildEntered.Dispose();
+			SecondCompileStarting.Dispose();
+		}
+	}
+
+	private readonly struct CoordinatedPositionQuerySpec : ICompiledQuerySpec
+	{
+		public static CoordinatedQueryCompileProbe? Probe { get; set; }
+
+		public void Build(ref QueryBuilder builder)
+		{
+			var probe       = Probe ?? throw new InvalidOperationException("Query compile probe is not configured.");
+			var buildNumber = Interlocked.Increment(ref probe.BuildCount);
+			if (buildNumber == 1)
+			{
+				probe.FirstBuildEntered.Set();
+				probe.ReleaseFirstBuild.Wait();
+			}
+			else
+				probe.SecondBuildEntered.Set();
+
+			builder.All<Position>();
 		}
 	}
 }
