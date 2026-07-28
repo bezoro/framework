@@ -205,7 +205,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	public void Run<TJob, T1>(TJob job)
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged =>
-		_world.Run<TQuery, TJob, T1>(_handle, job);
+		_world.RunDirectFast<TQuery, TJob, T1>(_handle, job);
 
 	/// <summary>
 	///     Executes an entity-aware struct job over the matching entities.
@@ -213,7 +213,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	public void RunEntity<TJob, T1>(TJob job)
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged =>
-		_world.RunEntity<TQuery, TJob, T1>(_handle, job);
+		_world.RunDirectFastEntity<TQuery, TJob, T1>(_handle, job);
 
 	/// <summary>
 	///     Executes a struct job over the matching entities.
@@ -222,7 +222,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged =>
-		_world.Run<TQuery, TJob, T1, T2>(_handle, job);
+		_world.RunDirectFast<TQuery, TJob, T1, T2>(_handle, job);
 
 	/// <summary>
 	///     Executes an entity-aware struct job over the matching entities.
@@ -231,7 +231,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged =>
-		_world.RunEntity<TQuery, TJob, T1, T2>(_handle, job);
+		_world.RunDirectFastEntity<TQuery, TJob, T1, T2>(_handle, job);
 
 	/// <summary>
 	///     Executes a struct job over the matching entities.
@@ -241,7 +241,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged =>
-		_world.Run<TQuery, TJob, T1, T2, T3>(_handle, job);
+		_world.RunDirectFast<TQuery, TJob, T1, T2, T3>(_handle, job);
 
 	/// <summary>
 	///     Executes an entity-aware struct job over the matching entities.
@@ -251,7 +251,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged =>
-		_world.RunEntity<TQuery, TJob, T1, T2, T3>(_handle, job);
+		_world.RunDirectFastEntity<TQuery, TJob, T1, T2, T3>(_handle, job);
 
 	/// <summary>
 	///     Executes a struct job over the matching entities.
@@ -262,7 +262,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged =>
-		_world.Run<TQuery, TJob, T1, T2, T3, T4>(_handle, job);
+		_world.RunDirectFast<TQuery, TJob, T1, T2, T3, T4>(_handle, job);
 
 	/// <summary>
 	///     Executes an entity-aware struct job over the matching entities.
@@ -273,7 +273,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged =>
-		_world.RunEntity<TQuery, TJob, T1, T2, T3, T4>(_handle, job);
+		_world.RunDirectFastEntity<TQuery, TJob, T1, T2, T3, T4>(_handle, job);
 
 	/// <summary>
 	///     Executes a struct job in parallel over the matching entities.
@@ -281,7 +281,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	public void RunParallel<TJob, T1>(TJob job, int? degreeOfParallelism = null)
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged =>
-		_world.RunParallel<TQuery, TJob, T1>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirect<TQuery, TJob, T1>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes an entity-aware struct job in parallel over the matching entities.
@@ -289,7 +289,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	public void RunParallelEntity<TJob, T1>(TJob job, int? degreeOfParallelism = null)
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged =>
-		_world.RunParallelEntity<TQuery, TJob, T1>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirectEntity<TQuery, TJob, T1>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes a struct job in parallel over the matching entities.
@@ -298,7 +298,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged =>
-		_world.RunParallel<TQuery, TJob, T1, T2>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirect<TQuery, TJob, T1, T2>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes an entity-aware struct job in parallel over the matching entities.
@@ -307,7 +307,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged =>
-		_world.RunParallelEntity<TQuery, TJob, T1, T2>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirectEntity<TQuery, TJob, T1, T2>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes a struct job in parallel over the matching entities.
@@ -317,7 +317,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged =>
-		_world.RunParallel<TQuery, TJob, T1, T2, T3>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirect<TQuery, TJob, T1, T2, T3>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes an entity-aware struct job in parallel over the matching entities.
@@ -327,7 +327,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged =>
-		_world.RunParallelEntity<TQuery, TJob, T1, T2, T3>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirectEntity<TQuery, TJob, T1, T2, T3>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes a struct job in parallel over the matching entities.
@@ -338,7 +338,7 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged =>
-		_world.RunParallel<TQuery, TJob, T1, T2, T3, T4>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirect<TQuery, TJob, T1, T2, T3, T4>(_handle, job, degreeOfParallelism);
 
 	/// <summary>
 	///     Executes an entity-aware struct job in parallel over the matching entities.
@@ -349,5 +349,5 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged =>
-		_world.RunParallelEntity<TQuery, TJob, T1, T2, T3, T4>(_handle, job, degreeOfParallelism);
+		_world.RunParallelDirectEntity<TQuery, TJob, T1, T2, T3, T4>(_handle, job, degreeOfParallelism);
 }

@@ -972,6 +972,49 @@ public partial class WorldRuntimeTests
 
 
 	[Fact]
+	public void QueryView_Run_WhenWorldIsDisposedAndHandleBelongsToDifferentWorld_ShouldPreferDisposedValidation()
+	{
+		using var handleOwner = new World();
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       world       = new World();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		world.Dispose();
+
+		var action = () => query.Run<IntegrateJob, Position, Velocity>(new(1f));
+
+		action.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void QueryView_RunParallel_WhenWorldIsDisposedAndHandleAndDegreeAreInvalid_ShouldPreferDisposedValidation()
+	{
+		using var handleOwner = new World();
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       world       = new World();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		world.Dispose();
+
+		var action = () => query.RunParallel<IntegrateJob, Position, Velocity>(new(1f), 0);
+
+		action.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void QueryView_RunParallel_WhenHandleBelongsToDifferentWorldAndDegreeIsInvalid_ShouldPreferHandleValidation()
+	{
+		using var handleOwner = new World();
+		using var world       = new World();
+		var       entity      = world.Spawn(new Position { X = 1, Y = 2 }, new Velocity { X = 3, Y = 4 });
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+
+		var action = () => query.RunParallel<IntegrateJob, Position, Velocity>(new(1f), 0);
+
+		action.Should().Throw<InvalidOperationException>();
+		world.Read<Position>(entity).Should().Be(new Position { X = 1, Y = 2 });
+	}
+
+	[Fact]
 	public void Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
 	{
 		using var world = new World(

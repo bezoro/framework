@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -209,6 +210,23 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		world.Run(handle, new GeneratedIntegrateJob(2f));
 
 		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 7, Y = 0 });
+	}
+
+	[Fact]
+	public void Run_WhenUsingGeneratedWorldJobExtensionWithForeignHandle_ShouldRejectHandleOwner()
+	{
+		using var handleOwner = new World();
+		using var world       = new World();
+		var entity = world.Spawn(
+			new GeneratedPosition { X = 1, Y = 2 },
+			new GeneratedVelocity { X = 3, Y = 4 }
+		);
+		var handle = handleOwner.Compile<GeneratedPositionVelocityQuery>();
+
+		var action = () => world.Run(handle, new GeneratedIntegrateJob(2f));
+
+		action.Should().Throw<InvalidOperationException>();
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 1, Y = 2 });
 	}
 
 	[Fact]

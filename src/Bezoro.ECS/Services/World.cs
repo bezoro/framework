@@ -873,8 +873,7 @@ public class World : IWorld, IDisposable
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+		RunDirectFast<TSpec, TJob, T1>(handle, job);
 	}
 
 	/// <summary>
@@ -892,8 +891,7 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	/// <summary>
@@ -913,8 +911,7 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
@@ -936,8 +933,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
@@ -948,8 +944,7 @@ public class World : IWorld, IDisposable
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
 	}
 
 	/// <summary>
@@ -961,8 +956,7 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	/// <summary>
@@ -975,8 +969,7 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
@@ -990,8 +983,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
@@ -1010,8 +1002,7 @@ public class World : IWorld, IDisposable
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1035,8 +1026,7 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1062,8 +1052,7 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1091,8 +1080,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1103,8 +1091,7 @@ public class World : IWorld, IDisposable
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1119,8 +1106,7 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1136,8 +1122,7 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1154,8 +1139,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1748,14 +1732,20 @@ public class World : IWorld, IDisposable
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1763,7 +1753,10 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1772,20 +1765,29 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1793,7 +1795,10 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1802,7 +1807,94 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+	}
 
 	internal void SetComponentFromSnapshot(Entity entity, Type componentType, object value)
 		=> _entityStore.SetComponentBoxed(entity, componentType, value);
