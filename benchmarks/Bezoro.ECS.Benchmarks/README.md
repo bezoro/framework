@@ -11,7 +11,7 @@ BenchmarkDotNet suite for core ECS performance targets.
 | `EcsWorldCommandStreamRemoveBurstBenchmarks` | World fixed-capacity command-stream remove bursts over existing components to track structural transition throughput.                                                         |
 | `EcsWorldHotPathBenchmarks`                  | World compiled-query hot paths comparing cursor and direct struct-job (`Run`) loops on unmanaged components.                                                                  |
 | `EcsWorldComponentAccessBenchmarks`          | World sequential component access paths (`TryGet`/`Get`, cached accessor variants, and sequential `QueryCursor.Get`), plus cursor vs direct query struct-job loop comparison. |
-| `EcsWorldQueryViewBenchmarks`                | Ergonomic `QueryView` paths covering typed `ForEach`, struct-job `Run`, and managed `ForEachRead` traversal.                                                                  |
+| `EcsWorldQueryViewBenchmarks`                | Ergonomic `QueryView` paths covering managed read-only and mutable traversal, sequential and entity-aware struct jobs, and parallel entity-aware struct jobs.                  |
 
 ## Run
 
@@ -43,11 +43,29 @@ To focus on the ergonomic query tier only:
 dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks/Bezoro.ECS.Benchmarks.csproj -- --fast --filter "*EcsWorldQueryViewBenchmarks*"
 ```
 
+## Reliable Baseline (2026-07-28)
+
+Captured with BenchmarkDotNet 0.14.0 on Windows 11, an AMD Ryzen 9 7900X, and .NET 9.0.18. Each case uses 100,000 entities and `ReliableRun` (2 launches, 10 warmups, and 15 measurement iterations).
+
+| Benchmark                                                        | Mean        | Error     | StdDev    | Allocated |
+|------------------------------------------------------------------|------------:|----------:|----------:|----------:|
+| World compiled query sequential ref/in `ForEach`                 |    74.31 μs |  3.351 μs |  5.016 μs |       0 B |
+| QueryView direct struct-job `Run`                                |    75.69 μs |  5.048 μs |  7.556 μs |       0 B |
+| QueryView typed `ForEach` over unmanaged components              |   130.78 μs |  4.190 μs |  6.141 μs |       0 B |
+| QueryView struct-job `Run` over unmanaged components             |    86.84 μs |  3.013 μs |  4.509 μs |       0 B |
+| QueryView entity-aware struct-job `RunEntity`                    |   111.05 μs |  2.317 μs |  3.396 μs |       0 B |
+| QueryView read-only `ForEach` over managed components            |   876.73 μs | 20.347 μs | 30.455 μs |       3 B |
+| QueryView mutable `ForEach` over managed components              | 1,129.03 μs | 53.723 μs | 80.411 μs |       5 B |
+| QueryView parallel entity-aware struct job                       |   232.72 μs | 19.609 μs | 29.351 μs |     377 B |
+
+BenchmarkDotNet reported multimodal distributions for QueryView sequential `Run`, parallel entity-aware execution, and the world cursor path. Treat small changes within the reported error and variance cautiously; use the release gates below for comparisons.
+
 ## Interpreting Results
 
 - Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.
 - `QueryView` unmanaged traversal should stay close to the direct/cursor hot path; meaningful regressions should be reviewed before release.
 - `QueryView.ForEachRead(...)` over managed structs is the ergonomic tier, not the unmanaged hot path; track it separately rather than comparing it directly to cursor jobs.
+- Entity-aware cases must preserve valid entity IDs/versions and must not add entity-scratch materialization.
 - Component access and command-stream burst benchmarks may show tiny runtime-level allocations depending on environment.
 - Treat >5% throughput regressions in hot-path means as a gate requiring explicit review.
 

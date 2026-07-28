@@ -86,6 +86,27 @@ public class EcsWorldQueryViewBenchmarks
 		return _world.EntityCount;
 	}
 
+	[Benchmark(Description = "QueryView mutable ForEach over managed components")]
+	public int QueryViewForEachManaged()
+	{
+		_managedQuery.ForEach<ManagedNote>(
+			static (Entity entity, ref ManagedNote note) =>
+			{
+				_ = entity;
+				note.Count++;
+			}
+		);
+
+		return _world.EntityCount;
+	}
+
+	[Benchmark(Description = "QueryView parallel entity-aware struct job")]
+	public int QueryViewRunParallelEntity()
+	{
+		_positionVelocityQuery.RunParallelEntity<IntegrateEntityJob, Position, Velocity>(new(0.016f), 4);
+		return _world.EntityCount;
+	}
+
 	private readonly struct ManagedNoteQuerySpec : ICompiledQuerySpec
 	{
 		public void Build(ref QueryBuilder builder) => builder.All<ManagedNote>();
