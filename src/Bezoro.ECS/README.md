@@ -6,7 +6,7 @@ High-performance fixed-capacity ECS runtime centered on `World`, `CommandBuffer`
 |----------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `World`                                                                                                                    | ECS runtime (`Services/World.cs`) for entity/component storage, command playback, system execution, snapshots, and compiled query execution. |
 | `WorldConfig`                                                                                                              | Fixed-capacity runtime configuration (entity/component/query/command capacities, chunk capacity, parallelism, and overflow policy).          |
-| `WorldOptions`                                                                                                             | Compatibility options surface mapped to `WorldConfig`.                                                                                       |
+| `WorldOptions`                                                                                                             | Obsolete compatibility surface retained while consumers migrate to `WorldConfig`.                                                            |
 | `Entity`                                                                                                                   | Stable entity handle (`id`, `version`) with stale-handle invalidation semantics.                                                             |
 | `CommandBuffer` / `CommandStream`                                                                                          | Deferred structural mutation recorder. `CommandBuffer` is the ergonomic surface; `CommandStream` remains the lower-level implementation.     |
 | `QueryView<TSpec>` / `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`                          | Query authoring and execution surfaces. `QueryView<TSpec>` is the ergonomic path; handles/cursors remain the low-level hot-path APIs.        |
@@ -40,6 +40,17 @@ readonly partial struct PositionQuery;
 struct Position { public float X; public float Y; }
 ```
 Within this solution, application code should reference `Bezoro.ECS`; the source generator project is wired in as analyzer infrastructure and is not intended as a separate application-facing dependency.
+
+### World Configuration
+
+`WorldConfig` is the canonical world-construction API. `WorldOptions` and `World(WorldOptions)` remain available for migration and carry non-error obsolete messages:
+
+| Compatibility API | Migration message |
+|-------------------|-------------------|
+| `WorldOptions` | `Use WorldConfig instead.` |
+| `World(WorldOptions)` | `Use World(WorldConfig) instead.` |
+
+The compatibility constructor maps a positive `WorldOptions.ChunkCapacity` exactly and maps a nonpositive value to the `WorldConfig` default of 256. It preserves `MaxDegreeOfParallelism` exactly, so nonpositive values still fail `WorldConfig` validation. `ChunkSizeInBytes` is ignored. All other capacities and the overflow policy retain fresh `WorldConfig` defaults. Passing `null` throws `ArgumentNullException` with parameter name `options`.
 
 ## API Reference
 | Member                                                                                                                        | Description                                                                              |

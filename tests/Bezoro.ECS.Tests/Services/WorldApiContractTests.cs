@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Options;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -18,6 +19,96 @@ public class WorldApiContractTests
 	private const string GetResourceObsoleteMessage =
 		"Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.";
 	private const string TryGetManagedObsoleteMessage = "Use TryRead<T>(Entity, out T) instead.";
+	private const string WorldOptionsObsoleteMessage = "Use WorldConfig instead.";
+	private const string WorldOptionsConstructorObsoleteMessage = "Use World(WorldConfig) instead.";
+
+	#pragma warning disable CS0618
+
+	[Theory]
+	[InlineData(0, 1)]
+	[InlineData(-1, 64 * 1024)]
+	public void WorldOptions_WhenChunkCapacityIsNonPositive_ShouldUseWorldConfigDefaultAndIgnoreChunkSize(
+		int chunkCapacity,
+		int chunkSizeInBytes)
+	{
+		using var world = new World(
+			new WorldOptions { ChunkCapacity = chunkCapacity, ChunkSizeInBytes = chunkSizeInBytes }
+		);
+		for (var i = 0; i < 256; i++)
+			world.Spawn(new ApiPosition());
+
+		var handle = world.Compile<PositionQuerySpec>();
+		world.GetQueryDiagnostics(handle).MatchingChunkCount.Should().Be(1);
+
+		world.Spawn(new ApiPosition());
+
+		world.GetQueryDiagnostics(handle).MatchingChunkCount.Should().Be(2);
+	}
+
+	[Fact]
+	public void WorldOptions_WhenChunkCapacityIsPositive_ShouldMapCapacityExactlyAndIgnoreChunkSize()
+	{
+		using var world = new World(new WorldOptions { ChunkCapacity = 1, ChunkSizeInBytes = 64 * 1024 });
+		world.Spawn(new ApiPosition());
+		world.Spawn(new ApiPosition());
+
+		var handle = world.Compile<PositionQuerySpec>();
+
+		world.GetQueryDiagnostics(handle).MatchingChunkCount.Should().Be(2);
+	}
+
+	[Fact]
+	public void WorldOptions_WhenMaxDegreeOfParallelismIsInvalid_ShouldPreserveValidation()
+	{
+		var act = () => new World(new WorldOptions { MaxDegreeOfParallelism = 0 });
+
+		act.Should().Throw<ArgumentOutOfRangeException>()
+		   .Which.ParamName.Should().Be(nameof(WorldConfig.MaxDegreeOfParallelism));
+	}
+
+	[Fact]
+	public void WorldOptions_WhenNull_ShouldPreserveNullValidation()
+	{
+		var act = () => new World((WorldOptions)null!);
+
+		act.Should().Throw<ArgumentNullException>()
+		   .Which.ParamName.Should().Be("options");
+	}
+
+	[Fact]
+	public void WorldOptions_WhenOtherCapacitiesAreUnspecified_ShouldUseWorldConfigDefaults()
+	{
+		var defaults = new WorldConfig();
+		using var world = new World(new WorldOptions());
+		using var stream = world.CreateCommandStream();
+
+		var worldDiagnostics = world.GetDiagnostics();
+		var streamDiagnostics = stream.GetDiagnostics();
+
+		worldDiagnostics.EntityArena.Capacity.Should().Be(defaults.EntityCapacity);
+		worldDiagnostics.ComponentTypeArena.Capacity.Should().Be(defaults.ComponentTypeCapacity);
+		worldDiagnostics.QueryResultArena.Capacity.Should().Be(defaults.QueryResultCapacity);
+		streamDiagnostics.CommandCapacity.Should().Be(defaults.CommandCapacity);
+	}
+
+	[Fact]
+	public void WorldOptions_WhenInspected_ShouldHaveExactNonErrorObsoleteAttributes()
+	{
+		var typeAttribute = typeof(WorldOptions).GetCustomAttribute<ObsoleteAttribute>();
+		var constructor = typeof(World).GetConstructor([typeof(WorldOptions)]);
+
+		typeAttribute.Should().NotBeNull();
+		typeAttribute!.Message.Should().Be(WorldOptionsObsoleteMessage);
+		typeAttribute.IsError.Should().BeFalse();
+		constructor.Should().NotBeNull();
+
+		var constructorAttribute = constructor!.GetCustomAttribute<ObsoleteAttribute>();
+		constructorAttribute.Should().NotBeNull();
+		constructorAttribute!.Message.Should().Be(WorldOptionsConstructorObsoleteMessage);
+		constructorAttribute.IsError.Should().BeFalse();
+	}
+
+	#pragma warning restore CS0618
 
 	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()

@@ -53,10 +53,17 @@ public class World : IWorld, IDisposable
 	public World() : this(new WorldConfig()) { }
 
 	/// <summary>
-	///     Initializes a world from compatibility options.
+	///     Initializes a world by adapting legacy compatibility options to <see cref="WorldConfig" />.
 	/// </summary>
-	/// <param name="options">Options used to configure world capacities and overflow behavior.</param>
+	/// <param name="options">Legacy options whose chunk capacity and parallelism settings are adapted.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="options" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     The adapted maximum degree of parallelism is not positive.
+	/// </exception>
+	#pragma warning disable CS0618
+	[Obsolete("Use World(WorldConfig) instead.")]
 	public World(WorldOptions options) : this(ToWorldConfig(options)) { }
+	#pragma warning restore CS0618
 
 	/// <summary>
 	///     Initializes a world from an explicit configuration.
@@ -1825,6 +1832,7 @@ public class World : IWorld, IDisposable
 		return false;
 	}
 
+	#pragma warning disable CS0618
 	private static WorldConfig ToWorldConfig(WorldOptions options)
 	{
 		if (options is null) throw new ArgumentNullException(nameof(options));
@@ -1835,6 +1843,7 @@ public class World : IWorld, IDisposable
 			MaxDegreeOfParallelism = options.MaxDegreeOfParallelism
 		};
 	}
+	#pragma warning restore CS0618
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool IsAliveUnchecked(Entity entity) =>
