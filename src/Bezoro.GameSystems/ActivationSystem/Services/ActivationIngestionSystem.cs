@@ -43,13 +43,13 @@ public sealed class ActivationIngestionSystem : ISystem
 				case ActivationCommandKind.Register:
 				{
 					var entry = new ActivationEntry(command.Handle, command.Callback!, command.Priority);
-					context.Commands.CreateEntity(in entry);
+					context.CommandStream.CreateEntity(in entry);
 					break;
 				}
 				case ActivationCommandKind.Cancel:
 				{
 					var request = new ActivationCancellationRequest(command.Handle);
-					context.Commands.CreateEntity(in request);
+					context.CommandStream.CreateEntity(in request);
 					break;
 				}
 				default:

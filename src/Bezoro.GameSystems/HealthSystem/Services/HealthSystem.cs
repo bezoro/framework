@@ -42,13 +42,13 @@ public sealed class HealthSystem : ISystem
 	{
 		var world = context.World;
 		if (world is null) throw new ArgumentNullException(nameof(world));
-		var commands = context.Commands;
+		var commands = context.CommandStream;
 
 		world.Query<HealthMutationRequestQuery>().ForEach<HealthMutationRequest>(
 			(Entity requestEntity, ref HealthMutationRequest request) =>
 		{
 			ProcessRequest(world, in request);
-			commands.Despawn(requestEntity);
+			commands.Destroy(requestEntity);
 		}
 		);
 	}

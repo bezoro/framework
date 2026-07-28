@@ -1,5 +1,5 @@
 # Bezoro.ECS
-High-performance fixed-capacity ECS runtime centered on `World`, `CommandBuffer`, `QueryView`, compiled queries, and conflict-aware system scheduling.
+High-performance fixed-capacity ECS runtime centered on `World`, `CommandStream`, `QueryView`, compiled queries, and conflict-aware system scheduling.
 
 ## Types
 | Type                                                                                                                       | Description                                                                                                                                  |
@@ -8,7 +8,7 @@ High-performance fixed-capacity ECS runtime centered on `World`, `CommandBuffer`
 | `WorldConfig`                                                                                                              | Fixed-capacity runtime configuration (entity/component/query/command capacities, chunk capacity, parallelism, and overflow policy).          |
 | `WorldOptions`                                                                                                             | Obsolete compatibility surface retained while consumers migrate to `WorldConfig`.                                                            |
 | `Entity`                                                                                                                   | Stable entity handle (`id`, `version`) with stale-handle invalidation semantics.                                                             |
-| `CommandBuffer` / `CommandStream`                                                                                          | Deferred structural mutation recorder. `CommandBuffer` is the ergonomic surface; `CommandStream` remains the lower-level implementation.     |
+| `CommandStream` / `CommandBuffer`                                                                                          | Deferred structural mutation recorder. `CommandStream` is canonical; `CommandBuffer` remains available as compatibility vocabulary.          |
 | `QueryView<TSpec>` / `QueryBuilder` / `ICompiledQuerySpec` / `QueryHandle<TSpec>` / `QueryCursor`                          | Query authoring and execution surfaces. `QueryView<TSpec>` is the ergonomic path; handles/cursors remain the low-level hot-path APIs.        |
 | `QueryDiagnostics`                                                                                                         | Query introspection snapshot (filters, cache state, matching archetype/chunk/entity counts).                                                 |
 | `ISystem` / `SystemContext` / `SystemUpdateSettings` / `Stage` / `SystemLoopPhase`                                         | System contract and scheduling context for staged `Tick`/`FixedTick`/`LateTick` execution.                                                   |
@@ -57,7 +57,7 @@ The compatibility constructor maps a positive `WorldOptions.ChunkCapacity` exact
 |-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
 | `Spawn`, `Despawn`, `Add`, `Replace`, `Remove`, `Read`, `Write`, `TryRead`, `TryWrite`, `Has`, `IsAlive`                      | Core entity/component operations with explicit read/write intent.                        |
 | `AddRelation<TRelation>`, `RemoveRelation<TRelation>`, `HasRelation<TRelation>`                                               | First-class relation API for source->target edges backed by relation marker components.  |
-| `CreateCommandBuffer`, `CreateCommandStream`, `Playback`                                                                      | Deferred mutation recording and deterministic apply stage.                               |
+| `CreateCommandStream`, `Playback`                                                                                             | Canonical deferred mutation recording and deterministic apply stage.                     |
 | `Query<TSpec>`, `Compile<TSpec>`, `Execute<TSpec>`, `ForEach(...)`, `Run(...)`, `RunParallel(...)`, `RunEntity(...)`          | Ergonomic and low-level query execution surfaces.                                        |
 | `GetQueryDiagnostics<TSpec>`                                                                                                  | Snapshot of compiled query filters, cache status, and current match counts.              |
 | `AddSystem`, `Tick`, `FixedTick`, `LateTick`, `RunPhase`                                                                      | System registration and phase-based scheduling.                                          |
@@ -86,7 +86,7 @@ The compatibility constructor maps a positive `WorldOptions.ChunkCapacity` exact
 - Explicit ordering constraints are supported with `[Before(typeof(...))]` and `[After(typeof(...))]` within the same phase+stage plan.
 - Systems can be grouped into sets via `[SystemSet(typeof(...))]` and toggled at runtime with `SetSystemSetEnabled<TSet>(...)`.
 - Conditional execution is supported via `[RunIf(typeof(...))]` (per-system) and `SetSystemSetRunCondition<TSet>(...)` (per-set), both implementing `ISystemRunCondition`.
-- Structural writes are recorded per-system in command streams and flushed deterministically after each batch.
+- Structural writes are recorded through `SystemContext.CommandStream` and flushed deterministically after each scheduler batch.
 - Fixed-interval scheduling is supported via `SystemUpdateSettings.FixedInterval(...)` with bounded catch-up.
 
 ## Query Model
@@ -220,7 +220,7 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 - The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.
 - `QueryView.ForEach...` supports any `struct` component, including structs with managed references.
 - Job-based query execution (`Run(...)`, `RunParallel(...)`, cursor/direct hot paths) remains the unmanaged-only performance tier.
-- `SystemContext.Commands` and `CommandBuffer` are the primary deferred-mutation surface for systems; `CommandStream` remains available as the lower-level implementation API.
+- `SystemContext.CommandStream` is the canonical deferred-mutation surface for systems. `CommandBuffer` and `SystemContext.Commands` remain available as compatibility vocabulary while consumers migrate.
 - Direct `World` access is single-threaded by contract; parallelism is coordinated through scheduler batches and `RunParallel`.
 
 ### Changed/Added Tracking Cost Model

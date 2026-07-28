@@ -79,7 +79,7 @@ internal sealed class SystemBatchExecutor(int maxDegreeOfParallelism)
 	{
 		var stream = world.CreateCommandStream();
 		streams[index] = stream;
-		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, new(stream));
+		var context = new SystemContext(execution.DeltaTime, execution.State.Stage, world, stream);
 		execution.State.System.Update(in context);
 	}
 

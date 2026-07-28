@@ -211,7 +211,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenReusingCommandReferenceFromPreviousTick_ShouldThrowObjectDisposedException()
 	{
 		using var world  = new World();
-		var       system = new StaleCommandBufferReferenceSystem();
+		var       system = new StaleCommandStreamReferenceSystem();
 		world.AddSystem(system);
 
 		world.Tick(1f / 60f);
@@ -241,7 +241,7 @@ public class SystemManagerTests
 	}
 
 	[Fact]
-	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeBufferAfterFlush()
+	public void UpdateAll_WhenSystemCapturesCommands_ShouldDisposeCommandStreamAfterFlush()
 	{
 		using var world  = new World();
 		var       system = new CommandCaptureSystem();
@@ -287,7 +287,7 @@ public class SystemManagerTests
 	public void UpdateAll_WhenSystemDoesNotRecordCommands_ShouldKeepCommandStorageUnallocated()
 	{
 		using var world  = new World();
-		var       system = new CommandBufferAllocationProbeSystem();
+		var       system = new CommandStreamAllocationProbeSystem();
 		world.AddSystem(system);
 
 		world.Tick(1f / 60f);
@@ -491,13 +491,13 @@ public class SystemManagerTests
 		}
 	}
 
-	private sealed class CommandBufferAllocationProbeSystem : ISystem
+	private sealed class CommandStreamAllocationProbeSystem : ISystem
 	{
 		public int RecordedCommands { get; private set; }
 
 		public void Update(in SystemContext context)
 		{
-			RecordedCommands = context.Commands.GetDiagnostics().RecordedCommands;
+			RecordedCommands = context.CommandStream.GetDiagnostics().RecordedCommands;
 		}
 	}
 
@@ -507,8 +507,8 @@ public class SystemManagerTests
 
 		public void Update(in SystemContext context)
 		{
-			Captured = context.Commands;
-			context.Commands.CreateEntity();
+			Captured = context.CommandStream;
+			context.CommandStream.CreateEntity();
 		}
 	}
 
@@ -745,7 +745,7 @@ public class SystemManagerTests
 
 	private sealed class SimulationSystemSet;
 
-	private sealed class StaleCommandBufferReferenceSystem : ISystem
+	private sealed class StaleCommandStreamReferenceSystem : ISystem
 	{
 		private CommandStream? _previous;
 
@@ -763,7 +763,7 @@ public class SystemManagerTests
 					ReuseException = ex;
 				}
 
-			_previous = context.Commands;
+			_previous = context.CommandStream;
 		}
 	}
 

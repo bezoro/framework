@@ -231,7 +231,45 @@ public class WorldApiContractTests
 	}
 
 	[Fact]
-	public void PublicSystemSurface_WhenInspectingContracts_ShouldExposeCommandBufferOnSystemContext()
+	public void SystemContext_WhenConstructedWithCommandBuffer_ShouldPreserveUnderlyingStreamIdentity()
+	{
+		using var world = new World();
+		using var stream = world.CreateCommandStream();
+		var buffer = new CommandBuffer(stream);
+
+		var context = new SystemContext(0.25f, Stage.Tick, world, buffer);
+		CommandStream unwrapped = context.Commands;
+
+		unwrapped.Should().BeSameAs(stream);
+	}
+
+	[Fact]
+	public void SystemContext_WhenConstructedWithCommandStream_ShouldExposeCanonicalValues()
+	{
+		using var world = new World();
+		using var stream = world.CreateCommandStream();
+
+		var context = new SystemContext(0.25f, Stage.Tick, world, stream);
+
+		context.DeltaTime.Should().Be(0.25f);
+		context.Stage.Should().Be(Stage.Tick);
+		context.World.Should().BeSameAs(world);
+		context.CommandStream.Should().BeSameAs(stream);
+	}
+
+	[Fact]
+	public void SystemContext_WhenCommandStreamIsNull_ShouldThrowArgumentNullException()
+	{
+		using var world = new World();
+
+		var act = () => new SystemContext(0.25f, Stage.Tick, world, (CommandStream)null!);
+
+		act.Should().Throw<ArgumentNullException>()
+		   .Which.ParamName.Should().Be("commandStream");
+	}
+
+	[Fact]
+	public void PublicSystemSurface_WhenInspectingContracts_ShouldRetainCommandBufferCompatibilityProperty()
 	{
 		typeof(SystemContext)
 			.GetProperty(nameof(SystemContext.Commands))!
