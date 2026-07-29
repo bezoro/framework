@@ -124,24 +124,37 @@ The retained command aliases and wrapper remain behavior-preserving while consum
 - Runtime-parameterized query instances are not part of the public 1.0 surface yet; ergonomic queries are compiled by specification type.
 - Supported runtime filters: `With<T>` / `All<T>`, `AnyOf<T>` / `Any<T>`, `Without<T>` / `None<T>`, `Optional<T>`, `Changed<T>`, `Added<T>`, `Related<TRelation>(target)` / `Related<TRelation>()`.
 - `Changed<T>` / `Added<T>` are evaluated incrementally per compiled handle execution.
-- Change tracking also covers mutable ref-based write surfaces (`World.Write`, component accessors, cursor/world `ForEach`, cursor/world `Run`, and `RunParallel`) once any changed/added query is compiled.
+- Change tracking also covers mutable ref-based write surfaces (`World.Write`, component accessors, cursor/world `ForEach`, and QueryView/cursor job execution) once any changed/added query is compiled.
 - `GetQueryDiagnostics(handle)` reports static filter makeup and current dynamic match counts without advancing incremental `Changed`/`Added` windows.
 - Execution styles:
 - QueryView style: `world.Query<MyQuery>().ForEach((entity, ref Position position) => { ... })`
 - QueryView read-only style: `world.Query<MyQuery>().ForEachRead((entity, in ActivationEntry entry) => { ... })`
 - QueryView job style: `world.Query<MyQuery>().Run(new IntegrateJob(dt))`
 - QueryView entity-aware job style: `world.Query<MyQuery>().Run(new IntegrateEntityJob(dt))`
-- Cursor style: `using var cursor = world.Execute(handle);`
+- Low-level exact-handle style: `var handle = world.Compile<MyQuery>(); using var cursor = world.Execute(handle);`
 - Cursor entity-aware job style: `cursor.Run(new IntegrateEntityJob(dt))`
-- Direct style: `world.ForEach(handle, ...)` / `world.Run(handle, job)`
-- Direct entity-aware job style: `world.Run(handle, new IntegrateEntityJob(dt))`
-- Parallel direct style: `world.RunParallel(handle, job, degreeOfParallelism: 4)`
+- Direct callback style: `world.ForEach(handle, ...)`
 - Parallel QueryView entity-aware job style: `world.Query<MyQuery>().RunParallel(new IntegrateEntityJob(dt), degreeOfParallelism: 4)`
-- The public instance methods carrying entity-aware jobs are named `RunEntity(...)` / `RunParallelEntity(...)`; the source generator emits `Run(...)` / `RunParallel(...)` extensions for `IForEachEntity<T...>` jobs so gameplay code stays symmetrical with the non-entity-aware path.
+- `QueryView<TSpec>` is the canonical sequential and parallel struct-job surface. `Compile<TSpec>()`, `Execute(handle)`, and `QueryCursor` remain the low-level exact-handle path.
+- The public `QueryView` instance methods carrying entity-aware jobs are named `RunEntity(...)` / `RunParallelEntity(...)`; the source generator emits `Run(...)` / `RunParallel(...)` extensions for `IForEachEntity<T...>` jobs so gameplay code stays symmetrical with the non-entity-aware path.
+- Generated `World.Run(...)` extensions remain non-obsolete for generated-job ergonomics. They preserve the supplied handle and route through an exact-handle `QueryView<TSpec>` without recompiling it. For parallel exact-handle execution, construct `QueryView<TSpec>` with the handle and call `RunParallel(...)`.
 - Typed `QueryView.ForEach(...)` and `ForEachRead(...)` work for any struct component, including structs that contain references. They traverse matching chunks directly without materializing entity results or performing per-entity world lookups.
 - Typed delegate traversal resolves component columns only after finding a matching chunk. An empty result therefore invokes no callbacks, throws no missing-component error, and does not register callback-only component types. If a nonempty matching archetype lacks a requested component, traversal throws `KeyNotFoundException` before invoking that chunk's first callback; earlier compatible chunks may already have completed.
 - Every typed `QueryView.ForEach(...)` and `ForEachRead(...)` callback runs during an active query iteration. Command playback, world reset/clear, and snapshot capture/restore are rejected until the callback returns.
 - `QueryView` job execution and the lower-level cursor/direct hot paths remain unmanaged-only and are still the performance-oriented escape hatch.
+
+### World Job Migration
+
+The generic instance methods on `World` remain as non-error obsolete forwarders while consumers migrate. They preserve the supplied handle, mutation, entity delivery, ordering, exceptions, and change tracking.
+
+| Compatibility member | Canonical replacement | Obsolete message |
+| --- | --- | --- |
+| `World.Run(handle, job)` | `new QueryView<TSpec>(world, handle).Run(job)` | `Use QueryView<TSpec>.Run(job) instead.` |
+| `World.RunEntity(handle, job)` | `new QueryView<TSpec>(world, handle).RunEntity(job)` | `Use QueryView<TSpec>.RunEntity(job) instead.` |
+| `World.RunParallel(handle, job, degreeOfParallelism)` | `new QueryView<TSpec>(world, handle).RunParallel(job, degreeOfParallelism)` | `Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.` |
+| `World.RunParallelEntity(handle, job, degreeOfParallelism)` | `new QueryView<TSpec>(world, handle).RunParallelEntity(job, degreeOfParallelism)` | `Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.` |
+
+`World.ForEach(handle, ...)` is not obsolete and remains the direct callback API for an already compiled handle.
 
 ## Snapshot Serialization
 `Bezoro.ECS` keeps snapshot transport explicit and engine-agnostic.
@@ -249,7 +262,8 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 ## Support Boundaries
 - The ergonomic public query surface is `World.Query<TSpec>()` plus `QueryView<TSpec>`; runtime query instances are intentionally not part of the public contract yet.
 - `QueryView.ForEach...` supports any `struct` component, including structs with managed references, through direct chunk traversal without entity-result materialization.
-- Job-based query execution (`Run(...)`, `RunParallel(...)`, cursor/direct hot paths) remains the unmanaged-only performance tier.
+- Job-based query execution (`QueryView.Run(...)`, `QueryView.RunParallel(...)`, and cursor hot paths) remains the unmanaged-only performance tier.
+- Generic `World.Run...` instance methods remain available as obsolete compatibility forwarders; generated `World` job extensions remain non-obsolete and route through exact-handle `QueryView` execution.
 - `SystemContext.CommandStream` is the canonical deferred-mutation surface for systems. `CommandBuffer`, `SystemContext.Commands`, and the world command aliases remain available as obsolete compatibility vocabulary while consumers migrate.
 - Direct `World` access is single-threaded by contract; parallelism is coordinated through scheduler batches and `RunParallel`.
 

@@ -79,6 +79,7 @@ The two initial post-change runs produced stable managed results (85.95/68.62 μ
 
 - Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.
 - `QueryView` unmanaged traversal should stay close to the direct/cursor hot path; meaningful regressions should be reviewed before release.
+- `QueryView.Run...` is the canonical job benchmark surface. The obsolete generic `World.Run...` instance methods are behavior-preserving forwarders and do not define a separate performance tier.
 - `QueryView.ForEachRead(...)` over managed structs is the ergonomic tier, not the unmanaged hot path; track it separately rather than comparing it directly to cursor jobs.
 - Entity-aware cases must preserve valid entity IDs/versions and must not add entity-scratch materialization.
 - Component access and command-stream burst benchmarks may show tiny runtime-level allocations depending on environment.

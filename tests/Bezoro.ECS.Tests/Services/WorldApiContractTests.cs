@@ -26,6 +26,12 @@ public class WorldApiContractTests
 	private const string SystemContextCommandBufferConstructorObsoleteMessage =
 		"Use SystemContext(float, Stage, World, CommandStream) instead.";
 	private const string WorldCommandAliasObsoleteMessage = "Use CreateCommandStream() instead.";
+	private const string WorldRunObsoleteMessage = "Use QueryView<TSpec>.Run(job) instead.";
+	private const string WorldRunEntityObsoleteMessage = "Use QueryView<TSpec>.RunEntity(job) instead.";
+	private const string WorldRunParallelObsoleteMessage =
+		"Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.";
+	private const string WorldRunParallelEntityObsoleteMessage =
+		"Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.";
 
 	#pragma warning disable CS0618
 
@@ -192,6 +198,103 @@ public class WorldApiContractTests
 		attribute.Should().NotBeNull();
 		attribute!.Message.Should().Be(expectedMessage);
 		attribute.IsError.Should().BeFalse();
+	}
+
+	[Theory]
+	[InlineData(nameof(World.Run), WorldRunObsoleteMessage)]
+	[InlineData(nameof(World.RunEntity), WorldRunEntityObsoleteMessage)]
+	[InlineData(nameof(World.RunParallel), WorldRunParallelObsoleteMessage)]
+	[InlineData(nameof(World.RunParallelEntity), WorldRunParallelEntityObsoleteMessage)]
+	public void LegacyWorldJobMember_WhenInspected_ShouldHaveExactNonErrorObsoleteAttributes(
+		string memberName,
+		string expectedMessage)
+	{
+		var methods = typeof(World)
+			.GetMethods()
+			.Where(candidate => candidate.Name == memberName && candidate.IsGenericMethodDefinition)
+			.ToArray();
+
+		methods.Should().HaveCount(4);
+		foreach (var method in methods)
+		{
+			var attribute = method.GetCustomAttribute<ObsoleteAttribute>();
+
+			attribute.Should().NotBeNull();
+			attribute!.Message.Should().Be(expectedMessage);
+			attribute.IsError.Should().BeFalse();
+		}
+	}
+
+	[Fact]
+	public void WorldForEachMembers_WhenInspected_ShouldRemainNonObsolete()
+	{
+		var methods = typeof(World)
+			.GetMethods()
+			.Where(candidate => candidate.Name == nameof(World.ForEach) && candidate.IsGenericMethodDefinition)
+			.ToArray();
+
+		methods.Should().HaveCount(4);
+		methods.Should().OnlyContain(method => method.GetCustomAttribute<ObsoleteAttribute>() == null);
+	}
+
+	[Fact]
+	public void LegacyWorldRun_WhenCalled_ShouldPreserveMutation()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new ApiPosition { X = 3f });
+		var handle = world.Compile<PositionQuerySpec>();
+
+		#pragma warning disable CS0618
+		world.Run<PositionQuerySpec, ApiIncrementJob, ApiPosition>(handle, new ApiIncrementJob());
+		#pragma warning restore CS0618
+
+		world.Read<ApiPosition>(entity).X.Should().Be(4f);
+	}
+
+	[Fact]
+	public void LegacyWorldRunEntity_WhenCalled_ShouldPreserveEntityDelivery()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new ApiPosition());
+		var handle = world.Compile<PositionQuerySpec>();
+
+		#pragma warning disable CS0618
+		world.RunEntity<PositionQuerySpec, ApiEntityCaptureJob, ApiPosition>(handle, new ApiEntityCaptureJob());
+		#pragma warning restore CS0618
+
+		world.Read<ApiPosition>(entity).Should().Be(new ApiPosition { X = entity.Id, Y = entity.Version });
+	}
+
+	[Fact]
+	public void LegacyWorldRunParallel_WhenCalled_ShouldPreserveMutation()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new ApiPosition { X = 3f });
+		var handle = world.Compile<PositionQuerySpec>();
+
+		#pragma warning disable CS0618
+		world.RunParallel<PositionQuerySpec, ApiIncrementJob, ApiPosition>(handle, new ApiIncrementJob(), 1);
+		#pragma warning restore CS0618
+
+		world.Read<ApiPosition>(entity).X.Should().Be(4f);
+	}
+
+	[Fact]
+	public void LegacyWorldRunParallelEntity_WhenCalled_ShouldPreserveEntityDelivery()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new ApiPosition());
+		var handle = world.Compile<PositionQuerySpec>();
+
+		#pragma warning disable CS0618
+		world.RunParallelEntity<PositionQuerySpec, ApiEntityCaptureJob, ApiPosition>(
+			handle,
+			new ApiEntityCaptureJob(),
+			1
+		);
+		#pragma warning restore CS0618
+
+		world.Read<ApiPosition>(entity).Should().Be(new ApiPosition { X = entity.Id, Y = entity.Version });
 	}
 
 	[Fact]
@@ -400,6 +503,20 @@ public class WorldApiContractTests
 	private readonly struct PositionQuerySpec : ICompiledQuerySpec
 	{
 		public void Build(ref QueryBuilder builder) => builder.All<ApiPosition>();
+	}
+
+	private readonly struct ApiIncrementJob : IForEach<ApiPosition>
+	{
+		public void Execute(ref ApiPosition component1) => component1.X++;
+	}
+
+	private readonly struct ApiEntityCaptureJob : IForEachEntity<ApiPosition>
+	{
+		public void Execute(Entity entity, ref ApiPosition component1)
+		{
+			component1.X = entity.Id;
+			component1.Y = entity.Version;
+		}
 	}
 
 	private readonly struct InMemorySnapshotReader(WorldSnapshot snapshot) : IWorldSnapshotReader

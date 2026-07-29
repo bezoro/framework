@@ -44,7 +44,7 @@ The project is analyzer infrastructure and does not expose an application runtim
 
 - `BECSG001` reports unsupported ECS attributes on a query specification.
 - `QueryView<TSpec>` is the canonical generated sequential and parallel job surface.
-- Retained `World` job extensions route the supplied handle through an exact-handle `QueryView<TSpec>` without recompiling it.
+- Retained generated `World` job extensions remain non-obsolete and route the supplied handle through an exact-handle `QueryView<TSpec>` without recompiling it. This is distinct from the obsolete generic `World.Run...` instance compatibility methods.
 - `QueryCursor` job extensions remain available for low-level execution over the current cursor batch.
 - Generated code is deterministic and uses fully qualified symbols.
 - Consumer source remains the source of truth; generated files are build artifacts and must not be edited.

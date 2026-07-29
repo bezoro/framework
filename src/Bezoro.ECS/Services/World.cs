@@ -861,13 +861,17 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable unmanaged component.
+	///     Compatibility forwarder that executes a struct job over one mutable unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
 	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
@@ -877,7 +881,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes a struct job over one mutable and one read-only unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
@@ -885,6 +889,10 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2>
@@ -895,7 +903,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job over one mutable and two read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
@@ -904,6 +912,10 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2, T3>
@@ -915,7 +927,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a no-allocation sequential struct job over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job over one mutable and three read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
@@ -925,6 +937,10 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2, T3, T4>
@@ -937,8 +953,17 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
@@ -948,8 +973,18 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and one read-only unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2>
@@ -960,8 +995,19 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and two read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2, T3>
@@ -973,8 +1019,20 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and three read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
@@ -987,7 +1045,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable unmanaged component.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1}" />.</typeparam>
@@ -997,6 +1055,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
@@ -1006,7 +1069,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and one read-only unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2}" />.</typeparam>
@@ -1017,6 +1080,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1030,7 +1098,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and two read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3}" />.</typeparam>
@@ -1042,6 +1110,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2, T3>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1056,7 +1129,7 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and three read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
@@ -1069,6 +1142,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2, T3, T4>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1084,8 +1162,19 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
@@ -1095,8 +1184,20 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and one read-only unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1110,8 +1211,21 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and two read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2, T3>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1126,8 +1240,22 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and three read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
