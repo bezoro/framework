@@ -1367,17 +1367,8 @@ public class World : IWorld, IDisposable
 		ref int cachedColumnIndex)
 	{
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-			return false;
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-			return false;
-
-		var archetype = Archetypes[location.ArchetypeId];
-		return TryResolveAccessorColumnIndex(
-			archetype,
-			location.ArchetypeId,
+		return _entityStore.HasComponentForAccessor(
+			entity,
 			typeId,
 			ref cachedArchetypeId,
 			ref cachedColumnIndex
@@ -1436,35 +1427,13 @@ public class World : IWorld, IDisposable
 		where T : unmanaged
 	{
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-		{
-			component = default;
-			return false;
-		}
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-		{
-			component = default;
-			return false;
-		}
-
-		var archetype = Archetypes[location.ArchetypeId];
-		if (!TryResolveAccessorColumnIndex(
-				archetype,
-				location.ArchetypeId,
-				typeId,
-				ref cachedArchetypeId,
-				ref cachedColumnIndex
-			))
-		{
-			component = default;
-			return false;
-		}
-
-		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
-		component = archetype.GetRefByIndex<T>(chunk, cachedColumnIndex, location.RowIndex);
-		return true;
+		return _entityStore.TryGetComponentForAccessor(
+			entity,
+			typeId,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex,
+			out component
+		);
 	}
 
 	internal Entity CreateEntityInternal()
@@ -1821,27 +1790,16 @@ public class World : IWorld, IDisposable
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
-
-		archetype = Archetypes[location.ArchetypeId];
-		if (!TryResolveAccessorColumnIndex(
-				archetype,
-				location.ArchetypeId,
-				typeId,
-				ref cachedArchetypeId,
-				ref cachedColumnIndex
-			))
-			throw new KeyNotFoundException(
-				$"Component '{componentType.Name}' was not found for entity '{entity.Id}:{entity.Version}'."
-			);
-
-		chunkIndex = location.ChunkIndex;
-		rowIndex   = location.RowIndex;
+		_entityStore.ResolveAccessorLocation(
+			entity,
+			typeId,
+			componentType,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex,
+			out archetype,
+			out chunkIndex,
+			out rowIndex
+		);
 	}
 
 	internal void RunDirectFast<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
@@ -2068,29 +2026,6 @@ public class World : IWorld, IDisposable
 
 	private static bool ContainsReferencesGeneric<T>() where T : struct =>
 		RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool TryResolveAccessorColumnIndex(
-		ArchetypeStorage archetype,
-		int              archetypeId,
-		int              typeId,
-		ref int          cachedArchetypeId,
-		ref int          cachedColumnIndex)
-	{
-		if (cachedArchetypeId == archetypeId)
-			return cachedColumnIndex >= 0;
-
-		cachedArchetypeId = archetypeId;
-		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
-		if (columnIndex >= 0)
-		{
-			cachedColumnIndex = columnIndex;
-			return true;
-		}
-
-		cachedColumnIndex = -1;
-		return false;
-	}
 
 	#pragma warning disable CS0618
 	private static WorldConfig ToWorldConfig(WorldOptions options)
