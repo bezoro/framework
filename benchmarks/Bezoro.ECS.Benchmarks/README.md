@@ -54,7 +54,7 @@ Captured with BenchmarkDotNet 0.14.0 on Windows 11, an AMD Ryzen 9 7900X, and .N
 | QueryView typed `ForEach` over unmanaged components              |   130.78 μs |  4.190 μs |  6.141 μs |       0 B |
 | QueryView struct-job `Run` over unmanaged components             |    86.84 μs |  3.013 μs |  4.509 μs |       0 B |
 | QueryView entity-aware struct-job `RunEntity`                    |   111.05 μs |  2.317 μs |  3.396 μs |       0 B |
-| QueryView read-only `ForEach` over managed components            |   876.73 μs | 20.347 μs | 30.455 μs |       3 B |
+| QueryView read-only `ForEachRead` over managed components        |   876.73 μs | 20.347 μs | 30.455 μs |       3 B |
 | QueryView mutable `ForEach` over managed components              | 1,129.03 μs | 53.723 μs | 80.411 μs |       5 B |
 | QueryView parallel entity-aware struct job                       |   232.72 μs | 19.609 μs | 29.351 μs |     377 B |
 
@@ -69,7 +69,7 @@ Task 5c was measured with the same reliable command and machine as the baseline.
 | QueryView typed `ForEach` over unmanaged components | 105.99 μs | 106.83 μs | +0.8% | 0 B | 0 B |
 | QueryView struct-job `Run` over unmanaged components | 73.45 μs | 71.23 μs | -3.0% | 0 B | 0 B |
 | QueryView entity-aware struct-job `RunEntity` | 96.27 μs | 94.03 μs | -2.3% | 0 B | 0 B |
-| QueryView read-only `ForEach` over managed components | 757.19 μs | 85.93 μs | -88.7% | 3 B | 0 B |
+| QueryView read-only `ForEachRead` over managed components | 757.19 μs | 85.93 μs | -88.7% | 3 B | 0 B |
 | QueryView mutable `ForEach` over managed components | 1,053.38 μs | 69.13 μs | -93.4% | 6 B | 0 B |
 | QueryView parallel entity-aware struct job | 218.77 μs | 213.90 μs | -2.2% | 377 B | 377 B |
 
@@ -84,7 +84,7 @@ Task 7b was measured with the reliable QueryView command on the same machine. Th
 | QueryView typed `ForEach` over unmanaged components | 121.53 μs | 121.91 μs | +0.3% | 0 B | 0 B |
 | QueryView struct-job `Run` over unmanaged components | 84.80 μs | 83.75 μs | -1.2% | 0 B | 0 B |
 | QueryView entity-aware struct-job `RunEntity` | 106.36 μs | 107.78 μs | +1.3% | 0 B | 0 B |
-| QueryView read-only `ForEach` over managed components | 101.01 μs | 94.67 μs | -6.3% | 0 B | 0 B |
+| QueryView read-only `ForEachRead` over managed components | 101.01 μs | 94.67 μs | -6.3% | 0 B | 0 B |
 | QueryView mutable `ForEach` over managed components | 79.36 μs | 77.69 μs | -2.1% | 0 B | 0 B |
 | QueryView parallel entity-aware struct job | 209.20 μs | 47.90 μs | -77.1% | 377 B | 377 B |
 
@@ -98,7 +98,7 @@ The burst benchmark exercises the untouched validated fast-batch path, not the n
 
 ## Interpreting Results
 
-- Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.
+- Hot-path compiled query loops should remain allocation-free (`Allocated = 0 B`) after warm-up; some exporters render zero allocation as `-`.
 - `QueryView` unmanaged traversal should stay close to the direct/cursor hot path; meaningful regressions should be reviewed before release.
 - `QueryView.Run...` is the canonical job benchmark surface. The obsolete generic `World.Run...` instance methods are behavior-preserving forwarders and do not define a separate performance tier.
 - `QueryView.ForEachRead(...)` over managed structs is the ergonomic tier, not the unmanaged hot path; track it separately rather than comparing it directly to cursor jobs.

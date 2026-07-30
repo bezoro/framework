@@ -278,11 +278,12 @@ This section defines allocation and throughput expectations for `Bezoro.ECS` API
 - `../../BenchmarkDotNet.Artifacts/results/Bezoro.ECS.Benchmarks.EcsWorldCommandStreamBurstBenchmarks-report-github.md`
 - `../../BenchmarkDotNet.Artifacts/results/Bezoro.ECS.Benchmarks.EcsWorldCommandStreamSetBurstBenchmarks-report-github.md`
 - `../../BenchmarkDotNet.Artifacts/results/Bezoro.ECS.Benchmarks.EcsWorldCommandStreamRemoveBurstBenchmarks-report-github.md`
+- `../../BenchmarkDotNet.Artifacts/results/Bezoro.ECS.Benchmarks.EcsWorldQueryViewBenchmarks-report-github.md`
 
 ## Gold-Standard Checklist
 Canonical parity tracker against the Bevy + Unity ECS reference bar.
 
-- Last updated: 2026-02-22
+- Last updated: 2026-07-29
 - Status legend:
 - `[ ]` Not started
 - `[~]` In progress / partial
@@ -301,8 +302,8 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 - [x] Compiled query specs (`ICompiledQuerySpec`)
 - [x] Query DSL support for `All`/`Any`/`None`
 - [x] Cursor-based and direct hot-path iteration
-- [x] Struct job execution (`Run<TJob,...>`) on cursor and world
-- [x] Entity-aware struct job execution (`IForEachEntity<T...>`) on `QueryView`, cursor, and world
+- [x] Struct job execution (`Run<TJob,...>`) on canonical `QueryView` and cursor surfaces; generic `World` instance forwarders remain as obsolete compatibility APIs
+- [x] Entity-aware struct job execution (`IForEachEntity<T...>`) on canonical `QueryView` and cursor surfaces; generic `World` instance forwarders remain as obsolete compatibility APIs
 - [x] Source-generated query spec implementation from `[Query]` + `[All]`/`[Any]`/`[None]`/`[Optional]`/`[Changed]`/`[Added]`
 - [x] Optional component filter support (`Optional<T>`) in runtime query execution
 - [x] Changed/added component filters (`Changed<T>`/`Added<T>`) in runtime query execution
@@ -344,7 +345,6 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 
 ### Notes
 - Network-restricted environments can block BenchmarkDotNet auto-generated project restore. Keep benchmark regressions as a required gate in environments with NuGet connectivity.
-- Latest fast-run baseline/post samples (2026-02-22): `EcsWorldHotPathBenchmarks` stayed in the ~58-60 us range with zero allocations; treat variance from `--fast` as expected and re-run with reliable jobs for tighter confidence.
 
 ## Design Notes
 - Default runtime is `src/Bezoro.ECS/Services/World.cs`.

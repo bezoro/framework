@@ -9,6 +9,7 @@ Unit and integration tests for `Bezoro.ECS` runtime, scheduling, source generati
 | `WorldRuntimeTests`                             | Shared test fixture host for private helper query specs, test-only component types, and jobs used by partial runtime tests. |
 | `WorldRuntimePlaybackTests`                     | Command stream playback behavior for structural transitions, managed lanes, and cross-world guard rails.                    |
 | `WorldRuntimeQueryTests`                        | Query compilation/execution behavior, cursor semantics, and typed foreach/job mutation paths.                               |
+| `WorldParallelEntityJobTests`                   | Parallel entity-aware job coverage for entity versions, chunk traversal, validation order, and worker failures.             |
 | `WorldRuntimeAccessorTests`                     | Component accessor semantics (`Has`, `TryGet`) and cache correctness across archetype transitions.                          |
 | `WorldRuntimeAllocationTests`                   | Hot-path allocation assertions after warmup for accessor, cursor, foreach, run, and playback flows.                         |
 | `WorldRuntimeRelationTests`                     | Relation API lifecycle and relation-filter query behavior.                                                                  |
@@ -46,6 +47,8 @@ dotnet test tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj
 - `SystemManagerTests` and `SystemManagerErgonomicInferenceTests` protect scheduler conflict detection for both attribute-driven and inferred access metadata.
 - `WorldAdvancedApiTests` protects snapshot fail-closed behavior, allow-list enforcement, no-mutation-on-rejection semantics, and query-iteration exclusion.
 - `WorldErgonomicApiTests` protects direct typed `QueryView` traversal across chunks, recycled entity versions, managed mutation, missing-component callback ordering, empty-result type-registration behavior, callback validation order, active-iteration restrictions, and read-only change tracking.
+- `WorldParallelEntityJobTests` protects parallel entity-aware jobs across recycled entity slots and multiple chunks, shared-scratch cursor coexistence, validation order, and exact worker-exception propagation.
+- `WorldRuntimeQueryTests` characterizes scalar overwrites for managed and unmanaged components, including replacement values, known-transition validation, and exactly-once `Changed` tracking.
 - `WorldRuntimeAllocationTests` protects hot-path allocation expectations after warmup, including exact zero-allocation steady-state managed `QueryView.ForEachRead(...)` and mutable `ForEach(...)` traversal.
 - `GeneratedQueryAndJobSourceGenIntegrationTests` protects exact-handle routing, generated call ordering, foreign-handle validation, and the non-obsolete generator-backed ergonomic API that application code is expected to use.
 

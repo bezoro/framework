@@ -17,23 +17,35 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Delegate invoked for each matching entity.
 	/// </summary>
+	/// <param name="entity">Matching entity.</param>
 	public delegate void EntityAction(Entity entity);
 
 	/// <summary>
 	///     Delegate invoked for each matching entity with one read-only component.
 	/// </summary>
+	/// <typeparam name="T1">Read-only component type.</typeparam>
+	/// <param name="entity">Matching entity.</param>
+	/// <param name="component1">Read-only component.</param>
 	public delegate void EntityInAction<T1>(Entity entity, in T1 component1)
 		where T1 : struct;
 
 	/// <summary>
 	///     Delegate invoked for each matching entity with one mutable component.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <param name="entity">Matching entity.</param>
+	/// <param name="component1">Mutable component.</param>
 	public delegate void EntityRefAction<T1>(Entity entity, ref T1 component1)
 		where T1 : struct;
 
 	/// <summary>
 	///     Delegate invoked for each matching entity with one mutable and one read-only component.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">Read-only component type.</typeparam>
+	/// <param name="entity">Matching entity.</param>
+	/// <param name="component1">Mutable component.</param>
+	/// <param name="component2">Read-only component.</param>
 	public delegate void EntityRefInAction<T1, T2>(Entity entity, ref T1 component1, in T2 component2)
 		where T1 : struct
 		where T2 : struct;
@@ -41,6 +53,13 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Delegate invoked for each matching entity with one mutable and two read-only components.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">First read-only component type.</typeparam>
+	/// <typeparam name="T3">Second read-only component type.</typeparam>
+	/// <param name="entity">Matching entity.</param>
+	/// <param name="component1">Mutable component.</param>
+	/// <param name="component2">First read-only component.</param>
+	/// <param name="component3">Second read-only component.</param>
 	public delegate void EntityRefInAction<T1, T2, T3>(Entity entity, ref T1 component1, in T2 component2, in T3 component3)
 		where T1 : struct
 		where T2 : struct
@@ -49,6 +68,15 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Delegate invoked for each matching entity with one mutable and three read-only components.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">First read-only component type.</typeparam>
+	/// <typeparam name="T3">Second read-only component type.</typeparam>
+	/// <typeparam name="T4">Third read-only component type.</typeparam>
+	/// <param name="entity">Matching entity.</param>
+	/// <param name="component1">Mutable component.</param>
+	/// <param name="component2">First read-only component.</param>
+	/// <param name="component3">Second read-only component.</param>
+	/// <param name="component4">Third read-only component.</param>
 	public delegate void EntityRefInAction<T1, T2, T3, T4>(
 		Entity entity,
 		ref T1 component1,
@@ -120,6 +148,13 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-only loop over the current query results.
 	/// </summary>
+	/// <param name="action">Callback invoked for each matching entity.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEach(EntityAction action)
 	{
 		if (action is null) throw new ArgumentNullException(nameof(action));
@@ -136,6 +171,15 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-aware read-only loop over one component.
 	/// </summary>
+	/// <typeparam name="T1">Read-only component type.</typeparam>
+	/// <param name="action">Callback invoked for each matching entity and component.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEachRead<T1>(EntityInAction<T1> action)
 		where T1 : struct
 	{
@@ -151,6 +195,15 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-aware loop over one mutable component.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <param name="action">Callback invoked for each matching entity and component.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEach<T1>(EntityRefAction<T1> action)
 		where T1 : struct
 	{
@@ -166,6 +219,16 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-aware loop over one mutable and one read-only component.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">Read-only component type.</typeparam>
+	/// <param name="action">Callback invoked for each matching entity and components.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEach<T1, T2>(EntityRefInAction<T1, T2> action)
 		where T1 : struct
 		where T2 : struct
@@ -178,6 +241,17 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-aware loop over one mutable and two read-only components.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">First read-only component type.</typeparam>
+	/// <typeparam name="T3">Second read-only component type.</typeparam>
+	/// <param name="action">Callback invoked for each matching entity and components.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEach<T1, T2, T3>(EntityRefInAction<T1, T2, T3> action)
 		where T1 : struct
 		where T2 : struct
@@ -191,6 +265,18 @@ public readonly struct QueryView<TQuery>(World world, QueryHandle<TQuery> handle
 	/// <summary>
 	///     Executes an entity-aware loop over one mutable and three read-only components.
 	/// </summary>
+	/// <typeparam name="T1">Mutable component type.</typeparam>
+	/// <typeparam name="T2">First read-only component type.</typeparam>
+	/// <typeparam name="T3">Second read-only component type.</typeparam>
+	/// <typeparam name="T4">Third read-only component type.</typeparam>
+	/// <param name="action">Callback invoked for each matching entity and components.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="action" /> is <see langword="null" />.</exception>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     The query handle belongs to a different world, or fail-fast query-result capacity is exceeded.
+	/// </exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	/// <remarks>The callback is validated before world lifetime and query-handle ownership.</remarks>
 	public void ForEach<T1, T2, T3, T4>(EntityRefInAction<T1, T2, T3, T4> action)
 		where T1 : struct
 		where T2 : struct

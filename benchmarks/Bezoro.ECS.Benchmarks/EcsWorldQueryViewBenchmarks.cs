@@ -72,7 +72,7 @@ public class EcsWorldQueryViewBenchmarks
 		return _world.EntityCount;
 	}
 
-	[Benchmark(Description = "QueryView read-only ForEach over managed components")]
+	[Benchmark(Description = "QueryView read-only ForEachRead over managed components")]
 	public int QueryViewForEachReadManaged()
 	{
 		_managedQuery.ForEachRead<ManagedNote>(

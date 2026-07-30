@@ -295,9 +295,9 @@ public class World : IWorld, IDisposable
 		TryRead(entity, out component);
 
 	/// <summary>
-	///     Compatibility alias that attempts to read a copy of a managed-lane component from an entity.
+	///     Compatibility alias that attempts to read a component copy from an entity.
 	/// </summary>
-	/// <typeparam name="T">Managed-lane component type.</typeparam>
+	/// <typeparam name="T">Component type.</typeparam>
 	/// <param name="entity">Entity to inspect.</param>
 	/// <param name="component">Receives the component value when present; otherwise the default value.</param>
 	/// <returns><c>true</c> when the component exists; otherwise <c>false</c>.</returns>
@@ -353,6 +353,7 @@ public class World : IWorld, IDisposable
 	///     Creates a retained compatibility wrapper over a canonical command stream.
 	/// </summary>
 	/// <returns>A compatibility command buffer owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	#pragma warning disable CS0618
 	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandBuffer CreateCommandBuffer() =>
@@ -363,6 +364,7 @@ public class World : IWorld, IDisposable
 	///     Retained compatibility alias for <see cref="CreateCommandStream" />.
 	/// </summary>
 	/// <returns>A command stream owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandStream BeginCommands() => CreateCommandStream();
 
@@ -370,6 +372,7 @@ public class World : IWorld, IDisposable
 	///     Creates a fixed-capacity deferred command stream using this world's configuration.
 	/// </summary>
 	/// <returns>A command stream owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	public CommandStream CreateCommandStream()
 	{
 		ThrowIfDisposed();
