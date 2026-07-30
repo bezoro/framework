@@ -496,13 +496,6 @@ internal sealed class WorldDirectIterationService(World world)
 		void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount);
 	}
 
-	private interface IDirectEntityChunkExecutor
-	{
-		int PrimaryTypeId { get; }
-		void PrepareArchetype(ArchetypeStorage archetype, int archetypeId);
-		void ExecuteChunk(ArchetypeStorage archetype, ArchetypeStorage.Chunk chunk, int rowStart, int rowCount);
-	}
-
 	private struct DirectJobExecutor<TJob, T1> : IDirectChunkExecutor
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
@@ -686,7 +679,7 @@ internal sealed class WorldDirectIterationService(World world)
 		}
 	}
 
-	private struct DirectEntityJobExecutor<TJob, T1> : IDirectEntityChunkExecutor
+	private struct DirectEntityJobExecutor<TJob, T1> : IDirectChunkExecutor
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
@@ -722,7 +715,7 @@ internal sealed class WorldDirectIterationService(World world)
 		}
 	}
 
-	private struct DirectEntityJobExecutor<TJob, T1, T2> : IDirectEntityChunkExecutor
+	private struct DirectEntityJobExecutor<TJob, T1, T2> : IDirectChunkExecutor
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -769,7 +762,7 @@ internal sealed class WorldDirectIterationService(World world)
 		}
 	}
 
-	private struct DirectEntityJobExecutor<TJob, T1, T2, T3> : IDirectEntityChunkExecutor
+	private struct DirectEntityJobExecutor<TJob, T1, T2, T3> : IDirectChunkExecutor
 		where TJob : struct, IForEachEntity<T1, T2, T3>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -824,7 +817,7 @@ internal sealed class WorldDirectIterationService(World world)
 		}
 	}
 
-	private struct DirectEntityJobExecutor<TJob, T1, T2, T3, T4> : IDirectEntityChunkExecutor
+	private struct DirectEntityJobExecutor<TJob, T1, T2, T3, T4> : IDirectChunkExecutor
 		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
 		where T1 : unmanaged
 		where T2 : unmanaged
@@ -940,7 +933,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		var executor = new DirectEntityJobExecutor<TJob, T1>(_world, job);
-		ExecuteDirectEntityValidated(handle, ref executor);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void RunDirectFastEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
@@ -951,7 +944,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		var executor = new DirectEntityJobExecutor<TJob, T1, T2>(_world, job);
-		ExecuteDirectEntityValidated(handle, ref executor);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
@@ -963,7 +956,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		var executor = new DirectEntityJobExecutor<TJob, T1, T2, T3>(_world, job);
-		ExecuteDirectEntityValidated(handle, ref executor);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
@@ -976,7 +969,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		var executor = new DirectEntityJobExecutor<TJob, T1, T2, T3, T4>(_world, job);
-		ExecuteDirectEntityValidated(handle, ref executor);
+		ExecuteDirectValidated(handle, ref executor);
 	}
 
 	public void ExecuteDirectEntityAction<TSpec, TAction, T1>(
@@ -1101,48 +1094,6 @@ internal sealed class WorldDirectIterationService(World world)
 	private void ExecuteDirectValidated<TSpec, TExecutor>(QueryHandle<TSpec> handle, ref TExecutor executor)
 		where TSpec : struct, ICompiledQuerySpec
 		where TExecutor : struct, IDirectChunkExecutor
-	{
-		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
-		try
-		{
-			int entityCount = _world.FillQueryResultsForQueryEngine(
-				handle.Plan,
-				chunkMatches,
-				_world.QueryResultCapacityForDirectIteration,
-				out int chunkMatchCount
-			);
-			if (entityCount == 0)
-				return;
-
-			int cachedArchetypeId = int.MinValue;
-			ArchetypeStorage? cachedArchetype = null;
-			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, executor.PrimaryTypeId);
-			for (var i = 0; i < chunkMatchCount; i++)
-			{
-				var match = chunkMatches[i];
-				if (match.Count == 0)
-					continue;
-
-				if (match.ArchetypeId != cachedArchetypeId)
-				{
-					cachedArchetypeId = match.ArchetypeId;
-					cachedArchetype = _world.GetArchetypeForCursor(match.ArchetypeId);
-					executor.PrepareArchetype(cachedArchetype, match.ArchetypeId);
-				}
-
-				var chunk = cachedArchetype!.GetChunkUnchecked(match.ChunkIndex);
-				executor.ExecuteChunk(cachedArchetype, chunk, match.RowStart, match.Count);
-			}
-		}
-		finally
-		{
-			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
-		}
-	}
-
-	private void ExecuteDirectEntityValidated<TSpec, TExecutor>(QueryHandle<TSpec> handle, ref TExecutor executor)
-		where TSpec : struct, ICompiledQuerySpec
-		where TExecutor : struct, IDirectEntityChunkExecutor
 	{
 		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
 		try
