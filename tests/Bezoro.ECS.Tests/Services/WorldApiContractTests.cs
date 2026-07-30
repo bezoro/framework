@@ -33,8 +33,6 @@ public class WorldApiContractTests
 	private const string WorldRunParallelEntityObsoleteMessage =
 		"Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.";
 
-	#pragma warning disable CS0618
-
 	[Theory]
 	[InlineData(0, 1)]
 	[InlineData(-1, 64 * 1024)]
@@ -42,9 +40,11 @@ public class WorldApiContractTests
 		int chunkCapacity,
 		int chunkSizeInBytes)
 	{
+		#pragma warning disable CS0618
 		using var world = new World(
 			new WorldOptions { ChunkCapacity = chunkCapacity, ChunkSizeInBytes = chunkSizeInBytes }
 		);
+		#pragma warning restore CS0618
 		for (var i = 0; i < 256; i++)
 			world.Spawn(new ApiPosition());
 
@@ -59,7 +59,9 @@ public class WorldApiContractTests
 	[Fact]
 	public void WorldOptions_WhenChunkCapacityIsPositive_ShouldMapCapacityExactlyAndIgnoreChunkSize()
 	{
+		#pragma warning disable CS0618
 		using var world = new World(new WorldOptions { ChunkCapacity = 1, ChunkSizeInBytes = 64 * 1024 });
+		#pragma warning restore CS0618
 		world.Spawn(new ApiPosition());
 		world.Spawn(new ApiPosition());
 
@@ -71,7 +73,9 @@ public class WorldApiContractTests
 	[Fact]
 	public void WorldOptions_WhenMaxDegreeOfParallelismIsInvalid_ShouldPreserveValidation()
 	{
+		#pragma warning disable CS0618
 		var act = () => new World(new WorldOptions { MaxDegreeOfParallelism = 0 });
+		#pragma warning restore CS0618
 
 		act.Should().Throw<ArgumentOutOfRangeException>()
 		   .Which.ParamName.Should().Be(nameof(WorldConfig.MaxDegreeOfParallelism));
@@ -80,7 +84,9 @@ public class WorldApiContractTests
 	[Fact]
 	public void WorldOptions_WhenNull_ShouldPreserveNullValidation()
 	{
+		#pragma warning disable CS0618
 		var act = () => new World((WorldOptions)null!);
+		#pragma warning restore CS0618
 
 		act.Should().Throw<ArgumentNullException>()
 		   .Which.ParamName.Should().Be("options");
@@ -90,7 +96,9 @@ public class WorldApiContractTests
 	public void WorldOptions_WhenOtherCapacitiesAreUnspecified_ShouldUseWorldConfigDefaults()
 	{
 		var defaults = new WorldConfig();
+		#pragma warning disable CS0618
 		using var world = new World(new WorldOptions());
+		#pragma warning restore CS0618
 		using var stream = world.CreateCommandStream();
 
 		var worldDiagnostics = world.GetDiagnostics();
@@ -105,8 +113,10 @@ public class WorldApiContractTests
 	[Fact]
 	public void WorldOptions_WhenInspected_ShouldHaveExactNonErrorObsoleteAttributes()
 	{
+		#pragma warning disable CS0618
 		var typeAttribute = typeof(WorldOptions).GetCustomAttribute<ObsoleteAttribute>();
 		var constructor = typeof(World).GetConstructor([typeof(WorldOptions)]);
+		#pragma warning restore CS0618
 
 		typeAttribute.Should().NotBeNull();
 		typeAttribute!.Message.Should().Be(WorldOptionsObsoleteMessage);
@@ -118,8 +128,6 @@ public class WorldApiContractTests
 		constructorAttribute!.Message.Should().Be(WorldOptionsConstructorObsoleteMessage);
 		constructorAttribute.IsError.Should().BeFalse();
 	}
-
-	#pragma warning restore CS0618
 
 	[Fact]
 	public void Add_WhenCalledWithoutValue_ShouldAddDefaultInitializedComponent()
