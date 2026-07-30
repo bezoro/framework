@@ -513,6 +513,29 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
+	public void ApplySetFromCommandKnownTransition_WhenSourceArchetypeLacksComponent_ShouldThrowBeforeMutation()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		int velocityTypeId = world.GetOrCreateComponentTypeId<Velocity>();
+		world.DescribeSetTransition(entity, velocityTypeId, out int sourceArchetypeId, out _);
+		var velocity = new Velocity { X = 3, Y = 4 };
+
+		var act = () => world.ApplySetFromCommandKnownTransition(
+			entity,
+			in velocity,
+			velocityTypeId,
+			sourceArchetypeId,
+			sourceArchetypeId
+		);
+
+		act.Should().ThrowExactly<InvalidOperationException>()
+		   .WithMessage($"Type id '{velocityTypeId}' does not exist in archetype '{sourceArchetypeId}'.");
+		world.Read<Position>(entity).Should().Be(new Position { X = 1, Y = 2 });
+		world.Has<Velocity>(entity).Should().BeFalse();
+	}
+
+	[Fact]
 	public void Playback_WhenFastSetBatchOverwritesExistingComponents_ShouldMarkChangedWithoutMarkingAdded()
 	{
 		using var world = new World();

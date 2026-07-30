@@ -90,6 +90,12 @@ Task 7b was measured with the reliable QueryView command on the same machine. Th
 
 The isolated unmanaged `ForEach` repeat measured 121.91 μs after the full post-change run measured 130.15 μs, resolving the only untouched-case regression above 5% as run-to-run variance. Direct entity construction from chunk IDs and the world version table removes the entity materialization pass without adding allocations; the touched parallel case improved by 77.1% against the immediate control.
 
+## Scalar Overwrite Consolidation Validation (2026-07-29)
+
+Task 9b consolidated the three scalar existing-component overwrite branches behind one validation-and-write operation. The reliable 50,000-command set burst measured 1.401 ms (0.0209 ms error, 0.0300 ms standard deviation), compared with the recorded Task 9 baseline of 1.399 ms (0.0281 ms error, 0.0403 ms standard deviation), a +0.1% change. Because BenchmarkDotNet rounded the post-change allocation result to 1 B rather than the recorded baseline's 0 B, detached commit `7b94a1c` was repeated immediately; that control measured 1.400 ms (0.0149 ms error, 0.0224 ms standard deviation) and the same rounded 1 B. Both immediate runs reported 400 allocated bytes across 512 operations, isolating the displayed allocation difference as measurement rounding rather than a change.
+
+The burst benchmark exercises the untouched validated fast-batch path, not the new scalar overwrite helper, so it guards against accidental disruption to command playback rather than measuring helper throughput directly. The dedicated warmed scalar overwrite test independently remained exactly allocation-free.
+
 ## Interpreting Results
 
 - Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.
