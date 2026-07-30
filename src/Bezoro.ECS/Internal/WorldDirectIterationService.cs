@@ -246,7 +246,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		int parallelism = _world.ResolveDegreeOfParallelismForDirectIteration(degreeOfParallelism);
-		_world.AcquireQueryExecutionScratchForDirectIteration(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
 		try
 		{
 			int entityCount = _world.FillQueryResultsForQueryEngine(
@@ -258,8 +258,8 @@ internal sealed class WorldDirectIterationService(World world)
 			if (entityCount == 0)
 				return;
 
-			_world.MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
 			int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
+			var versions = _world.GetEntityVersionsForCursor();
 			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
 			ParallelWorkScheduler.Execute(
 				chunkMatchCount,
@@ -274,16 +274,20 @@ internal sealed class WorldDirectIterationService(World world)
 					int columnIndex1 = GetColumnIndex(archetype, typeId1, match.ArchetypeId);
 					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
 					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
+					ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
 					var local = job;
-					int entityIndex = match.EntityStartIndex;
 					for (var offset = 0; offset < match.Count; offset++)
-						local.Execute(entities[entityIndex + offset], ref Unsafe.Add(ref c1Start, offset));
+					{
+						int entityId = Unsafe.Add(ref entityIdStart, offset);
+						var entity = new Entity(entityId, versions[entityId]);
+						local.Execute(entity, ref Unsafe.Add(ref c1Start, offset));
+					}
 				}
 			);
 		}
 		finally
 		{
-			_world.ReleaseQueryExecutionScratchForDirectIteration(chunkMatches, entities, usesSharedScratch);
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
 		}
 	}
 
@@ -298,7 +302,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		int parallelism = _world.ResolveDegreeOfParallelismForDirectIteration(degreeOfParallelism);
-		_world.AcquireQueryExecutionScratchForDirectIteration(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
 		try
 		{
 			int entityCount = _world.FillQueryResultsForQueryEngine(
@@ -310,9 +314,9 @@ internal sealed class WorldDirectIterationService(World world)
 			if (entityCount == 0)
 				return;
 
-			_world.MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
 			int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
 			int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
+			var versions = _world.GetEntityVersionsForCursor();
 			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
 			ParallelWorkScheduler.Execute(
 				chunkMatchCount,
@@ -329,20 +333,22 @@ internal sealed class WorldDirectIterationService(World world)
 					var chunk = archetype.GetChunkUnchecked(match.ChunkIndex);
 					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
 					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
+					ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
 					var local = job;
-					int entityIndex = match.EntityStartIndex;
 					for (var offset = 0; offset < match.Count; offset++)
 					{
 						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
 						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
-						local.Execute(entities[entityIndex + offset], ref c1, in c2);
+						int entityId = Unsafe.Add(ref entityIdStart, offset);
+						var entity = new Entity(entityId, versions[entityId]);
+						local.Execute(entity, ref c1, in c2);
 					}
 				}
 			);
 		}
 		finally
 		{
-			_world.ReleaseQueryExecutionScratchForDirectIteration(chunkMatches, entities, usesSharedScratch);
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
 		}
 	}
 
@@ -358,7 +364,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		int parallelism = _world.ResolveDegreeOfParallelismForDirectIteration(degreeOfParallelism);
-		_world.AcquireQueryExecutionScratchForDirectIteration(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
 		try
 		{
 			int entityCount = _world.FillQueryResultsForQueryEngine(
@@ -370,10 +376,10 @@ internal sealed class WorldDirectIterationService(World world)
 			if (entityCount == 0)
 				return;
 
-			_world.MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
 			int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
 			int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 			int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
+			var versions = _world.GetEntityVersionsForCursor();
 			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
 			ParallelWorkScheduler.Execute(
 				chunkMatchCount,
@@ -392,21 +398,23 @@ internal sealed class WorldDirectIterationService(World world)
 					ref var c1Start = ref archetype.GetRefByIndex<T1>(chunk, columnIndex1, match.RowStart);
 					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
 					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
+					ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
 					var local = job;
-					int entityIndex = match.EntityStartIndex;
 					for (var offset = 0; offset < match.Count; offset++)
 					{
 						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
 						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
 						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
-						local.Execute(entities[entityIndex + offset], ref c1, in c2, in c3);
+						int entityId = Unsafe.Add(ref entityIdStart, offset);
+						var entity = new Entity(entityId, versions[entityId]);
+						local.Execute(entity, ref c1, in c2, in c3);
 					}
 				}
 			);
 		}
 		finally
 		{
-			_world.ReleaseQueryExecutionScratchForDirectIteration(chunkMatches, entities, usesSharedScratch);
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
 		}
 	}
 
@@ -423,7 +431,7 @@ internal sealed class WorldDirectIterationService(World world)
 	{
 		_world.ValidateDirectIterationHandle(handle);
 		int parallelism = _world.ResolveDegreeOfParallelismForDirectIteration(degreeOfParallelism);
-		_world.AcquireQueryExecutionScratchForDirectIteration(out var chunkMatches, out var entities, out bool usesSharedScratch);
+		_world.AcquireQueryChunkMatchScratchForDirectIteration(out var chunkMatches, out bool usesSharedScratch);
 		try
 		{
 			int entityCount = _world.FillQueryResultsForQueryEngine(
@@ -435,11 +443,11 @@ internal sealed class WorldDirectIterationService(World world)
 			if (entityCount == 0)
 				return;
 
-			_world.MaterializeQueryEntities(chunkMatches, chunkMatchCount, entities, entityCount);
 			int typeId1 = _world.GetOrCreateComponentTypeId<T1>();
 			int typeId2 = _world.GetOrCreateComponentTypeId<T2>();
 			int typeId3 = _world.GetOrCreateComponentTypeId<T3>();
 			int typeId4 = _world.GetOrCreateComponentTypeId<T4>();
+			var versions = _world.GetEntityVersionsForCursor();
 			_world.TrackPotentialChunkMatchRefWrites(chunkMatches, chunkMatchCount, typeId1);
 			ParallelWorkScheduler.Execute(
 				chunkMatchCount,
@@ -460,22 +468,24 @@ internal sealed class WorldDirectIterationService(World world)
 					ref var c2Start = ref archetype.GetRefByIndex<T2>(chunk, columnIndex2, match.RowStart);
 					ref var c3Start = ref archetype.GetRefByIndex<T3>(chunk, columnIndex3, match.RowStart);
 					ref var c4Start = ref archetype.GetRefByIndex<T4>(chunk, columnIndex4, match.RowStart);
+					ref var entityIdStart = ref chunk.EntityIds[match.RowStart];
 					var local = job;
-					int entityIndex = match.EntityStartIndex;
 					for (var offset = 0; offset < match.Count; offset++)
 					{
 						ref var c1 = ref Unsafe.Add(ref c1Start, offset);
 						ref var c2 = ref Unsafe.Add(ref c2Start, offset);
 						ref var c3 = ref Unsafe.Add(ref c3Start, offset);
 						ref var c4 = ref Unsafe.Add(ref c4Start, offset);
-						local.Execute(entities[entityIndex + offset], ref c1, in c2, in c3, in c4);
+						int entityId = Unsafe.Add(ref entityIdStart, offset);
+						var entity = new Entity(entityId, versions[entityId]);
+						local.Execute(entity, ref c1, in c2, in c3, in c4);
 					}
 				}
 			);
 		}
 		finally
 		{
-			_world.ReleaseQueryExecutionScratchForDirectIteration(chunkMatches, entities, usesSharedScratch);
+			_world.ReleaseQueryChunkMatchScratchForDirectIteration(chunkMatches, usesSharedScratch);
 		}
 	}
 

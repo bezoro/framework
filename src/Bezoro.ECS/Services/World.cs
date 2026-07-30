@@ -1536,12 +1536,6 @@ public class World : IWorld, IDisposable
 		out bool              usesSharedScratch) =>
 		AcquireQueryChunkMatchScratch(out chunkMatches, out usesSharedScratch);
 
-	internal void AcquireQueryExecutionScratchForDirectIteration(
-		out QueryChunkMatch[] chunkMatches,
-		out Entity[]          entities,
-		out bool              usesSharedScratch) =>
-		AcquireQueryExecutionScratch(out chunkMatches, out entities, out usesSharedScratch);
-
 	internal void AddRelationFromSnapshot(Type relationType, Entity source, Entity target)
 	{
 		if (relationType is null) throw new ArgumentNullException(nameof(relationType));
@@ -1754,12 +1748,6 @@ public class World : IWorld, IDisposable
 		QueryChunkMatch[] chunkMatches,
 		bool              usesSharedScratch) =>
 		ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
-
-	internal void ReleaseQueryExecutionScratchForDirectIteration(
-		QueryChunkMatch[] chunkMatches,
-		Entity[]          entities,
-		bool              usesSharedScratch) =>
-		ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
 
 	internal void RemoveAllComponentsFromCommandKnownTransitionFast(int sourceArchetypeId, int targetArchetypeId)
 		=> _entityStore.RemoveAllComponentsFromCommandKnownTransitionFast(sourceArchetypeId, targetArchetypeId);
@@ -2144,13 +2132,6 @@ public class World : IWorld, IDisposable
 	private void AcquireQueryChunkMatchScratch(out QueryChunkMatch[] chunkMatches, out bool usesSharedScratch) =>
 		_queryEngine.AcquireQueryChunkMatchScratch(out chunkMatches, out usesSharedScratch);
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void AcquireQueryExecutionScratch(
-		out QueryChunkMatch[] chunkMatches,
-		out Entity[]          entities,
-		out bool              usesSharedScratch) =>
-		_queryEngine.AcquireQueryExecutionScratch(out chunkMatches, out entities, out usesSharedScratch);
-
 	private void EnsureAlive(Entity entity)
 	{
 		if (!IsAliveUnchecked(entity))
@@ -2168,13 +2149,6 @@ public class World : IWorld, IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ReleaseQueryChunkMatchScratch(QueryChunkMatch[] chunkMatches, bool usesSharedScratch) =>
 		_queryEngine.ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void ReleaseQueryExecutionScratch(
-		QueryChunkMatch[] chunkMatches,
-		Entity[]          entities,
-		bool              usesSharedScratch) =>
-		_queryEngine.ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
 
 	private void ThrowIfDirectIterationUnavailable<TSpec>(QueryHandle<TSpec> handle)
 		where TSpec : struct, ICompiledQuerySpec =>

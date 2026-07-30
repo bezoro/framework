@@ -75,6 +75,21 @@ Task 5c was measured with the same reliable command and machine as the baseline.
 
 The two initial post-change runs produced stable managed results (85.95/68.62 μs and 85.93/69.13 μs). Their untouched parallel results (206.98 μs and 213.90 μs) differed materially from the original fixed 176.07 μs baseline, while the immediate pre-change control measured 218.77 μs. The current-condition control isolates that difference as machine-state drift: no touched case regressed by more than 5%, managed traversal improved materially, and allocations did not worsen.
 
+## Parallel Entity Materialization Elimination (2026-07-29)
+
+Task 7b was measured with the reliable QueryView command on the same machine. The pre-change control used detached commit `63dc9ce`; its earlier recorded means were 123.18/87.26/106.13/78.90/80.42/226.05 μs in table order below. Because both the recorded control and the first post-change run reported multimodal distributions and untouched-case drift, the control was repeated immediately. The one untouched post-change case still outside the 5% gate was then repeated in isolation.
+
+| Benchmark | Immediate `63dc9ce` control | Task 7b | Change | Control allocated | Task 7b allocated |
+|-----------|----------------------------:|--------:|-------:|------------------:|------------------:|
+| QueryView typed `ForEach` over unmanaged components | 121.53 μs | 121.91 μs | +0.3% | 0 B | 0 B |
+| QueryView struct-job `Run` over unmanaged components | 84.80 μs | 83.75 μs | -1.2% | 0 B | 0 B |
+| QueryView entity-aware struct-job `RunEntity` | 106.36 μs | 107.78 μs | +1.3% | 0 B | 0 B |
+| QueryView read-only `ForEach` over managed components | 101.01 μs | 94.67 μs | -6.3% | 0 B | 0 B |
+| QueryView mutable `ForEach` over managed components | 79.36 μs | 77.69 μs | -2.1% | 0 B | 0 B |
+| QueryView parallel entity-aware struct job | 209.20 μs | 47.90 μs | -77.1% | 377 B | 377 B |
+
+The isolated unmanaged `ForEach` repeat measured 121.91 μs after the full post-change run measured 130.15 μs, resolving the only untouched-case regression above 5% as run-to-run variance. Direct entity construction from chunk IDs and the world version table removes the entity materialization pass without adding allocations; the touched parallel case improved by 77.1% against the immediate control.
+
 ## Interpreting Results
 
 - Hot-path compiled query loops should remain allocation-free (`Allocated = -`) after warm-up.
