@@ -512,6 +512,63 @@ public partial class WorldRuntimeTests
 		position.Should().Be(new Position { X = 9, Y = 3 });
 	}
 
+	[Fact]
+	public void Playback_WhenFastSetBatchOverwritesExistingComponents_ShouldMarkChangedWithoutMarkingAdded()
+	{
+		using var world = new World();
+		var first = world.Spawn(new Position { X = 1, Y = 2 });
+		var second = world.Spawn(new Position { X = 3, Y = 4 });
+		var changedHandle = world.Compile<ChangedPositionQuerySpec>();
+		var addedHandle = world.Compile<AddedPositionQuerySpec>();
+
+		using (var initialChanged = world.Execute(changedHandle))
+		{
+			initialChanged.MoveNext().Should().BeTrue();
+			initialChanged.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var initialAdded = world.Execute(addedHandle))
+		{
+			initialAdded.MoveNext().Should().BeTrue();
+			initialAdded.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		using (var notAdded = world.Execute(addedHandle))
+		{
+			notAdded.MoveNext().Should().BeTrue();
+			notAdded.Current.Length.Should().Be(0);
+		}
+
+		using var updates = world.CreateCommandStream();
+		updates.Set(first, new Position { X = 11, Y = 12 });
+		updates.Set(second, new Position { X = 13, Y = 14 });
+		world.Playback(updates);
+
+		world.Read<Position>(first).Should().Be(new Position { X = 11, Y = 12 });
+		world.Read<Position>(second).Should().Be(new Position { X = 13, Y = 14 });
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var added = world.Execute(addedHandle))
+		{
+			added.MoveNext().Should().BeTrue();
+			added.Current.Length.Should().Be(0);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
+	}
+
 
 	[Fact]
 	public void Playback_WhenSetRunContainsDifferentTransitions_ShouldApplyAllCommands()

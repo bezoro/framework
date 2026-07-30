@@ -34,6 +34,11 @@ public partial class WorldRuntimeTests
 		public void Build(ref QueryBuilder builder) => builder.Changed<Position>();
 	}
 
+	private readonly struct ChangedManagedTagQuerySpec : ICompiledQuerySpec
+	{
+		public void Build(ref QueryBuilder builder) => builder.Changed<ManagedTag>();
+	}
+
 	private struct Follows;
 
 	private struct IntegrateJob(float dt) : IForEach<Position, Velocity>

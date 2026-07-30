@@ -166,6 +166,42 @@ public partial class WorldRuntimeTests
 		allocated.Should().Be(0);
 	}
 
+	[Fact]
+	public void Set_WhenOverwritingExistingComponentsAfterWarmup_ShouldNotAllocate()
+	{
+		using var world = new World();
+		var positionEntity = world.Spawn(new Position { X = 1, Y = 2 });
+		var managedEntity = world.Spawn(new ManagedTag { Payload = new("initial") });
+		var position = new Position { X = 11, Y = 12 };
+		var payload = new Payload("replacement");
+		var managedTag = new ManagedTag { Payload = payload };
+
+		world.Set(positionEntity, in position);
+		world.Set(managedEntity, in managedTag);
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			world.Set(positionEntity, in position);
+			world.Set(managedEntity, in managedTag);
+		}
+
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for (var iteration = 0; iteration < 200; iteration++)
+		{
+			world.Set(positionEntity, in position);
+			world.Set(managedEntity, in managedTag);
+		}
+
+		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		allocated.Should().Be(0);
+		world.Read<Position>(positionEntity).Should().Be(position);
+		world.Read<ManagedTag>(managedEntity).Payload.Should().BeSameAs(payload);
+	}
+
 
 	[Fact]
 	public void QueryCursor_ForEach_WhenExecutingRepeatedlyAfterWarmup_ShouldNotAllocate()

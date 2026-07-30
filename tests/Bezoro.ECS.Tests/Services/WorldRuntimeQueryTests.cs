@@ -303,6 +303,92 @@ public partial class WorldRuntimeTests
 		changed.Current[0].Should().Be(first);
 	}
 
+	[Fact]
+	public void Set_WhenOverwritingExistingManagedComponent_ShouldReplaceReferenceAndTrackChangedOnce()
+	{
+		using var world = new World();
+		var initialPayload = new Payload("initial");
+		var entity = world.Spawn(new ManagedTag { Payload = initialPayload });
+		var changedHandle = world.Compile<ChangedManagedTagQuerySpec>();
+
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(entity);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		var replacementPayload = new Payload("replacement");
+		world.Set(entity, new ManagedTag { Payload = replacementPayload });
+
+		var resolved = world.Read<ManagedTag>(entity);
+		resolved.Payload.Should().BeSameAs(replacementPayload);
+		resolved.Payload!.Name.Should().Be("replacement");
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.Length.Should().Be(1);
+			changed.Current[0].Should().Be(entity);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void ApplySetFromCommandKnownTransition_WhenOverwritingExistingComponent_ShouldReplaceValueAndTrackChangedOnce()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		var changedHandle = world.Compile<ChangedPositionQuerySpec>();
+
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(entity);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		int typeId = world.GetOrCreateComponentTypeId<Position>();
+		world.DescribeSetTransition(entity, typeId, out int sourceArchetypeId, out int targetArchetypeId);
+		sourceArchetypeId.Should().Be(targetArchetypeId);
+		world.MatchesSetTransitionSource(entity, sourceArchetypeId, typeId, targetArchetypeId).Should().BeTrue();
+
+		var replacement = new Position { X = 11, Y = 12 };
+		world.ApplySetFromCommandKnownTransition(
+			entity,
+			in replacement,
+			typeId,
+			sourceArchetypeId,
+			targetArchetypeId
+		);
+
+		world.Read<Position>(entity).Should().Be(replacement);
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.Length.Should().Be(1);
+			changed.Current[0].Should().Be(entity);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
+	}
+
 
 	[Fact]
 	public void Execute_WhenCompiledQueryUsesOptional_ShouldMatchEntitiesWithAndWithoutOptionalType()
