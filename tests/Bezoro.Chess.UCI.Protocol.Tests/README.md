@@ -8,6 +8,7 @@ Unit and integration tests for `Bezoro.Chess.UCI.Protocol`.
 | `API/Common/Extensions` | `src/Bezoro.Chess.UCI.Protocol/API/Common/Extensions` | Consumer-facing formatting, move-analysis, and move-normalization extensions.                    |
 | `Domain`                | `src/Bezoro.Chess.UCI.Protocol/Domain`                | `ProcessUciTransport`, `UciEngineClient`, command emission, lifecycle, and integration behavior. |
 | `Domain/Common/Helpers` | `src/Bezoro.Chess.UCI.Protocol/Domain/Common/Helpers` | UCI parsing and validation helpers.                                                              |
+| `Internal`              | `src/Bezoro.Chess.UCI.Protocol/Internal`              | Internal coordination, cancellation-generation, and background-worker behavior.                 |
 | `TestHelpers`           | Test-only                                             | Shared builders, fake transports, fixtures, and constants.                                       |
 | `TestResources/Engine`  | Test-only                                             | Bundled Stockfish executable/resources used by integration tests.                                |
 
@@ -30,3 +31,4 @@ dotnet test tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Test
 - Engine-specific escape hatches (`d`, `go perft 1`) continue to work for supported engines, but playable-match session tests now also cover the protocol-owned local FEN/legal-move path that does not depend on those extensions.
 - The playable-match contract stays stable for canonical events, rich move payloads, promotion request/response, claimable draws, clocks, and engine-vs-engine loop helpers.
 - Event ordering, draw-offer policies, controlled-move fallback policies, and batch request processing remain consumer-facing tested behavior.
+- Move classifications publish progressively without blocking enqueue callers, and canceled worker generations cannot overwrite replacement results.
