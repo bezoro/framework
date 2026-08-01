@@ -1892,7 +1892,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		if (legalMoves.Count == 0)
 		{
-			return LocalFenRules.IsCurrentPlayerInCheck(fen)
+			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
 				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
 				: new(new(PlayableMatchResultReason.Stalemate, null), null);
 		}
@@ -1900,7 +1900,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (fen.HalfmoveClock >= 100)
 			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
 
-		if (LocalFenRules.HasInsufficientMaterial(fen))
+		if (LocalPositionRules.HasInsufficientMaterial(fen))
 			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
 
 		if (CountRepetitions(fen) >= 3)
@@ -1911,11 +1911,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private int CountRepetitions(Fen currentFen)
 	{
-		string currentKey = LocalFenRules.BuildRepetitionKey(currentFen);
-		var count = LocalFenRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
+		string currentKey = LocalPositionRules.BuildRepetitionKey(currentFen);
+		var count = LocalPositionRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
 		foreach (var move in _appliedMoveHistory)
 		{
-			if (LocalFenRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
+			if (LocalPositionRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
 				count++;
 		}
 

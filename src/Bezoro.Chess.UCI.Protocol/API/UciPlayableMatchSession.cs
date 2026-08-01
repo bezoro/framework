@@ -535,7 +535,7 @@ public sealed class UciPlayableMatchSession
 			return;
 		}
 
-		if (LocalFenRules.TryCreatePendingPromotion(state.Fen, normalizedMove, state.LegalMoves, out var request))
+		if (LocalPositionRules.TryCreatePendingPromotion(state.Fen, normalizedMove, state.LegalMoves, out var request))
 		{
 			_pendingPromotion = request;
 			RaiseEvent(PlayableMatchEventKind.PromotionRequired, pendingPromotion: request);
@@ -1179,7 +1179,7 @@ public sealed class UciPlayableMatchSession
 
 		if (legalMoves.IsDefaultOrEmpty || legalMoves.Length == 0)
 		{
-			return LocalFenRules.IsCurrentPlayerInCheck(fen)
+			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
 				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
 				: new(new(PlayableMatchResultReason.Stalemate, null), null);
 		}
@@ -1187,7 +1187,7 @@ public sealed class UciPlayableMatchSession
 		if (fen.HalfmoveClock >= 100)
 			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
 
-		if (LocalFenRules.HasInsufficientMaterial(fen))
+		if (LocalPositionRules.HasInsufficientMaterial(fen))
 			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
 
 		if (CountRepetitions(fen) >= 3)
@@ -1198,12 +1198,12 @@ public sealed class UciPlayableMatchSession
 
 	private int CountRepetitions(Fen currentFen)
 	{
-		string currentKey = LocalFenRules.BuildRepetitionKey(currentFen);
-		int count = LocalFenRules.BuildRepetitionKey(_baseFen) == currentKey ? 1 : 0;
+		string currentKey = LocalPositionRules.BuildRepetitionKey(currentFen);
+		int count = LocalPositionRules.BuildRepetitionKey(_baseFen) == currentKey ? 1 : 0;
 		foreach (var move in _moveHistory)
 		{
 			var fen = Fen.Parse(move.PositionKey);
-			if (fen.HasValue && LocalFenRules.BuildRepetitionKey(fen.Value) == currentKey)
+			if (fen.HasValue && LocalPositionRules.BuildRepetitionKey(fen.Value) == currentKey)
 				count++;
 		}
 

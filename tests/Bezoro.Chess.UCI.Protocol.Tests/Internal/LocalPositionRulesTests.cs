@@ -5,8 +5,8 @@ using JetBrains.Annotations;
 
 namespace Bezoro.Chess.UCI.Protocol.Tests.Internal;
 
-[TestSubject(typeof(LocalFenRules))]
-public sealed class LocalFenRulesTests
+[TestSubject(typeof(LocalPositionRules))]
+public sealed class LocalPositionRulesTests
 {
 	[Fact]
 	public void TryCreatePendingPromotion_WhenAllChoicesAreLegal_ShouldPreserveCanonicalOrder()
@@ -14,7 +14,7 @@ public sealed class LocalFenRulesTests
 		var fen = Fen.Parse("7k/P7/8/8/8/8/8/K7 w - - 0 1")!.Value;
 		var legalMoves = fen.GetLegalMoves();
 
-		bool created = LocalFenRules.TryCreatePendingPromotion(fen, "a7a8", legalMoves, out var request);
+		bool created = LocalPositionRules.TryCreatePendingPromotion(fen, "a7a8", legalMoves, out var request);
 
 		created.Should().BeTrue();
 		request.MovePrefix.Should().Be("a7a8");
@@ -41,7 +41,7 @@ public sealed class LocalFenRulesTests
 	{
 		var fen = Fen.Parse(rawFen)!.Value;
 
-		bool result = LocalFenRules.HasInsufficientMaterial(fen);
+		bool result = LocalPositionRules.HasInsufficientMaterial(fen);
 
 		result.Should().Be(expected);
 	}
@@ -52,8 +52,8 @@ public sealed class LocalFenRulesTests
 		var first = Fen.Parse("4k3/8/8/8/8/8/8/4K3 w Kq e3 0 1")!.Value;
 		var second = Fen.Parse("4k3/8/8/8/8/8/8/4K3 w Kq e3 47 91")!.Value;
 
-		string firstKey = LocalFenRules.BuildRepetitionKey(first);
-		string secondKey = LocalFenRules.BuildRepetitionKey(second);
+		string firstKey = LocalPositionRules.BuildRepetitionKey(first);
+		string secondKey = LocalPositionRules.BuildRepetitionKey(second);
 
 		firstKey.Should().Be("4k3/8/8/8/8/8/8/4K3 w Kq e3");
 		secondKey.Should().Be(firstKey);
@@ -68,7 +68,7 @@ public sealed class LocalFenRulesTests
 		var baseline = Fen.Parse("4k3/8/8/8/8/8/8/4K3 w Kq e3 0 1")!.Value;
 		var changed = Fen.Parse(rawFen)!.Value;
 
-		LocalFenRules.BuildRepetitionKey(changed)
-			.Should().NotBe(LocalFenRules.BuildRepetitionKey(baseline));
+		LocalPositionRules.BuildRepetitionKey(changed)
+			.Should().NotBe(LocalPositionRules.BuildRepetitionKey(baseline));
 	}
 }
