@@ -275,6 +275,30 @@ public class SearchResultTests
 	}
 
 	[Fact]
+	public void TryParse_WhenInfoLinesHaveOuterWhitespace_ShouldAggregateTrimmedVariations()
+	{
+		string[] lines =
+		[
+			"  info depth 6 seldepth 8 multipv 1 score cp 50 nodes 1000 tbhits 1 time 20 pv E2E4 e7e5  ",
+			" info depth 7 seldepth 9 multipv 2 score mate -3 nodes 2000 tbhits 2 time 30 pv d2d4 d7d5 ",
+			"bestmove e2e4 ponder e7e5"
+		];
+
+		bool ok = SearchResult.TryParse(lines, out var result);
+
+		ok.Should().BeTrue();
+		result.ReachedDepth.Should().Be(7u);
+		result.ReachedSelDepth.Should().Be(9u);
+		result.MultiPvValue.Should().Be(2u);
+		result.TotalNodesSearched.Should().Be(3000u);
+		result.TotalTbHits.Should().Be(3u);
+		result.TotalSearchTimeMs.Should().Be(50u);
+		result.PrincipalVariations.Should().HaveCount(2);
+		result.PrincipalVariations[0].Moves.Should().Equal("E2E4", "e7e5");
+		result.PrincipalVariations[1].ScoreMate.Should().Be(-3);
+	}
+
+	[Fact]
 	public void TryParse_WhenDepthLinesArriveOutOfOrder_ShouldKeepDeepestDepth()
 	{
 		string[] lines =
