@@ -1818,7 +1818,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 				blackMoves,
 				GetStageIndexForSide(Opposite(movingSide) == 'w' ? whiteMoves : blackMoves),
 				now,
-				null,
+				_isClockPaused ? now : null,
 				TimeSpan.Zero
 			)
 		);

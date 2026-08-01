@@ -61,6 +61,30 @@ public sealed class UciGameEngineSessionClockTests
 		state.Clock.Value.SnapshotUtc.Should().Be(now);
 	}
 
+	[IntegrationTest]
+	public async Task MakeMoveAsync_WhenClockIsPaused_ShouldStartNextTurnPausedAndFrozen()
+	{
+		var now = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+		await using var session = CreateSession(() => now);
+		await session.StartAsync();
+		await session.LoadMatchAsync(PlayableMatchSetup.Standard);
+
+		now += TimeSpan.FromSeconds(5);
+		await session.PauseClockAsync();
+		now += TimeSpan.FromSeconds(10);
+		await session.MakeMoveAsync("e2e4");
+		now += TimeSpan.FromSeconds(10);
+		var state = await session.OfferDrawAsync();
+
+		state.Clock.Should().NotBeNull();
+		state.Clock!.Value.WhiteRemaining.Should().Be(TimeSpan.FromSeconds(28));
+		state.Clock.Value.BlackRemaining.Should().Be(TimeSpan.FromSeconds(30));
+		state.Clock.Value.ActiveColor.Should().Be('b');
+		state.Clock.Value.DelayRemaining.Should().Be(TimeSpan.FromSeconds(2));
+		state.Clock.Value.IsPaused.Should().BeTrue();
+		state.Clock.Value.SnapshotUtc.Should().Be(now);
+	}
+
 	private static UciGameEngineSession CreateSession(Func<DateTimeOffset> utcNowProvider)
 	{
 		var snapshotClient = new UciEngineClient(TestResourcePaths.STOCKFISH_PATH);

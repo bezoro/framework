@@ -1102,7 +1102,7 @@ public sealed class UciPlayableMatchSession
 				blackMoves,
 				GetStageIndexForSide(Opposite(movingSide) == 'w' ? whiteMoves : blackMoves),
 				now,
-				null,
+				_isClockPaused ? now : null,
 				TimeSpan.Zero
 			)
 		);
