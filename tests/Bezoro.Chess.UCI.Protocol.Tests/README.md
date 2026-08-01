@@ -35,3 +35,4 @@ dotnet test tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Test
 - Event ordering, draw-offer policies, controlled-move fallback policies, and batch request processing remain consumer-facing tested behavior.
 - Move classifications publish progressively without blocking enqueue callers, and canceled worker generations cannot overwrite replacement results.
 - Position analyses remain FIFO and single-threaded across cancellation generations; stale success, fault, and cancellation outcomes cannot mutate replacement work.
+- Local chess rules retain standard depth-one move counts, king-safety constraints, special-move ordering and application, clock and castling-right updates, repetition identity, material adjudication, and batch/single classification equivalence.
