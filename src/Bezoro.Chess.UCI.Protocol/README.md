@@ -118,7 +118,7 @@ await client.StopSearchAsync(cancellationToken);
 await client.IsReadyAsync(cancellationToken);
 ```
 
-Compatibility events such as `InfoPvReceived`, `BestMoveReceived`, and `LineReceived` remain available for existing callers, but the typed events are the primary surface.
+`InfoPvReceived` remains a supported compatibility event for principal-variation consumers. The older event aliases remain available but are obsolete: `BestMoveReceived` projects `UciBestMoveMessage.BestMove` and `PonderMove` into two string arguments and reports "Use BestMoveMessageReceived instead.", while `LineReceived` reports "Use RawLineReceived instead." New code should use the canonical events.
 
 Collection-bearing protocol snapshots use immutable storage:
 - `SearchParameters.SearchMoves`
@@ -391,11 +391,11 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `WaitForCurrentMoveClassificationsAsync(ct)` | Awaits completion of background check/mate/stalemate resolution for the current position. |
 | `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
 | `ApplyMove(move)`                | Validates and applies a move for the current manually controlled side, or raises a pending promotion request when a promotion suffix is still needed. |
-| `ApplyHumanMove(move)`           | Compatibility alias for `ApplyMove` in human-versus-engine flows.          |
+| `ApplyHumanMove(move)`           | Obsolete compatibility alias. Migration message: "Use ApplyMove instead." |
 | `ChoosePromotion(piece)`         | Completes the current pending promotion using `q`, `r`, `b`, or `n`.       |
 | `PlayControlledMoveAsync(ct)`    | Plays the current side's move when that side is engine-controlled.         |
 | `PlayControlledMoveIfNeededAsync(ct)` | Plays only when the current side is engine-controlled and the match is still playable; otherwise returns `null`. |
-| `PlayEngineMoveAsync(ct)`        | Compatibility alias for `PlayControlledMoveAsync` in human-versus-engine flows. |
+| `PlayEngineMoveAsync(ct)`        | Obsolete compatibility alias. Migration message: "Use PlayControlledMoveAsync instead." |
 | `PlayUntilTerminalAsync(maxPlies, ct)` | Plays engine-controlled turns in sequence until the game is terminal or the ply cap is reached. |
 | `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
 | `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
@@ -451,6 +451,9 @@ Constructor policies:
 | `BestMoveMessageReceived`                    | Event for parsed `UciBestMoveMessage` output.                                    |
 | `ProtocolMessageReceived`                    | Event for all parsed protocol messages.                                          |
 | `RawLineReceived`                            | Event for every raw stdout line.                                                 |
+| `InfoPvReceived`                             | Supported compatibility event for principal-variation-bearing info output.       |
+| `BestMoveReceived`                           | Obsolete string projection of `UciBestMoveMessage.BestMove` and `PonderMove`. Migration message: "Use BestMoveMessageReceived instead." |
+| `LineReceived`                               | Obsolete event alias. Migration message: "Use RawLineReceived instead."         |
 | `StderrReceived`                             | Event for redirected stderr lines.                                               |
 | `ActivityChanged`                            | Event for `Idle`/`Searching`/`Pondering` transitions.                            |
 

@@ -354,6 +354,8 @@ public sealed class UciPlayableMatchSession
 	///     Plays the engine's next move using the configured engine move time.
 	///     This compatibility alias is only valid when the current side is engine-controlled.
 	/// </summary>
+	/// <remarks>Use <see cref="PlayControlledMoveAsync" /> instead.</remarks>
+	[Obsolete("Use PlayControlledMoveAsync instead.", false)]
 	public Task<EngineMoveResult> PlayEngineMoveAsync(CancellationToken ct = default) => PlayControlledMoveAsync(ct);
 
 	/// <summary>
@@ -506,6 +508,8 @@ public sealed class UciPlayableMatchSession
 	///     Applies a validated human move to the current match state.
 	///     This compatibility alias is only valid when the current side is manually controlled.
 	/// </summary>
+	/// <remarks>Use <see cref="ApplyMove" /> instead.</remarks>
+	[Obsolete("Use ApplyMove instead.", false)]
 	public void ApplyHumanMove(string move) => ApplyMove(move);
 
 	/// <summary>

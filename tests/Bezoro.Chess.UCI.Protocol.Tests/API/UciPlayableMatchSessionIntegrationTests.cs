@@ -10,7 +10,7 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.API;
 public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 {
 	[IntegrationTest]
-	public async Task RefreshAsync_WhenHumanMoveIsPlayedAfterOpeningAnalysis_ShouldReuseSameScoreForCurrentAdvantage()
+	public async Task ApplyHumanMove_WhenOpeningAnalysisExists_ShouldForwardToApplyMoveAndReuseCurrentScore()
 	{
 		await using var playingClient = new UciEngineClient(fixture.StockfishPath);
 		await using var analysisClient = new UciEngineClient(fixture.StockfishPath);
@@ -36,7 +36,10 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 		var openingAnalysis = await session.GetLegalMoveAnalysisAsync(CancellationToken.None);
 		var e2e4Score = openingAnalysis.Evaluations.Single(static evaluation => evaluation.Move == "e2e4").Score;
 
+		// Deliberately exercise the obsolete compatibility alias's forwarding behavior.
+#pragma warning disable CS0618
 		session.ApplyHumanMove("e2e4");
+#pragma warning restore CS0618
 		var afterMove = await session.RefreshAsync(CancellationToken.None);
 
 		afterMove.Advantage.Score.Should().Be(e2e4Score);
@@ -47,7 +50,7 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 	}
 
 	[IntegrationTest]
-	public async Task RefreshAsync_WhenEngineMoveIsPlayedAfterParentAnalysis_ShouldReuseSameScoreForCurrentAdvantage()
+	public async Task PlayEngineMoveAsync_WhenParentAnalysisExists_ShouldForwardAndReuseCurrentScore()
 	{
 		await using var playingClient = new UciEngineClient(fixture.StockfishPath);
 		await using var analysisClient = new UciEngineClient(fixture.StockfishPath);
@@ -71,11 +74,14 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 		await session.StartNewGameAsync(CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 		await session.GetLegalMoveAnalysisAsync(CancellationToken.None);
-		session.ApplyHumanMove("e2e4");
+		session.ApplyMove("e2e4");
 		await session.RefreshAsync(CancellationToken.None);
 		var afterHumanAnalysis = await session.GetLegalMoveAnalysisAsync(CancellationToken.None);
 
+		// Deliberately exercise the obsolete compatibility alias's forwarding behavior.
+#pragma warning disable CS0618
 		var engineMove = await session.PlayEngineMoveAsync(CancellationToken.None);
+#pragma warning restore CS0618
 		var expectedScore = afterHumanAnalysis.Evaluations.Single(evaluation => evaluation.Move == engineMove.Move).Score;
 		var afterEngine = await session.RefreshAsync(CancellationToken.None);
 
@@ -174,10 +180,10 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 
 		await session.StartNewGameAsync(CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
-		session.ApplyHumanMove("e2e4");
+		session.ApplyMove("e2e4");
 		var afterHuman = await session.RefreshAsync(CancellationToken.None);
 
-		await session.PlayEngineMoveAsync(CancellationToken.None);
+		await session.PlayControlledMoveAsync(CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.CanUndoMoves().Should().BeTrue();
@@ -219,7 +225,7 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 		await session.StartNewGameAsync(CancellationToken.None);
 		var opening = await session.RefreshAsync(CancellationToken.None);
 
-		session.ApplyHumanMove("e2e4");
+		session.ApplyMove("e2e4");
 		session.CanUndoMoves().Should().BeTrue();
 
 		session.UndoMoves();
@@ -259,11 +265,11 @@ public class UciPlayableMatchSessionIntegrationTests(StockfishFixture fixture)
 		await session.StartNewGameAsync(CancellationToken.None);
 		var opening = await session.RefreshAsync(CancellationToken.None);
 
-		session.ApplyHumanMove("e2e4");
+		session.ApplyMove("e2e4");
 		await session.RefreshAsync(CancellationToken.None);
-		await session.PlayEngineMoveAsync(CancellationToken.None);
+		await session.PlayControlledMoveAsync(CancellationToken.None);
 		await session.RefreshAsync(CancellationToken.None);
-		session.ApplyHumanMove("g1f3");
+		session.ApplyMove("g1f3");
 		await session.RefreshAsync(CancellationToken.None);
 
 		session.CanUndoMoves(3).Should().BeTrue();
