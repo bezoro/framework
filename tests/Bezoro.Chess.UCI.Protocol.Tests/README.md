@@ -32,3 +32,4 @@ dotnet test tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Test
 - The playable-match contract stays stable for canonical events, rich move payloads, promotion request/response, claimable draws, clocks, and engine-vs-engine loop helpers.
 - Event ordering, draw-offer policies, controlled-move fallback policies, and batch request processing remain consumer-facing tested behavior.
 - Move classifications publish progressively without blocking enqueue callers, and canceled worker generations cannot overwrite replacement results.
+- Position analyses remain FIFO and single-threaded across cancellation generations; stale success, fault, and cancellation outcomes cannot mutate replacement work.
