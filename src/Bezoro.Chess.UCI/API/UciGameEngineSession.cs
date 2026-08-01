@@ -34,6 +34,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private readonly UciPonderRuntime                 _ponder;
 	private readonly SerializedUciEngineClientRuntime _snapshotClient;
 	private readonly PlayableMatchTimeControl?        _timeControl;
+	private readonly Func<DateTimeOffset>              _utcNowProvider;
 	private readonly MatchSideControllerKind          _whiteController;
 
 	private readonly UciCoordinatorOptions _options;
@@ -282,7 +283,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciCoordinatorOptions?  options     = null,
 		char                    perspectiveColor = 'w',
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
-		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
+		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual,
+		Func<DateTimeOffset>?    utcNowProvider   = null)
 	{
 		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
@@ -294,6 +296,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_whiteController       = whiteController;
 		_blackController       = blackController;
 		_timeControl           = _options.TimeControl;
+		_utcNowProvider        = utcNowProvider ?? (static () => DateTimeOffset.UtcNow);
 		_timeControl?.Validate();
 		_claimableDrawPolicy   = _options.ClaimableDrawPolicy;
 		_drawOfferPolicy       = _options.DrawOfferPolicy;
@@ -1264,7 +1267,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return Task.FromResult(State);
 
 		var checkpoint = _clockHistory[^1];
-		_clockHistory[^1] = checkpoint with { PausedAtUtc = DateTimeOffset.UtcNow };
+		_clockHistory[^1] = checkpoint with { PausedAtUtc = _utcNowProvider() };
 		_isClockPaused = true;
 		var snapshot = UpdateMatchMetadata();
 		RaiseStateEvent(ClockPaused, UciGameEngineSessionEventKind.ClockPaused, snapshot);
@@ -1281,7 +1284,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return Task.FromResult(State);
 
 		var checkpoint = _clockHistory[^1];
-		var now = DateTimeOffset.UtcNow;
+		var now = _utcNowProvider();
 		var pausedDuration = checkpoint.PausedAtUtc.HasValue ? now - checkpoint.PausedAtUtc.Value : TimeSpan.Zero;
 		_clockHistory[^1] = checkpoint with
 		{
@@ -1685,7 +1688,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			moveCounts.White,
 			moveCounts.Black,
 			GetStageIndexForSide(activeMovesCompleted),
-			clockSetup.SnapshotUtc ?? DateTimeOffset.UtcNow
+			clockSetup.SnapshotUtc ?? _utcNowProvider()
 		);
 	}
 
@@ -1710,7 +1713,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 				0,
 				0,
 				0,
-				DateTimeOffset.UtcNow,
+				_utcNowProvider(),
 				null,
 				TimeSpan.Zero
 			)
@@ -1770,7 +1773,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return;
 
 		var checkpoint = _clockHistory[^1];
-		var now = completedAtUtc ?? DateTimeOffset.UtcNow;
+		var now = completedAtUtc ?? _utcNowProvider();
 		var elapsed = ComputeElapsed(checkpoint, now);
 		var whiteRemaining = checkpoint.WhiteRemaining;
 		var blackRemaining = checkpoint.BlackRemaining;
@@ -1827,7 +1830,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return null;
 
 		var checkpoint = _clockHistory[^1];
-		var now = snapshotUtc ?? DateTimeOffset.UtcNow;
+		var now = snapshotUtc ?? _utcNowProvider();
 		var elapsed = ComputeElapsed(checkpoint, now);
 		var whiteRemaining = checkpoint.WhiteRemaining;
 		var blackRemaining = checkpoint.BlackRemaining;
