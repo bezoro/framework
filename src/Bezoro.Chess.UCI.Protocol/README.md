@@ -346,6 +346,8 @@ EngineMoveResult? reply = await session.PlayControlledMoveIfNeededAsync(cancella
 
 `UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: local legal-move generation and FEN ownership, move-history tracking, controller-driven automatic engine turns, request/response promotion flow, draw and timeout adjudication, optional clocks, serializable request processing, canonical protocol-side events, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
 
+Insufficient-material adjudication recognizes kings only, a lone knight, and bishop-only positions where every bishop remains on the same square-color complex.
+
 `EventOccurred` is intentionally transport-friendly: every event carries `SchemaVersion`, the resulting `PlayableMatchState` when available, and a canonical `MoveData` payload for applied moves so UI or server consumers do not need to reverse-engineer captures, promotion pieces, or castling rook movement from raw UCI strings.
 
 The event ordering contract is stable and tested for the important flows:

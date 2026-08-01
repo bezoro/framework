@@ -27,11 +27,15 @@ public sealed class LocalFenRulesTests
 	[InlineData("7k/8/8/8/8/8/8/KB6 w - - 0 1", true)]
 	[InlineData("7k/8/8/8/8/8/8/KNN5 w - - 0 1", false)]
 	[InlineData("7k/8/8/8/8/8/8/KBB5 w - - 0 1", false)]
+	[InlineData("7k/8/8/8/8/8/8/KBN5 w - - 0 1", false)]
 	[InlineData("5b1k/8/8/8/8/8/8/K1B5 w - - 0 1", true)]
 	[InlineData("6bk/8/8/8/8/8/8/K1B5 w - - 0 1", false)]
+	[InlineData("7k/8/8/5b2/8/3B4/8/KB6 w - - 0 1", true)]
+	[InlineData("7k/8/8/4b3/8/3B4/8/KB6 w - - 0 1", false)]
 	[InlineData("7k/8/8/8/8/8/8/KR6 w - - 0 1", false)]
+	[InlineData("7k/8/8/8/8/8/8/KQ6 w - - 0 1", false)]
 	[InlineData("7k/8/8/8/8/8/P7/K7 w - - 0 1", false)]
-	public void HasInsufficientMaterial_WhenMaterialVaries_ShouldReturnCurrentAdjudication(
+	public void HasInsufficientMaterial_WhenMaterialVaries_ShouldReturnExpectedAdjudication(
 		string rawFen,
 		bool   expected)
 	{

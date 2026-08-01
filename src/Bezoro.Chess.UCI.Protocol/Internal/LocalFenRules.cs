@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -106,49 +105,35 @@ internal static class LocalFenRules
 	public static bool HasInsufficientMaterial(Fen fen)
 	{
 		var state = ParseState(fen);
-		var bishops = new List<(char Piece, int Square)>();
-		var knights = new List<char>();
-		var majorsOrPawns = new List<char>();
+		var knightCount = 0;
+		bool? bishopIsLightSquare = null;
 
-		foreach (char piece in state.Board)
+		for (var squareIndex = 0; squareIndex < state.Board.Length; squareIndex++)
 		{
+			char piece = state.Board[squareIndex];
 			if (piece == '\0' || char.ToLowerInvariant(piece) == 'k')
 				continue;
 
 			switch (char.ToLowerInvariant(piece))
 			{
 				case 'b':
-					bishops.Add((piece, Array.IndexOf(state.Board, piece)));
+					bool isLightSquare = IsLightSquare(squareIndex);
+					if (bishopIsLightSquare.HasValue && bishopIsLightSquare.Value != isLightSquare)
+						return false;
+
+					bishopIsLightSquare = isLightSquare;
 					break;
 				case 'n':
-					knights.Add(piece);
+					knightCount++;
 					break;
 				default:
-					majorsOrPawns.Add(piece);
-					break;
+					return false;
 			}
 		}
 
-		if (majorsOrPawns.Count > 0)
-			return false;
-
-		if (bishops.Count == 0 && knights.Count == 0)
-			return true;
-
-		if (bishops.Count == 0 && knights.Count == 1)
-			return true;
-
-		if (bishops.Count == 1 && knights.Count == 0)
-			return true;
-
-		if (bishops.Count == 2 && knights.Count == 0)
-		{
-			bool sameColor = IsLightSquare(bishops[0].Square) == IsLightSquare(bishops[1].Square);
-			bool oppositeSides = char.IsUpper(bishops[0].Piece) != char.IsUpper(bishops[1].Piece);
-			return sameColor && oppositeSides;
-		}
-
-		return false;
+		return bishopIsLightSquare.HasValue
+			? knightCount == 0
+			: knightCount <= 1;
 	}
 
 	public static string BuildRepetitionKey(Fen fen) =>
