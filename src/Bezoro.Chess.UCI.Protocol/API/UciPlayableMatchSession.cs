@@ -30,6 +30,7 @@ public sealed class UciPlayableMatchSession
 	private readonly PlayableMatchTimeControl?      _timeControl;
 	private readonly Func<DateTimeOffset>           _utcNowProvider;
 	private          bool                           _hasCurrentState;
+	private          int                            _clockHistoryOriginMoveCount;
 	private          Fen                            _baseFen = Fen.Default;
 	private          PlayableMatchState             _currentState;
 	private          PlayableMatchResult?           _claimableResult;
@@ -233,28 +234,41 @@ public sealed class UciPlayableMatchSession
 	///     Returns whether the requested number of played moves can currently be undone.
 	/// </summary>
 	/// <param name="count">Number of moves to undo.</param>
-	/// <returns><see langword="true" /> when at least <paramref name="count" /> moves have been played.</returns>
+	/// <returns>
+	///     <see langword="true" /> when at least <paramref name="count" /> moves have been played and, for a clocked
+	///     match, the retained position has a clock checkpoint.
+	/// </returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="count" /> is not greater than zero.</exception>
 	public bool CanUndoMoves(int count = 1)
 	{
 		ValidatePositive(count, nameof(count));
-		return _playedMoves.Count >= count;
+		if (_playedMoves.Count < count)
+			return false;
+
+		return _clockHistory.Count == 0 || _playedMoves.Count - count >= _clockHistoryOriginMoveCount;
 	}
 
 	/// <summary>
 	///     Undoes the requested number of played moves, preserving cached analysis and classifications for the retained
-	///     move prefix while canceling obsolete background work.
+	///     move prefix while canceling obsolete background work. Retained clock values and move counts are restored, and
+	///     the retained turn restarts unpaused at the undo time.
 	/// </summary>
 	/// <param name="count">Number of moves to undo.</param>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="count" /> is not greater than zero.</exception>
-	/// <exception cref="InvalidOperationException">Thrown when fewer than <paramref name="count" /> moves have been played.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     Thrown when fewer than <paramref name="count" /> moves have been played or the retained position predates the
+	///     available clock history.
+	/// </exception>
 	public void UndoMoves(int count = 1)
 	{
 		ValidatePositive(count, nameof(count));
-		if (!CanUndoMoves(count))
+		if (_playedMoves.Count < count)
 			throw new InvalidOperationException("Cannot undo more moves than have been played.");
 
 		int remainingMoveCount = _playedMoves.Count - count;
+		if (_clockHistory.Count > 0 && remainingMoveCount < _clockHistoryOriginMoveCount)
+			throw new InvalidOperationException("Cannot undo beyond the available clock history.");
+
 		if (_playedMoves.Count > remainingMoveCount)
 			_playedMoves.RemoveRange(remainingMoveCount, _playedMoves.Count - remainingMoveCount);
 
@@ -262,8 +276,23 @@ public sealed class UciPlayableMatchSession
 		if (_moveHistory.Count > retainedHistoryCount)
 			_moveHistory.RemoveRange(retainedHistoryCount, _moveHistory.Count - retainedHistoryCount);
 
-		if (_clockHistory.Count > 0 && _clockHistory.Count > remainingMoveCount + 1)
-			_clockHistory.RemoveRange(remainingMoveCount + 1, _clockHistory.Count - (remainingMoveCount + 1));
+		if (_clockHistory.Count > 0)
+		{
+			int retainedCheckpointIndex = remainingMoveCount - _clockHistoryOriginMoveCount;
+			if (_clockHistory.Count > retainedCheckpointIndex + 1)
+				_clockHistory.RemoveRange(
+					retainedCheckpointIndex + 1,
+					_clockHistory.Count - (retainedCheckpointIndex + 1));
+
+			var retainedCheckpoint = _clockHistory[^1];
+			DateTimeOffset now = _utcNowProvider();
+			_clockHistory[^1] = retainedCheckpoint with
+			{
+				TurnStartedAtUtc = now,
+				PausedAtUtc = null,
+				PausedAccumulated = TimeSpan.Zero
+			};
+		}
 
 		_pendingPromotion = null;
 		_forcedResult = default;
@@ -329,6 +358,7 @@ public sealed class UciPlayableMatchSession
 			RestoreClock(currentFen.ActiveColor, clockRestore.Value);
 		else
 			InitializeClocks(currentFen.ActiveColor);
+		_clockHistoryOriginMoveCount = _clockHistory.Count > 0 ? _playedMoves.Count : 0;
 		ResetBackgroundState();
 		_hasCurrentState = false;
 		_currentState    = default;

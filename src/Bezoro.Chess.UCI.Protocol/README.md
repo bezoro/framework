@@ -346,6 +346,8 @@ EngineMoveResult? reply = await session.PlayControlledMoveIfNeededAsync(cancella
 
 `UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: local legal-move generation and FEN ownership, move-history tracking, controller-driven automatic engine turns, request/response promotion flow, draw and timeout adjudication, optional clocks, serializable request processing, canonical protocol-side events, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
 
+`UndoMoves` restores the retained checkpoint's clock values, move counts, and stage, then restarts that position's turn unpaused at the undo time with its full current-stage delay. For a clocked authored setup, undo is available back to the loaded position; earlier played moves have no clock checkpoints to restore and cannot be undone through this session.
+
 Insufficient-material adjudication recognizes kings only, a lone knight, and bishop-only positions where every bishop remains on the same square-color complex.
 
 `EventOccurred` is intentionally transport-friendly: every event carries `SchemaVersion`, the resulting `PlayableMatchState` when available, and a canonical `MoveData` payload for applied moves so UI or server consumers do not need to reverse-engineer captures, promotion pieces, or castling rook movement from raw UCI strings.
@@ -401,8 +403,8 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `PlayControlledMoveIfNeededAsync(ct)` | Plays only when the current side is engine-controlled and the match is still playable; otherwise returns `null`. |
 | `PlayEngineMoveAsync(ct)`        | Obsolete compatibility alias. Migration message: "Use PlayControlledMoveAsync instead." |
 | `PlayUntilTerminalAsync(maxPlies, ct)` | Plays engine-controlled turns in sequence until the game is terminal or the ply cap is reached. |
-| `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
-| `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
+| `CanUndoMoves(count)`            | Reports whether the requested number of moves and any required retained clock checkpoint are available. |
+| `UndoMoves(count)`               | Rewinds played moves, preserves reachable caches and retained clock values, and restarts the retained turn unpaused at the undo time; clocked authored setups cannot rewind before their loaded checkpoint. |
 | `ProcessAsync(request, ct)`      | Applies a serializable `PlayableMatchRequest` against the session.         |
 | `ProcessBatchAsync(requests, ct)` | Applies a request batch and returns the ordered emitted events for that batch. |
 | `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
