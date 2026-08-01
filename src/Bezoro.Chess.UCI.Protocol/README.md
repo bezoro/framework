@@ -514,4 +514,5 @@ The protocol benchmark project covers both UCI info parsing and the local-rules 
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
 - The protocol layer stays engine-agnostic for standard UCI behavior.
 - Extension probing exists here only as an explicit low-level escape hatch for engines that support them; playable-match orchestration no longer depends on those non-standard commands.
+- Local legal-move generation, move application, and tactical classification share one parsed position; batch classification parses its position at most once.
 - `SetOptionAsync` waits for `readyok`, which makes option updates safe to compose in application code.

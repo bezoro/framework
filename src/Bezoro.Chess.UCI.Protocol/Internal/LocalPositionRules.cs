@@ -133,7 +133,7 @@ internal static partial class LocalPositionRules
 			string normalizedMove = NormalizeMove(move);
 			state ??= Parse(fen);
 			var structural = ClassifyNormalized(state.Value, normalizedMove);
-			builder[move] = LocalMoveTacticsResolver.Resolve(state.Value, normalizedMove, structural);
+			builder[move] = ResolveTacticalOutcome(state.Value, normalizedMove, structural);
 		}
 
 		return builder.ToImmutable();
@@ -150,7 +150,22 @@ internal static partial class LocalPositionRules
 		string normalizedMove = NormalizeMove(move);
 		var state = Parse(fen);
 		var structural = ClassifyNormalized(state, normalizedMove);
-		return LocalMoveTacticsResolver.Resolve(state, normalizedMove, structural);
+		return ResolveTacticalOutcome(state, normalizedMove, structural);
+	}
+
+	private static MoveClassification ResolveTacticalOutcome(
+		LocalPositionState state,
+		string             move,
+		MoveClassification structural)
+	{
+		var next = ApplyMove(state, move, structural);
+		bool isCheck = IsKingInCheck(next.Board, next.ActiveColor);
+		bool hasReply = HasAnyLegalMove(next);
+		return structural.WithTacticalOutcome(
+			isCheck,
+			isCheck && !hasReply,
+			!isCheck && !hasReply
+		);
 	}
 
 	internal static LocalPositionState ApplyMove(
@@ -341,7 +356,7 @@ internal static partial class LocalPositionRules
 		return updated;
 	}
 
-	internal static void MoveRookForCastling(char[] board, int kingDestinationIndex, bool kingside)
+	private static void MoveRookForCastling(Span<char> board, int kingDestinationIndex, bool kingside)
 	{
 		int rank = GetRank(kingDestinationIndex);
 		int rookFromIndex = kingside ? GetIndex(7, rank) : GetIndex(0, rank);
