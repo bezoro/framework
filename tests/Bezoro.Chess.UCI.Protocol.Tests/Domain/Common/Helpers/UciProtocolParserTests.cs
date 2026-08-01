@@ -52,8 +52,10 @@ public class UciProtocolParserTests
 			"info depth 20 seldepth 32 multipv 2 score cp 34 lowerbound nodes 12345 nps 456789 hashfull 12 cpuload 876 time 250 tbhits 4 currmove e2e4 currmovenumber 7 refutation d2d4 d7d5 currline 1 e2e4 e7e5 g1f3 pv e2e4 e7e5 g1f3";
 
 		bool parsed = UciProtocolParser.TryParse(LINE, out var message);
+		bool principalVariationParsed = PrincipalVariation.TryParse(LINE, out var standalonePrincipalVariation);
 
 		parsed.Should().BeTrue();
+		principalVariationParsed.Should().BeTrue();
 		message.Info.HasValue.Should().BeTrue();
 		var info = message.Info!.Value.Payload;
 		info.Depth.Should().Be(20u);
@@ -74,7 +76,15 @@ public class UciProtocolParserTests
 		info.CurrentLineCpu.Should().Be(1u);
 		info.CurrentLine.Should().Equal("e2e4", "e7e5", "g1f3");
 		info.PrincipalVariation.Should().NotBeNull();
-		info.PrincipalVariation!.Value.RawPv.Should().Be("e2e4 e7e5 g1f3");
+		var principalVariation = info.PrincipalVariation!.Value;
+		principalVariation.RawPv.Should().Be("e2e4 e7e5 g1f3");
+		principalVariation.Should().BeEquivalentTo(
+			standalonePrincipalVariation,
+			options => options
+				.ComparingByMembers<PrincipalVariation>()
+				.Excluding(variation => variation.Moves)
+		);
+		principalVariation.Moves.Should().Equal(standalonePrincipalVariation.Moves);
 	}
 
 	[Fact]
