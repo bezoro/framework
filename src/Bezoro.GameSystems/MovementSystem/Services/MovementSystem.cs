@@ -34,8 +34,10 @@ public sealed class MovementSystem : ISystem
 		UpdateSettings = updateSettings;
 	}
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.Tick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.FixedTick;
 
 	/// <summary>

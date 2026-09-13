@@ -67,6 +67,32 @@ using var grid = new Grid2D<int>(width: 10, height: 10, defaultValue: 0, usePool
 grid[2, 3] = 5;
 ```
 
+## API Reference
+
+| API | Purpose |
+| --- | --- |
+| `ObjectPool<T>` | Rents reusable objects with configurable capacity, reset, exhaustion, and async-wait policies. |
+| `SwapbackArray<T>` | Stores unordered values with constant-time removal by replacing a removed slot with the final item. |
+| `Result<T>` / `ResultFactory` | Represents explicit success or a typed failure reason. |
+| `Try` | Wraps exception-producing operations in compact success/value results. |
+| `Grid2D<T>` / `GridSpan2D<T>` | Provides owned and non-owning two-dimensional storage views. |
+| `Percent` / `Color` | Provides validated, format-aware value types for common framework data. |
+| `CodeWriter` / `CSharpCodeBuilder` | Builds deterministic generated source text. |
+
+## Feature Notes
+
+- `SwapbackArray<T>` does not preserve item order after removal.
+- Pooling APIs expose statistics and scoped handles; dispose rented handles to return their values.
+- Compatibility shims are compiled only where the target framework lacks the corresponding runtime type.
+- Performance-sensitive collections and spans avoid allocations where their ownership contract permits it.
+
+## Design Notes
+
+- Core contains engine-independent primitives shared by the other framework packages.
+- Public value types validate their invariants at construction or mutation boundaries.
+- Multi-targeted implementations preserve the same public contract on .NET 9 and .NET Standard 2.1.
+- Specialized data structures are preferred only where their semantics or measured performance justify them.
+
 ## Target Frameworks
 
 - .NET 9.0

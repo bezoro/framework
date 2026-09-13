@@ -44,10 +44,13 @@ public sealed class TimerSystem : ISystem
 	/// </summary>
 	public event Action<TimerLifecycleEvent>? Restarted;
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.Tick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
+	/// <inheritdoc />
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
@@ -171,7 +174,3 @@ public sealed class TimerSystem : ISystem
 		return Entity.None;
 	}
 }
-
-[Query]
-[With(typeof(Timer))]
-internal readonly partial struct TimerQuery;

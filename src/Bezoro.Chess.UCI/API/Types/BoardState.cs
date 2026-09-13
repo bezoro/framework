@@ -4,6 +4,9 @@ using Bezoro.Chess.UCI.API.Common.Enums;
 
 namespace Bezoro.Chess.UCI.API.Types;
 
+/// <summary>
+///     Represents an immutable board position decoded from a FEN value.
+/// </summary>
 public readonly record struct BoardState()
 {
 	private BoardState(Fen fen, IReadOnlyCollection<Position> positions) : this()
@@ -12,9 +15,20 @@ public readonly record struct BoardState()
 		Positions = positions;
 	}
 
-	public Fen                           Fen       { get; } = Fen.Empty();
+	/// <summary>
+	///     Gets the FEN value that produced this board state.
+	/// </summary>
+	public Fen Fen { get; } = Fen.Empty();
+
+	/// <summary>
+	///     Gets all 64 board-square positions.
+	/// </summary>
 	public IReadOnlyCollection<Position> Positions { get; } = Array.Empty<Position>();
 
+	/// <summary>
+	///     Gets the side whose turn is active in <see cref="Fen" />.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The FEN active-color token is unsupported.</exception>
 	public PieceColor ActiveColor => Fen.ActiveColor switch
 	{
 		'w' => PieceColor.White,
@@ -24,6 +38,11 @@ public readonly record struct BoardState()
 		)
 	};
 
+	/// <summary>
+	///     Creates a board state from a valid FEN value.
+	/// </summary>
+	/// <param name="fen">The FEN value to decode.</param>
+	/// <returns>The decoded board state, or <see langword="null" /> when <paramref name="fen" /> is invalid.</returns>
 	public static BoardState? FromFen(Fen fen)
 	{
 		if (!Fen.Validate(fen.Raw)) return null;
@@ -31,6 +50,12 @@ public readonly record struct BoardState()
 		return new(fen, BuildPositionsFromFen(fen));
 	}
 
+	/// <summary>
+	///     Attempts to retrieve the piece occupying a board square.
+	/// </summary>
+	/// <param name="squareNotation">Algebraic square notation such as <c>e4</c>.</param>
+	/// <param name="piece">When successful, receives the piece on the square; otherwise, <see langword="null" />.</param>
+	/// <returns><see langword="true" /> when the square exists in this state; otherwise, <see langword="false" />.</returns>
 	public bool TryGetPieceAt(string squareNotation, out Piece? piece)
 	{
 		piece = null;

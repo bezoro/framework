@@ -38,10 +38,13 @@ public sealed class StreamingSystem : ISystem
 	/// </summary>
 	public event Action<StreamingStateChangedEvent>? StreamedOut;
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.Tick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
+	/// <inheritdoc />
 	public SystemUpdateSettings UpdateSettings => SystemUpdateSettings.EveryTick;
 
 	/// <inheritdoc />
@@ -238,8 +241,3 @@ public sealed class StreamingSystem : ISystem
 		}
 	}
 }
-
-[Query]
-[With(typeof(Position))]
-[With(typeof(StreamState))]
-internal readonly partial struct StreamingQuery;

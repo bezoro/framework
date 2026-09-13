@@ -12,8 +12,10 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 /// </summary>
 public sealed class ActivationDispatchSystem : ISystem
 {
+	/// <inheritdoc />
 	public Stage Stage => Stage.PostTick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />

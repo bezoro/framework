@@ -10,6 +10,7 @@ internal sealed class UciPonderRuntime : IAsyncDisposable, IDisposable
 {
 	private readonly object                          _scoreLock = new();
 	private readonly UciEngineClient                 _client;
+	private readonly SemaphoreSlim                   _searchOperationGate = new(1, 1);
 	private readonly Func<CancellationToken, Task>?  _stopHook;
 
 	private int? _lastScoreCp;
@@ -67,26 +68,34 @@ internal sealed class UciPonderRuntime : IAsyncDisposable, IDisposable
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default)
 	{
-		if (Volatile.Read(ref _searchActive) == 1)
-			await StopSearchAsync(ct).ConfigureAwait(false);
-
-		ClearLastScores();
-		DisableOutputForwarding();
-		int generation = Interlocked.Increment(ref _searchGeneration);
-
+		await _searchOperationGate.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
-			EnableOutputForwarding(generation);
-			await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);
-			Volatile.Write(ref _searchActive, 1);
-		}
-		catch
-		{
+			if (Volatile.Read(ref _searchActive) == 1)
+				await StopSearchCoreAsync(ct).ConfigureAwait(false);
+
+			ClearLastScores();
 			DisableOutputForwarding();
-			Volatile.Write(ref _searchActive, 0);
-			Interlocked.CompareExchange(ref _searchGeneration, generation + 1, generation);
-			throw;
+			int generation = Interlocked.Increment(ref _searchGeneration);
+
+			try
+			{
+				await _client.SetPositionAsync(fen, playedMoves, ct).ConfigureAwait(false);
+				EnableOutputForwarding(generation);
+				await _client.GoFireAndForgetAsync(new() { Infinite = true }, ct).ConfigureAwait(false);
+				Volatile.Write(ref _searchActive, 1);
+			}
+			catch
+			{
+				DisableOutputForwarding();
+				Volatile.Write(ref _searchActive, 0);
+				Interlocked.CompareExchange(ref _searchGeneration, generation + 1, generation);
+				throw;
+			}
+		}
+		finally
+		{
+			_searchOperationGate.Release();
 		}
 	}
 
@@ -100,6 +109,19 @@ internal sealed class UciPonderRuntime : IAsyncDisposable, IDisposable
 	}
 
 	public async Task StopSearchAsync(CancellationToken ct = default)
+	{
+		await _searchOperationGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await StopSearchCoreAsync(ct).ConfigureAwait(false);
+		}
+		finally
+		{
+			_searchOperationGate.Release();
+		}
+	}
+
+	private async Task StopSearchCoreAsync(CancellationToken ct)
 	{
 		DisableOutputForwarding();
 		Volatile.Write(ref _searchActive, 0);

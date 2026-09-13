@@ -14,6 +14,38 @@ Roslyn incremental source generators for `Bezoro.ECS` compile-time helpers.
 | `ForEachJobSourceGenerator` | Generates `Run(job)` / `RunParallel(job)` extensions for `QueryView<TSpec>`, plus `Run(job)` extensions for `QueryCursor` and `World`, for accessible `IForEach<T...>` and `IForEachEntity<T...>` job structs (arity 1-4). |
 | `SplitFieldSourceGenerator` | Generates split-group helper types and storage helpers for `[SplitFields]` components with `[SplitGroup]` field annotations.                        |
 
+## Quick Start
+
+Reference `Bezoro.ECS.SourceGen` as an analyzer through `Bezoro.ECS`, then declare a query specification:
+
+```csharp
+using Bezoro.ECS.Attributes;
+
+[Query]
+[With(typeof(Position))]
+internal readonly partial struct MovingEntityQuery;
+```
+
+The generator completes the partial query type with an `ICompiledQuerySpec` implementation consumed by `World.Compile<MovingEntityQuery>()` and `World.Query<MovingEntityQuery>()`.
+
+## API Reference
+
+The project is analyzer infrastructure and does not expose an application runtime API. Its compile-time contract consists of generated implementations and diagnostics:
+
+| Generator | Generated contract |
+| --- | --- |
+| `QuerySourceGenerator` | Query-spec metadata and `ICompiledQuerySpec` implementation. |
+| `SystemMetadataGenerator` | Static read/write metadata for scheduler planning. |
+| `ForEachJobSourceGenerator` | Typed `Run` and `RunParallel` extension methods for ECS jobs. |
+| `SplitFieldSourceGenerator` | Split-field component helpers and storage metadata. |
+| `ComponentCatalogGenerator` | Compatibility output for runtime component registration. |
+
+## Feature Notes
+
+- `BECSG001` reports unsupported ECS attributes on a query specification.
+- Generated code is deterministic and uses fully qualified symbols.
+- Consumer source remains the source of truth; generated files are build artifacts and must not be edited.
+
 ## Design Notes
 
 - Generators avoid reflection on hot paths by precomputing query and metadata structures.

@@ -136,6 +136,7 @@ public sealed class CommandStream : IDisposable
 		TryRecord(new(RecordedCommandType.DestroyEntity, entity, -1, -1), out _);
 	}
 
+	/// <inheritdoc />
 	public void Dispose()
 	{
 		if (_disposed)
@@ -460,7 +461,7 @@ public sealed class CommandStream : IDisposable
 
 	private int PlaybackRemoveRun(int startIndex)
 	{
-		EnsureBatchBuffers(false);
+		EnsureBatchEntityBuffers();
 		int[]  batchEntityIds        = _batchEntityIds!;
 		uint[] batchEntityMarkerBits = _batchEntityMarkerBits!;
 		var    first                 = _commands[startIndex];
@@ -527,7 +528,8 @@ public sealed class CommandStream : IDisposable
 
 	private int PlaybackSetRun(int startIndex)
 	{
-		EnsureBatchBuffers(true);
+		EnsureBatchEntityBuffers();
+		EnsureBatchPayloadIndexBuffer();
 		int[] batchEntityIds      = _batchEntityIds!;
 		int[] batchPayloadIndices = _batchPayloadIndices!;
 		var   first               = _commands[startIndex];
@@ -627,23 +629,25 @@ public sealed class CommandStream : IDisposable
 		_temporaryResolveGeneration++;
 	}
 
-	// TODO: [CODE SMELL - Boolean Trap] This helper changes allocation behavior based on a boolean flag. Fix: split it into explicit entity-buffer and payload-buffer helpers.
-	private void EnsureBatchBuffers(bool needsPayloadIndices)
+	private void EnsureBatchEntityBuffers()
 	{
 		if (_batchEntityIds is null)
 			_batchEntityIds = ArrayPool<int>.Shared.Rent(_commandCapacity);
 
-		if (needsPayloadIndices && _batchPayloadIndices is null)
-			_batchPayloadIndices = ArrayPool<int>.Shared.Rent(_commandCapacity);
+		if (_batchEntityMarkerBits is not null && _batchTouchedMarkerWordIndices is not null)
+			return;
 
-		if (_batchEntityMarkerBits is null || _batchTouchedMarkerWordIndices is null)
-		{
-			int markerWordCount = (Owner.EntityCapacity + 31) >> 5;
-			_batchEntityMarkerBits = ArrayPool<uint>.Shared.Rent(markerWordCount);
-			Array.Clear(_batchEntityMarkerBits, 0, markerWordCount);
-			_batchTouchedMarkerWordIndices = ArrayPool<int>.Shared.Rent(markerWordCount);
-			_batchTouchedMarkerWordCount   = 0;
-		}
+		int markerWordCount = (Owner.EntityCapacity + 31) >> 5;
+		_batchEntityMarkerBits = ArrayPool<uint>.Shared.Rent(markerWordCount);
+		Array.Clear(_batchEntityMarkerBits, 0, markerWordCount);
+		_batchTouchedMarkerWordIndices = ArrayPool<int>.Shared.Rent(markerWordCount);
+		_batchTouchedMarkerWordCount   = 0;
+	}
+
+	private void EnsureBatchPayloadIndexBuffer()
+	{
+		if (_batchPayloadIndices is null)
+			_batchPayloadIndices = ArrayPool<int>.Shared.Rent(_commandCapacity);
 	}
 
 	private void EnsurePayloadStoreTables()

@@ -6,9 +6,13 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bezoro.ECS.SourceGen.Generators;
 
+/// <summary>
+///     Generates typed ECS iteration extension methods for accessible <c>IForEach</c> job structs.
+/// </summary>
 [Generator]
 public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 {
+	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		var jobs = context.CompilationProvider.Select(static (compilation, _) =>

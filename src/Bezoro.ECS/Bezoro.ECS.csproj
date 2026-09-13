@@ -3,7 +3,6 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>Bezoro.ECS</RootNamespace>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<NoWarn>$(NoWarn);1591</NoWarn>
 		<TargetFrameworks>net9.0;netstandard2.1</TargetFrameworks>
 	</PropertyGroup>
 	<ItemGroup>

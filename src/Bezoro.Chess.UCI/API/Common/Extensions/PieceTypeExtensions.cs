@@ -2,6 +2,9 @@ using Bezoro.Chess.UCI.API.Common.Enums;
 
 namespace Bezoro.Chess.UCI.API.Common.Extensions;
 
+/// <summary>
+///     Provides character conversion helpers for <see cref="PieceType" /> values.
+/// </summary>
 public static class PieceTypeExtensions
 {
 	/// <summary>

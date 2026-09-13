@@ -24,8 +24,10 @@ public sealed class ActivationProcessingSystem : ISystem
 	/// </summary>
 	public event Action<ActivationCompletedEvent>? Completed;
 
+	/// <inheritdoc />
 	public Stage Stage => Stage.Tick;
 
+	/// <inheritdoc />
 	public SystemLoopPhase LoopPhase => SystemLoopPhase.Tick;
 
 	/// <inheritdoc />
@@ -188,11 +190,3 @@ public sealed class ActivationProcessingSystem : ISystem
 	}
 
 }
-
-[Query]
-[With(typeof(ActivationEntry))]
-internal readonly partial struct ActivationEntryQuery;
-
-[Query]
-[With(typeof(ActivationCancellationRequest))]
-internal readonly partial struct ActivationCancellationQuery;

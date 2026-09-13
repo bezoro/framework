@@ -10,7 +10,13 @@ using QueryExecutionLease = Bezoro.ECS.Internal.QueryExecutionLease;
 
 namespace Bezoro.ECS.Services;
 
-// TODO: [CODE SMELL - God Class] This type owns public API surface, query orchestration, change tracking, snapshots, systems, and hot-path helpers. Fix: split query/direct-iteration concerns into dedicated collaborators and reduce World to orchestration.
+/// <summary>
+///     Owns an isolated ECS simulation context and exposes its entity, component, resource, query, and system APIs.
+/// </summary>
+/// <remarks>
+///     The world is the stable public façade over specialized stores and runtime services. Those collaborators own
+///     storage and execution details while this type enforces world lifetime and coordinates cross-service operations.
+/// </remarks>
 public class World : IWorld, IDisposable
 {
 	private static readonly Dictionary<Type, bool> ContainsReferencesByType = [];
@@ -41,10 +47,21 @@ public class World : IWorld, IDisposable
 
 	private bool _disposed;
 
+	/// <summary>
+	///     Initializes a world with default capacity and scheduling settings.
+	/// </summary>
 	public World() : this(new WorldConfig()) { }
 
+	/// <summary>
+	///     Initializes a world from compatibility options.
+	/// </summary>
+	/// <param name="options">Options used to configure world capacities and overflow behavior.</param>
 	public World(WorldOptions options) : this(ToWorldConfig(options)) { }
 
+	/// <summary>
+	///     Initializes a world from an explicit configuration.
+	/// </summary>
+	/// <param name="config">Configuration used by the world's stores and runtimes.</param>
 	public World(WorldConfig config)
 	{
 		_instanceId = Interlocked.Increment(ref _nextInstanceId);
@@ -71,6 +88,9 @@ public class World : IWorld, IDisposable
 		_snapshotCoordinator = new(_entityStore, _lifecycleService, _queryEngine, _snapshotService);
 	}
 
+	/// <summary>
+	///     Gets the number of currently alive entities.
+	/// </summary>
 	public int EntityCount
 	{
 		get
@@ -136,6 +156,7 @@ public class World : IWorld, IDisposable
 		set => _entityStore.TypeCount = value;
 	}
 
+	/// <inheritdoc />
 	public bool Has<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
@@ -147,6 +168,7 @@ public class World : IWorld, IDisposable
 		return location.IsValid && Archetypes[location.ArchetypeId].HasType(typeId);
 	}
 
+	/// <inheritdoc />
 	public bool HasRelation<TRelation>(Entity source, Entity target)
 		where TRelation : struct
 	{
@@ -181,24 +203,32 @@ public class World : IWorld, IDisposable
 			   sourceArchetype.HasType(relationTypeId);
 	}
 
+	/// <inheritdoc />
 	public bool HasResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
 		return _resources.Has<T>();
 	}
 
+	/// <inheritdoc />
 	public bool IsAlive(Entity entity)
 	{
 		ThrowIfDisposed();
 		return IsAliveUnchecked(entity);
 	}
 
+	/// <summary>
+	///     Gets whether the system set identified by <typeparamref name="TSet" /> is enabled.
+	/// </summary>
+	/// <typeparam name="TSet">Type identifying the system set.</typeparam>
+	/// <returns><c>true</c> when the set is enabled; otherwise <c>false</c>.</returns>
 	public bool IsSystemSetEnabled<TSet>()
 	{
 		ThrowIfDisposed();
 		return _systemRuntime.IsSystemSetEnabled(typeof(TSet));
 	}
 
+	/// <inheritdoc />
 	public bool RemoveRelation<TRelation>(Entity source, Entity target)
 		where TRelation : struct
 	{
@@ -246,12 +276,14 @@ public class World : IWorld, IDisposable
 		return true;
 	}
 
+	/// <inheritdoc />
 	public bool RemoveResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
 		return _resources.Remove<T>();
 	}
 
+	/// <inheritdoc />
 	public bool TryGet<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
@@ -263,6 +295,13 @@ public class World : IWorld, IDisposable
 		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
 
+	/// <summary>
+	///     Attempts to copy a managed-lane component from an entity.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity to inspect.</param>
+	/// <param name="component">Receives the component value when present.</param>
+	/// <returns><c>true</c> when the component exists; otherwise <c>false</c>.</returns>
 	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
@@ -274,15 +313,18 @@ public class World : IWorld, IDisposable
 		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
 
+	/// <inheritdoc />
 	public bool TryRead<T>(Entity entity, out T component) where T : struct =>
 		TryGet(entity, out component);
 
+	/// <inheritdoc />
 	public bool TryReadResource<T>(out T resource) where T : notnull
 	{
 		ThrowIfDisposed();
 		return _resources.TryRead(out resource);
 	}
 
+	/// <inheritdoc />
 	public bool TryWrite<T>(Entity entity, out ComponentRef<T> component) where T : struct
 	{
 		ThrowIfDisposed();
@@ -306,11 +348,23 @@ public class World : IWorld, IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Creates an ergonomic buffer for recording deferred structural commands.
+	/// </summary>
+	/// <returns>A command buffer owned by this world.</returns>
 	public CommandBuffer CreateCommandBuffer() =>
 		new(CreateCommandStream());
 
+	/// <summary>
+	///     Begins recording deferred structural commands.
+	/// </summary>
+	/// <returns>A command stream owned by this world.</returns>
 	public CommandStream BeginCommands() => CreateCommandStream();
 
+	/// <summary>
+	///     Creates a fixed-capacity deferred command stream using this world's configuration.
+	/// </summary>
+	/// <returns>A command stream owned by this world.</returns>
 	public CommandStream CreateCommandStream()
 	{
 		ThrowIfDisposed();
@@ -323,6 +377,11 @@ public class World : IWorld, IDisposable
 		);
 	}
 
+	/// <summary>
+	///     Creates a reusable accessor for an unmanaged component type.
+	/// </summary>
+	/// <typeparam name="T">Unmanaged component type.</typeparam>
+	/// <returns>An accessor bound to this world.</returns>
 	public ComponentAccessor<T> GetAccessor<T>() where T : unmanaged
 	{
 		ThrowIfDisposed();
@@ -330,12 +389,14 @@ public class World : IWorld, IDisposable
 		return new(this, typeId);
 	}
 
+	/// <inheritdoc />
 	public Entity Spawn()
 	{
 		ThrowIfDisposed();
 		return CreateEntityInternal();
 	}
 
+	/// <inheritdoc />
 	public Entity Spawn<T1>(in T1 component1) where T1 : struct
 	{
 		ThrowIfDisposed();
@@ -344,6 +405,7 @@ public class World : IWorld, IDisposable
 		return entity;
 	}
 
+	/// <inheritdoc />
 	public Entity Spawn<T1, T2>(in T1 component1, in T2 component2)
 		where T1 : struct
 		where T2 : struct
@@ -355,6 +417,7 @@ public class World : IWorld, IDisposable
 		return entity;
 	}
 
+	/// <inheritdoc />
 	public Entity Spawn<T1, T2, T3>(in T1 component1, in T2 component2, in T3 component3)
 		where T1 : struct
 		where T2 : struct
@@ -368,6 +431,7 @@ public class World : IWorld, IDisposable
 		return entity;
 	}
 
+	/// <inheritdoc />
 	public Entity Spawn<T1, T2, T3, T4>(in T1 component1, in T2 component2, in T3 component3, in T4 component4)
 		where T1 : struct
 		where T2 : struct
@@ -413,21 +477,32 @@ public class World : IWorld, IDisposable
 		return _queryEngine.GetDiagnostics(handle.Plan);
 	}
 
+	/// <summary>
+	///     Compiles or retrieves the cached query plan for a query specification.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <returns>A query handle bound to this world.</returns>
 	public QueryHandle<TSpec> Compile<TSpec>() where TSpec : struct, ICompiledQuerySpec
 	{
 		ThrowIfDisposed();
 		return _queryEngine.Compile<TSpec>();
 	}
 
+	/// <inheritdoc />
 	public QueryView<TSpec> Query<TSpec>() where TSpec : struct, ICompiledQuerySpec =>
 		new(this, Compile<TSpec>());
 
+	/// <summary>
+	///     Gets diagnostics for the current system schedule.
+	/// </summary>
+	/// <returns>A snapshot of schedule planning and execution state.</returns>
 	public ScheduleDiagnostics GetScheduleDiagnostics()
 	{
 		ThrowIfDisposed();
 		return _systemRuntime.GetDiagnostics();
 	}
 
+	/// <inheritdoc />
 	public ref T Get<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
@@ -438,24 +513,33 @@ public class World : IWorld, IDisposable
 		return ref component;
 	}
 
+	/// <inheritdoc />
 	public ref T GetOrCreateResource<T>() where T : notnull, new()
 	{
 		ThrowIfDisposed();
 		return ref _resources.GetOrCreate<T>();
 	}
 
+	/// <summary>
+	///     Gets a resource or creates and registers it with the supplied factory.
+	/// </summary>
+	/// <typeparam name="T">Resource type.</typeparam>
+	/// <param name="factory">Factory invoked only when the resource is absent.</param>
+	/// <returns>A mutable reference to the registered resource.</returns>
 	public ref T GetOrCreateResource<T>(Func<T> factory) where T : notnull
 	{
 		ThrowIfDisposed();
 		return ref _resources.GetOrCreate(factory);
 	}
 
+	/// <inheritdoc />
 	public ref T GetResource<T>() where T : notnull
 	{
 		ThrowIfDisposed();
 		return ref _resources.Get<T>();
 	}
 
+	/// <inheritdoc />
 	public ref readonly T Read<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
@@ -464,15 +548,19 @@ public class World : IWorld, IDisposable
 		return ref _entityStore.GetComponentRefUnchecked<T>(entity.Id, typeId);
 	}
 
+	/// <inheritdoc />
 	public ref readonly T ReadResource<T>() where T : notnull =>
 		ref GetResource<T>();
 
+	/// <inheritdoc />
 	public ref T Write<T>(Entity entity) where T : struct =>
 		ref Get<T>(entity);
 
+	/// <inheritdoc />
 	public ref T WriteResource<T>() where T : notnull =>
 		ref GetResource<T>();
 
+	/// <inheritdoc />
 	public void Add<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
@@ -480,12 +568,14 @@ public class World : IWorld, IDisposable
 		ApplySetFromCommand(entity, in component);
 	}
 
+	/// <inheritdoc />
 	public void Add<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
 		ApplySetFromCommand(entity, in component);
 	}
 
+	/// <inheritdoc />
 	public void AddRelation<TRelation>(Entity source, Entity target)
 		where TRelation : struct
 	{
@@ -504,12 +594,22 @@ public class World : IWorld, IDisposable
 		_entityStore.SetRelationComponent(source, relationTypeId);
 	}
 
+	/// <summary>
+	///     Registers a system in an execution stage.
+	/// </summary>
+	/// <param name="system">System instance to register.</param>
+	/// <param name="stage">Stage in which the system should execute.</param>
 	public void AddSystem(ISystem system, Stage stage = Stage.Tick)
 	{
 		ThrowIfDisposed();
 		_systemRuntime.AddSystem(this, system, stage);
 	}
 
+	/// <summary>
+	///     Constructs and registers a system in an execution stage.
+	/// </summary>
+	/// <typeparam name="TSystem">System type to construct.</typeparam>
+	/// <param name="stage">Stage in which the system should execute.</param>
 	public void AddSystem<TSystem>(Stage stage = Stage.Tick)
 		where TSystem : ISystem, new() =>
 		AddSystem(new TSystem(), stage);
@@ -526,24 +626,33 @@ public class World : IWorld, IDisposable
 		_snapshotCoordinator.Capture(ref writer);
 	}
 
+	/// <summary>
+	///     Removes all entities, components, resources, and transient query state while retaining allocated capacity.
+	/// </summary>
 	public void Clear()
 	{
 		ThrowIfDisposed();
 		_lifecycleService.Clear();
 	}
 
+	/// <summary>
+	///     Removes the run condition associated with a system set.
+	/// </summary>
+	/// <typeparam name="TSet">Type identifying the system set.</typeparam>
 	public void ClearSystemSetRunCondition<TSet>()
 	{
 		ThrowIfDisposed();
 		_systemRuntime.ClearSystemSetRunCondition(typeof(TSet));
 	}
 
+	/// <inheritdoc />
 	public void Despawn(Entity entity)
 	{
 		ThrowIfDisposed();
 		DestroyEntityInternal(entity);
 	}
 
+	/// <inheritdoc />
 	public void Dispose()
 	{
 		if (_disposed)
@@ -553,8 +662,19 @@ public class World : IWorld, IDisposable
 		_disposed = true;
 	}
 
+	/// <summary>
+	///     Executes systems assigned to the fixed-tick loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed fixed-step time, in seconds.</param>
 	public void FixedTick(float deltaTime) => RunPhase(SystemLoopPhase.FixedTick, deltaTime);
 
+	/// <summary>
+	///     Executes a sequential loop over one mutable unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="action">Per-entity callback.</param>
 	public void ForEach<TSpec, T1>(QueryHandle<TSpec> handle, QueryCursor.RefAction<T1> action)
 		where TSpec : struct, ICompiledQuerySpec
 		where T1 : unmanaged
@@ -569,6 +689,14 @@ public class World : IWorld, IDisposable
 		cursor.ForEach(action);
 	}
 
+	/// <summary>
+	///     Executes a sequential loop over one mutable and one read-only unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="action">Per-entity callback.</param>
 	public void ForEach<TSpec, T1, T2>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2> action)
 		where TSpec : struct, ICompiledQuerySpec
 		where T1 : unmanaged
@@ -584,6 +712,15 @@ public class World : IWorld, IDisposable
 		cursor.ForEach(action);
 	}
 
+	/// <summary>
+	///     Executes a sequential loop over one mutable and two read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="action">Per-entity callback.</param>
 	public void ForEach<TSpec, T1, T2, T3>(QueryHandle<TSpec> handle, QueryCursor.RefInAction<T1, T2, T3> action)
 		where TSpec : struct, ICompiledQuerySpec
 		where T1 : unmanaged
@@ -629,8 +766,16 @@ public class World : IWorld, IDisposable
 		cursor.ForEach(action);
 	}
 
+	/// <summary>
+	///     Executes systems assigned to the late-tick loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed frame time, in seconds.</param>
 	public void LateTick(float deltaTime) => RunPhase(SystemLoopPhase.LateTick, deltaTime);
 
+	/// <summary>
+	///     Applies all commands recorded in a stream owned by this world.
+	/// </summary>
+	/// <param name="stream">Command stream to apply.</param>
 	public void Playback(CommandStream stream)
 	{
 		ThrowIfDisposed();
@@ -644,9 +789,14 @@ public class World : IWorld, IDisposable
 		stream.PlaybackInternal();
 	}
 
+	/// <summary>
+	///     Precompiles and caches a query plan without executing it.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	public void Precompile<TSpec>() where TSpec : struct, ICompiledQuerySpec =>
 		_ = Compile<TSpec>();
 
+	/// <inheritdoc />
 	public void Remove<T>(Entity entity) where T : struct
 	{
 		ThrowIfDisposed();
@@ -654,12 +804,17 @@ public class World : IWorld, IDisposable
 		RemoveComponentFromCommand(entity, typeId);
 	}
 
+	/// <inheritdoc />
 	public void Replace<T>(Entity entity, in T component) where T : struct =>
 		Set(entity, in component);
 
+	/// <inheritdoc />
 	public void ReplaceResource<T>(T resource) where T : notnull =>
 		SetResource(resource);
 
+	/// <summary>
+	///     Resets runtime state and diagnostics to their initial values while retaining the world configuration.
+	/// </summary>
 	public void Reset()
 	{
 		ThrowIfDisposed();
@@ -681,6 +836,14 @@ public class World : IWorld, IDisposable
 		_snapshotCoordinator.Restore(ref reader, options, TypeCount);
 	}
 
+	/// <summary>
+	///     Executes a struct job over one mutable unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
@@ -690,6 +853,15 @@ public class World : IWorld, IDisposable
 		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
 	}
 
+	/// <summary>
+	///     Executes a struct job over one mutable and one read-only unmanaged component.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2>
@@ -700,6 +872,16 @@ public class World : IWorld, IDisposable
 		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
 	}
 
+	/// <summary>
+	///     Executes a struct job over one mutable and two read-only unmanaged components.
+	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2, T3>
@@ -952,30 +1134,47 @@ public class World : IWorld, IDisposable
 		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
 	}
 
+	/// <summary>
+	///     Executes all systems scheduled for a loop phase.
+	/// </summary>
+	/// <param name="loopPhase">Loop phase to execute.</param>
+	/// <param name="deltaTime">Elapsed phase time, in seconds.</param>
 	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime)
 	{
 		ThrowIfDisposed();
 		_systemRuntime.RunPhase(this, loopPhase, deltaTime);
 	}
 
+	/// <inheritdoc />
 	public void Set<T>(Entity entity, in T component) where T : struct
 	{
 		ThrowIfDisposed();
 		ApplySetFromCommand(entity, in component);
 	}
 
+	/// <inheritdoc />
 	public void SetResource<T>(T resource) where T : notnull
 	{
 		ThrowIfDisposed();
 		_resources.Set(resource);
 	}
 
+	/// <summary>
+	///     Enables or disables a system set.
+	/// </summary>
+	/// <typeparam name="TSet">Type identifying the system set.</typeparam>
+	/// <param name="enabled"><c>true</c> to enable the set; <c>false</c> to skip it.</param>
 	public void SetSystemSetEnabled<TSet>(bool enabled)
 	{
 		ThrowIfDisposed();
 		_systemRuntime.SetSystemSetEnabled(typeof(TSet), enabled);
 	}
 
+	/// <summary>
+	///     Sets the run condition evaluated for a system set.
+	/// </summary>
+	/// <typeparam name="TSet">Type identifying the system set.</typeparam>
+	/// <param name="runCondition">Condition that controls whether the set executes.</param>
 	public void SetSystemSetRunCondition<TSet>(ISystemRunCondition runCondition)
 	{
 		ThrowIfDisposed();
@@ -985,8 +1184,16 @@ public class World : IWorld, IDisposable
 		_systemRuntime.SetSystemSetRunCondition(typeof(TSet), runCondition);
 	}
 
+	/// <summary>
+	///     Executes systems assigned to the main tick loop phase.
+	/// </summary>
+	/// <param name="deltaTime">Elapsed frame time, in seconds.</param>
 	public void Tick(float deltaTime) => RunPhase(SystemLoopPhase.Tick, deltaTime);
 
+	/// <summary>
+	///     Gets current capacity, high-watermark, and overflow diagnostics for the world.
+	/// </summary>
+	/// <returns>A diagnostics snapshot.</returns>
 	public WorldDiagnostics GetDiagnostics()
 	{
 		ThrowIfDisposed();
