@@ -22,6 +22,24 @@ world.SetResource(new ActivationConfig(maxActivationsPerTick: 4));
 world.AddActivationPipeline();
 ```
 
+## API Reference
+
+| Area | Primary APIs |
+| --- | --- |
+| Activation | `ActivationWorldExtensions`, `ActivationConfig`, `ActivationCommandQueue`, `ActivationHandle` |
+| Health | `HealthWorldExtensions`, `Health`, `HealthMutationRequest`, `HealthChangedEvent` |
+| Input | `InputWorldExtensions`, `InputCommandQueue`, `InputControl`, `MovementIntent` |
+| Movement | `MovementSystem`, `Position`, `Velocity` |
+| Streaming | `StreamingSystem`, `StreamingConfig`, `StreamState`, `StreamingStateChangedEvent` |
+| Timer | `TimerWorldExtensions`, `Timer`, `TimerMode`, `TimerLifecycleEvent` |
+
+## Feature Notes
+
+- Pipelines register ECS systems and resources through explicit `World` extension methods.
+- Command queues decouple producer threads from deterministic world updates.
+- Lifecycle events are stored in world resources so consumers can drain them during their own systems.
+- Each subsystem README documents its ordering, capacity, and state-transition details.
+
 ## Project Notes
 
 - This assembly is the packaged runtime surface for the gameplay systems under `src/Bezoro.GameSystems`.
@@ -37,3 +55,10 @@ world.AddActivationPipeline();
 - [Bezoro.Core](../Bezoro.Core/README.md)
 - [Bezoro.ECS](../Bezoro.ECS/README.md)
 - [Bezoro.Events](../Bezoro.Events/README.md)
+
+## Design Notes
+
+- Systems depend only on Bezoro framework contracts and remain independent of Unity or another engine.
+- Mutable gameplay data is represented as ECS components or resources rather than hidden service state.
+- Ingestion, processing, and dispatch are separate systems when a workflow crosses a queue boundary.
+- Generated query specifications keep filtering and scheduler metadata compile-time visible.
