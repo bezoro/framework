@@ -9,8 +9,9 @@ namespace Bezoro.Chess.UCI.Protocol.Internal;
 
 internal sealed class MoveClassificationCoordinator : IDisposable
 {
-	private readonly Func<Fen, string, MoveClassification> _classifyMoveFully;
-	private readonly Action?                               _beforeWorkerRetires;
+	private readonly Func<Fen, ImmutableArray<string>, CancellationToken,
+		ImmutableDictionary<string, MoveClassification>> _classifyFully;
+	private readonly Action? _beforeWorkerRetires;
 	private readonly Dictionary<string, ImmutableDictionary<string, MoveClassification>> _classificationsByPosition =
 		new(StringComparer.Ordinal);
 	private readonly Dictionary<string, TaskCompletionSource<ImmutableDictionary<string, MoveClassification>>> _waiters =
@@ -18,16 +19,20 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 	private readonly HashSet<string>                      _queuedPositionKeys = new(StringComparer.Ordinal);
 	private readonly object                               _sync               = new();
 	private readonly Queue<PendingClassificationPosition> _pendingPositions   = new();
-	private          WorkerGeneration                     _generation         = new();
+	private          long                                 _generation;
+	private          WorkerCancellationSource?            _workerCancellation;
+	private          long                                 _workerGeneration;
+	private          Task?                                _workerTask;
 
 	public MoveClassificationCoordinator()
-		: this(static (fen, move) => fen.ClassifyMoveFully(move)) { }
+		: this(static (fen, moves, ct) => LocalPositionRules.ClassifyMovesFully(fen, moves, ct)) { }
 
 	internal MoveClassificationCoordinator(
-		Func<Fen, string, MoveClassification> classifyMoveFully,
-		Action?                               beforeWorkerRetires = null)
+		Func<Fen, ImmutableArray<string>, CancellationToken,
+			ImmutableDictionary<string, MoveClassification>> classifyFully,
+		Action? beforeWorkerRetires = null)
 	{
-		_classifyMoveFully   = classifyMoveFully;
+		_classifyFully       = classifyFully;
 		_beforeWorkerRetires = beforeWorkerRetires;
 	}
 
@@ -36,7 +41,7 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 		get
 		{
 			lock (_sync)
-				return _generation.WorkerTask;
+				return _workerTask;
 		}
 	}
 
@@ -65,6 +70,7 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 			if (legalMoves.IsDefaultOrEmpty ||
 				structural.Values.All(static classification => classification.IsResolved))
 			{
+				_waiters.Remove(positionKey);
 				waiter.TrySetResult(structural);
 				return;
 			}
@@ -103,12 +109,12 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 			throw new ArgumentNullException(nameof(retainedPositionKeys));
 
 		TaskCompletionSource<ImmutableDictionary<string, MoveClassification>>[] waiters;
-		WorkerGeneration retiredGeneration;
+		WorkerCancellationSource? workerCancellation;
 
 		lock (_sync)
 		{
-			retiredGeneration = _generation;
-			_generation       = new();
+			_generation++;
+			workerCancellation = _workerCancellation;
 			waiters = [.. _waiters.Values];
 
 			foreach (var positionKey in _classificationsByPosition.Keys.ToArray())
@@ -122,14 +128,7 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 			_queuedPositionKeys.Clear();
 		}
 
-		try
-		{
-			retiredGeneration.CancellationSource.Cancel();
-		}
-		finally
-		{
-			retiredGeneration.CancellationSource.Dispose();
-		}
+		workerCancellation?.Cancel();
 
 		foreach (var waiter in waiters)
 			waiter.TrySetCanceled();
@@ -180,13 +179,14 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 
 	private void EnsureWorkerStarted()
 	{
-		var generation = _generation;
-		if (generation.WorkerTask is { IsCompleted: false })
+		if (_workerTask is not null)
 			return;
 
-		var workerIdentity = new object();
-		generation.WorkerIdentity = workerIdentity;
-		generation.WorkerTask     = Task.Run(() => RunWorker(generation, workerIdentity), generation.Token);
+		var generation = _generation;
+		var cancellation = new WorkerCancellationSource();
+		_workerGeneration   = generation;
+		_workerCancellation = cancellation;
+		_workerTask         = Task.Run(() => RunWorker(generation, cancellation));
 	}
 
 	private TaskCompletionSource<ImmutableDictionary<string, MoveClassification>> GetOrCreateWaiter(string positionKey)
@@ -199,8 +199,9 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 		return waiter;
 	}
 
-	private void RunWorker(WorkerGeneration generation, object workerIdentity)
+	private void RunWorker(long generation, WorkerCancellationSource cancellation)
 	{
+		var ct = cancellation.Token;
 		try
 		{
 			while (true)
@@ -209,19 +210,11 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 				bool shouldRetire;
 				lock (_sync)
 				{
-					if (!ReferenceEquals(_generation, generation))
+					if (_generation != generation)
 						return;
 
 					shouldRetire = _pendingPositions.Count == 0;
-					if (shouldRetire)
-					{
-						if (ReferenceEquals(generation.WorkerIdentity, workerIdentity))
-						{
-							generation.WorkerIdentity = null;
-							generation.WorkerTask     = null;
-						}
-					}
-					else
+					if (!shouldRetire)
 						position = _pendingPositions.Dequeue();
 				}
 
@@ -233,17 +226,19 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 
 				try
 				{
-					var completed = Classify(position, generation);
+					var completed = Classify(position, generation, ct);
 					lock (_sync)
 					{
-						if (!ReferenceEquals(_generation, generation))
+						if (_generation != generation || ct.IsCancellationRequested)
 							return;
 
+						_classificationsByPosition[position.PositionKey] = completed;
 						_queuedPositionKeys.Remove(position.PositionKey);
-						GetOrCreateWaiter(position.PositionKey).TrySetResult(completed);
+						if (_waiters.Remove(position.PositionKey, out var waiter))
+							waiter.TrySetResult(completed);
 					}
 				}
-				catch (OperationCanceledException) when (generation.Token.IsCancellationRequested)
+				catch (OperationCanceledException) when (ct.IsCancellationRequested)
 				{
 					return;
 				}
@@ -251,11 +246,12 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 				{
 					lock (_sync)
 					{
-						if (!ReferenceEquals(_generation, generation))
+						if (_generation != generation)
 							return;
 
 						_queuedPositionKeys.Remove(position.PositionKey);
-						GetOrCreateWaiter(position.PositionKey).TrySetException(ex);
+						if (_waiters.Remove(position.PositionKey, out var waiter))
+							waiter.TrySetException(ex);
 					}
 
 					throw;
@@ -266,74 +262,101 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 		{
 			lock (_sync)
 			{
-				if (ReferenceEquals(_generation, generation) &&
-					ReferenceEquals(generation.WorkerIdentity, workerIdentity))
+				if (_workerGeneration == generation && ReferenceEquals(_workerCancellation, cancellation))
 				{
-					generation.WorkerIdentity = null;
-					generation.WorkerTask     = null;
+					_workerCancellation = null;
+					_workerTask         = null;
 					if (_pendingPositions.Count > 0)
 						EnsureWorkerStarted();
 				}
 			}
+
+			cancellation.Dispose();
 		}
 	}
 
 	private ImmutableDictionary<string, MoveClassification> Classify(
 		PendingClassificationPosition position,
-		WorkerGeneration              generation)
+		long                          generation,
+		CancellationToken             ct)
 	{
-		foreach (string move in position.LegalMoves)
+		ImmutableDictionary<string, MoveClassification> existing;
+		lock (_sync)
 		{
-			generation.Token.ThrowIfCancellationRequested();
-
-			MoveClassification current = default;
-			var hasResolved = false;
-			lock (_sync)
-			{
-				ThrowIfRetired(generation);
-				hasResolved = _classificationsByPosition.TryGetValue(position.PositionKey, out var known) &&
-							  known.TryGetValue(move, out current) &&
-							  current.IsResolved;
-			}
-
-			var resolved = hasResolved
-							   ? current
-							   : _classifyMoveFully(position.Fen, move);
-			generation.Token.ThrowIfCancellationRequested();
-
-			lock (_sync)
-			{
-				ThrowIfRetired(generation);
-				_classificationsByPosition[position.PositionKey] =
-					GetKnown(position.PositionKey).SetItem(move, resolved);
-			}
+			ThrowIfRetired(generation, ct);
+			existing = _classificationsByPosition[position.PositionKey];
 		}
+
+		var completed = _classifyFully(position.Fen, position.LegalMoves, ct);
+		ct.ThrowIfCancellationRequested();
+		completed = MergeClassifications(completed, existing);
 
 		lock (_sync)
 		{
-			ThrowIfRetired(generation);
-			return GetKnown(position.PositionKey);
+			ThrowIfRetired(generation, ct);
 		}
+
+		return completed;
 	}
 
-	private void ThrowIfRetired(WorkerGeneration generation)
+	private void ThrowIfRetired(long generation, CancellationToken ct)
 	{
-		if (!ReferenceEquals(_generation, generation))
-			throw new OperationCanceledException(generation.Token);
+		if (_generation != generation)
+			throw new OperationCanceledException(ct);
 	}
 
-	private sealed class WorkerGeneration
+	private sealed class WorkerCancellationSource : IDisposable
 	{
-		public WorkerGeneration()
+		private readonly CancellationTokenSource _source = new();
+		private readonly object                  _sync = new();
+		private          int                     _activeCancellations;
+		private          bool                    _disposeRequested;
+
+		public CancellationToken Token => _source.Token;
+
+		public void Cancel()
 		{
-			CancellationSource = new();
-			Token              = CancellationSource.Token;
+			lock (_sync)
+			{
+				if (_disposeRequested)
+					return;
+
+				_activeCancellations++;
+			}
+
+			try
+			{
+				_source.Cancel();
+			}
+			finally
+			{
+				bool dispose;
+				lock (_sync)
+				{
+					_activeCancellations--;
+					dispose = _disposeRequested && _activeCancellations == 0;
+				}
+
+				if (dispose)
+					_source.Dispose();
+			}
 		}
 
-		public CancellationTokenSource CancellationSource { get; }
-		public CancellationToken       Token              { get; }
-		public object?                 WorkerIdentity     { get; set; }
-		public Task?                   WorkerTask         { get; set; }
+		public void Dispose()
+		{
+			bool dispose;
+			lock (_sync)
+			{
+				if (_disposeRequested)
+					return;
+
+				_disposeRequested = true;
+				dispose = _activeCancellations == 0;
+			}
+
+			if (dispose)
+				_source.Dispose();
+		}
 	}
 
 	private readonly record struct PendingClassificationPosition(

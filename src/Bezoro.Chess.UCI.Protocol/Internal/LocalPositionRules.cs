@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 
 namespace Bezoro.Chess.UCI.Protocol.Internal;
 
@@ -122,7 +123,13 @@ internal static partial class LocalPositionRules
 
 	internal static ImmutableDictionary<string, MoveClassification> ClassifyMovesFully(
 		Fen                 fen,
-		IEnumerable<string> legalMoves)
+		IEnumerable<string> legalMoves) =>
+		ClassifyMovesFully(fen, legalMoves, default);
+
+	internal static ImmutableDictionary<string, MoveClassification> ClassifyMovesFully(
+		Fen                 fen,
+		IEnumerable<string> legalMoves,
+		CancellationToken   ct)
 	{
 		if (legalMoves is null) throw new ArgumentNullException(nameof(legalMoves));
 
@@ -130,6 +137,7 @@ internal static partial class LocalPositionRules
 		LocalPositionState? state = null;
 		foreach (string move in legalMoves)
 		{
+			ct.ThrowIfCancellationRequested();
 			string normalizedMove = NormalizeMove(move);
 			state ??= Parse(fen);
 			var structural = ClassifyNormalized(state.Value, normalizedMove);

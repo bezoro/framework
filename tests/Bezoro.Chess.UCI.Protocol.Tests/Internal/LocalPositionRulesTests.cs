@@ -71,4 +71,25 @@ public sealed class LocalPositionRulesTests
 		LocalPositionRules.BuildRepetitionKey(changed)
 			.Should().NotBe(LocalPositionRules.BuildRepetitionKey(baseline));
 	}
+
+	[Fact]
+	public void ClassifyMovesFully_WhenCancellationArrivesBetweenMoves_ShouldStopBeforeNextMove()
+	{
+		using var cancellation = new CancellationTokenSource();
+
+		Action classify = () => LocalPositionRules.ClassifyMovesFully(
+			Fen.Default,
+			CancelBeforeSecondMove(cancellation),
+			cancellation.Token
+		);
+
+		classify.Should().Throw<OperationCanceledException>();
+	}
+
+	private static IEnumerable<string> CancelBeforeSecondMove(CancellationTokenSource cancellation)
+	{
+		yield return "e2e4";
+		cancellation.Cancel();
+		yield return "not-a-move";
+	}
 }

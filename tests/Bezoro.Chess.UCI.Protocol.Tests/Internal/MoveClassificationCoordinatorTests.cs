@@ -10,13 +10,21 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Internal;
 public class MoveClassificationCoordinatorTests
 {
 	[Fact]
-	public async Task Enqueue_WhenWorkArrivesWhileWorkerRetires_ShouldStartReplacementWorker()
+	public async Task Enqueue_WhenWorkArrivesWhileWorkerRetires_ShouldRetainWorkerOwnershipAndRunQueuedWork()
 	{
 		using var workerRetiring = new ManualResetEventSlim();
 		using var releaseRetiringWorker = new ManualResetEventSlim();
+		using var secondClassifierEntered = new ManualResetEventSlim();
 		var retirementCalls = 0;
+		var classifierCalls = 0;
 		using var coordinator = new MoveClassificationCoordinator(
-			(fen, move) => fen.ClassifyMove(move).WithTacticalOutcome(false, false, false),
+			(fen, moves, _) =>
+			{
+				if (Interlocked.Increment(ref classifierCalls) == 2)
+					secondClassifierEntered.Set();
+
+				return ClassifyFully(fen, moves, false, false, false);
+			},
 			() =>
 			{
 				if (Interlocked.Increment(ref retirementCalls) != 1)
@@ -33,7 +41,13 @@ public class MoveClassificationCoordinatorTests
 		try
 		{
 			workerRetiring.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+			var retiringWorker = coordinator.ActiveWorker;
+			retiringWorker.Should().NotBeNull();
 			coordinator.Enqueue("second", Fen.Default, ImmutableArray.Create("d2d4"));
+
+			coordinator.ActiveWorker.Should().BeSameAs(retiringWorker);
+			secondClassifierEntered.IsSet.Should().BeFalse();
+			releaseRetiringWorker.Set();
 
 			var completed = await coordinator.WaitAsync("second").WaitAsync(TimeSpan.FromSeconds(5));
 			completed["d2d4"].IsResolved.Should().BeTrue();
@@ -45,7 +59,7 @@ public class MoveClassificationCoordinatorTests
 	}
 
 	[Fact]
-	public async Task Cancel_WhenRetiredWorkerCompletesAfterReplacement_ShouldIgnoreRetiredResult()
+	public async Task Cancel_WhenReplacementIsQueuedBeforeRetiredWorkerCompletes_ShouldSerializeAndIgnoreRetiredResult()
 	{
 		using var firstClassifierEntered = new ManualResetEventSlim();
 		using var firstClassifierReturned = new ManualResetEventSlim();
@@ -53,20 +67,31 @@ public class MoveClassificationCoordinatorTests
 		using var secondClassifierEntered = new ManualResetEventSlim();
 		using var releaseSecondClassifier = new ManualResetEventSlim();
 		var classifierCalls = 0;
+		var activeClassifiers = 0;
+		var maximumClassifierConcurrency = 0;
 		using var coordinator = new MoveClassificationCoordinator(
-			(fen, move) =>
+			(fen, moves, _) =>
 			{
-				if (Interlocked.Increment(ref classifierCalls) == 1)
+				var active = Interlocked.Increment(ref activeClassifiers);
+				InterlockedExtensions.Max(ref maximumClassifierConcurrency, active);
+				try
 				{
-					firstClassifierEntered.Set();
-					releaseFirstClassifier.Wait();
-					firstClassifierReturned.Set();
-					return fen.ClassifyMove(move).WithTacticalOutcome(true, false, false);
-				}
+					if (Interlocked.Increment(ref classifierCalls) == 1)
+					{
+						firstClassifierEntered.Set();
+						releaseFirstClassifier.Wait();
+						firstClassifierReturned.Set();
+						return ClassifyFully(fen, moves, true, false, false);
+					}
 
-				secondClassifierEntered.Set();
-				releaseSecondClassifier.Wait();
-				return fen.ClassifyMove(move).WithTacticalOutcome(false, false, true);
+					secondClassifierEntered.Set();
+					releaseSecondClassifier.Wait();
+					return ClassifyFully(fen, moves, false, false, true);
+				}
+				finally
+				{
+					Interlocked.Decrement(ref activeClassifiers);
+				}
 			}
 		);
 
@@ -80,16 +105,13 @@ public class MoveClassificationCoordinatorTests
 
 			coordinator.Cancel();
 			coordinator.Enqueue("starting-position", Fen.Default, ImmutableArray.Create("e2e4"));
-			secondClassifierEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
-			var replacementWorker = coordinator.ActiveWorker;
-			replacementWorker.Should().NotBeNull();
-
-			coordinator.Enqueue("starting-position", Fen.Default, ImmutableArray.Create("e2e4"));
-			coordinator.ActiveWorker.Should().BeSameAs(replacementWorker);
+			coordinator.ActiveWorker.Should().BeSameAs(retiredWorker);
+			secondClassifierEntered.IsSet.Should().BeFalse();
 
 			releaseFirstClassifier.Set();
 			firstClassifierReturned.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 			await retiredWorker!.WaitAsync(TimeSpan.FromSeconds(5));
+			secondClassifierEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
 			coordinator.GetKnown("starting-position")["e2e4"].IsResolved.Should().BeFalse();
 			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retiredWaiter);
@@ -99,6 +121,7 @@ public class MoveClassificationCoordinatorTests
 			completed["e2e4"].IsStalemate.Should().BeTrue();
 			completed["e2e4"].IsCheck.Should().BeFalse();
 			classifierCalls.Should().Be(2);
+			maximumClassifierConcurrency.Should().Be(1);
 		}
 		finally
 		{
@@ -111,7 +134,7 @@ public class MoveClassificationCoordinatorTests
 	public async Task CancelPendingAndRetain_WhenPositionIsRetained_ShouldKeepCachedClassification()
 	{
 		using var coordinator = new MoveClassificationCoordinator(
-			(fen, move) => fen.ClassifyMove(move).WithTacticalOutcome(true, false, false)
+			(fen, moves, _) => ClassifyFully(fen, moves, true, false, false)
 		);
 		coordinator.Enqueue("starting-position", Fen.Default, ImmutableArray.Create("e2e4"));
 		await coordinator.WaitAsync("starting-position").WaitAsync(TimeSpan.FromSeconds(5));
@@ -127,7 +150,7 @@ public class MoveClassificationCoordinatorTests
 	public async Task Cancel_WhenPositionIsCached_ShouldClearCachedClassification()
 	{
 		using var coordinator = new MoveClassificationCoordinator(
-			(fen, move) => fen.ClassifyMove(move).WithTacticalOutcome(true, false, false)
+			(fen, moves, _) => ClassifyFully(fen, moves, true, false, false)
 		);
 		coordinator.Enqueue("starting-position", Fen.Default, ImmutableArray.Create("e2e4"));
 		await coordinator.WaitAsync("starting-position").WaitAsync(TimeSpan.FromSeconds(5));
@@ -142,10 +165,10 @@ public class MoveClassificationCoordinatorTests
 	{
 		var classifierCalls = 0;
 		var coordinator = new MoveClassificationCoordinator(
-			(fen, move) =>
+			(fen, moves, _) =>
 			{
 				Interlocked.Increment(ref classifierCalls);
-				return fen.ClassifyMove(move).WithTacticalOutcome(false, false, false);
+				return ClassifyFully(fen, moves, false, false, false);
 			}
 		);
 
@@ -168,33 +191,37 @@ public class MoveClassificationCoordinatorTests
 	}
 
 	[Fact]
-	public async Task Enqueue_WhenClassificationIsInProgress_ShouldPublishResolvedMovesProgressively()
+	public async Task Enqueue_WhenClassificationIsInProgress_ShouldPublishCompletedBatchAtomically()
 	{
-		var classifierCalls = 0;
-		var knownBeforeSecondClassification = new TaskCompletionSource<ImmutableDictionary<string, MoveClassification>>(
-			TaskCreationOptions.RunContinuationsAsynchronously
-		);
+		using var classifierEntered = new ManualResetEventSlim();
+		using var releaseClassifier = new ManualResetEventSlim();
 		MoveClassificationCoordinator? coordinator = null;
 		coordinator = new(
-			(fen, move) =>
+			(fen, moves, _) =>
 			{
-				if (Interlocked.Increment(ref classifierCalls) == 2)
-					knownBeforeSecondClassification.SetResult(coordinator!.GetKnown("starting-position"));
-
-				return fen.ClassifyMove(move).WithTacticalOutcome(false, false, false);
+				classifierEntered.Set();
+				releaseClassifier.Wait();
+				return ClassifyFully(fen, moves, false, false, false);
 			}
 		);
 		using (coordinator)
 		{
-			coordinator.Enqueue(
-				"starting-position",
-				Fen.Default,
-				ImmutableArray.Create("e2e4", "g1f3")
-			);
+			try
+			{
+				coordinator.Enqueue(
+					"starting-position",
+					Fen.Default,
+					ImmutableArray.Create("e2e4", "g1f3")
+				);
 
-			var known = await knownBeforeSecondClassification.Task.WaitAsync(TimeSpan.FromSeconds(5));
-			known["e2e4"].IsResolved.Should().BeTrue();
-			known["g1f3"].IsResolved.Should().BeFalse();
+				classifierEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+				coordinator.GetKnown("starting-position").Values
+					.Should().OnlyContain(static classification => !classification.IsResolved);
+			}
+			finally
+			{
+				releaseClassifier.Set();
+			}
 
 			var completed = await coordinator.WaitAsync("starting-position").WaitAsync(TimeSpan.FromSeconds(5));
 			completed.Values.Should().OnlyContain(static classification => classification.IsResolved);
@@ -207,11 +234,11 @@ public class MoveClassificationCoordinatorTests
 		using var classifierEntered = new ManualResetEventSlim();
 		using var releaseClassifier = new ManualResetEventSlim();
 		using var coordinator = new MoveClassificationCoordinator(
-			(fen, move) =>
+			(fen, moves, _) =>
 			{
 				classifierEntered.Set();
 				releaseClassifier.Wait();
-				return fen.ClassifyMove(move).WithTacticalOutcome(false, false, false);
+				return ClassifyFully(fen, moves, false, false, false);
 			}
 		);
 
@@ -231,6 +258,34 @@ public class MoveClassificationCoordinatorTests
 		{
 			releaseClassifier.Set();
 			await enqueueTask.WaitAsync(TimeSpan.FromSeconds(5));
+		}
+	}
+
+	private static ImmutableDictionary<string, MoveClassification> ClassifyFully(
+		Fen                    fen,
+		ImmutableArray<string> moves,
+		bool                   isCheck,
+		bool                   isCheckmate,
+		bool                   isStalemate) =>
+		moves.ToImmutableDictionary(
+			static move => move,
+			move => fen.ClassifyMove(move).WithTacticalOutcome(isCheck, isCheckmate, isStalemate),
+			StringComparer.Ordinal
+		);
+
+	private static class InterlockedExtensions
+	{
+		public static void Max(ref int location, int value)
+		{
+			var current = Volatile.Read(ref location);
+			while (current < value)
+			{
+				var observed = Interlocked.CompareExchange(ref location, value, current);
+				if (observed == current)
+					return;
+
+				current = observed;
+			}
 		}
 	}
 }
