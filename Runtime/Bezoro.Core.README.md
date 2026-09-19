@@ -38,7 +38,49 @@ using var handle = pool.RentHandle();
 handle.Value.Append("Hello, pooled world!");
 
 var stats = pool.Statistics;
+
+// Choose lifecycle intent explicitly:
+pool.Clear();                  // Dispose available IDisposable values.
+pool.ClearWithPolicyDiscard(); // Route available values through the policy discard callback.
 ```
+
+### Collections and Lifecycle APIs
+
+```csharp
+using Bezoro.Core.Types;
+
+var entityIds = new SwapbackArray<int> { 10, 20, 30 };
+if (entityIds.TryGetIndex(20, out uint index))
+	Console.WriteLine($"Entity 20 is at {index}.");
+
+entityIds.ClearRetainingCapacity(); // Reuse the allocation.
+entityIds.Clear();                   // Clear and shrink to minimum capacity.
+
+Singleton<GameServices>.ConfigureFactory(() => new GameServices());
+Singleton<GameServices>.ConfigureFactoryAndRecreate(() => new GameServices());
+Singleton<GameServices>.Reset();
+Singleton<GameServices>.ResetAndDispose();
+```
+
+Use the named lifecycle methods to make disposal, recreation, capacity retention, and policy-discard behavior explicit at
+the call site.
+
+### String and Enum Formatting
+
+```csharp
+using Bezoro.Core.Extensions;
+using Bezoro.Core.Types;
+
+var namedColor = "warning".Color("red");
+var rgbaColor = "warning".Color(new Color(1f, 0f, 0f, 1f));
+
+var enumLabel = GameState.Running.ToString().Bold().Color("green");
+```
+
+`Color(string)` and `Color(Color)` are the primary color APIs. Format enum values through `ToString()` and then compose
+the regular string extensions. `ColorHex`, parameterless named-color string methods, and enum styling wrappers remain
+callable during the compatibility window with their existing output, but are obsolete and should be migrated to these
+canonical forms.
 
 ### Result + Try Helpers
 
@@ -73,15 +115,18 @@ grid[2, 3] = 5;
 | --- | --- |
 | `ObjectPool<T>` | Rents reusable objects with configurable capacity, reset, exhaustion, and async-wait policies. |
 | `SwapbackArray<T>` | Stores unordered values with constant-time removal by replacing a removed slot with the final item. |
+| `Singleton<T>` | Provides explicit configure, recreate, reset, and dispose lifecycle operations for a shared instance. |
 | `Result<T>` / `ResultFactory` | Represents explicit success or a typed failure reason. |
 | `Try` | Wraps exception-producing operations in compact success/value results. |
 | `Grid2D<T>` / `GridSpan2D<T>` | Provides owned and non-owning two-dimensional storage views. |
 | `Percent` / `Color` | Provides validated, format-aware value types for common framework data. |
+| String formatting extensions | Compose rich-text formatting with canonical `Color(string)` and `Color(Color)` overloads. |
 | `CodeWriter` / `CSharpCodeBuilder` | Builds deterministic generated source text. |
 
 ## Feature Notes
 
 - `SwapbackArray<T>` does not preserve item order after removal.
+- `TryGetIndex(T, out uint)` returns `false` with index zero when an item is absent.
 - Pooling APIs expose statistics and scoped handles; dispose rented handles to return their values.
 - Compatibility shims are compiled only where the target framework lacks the corresponding runtime type.
 - Performance-sensitive collections and spans avoid allocations where their ownership contract permits it.

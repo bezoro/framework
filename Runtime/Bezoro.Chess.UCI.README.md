@@ -250,7 +250,7 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 | `WaitForClassificationAsync(ct)`                                  | Waits for all legal moves to be classified.                         |
 | `MakeMoveAsync(move, ct)` / `MakeMoveAsync(move, actor, ct)`      | Applies a legal move and refreshes state, optionally tagging the actor. |
 | `ChoosePromotionAsync(id, pieceType, ct)`                         | Resolves a pending promotion request and applies the completed move. |
-| `UndoAsync(count, ct)`                                            | Rewinds one or more played moves.                                   |
+| `UndoAsync(count, ct)`                                            | Rewinds one or more played moves and restarts the high-level clock from its configured initial state. |
 | `ResignAsync(ct)`                                                 | Ends the current game immediately by resignation for the side to move. |
 | `OfferDrawAsync(ct)` / `AcceptDrawAsync(ct)` / `DeclineDrawAsync(ct)` / `ClaimDrawAsync(ct)` | Drives draw-offer and claimable-draw flows backed by protocol rules. |
 | `PauseClockAsync(ct)` / `ResumeClockAsync(ct)`                    | Pauses or resumes the configured match clock.                       |
@@ -350,6 +350,9 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 - New integrations should prefer `EventPublished`; focused subscriptions should use canonical named events such as `EvaluationChanged`, `MoveClassified`, and `Error`.
 - Obsolete compatibility aliases (`EvaluationUpdated`, `MoveClassificationUpdated`, and `EngineError`) remain for source compatibility only.
 - Resign, draw offer/claim, adjudicated result, and chess-clock state are projected from protocol-backed match rules rather than reimplemented by the consumer.
+- High-level clock operations use the same deterministic clock kernel as the protocol session. The high-level session publishes its live post-move snapshot after the engine position reload, so reload latency is charged to the newly active side.
+- `UndoAsync` intentionally reloads the retained position and resets both sides to the configured initial time, base stage, and zero completed clock moves. This differs from `UciPlayableMatchSession.UndoMoves`, which restores a retained clock checkpoint and restarts that retained turn.
+- Move completion debits the clock before the engine position reload. If that reload fails, the clock checkpoint has advanced while the visible position remains unchanged; reload or reset the match before retrying the move. This transaction boundary remains a known limitation.
 - The session builds on protocol-owned local FEN and legal-move generation for playable match flow, while engine-specific `d` and `go perft 1` remain available only as optional low-level escape hatches on `UciEngineClient`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so session state can safely retain and rebroadcast them across threads.
