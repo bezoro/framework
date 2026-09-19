@@ -141,6 +141,54 @@ public class ArrayWordProviderTests
 		word.Should().Be(ReadOnlyMemory<char>.Empty);
 	}
 
+	[Theory]
+	[InlineData(1)]
+	[InlineData(10_000)]
+	public async Task TryGetNextWord_WhenConsumedConcurrently_ShouldReturnEachWordExactlyOnce(int wordCount)
+	{
+		const int consumerCount = 8;
+		var words = Enumerable.Range(0, wordCount).Select(index => $"word-{index}").ToArray();
+		IWordSource source = new ArrayWordProvider(words);
+		using var start = new Barrier(consumerCount);
+
+		var consumers = Enumerable.Range(0, consumerCount).Select(_ => Task.Factory.StartNew(() =>
+		{
+			if (!start.SignalAndWait(TimeSpan.FromSeconds(30)))
+				throw new TimeoutException("Concurrent consumers did not reach the start barrier.");
+
+			var consumed = new List<string>();
+			while (source.TryGetNextWord(out var word)) consumed.Add(word.ToString());
+
+			source.TryGetNextWord(out var exhausted).Should().BeFalse();
+			exhausted.Should().Be(ReadOnlyMemory<char>.Empty);
+			return consumed;
+		}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+
+		var batches = await Task.WhenAll(consumers);
+		var consumedWords = batches.SelectMany(batch => batch).ToArray();
+		consumedWords.Should().HaveCount(wordCount);
+		consumedWords.Order(StringComparer.Ordinal).Should().Equal(words.Order(StringComparer.Ordinal));
+	}
+
+	[Fact]
+	public void TryGetNextWord_WhenWordIsAddedAfterRepeatedExhaustion_ShouldConsumeAppendedWord()
+	{
+		var provider = new ArrayWordProvider(["one"]);
+		IWordSource source = provider;
+		_ = source.TryGetNextWord(out _);
+		for (var attempt = 0; attempt < 10; attempt++)
+		{
+			source.TryGetNextWord(out var exhausted).Should().BeFalse();
+			exhausted.Should().Be(ReadOnlyMemory<char>.Empty);
+		}
+
+		provider.AddWord("two".AsMemory());
+
+		source.TryGetNextWord(out var word).Should().BeTrue();
+		word.ToString().Should().Be("two");
+		source.TryGetNextWord(out _).Should().BeFalse();
+	}
+
 	[Fact]
 	public void RemoveWord_WhenWordDoesNotExist_ShouldThrowInvalidOperationException()
 	{

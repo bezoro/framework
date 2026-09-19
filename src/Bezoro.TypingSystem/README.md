@@ -55,6 +55,8 @@ Use `TypingState.WithCorrect()` and `TypingState.WithMistake()` to derive the ne
 
 Use `IWordSource.TryGetNextWord` as the consumption contract. It atomically reports exhaustion and returns empty memory when no word remains. `ArrayWordProvider` owns the concrete `AddWord`, `AddWords`, `RemoveWord`, `ClearWords`, and `WordCount` mutation and inspection operations.
 
+`ArrayWordProvider` supports concurrent consumers: each stored word is reserved by at most one successful call. Exhausted reads do not advance the cursor, so words appended afterward remain available. Mutations, including file loading, must be externally synchronized with all other operations on the provider. The obsolete `HasMoreWords` property is only a snapshot; use `TryGetNextWord` to consume safely.
+
 Load one word per line during caller-controlled setup through the focused file adapter:
 
 ```csharp

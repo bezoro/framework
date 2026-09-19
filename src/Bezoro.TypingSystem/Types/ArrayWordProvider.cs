@@ -8,10 +8,14 @@ namespace Bezoro.TypingSystem.Types;
 /// <summary>
 ///     A word provider that uses an internal array (via <see cref="SwapbackArray{T}" />) to store words.
 /// </summary>
+/// <remarks>
+///     Concurrent calls to <see cref="TryGetNextWord" /> consume each stored word at most once.
+///     Mutations must be externally synchronized with all other operations on this provider.
+/// </remarks>
 public sealed class ArrayWordProvider : IWordProvider
 {
 	private readonly SwapbackArray<string> _words;
-	private          uint                  _index;
+	private          int                   _index;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="ArrayWordProvider" /> class with the specified words.
@@ -27,7 +31,7 @@ public sealed class ArrayWordProvider : IWordProvider
 
 	/// <inheritdoc />
 	[Obsolete("Use TryGetNextWord(out ReadOnlyMemory<char>) instead.")]
-	public bool HasMoreWords => _index < _words.Count;
+	public bool HasMoreWords => Volatile.Read(ref _index) < _words.Count;
 
 	/// <inheritdoc />
 	public uint WordCount => _words.Count;
@@ -67,14 +71,21 @@ public sealed class ArrayWordProvider : IWordProvider
 	/// <inheritdoc />
 	public bool TryGetNextWord(out ReadOnlyMemory<char> word)
 	{
-		if (_index >= _words.Count)
+		while (true)
 		{
-			word = ReadOnlyMemory<char>.Empty;
-			return false;
-		}
+			var index = Volatile.Read(ref _index);
+			if (index >= _words.Count)
+			{
+				word = ReadOnlyMemory<char>.Empty;
+				return false;
+			}
 
-		word = _words[_index++].AsMemory();
-		return true;
+			// Failed reads must not advance past words appended after exhaustion.
+			if (Interlocked.CompareExchange(ref _index, index + 1, index) != index) continue;
+
+			word = _words[(uint)index].AsMemory();
+			return true;
+		}
 	}
 
 	ReadOnlyMemory<char> IWordProvider.GetNextWord()
