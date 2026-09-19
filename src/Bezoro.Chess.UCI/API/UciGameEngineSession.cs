@@ -28,12 +28,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private readonly PlayableMatchDrawOfferPolicy _drawOfferPolicy;
 	private readonly GameEngineEventDispatcher        _events;
 	private readonly MatchSideControllerKind          _blackController;
-	private readonly List<ClockCheckpoint>            _clockHistory = [];
+	private readonly List<PlayableMatchClockCheckpoint> _clockHistory = [];
 	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
 	private readonly UciPonderRuntime                 _ponder;
 	private readonly SerializedUciEngineClientRuntime _snapshotClient;
 	private readonly PlayableMatchTimeControl?        _timeControl;
+	private readonly Func<DateTimeOffset>              _utcNowProvider;
 	private readonly MatchSideControllerKind          _whiteController;
 
 	private readonly UciCoordinatorOptions _options;
@@ -48,7 +49,6 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private PlayableMatchResult      _forcedResult;
 	private PlayableMatchResult?     _claimableResult;
 	private char?                    _drawOfferedBy;
-	private bool                     _isClockPaused;
 	private PlayableMatchResult      _lastResult;
 	private CoordinatorPendingPromotionRequest? _pendingPromotion;
 
@@ -282,7 +282,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciCoordinatorOptions?  options     = null,
 		char                    perspectiveColor = 'w',
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
-		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
+		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual,
+		Func<DateTimeOffset>?    utcNowProvider   = null)
 	{
 		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
@@ -294,6 +295,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_whiteController       = whiteController;
 		_blackController       = blackController;
 		_timeControl           = _options.TimeControl;
+		_utcNowProvider        = utcNowProvider ?? (static () => DateTimeOffset.UtcNow);
 		_timeControl?.Validate();
 		_claimableDrawPolicy   = _options.ClaimableDrawPolicy;
 		_drawOfferPolicy       = _options.DrawOfferPolicy;
@@ -1260,12 +1262,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public Task<UciState> PauseClockAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		if (!_timeControl.HasValue || _isClockPaused || _clockHistory.Count == 0)
+		if (!_timeControl.HasValue || _clockHistory.Count == 0 || _clockHistory[^1].PausedAtUtc.HasValue)
 			return Task.FromResult(State);
 
-		var checkpoint = _clockHistory[^1];
-		_clockHistory[^1] = checkpoint with { PausedAtUtc = DateTimeOffset.UtcNow };
-		_isClockPaused = true;
+		_clockHistory[^1] = PlayableMatchClockKernel.Pause(_clockHistory[^1], _utcNowProvider());
 		var snapshot = UpdateMatchMetadata();
 		RaiseStateEvent(ClockPaused, UciGameEngineSessionEventKind.ClockPaused, snapshot);
 		return Task.FromResult(snapshot);
@@ -1277,18 +1277,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public Task<UciState> ResumeClockAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		if (!_timeControl.HasValue || !_isClockPaused || _clockHistory.Count == 0)
+		if (!_timeControl.HasValue || _clockHistory.Count == 0 || !_clockHistory[^1].PausedAtUtc.HasValue)
 			return Task.FromResult(State);
 
-		var checkpoint = _clockHistory[^1];
-		var now = DateTimeOffset.UtcNow;
-		var pausedDuration = checkpoint.PausedAtUtc.HasValue ? now - checkpoint.PausedAtUtc.Value : TimeSpan.Zero;
-		_clockHistory[^1] = checkpoint with
-		{
-			PausedAccumulated = checkpoint.PausedAccumulated + pausedDuration,
-			PausedAtUtc = null
-		};
-		_isClockPaused = false;
+		_clockHistory[^1] = PlayableMatchClockKernel.Resume(_clockHistory[^1], _utcNowProvider());
 		var snapshot = UpdateMatchMetadata();
 		RaiseStateEvent(ClockResumed, UciGameEngineSessionEventKind.ClockResumed, snapshot);
 		return Task.FromResult(snapshot);
@@ -1354,7 +1346,6 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			_forcedResult           = default;
 			_claimableResult        = null;
 			_drawOfferedBy          = null;
-			_isClockPaused          = false;
 			_clockHistory.Clear();
 			_lastResult = default;
 		}
@@ -1667,33 +1658,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return null;
 
 		var clockSetup = setup.Value;
-		clockSetup.Validate();
-		if (clockSetup.ExactRestore.HasValue)
-			return clockSetup.ExactRestore.Value;
-
-		var moveCounts = ResolveCompletedMoveCounts(currentFen);
-		var activeMovesCompleted = currentFen.ActiveColor == 'w'
-			? moveCounts.White
-			: moveCounts.Black;
-
-		return new(
-			clockSetup.WhiteRemaining,
-			clockSetup.BlackRemaining,
-			currentFen.ActiveColor,
-			clockSetup.DelayRemaining,
-			clockSetup.IsPaused,
-			moveCounts.White,
-			moveCounts.Black,
-			GetStageIndexForSide(activeMovesCompleted),
-			clockSetup.SnapshotUtc ?? DateTimeOffset.UtcNow
-		);
-	}
-
-	private static (int White, int Black) ResolveCompletedMoveCounts(Fen currentFen)
-	{
-		var blackMoves = Math.Max(0, currentFen.FullmoveNumber - 1);
-		var whiteMoves = currentFen.ActiveColor == 'b' ? blackMoves + 1 : blackMoves;
-		return (whiteMoves, blackMoves);
+		var now = clockSetup.SnapshotUtc ?? _utcNowProvider();
+		return PlayableMatchClockKernel.CreateRestore(currentFen, clockSetup, _timeControl, now);
 	}
 
 	private void InitializeClocks(char activeColor)
@@ -1702,66 +1668,16 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (!_timeControl.HasValue)
 			return;
 
-		_clockHistory.Add(
-			new(
-				_timeControl.Value.InitialTime,
-				_timeControl.Value.InitialTime,
-				activeColor,
-				0,
-				0,
-				0,
-				DateTimeOffset.UtcNow,
-				null,
-				TimeSpan.Zero
-			)
-		);
+		_clockHistory.Add(PlayableMatchClockKernel.Initialize(_timeControl.Value, activeColor, _utcNowProvider()));
 	}
 
 	private void RestoreClock(char activeColor, PlayableMatchClockRestore restore)
 	{
-		restore.Validate();
 		if (!_timeControl.HasValue)
 			throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
 
-		if (restore.ActiveColor != activeColor)
-			throw new ArgumentException(
-				$"Restored active color '{restore.ActiveColor}' does not match loaded position active color '{activeColor}'.",
-				nameof(restore));
-
-		var restoredCheckpoint = new ClockCheckpoint(
-			restore.WhiteRemaining,
-			restore.BlackRemaining,
-			restore.ActiveColor,
-			restore.WhiteMovesCompleted,
-			restore.BlackMovesCompleted,
-			restore.ActiveStageIndex,
-			restore.SnapshotUtc,
-			null,
-			TimeSpan.Zero);
-		var stage = GetStageForSide(restoredCheckpoint, restore.ActiveColor);
-		if (restore.DelayRemaining > stage.DelayPerMove)
-			throw new ArgumentOutOfRangeException(nameof(restore), "Delay remaining cannot exceed the current stage delay.");
-
-		var expectedStageIndex = GetStageIndexForSide(
-			restore.ActiveColor == 'w'
-				? restore.WhiteMovesCompleted
-				: restore.BlackMovesCompleted);
-		if (restore.ActiveStageIndex != expectedStageIndex)
-			throw new ArgumentOutOfRangeException(
-				nameof(restore),
-				$"Active stage index '{restore.ActiveStageIndex}' does not match the restored move counts. Expected '{expectedStageIndex}'.");
-
-		var elapsedSinceTurnStart = stage.DelayPerMove - restore.DelayRemaining;
-		var turnStartedAtUtc = restore.SnapshotUtc - elapsedSinceTurnStart;
-		var pausedAtUtc = restore.IsPaused ? restore.SnapshotUtc : (DateTimeOffset?)null;
-
 		_clockHistory.Clear();
-		_clockHistory.Add(restoredCheckpoint with
-		{
-			TurnStartedAtUtc = turnStartedAtUtc,
-			PausedAtUtc = pausedAtUtc
-		});
-		_isClockPaused = restore.IsPaused;
+		_clockHistory.Add(PlayableMatchClockKernel.Restore(_timeControl.Value, activeColor, restore));
 	}
 
 	private void AdvanceClockForCompletedMove(char movingSide, DateTimeOffset? completedAtUtc = null)
@@ -1769,56 +1685,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (!_timeControl.HasValue || _clockHistory.Count == 0)
 			return;
 
-		var checkpoint = _clockHistory[^1];
-		var now = completedAtUtc ?? DateTimeOffset.UtcNow;
-		var elapsed = ComputeElapsed(checkpoint, now);
-		var whiteRemaining = checkpoint.WhiteRemaining;
-		var blackRemaining = checkpoint.BlackRemaining;
-		var whiteMoves = checkpoint.WhiteMovesCompleted;
-		var blackMoves = checkpoint.BlackMovesCompleted;
-
-		var stage = GetStageForSide(checkpoint, movingSide);
-		var delay = stage.DelayPerMove;
-		var mainElapsed = elapsed > delay ? elapsed - delay : TimeSpan.Zero;
-
-		if (movingSide == 'w')
-		{
-			whiteRemaining = whiteRemaining - mainElapsed;
-			if (whiteRemaining > TimeSpan.Zero)
-			{
-				whiteMoves++;
-				whiteRemaining += stage.IncrementPerMove;
-				whiteRemaining += GetAddedStageTime(whiteMoves);
-			}
-			else
-				whiteRemaining = TimeSpan.Zero;
-		}
-		else
-		{
-			blackRemaining = blackRemaining - mainElapsed;
-			if (blackRemaining > TimeSpan.Zero)
-			{
-				blackMoves++;
-				blackRemaining += stage.IncrementPerMove;
-				blackRemaining += GetAddedStageTime(blackMoves);
-			}
-			else
-				blackRemaining = TimeSpan.Zero;
-		}
-
-		_clockHistory.Add(
-			new(
-				whiteRemaining,
-				blackRemaining,
-				Opposite(movingSide),
-				whiteMoves,
-				blackMoves,
-				GetStageIndexForSide(Opposite(movingSide) == 'w' ? whiteMoves : blackMoves),
-				now,
-				null,
-				TimeSpan.Zero
-			)
-		);
+		var now = completedAtUtc ?? _utcNowProvider();
+		_clockHistory.Add(PlayableMatchClockKernel.CompleteMove(_timeControl.Value, _clockHistory[^1], movingSide, now));
 	}
 
 	private PlayableMatchClockState? GetClockSnapshot(DateTimeOffset? snapshotUtc = null)
@@ -1826,29 +1694,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (!_timeControl.HasValue || _clockHistory.Count == 0)
 			return null;
 
-		var checkpoint = _clockHistory[^1];
-		var now = snapshotUtc ?? DateTimeOffset.UtcNow;
-		var elapsed = ComputeElapsed(checkpoint, now);
-		var whiteRemaining = checkpoint.WhiteRemaining;
-		var blackRemaining = checkpoint.BlackRemaining;
-		var stage = GetStageForSide(checkpoint, checkpoint.ActiveColor);
-		var delayRemaining = elapsed < stage.DelayPerMove ? stage.DelayPerMove - elapsed : TimeSpan.Zero;
-		var mainElapsed = elapsed > stage.DelayPerMove ? elapsed - stage.DelayPerMove : TimeSpan.Zero;
-
-		if (checkpoint.ActiveColor == 'w')
-			whiteRemaining = ClampToZero(whiteRemaining - mainElapsed);
-		else
-			blackRemaining = ClampToZero(blackRemaining - mainElapsed);
-
-		return new(
-			whiteRemaining,
-			blackRemaining,
-			checkpoint.ActiveColor,
-			delayRemaining,
-			_isClockPaused,
-			checkpoint.ActiveStageIndex,
-			now
-		);
+		var now = snapshotUtc ?? _utcNowProvider();
+		return PlayableMatchClockKernel.Snapshot(_timeControl.Value, _clockHistory[^1], now);
 	}
 
 	private void EnsureTurnHasTimeRemaining(DateTimeOffset? snapshotUtc = null)
@@ -1892,7 +1739,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		if (legalMoves.Count == 0)
 		{
-			return LocalFenRules.IsCurrentPlayerInCheck(fen)
+			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
 				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
 				: new(new(PlayableMatchResultReason.Stalemate, null), null);
 		}
@@ -1900,7 +1747,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (fen.HalfmoveClock >= 100)
 			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
 
-		if (LocalFenRules.HasInsufficientMaterial(fen))
+		if (LocalPositionRules.HasInsufficientMaterial(fen))
 			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
 
 		if (CountRepetitions(fen) >= 3)
@@ -1911,11 +1758,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private int CountRepetitions(Fen currentFen)
 	{
-		string currentKey = LocalFenRules.BuildRepetitionKey(currentFen);
-		var count = LocalFenRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
+		string currentKey = LocalPositionRules.BuildRepetitionKey(currentFen);
+		var count = LocalPositionRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
 		foreach (var move in _appliedMoveHistory)
 		{
-			if (LocalFenRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
+			if (LocalPositionRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
 				count++;
 		}
 
@@ -1928,61 +1775,6 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		return _claimableDrawPolicy == PlayableMatchClaimableDrawPolicy.Automatic
 			? new(drawResult, null)
 			: new(default, drawResult);
-	}
-
-	private static TimeSpan ClampToZero(TimeSpan remaining) =>
-		remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
-
-	private TimeSpan ComputeElapsed(ClockCheckpoint checkpoint, DateTimeOffset now)
-	{
-		var effectiveNow = checkpoint.PausedAtUtc ?? now;
-		var elapsed = effectiveNow - checkpoint.TurnStartedAtUtc - checkpoint.PausedAccumulated;
-		return elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed;
-	}
-
-	private StageSettings GetStageForSide(ClockCheckpoint checkpoint, char side)
-	{
-		var movesCompleted = side == 'w' ? checkpoint.WhiteMovesCompleted : checkpoint.BlackMovesCompleted;
-		var stageIndex = GetStageIndexForSide(movesCompleted);
-		if (!_timeControl.HasValue || stageIndex == 0)
-		{
-			return new(
-				_timeControl?.IncrementPerMove ?? TimeSpan.Zero,
-				_timeControl?.DelayPerMove ?? TimeSpan.Zero
-			);
-		}
-
-		var stage = _timeControl.Value.AdditionalStages[stageIndex - 1];
-		return new(stage.IncrementPerMove, stage.DelayPerMove);
-	}
-
-	private int GetStageIndexForSide(int movesCompleted)
-	{
-		if (!_timeControl.HasValue || _timeControl.Value.AdditionalStages.IsDefaultOrEmpty)
-			return 0;
-
-		var index = 0;
-		for (var i = 0; i < _timeControl.Value.AdditionalStages.Length; i++)
-		{
-			if (movesCompleted >= _timeControl.Value.AdditionalStages[i].TriggerMovesPerSide)
-				index = i + 1;
-		}
-
-		return index;
-	}
-
-	private TimeSpan GetAddedStageTime(int movesCompleted)
-	{
-		if (!_timeControl.HasValue || _timeControl.Value.AdditionalStages.IsDefaultOrEmpty)
-			return TimeSpan.Zero;
-
-		foreach (var stage in _timeControl.Value.AdditionalStages)
-		{
-			if (movesCompleted == stage.TriggerMovesPerSide)
-				return stage.AddedTime;
-		}
-
-		return TimeSpan.Zero;
 	}
 
 	private static char Opposite(char color) => color == 'w' ? 'b' : 'w';
@@ -2279,26 +2071,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		}
 	}
 
-	private readonly record struct ClockCheckpoint(
-		TimeSpan        WhiteRemaining,
-		TimeSpan        BlackRemaining,
-		char            ActiveColor,
-		int             WhiteMovesCompleted,
-		int             BlackMovesCompleted,
-		int             ActiveStageIndex,
-		DateTimeOffset  TurnStartedAtUtc,
-		DateTimeOffset? PausedAtUtc,
-		TimeSpan        PausedAccumulated
-	);
-
 	private readonly record struct MatchOutcome(
 		PlayableMatchResult  Result,
 		PlayableMatchResult? ClaimableResult
-	);
-
-	private readonly record struct StageSettings(
-		TimeSpan IncrementPerMove,
-		TimeSpan DelayPerMove
 	);
 
 	private readonly record struct MetadataUpdate(

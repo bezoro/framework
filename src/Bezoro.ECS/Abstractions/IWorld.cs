@@ -16,13 +16,21 @@ public interface IWorld
 	/// <summary>
 	///     Attempts to retrieve a copy of component <typeparamref name="T" /> on <paramref name="entity" />.
 	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity to inspect.</param>
+	/// <param name="component">Receives the component value when present; otherwise the default value.</param>
 	/// <returns><c>true</c> if the component exists; <c>false</c> otherwise.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	bool TryGet<T>(Entity entity, out T component) where T : struct;
 
 	/// <summary>
-	///     Attempts to retrieve a copy of component <typeparamref name="T" /> on <paramref name="entity" />.
+	///     Attempts to read a copy of component <typeparamref name="T" /> on <paramref name="entity" />.
 	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity to inspect.</param>
+	/// <param name="component">Receives the component value when present; otherwise the default value.</param>
 	/// <returns><c>true</c> if the component exists; <c>false</c> otherwise.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	bool TryRead<T>(Entity entity, out T component) where T : struct;
 
 	/// <summary>Creates a new entity with no components and returns its handle.</summary>
@@ -50,28 +58,66 @@ public interface IWorld
 		where T3 : struct
 		where T4 : struct;
 
-	/// <summary>Returns a mutable reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	/// <summary>
+	///     Compatibility alias that returns the mutable reference produced by <see cref="Write{T}(Entity)" />.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity whose component is requested.</param>
+	/// <returns>A mutable reference to the component.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="entity" /> is dead or stale.</exception>
+	/// <exception cref="KeyNotFoundException">The entity does not have component <typeparamref name="T" />.</exception>
+	[Obsolete("Use Read<T>(Entity) for read-only access or Write<T>(Entity) for mutable access instead.")]
 	ref T Get<T>(Entity entity) where T : struct;
 
-	/// <summary>Returns a readonly reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	/// <summary>Reads component <typeparamref name="T" /> on <paramref name="entity" /> by readonly reference.</summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity whose component is requested.</param>
+	/// <returns>A readonly reference to the component.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="entity" /> is dead or stale.</exception>
+	/// <exception cref="KeyNotFoundException">The entity does not have component <typeparamref name="T" />.</exception>
 	ref readonly T Read<T>(Entity entity) where T : struct;
 
-	/// <summary>Returns a mutable reference to component <typeparamref name="T" /> on <paramref name="entity" />.</summary>
+	/// <summary>
+	///     Returns a mutable reference to component <typeparamref name="T" /> and tracks the access as a potential write.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="entity">Entity whose component is requested.</param>
+	/// <returns>A mutable reference to the component.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="entity" /> is dead or stale.</exception>
+	/// <exception cref="KeyNotFoundException">The entity does not have component <typeparamref name="T" />.</exception>
 	ref T Write<T>(Entity entity) where T : struct;
 
 	/// <summary>Attempts to retrieve a mutable reference wrapper for component <typeparamref name="T" />.</summary>
 	bool TryWrite<T>(Entity entity, out ComponentRef<T> component) where T : struct;
 
-	/// <summary>Returns a reference to the registered resource of type <typeparamref name="T" />.</summary>
+	/// <summary>
+	///     Compatibility alias that returns the mutable reference produced by <see cref="WriteResource{T}" />.
+	/// </summary>
+	/// <typeparam name="T">Resource type.</typeparam>
+	/// <returns>A mutable reference to the registered resource.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="KeyNotFoundException">No resource of type <typeparamref name="T" /> is registered.</exception>
+	[Obsolete("Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.")]
 	ref T GetResource<T>() where T : notnull;
 
 	/// <summary>Returns <c>true</c> if a resource of type <typeparamref name="T" /> is registered.</summary>
 	bool HasResource<T>() where T : notnull;
 
-	/// <summary>Returns a readonly reference to the registered resource of type <typeparamref name="T" />.</summary>
+	/// <summary>Reads the registered resource of type <typeparamref name="T" /> by readonly reference.</summary>
+	/// <typeparam name="T">Resource type.</typeparam>
+	/// <returns>A readonly reference to the registered resource.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="KeyNotFoundException">No resource of type <typeparamref name="T" /> is registered.</exception>
 	ref readonly T ReadResource<T>() where T : notnull;
 
 	/// <summary>Returns a mutable reference to the registered resource of type <typeparamref name="T" />.</summary>
+	/// <typeparam name="T">Resource type.</typeparam>
+	/// <returns>A mutable reference to the registered resource.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="KeyNotFoundException">No resource of type <typeparamref name="T" /> is registered.</exception>
 	ref T WriteResource<T>() where T : notnull;
 
 	/// <summary>Attempts to read a copy of the registered resource of type <typeparamref name="T" />.</summary>

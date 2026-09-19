@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Bezoro.Core.Abstractions;
 
 namespace Bezoro.Core.Types.Pool;
@@ -10,14 +9,14 @@ namespace Bezoro.Core.Types.Pool;
 /// </summary>
 /// <typeparam name="T">The type of the pooled object.</typeparam>
 /// <remarks>
-///     This is a mutable struct to support safe double-dispose handling via atomic exchange.
-///     Copies of the struct will have independent disposal state.
+///     This is a mutable struct whose copies share disposal state, ensuring the pooled object is returned only once.
 /// </remarks>
-[DebuggerDisplay("Value={_value}, IsDisposed={_pool == null}")]
+[DebuggerDisplay("Value={DebuggerValue}, IsDisposed={IsDisposed}")]
 public struct PooledObjectHandle<T> : IDisposable where T : class
 {
-	private IPool<T>? _pool;
-	private T?        _value;
+	private readonly PooledObjectHandleState<T>? _state;
+
+	private readonly T? DebuggerValue => _state?.DebuggerValue;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="PooledObjectHandle{T}" /> struct.
@@ -26,24 +25,19 @@ public struct PooledObjectHandle<T> : IDisposable where T : class
 	/// <param name="pool">The pool that owns the object.</param>
 	internal PooledObjectHandle(T value, IPool<T> pool)
 	{
-		_value = value;
-		_pool  = pool;
+		_state = new(value, pool);
 	}
 
 	/// <summary>
 	///     Gets whether this handle has been disposed.
 	/// </summary>
-	public readonly bool IsDisposed => _value is null;
+	public readonly bool IsDisposed => _state is null || _state.IsDisposed;
 
 	/// <summary>
 	///     Gets the pooled object.
 	/// </summary>
 	/// <exception cref="ObjectDisposedException">Thrown if accessed after disposal.</exception>
-	public readonly T Value
-	{
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => _value ?? throw new ObjectDisposedException(nameof(PooledObjectHandle<T>));
-	}
+	public readonly T Value => _state?.Value ?? throw new ObjectDisposedException(nameof(PooledObjectHandle<T>));
 
 	/// <summary>
 	///     Implicitly converts the handle to the underlying value.
@@ -55,13 +49,5 @@ public struct PooledObjectHandle<T> : IDisposable where T : class
 	/// <summary>
 	///     Returns the object to the pool. Safe to call multiple times.
 	/// </summary>
-	public void Dispose()
-	{
-		var value = Interlocked.Exchange(ref _value, null);
-		if (value is null)
-			return;
-
-		var pool = Interlocked.Exchange(ref _pool, null);
-		pool?.Return(value);
-	}
+	public void Dispose() => _state?.Dispose();
 }

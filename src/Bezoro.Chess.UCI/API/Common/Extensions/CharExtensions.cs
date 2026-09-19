@@ -129,7 +129,7 @@ public static class CharExtensions
 	public static char ThrowIfNotPieceChar(this char pieceChar)
 	{
 		pieceChar.ThrowIfNull().ThrowIfEmpty().ThrowIfNumber().ThrowIfSymbol()
-				 .ThrowIf(c => !UciConstants.Pieces.CHARS_ALL.Contains(c));
+				 .ThrowIf(!UciConstants.Pieces.CHARS_ALL.Contains(pieceChar));
 
 		return pieceChar;
 	}

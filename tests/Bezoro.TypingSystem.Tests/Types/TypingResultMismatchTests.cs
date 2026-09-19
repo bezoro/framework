@@ -1,3 +1,4 @@
+using System.Reflection;
 using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -7,6 +8,15 @@ namespace Bezoro.TypingSystem.Tests.Types;
 [TestSubject(typeof(TypingResult))]
 public class TypingResultMismatchTests
 {
+	[Fact]
+	public void Mismatch_WhenInspected_ShouldBePublicFactory()
+	{
+		var method = typeof(TypingResult).GetMethod(nameof(TypingResult.Mismatch), BindingFlags.Public | BindingFlags.Static);
+
+		method.Should().NotBeNull();
+		method!.ReturnType.Should().Be<TypingResult>();
+	}
+
 	[Fact]
 	public void Mismatch_WhenCalled_ShouldReturnExpectedResult()
 	{

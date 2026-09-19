@@ -23,7 +23,7 @@ public static class ActivationWorldExtensions
 
 		try
 		{
-			return world.GetResource<ActivationCommandQueue>();
+			return world.WriteResource<ActivationCommandQueue>();
 		}
 		catch (KeyNotFoundException)
 		{

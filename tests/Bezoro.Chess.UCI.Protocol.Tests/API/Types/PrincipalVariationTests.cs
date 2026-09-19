@@ -52,4 +52,93 @@ public class PrincipalVariationTests
 		ok.Should().BeFalse();
 		pv.Moves.Should().BeNullOrEmpty();
 	}
+
+	[Fact]
+	public void TryParse_WhenLineUsesSupportedCasingAndSpacing_ShouldPreserveMoveCasing()
+	{
+		bool ok = PrincipalVariation.TryParse(
+			"INFO   depth 12 score cp 34   pv E2E4 e7e5",
+			out var pv
+		);
+
+		ok.Should().BeTrue();
+		pv.Depth.Should().Be(12u);
+		pv.Moves.Should().Equal("E2E4", "e7e5");
+	}
+
+	[Fact]
+	public void TryParse_WhenPvKeywordUsesUppercase_ShouldReturnFalse()
+	{
+		bool ok = PrincipalVariation.TryParse("info depth 12 PV e2e4", out _);
+
+		ok.Should().BeFalse();
+	}
+
+	[Fact]
+	public void TryParse_WhenTokensUseTabs_ShouldReturnFalse()
+	{
+		bool ok = PrincipalVariation.TryParse("info\tdepth\t12\tpv\te2e4", out _);
+
+		ok.Should().BeFalse();
+	}
+
+	[Fact]
+	public void TryParse_WhenFieldsFollowPv_ShouldKeepThemInTheTerminalMoveSequence()
+	{
+		bool ok = PrincipalVariation.TryParse("info depth 12 pv e2e4 depth 99", out var pv);
+
+		ok.Should().BeTrue();
+		pv.Depth.Should().Be(12u);
+		pv.Moves.Should().Equal("e2e4", "depth", "99");
+	}
+
+	[Fact]
+	public void TryParse_WhenLineHasOuterWhitespace_ShouldParseTrimmedInfoPayload()
+	{
+		bool ok = PrincipalVariation.TryParse(
+			"  info depth 12 score cp 34 pv e2e4 e7e5  ",
+			out var pv
+		);
+
+		ok.Should().BeTrue();
+		pv.Depth.Should().Be(12u);
+		pv.Moves.Should().Equal("e2e4", "e7e5");
+	}
+
+	[Theory]
+	[InlineData("info score cp 40 score MATE -2 pv e2e4", null, -2)]
+	[InlineData("info score mate 2 score CP 40 pv e2e4", 40, null)]
+	[InlineData("info score cp 40 score unknown 12 pv e2e4", null, null)]
+	[InlineData("info score cp 40 score cp invalid pv e2e4", null, null)]
+	public void TryParse_WhenScoreClausesRepeat_ShouldUseLastCompleteClause(
+		string line,
+		int? expectedCentipawns,
+		int? expectedMate)
+	{
+		bool ok = PrincipalVariation.TryParse(line, out var pv);
+
+		ok.Should().BeTrue();
+		pv.ScoreCp.Should().Be(expectedCentipawns);
+		pv.ScoreMate.Should().Be(expectedMate);
+	}
+
+	[Fact]
+	public void TryParse_WhenStringContainsPvToken_ShouldTreatStringAsTerminal()
+	{
+		bool ok = PrincipalVariation.TryParse("info depth 12 string pv e2e4", out var pv);
+
+		ok.Should().BeFalse();
+		pv.Moves.IsDefault.Should().BeFalse();
+		pv.Moves.Should().BeEmpty();
+	}
+
+	[Fact]
+	public void TryParse_WhenPvHasNoMoves_ShouldReturnInitializedEmptyMoves()
+	{
+		bool ok = PrincipalVariation.TryParse("info depth 12 pv", out var pv);
+
+		ok.Should().BeFalse();
+		pv.Moves.IsDefault.Should().BeFalse();
+		pv.Moves.Should().BeEmpty();
+	}
 }

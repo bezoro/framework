@@ -43,6 +43,9 @@ The project is analyzer infrastructure and does not expose an application runtim
 ## Feature Notes
 
 - `BECSG001` reports unsupported ECS attributes on a query specification.
+- `QueryView<TSpec>` is the canonical generated sequential and parallel job surface.
+- Retained generated `World` job extensions remain non-obsolete and route the supplied handle through an exact-handle `QueryView<TSpec>` without recompiling it. This is distinct from the obsolete generic `World.Run...` instance compatibility methods.
+- `QueryCursor` job extensions remain available for low-level execution over the current cursor batch.
 - Generated code is deterministic and uses fully qualified symbols.
 - Consumer source remains the source of truth; generated files are build artifacts and must not be edited.
 
@@ -50,7 +53,7 @@ The project is analyzer infrastructure and does not expose an application runtim
 
 - Generators avoid reflection on hot paths by precomputing query and metadata structures.
 - Generated code uses fully-qualified symbols for resilient compilation.
-- `SystemMetadataGenerator` infers read/write sets from ECS iteration and direct access calls (`World.Query(...).ForEach(...)`, generated `Run(...)` / `RunParallel(...)` job extensions, `World.Run(...)`, `QueryCursor.ForEach(...)`, `QueryCursor.Run(...)`, `Read/Write/TryWrite`, and explicit resource APIs), in addition to `[Reads(typeof(...))]` / `[Writes(typeof(...))]` attributes.
+- `SystemMetadataGenerator` infers read/write sets from ECS iteration and direct access calls (`World.Query(...).ForEach(...)`, generated `Run(...)` / `RunParallel(...)` job extensions, `World.Run(...)`, `QueryCursor.ForEach(...)`, `QueryCursor.Run(...)`, `Read/Write/TryWrite`, and explicit resource APIs), in addition to `[Reads(typeof(...))]` / `[Writes(typeof(...))]` attributes. Retained `Get` and `GetResource` aliases infer writes, while `TryGetManaged` infers a read; dormant `LegacyQuery`, `ForEachRw` / `ForEachRW`, direct-world, and cursor recognizers remain supported.
 - `ForEachJobSourceGenerator` keeps the ergonomic callsite as `Run(...)` / `RunParallel(...)` even for entity-aware jobs; the generated code routes those calls to the runtime `RunEntity(...)` / `RunParallelEntity(...)` members.
 - `QuerySourceGenerator` reports `BECSG001` when unsupported ECS attributes are applied to a `[Query]` spec; unsupported attributes are ignored for generated query build code.
 - Output is deterministic and incremental-safe.

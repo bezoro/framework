@@ -1,4 +1,5 @@
 using System;
+using Bezoro.Core.Types;
 using Bezoro.Core.Types.Pool;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -20,6 +21,36 @@ public class ObjectPoolReturnTests
 
 		result.Should().BeFalse();
 		item.IsDisposed.Should().BeTrue();
+	}
+
+	[Fact]
+	public void Return_WhenPoolWasDisposed_ShouldDiscardWithoutResetting()
+	{
+		var resetCount = 0;
+		var discardCount = 0;
+		var policy = new PoolPolicy<object>(
+			() => new(),
+			reset: _ =>
+			{
+				resetCount++;
+				throw new InvalidOperationException("Reset must not run after disposal.");
+			},
+			onDiscard: _ => discardCount++
+		);
+		var pool = new ObjectPool<object>(policy, new() { TrackStatistics = true });
+		var item = pool.Rent();
+		pool.Dispose();
+		var returned = true;
+
+		Action returnItem = () => returned = pool.Return(item);
+
+		returnItem.Should().NotThrow();
+		returned.Should().BeFalse();
+		resetCount.Should().Be(0);
+		discardCount.Should().Be(1);
+		pool.AvailableCount.Should().Be(0);
+		pool.TotalCount.Should().Be(0);
+		pool.Statistics.TotalDiscarded.Should().Be(1);
 	}
 
 	[Fact]
@@ -84,5 +115,35 @@ public class ObjectPoolReturnTests
 
 		result.Should().BeTrue();
 		pool.AvailableCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Return_WhenItemWasNotCreatedByPool_ShouldAcceptAndOwnAvailableCapacity()
+	{
+		var pool = new ObjectPool<object>(() => new(), new() { MaxCapacity = 1 });
+		var foreign = new object();
+
+		pool.Return(foreign).Should().BeTrue();
+
+		pool.TotalCount.Should().Be(1);
+		pool.AvailableCount.Should().Be(1);
+		pool.Rent().Should().BeSameAs(foreign);
+	}
+
+	[Fact]
+	public void Return_WhenForeignItemReplacesRentedOwnedItem_ShouldDiscardLaterUnownedReturnWithoutReleasingCapacity()
+	{
+		var policy = new TrackingPoolPolicy();
+		var pool = new ObjectPool<object>(policy, new() { MaxCapacity = 1, TrackStatistics = true });
+		var poolCreatedItem = pool.Rent();
+		var foreign = new object();
+
+		pool.Return(foreign).Should().BeTrue();
+		pool.Return(poolCreatedItem).Should().BeFalse();
+
+		pool.AvailableCount.Should().Be(1);
+		pool.TotalCount.Should().Be(1);
+		pool.Statistics.TotalDiscarded.Should().Be(1);
+		policy.DiscardCount.Should().Be(1);
 	}
 }

@@ -1,3 +1,4 @@
+using System;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
@@ -183,7 +184,7 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		cursor.MoveNext().Should().BeTrue();
 		cursor.Run(new GeneratedIntegrateJob(3f));
 
-		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 13, Y = 10 });
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 13, Y = 10 });
 	}
 
 	[Fact]
@@ -208,7 +209,24 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		var handle = world.Compile<GeneratedPositionVelocityQuery>();
 		world.Run(handle, new GeneratedIntegrateJob(2f));
 
-		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 7, Y = 0 });
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 7, Y = 0 });
+	}
+
+	[Fact]
+	public void Run_WhenUsingGeneratedWorldJobExtensionWithForeignHandle_ShouldRejectHandleOwner()
+	{
+		using var handleOwner = new World();
+		using var world       = new World();
+		var entity = world.Spawn(
+			new GeneratedPosition { X = 1, Y = 2 },
+			new GeneratedVelocity { X = 3, Y = 4 }
+		);
+		var handle = handleOwner.Compile<GeneratedPositionVelocityQuery>();
+
+		var action = () => world.Run(handle, new GeneratedIntegrateJob(2f));
+
+		action.Should().Throw<InvalidOperationException>();
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 1, Y = 2 });
 	}
 
 	[Fact]
@@ -232,7 +250,7 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 
 		world.Query<GeneratedPositionVelocityQuery>().Run(new GeneratedIntegrateJob(4f));
 
-		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = -2, Y = 23 });
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = -2, Y = 23 });
 	}
 
 	[Fact]
@@ -262,8 +280,8 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 
 		world.Query<GeneratedPositionVelocityQuery>().RunParallel(new GeneratedIntegrateJob(2f), 2);
 
-		world.Get<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 5, Y = 7 });
-		world.Get<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 2, Y = 22 });
+		world.Read<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 5, Y = 7 });
+		world.Read<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 2, Y = 22 });
 	}
 
 	[Fact]
@@ -289,7 +307,7 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 		world.Query<GeneratedPositionVelocityQuery>().Run(new GeneratedEntityIntegrateJob(3f));
 
 		GeneratedEntityIntegrateJob.LastEntity.Should().Be(entity);
-		world.Get<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 8, Y = 12 });
+		world.Read<GeneratedPosition>(entity).Should().Be(new GeneratedPosition { X = 8, Y = 12 });
 	}
 
 	[Fact]
@@ -319,8 +337,8 @@ public class GeneratedQueryAndJobSourceGenIntegrationTests
 
 		world.Query<GeneratedPositionVelocityQuery>().RunParallel(new GeneratedEntityIntegrateJob(2f), 2);
 
-		world.Get<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 4, Y = 6 });
-		world.Get<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 5, Y = 13 });
+		world.Read<GeneratedPosition>(first).Should().Be(new GeneratedPosition { X = 4, Y = 6 });
+		world.Read<GeneratedPosition>(second).Should().Be(new GeneratedPosition { X = 5, Y = 13 });
 	}
 }
 

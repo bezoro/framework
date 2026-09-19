@@ -1,6 +1,5 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
+using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -18,6 +17,10 @@ namespace Bezoro.Chess.UCI.Protocol.API.Types;
 /// <param name="Time">The time taken for this principal variation in milliseconds</param>
 /// <param name="Moves">The sequence of moves in this principal variation</param>
 /// <param name="RawPv">The raw PV move string as emitted by the engine.</param>
+/// <remarks>
+///     Parsing uses the same UCI <c>info</c> grammar as the typed protocol stream. The <c>info</c> prefix, score
+///     kinds, and score bounds are case-insensitive; field names remain lowercase UCI tokens.
+/// </remarks>
 public readonly record struct PrincipalVariation(
 	uint                  Depth,
 	uint                  SelDepth,
@@ -41,85 +44,12 @@ public readonly record struct PrincipalVariation(
 	public static bool TryParse(string line, out PrincipalVariation pv)
 	{
 		pv = new(0, 0, 0, null, null, 0, 0, 0, 0, ImmutableArray<string>.Empty, string.Empty);
+		if (string.IsNullOrWhiteSpace(line) ||
+			!UciInfoParser.TryParseTrimmed(line.Trim(), out var info) ||
+			info.PrincipalVariation is not { } parsed)
+			return false;
 
-		if (!line.StartsWith("info ", StringComparison.OrdinalIgnoreCase)) return false;
-
-		// Ensure a standalone 'pv' token exists (avoid matching 'multipv')
-		string[]? tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		if (!tokens.Contains("pv")) return false;
-
-		pv = ParseSearchLineTokens(line);
-		return pv.Moves.Length > 0;
-	}
-
-	private static PrincipalVariation ParseSearchLineTokens(string line)
-	{
-		uint         depth   = 0,    selDepth  = 0, multiPv = 0, nodes = 0, nps = 0, tbHits = 0, time = 0;
-		int?         scoreCp = null, scoreMate = null;
-		List<string> pvMoves = [];
-		string       rawPv   = string.Empty;
-
-		string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-		for (var i = 1; i < tokens.Length; i++)
-		{
-			switch (tokens[i])
-			{
-				case "depth" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint d):
-					depth = d;
-					i++;
-					break;
-				case "seldepth" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint sd):
-					selDepth = sd;
-					i++;
-					break;
-				case "multipv" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint mpv):
-					multiPv = mpv;
-					i++;
-					break;
-
-				case "score" when i + 2 < tokens.Length:
-					string type = tokens[i + 1];
-					string val  = tokens[i + 2];
-					i += 2;
-
-					switch (type)
-					{
-						case "cp" when int.TryParse(val,   out int cp): scoreCp   = cp; break;
-						case "mate" when int.TryParse(val, out int m):  scoreMate = m; break;
-					}
-
-					break;
-
-				case "nodes" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint n):
-					nodes = n;
-					i++;
-					break;
-				case "nps" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint perSec):
-					nps = perSec;
-					i++;
-					break;
-				case "tbhits" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint tb):
-					tbHits = tb;
-					i++;
-					break;
-				case "time" when i + 1 < tokens.Length && uint.TryParse(tokens[i + 1], out uint t):
-					time = t;
-					i++;
-					break;
-
-				case "pv":
-					rawPv = string.Join(" ", tokens.Skip(i + 1));
-					for (int j = i + 1; j < tokens.Length; j++)
-						pvMoves.Add(tokens[j]);
-
-					i = tokens.Length;
-					break;
-			}
-		}
-
-		if (pvMoves.Count == 0) return default;
-
-		return new(depth, selDepth, multiPv, scoreCp, scoreMate, nodes, nps, tbHits, time, pvMoves.ToImmutableArray(), rawPv);
+		pv = parsed;
+		return true;
 	}
 }

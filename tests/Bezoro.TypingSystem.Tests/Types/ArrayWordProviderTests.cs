@@ -1,5 +1,6 @@
 using Bezoro.Core.Types.Exceptions;
 using Bezoro.TypingSystem.Abstractions;
+using Bezoro.TypingSystem.Extensions;
 using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -30,21 +31,18 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void AddWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
+	public void LoadWordsFromFile_WhenFileContainsWords_ShouldAppendWords()
 	{
 		string filePath = Path.GetTempFileName();
 		File.WriteAllLines(filePath, ["two", "three"]);
 
 		try
 		{
-			IWordProvider provider = new ArrayWordProvider(["one"]);
-
-			provider.AddWordsFromFile(filePath);
+			var provider = new ArrayWordProvider(["one"]);
+			provider.LoadWordsFromFile(filePath);
 
 			provider.WordCount.Should().Be(3);
-			provider.GetNextWord().ToString().Should().Be("one");
-			provider.GetNextWord().ToString().Should().Be("two");
-			provider.GetNextWord().ToString().Should().Be("three");
+			Drain(provider).Should().Equal("one", "two", "three");
 		}
 		finally
 		{
@@ -53,18 +51,54 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
+	public void LoadWordsFromFile_WhenProviderIsNull_ShouldThrowArgumentNullException()
+	{
+		ArrayWordProvider provider = null!;
+
+		var action = () => provider.LoadWordsFromFile("words.txt");
+
+		action.Should().Throw<ArgumentNullException>()
+			.WithParameterName("provider");
+	}
+
+	[Fact]
+	public void LoadWordsFromFile_WhenFilePathIsNull_ShouldThrowArgumentNullException()
+	{
+		var provider = new ArrayWordProvider(["one"]);
+
+		var action = () => provider.LoadWordsFromFile(null!);
+
+		action.Should().Throw<ArgumentNullException>()
+			.WithParameterName("filePath");
+	}
+
+	[Fact]
+	public void LoadWordsFromFile_WhenFileDoesNotExist_ShouldLeaveProviderUnchanged()
+	{
+		var provider = new ArrayWordProvider(["one", "two"]);
+		_ = provider.TryGetNextWord(out _);
+		var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
+
+		var action = () => provider.LoadWordsFromFile(filePath);
+
+		action.Should().Throw<FileNotFoundException>();
+		provider.WordCount.Should().Be(2);
+		Drain(provider).Should().Equal("two");
+	}
+
+	[Fact]
 	public void ClearWords_WhenCalled_ShouldResetWordCountAndReadIndex()
 	{
-		IWordProvider provider = new ArrayWordProvider(["one", "two"]);
-		_ = provider.GetNextWord();
+		var provider = new ArrayWordProvider(["one", "two"]);
+		_ = provider.TryGetNextWord(out _);
 		provider.ClearWords();
 		provider.AddWord("three".AsMemory());
 
-		var word = provider.GetNextWord();
+		provider.TryGetNextWord(out var word).Should().BeTrue();
 
 		word.ToString().Should().Be("three");
 		provider.WordCount.Should().Be(1);
-		provider.HasMoreWords.Should().BeFalse();
+		provider.TryGetNextWord(out _).Should().BeFalse();
 	}
 
 	[Fact]
@@ -86,35 +120,25 @@ public class ArrayWordProviderTests
 	}
 
 	[Fact]
-	public void GetNextWord_WhenNoWordsRemain_ShouldThrowInvalidOperationException()
+	public void TryGetNextWord_WhenWordsExist_ShouldConsumeInInsertionOrder()
 	{
-		IWordProvider provider = new ArrayWordProvider(["one"]);
-		_ = provider.GetNextWord();
+		IWordSource source = new ArrayWordProvider(["one", "two"]);
 
-		Action action = () => _ = provider.GetNextWord();
-
-		action.Should().Throw<InvalidOperationException>();
-	}
-
-	[Fact]
-	public void GetNextWord_WhenWordsExist_ShouldReturnWordsInInsertionOrder()
-	{
-		IWordProvider provider = new ArrayWordProvider(["one", "two"]);
-
-		var first  = provider.GetNextWord();
-		var second = provider.GetNextWord();
+		source.TryGetNextWord(out var first).Should().BeTrue();
+		source.TryGetNextWord(out var second).Should().BeTrue();
 
 		first.ToString().Should().Be("one");
 		second.ToString().Should().Be("two");
 	}
 
 	[Fact]
-	public void HasMoreWords_WhenAllWordsAreConsumed_ShouldReturnFalse()
+	public void TryGetNextWord_WhenExhausted_ShouldReturnFalseAndEmptyMemory()
 	{
-		IWordProvider provider = new ArrayWordProvider(["one"]);
-		_ = provider.GetNextWord();
+		IWordSource source = new ArrayWordProvider(["one"]);
+		_ = source.TryGetNextWord(out _);
 
-		provider.HasMoreWords.Should().BeFalse();
+		source.TryGetNextWord(out var word).Should().BeFalse();
+		word.Should().Be(ReadOnlyMemory<char>.Empty);
 	}
 
 	[Fact]
@@ -135,5 +159,10 @@ public class ArrayWordProviderTests
 		provider.RemoveWord("two".AsMemory());
 
 		provider.WordCount.Should().Be(2);
+	}
+
+	private static IEnumerable<string> Drain(IWordSource source)
+	{
+		while (source.TryGetNextWord(out var word)) yield return word.ToString();
 	}
 }

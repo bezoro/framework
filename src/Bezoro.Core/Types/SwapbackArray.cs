@@ -14,7 +14,7 @@ namespace Bezoro.Core.Types;
 /// <remarks>
 ///     The array is ideal for scenarios where element order is unimportant and high-performance removals are desired.
 ///     Implements <see cref="IReadOnlyList{T}" /> for enumeration. Use <see cref="Add(T)" />, <see cref="Remove(T)" />,
-///     <see cref="Clear" />, etc. for mutation.
+///     <see cref="Clear()" />, etc. for mutation.
 /// </remarks>
 [DebuggerDisplay("Count = {Count}, Capacity = {Capacity}")]
 public sealed class SwapbackArray<T> : IReadOnlyList<T>
@@ -181,20 +181,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	///     Returns true if the array contains the given <paramref name="item" />.
 	///     Uses the default equality comparer.
 	/// </summary>
-	public bool Contains(T item)
-	{
-		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-			return Array.IndexOf(_items, item, 0, (int)_count) >= 0;
-
-		var comparer = EqualityComparer<T>.Default;
-		for (uint i = 0; i < _count; i++)
-		{
-			if (comparer.Equals(_items[i], item))
-				return true;
-		}
-
-		return false;
-	}
+	public bool Contains(T item) => FindIndex(item) >= 0;
 
 	/// <summary>
 	///     Attempts to get the value at <paramref name="index" />. Returns success and the value if found.
@@ -213,32 +200,32 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	///     Attempts to find <paramref name="item" />; returns true/false and its index if found.
+	///     Attempts to find <paramref name="item" />; returns true/false and its zero-based index if found.
 	///     Uses the default equality comparer.
 	/// </summary>
+	/// <param name="item">The value to find.</param>
+	/// <param name="index">The zero-based index when found; otherwise zero.</param>
+	/// <returns>True if <paramref name="item" /> is found; otherwise false.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryGetIndex(T item, out uint index)
+	{
+		int found = FindIndex(item);
+		index = found >= 0 ? (uint)found : 0;
+		return found >= 0;
+	}
+
+	/// <summary>
+	///     Attempts to find <paramref name="item" /> and returns its zero-based index when found.
+	/// </summary>
+	/// <param name="item">The value to find.</param>
+	/// <param name="index">The zero-based index when found; otherwise null.</param>
+	/// <returns>True if <paramref name="item" /> is found; otherwise false.</returns>
+	[Obsolete("Use TryGetIndex(T, out uint) instead.")]
 	public bool TryIndexOf(T item, out uint? index)
 	{
-		index = null;
-		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-		{
-			int foundIndex = Array.IndexOf(_items, item, 0, (int)_count);
-			if (foundIndex < 0) return false;
-
-			index = (uint)foundIndex;
-			return true;
-		}
-
-		var comparer = EqualityComparer<T>.Default;
-		for (uint i = 0; i < _count; i++)
-		{
-			if (!comparer.Equals(_items[i], item)) continue;
-
-			index = i;
-			return true;
-		}
-
-		return false;
+		bool found = TryGetIndex(item, out uint value);
+		index = found ? value : null;
+		return found;
 	}
 
 	/// <summary>
@@ -291,22 +278,8 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryRemove(T item)
 	{
-		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-		{
-			int index = Array.IndexOf(_items, item, 0, (int)_count);
-			if (index < 0) return false;
-
-			return TryRemoveAt((uint)index);
-		}
-
-		var comparer = EqualityComparer<T>.Default;
-		for (uint i = 0; i < _count; i++)
-		{
-			if (comparer.Equals(_items[i], item))
-				return TryRemoveAt(i);
-		}
-
-		return false;
+		int index = FindIndex(item);
+		return index >= 0 && TryRemoveAt((uint)index);
 	}
 
 	/// <summary>
@@ -375,23 +348,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		if (_count == 0)
 			throw new InvalidOperationException("Array is empty.");
 
-		int index;
-		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-		{
-			index = Array.IndexOf(_items, item, 0, (int)_count);
-		}
-		else
-		{
-			var comparer = EqualityComparer<T>.Default;
-			index = -1;
-			for (uint i = 0; i < _count; i++)
-			{
-				if (!comparer.Equals(_items[i], item)) continue;
-
-				index = (int)i;
-				break;
-			}
-		}
+		int index = FindIndex(item);
 
 		if (index >= 0) return (uint)index;
 
@@ -479,11 +436,26 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	}
 
 	/// <summary>
-	///     Removes all elements, optionally shrinking to minimum capacity.
+	///     Removes all elements and shrinks capacity to the minimum size.
 	/// </summary>
-	/// <param name="trim">If true, resets internal array to <see cref="MinimumArraySize" />.</param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void Clear(bool trim = true)
+	public void Clear() => ClearCore(trim: true);
+
+	/// <summary>
+	///     Removes all elements while retaining the current capacity.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public void ClearRetainingCapacity() => ClearCore(trim: false);
+
+	/// <summary>
+	///     Removes all elements, optionally shrinking capacity to the minimum size.
+	/// </summary>
+	/// <param name="trim">Whether to reset internal capacity to <see cref="MinimumArraySize" />.</param>
+	[Obsolete("Use Clear() or ClearRetainingCapacity() instead.")]
+	public void Clear(bool trim) => ClearCore(trim);
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ClearCore(bool trim)
 	{
 		if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && _count > 0)
 			Array.Clear(_items, 0, (int)_count);
@@ -658,6 +630,19 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		}
 
 		return _count != startCount;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private int FindIndex(T item)
+	{
+		var comparer = EqualityComparer<T>.Default;
+		for (uint index = 0; index < _count; index++)
+		{
+			if (comparer.Equals(_items[index], item))
+				return (int)index;
+		}
+
+		return -1;
 	}
 
 	/// <summary>

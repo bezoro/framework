@@ -54,10 +54,10 @@ public class EcsWorldHotPathBenchmarks
 		cursor.Run<IntegrateJob, Position, Velocity>(new(0.016f));
 	}
 
-	[Benchmark(Description = "World direct compiled query ref/in ForEach")]
+	[Benchmark(Description = "QueryView direct struct-job Run")]
 	public void QueryForEachDirect()
 	{
-		_world.Run<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(_handle, new(0.016f));
+		_world.Query<PositionVelocityQuerySpec>().Run<IntegrateJob, Position, Velocity>(new(0.016f));
 	}
 
 	private readonly struct PositionVelocityQuerySpec : ICompiledQuerySpec
@@ -90,4 +90,3 @@ public class EcsWorldHotPathBenchmarks
 		}
 	}
 }
-

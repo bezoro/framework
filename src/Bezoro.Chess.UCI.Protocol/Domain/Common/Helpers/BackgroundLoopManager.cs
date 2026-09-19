@@ -239,11 +239,11 @@ internal sealed class BackgroundLoopManager(
 		if (stderr == null) return;
 
 		_stderrLoopTask = Task.Run(
-			async () =>
+			() =>
 			{
 				try
 				{
-					await RunStderrLoopAsync(stderr).ConfigureAwait(false);
+					RunStderrLoop(stderr);
 				}
 				catch (Exception ex)
 				{
@@ -397,36 +397,6 @@ internal sealed class BackgroundLoopManager(
 	}
 
 	/// <summary>
-	///     Invokes the stderr handler on a background thread, swallowing any exceptions.
-	/// </summary>
-	private async Task InvokeStderrHandlerAsync(string line)
-	{
-		try
-		{
-			var handler = stderrReceived;
-			if (handler != null)
-				// Invoke handler on thread pool to avoid blocking the stderr loop.
-				// Exceptions are swallowed as per interface contract.
-				await Task.Run(() =>
-					{
-						try
-						{
-							handler(line);
-						}
-						catch
-						{
-							// User-provided handler exceptions must not crash the loop
-						}
-					}
-				);
-		}
-		catch
-		{
-			// Task.Run rarely throws; safe to ignore outer wrapper exceptions
-		}
-	}
-
-	/// <summary>
 	///     Runs the read loop, reading lines from stdout and writing to the channel.
 	/// </summary>
 	private async Task RunReadLoopAsync(StreamReader stdout, ChannelWriter<string> writer, CancellationToken readToken)
@@ -451,7 +421,7 @@ internal sealed class BackgroundLoopManager(
 	/// <summary>
 	///     Runs the stderr loop, reading lines and invoking the handler.
 	/// </summary>
-	private async Task RunStderrLoopAsync(StreamReader stderr)
+	private void RunStderrLoop(StreamReader stderr)
 	{
 		while (true)
 		{
@@ -460,7 +430,14 @@ internal sealed class BackgroundLoopManager(
 
 			if (line.Length == 0) continue;
 
-			await InvokeStderrHandlerAsync(line).ConfigureAwait(false);
+			try
+			{
+				stderrReceived?.Invoke(line);
+			}
+			catch
+			{
+				// User-provided handler exceptions must not crash the loop.
+			}
 		}
 	}
 

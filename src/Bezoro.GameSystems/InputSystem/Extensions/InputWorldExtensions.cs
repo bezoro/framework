@@ -23,7 +23,7 @@ public static class InputWorldExtensions
 
 		try
 		{
-			return world.GetResource<InputCommandQueue>();
+			return world.WriteResource<InputCommandQueue>();
 		}
 		catch (KeyNotFoundException)
 		{

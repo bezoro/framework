@@ -45,7 +45,7 @@ public sealed class ActivationProcessingSystem : ISystem
 		EnsureResources(world);
 
 		var entriesByHandle = BuildEntryIndex(world);
-		ApplyCancellations(world, context.Commands, entriesByHandle);
+		ApplyCancellations(world, context.CommandStream, entriesByHandle);
 
 		var pendingEntries = CollectPendingEntries(world, out var activatedCount);
 		ref var runtime = ref world.WriteResource<ActivationRuntimeState>();
@@ -163,7 +163,7 @@ public sealed class ActivationProcessingSystem : ISystem
 
 	private static void ApplyCancellations(
 		World                         world,
-		CommandBuffer                 commands,
+		CommandStream                 commands,
 		IReadOnlyDictionary<int, Entity> entriesByHandle)
 	{
 		world.Query<ActivationCancellationQuery>().ForEachRead<ActivationCancellationRequest>(
@@ -176,7 +176,7 @@ public sealed class ActivationProcessingSystem : ISystem
 					entryRef.Value.State = ActivationState.Cancelled;
 				}
 
-				commands.Despawn(requestEntity);
+				commands.Destroy(requestEntity);
 			}
 		);
 	}

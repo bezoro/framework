@@ -7,10 +7,8 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<None Include="README.md" />
-		<InternalsVisibleTo Include="Bezoro.TypingSystem.Tests" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\Bezoro.Core\Bezoro.Core.csproj" />
-	  <ProjectReference Include="..\Bezoro.Logging\Bezoro.Logging.csproj" />
 	</ItemGroup>
 </Project>

@@ -5,6 +5,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Bezoro.Chess.UCI.Protocol.Tests" />
+        <InternalsVisibleTo Include="Bezoro.Chess.UCI.Protocol.Benchmarks" />
         <InternalsVisibleTo Include="Bezoro.Chess.UCI" />
         <InternalsVisibleTo Include="Bezoro.Chess.UCI.Tests" />
         <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />

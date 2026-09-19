@@ -34,12 +34,12 @@ public class MovementSystemTests
 		world.FixedTick(2f);
 
 		// Assert
-		var p1 = world.Get<Position>(e1);
+		var p1 = world.Read<Position>(e1);
 		p1.X.Should().Be(1f + 0.5f * 2f);
 		p1.Y.Should().Be(2f + -1f * 2f);
 		p1.Z.Should().Be(3f + 2f * 2f);
 
-		var p2 = world.Get<Position>(e2);
+		var p2 = world.Read<Position>(e2);
 		p2.X.Should().Be(-4f + 2f * 2f);
 		p2.Y.Should().Be(0.5f + 1f * 2f);
 		p2.Z.Should().Be(1f + -0.5f * 2f);
@@ -60,10 +60,10 @@ public class MovementSystemTests
 
 		// Act
 		world.FixedTick(0.25f);
-		var afterFirst = world.Get<Position>(entity);
+		var afterFirst = world.Read<Position>(entity);
 
 		world.FixedTick(0.25f);
-		var afterSecond = world.Get<Position>(entity);
+		var afterSecond = world.Read<Position>(entity);
 
 		// Assert
 		afterFirst.Should().Be(new Position { X  = 0f, Y = 0f, Z = 0f });

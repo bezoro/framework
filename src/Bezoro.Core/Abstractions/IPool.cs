@@ -83,8 +83,34 @@ public interface IPool<T> where T : class
 	ValueTask<T> RentAsync(CancellationToken cancellationToken = default);
 
 	/// <summary>
-	///     Clears all objects from the pool, optionally disposing them.
+	///     Clears all available objects from the pool and directly disposes items that implement
+	///     <see cref="IDisposable" /> without invoking <see cref="IPoolPolicy{T}.OnDiscard" />.
 	/// </summary>
-	/// <param name="disposeItems">If <c>true</c>, disposes items implementing <see cref="IDisposable" />.</param>
-	void Clear(bool disposeItems = true);
+	void Clear()
+	{
+#pragma warning disable CS0618 // Default interface bridge for legacy implementers.
+		Clear(disposeItems: true);
+#pragma warning restore CS0618
+	}
+
+	/// <summary>
+	///     Clears all available objects from the pool by invoking <see cref="IPoolPolicy{T}.OnDiscard" />
+	///     for each item.
+	/// </summary>
+	void ClearWithPolicyDiscard()
+	{
+#pragma warning disable CS0618 // Default interface bridge for legacy implementers.
+		Clear(disposeItems: false);
+#pragma warning restore CS0618
+	}
+
+	/// <summary>
+	///     Clears all available objects from the pool using the selected legacy release behavior.
+	/// </summary>
+	/// <param name="disposeItems">
+	///     If <c>true</c>, forwards to <see cref="Clear()" />; otherwise, forwards to
+	///     <see cref="ClearWithPolicyDiscard" />.
+	/// </param>
+	[Obsolete("Use Clear() or ClearWithPolicyDiscard() instead.")]
+	void Clear(bool disposeItems);
 }

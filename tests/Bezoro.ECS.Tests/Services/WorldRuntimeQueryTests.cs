@@ -1,14 +1,97 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Xunit;
 
 namespace Bezoro.ECS.Tests.Services;
 
 public partial class WorldRuntimeTests
 {
+	[Fact]
+	public async Task Compile_WhenSameColdSpecIsCompiledConcurrently_ShouldBuildOnceAndReturnUsableHandles()
+	{
+		using var world = new World(
+			new WorldConfig
+			{
+				EntityCapacity                = 16,
+				ComponentTypeCapacity         = 16,
+				CommandCapacity               = 32,
+				CommandPayloadCapacityPerType = 32,
+				QueryResultCapacity           = 16
+			}
+		);
+
+		var probe = new CoordinatedQueryCompileProbe();
+		CoordinatedPositionQuerySpec.Probe = probe;
+		Task<QueryHandle<CoordinatedPositionQuerySpec>>? firstCompile  = null;
+		Task<QueryHandle<CoordinatedPositionQuerySpec>>? secondCompile = null;
+		var secondBuildEntered = false;
+		try
+		{
+			firstCompile = Task.Factory.StartNew(
+				world.Compile<CoordinatedPositionQuerySpec>,
+				CancellationToken.None,
+				TaskCreationOptions.LongRunning,
+				TaskScheduler.Default
+			);
+			probe.FirstBuildEntered.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+			secondCompile = Task.Factory.StartNew(
+				() =>
+				{
+					probe.SecondCompileStarting.Set();
+					return world.Compile<CoordinatedPositionQuerySpec>();
+				},
+				CancellationToken.None,
+				TaskCreationOptions.LongRunning,
+				TaskScheduler.Default
+			);
+			probe.SecondCompileStarting.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+			secondBuildEntered = probe.SecondBuildEntered.Wait(TimeSpan.FromSeconds(5));
+		}
+		finally
+		{
+			probe.ReleaseFirstBuild.Set();
+			try
+			{
+				if (firstCompile is not null && secondCompile is not null)
+					await Task.WhenAll(firstCompile, secondCompile);
+				else if (firstCompile is not null)
+					await firstCompile;
+			}
+			finally
+			{
+				CoordinatedPositionQuerySpec.Probe = null;
+				probe.Dispose();
+			}
+		}
+
+		using (new AssertionScope())
+		{
+			secondBuildEntered.Should().BeFalse();
+			probe.BuildCount.Should().Be(1);
+		}
+
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		using (var firstCursor = world.Execute(await firstCompile!))
+		{
+			firstCursor.MoveNext().Should().BeTrue();
+			firstCursor.Current.Length.Should().Be(1);
+			firstCursor.Current[0].Should().Be(entity);
+		}
+
+		using var secondCursor = world.Execute(await secondCompile!);
+		secondCursor.MoveNext().Should().BeTrue();
+		secondCursor.Current.Length.Should().Be(1);
+		secondCursor.Current[0].Should().Be(entity);
+	}
+
 	[Fact]
 	public void Compile_WhenDifferentSpecTypesAreCached_ShouldKeepDistinctQueryPlans()
 	{
@@ -72,7 +155,7 @@ public partial class WorldRuntimeTests
 		using var after = world.Execute(handle);
 		after.MoveNext().Should().BeTrue();
 		after.Current.Length.Should().Be(1);
-		world.Get<Position>(after.Current[0]).Should().Be(new Position { X = 42, Y = -7 });
+		world.Read<Position>(after.Current[0]).Should().Be(new Position { X = 42, Y = -7 });
 	}
 
 
@@ -220,6 +303,92 @@ public partial class WorldRuntimeTests
 		changed.Current[0].Should().Be(first);
 	}
 
+	[Fact]
+	public void Set_WhenOverwritingExistingManagedComponent_ShouldReplaceReferenceAndTrackChangedOnce()
+	{
+		using var world = new World();
+		var initialPayload = new Payload("initial");
+		var entity = world.Spawn(new ManagedTag { Payload = initialPayload });
+		var changedHandle = world.Compile<ChangedManagedTagQuerySpec>();
+
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(entity);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		var replacementPayload = new Payload("replacement");
+		world.Set(entity, new ManagedTag { Payload = replacementPayload });
+
+		var resolved = world.Read<ManagedTag>(entity);
+		resolved.Payload.Should().BeSameAs(replacementPayload);
+		resolved.Payload!.Name.Should().Be("replacement");
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.Length.Should().Be(1);
+			changed.Current[0].Should().Be(entity);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void ApplySetFromCommandKnownTransition_WhenOverwritingExistingComponent_ShouldReplaceValueAndTrackChangedOnce()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		var changedHandle = world.Compile<ChangedPositionQuerySpec>();
+
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+			initial.Current[0].Should().Be(entity);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		int typeId = world.GetOrCreateComponentTypeId<Position>();
+		world.DescribeSetTransition(entity, typeId, out int sourceArchetypeId, out int targetArchetypeId);
+		sourceArchetypeId.Should().Be(targetArchetypeId);
+		world.MatchesSetTransitionSource(entity, sourceArchetypeId, typeId, targetArchetypeId).Should().BeTrue();
+
+		var replacement = new Position { X = 11, Y = 12 };
+		world.ApplySetFromCommandKnownTransition(
+			entity,
+			in replacement,
+			typeId,
+			sourceArchetypeId,
+			targetArchetypeId
+		);
+
+		world.Read<Position>(entity).Should().Be(replacement);
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.Length.Should().Be(1);
+			changed.Current[0].Should().Be(entity);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
+	}
+
 
 	[Fact]
 	public void Execute_WhenCompiledQueryUsesOptional_ShouldMatchEntitiesWithAndWithoutOptionalType()
@@ -289,7 +458,9 @@ public partial class WorldRuntimeTests
 		}
 
 		ClearChangedWindow();
+		#pragma warning disable CS0618
 		ref var fromWorldGet = ref world.Get<Position>(entity);
+		#pragma warning restore CS0618
 		fromWorldGet.X += 1;
 		AssertOnlyChangedEntity();
 
@@ -323,7 +494,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void Run_WhenCompiledQueryUsesChanged_ShouldOnlyExecuteChangedEntities()
+	public void QueryView_Run_WhenCompiledQueryUsesChanged_ShouldOnlyExecuteChangedEntities()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -339,6 +510,7 @@ public partial class WorldRuntimeTests
 		var first  = world.Spawn(new Position { X = 1, Y = 10 });
 		var second = world.Spawn(new Position { X = 2, Y = 20 });
 		var handle = world.Compile<ChangedPositionQuerySpec>();
+		var query  = new QueryView<ChangedPositionQuerySpec>(world, handle);
 
 		using (var initial = world.Execute(handle))
 		{
@@ -355,7 +527,7 @@ public partial class WorldRuntimeTests
 		world.Set(first, new Position { X = 11, Y = 12 });
 
 		var visited = new List<int>();
-		world.Run<ChangedPositionQuerySpec, RecordingPositionJob, Position>(handle, new(visited));
+		query.Run<RecordingPositionJob, Position>(new(visited));
 
 		visited.Should().Equal(11);
 		world.Read<Position>(first).Y.Should().Be(112);
@@ -363,7 +535,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void RunEntity_WhenCompiledQueryUsesAdded_ShouldOnlyExecuteAddedEntities()
+	public void QueryView_RunEntity_WhenCompiledQueryUsesAdded_ShouldOnlyExecuteAddedEntities()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -379,6 +551,7 @@ public partial class WorldRuntimeTests
 		var first  = world.Spawn(new Position { X = 1, Y = 10 });
 		var second = world.Spawn();
 		var handle = world.Compile<AddedPositionQuerySpec>();
+		var query  = new QueryView<AddedPositionQuerySpec>(world, handle);
 
 		using (var initial = world.Execute(handle))
 		{
@@ -396,7 +569,7 @@ public partial class WorldRuntimeTests
 		world.Add(second, new Position { X = 22, Y = 30 });
 
 		var visited = new List<int>();
-		world.RunEntity<AddedPositionQuerySpec, RecordingEntityPositionJob, Position>(handle, new(visited));
+		query.RunEntity<RecordingEntityPositionJob, Position>(new(visited));
 
 		visited.Should().Equal(22);
 		world.Read<Position>(first).Y.Should().Be(10);
@@ -735,12 +908,12 @@ public partial class WorldRuntimeTests
 			var entity = cursor.Current[index];
 
 			ref var velocity         = ref cursor.Get<Velocity>(index);
-			var     expectedVelocity = world.Get<Velocity>(entity);
+			var     expectedVelocity = world.Read<Velocity>(entity);
 			velocity.X.Should().Be(expectedVelocity.X);
 			velocity.Y.Should().Be(expectedVelocity.Y);
 
 			ref var position         = ref cursor.Get<Position>(index);
-			var     expectedPosition = world.Get<Position>(entity);
+			var     expectedPosition = world.Read<Position>(entity);
 			position.X.Should().Be(expectedPosition.X);
 			position.Y.Should().Be(expectedPosition.Y);
 		}
@@ -887,7 +1060,50 @@ public partial class WorldRuntimeTests
 
 
 	[Fact]
-	public void Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
+	public void QueryView_Run_WhenWorldIsDisposedAndHandleBelongsToDifferentWorld_ShouldPreferDisposedValidation()
+	{
+		using var handleOwner = new World();
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       world       = new World();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		world.Dispose();
+
+		var action = () => query.Run<IntegrateJob, Position, Velocity>(new(1f));
+
+		action.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void QueryView_RunParallel_WhenWorldIsDisposedAndHandleAndDegreeAreInvalid_ShouldPreferDisposedValidation()
+	{
+		using var handleOwner = new World();
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       world       = new World();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		world.Dispose();
+
+		var action = () => query.RunParallel<IntegrateJob, Position, Velocity>(new(1f), 0);
+
+		action.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void QueryView_RunParallel_WhenHandleBelongsToDifferentWorldAndDegreeIsInvalid_ShouldPreferHandleValidation()
+	{
+		using var handleOwner = new World();
+		using var world       = new World();
+		var       entity      = world.Spawn(new Position { X = 1, Y = 2 }, new Velocity { X = 3, Y = 4 });
+		var       handle      = handleOwner.Compile<PositionAndVelocityQuerySpec>();
+		var       query       = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+
+		var action = () => query.RunParallel<IntegrateJob, Position, Velocity>(new(1f), 0);
+
+		action.Should().Throw<InvalidOperationException>();
+		world.Read<Position>(entity).Should().Be(new Position { X = 1, Y = 2 });
+	}
+
+	[Fact]
+	public void QueryView_Run_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponents()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -911,7 +1127,8 @@ public partial class WorldRuntimeTests
 		world.Playback(commands);
 
 		var handle = world.Compile<PositionAndVelocityQuerySpec>();
-		world.Run<PositionAndVelocityQuerySpec, IntegrateJob, Position, Velocity>(handle, new(2f));
+		var query  = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
+		query.Run<IntegrateJob, Position, Velocity>(new(2f));
 
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
@@ -924,7 +1141,7 @@ public partial class WorldRuntimeTests
 	}
 
 	[Fact]
-	public void RunEntity_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponentsAndReceiveEntity()
+	public void QueryView_RunEntity_WhenUsingCompiledHandleAndStructJob_ShouldMutateComponentsAndReceiveEntity()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -948,8 +1165,9 @@ public partial class WorldRuntimeTests
 		world.Playback(commands);
 
 		var handle = world.Compile<PositionAndVelocityQuerySpec>();
+		var query  = new QueryView<PositionAndVelocityQuerySpec>(world, handle);
 		var order  = new List<int>();
-		world.RunEntity<PositionAndVelocityQuerySpec, RecordingEntityIntegrateJob, Position, Velocity>(handle, new(order));
+		query.RunEntity<RecordingEntityIntegrateJob, Position, Velocity>(new(order));
 
 		order.Should().Equal(0, 1, 2);
 
@@ -959,6 +1177,43 @@ public partial class WorldRuntimeTests
 		{
 			var updated = cursor.Get<Position>(i);
 			updated.Y.Should().Be((i * 10) + 3);
+		}
+	}
+
+	private sealed class CoordinatedQueryCompileProbe : IDisposable
+	{
+		public int BuildCount;
+		public ManualResetEventSlim FirstBuildEntered { get; } = new(false);
+		public ManualResetEventSlim ReleaseFirstBuild { get; } = new(false);
+		public ManualResetEventSlim SecondBuildEntered { get; } = new(false);
+		public ManualResetEventSlim SecondCompileStarting { get; } = new(false);
+
+		public void Dispose()
+		{
+			FirstBuildEntered.Dispose();
+			ReleaseFirstBuild.Dispose();
+			SecondBuildEntered.Dispose();
+			SecondCompileStarting.Dispose();
+		}
+	}
+
+	private readonly struct CoordinatedPositionQuerySpec : ICompiledQuerySpec
+	{
+		public static CoordinatedQueryCompileProbe? Probe { get; set; }
+
+		public void Build(ref QueryBuilder builder)
+		{
+			var probe       = Probe ?? throw new InvalidOperationException("Query compile probe is not configured.");
+			var buildNumber = Interlocked.Increment(ref probe.BuildCount);
+			if (buildNumber == 1)
+			{
+				probe.FirstBuildEntered.Set();
+				probe.ReleaseFirstBuild.Wait();
+			}
+			else
+				probe.SecondBuildEntered.Set();
+
+			builder.All<Position>();
 		}
 	}
 }

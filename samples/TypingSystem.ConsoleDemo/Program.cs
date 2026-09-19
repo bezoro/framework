@@ -6,7 +6,7 @@ Console.Title = "TypingSystem Console Demo";
 Console.WriteLine("TypingSystem Console Demo\n----------------------------");
 Console.WriteLine("Press ESC at any time to exit. Type the prompted word character by character.\n");
 
-IWordProvider wordProvider = new ArrayWordProvider(
+IWordSource wordSource = new ArrayWordProvider(
 	new[]
 	{
 		"Cursor",
@@ -33,9 +33,8 @@ var options = new TypingValidatorOptions
 	OnFault     = result => Console.WriteLine($"\nFaulted: {result.Status}.")
 };
 
-while (wordProvider.HasMoreWords)
+while (wordSource.TryGetNextWord(out var wordMemory))
 {
-	var wordMemory  = wordProvider.GetNextWord();
 	var targetSpan  = wordMemory.Span;
 	var displayWord = wordMemory.ToString();
 

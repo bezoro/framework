@@ -35,7 +35,7 @@ public sealed class ActivationIngestionSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureCommandQueue(world);
 
-		ref var queue = ref world.GetResource<ActivationCommandQueue>();
+		ref var queue = ref world.WriteResource<ActivationCommandQueue>();
 		while (queue.TryDequeue(out var command))
 		{
 			switch (command.Kind)
@@ -43,13 +43,13 @@ public sealed class ActivationIngestionSystem : ISystem
 				case ActivationCommandKind.Register:
 				{
 					var entry = new ActivationEntry(command.Handle, command.Callback!, command.Priority);
-					context.Commands.CreateEntity(in entry);
+					context.CommandStream.CreateEntity(in entry);
 					break;
 				}
 				case ActivationCommandKind.Cancel:
 				{
 					var request = new ActivationCancellationRequest(command.Handle);
-					context.Commands.CreateEntity(in request);
+					context.CommandStream.CreateEntity(in request);
 					break;
 				}
 				default:
@@ -62,7 +62,7 @@ public sealed class ActivationIngestionSystem : ISystem
 	{
 		try
 		{
-			_ = world.GetResource<ActivationCommandQueue>();
+			_ = world.ReadResource<ActivationCommandQueue>();
 		}
 		catch (KeyNotFoundException)
 		{

@@ -53,10 +53,17 @@ public class World : IWorld, IDisposable
 	public World() : this(new WorldConfig()) { }
 
 	/// <summary>
-	///     Initializes a world from compatibility options.
+	///     Initializes a world by adapting legacy compatibility options to <see cref="WorldConfig" />.
 	/// </summary>
-	/// <param name="options">Options used to configure world capacities and overflow behavior.</param>
+	/// <param name="options">Legacy options whose chunk capacity and parallelism settings are adapted.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="options" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     The adapted maximum degree of parallelism is not positive.
+	/// </exception>
+	#pragma warning disable CS0618
+	[Obsolete("Use World(WorldConfig) instead.")]
 	public World(WorldOptions options) : this(ToWorldConfig(options)) { }
+	#pragma warning restore CS0618
 
 	/// <summary>
 	///     Initializes a world from an explicit configuration.
@@ -284,25 +291,23 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public bool TryGet<T>(Entity entity, out T component) where T : struct
-	{
-		ThrowIfDisposed();
-		component = default;
-		if (!IsAliveUnchecked(entity))
-			return false;
-
-		int typeId = GetOrCreateComponentTypeId<T>();
-		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
-	}
+	public bool TryGet<T>(Entity entity, out T component) where T : struct =>
+		TryRead(entity, out component);
 
 	/// <summary>
-	///     Attempts to copy a managed-lane component from an entity.
+	///     Compatibility alias that attempts to read a component copy from an entity.
 	/// </summary>
 	/// <typeparam name="T">Component type.</typeparam>
 	/// <param name="entity">Entity to inspect.</param>
-	/// <param name="component">Receives the component value when present.</param>
+	/// <param name="component">Receives the component value when present; otherwise the default value.</param>
 	/// <returns><c>true</c> when the component exists; otherwise <c>false</c>.</returns>
-	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	[Obsolete("Use TryRead<T>(Entity, out T) instead.")]
+	public bool TryGetManaged<T>(Entity entity, out T component) where T : struct =>
+		TryRead(entity, out component);
+
+	/// <inheritdoc />
+	public bool TryRead<T>(Entity entity, out T component) where T : struct
 	{
 		ThrowIfDisposed();
 		component = default;
@@ -312,10 +317,6 @@ public class World : IWorld, IDisposable
 		int typeId = GetOrCreateComponentTypeId<T>();
 		return _entityStore.TryGetComponentUnchecked(entity.Id, typeId, out component);
 	}
-
-	/// <inheritdoc />
-	public bool TryRead<T>(Entity entity, out T component) where T : struct =>
-		TryGet(entity, out component);
 
 	/// <inheritdoc />
 	public bool TryReadResource<T>(out T resource) where T : notnull
@@ -349,22 +350,29 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Creates an ergonomic buffer for recording deferred structural commands.
+	///     Creates a retained compatibility wrapper over a canonical command stream.
 	/// </summary>
-	/// <returns>A command buffer owned by this world.</returns>
+	/// <returns>A compatibility command buffer owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	#pragma warning disable CS0618
+	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandBuffer CreateCommandBuffer() =>
 		new(CreateCommandStream());
+	#pragma warning restore CS0618
 
 	/// <summary>
-	///     Begins recording deferred structural commands.
+	///     Retained compatibility alias for <see cref="CreateCommandStream" />.
 	/// </summary>
 	/// <returns>A command stream owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	[Obsolete("Use CreateCommandStream() instead.")]
 	public CommandStream BeginCommands() => CreateCommandStream();
 
 	/// <summary>
 	///     Creates a fixed-capacity deferred command stream using this world's configuration.
 	/// </summary>
 	/// <returns>A command stream owned by this world.</returns>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
 	public CommandStream CreateCommandStream()
 	{
 		ThrowIfDisposed();
@@ -453,10 +461,11 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <param name="handle">Compiled query handle produced by <see cref="Compile{TSpec}" />.</param>
 	/// <returns>A <see cref="QueryCursor" /> that must be disposed after use.</returns>
-	/// <exception cref="InvalidOperationException">
-	///     Thrown when <paramref name="handle" /> belongs to a different world.
-	///     Structural world operations remain disallowed while any query cursor is active.
-	/// </exception>
+	/// <exception cref="InvalidOperationException">Thrown when <paramref name="handle" /> belongs to a different world.</exception>
+	/// <remarks>
+	///     While the returned cursor is active, command playback, <see cref="Reset" />, <see cref="Clear" />, and
+	///     snapshot capture/restore are rejected.
+	/// </remarks>
 	public QueryCursor Execute<TSpec>(QueryHandle<TSpec> handle) where TSpec : struct, ICompiledQuerySpec
 	{
 		ThrowIfDisposed();
@@ -503,15 +512,9 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref T Get<T>(Entity entity) where T : struct
-	{
-		ThrowIfDisposed();
-		EnsureAlive(entity);
-		int     typeId    = GetOrCreateComponentTypeId<T>();
-		ref var component = ref _entityStore.GetComponentRefUnchecked<T>(entity.Id, typeId);
-		TrackPotentialSingleRefWrite(entity.Id, typeId);
-		return ref component;
-	}
+	[Obsolete("Use Read<T>(Entity) for read-only access or Write<T>(Entity) for mutable access instead.")]
+	public ref T Get<T>(Entity entity) where T : struct =>
+		ref Write<T>(entity);
 
 	/// <inheritdoc />
 	public ref T GetOrCreateResource<T>() where T : notnull, new()
@@ -533,11 +536,9 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref T GetResource<T>() where T : notnull
-	{
-		ThrowIfDisposed();
-		return ref _resources.Get<T>();
-	}
+	[Obsolete("Use ReadResource<T>() for read-only access or WriteResource<T>() for mutable access instead.")]
+	public ref T GetResource<T>() where T : notnull =>
+		ref WriteResource<T>();
 
 	/// <inheritdoc />
 	public ref readonly T Read<T>(Entity entity) where T : struct
@@ -549,16 +550,29 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <inheritdoc />
-	public ref readonly T ReadResource<T>() where T : notnull =>
-		ref GetResource<T>();
+	public ref readonly T ReadResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		return ref _resources.Get<T>();
+	}
 
 	/// <inheritdoc />
-	public ref T Write<T>(Entity entity) where T : struct =>
-		ref Get<T>(entity);
+	public ref T Write<T>(Entity entity) where T : struct
+	{
+		ThrowIfDisposed();
+		EnsureAlive(entity);
+		int     typeId    = GetOrCreateComponentTypeId<T>();
+		ref var component = ref _entityStore.GetComponentRefUnchecked<T>(entity.Id, typeId);
+		TrackPotentialSingleRefWrite(entity.Id, typeId);
+		return ref component;
+	}
 
 	/// <inheritdoc />
-	public ref T WriteResource<T>() where T : notnull =>
-		ref GetResource<T>();
+	public ref T WriteResource<T>() where T : notnull
+	{
+		ThrowIfDisposed();
+		return ref _resources.Get<T>();
+	}
 
 	/// <inheritdoc />
 	public void Add<T>(Entity entity) where T : struct
@@ -619,6 +633,7 @@ public class World : IWorld, IDisposable
 	/// </summary>
 	/// <typeparam name="TSnapshotWriter">Writer type receiving the captured payload.</typeparam>
 	/// <param name="writer">Snapshot writer receiving the captured payload.</param>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void CaptureSnapshot<TSnapshotWriter>(ref TSnapshotWriter writer)
 		where TSnapshotWriter : struct, IWorldSnapshotWriter
 	{
@@ -629,9 +644,13 @@ public class World : IWorld, IDisposable
 	/// <summary>
 	///     Removes all entities, components, resources, and transient query state while retaining allocated capacity.
 	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void Clear()
 	{
 		ThrowIfDisposed();
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Clear cannot run while a query iteration is active.");
+
 		_lifecycleService.Clear();
 	}
 
@@ -776,6 +795,9 @@ public class World : IWorld, IDisposable
 	///     Applies all commands recorded in a stream owned by this world.
 	/// </summary>
 	/// <param name="stream">Command stream to apply.</param>
+	/// <exception cref="InvalidOperationException">
+	///     Thrown when <paramref name="stream" /> belongs to another world or a query iteration is active.
+	/// </exception>
 	public void Playback(CommandStream stream)
 	{
 		ThrowIfDisposed();
@@ -783,8 +805,8 @@ public class World : IWorld, IDisposable
 		if (!ReferenceEquals(stream.Owner, this))
 			throw new InvalidOperationException("Command stream belongs to a different world.");
 
-		if (_queryEngine.HasActiveCursors)
-			throw new InvalidOperationException("Playback cannot run while a query cursor is active.");
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Playback cannot run while a query iteration is active.");
 
 		stream.PlaybackInternal();
 	}
@@ -815,9 +837,13 @@ public class World : IWorld, IDisposable
 	/// <summary>
 	///     Resets runtime state and diagnostics to their initial values while retaining the world configuration.
 	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active.</exception>
 	public void Reset()
 	{
 		ThrowIfDisposed();
+		if (_queryEngine.HasActiveQueryIterations)
+			throw new InvalidOperationException("Reset cannot run while a query iteration is active.");
+
 		_lifecycleService.Reset();
 	}
 
@@ -827,6 +853,7 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="TSnapshotReader">Reader type providing the snapshot payload.</typeparam>
 	/// <param name="reader">Snapshot reader providing restore payload.</param>
 	/// <param name="options">Optional type-allowlist and validation options.</param>
+	/// <exception cref="InvalidOperationException">Thrown when a query iteration is active or the snapshot is invalid.</exception>
 	public void RestoreSnapshot<TSnapshotReader>(
 		ref TSnapshotReader             reader,
 		SnapshotDeserializationOptions? options = null)
@@ -837,24 +864,27 @@ public class World : IWorld, IDisposable
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable unmanaged component.
+	///     Compatibility forwarder that executes a struct job over one mutable unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
 	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+		RunDirectFast<TSpec, TJob, T1>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes a struct job over one mutable and one read-only unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
@@ -862,18 +892,21 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes a struct job over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job over one mutable and two read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type.</typeparam>
@@ -882,6 +915,10 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2, T3>
@@ -889,12 +926,11 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes a no-allocation sequential struct job over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job over one mutable and three read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
@@ -904,6 +940,10 @@ public class World : IWorld, IDisposable
 	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
 	/// <param name="handle">Compiled query handle.</param>
 	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.Run(job) instead.")]
 	public void Run<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2, T3, T4>
@@ -912,38 +952,65 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+		RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and one read-only unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and two read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2, T3>
@@ -951,13 +1018,24 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job over one mutable and three read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunEntity(job) instead.")]
 	public void RunEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
@@ -966,12 +1044,11 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+		RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable unmanaged component.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1}" />.</typeparam>
@@ -981,17 +1058,21 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and one read-only unmanaged component.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2}" />.</typeparam>
@@ -1002,6 +1083,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1011,12 +1097,11 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and two read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3}" />.</typeparam>
@@ -1028,6 +1113,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2, T3>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1038,12 +1128,11 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes a struct job in parallel over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes a struct job in parallel over one mutable and three read-only unmanaged components.
 	/// </summary>
 	/// <typeparam name="TSpec">Query specification type.</typeparam>
 	/// <typeparam name="TJob">Job type implementing <see cref="IForEach{T1, T2, T3, T4}" />.</typeparam>
@@ -1056,6 +1145,11 @@ public class World : IWorld, IDisposable
 	/// <param name="degreeOfParallelism">
 	///     Optional worker limit. When null, <see cref="WorldConfig.MaxDegreeOfParallelism" /> is used.
 	/// </param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallel(job, degreeOfParallelism) instead.")]
 	public void RunParallel<TSpec, TJob, T1, T2, T3, T4>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1067,25 +1161,46 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+		RunParallelDirect<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain the requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and one read-only unmanaged component.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and one read-only unmanaged component.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">Read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1095,13 +1210,25 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and two read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and two read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2, T3>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1112,13 +1239,26 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
-	///     Executes an entity-aware struct job in parallel over one mutable and three read-only unmanaged components.
+	///     Compatibility forwarder that executes an entity-aware struct job in parallel over one mutable and three read-only unmanaged components.
 	/// </summary>
+	/// <typeparam name="TSpec">Query specification type.</typeparam>
+	/// <typeparam name="TJob">Entity-aware job type.</typeparam>
+	/// <typeparam name="T1">Mutable unmanaged component type.</typeparam>
+	/// <typeparam name="T2">First read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T3">Second read-only unmanaged component type.</typeparam>
+	/// <typeparam name="T4">Third read-only unmanaged component type.</typeparam>
+	/// <param name="handle">Compiled query handle.</param>
+	/// <param name="job">Job instance.</param>
+	/// <param name="degreeOfParallelism">Optional worker limit; the world's configured maximum is used when omitted.</param>
+	/// <exception cref="ObjectDisposedException">The world has been disposed.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="handle" /> belongs to a different world.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="degreeOfParallelism" /> is not positive.</exception>
+	/// <exception cref="KeyNotFoundException">A matching archetype does not contain a requested component.</exception>
+	[Obsolete("Use QueryView<TSpec>.RunParallelEntity(job, degreeOfParallelism) instead.")]
 	public void RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(
 		QueryHandle<TSpec> handle,
 		TJob               job,
@@ -1130,8 +1270,7 @@ public class World : IWorld, IDisposable
 		where T3 : unmanaged
 		where T4 : unmanaged
 	{
-		ThrowIfDisposed();
-		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+		RunParallelDirectEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
 	}
 
 	/// <summary>
@@ -1231,17 +1370,8 @@ public class World : IWorld, IDisposable
 		ref int cachedColumnIndex)
 	{
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-			return false;
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-			return false;
-
-		var archetype = Archetypes[location.ArchetypeId];
-		return TryResolveAccessorColumnIndex(
-			archetype,
-			location.ArchetypeId,
+		return _entityStore.HasComponentForAccessor(
+			entity,
 			typeId,
 			ref cachedArchetypeId,
 			ref cachedColumnIndex
@@ -1300,35 +1430,13 @@ public class World : IWorld, IDisposable
 		where T : unmanaged
 	{
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-		{
-			component = default;
-			return false;
-		}
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-		{
-			component = default;
-			return false;
-		}
-
-		var archetype = Archetypes[location.ArchetypeId];
-		if (!TryResolveAccessorColumnIndex(
-				archetype,
-				location.ArchetypeId,
-				typeId,
-				ref cachedArchetypeId,
-				ref cachedColumnIndex
-			))
-		{
-			component = default;
-			return false;
-		}
-
-		var chunk = archetype.GetChunkUnchecked(location.ChunkIndex);
-		component = archetype.GetRefByIndex<T>(chunk, cachedColumnIndex, location.RowIndex);
-		return true;
+		return _entityStore.TryGetComponentForAccessor(
+			entity,
+			typeId,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex,
+			out component
+		);
 	}
 
 	internal Entity CreateEntityInternal()
@@ -1399,12 +1507,6 @@ public class World : IWorld, IDisposable
 		out QueryChunkMatch[] chunkMatches,
 		out bool              usesSharedScratch) =>
 		AcquireQueryChunkMatchScratch(out chunkMatches, out usesSharedScratch);
-
-	internal void AcquireQueryExecutionScratchForDirectIteration(
-		out QueryChunkMatch[] chunkMatches,
-		out Entity[]          entities,
-		out bool              usesSharedScratch) =>
-		AcquireQueryExecutionScratch(out chunkMatches, out entities, out usesSharedScratch);
 
 	internal void AddRelationFromSnapshot(Type relationType, Entity source, Entity target)
 	{
@@ -1508,13 +1610,28 @@ public class World : IWorld, IDisposable
 	internal void EnableRefWriteTrackingForQuery(CompiledQueryPlan plan)
 		=> _changeTracker.EnableRefWriteTracking(plan);
 
-	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(QueryHandle<TSpec> handle, TAction action)
+	internal void ExecuteDirectEntityAction<TSpec, TAction, T1>(
+		QueryHandle<TSpec> handle,
+		TAction            action,
+		bool               trackWrites)
 		where TSpec : struct, ICompiledQuerySpec
 		where TAction : struct, IEntityChunkAction<T1>
 		where T1 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1>(
+				handle,
+				action,
+				trackWrites: trackWrites
+			);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(QueryHandle<TSpec> handle, TAction action)
@@ -1524,7 +1641,15 @@ public class World : IWorld, IDisposable
 		where T2 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(QueryHandle<TSpec> handle, TAction action)
@@ -1535,7 +1660,15 @@ public class World : IWorld, IDisposable
 		where T3 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TAction action)
@@ -1547,12 +1680,15 @@ public class World : IWorld, IDisposable
 		where T4 : struct
 	{
 		ThrowIfDisposed();
-		_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
-	}
-
-	internal void ExitQueryCursor()
-	{
-		_queryEngine.ExitCursors();
+		_queryEngine.EnterQueryIteration();
+		try
+		{
+			_directIterationService.ExecuteDirectEntityAction<TSpec, TAction, T1, T2, T3, T4>(handle, action);
+		}
+		finally
+		{
+			_queryEngine.ExitQueryIteration();
+		}
 	}
 
 	internal void HandleQueryOverflowForDirectIteration() => _changeTracker.HandleQueryOverflow();
@@ -1584,12 +1720,6 @@ public class World : IWorld, IDisposable
 		QueryChunkMatch[] chunkMatches,
 		bool              usesSharedScratch) =>
 		ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
-
-	internal void ReleaseQueryExecutionScratchForDirectIteration(
-		QueryChunkMatch[] chunkMatches,
-		Entity[]          entities,
-		bool              usesSharedScratch) =>
-		ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
 
 	internal void RemoveAllComponentsFromCommandKnownTransitionFast(int sourceArchetypeId, int targetArchetypeId)
 		=> _entityStore.RemoveAllComponentsFromCommandKnownTransitionFast(sourceArchetypeId, targetArchetypeId);
@@ -1663,41 +1793,36 @@ public class World : IWorld, IDisposable
 		if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
 		ThrowIfDisposed();
-		if (!IsAliveUnchecked(entity))
-			throw new InvalidOperationException($"Entity '{entity.Id}:{entity.Version}' is not alive.");
-
-		var location = LocationByEntityId[entity.Id];
-		if (!location.IsValid)
-			throw new InvalidOperationException($"Entity '{entity.Id}' is not in a valid archetype.");
-
-		archetype = Archetypes[location.ArchetypeId];
-		if (!TryResolveAccessorColumnIndex(
-				archetype,
-				location.ArchetypeId,
-				typeId,
-				ref cachedArchetypeId,
-				ref cachedColumnIndex
-			))
-			throw new KeyNotFoundException(
-				$"Component '{componentType.Name}' was not found for entity '{entity.Id}:{entity.Version}'."
-			);
-
-		chunkIndex = location.ChunkIndex;
-		rowIndex   = location.RowIndex;
+		_entityStore.ResolveAccessorLocation(
+			entity,
+			typeId,
+			componentType,
+			ref cachedArchetypeId,
+			ref cachedColumnIndex,
+			out archetype,
+			out chunkIndex,
+			out rowIndex
+		);
 	}
 
 	internal void RunDirectFast<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1>
 		where T1 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEach<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1705,7 +1830,10 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3>(handle, job);
+	}
 
 	internal void RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1714,20 +1842,29 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged
-		=> _directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFast<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1>
 		where T1 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
 		where TJob : struct, IForEachEntity<T1, T2>
 		where T1 : unmanaged
 		where T2 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1735,7 +1872,10 @@ public class World : IWorld, IDisposable
 		where T1 : unmanaged
 		where T2 : unmanaged
 		where T3 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3>(handle, job);
+	}
 
 	internal void RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job)
 		where TSpec : struct, ICompiledQuerySpec
@@ -1744,7 +1884,94 @@ public class World : IWorld, IDisposable
 		where T2 : unmanaged
 		where T3 : unmanaged
 		where T4 : unmanaged
-		=> _directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunDirectFastEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirect<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEach<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallel<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1>
+		where T1 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2>
+		where T1 : unmanaged
+		where T2 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2, T3>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3>(handle, job, degreeOfParallelism);
+	}
+
+	internal void RunParallelDirectEntity<TSpec, TJob, T1, T2, T3, T4>(QueryHandle<TSpec> handle, TJob job, int? degreeOfParallelism = null)
+		where TSpec : struct, ICompiledQuerySpec
+		where TJob : struct, IForEachEntity<T1, T2, T3, T4>
+		where T1 : unmanaged
+		where T2 : unmanaged
+		where T3 : unmanaged
+		where T4 : unmanaged
+	{
+		ThrowIfDisposed();
+		_directIterationService.RunParallelEntity<TSpec, TJob, T1, T2, T3, T4>(handle, job, degreeOfParallelism);
+	}
 
 	internal void SetComponentFromSnapshot(Entity entity, Type componentType, object value)
 		=> _entityStore.SetComponentBoxed(entity, componentType, value);
@@ -1803,29 +2030,7 @@ public class World : IWorld, IDisposable
 	private static bool ContainsReferencesGeneric<T>() where T : struct =>
 		RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool TryResolveAccessorColumnIndex(
-		ArchetypeStorage archetype,
-		int              archetypeId,
-		int              typeId,
-		ref int          cachedArchetypeId,
-		ref int          cachedColumnIndex)
-	{
-		if (cachedArchetypeId == archetypeId)
-			return cachedColumnIndex >= 0;
-
-		cachedArchetypeId = archetypeId;
-		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
-		if (columnIndex >= 0)
-		{
-			cachedColumnIndex = columnIndex;
-			return true;
-		}
-
-		cachedColumnIndex = -1;
-		return false;
-	}
-
+	#pragma warning disable CS0618
 	private static WorldConfig ToWorldConfig(WorldOptions options)
 	{
 		if (options is null) throw new ArgumentNullException(nameof(options));
@@ -1836,6 +2041,7 @@ public class World : IWorld, IDisposable
 			MaxDegreeOfParallelism = options.MaxDegreeOfParallelism
 		};
 	}
+	#pragma warning restore CS0618
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool IsAliveUnchecked(Entity entity) =>
@@ -1864,13 +2070,6 @@ public class World : IWorld, IDisposable
 	private void AcquireQueryChunkMatchScratch(out QueryChunkMatch[] chunkMatches, out bool usesSharedScratch) =>
 		_queryEngine.AcquireQueryChunkMatchScratch(out chunkMatches, out usesSharedScratch);
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void AcquireQueryExecutionScratch(
-		out QueryChunkMatch[] chunkMatches,
-		out Entity[]          entities,
-		out bool              usesSharedScratch) =>
-		_queryEngine.AcquireQueryExecutionScratch(out chunkMatches, out entities, out usesSharedScratch);
-
 	private void EnsureAlive(Entity entity)
 	{
 		if (!IsAliveUnchecked(entity))
@@ -1888,13 +2087,6 @@ public class World : IWorld, IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ReleaseQueryChunkMatchScratch(QueryChunkMatch[] chunkMatches, bool usesSharedScratch) =>
 		_queryEngine.ReleaseQueryChunkMatchScratch(chunkMatches, usesSharedScratch);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void ReleaseQueryExecutionScratch(
-		QueryChunkMatch[] chunkMatches,
-		Entity[]          entities,
-		bool              usesSharedScratch) =>
-		_queryEngine.ReleaseQueryExecutionScratch(chunkMatches, entities, usesSharedScratch);
 
 	private void ThrowIfDirectIterationUnavailable<TSpec>(QueryHandle<TSpec> handle)
 		where TSpec : struct, ICompiledQuerySpec =>

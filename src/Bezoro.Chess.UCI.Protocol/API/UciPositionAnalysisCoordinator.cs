@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
+using Bezoro.Chess.UCI.Protocol.Internal;
 
 namespace Bezoro.Chess.UCI.Protocol.API;
 
@@ -13,17 +14,27 @@ namespace Bezoro.Chess.UCI.Protocol.API;
 /// </summary>
 public sealed class UciPositionAnalysisCoordinator : IDisposable
 {
-	private readonly UciEngineClient _client;
-	private readonly int             _multiPvMoveTimeMs;
-	private readonly int             _fallbackMoveTimeMs;
+	private readonly Func<PositionAnalysisWorkItem, CancellationToken, Task<PositionAnalysisResult>> _analyzePositionAsync;
+	private readonly Action? _beforeWorkerRetires;
+	private readonly Action? _afterWorkDequeued;
 	private readonly object _sync = new();
-	private readonly Queue<PositionAnalysisRequest> _pendingRequests = new();
-	private readonly HashSet<string> _trackedPositionKeys = new(StringComparer.Ordinal);
+	private readonly Queue<PositionAnalysisWorkItem> _pendingRequests = new();
 	private readonly Dictionary<string, PositionAnalysisResult> _completedAnalyses = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, TaskCompletionSource<PositionAnalysisResult>> _waiters =
 		new(StringComparer.Ordinal);
 	private CancellationTokenSource _lifetimeCts = new();
 	private Task? _workerTask;
+
+	internal Task? ActiveWorker
+	{
+		get
+		{
+			lock (_sync)
+			{
+				return _workerTask;
+			}
+		}
+	}
 
 	/// <summary>
 	///     Initializes a new coordinator over a dedicated analysis client.
@@ -32,10 +43,16 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 		UciEngineClient client,
 		int             multiPvMoveTimeMs  = 3_000,
 		int             fallbackMoveTimeMs = 250)
+		: this(CreateAnalyzer(client, multiPvMoveTimeMs, fallbackMoveTimeMs)) { }
+
+	internal UciPositionAnalysisCoordinator(
+		Func<PositionAnalysisWorkItem, CancellationToken, Task<PositionAnalysisResult>> analyzePositionAsync,
+		Action? beforeWorkerRetires = null,
+		Action? afterWorkDequeued = null)
 	{
-		_client             = client ?? throw new ArgumentNullException(nameof(client));
-		_multiPvMoveTimeMs  = multiPvMoveTimeMs;
-		_fallbackMoveTimeMs = fallbackMoveTimeMs;
+		_analyzePositionAsync = analyzePositionAsync ?? throw new ArgumentNullException(nameof(analyzePositionAsync));
+		_beforeWorkerRetires = beforeWorkerRetires;
+		_afterWorkDequeued = afterWorkDequeued;
 	}
 
 	/// <summary>
@@ -50,7 +67,7 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	{
 		lock (_sync)
 		{
-			if (_completedAnalyses.ContainsKey(positionKey) || !_trackedPositionKeys.Add(positionKey))
+			if (_completedAnalyses.ContainsKey(positionKey) || _waiters.ContainsKey(positionKey))
 				return;
 
 			_pendingRequests.Enqueue(
@@ -63,8 +80,7 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 				)
 			);
 
-			if (!_waiters.ContainsKey(positionKey))
-				_waiters[positionKey] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+			_waiters[positionKey] = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			if (_workerTask is null || _workerTask.IsCompleted)
 				_workerTask = Task.Run(ProcessLoopAsync);
@@ -107,116 +123,58 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	/// <summary>
 	///     Cancels in-flight work and clears pending and completed state.
 	/// </summary>
-	public void Cancel()
-	{
-		CancellationTokenSource lifetimeCts;
-		TaskCompletionSource<PositionAnalysisResult>[] waiters;
-
-		lock (_sync)
-		{
-			lifetimeCts                 = _lifetimeCts;
-			_lifetimeCts                = new();
-			waiters                     = [.. _waiters.Values];
-			_pendingRequests.Clear();
-			_waiters.Clear();
-			_trackedPositionKeys.Clear();
-			_completedAnalyses.Clear();
-			_workerTask                 = null;
-		}
-
-		try
-		{
-			lifetimeCts.Cancel();
-		}
-		finally
-		{
-			lifetimeCts.Dispose();
-		}
-
-		foreach (var waiter in waiters)
-			waiter.TrySetCanceled();
-	}
+	public void Cancel() => CancelCore(null);
 
 	internal void CancelPendingAndRetainCompleted(ISet<string> retainedPositionKeys)
 	{
 		if (retainedPositionKeys is null)
 			throw new ArgumentNullException(nameof(retainedPositionKeys));
 
-		CancellationTokenSource lifetimeCts;
-		TaskCompletionSource<PositionAnalysisResult>[] waiters;
-
-		lock (_sync)
-		{
-			lifetimeCts  = _lifetimeCts;
-			_lifetimeCts = new();
-			waiters      = [.. _waiters.Values];
-
-			_pendingRequests.Clear();
-			_waiters.Clear();
-			_trackedPositionKeys.Clear();
-			_workerTask = null;
-
-			foreach (var positionKey in _completedAnalyses.Keys.ToArray())
-			{
-				if (!retainedPositionKeys.Contains(positionKey))
-					_completedAnalyses.Remove(positionKey);
-			}
-		}
-
-		try
-		{
-			lifetimeCts.Cancel();
-		}
-		finally
-		{
-			lifetimeCts.Dispose();
-		}
-
-		foreach (var waiter in waiters)
-			waiter.TrySetCanceled();
+		CancelCore(retainedPositionKeys);
 	}
 
 	private async Task ProcessLoopAsync()
 	{
 		while (true)
 		{
-			PositionAnalysisRequest request;
+			PositionAnalysisWorkItem request;
+			CancellationTokenSource? generation;
 			CancellationToken token;
 
 			lock (_sync)
 			{
-				if (_lifetimeCts.IsCancellationRequested)
+				if (_pendingRequests.TryDequeue(out request))
+				{
+					generation = _lifetimeCts;
+					token = generation.Token;
+				}
+				else
 				{
 					_workerTask = null;
-					return;
+					generation = null;
+					token = default;
 				}
-
-				if (!_pendingRequests.TryDequeue(out request))
-				{
-					_workerTask = null;
-					return;
-				}
-
-				token                         = _lifetimeCts.Token;
 			}
+
+			if (generation is null)
+			{
+				_beforeWorkerRetires?.Invoke();
+				return;
+			}
+
+			_afterWorkDequeued?.Invoke();
 
 			try
 			{
-				await _client.SetPositionAsync(Fen.Default, request.Moves, token).ConfigureAwait(false);
-				var analysis = await _client.AnalyzePositionAsync(
-					request.SideToMove,
-					request.PlayerColor,
-					request.LegalMoves,
-					_multiPvMoveTimeMs,
-					_fallbackMoveTimeMs,
-					token
-				).ConfigureAwait(false);
+				var analysis = await _analyzePositionAsync(request, token).ConfigureAwait(false);
 
 				TaskCompletionSource<PositionAnalysisResult>? waiter = null;
 				lock (_sync)
 				{
+					if (!ReferenceEquals(generation, _lifetimeCts))
+						continue;
+
 					_completedAnalyses[request.PositionKey] = analysis;
-					_trackedPositionKeys.Remove(request.PositionKey);
 					if (_waiters.TryGetValue(request.PositionKey, out waiter))
 						_waiters.Remove(request.PositionKey);
 				}
@@ -225,19 +183,16 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 			}
 			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
-				lock (_sync)
-				{
-					_workerTask                   = null;
-				}
-
-				return;
+				continue;
 			}
 			catch (Exception ex)
 			{
 				TaskCompletionSource<PositionAnalysisResult>? waiter = null;
 				lock (_sync)
 				{
-					_trackedPositionKeys.Remove(request.PositionKey);
+					if (!ReferenceEquals(generation, _lifetimeCts))
+						continue;
+
 					if (_waiters.TryGetValue(request.PositionKey, out waiter))
 						_waiters.Remove(request.PositionKey);
 				}
@@ -252,11 +207,64 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	/// </summary>
 	public void Dispose() => Cancel();
 
-	private readonly record struct PositionAnalysisRequest(
-		string                 PositionKey,
-		ImmutableArray<string> Moves,
-		char                   SideToMove,
-		char                   PlayerColor,
-		ImmutableArray<string> LegalMoves
-	);
+	private void CancelCore(ISet<string>? retainedPositionKeys)
+	{
+		CancellationTokenSource retiredGeneration;
+		TaskCompletionSource<PositionAnalysisResult>[] waiters;
+
+		lock (_sync)
+		{
+			retiredGeneration = _lifetimeCts;
+			_lifetimeCts = new();
+			waiters = [.. _waiters.Values];
+			_pendingRequests.Clear();
+			_waiters.Clear();
+
+			if (retainedPositionKeys is null)
+			{
+				_completedAnalyses.Clear();
+			}
+			else
+			{
+				foreach (var positionKey in _completedAnalyses.Keys.ToArray())
+				{
+					if (!retainedPositionKeys.Contains(positionKey))
+						_completedAnalyses.Remove(positionKey);
+				}
+			}
+		}
+
+		try
+		{
+			retiredGeneration.Cancel();
+		}
+		finally
+		{
+			retiredGeneration.Dispose();
+		}
+
+		foreach (var waiter in waiters)
+			waiter.TrySetCanceled();
+	}
+
+	private static Func<PositionAnalysisWorkItem, CancellationToken, Task<PositionAnalysisResult>> CreateAnalyzer(
+		UciEngineClient client,
+		int multiPvMoveTimeMs,
+		int fallbackMoveTimeMs)
+	{
+		if (client is null) throw new ArgumentNullException(nameof(client));
+
+		return async (workItem, token) =>
+		{
+			await client.SetPositionAsync(Fen.Default, workItem.Moves, token).ConfigureAwait(false);
+			return await client.AnalyzePositionAsync(
+				workItem.SideToMove,
+				workItem.PlayerColor,
+				workItem.LegalMoves,
+				multiPvMoveTimeMs,
+				fallbackMoveTimeMs,
+				token
+			).ConfigureAwait(false);
+		};
+	}
 }

@@ -61,6 +61,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <summary>
 	///     Compatibility event for callers that only need the best move and ponder move strings.
 	/// </summary>
+	/// <remarks>Use <see cref="BestMoveMessageReceived" /> instead.</remarks>
+	[Obsolete("Use BestMoveMessageReceived instead.", false)]
 	public event Action<string, string>? BestMoveReceived;
 
 	/// <summary>
@@ -86,6 +88,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// <summary>
 	///     Compatibility event alias for <see cref="RawLineReceived" />.
 	/// </summary>
+	/// <remarks>Use <see cref="RawLineReceived" /> instead.</remarks>
+	[Obsolete("Use RawLineReceived instead.", false)]
 	public event Action<string>? LineReceived;
 
 	/// <summary>

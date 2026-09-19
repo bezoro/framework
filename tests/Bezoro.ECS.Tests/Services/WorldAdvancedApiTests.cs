@@ -60,8 +60,8 @@ public class WorldAdvancedApiTests
 			}
 		);
 
-		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("alpha");
+		restored.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		restored.ReadResource<SnapshotTagResource>().Tag.Should().Be("alpha");
 
 		var handle    = restored.Compile<PositionQuerySpec>();
 		var positions = new List<Position>(2);
@@ -175,8 +175,50 @@ public class WorldAdvancedApiTests
 			}
 		);
 
-		restored.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		restored.GetResource<SnapshotTagResource>().Tag.Should().Be("trusted");
+		restored.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		restored.ReadResource<SnapshotTagResource>().Tag.Should().Be("trusted");
+	}
+
+	[Fact]
+	public void CaptureSnapshot_WhenQueryViewCallbackIsActive_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new Position { X = 1, Y = 2 });
+		var writer = new InMemorySnapshotWriter();
+
+		world.Query<PositionQuerySpec>().ForEach<Position>(
+			(Entity _, ref Position _) =>
+			{
+				var act = () => world.CaptureSnapshot(ref writer);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Snapshot capture cannot run while a query iteration is active.");
+			}
+		);
+
+		world.CaptureSnapshot(ref writer);
+		writer.Captured.Entities.Should().ContainSingle();
+	}
+
+	[Fact]
+	public void RestoreSnapshot_WhenQueryViewCallbackIsActive_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new Position { X = 1, Y = 2 });
+		var reader = new InMemorySnapshotReader(CreateSnapshot());
+
+		world.Query<PositionQuerySpec>().ForEach<Position>(
+			(Entity _, ref Position _) =>
+			{
+				var act = () => world.RestoreSnapshot(ref reader);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Snapshot restore cannot run while a query iteration is active.");
+			}
+		);
+
+		world.RestoreSnapshot(ref reader);
+		world.EntityCount.Should().Be(0);
 	}
 
 	[Fact]
@@ -329,7 +371,7 @@ public class WorldAdvancedApiTests
 	{
 		using var world               = CreateWorldWithExistingState();
 		int       existingEntityCount = world.EntityCount;
-		float     existingGravity     = world.GetResource<SimulationSettings>().Gravity;
+		float     existingGravity     = world.ReadResource<SimulationSettings>().Gravity;
 		var snapshot = CreateSnapshot(
 			[
 				new(typeof(SnapshotTagResource), new SnapshotTagResource("unsafe"))
@@ -351,8 +393,8 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*not allow-listed*");
 
 		world.EntityCount.Should().Be(existingEntityCount);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
-		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(existingGravity);
+		world.Read<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
@@ -507,8 +549,8 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*entity capacity*");
 
 		world.EntityCount.Should().Be(1);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		world.Read<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
@@ -579,11 +621,11 @@ public class WorldAdvancedApiTests
 		   .WithMessage("*component type capacity*");
 
 		world.EntityCount.Should().Be(1);
-		world.Get<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
+		world.Read<Position>(original).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	[Fact]
-	public void RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
+	public void QueryView_RunParallel_WhenCursorIsActive_ShouldAllowIndependentExecution()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -607,28 +649,30 @@ public class WorldAdvancedApiTests
 		world.Playback(commands);
 
 		var       handle = world.Compile<PositionQuerySpec>();
+		var       query  = new QueryView<PositionQuerySpec>(world, handle);
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
 
-		world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 2);
+		query.RunParallel<AdvanceJob, Position>(new(), 2);
 
 		cursor.Get<Position>(0).X.Should().Be(1);
 	}
 
 	[Fact]
-	public void RunParallel_WhenDegreeOfParallelismIsInvalid_ShouldThrowArgumentOutOfRangeException()
+	public void QueryView_RunParallel_WhenDegreeOfParallelismIsInvalid_ShouldThrowArgumentOutOfRangeException()
 	{
 		using var world  = new World();
 		var       handle = world.Compile<PositionQuerySpec>();
+		var       query  = new QueryView<PositionQuerySpec>(world, handle);
 
-		var act = () => world.RunParallel<PositionQuerySpec, AdvanceJob, Position>(handle, new(), 0);
+		var act = () => query.RunParallel<AdvanceJob, Position>(new(), 0);
 
 		act.Should().Throw<ArgumentOutOfRangeException>()
 		   .WithParameterName("degreeOfParallelism");
 	}
 
 	[Fact]
-	public void RunParallel_WhenQueryMatches_ShouldProcessAllEntitiesExactlyOnce()
+	public void QueryView_RunParallel_WhenQueryMatches_ShouldProcessAllEntitiesExactlyOnce()
 	{
 		using var world = new World(
 			new WorldConfig
@@ -652,12 +696,9 @@ public class WorldAdvancedApiTests
 
 		world.Playback(commands);
 		var handle = world.Compile<PositionVelocityQuerySpec>();
+		var query  = new QueryView<PositionVelocityQuerySpec>(world, handle);
 
-		world.RunParallel<PositionVelocityQuerySpec, IntegrateJob, Position, Velocity>(
-			handle,
-			new(4f),
-			4
-		);
+		query.RunParallel<IntegrateJob, Position, Velocity>(new(4f), 4);
 
 		using var cursor = world.Execute(handle);
 		cursor.MoveNext().Should().BeTrue();
@@ -673,8 +714,8 @@ public class WorldAdvancedApiTests
 	private static void AssertWorldPreserved(World world)
 	{
 		world.EntityCount.Should().Be(1);
-		world.GetResource<SimulationSettings>().Gravity.Should().Be(9.81f);
-		world.Get<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
+		world.ReadResource<SimulationSettings>().Gravity.Should().Be(9.81f);
+		world.Read<Position>(ExistingEntity).Should().Be(new Position { X = 99, Y = 100 });
 	}
 
 	private static World CreateWorldWithExistingState()

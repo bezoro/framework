@@ -162,11 +162,13 @@ public sealed class ForEachJobSourceGenerator : IIncrementalGenerator
 
 		builder.AppendLine("        where TSpec : struct, global::Bezoro.ECS.Abstractions.ICompiledQuerySpec");
 		builder.AppendLine("    {");
-		builder.Append("        world.").Append(model.IsEntityAware ? "RunEntity<TSpec, " : "Run<TSpec, ").Append(model.JobType);
+		builder.Append("        new global::Bezoro.ECS.Types.QueryView<TSpec>(world, handle).")
+			   .Append(model.IsEntityAware ? "RunEntity<" : "Run<")
+			   .Append(model.JobType);
 		for (var i = 0; i < model.ComponentTypes.Length; i++)
 			builder.Append(", ").Append(model.ComponentTypes[i]);
 
-		builder.AppendLine(">(handle, job);");
+		builder.AppendLine(">(job);");
 		builder.AppendLine("    }");
 		builder.AppendLine("}");
 

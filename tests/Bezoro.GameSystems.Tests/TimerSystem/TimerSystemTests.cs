@@ -54,7 +54,7 @@ public class TimerSystemTests
 		world.Tick(1f);
 
 		// Assert
-		var timer = world.Get<Timer>(timerEntity);
+		var timer = world.Read<Timer>(timerEntity);
 		timer.State.Should().Be(TimerState.Running);
 		timer.ElapsedSeconds.Should().BeApproximately(3f, 0.0001f);
 		resumedCount.Should().Be(1);
@@ -82,7 +82,7 @@ public class TimerSystemTests
 		world.Tick(0.25f);
 
 		// Assert
-		var timer = world.Get<Timer>(timerEntity);
+		var timer = world.Read<Timer>(timerEntity);
 		timer.State.Should().Be(TimerState.Running);
 		timer.ElapsedSeconds.Should().BeApproximately(0.25f, 0.0001f);
 		restartedCount.Should().Be(1);
@@ -108,8 +108,8 @@ public class TimerSystemTests
 		world.Tick(0.5f);
 
 		// Assert
-		var t1 = world.Get<Timer>(e1);
-		var t2 = world.Get<Timer>(e2);
+		var t1 = world.Read<Timer>(e1);
+		var t2 = world.Read<Timer>(e2);
 
 		t1.ElapsedSeconds.Should().BeApproximately(1.5f, 0.0001f);
 		t2.ElapsedSeconds.Should().BeApproximately(0.75f, 0.0001f);
@@ -146,7 +146,7 @@ public class TimerSystemTests
 		world.Tick(0.5f);
 
 		// Assert
-		var timer = world.Get<Timer>(timerEntity);
+		var timer = world.Read<Timer>(timerEntity);
 		timer.State.Should().Be(TimerState.Stopped);
 		startedCount.Should().Be(1);
 		pausedCount.Should().Be(1);
@@ -172,13 +172,13 @@ public class TimerSystemTests
 		world.Tick(0.5f);
 
 		// Assert
-		var timer = world.Get<Timer>(timerEntity);
+		var timer = world.Read<Timer>(timerEntity);
 		timer.State.Should().Be(TimerState.Completed);
 		timer.ElapsedSeconds.Should().BeApproximately(1f, 0.0001f);
 
 		finishedCount.Should().Be(1);
 
-		var events = world.GetResource<TimerEventsResource>();
+		var events = world.WriteResource<TimerEventsResource>();
 		events.Count.Should().Be(1);
 		events.TryDequeue(out var evt).Should().BeTrue();
 		evt.Lifecycle.Should().Be(TimerLifecycle.Finished);

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Bezoro.TypingSystem.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -7,6 +8,15 @@ namespace Bezoro.TypingSystem.Tests.Types;
 [TestSubject(typeof(TypingResult))]
 public class TypingResultMatchTests
 {
+	[Fact]
+	public void Match_WhenInspected_ShouldBePublicFactory()
+	{
+		var method = typeof(TypingResult).GetMethod(nameof(TypingResult.Match), BindingFlags.Public | BindingFlags.Static);
+
+		method.Should().NotBeNull();
+		method!.ReturnType.Should().Be<TypingResult>();
+	}
+
 	[Fact]
 	public void Match_WhenCalled_ShouldReturnExpectedResult()
 	{

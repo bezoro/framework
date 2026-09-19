@@ -1,6 +1,7 @@
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Internal;
+using Bezoro.ECS.Tests.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -11,6 +12,39 @@ namespace Bezoro.ECS.Tests.Internal;
 [TestSubject(typeof(GeneratedSystemMetadataResolver))]
 public class GeneratedSystemMetadataResolverTests
 {
+	[Fact]
+	public void TryGet_WhenSystemUsesLegacyGet_ShouldClassifyComponentAsWrite()
+	{
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(LegacyGetComponentSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.Writes.Should().ContainSingle(t => t == typeof(ErgonomicJobPosition));
+		metadata.Reads.Should().NotContain(t => t == typeof(ErgonomicJobPosition));
+	}
+
+	[Fact]
+	public void TryGet_WhenSystemUsesLegacyGetResource_ShouldClassifyResourceAsWrite()
+	{
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(LegacyGetResourceSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.WriteResources.Should().ContainSingle(t => t == typeof(ErgonomicSchedulerResource));
+		metadata.ReadResources.Should().NotContain(t => t == typeof(ErgonomicSchedulerResource));
+	}
+
+	[Fact]
+	public void TryGet_WhenSystemUsesLegacyTryGetManaged_ShouldClassifyComponentAsRead()
+	{
+		var  resolver = new GeneratedSystemMetadataResolver();
+		bool result   = resolver.TryGet(typeof(LegacyTryGetManagedSystem), out var metadata);
+
+		result.Should().BeTrue();
+		metadata.Reads.Should().ContainSingle(t => t == typeof(ErgonomicReadOnlyNote));
+		metadata.Writes.Should().NotContain(t => t == typeof(ErgonomicReadOnlyNote));
+	}
+
 	[Fact]
 	public void TryGet_WhenGeneratedMetadataExists_ShouldReturnSystemMetadata()
 	{

@@ -34,7 +34,7 @@ var entity = world.Spawn(
 );
 
 world.Tick(0f);
-var state = world.Get<StreamState>(entity);
+var state = world.Read<StreamState>(entity);
 ```
 
 ## API Reference

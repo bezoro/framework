@@ -52,8 +52,10 @@ public class UciProtocolParserTests
 			"info depth 20 seldepth 32 multipv 2 score cp 34 lowerbound nodes 12345 nps 456789 hashfull 12 cpuload 876 time 250 tbhits 4 currmove e2e4 currmovenumber 7 refutation d2d4 d7d5 currline 1 e2e4 e7e5 g1f3 pv e2e4 e7e5 g1f3";
 
 		bool parsed = UciProtocolParser.TryParse(LINE, out var message);
+		bool principalVariationParsed = PrincipalVariation.TryParse(LINE, out var standalonePrincipalVariation);
 
 		parsed.Should().BeTrue();
+		principalVariationParsed.Should().BeTrue();
 		message.Info.HasValue.Should().BeTrue();
 		var info = message.Info!.Value.Payload;
 		info.Depth.Should().Be(20u);
@@ -74,7 +76,15 @@ public class UciProtocolParserTests
 		info.CurrentLineCpu.Should().Be(1u);
 		info.CurrentLine.Should().Equal("e2e4", "e7e5", "g1f3");
 		info.PrincipalVariation.Should().NotBeNull();
-		info.PrincipalVariation!.Value.RawPv.Should().Be("e2e4 e7e5 g1f3");
+		var principalVariation = info.PrincipalVariation!.Value;
+		principalVariation.RawPv.Should().Be("e2e4 e7e5 g1f3");
+		principalVariation.Should().BeEquivalentTo(
+			standalonePrincipalVariation,
+			options => options
+				.ComparingByMembers<PrincipalVariation>()
+				.Excluding(variation => variation.Moves)
+		);
+		principalVariation.Moves.Should().Equal(standalonePrincipalVariation.Moves);
 	}
 
 	[Fact]
@@ -85,6 +95,82 @@ public class UciProtocolParserTests
 		parsed.Should().BeTrue();
 		message.Info.HasValue.Should().BeTrue();
 		message.Info!.Value.Payload.String.Should().Be("NNUE evaluation enabled");
+	}
+
+	[Fact]
+	public void TryParse_WhenInfoLineUsesSupportedCasingAndSpacing_ShouldPreserveMoveCasing()
+	{
+		bool parsed = UciProtocolParser.TryParse(
+			"INFO   depth 12 score CP 34 LOWERBOUND   pv E2E4 e7e5",
+			out var message
+		);
+
+		parsed.Should().BeTrue();
+		var info = message.Info!.Value.Payload;
+		info.Depth.Should().Be(12u);
+		info.Score.Should().Be(new UciInfoScore(34, null, UciScoreBound.Lower));
+		info.PrincipalVariation!.Value.Moves.Should().Equal("E2E4", "e7e5");
+	}
+
+	[Fact]
+	public void TryParse_WhenInfoFieldOrPvKeywordUsesUppercase_ShouldNotTreatItAsCanonicalGrammar()
+	{
+		bool parsed = UciProtocolParser.TryParse("info DEPTH 12 PV e2e4", out var message);
+
+		parsed.Should().BeTrue();
+		var info = message.Info!.Value.Payload;
+		info.Depth.Should().BeNull();
+		info.PrincipalVariation.Should().BeNull();
+	}
+
+	[Fact]
+	public void TryParse_WhenInfoTokensUseTabs_ShouldReturnFalse()
+	{
+		bool parsed = UciProtocolParser.TryParse("info\tdepth\t12\tpv\te2e4", out _);
+
+		parsed.Should().BeFalse();
+	}
+
+	[Fact]
+	public void TryParse_WhenFieldsFollowPv_ShouldKeepThemInTheTerminalMoveSequence()
+	{
+		bool parsed = UciProtocolParser.TryParse("info depth 12 pv e2e4 depth 99", out var message);
+
+		parsed.Should().BeTrue();
+		var info = message.Info!.Value.Payload;
+		info.Depth.Should().Be(12u);
+		info.PrincipalVariation!.Value.Moves.Should().Equal("e2e4", "depth", "99");
+	}
+
+	[Theory]
+	[InlineData("info score cp 40 score mate -2", null, -2, UciScoreBound.Exact)]
+	[InlineData("info score mate 2 score CP 40 UPPERBOUND", 40, null, UciScoreBound.Upper)]
+	[InlineData("info score cp 40 score unknown 12", null, null, UciScoreBound.Exact)]
+	[InlineData("info score cp 40 score cp invalid", null, null, UciScoreBound.Exact)]
+	[InlineData("info score cp 40 score", 40, null, UciScoreBound.Exact)]
+	public void TryParse_WhenScoreClausesRepeat_ShouldUseLastCompleteClause(
+		string line,
+		int? expectedCentipawns,
+		int? expectedMate,
+		UciScoreBound expectedBound)
+	{
+		bool parsed = UciProtocolParser.TryParse(line, out var message);
+
+		parsed.Should().BeTrue();
+		message.Info!.Value.Payload.Score.Should().Be(
+			new UciInfoScore(expectedCentipawns, expectedMate, expectedBound)
+		);
+	}
+
+	[Fact]
+	public void TryParse_WhenStringContainsProtocolKeywords_ShouldTreatStringAsTerminal()
+	{
+		bool parsed = UciProtocolParser.TryParse("info depth 12 string pv e2e4", out var message);
+
+		parsed.Should().BeTrue();
+		var info = message.Info!.Value.Payload;
+		info.String.Should().Be("pv e2e4");
+		info.PrincipalVariation.Should().BeNull();
 	}
 
 	[Fact]

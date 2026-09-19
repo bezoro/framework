@@ -40,7 +40,7 @@ world.Tick(1f);
 world.Tick(1f);
 world.Tick(1f);
 
-ref var eventQueue = ref world.GetResource<TimerEventsResource>();
+ref var eventQueue = ref world.WriteResource<TimerEventsResource>();
 while (eventQueue.TryDequeue(out var evt))
 {
     Console.WriteLine($"{evt.Lifecycle} -> {evt.TimerId}");

@@ -1,3 +1,5 @@
+using Bezoro.Logging.Internal;
+
 namespace Bezoro.Logging.Types;
 
 /// <summary>
@@ -5,12 +7,6 @@ namespace Bezoro.Logging.Types;
 /// </summary>
 public static class LoggerSettings
 {
-	/// <summary>
-	///     AsyncLocal stack that tracks async context hierarchy.
-	///     Automatically flows through async/await boundaries.
-	/// </summary>
-	private static readonly AsyncLocal<Stack<string>?> AsyncContextStack = new();
-
 	/// <summary>
 	///     Log sequence counter for tracking log order.
 	/// </summary>
@@ -101,20 +97,13 @@ public static class LoggerSettings
 	/// <summary>
 	///     Gets the current async context hierarchy.
 	/// </summary>
-	internal static IReadOnlyList<string>? CurrentAsyncContextHierarchy
-	{
-		get
-		{
-			var stack = AsyncContextStack.Value;
-			return stack?.Count > 0 ? stack.Reverse().ToArray() : null;
-		}
-	}
+	internal static IReadOnlyList<string>? CurrentAsyncContextHierarchy => AsyncContextScope.CurrentHierarchy;
 
 	/// <summary>
 	///     Begins a new async context that automatically flows through async/await.
 	/// </summary>
 	/// <param name="contextName">The name for this async context.</param>
-	/// <returns>A disposable that pops the context when disposed.</returns>
+	/// <returns>A disposable that restores the previous context when disposed.</returns>
 	public static IDisposable BeginAsyncContext(string contextName) => new AsyncContextScope(contextName);
 
 	/// <summary>
@@ -164,29 +153,5 @@ public static class LoggerSettings
 
 		/// <summary>Group by async context (automatically flows through async/await).</summary>
 		AsyncContext
-	}
-
-	/// <summary>
-	///     Internal scope for managing async context stack.
-	/// </summary>
-	private sealed class AsyncContextScope : IDisposable
-	{
-		public AsyncContextScope(string contextName)
-		{
-			var stack = AsyncContextStack.Value;
-			if (stack == null)
-			{
-				stack                   = new();
-				AsyncContextStack.Value = stack;
-			}
-
-			stack.Push(contextName);
-		}
-
-		public void Dispose()
-		{
-			var stack = AsyncContextStack.Value;
-			if (stack?.Count > 0) stack.Pop();
-		}
 	}
 }

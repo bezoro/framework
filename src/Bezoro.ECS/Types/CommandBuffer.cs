@@ -1,8 +1,13 @@
 namespace Bezoro.ECS.Types;
 
 /// <summary>
-///     Ergonomic wrapper over the low-level command stream used during system execution.
+///     Retained compatibility wrapper over the canonical <see cref="CommandStream" />.
 /// </summary>
+/// <remarks>
+///     This wrapper preserves the legacy <c>Spawn</c>, <c>Despawn</c>, <c>Add</c>, and <c>Replace</c>
+///     command vocabulary while consumers migrate to <see cref="CommandStream" />.
+/// </remarks>
+[Obsolete("Use CommandStream instead.")]
 public readonly struct CommandBuffer(CommandStream stream)
 {
 	private readonly CommandStream _stream = stream ?? throw new ArgumentNullException(nameof(stream));

@@ -1,5 +1,7 @@
 using System;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
 using Bezoro.Core.Extensions;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -11,6 +13,23 @@ namespace Bezoro.Core.Tests.Extensions;
 [TestSubject(typeof(StringExtensions))]
 public class StringExtensionsColourTests
 {
+	private const string ObsoleteMessage = "Use Color(string) or Color(Color) instead.";
+
+	private static readonly string[] NamedColorMethodNames =
+	[
+		"Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White", "Black", "Gray", "LightGray", "Orange",
+		"Purple", "Brown", "Pink", "LightRed", "Crimson", "DarkRed", "Maroon", "IndianRed", "FireBrick", "Salmon",
+		"Coral", "Tomato", "SkyBlue", "LightBlue", "DeepBlue", "Navy", "RoyalBlue", "CornflowerBlue", "SteelBlue",
+		"DodgerBlue", "DeepSkyBlue", "Teal", "LightGreen", "DarkGreen", "ForestGreen", "Lime", "Olive", "MediumSeaGreen",
+		"SpringGreen", "SeaGreen", "PaleGreen", "YellowGreen", "Gold", "LightYellow", "LemonChiffon", "Khaki", "DarkKhaki",
+		"Goldenrod", "DarkGoldenrod", "Amber", "Lavender", "Violet", "Plum", "Orchid", "MediumPurple", "DarkOrchid",
+		"DarkViolet", "BlueViolet", "Indigo", "MediumOrchid", "SandyBrown", "RosyBrown", "Peru", "Chocolate",
+		"SaddleBrown", "Sienna", "Tan", "BurlyWood", "DarkOrange", "LightOrange", "OrangeRed", "Peach", "Tangerine",
+		"DarkGray", "DimGray", "Silver", "WhiteSmoke", "Gainsboro", "SlateGray", "PastelPink", "PastelBlue", "PastelGreen",
+		"PastelYellow", "PastelPurple", "PastelOrange", "PastelTurquoise", "PastelLavender", "NeonPink", "NeonGreen",
+		"NeonBlue", "NeonYellow", "NeonOrange", "NeonPurple"
+	];
+
 	[Fact]
 	public void StringExtensionsColour_WhenCalled_ShouldColor_with_bytes_matches_FromArgb()
 	{
@@ -29,6 +48,13 @@ public class StringExtensionsColourTests
 		string result = TEXT.Color(NAME);
 
 		result.Should().Be("<color=red>hello</color>");
+	}
+
+	[Fact]
+	public void Color_WhenCalledWithCanonicalInputs_ShouldPreserveMarkup()
+	{
+		"hello".Color("red").Should().Be("<color=red>hello</color>");
+		"hello".Color(new Color(1f, 0f, 0f, 1f)).Should().Be("<color=#FF0000FF>hello</color>");
 	}
 
 	[Fact]
@@ -62,16 +88,18 @@ public class StringExtensionsColourTests
 	}
 
 	[Fact]
-	public void StringExtensionsColour_WhenCalled_ShouldColorHex_falls_back_to_named_color_when_parse_fails()
+	public void ColorHexCompatibility_WhenParseFails_ShouldFallBackToNamedColor()
 	{
 		const string TEXT = "hello";
 		const string NAME = "not-a-color";
 
+#pragma warning disable CS0618 // Dedicated compatibility-wrapper assertion.
 		TEXT.ColorHex(NAME).Should().Be(TEXT.Color(NAME));
+#pragma warning restore CS0618
 	}
 
 	[Fact]
-	public void StringExtensionsColour_WhenCalled_ShouldColorHex_parses_valid_hex_and_matches_Color_overload()
+	public void ColorHexCompatibility_WhenHexIsValid_ShouldMatchColorOverload()
 	{
 		const string TEXT  = "hello";
 		const string INPUT = "#11223344"; // RRGGBBAA
@@ -79,6 +107,54 @@ public class StringExtensionsColourTests
 		bool parsed = Color.TryParse(INPUT.AsSpan(), CultureInfo.InvariantCulture, out var c);
 		parsed.Should().BeTrue("input should be a valid hex color RRGGBBAA");
 
+#pragma warning disable CS0618 // Dedicated compatibility-wrapper assertion.
 		TEXT.ColorHex(INPUT).Should().Be(TEXT.Color(c));
+#pragma warning restore CS0618
+	}
+
+	[Fact]
+	public void NamedColorCompatibilityWrappers_WhenCalled_ShouldPreserveMarkup()
+	{
+#pragma warning disable CS0618 // Dedicated compatibility-wrapper assertions.
+		"hello".Red().Should().Be("<color=#FF0000FF>hello</color>");
+		"hello".NeonPurple().Should().Be("<color=#BC13FEFF>hello</color>");
+#pragma warning restore CS0618
+	}
+
+	[Fact]
+	public void ColorConvenienceMethods_WhenInspected_ShouldHaveExactObsoleteMessage()
+	{
+		var colorHex = typeof(StringExtensions).GetMethod(
+			nameof(StringExtensions.ColorHex),
+			BindingFlags.Public | BindingFlags.Static,
+			[typeof(string), typeof(string)]
+		);
+		colorHex.Should().NotBeNull("ColorHex remains available during the compatibility window");
+		var colorHexAttribute = colorHex!.GetCustomAttribute<ObsoleteAttribute>();
+		colorHexAttribute.Should().NotBeNull();
+		colorHexAttribute!.Message.Should().Be(ObsoleteMessage);
+
+		foreach (string methodName in NamedColorMethodNames)
+		{
+			var method = typeof(StringExtensions).GetMethod(
+				methodName,
+				BindingFlags.Public | BindingFlags.Static,
+				[typeof(string)]
+			);
+
+			method.Should().NotBeNull($"{methodName} remains available during the compatibility window");
+			var attribute = method!.GetCustomAttribute<ObsoleteAttribute>();
+			attribute.Should().NotBeNull();
+			attribute!.Message.Should().Be(ObsoleteMessage);
+		}
+	}
+
+	[Fact]
+	public void ColorOverloads_WhenInspected_ShouldRemainCanonical()
+	{
+		var methods = typeof(StringExtensions).GetMethods(BindingFlags.Public | BindingFlags.Static)
+			.Where(method => method.Name == nameof(StringExtensions.Color));
+
+		methods.Should().NotBeEmpty().And.OnlyContain(method => method.GetCustomAttribute<ObsoleteAttribute>() == null);
 	}
 }

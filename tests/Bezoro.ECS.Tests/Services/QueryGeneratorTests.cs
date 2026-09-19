@@ -74,7 +74,7 @@ public class QueryGeneratorTests
 			}
 		);
 
-		var updated = world.Get<QueryPosition>(entity);
+		var updated = world.Read<QueryPosition>(entity);
 		updated.X.Should().Be(4f);
 		updated.Y.Should().Be(6f);
 	}

@@ -120,6 +120,161 @@ public class WorldErgonomicApiTests
 	}
 
 	[Fact]
+	public void Query_WhenUsingManagedReadOnlyForEachAcrossChunks_ShouldProvideLiveEntityVersionsAndValues()
+	{
+		using var world = new World(new WorldConfig { ChunkCapacity = 1 });
+
+		var first    = world.Spawn(new ErgonomicManagedNote { Label = "first", Count = 1 });
+		var recycled = world.Spawn(new ErgonomicManagedNote { Label = "removed", Count = 2 });
+		var third    = world.Spawn(new ErgonomicManagedNote { Label = "third", Count = 3 });
+		world.Despawn(recycled);
+		var replacement = world.Spawn(new ErgonomicManagedNote { Label = "replacement", Count = 4 });
+
+		replacement.Id.Should().Be(recycled.Id);
+		replacement.Version.Should().BeGreaterThan(recycled.Version);
+		var visited = new Dictionary<Entity, (string Label, int Count)>();
+
+		world.Query<ErgonomicManagedNoteQuery>().ForEachRead<ErgonomicManagedNote>(
+			(Entity entity, in ErgonomicManagedNote note) => visited.Add(entity, (note.Label, note.Count))
+		);
+
+		visited.Should().BeEquivalentTo(
+			new Dictionary<Entity, (string Label, int Count)>
+			{
+				[first]       = ("first", 1),
+				[third]       = ("third", 3),
+				[replacement] = ("replacement", 4)
+			}
+		);
+		visited.Should().NotContainKey(recycled);
+	}
+
+	[Fact]
+	public void Query_WhenUsingManagedMutableForEachAcrossChunks_ShouldMutateEveryValue()
+	{
+		using var world = new World(new WorldConfig { ChunkCapacity = 1 });
+
+		var entities = new[]
+		{
+			world.Spawn(new ErgonomicManagedNote { Label = "first", Count = 1 }),
+			world.Spawn(new ErgonomicManagedNote { Label = "second", Count = 2 }),
+			world.Spawn(new ErgonomicManagedNote { Label = "third", Count = 3 })
+		};
+
+		world.Query<ErgonomicManagedNoteQuery>().ForEach<ErgonomicManagedNote>(
+			(Entity _, ref ErgonomicManagedNote note) =>
+			{
+				note.Label += "!";
+				note.Count *= 10;
+			}
+		);
+
+		world.Read<ErgonomicManagedNote>(entities[0]).Should().Be(new ErgonomicManagedNote { Label = "first!", Count = 10 });
+		world.Read<ErgonomicManagedNote>(entities[1]).Should().Be(new ErgonomicManagedNote { Label = "second!", Count = 20 });
+		world.Read<ErgonomicManagedNote>(entities[2]).Should().Be(new ErgonomicManagedNote { Label = "third!", Count = 30 });
+	}
+
+	[Fact]
+	public void Query_WhenManagedComponentIsMissingFromNonemptyMatch_ShouldThrowBeforeCallbackAndRemainUsable()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		var query         = world.Query<ErgonomicManagedNoteQuery>();
+		var callbackCount = 0;
+
+		Action mismatched = () => query.ForEachRead<ErgonomicReadOnlyNote>(
+			(Entity _, in ErgonomicReadOnlyNote _) => callbackCount++
+		);
+
+		mismatched.Should().Throw<KeyNotFoundException>();
+		callbackCount.Should().Be(0);
+
+		query.ForEachRead<ErgonomicManagedNote>((Entity _, in ErgonomicManagedNote _) => callbackCount++);
+		callbackCount.Should().Be(1);
+	}
+
+	[Fact]
+	public void Query_WhenManagedComponentIsMissingFromEmptyMatch_ShouldNotRegisterTypeOrInvokeCallback()
+	{
+		using var world = new World();
+		var query = world.Query<ErgonomicManagedNoteQuery>();
+		var before = world.GetDiagnostics().ComponentTypeArena;
+		var callbackCount = 0;
+
+		query.ForEachRead<ErgonomicReadOnlyNote>((Entity _, in ErgonomicReadOnlyNote _) => callbackCount++);
+
+		callbackCount.Should().Be(0);
+		var after = world.GetDiagnostics().ComponentTypeArena;
+		after.Used.Should().Be(before.Used);
+		after.HighWatermark.Should().Be(before.HighWatermark);
+	}
+
+	[Fact]
+	public void Query_WhenManagedCallbackIsNullAndWorldDisposed_ShouldValidateActionBeforeWorldState()
+	{
+		var world = new World();
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		var query = world.Query<ErgonomicManagedNoteQuery>();
+		world.Dispose();
+
+		Action nullAction = () => query.ForEachRead<ErgonomicManagedNote>(null!);
+		Action disposedAction = () => query.ForEachRead<ErgonomicManagedNote>(
+			(Entity _, in ErgonomicManagedNote _) => { }
+		);
+
+		nullAction.Should().Throw<ArgumentNullException>().WithParameterName("action");
+		disposedAction.Should().Throw<ObjectDisposedException>();
+	}
+
+	[Fact]
+	public void Query_WhenUsingTypedReadOnlyForEachWithManagedComponent_ShouldNotTrackPotentialWrites()
+	{
+		using var world = new World();
+
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		var changedHandle = world.Compile<ChangedErgonomicManagedNoteQuery>();
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+		}
+
+		var visitCount = 0;
+		world.Query<ErgonomicManagedNoteQuery>().ForEachRead<ErgonomicManagedNote>(
+			(Entity _, in ErgonomicManagedNote _) => visitCount++
+		);
+
+		visitCount.Should().Be(1);
+		using var changed = world.Execute(changedHandle);
+		changed.MoveNext().Should().BeTrue();
+		changed.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
+	public void Query_WhenUsingTypedReadOnlyForEachWithUnmanagedComponent_ShouldNotTrackPotentialWrites()
+	{
+		using var world = new World();
+
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+		var changedHandle = world.Compile<ChangedErgonomicPositionQuery>();
+		using (var initial = world.Execute(changedHandle))
+		{
+			initial.MoveNext().Should().BeTrue();
+			initial.Current.Length.Should().Be(1);
+		}
+
+		var visitCount = 0;
+		world.Query<ErgonomicPositionQuery>().ForEachRead<ErgonomicPosition>(
+			(Entity _, in ErgonomicPosition _) => visitCount++
+		);
+
+		visitCount.Should().Be(1);
+		using var changed = world.Execute(changedHandle);
+		changed.MoveNext().Should().BeTrue();
+		changed.Current.Length.Should().Be(0);
+	}
+
+	[Fact]
 	public void Query_WhenUsingTypedForEachWithManagedAndReadOnlyComponents_ShouldMutateWithoutManualLookups()
 	{
 		using var world = new World();
@@ -141,6 +296,71 @@ public class WorldErgonomicApiTests
 		world.Read<ErgonomicManagedNote>(entity).Should().Be(
 			new ErgonomicManagedNote { Label = "pending!", Count = 9 }
 		);
+	}
+
+	[Fact]
+	public void Query_WhenManagedReadCallbackPlaysBackCommands_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicManagedNote { Label = "pending", Count = 2 });
+		using var commands = world.CreateCommandStream();
+
+		world.Query<ErgonomicManagedNoteQuery>().ForEachRead<ErgonomicManagedNote>(
+			(Entity _, in ErgonomicManagedNote _) =>
+			{
+				var act = () => world.Playback(commands);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Playback cannot run while a query iteration is active.");
+			}
+		);
+
+		world.Playback(commands);
+	}
+
+	[Fact]
+	public void Query_WhenUnmanagedCallbackPlaysBackCommands_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+		using var commands = world.CreateCommandStream();
+
+		Action iterate = () => world.Query<ErgonomicPositionQuery>().ForEach<ErgonomicPosition>(
+			(Entity _, ref ErgonomicPosition _) =>
+			{
+				var act = () => world.Playback(commands);
+
+				act.Should().Throw<InvalidOperationException>()
+				   .WithMessage("Playback cannot run while a query iteration is active.");
+				throw new InvalidOperationException("Callback failed.");
+			}
+		);
+		iterate.Should().Throw<InvalidOperationException>().WithMessage("Callback failed.");
+
+		world.Playback(commands);
+	}
+
+	[Fact]
+	public void Query_WhenUnmanagedCallbackResetsOrClearsWorld_ShouldRejectUntilIterationCompletes()
+	{
+		using var world = new World();
+		world.Spawn(new ErgonomicPosition { X = 1, Y = 2 });
+
+		world.Query<ErgonomicPositionQuery>().ForEach<ErgonomicPosition>(
+			(Entity _, ref ErgonomicPosition _) =>
+			{
+				Action reset = world.Reset;
+				Action clear = world.Clear;
+
+				reset.Should().Throw<InvalidOperationException>()
+				     .WithMessage("Reset cannot run while a query iteration is active.");
+				clear.Should().Throw<InvalidOperationException>()
+				     .WithMessage("Clear cannot run while a query iteration is active.");
+			}
+		);
+
+		world.Reset();
+		world.Clear();
 	}
 
 	[Fact]

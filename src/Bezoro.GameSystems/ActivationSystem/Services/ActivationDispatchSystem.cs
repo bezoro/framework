@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bezoro.ECS.Abstractions;
+using Bezoro.ECS.Attributes;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using Bezoro.GameSystems.ActivationSystem.Types;
@@ -10,6 +11,7 @@ namespace Bezoro.GameSystems.ActivationSystem.Services;
 /// <summary>
 ///     ECS system that executes callbacks activated by <see cref="ActivationProcessingSystem" />.
 /// </summary>
+[WritesResource(typeof(ActivationConfig))]
 public sealed class ActivationDispatchSystem : ISystem
 {
 	/// <inheritdoc />
@@ -32,8 +34,8 @@ public sealed class ActivationDispatchSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 		EnsureResources(world);
 
-		ref var config = ref world.GetResource<ActivationConfig>();
-		ref var dispatchQueue = ref world.GetResource<ActivationDispatchQueueResource>();
+		ref readonly var config = ref world.ReadResource<ActivationConfig>();
+		ref var dispatchQueue = ref world.WriteResource<ActivationDispatchQueueResource>();
 		while (dispatchQueue.TryDequeue(out var callback))
 		{
 			try
@@ -57,7 +59,7 @@ public sealed class ActivationDispatchSystem : ISystem
 	{
 		try
 		{
-			_ = world.GetResource<ActivationConfig>();
+			_ = world.ReadResource<ActivationConfig>();
 		}
 		catch (KeyNotFoundException)
 		{
@@ -66,7 +68,7 @@ public sealed class ActivationDispatchSystem : ISystem
 
 		try
 		{
-			_ = world.GetResource<ActivationDispatchQueueResource>();
+			_ = world.ReadResource<ActivationDispatchQueueResource>();
 		}
 		catch (KeyNotFoundException)
 		{

@@ -588,22 +588,11 @@ internal sealed class WorldEntityStore
 		var sourceArchetype = Archetypes[sourceArchetypeId];
 		if (targetArchetypeId == sourceArchetypeId)
 		{
-			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
-			existing = component;
-			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
-			if (sourceColumnIndex < 0)
-				throw new InvalidOperationException(
-					$"Type id '{typeId}' does not exist in archetype '{sourceArchetypeId}'."
-				);
-
-			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
-			uint changeVersion = AdvanceComponentChangeVersion();
-			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
-			MarkComponentChanged(entity.Id, typeId, changeVersion);
+			OverwriteComponent(entity.Id, location, sourceArchetype, typeId, in component);
 			return;
 		}
 
-		MoveEntityToArchetypeWithSetKnownTransition(
+		MoveEntityToArchetypeWithSet(
 			entity.Id,
 			location,
 			sourceArchetype,
@@ -1167,6 +1156,29 @@ internal sealed class WorldEntityStore
 	private void MarkComponentChanged(int entityId, int typeId, uint version) =>
 		_world.MarkComponentChangedForEntityStore(entityId, typeId, version);
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void OverwriteComponent<T>(
+		int                  entityId,
+		Fixed.EntityLocation location,
+		ArchetypeStorage     archetype,
+		int                  typeId,
+		in T                 component)
+		where T : struct
+	{
+		int columnIndex = archetype.GetColumnIndexOrNegative(typeId);
+		if (columnIndex < 0)
+			throw new InvalidOperationException(
+				$"Type id '{typeId}' does not exist in archetype '{archetype.Id}'."
+			);
+
+		var chunk = archetype.GetChunk(location.ChunkIndex);
+		ref var existing = ref archetype.GetRefByIndex<T>(chunk, columnIndex, location.RowIndex);
+		existing = component;
+		uint changeVersion = AdvanceComponentChangeVersion();
+		archetype.MarkComponentChanged(chunk, columnIndex, changeVersion);
+		MarkComponentChanged(entityId, typeId, changeVersion);
+	}
+
 	private void MoveEntireChunkToArchetype(
 		ArchetypeStorage       sourceArchetype,
 		int                    sourceChunkIndex,
@@ -1270,21 +1282,7 @@ internal sealed class WorldEntityStore
 	{
 		if (targetArchetypeId == sourceArchetype.Id)
 		{
-			ref var current = ref sourceArchetype.GetRef<T>(
-								  sourceLocation.ChunkIndex, sourceLocation.RowIndex, setTypeId
-							  );
-
-			current = setComponent;
-			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(setTypeId);
-			if (sourceColumnIndex < 0)
-				throw new InvalidOperationException(
-					$"Type id '{setTypeId}' does not exist in archetype '{sourceArchetype.Id}'."
-				);
-
-			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(sourceLocation.ChunkIndex);
-			uint changeVersion = AdvanceComponentChangeVersion();
-			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
-			MarkComponentChanged(entityId, setTypeId, changeVersion);
+			OverwriteComponent(entityId, sourceLocation, sourceArchetype, setTypeId, in setComponent);
 			return;
 		}
 
@@ -1410,25 +1408,6 @@ internal sealed class WorldEntityStore
 			);
 	}
 
-	private void MoveEntityToArchetypeWithSetKnownTransition<T>(
-		int                  entityId,
-		Fixed.EntityLocation sourceLocation,
-		ArchetypeStorage     sourceArchetype,
-		int                  targetArchetypeId,
-		int                  setTypeId,
-		in T                 setComponent)
-		where T : struct
-	{
-		MoveEntityToArchetypeWithSet(
-			entityId,
-			sourceLocation,
-			sourceArchetype,
-			targetArchetypeId,
-			setTypeId,
-			in setComponent
-		);
-	}
-
 	private void RemoveRelationTypeFromAllSources(int relationTypeId)
 	{
 		if (relationTypeId < 0)
@@ -1460,18 +1439,7 @@ internal sealed class WorldEntityStore
 		var sourceArchetype = Archetypes[location.ArchetypeId];
 		if (sourceArchetype.HasType(typeId))
 		{
-			ref var existing = ref sourceArchetype.GetRef<T>(location.ChunkIndex, location.RowIndex, typeId);
-			existing = component;
-			int sourceColumnIndex = sourceArchetype.GetColumnIndexOrNegative(typeId);
-			if (sourceColumnIndex < 0)
-				throw new InvalidOperationException(
-					$"Type id '{typeId}' does not exist in archetype '{sourceArchetype.Id}'."
-				);
-
-			var  sourceChunk   = sourceArchetype.GetChunkUnchecked(location.ChunkIndex);
-			uint changeVersion = AdvanceComponentChangeVersion();
-			sourceArchetype.MarkComponentChanged(sourceChunk, sourceColumnIndex, changeVersion);
-			MarkComponentChanged(entityId, typeId, changeVersion);
+			OverwriteComponent(entityId, location, sourceArchetype, typeId, in component);
 			return;
 		}
 

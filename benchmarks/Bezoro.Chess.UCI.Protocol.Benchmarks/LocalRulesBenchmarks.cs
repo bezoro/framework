@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using BenchmarkDotNet.Attributes;
 using Bezoro.Chess.UCI.Protocol.API.Common.Extensions;
 using Bezoro.Chess.UCI.Protocol.API.Types;
@@ -10,6 +11,8 @@ public class LocalRulesBenchmarks
 	private static readonly Fen OpeningFen = Fen.Default;
 	private static readonly Fen MiddlegameFen =
 		Fen.Parse("r2q1rk1/pp2bppp/2n1pn2/2bp4/2P5/2NP1NP1/PP2PPBP/R1BQ1RK1 w - - 4 10")!.Value;
+	private static readonly ImmutableArray<string> OpeningLegalMoves = OpeningFen.GetLegalMoves();
+	private static readonly ImmutableArray<string> MiddlegameLegalMoves = MiddlegameFen.GetLegalMoves();
 
 	[Benchmark(Description = "Legal moves from opening position")]
 	public int GetLegalMoves_Opening()
@@ -37,6 +40,20 @@ public class LocalRulesBenchmarks
 	{
 		var legalMoves = MiddlegameFen.GetLegalMoves();
 		var classifications = MiddlegameFen.ClassifyMovesFully(legalMoves);
+		return classifications.Count;
+	}
+
+	[Benchmark(Description = "Fully classify cached opening legal moves")]
+	public int ClassifyMovesFully_CachedOpening()
+	{
+		var classifications = OpeningFen.ClassifyMovesFully(OpeningLegalMoves);
+		return classifications.Count;
+	}
+
+	[Benchmark(Description = "Fully classify cached middlegame legal moves")]
+	public int ClassifyMovesFully_CachedMiddlegame()
+	{
+		var classifications = MiddlegameFen.ClassifyMovesFully(MiddlegameLegalMoves);
 		return classifications.Count;
 	}
 }

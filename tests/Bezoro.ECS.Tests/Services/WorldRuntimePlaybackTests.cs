@@ -126,7 +126,7 @@ public partial class WorldRuntimeTests
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
-				var index  = (int)world.Get<Position>(entity).X;
+				var index  = (int)world.Read<Position>(entity).X;
 				entitiesByIndex[index] = entity;
 			}
 		}
@@ -187,7 +187,7 @@ public partial class WorldRuntimeTests
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
-				var key    = (int)world.Get<Position>(entity).X;
+				var key    = (int)world.Read<Position>(entity).X;
 				entitiesByPositionX[key] = entity;
 			}
 		}
@@ -201,14 +201,14 @@ public partial class WorldRuntimeTests
 		for (var i = 0; i < 8; i++)
 		{
 			var entity = entitiesByPositionX[i];
-			world.Get<Position>(entity).Should().Be(new Position { X = i, Y = i });
+			world.Read<Position>(entity).Should().Be(new Position { X = i, Y = i });
 			world.Has<Velocity>(entity).Should().BeFalse();
 		}
 
 		for (var i = 0; i < positionOnlyEntities.Length; i++)
 		{
 			var entity = entitiesByPositionX[1_000 + i];
-			world.Get<Position>(entity).Should().Be(new Position { X = 1_000 + i, Y = 1_000 + i });
+			world.Read<Position>(entity).Should().Be(new Position { X = 1_000 + i, Y = 1_000 + i });
 			world.Has<Velocity>(entity).Should().BeFalse();
 		}
 	}
@@ -248,7 +248,7 @@ public partial class WorldRuntimeTests
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
-				var index  = (int)world.Get<Position>(entity).X;
+				var index  = (int)world.Read<Position>(entity).X;
 				entitiesByIndex[index] = entity;
 			}
 		}
@@ -263,13 +263,13 @@ public partial class WorldRuntimeTests
 		{
 			bool shouldBeRemoved = i is 0 or 3 or 7;
 			world.Has<Velocity>(entitiesByIndex[i]).Should().Be(!shouldBeRemoved);
-			world.Get<Position>(entitiesByIndex[i]).Should().Be(new Position { X = i, Y = i });
+			world.Read<Position>(entitiesByIndex[i]).Should().Be(new Position { X = i, Y = i });
 		}
 
 		using var set = world.CreateCommandStream();
 		set.Set(entitiesByIndex[1], new Velocity { X = 99, Y = 42 });
 		world.Playback(set);
-		world.Get<Velocity>(entitiesByIndex[1]).Should().Be(new Velocity { X = 99, Y = 42 });
+		world.Read<Velocity>(entitiesByIndex[1]).Should().Be(new Velocity { X = 99, Y = 42 });
 	}
 
 
@@ -310,7 +310,7 @@ public partial class WorldRuntimeTests
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity = cursor.Current[i];
-				var index  = (int)world.Get<Position>(entity).X;
+				var index  = (int)world.Read<Position>(entity).X;
 				entitiesByIndex[index] = entity;
 			}
 		}
@@ -357,7 +357,9 @@ public partial class WorldRuntimeTests
 		using var cursor        = world.Execute(positionQuery);
 		cursor.MoveNext().Should().BeTrue();
 
+		#pragma warning disable CS0618
 		world.TryGetManaged(cursor.Current[0], out ManagedTag resolved).Should().BeTrue();
+		#pragma warning restore CS0618
 		resolved.Payload.Should().BeSameAs(payload);
 	}
 
@@ -467,8 +469,8 @@ public partial class WorldRuntimeTests
 		using var cursor = world.Execute(query);
 		cursor.MoveNext().Should().BeTrue();
 		cursor.Current.Length.Should().Be(2);
-		world.TryGetManaged(cursor.Current[0], out ManagedTag firstResolved).Should().BeTrue();
-		world.TryGetManaged(cursor.Current[1], out ManagedTag secondResolved).Should().BeTrue();
+		world.TryRead(cursor.Current[0], out ManagedTag firstResolved).Should().BeTrue();
+		world.TryRead(cursor.Current[1], out ManagedTag secondResolved).Should().BeTrue();
 		firstResolved.Payload.Should().BeSameAs(firstPayload);
 		secondResolved.Payload.Should().BeSameAs(secondPayload);
 	}
@@ -506,8 +508,88 @@ public partial class WorldRuntimeTests
 		updates.Set(entity, new Position { X = 9, Y = 3 });
 		world.Playback(updates);
 
-		var position = world.Get<Position>(entity);
+		var position = world.Read<Position>(entity);
 		position.Should().Be(new Position { X = 9, Y = 3 });
+	}
+
+	[Fact]
+	public void ApplySetFromCommandKnownTransition_WhenSourceArchetypeLacksComponent_ShouldThrowBeforeMutation()
+	{
+		using var world = new World();
+		var entity = world.Spawn(new Position { X = 1, Y = 2 });
+		int velocityTypeId = world.GetOrCreateComponentTypeId<Velocity>();
+		world.DescribeSetTransition(entity, velocityTypeId, out int sourceArchetypeId, out _);
+		var velocity = new Velocity { X = 3, Y = 4 };
+
+		var act = () => world.ApplySetFromCommandKnownTransition(
+			entity,
+			in velocity,
+			velocityTypeId,
+			sourceArchetypeId,
+			sourceArchetypeId
+		);
+
+		act.Should().ThrowExactly<InvalidOperationException>()
+		   .WithMessage($"Type id '{velocityTypeId}' does not exist in archetype '{sourceArchetypeId}'.");
+		world.Read<Position>(entity).Should().Be(new Position { X = 1, Y = 2 });
+		world.Has<Velocity>(entity).Should().BeFalse();
+	}
+
+	[Fact]
+	public void Playback_WhenFastSetBatchOverwritesExistingComponents_ShouldMarkChangedWithoutMarkingAdded()
+	{
+		using var world = new World();
+		var first = world.Spawn(new Position { X = 1, Y = 2 });
+		var second = world.Spawn(new Position { X = 3, Y = 4 });
+		var changedHandle = world.Compile<ChangedPositionQuerySpec>();
+		var addedHandle = world.Compile<AddedPositionQuerySpec>();
+
+		using (var initialChanged = world.Execute(changedHandle))
+		{
+			initialChanged.MoveNext().Should().BeTrue();
+			initialChanged.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var initialAdded = world.Execute(addedHandle))
+		{
+			initialAdded.MoveNext().Should().BeTrue();
+			initialAdded.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var unchanged = world.Execute(changedHandle))
+		{
+			unchanged.MoveNext().Should().BeTrue();
+			unchanged.Current.Length.Should().Be(0);
+		}
+
+		using (var notAdded = world.Execute(addedHandle))
+		{
+			notAdded.MoveNext().Should().BeTrue();
+			notAdded.Current.Length.Should().Be(0);
+		}
+
+		using var updates = world.CreateCommandStream();
+		updates.Set(first, new Position { X = 11, Y = 12 });
+		updates.Set(second, new Position { X = 13, Y = 14 });
+		world.Playback(updates);
+
+		world.Read<Position>(first).Should().Be(new Position { X = 11, Y = 12 });
+		world.Read<Position>(second).Should().Be(new Position { X = 13, Y = 14 });
+		using (var changed = world.Execute(changedHandle))
+		{
+			changed.MoveNext().Should().BeTrue();
+			changed.Current.ToArray().Should().BeEquivalentTo([first, second]);
+		}
+
+		using (var added = world.Execute(addedHandle))
+		{
+			added.MoveNext().Should().BeTrue();
+			added.Current.Length.Should().Be(0);
+		}
+
+		using var unchangedAgain = world.Execute(changedHandle);
+		unchangedAgain.MoveNext().Should().BeTrue();
+		unchangedAgain.Current.Length.Should().Be(0);
 	}
 
 
@@ -543,7 +625,7 @@ public partial class WorldRuntimeTests
 			for (var i = 0; i < cursor.Current.Length; i++)
 			{
 				var entity   = cursor.Current[i];
-				var position = world.Get<Position>(entity);
+				var position = world.Read<Position>(entity);
 				if (position.X == 1)
 					first = entity;
 				else if (position.X == 2)
@@ -559,10 +641,10 @@ public partial class WorldRuntimeTests
 		set.Set(second, new Velocity { X = 30, Y = 40 });
 		world.Playback(set);
 
-		world.Get<Velocity>(first).Should().Be(new Velocity { X  = 10, Y = 20 });
-		world.Get<Velocity>(second).Should().Be(new Velocity { X = 30, Y = 40 });
-		world.Get<Position>(first).Should().Be(new Position { X  = 1, Y  = 1 });
-		world.Get<Position>(second).Should().Be(new Position { X = 2, Y  = 2 });
+		world.Read<Velocity>(first).Should().Be(new Velocity { X  = 10, Y = 20 });
+		world.Read<Velocity>(second).Should().Be(new Velocity { X = 30, Y = 40 });
+		world.Read<Position>(first).Should().Be(new Position { X  = 1, Y  = 1 });
+		world.Read<Position>(second).Should().Be(new Position { X = 2, Y  = 2 });
 	}
 
 

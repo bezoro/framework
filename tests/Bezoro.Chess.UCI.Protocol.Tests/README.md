@@ -8,6 +8,7 @@ Unit and integration tests for `Bezoro.Chess.UCI.Protocol`.
 | `API/Common/Extensions` | `src/Bezoro.Chess.UCI.Protocol/API/Common/Extensions` | Consumer-facing formatting, move-analysis, and move-normalization extensions.                    |
 | `Domain`                | `src/Bezoro.Chess.UCI.Protocol/Domain`                | `ProcessUciTransport`, `UciEngineClient`, command emission, lifecycle, and integration behavior. |
 | `Domain/Common/Helpers` | `src/Bezoro.Chess.UCI.Protocol/Domain/Common/Helpers` | UCI parsing and validation helpers.                                                              |
+| `Internal`              | `src/Bezoro.Chess.UCI.Protocol/Internal`              | Internal coordination, cancellation-generation, and background-worker behavior.                 |
 | `TestHelpers`           | Test-only                                             | Shared builders, fake transports, fixtures, and constants.                                       |
 | `TestResources/Engine`  | Test-only                                             | Bundled Stockfish executable/resources used by integration tests.                                |
 
@@ -26,7 +27,12 @@ dotnet test tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Test
 ## What These Tests Guarantee
 - Standard UCI commands are serialized correctly.
 - Handshake lines (`id`, `option`, `uciok`, `readyok`) are parsed and surfaced correctly.
+- Typed info messages, standalone principal variations, and completed search transcripts share the same casing, spacing, score-replacement, and terminal-field grammar.
+- Failed principal-variation parses return an initialized empty move collection rather than a default immutable array.
 - Transport lifecycle is safe across start, stop, disposal, and backpressure conditions.
 - Engine-specific escape hatches (`d`, `go perft 1`) continue to work for supported engines, but playable-match session tests now also cover the protocol-owned local FEN/legal-move path that does not depend on those extensions.
-- The playable-match contract stays stable for canonical events, rich move payloads, promotion request/response, claimable draws, clocks, and engine-vs-engine loop helpers.
+- The playable-match contract stays stable for canonical events, rich move payloads, promotion request/response, claimable draws, clocks, and engine-vs-engine loop helpers; deterministic clock tests verify that undo restores retained values and stages, restarts the retained turn unpaused without historical-time debit or a stale pause marker, and respects the clock-history origin of loaded matches.
 - Event ordering, draw-offer policies, controlled-move fallback policies, and batch request processing remain consumer-facing tested behavior.
+- Move classifications publish one immutable completed batch without blocking enqueue callers, and canceled worker generations cannot overwrite replacement results.
+- Move classification and position analysis remain FIFO and single-threaded across cancellation generations; stale success, fault, and cancellation outcomes cannot mutate replacement work.
+- Local chess rules retain standard depth-one move counts, king-safety constraints, special-move ordering and application, clock and castling-right updates, repetition identity, material adjudication, and batch/single classification equivalence while sharing one parsed position and parsing each classification batch at most once.

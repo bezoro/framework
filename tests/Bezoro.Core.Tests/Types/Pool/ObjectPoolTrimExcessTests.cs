@@ -32,4 +32,18 @@ public class ObjectPoolTrimExcessTests
 
 		removed.Should().Be(0);
 	}
+
+	[Fact]
+	public void TrimExcess_WhenDiscardingAvailableItems_ShouldReleaseEachCapacitySlotOnce()
+	{
+		var policy = new TrackingPoolPolicy();
+		var pool = new ObjectPool<object>(policy, new() { InitialCapacity = 3, TrackStatistics = true });
+
+		pool.TrimExcess(Percent.Half).Should().Be(2);
+
+		pool.AvailableCount.Should().Be(1);
+		pool.TotalCount.Should().Be(1);
+		pool.Statistics.TotalDiscarded.Should().Be(2);
+		policy.DiscardCount.Should().Be(2);
+	}
 }

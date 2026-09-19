@@ -23,22 +23,25 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Black(this Enum value) =>
-		value.ToString().Black();
+		value.ToString().Color(new Color(0f, 0f, 0f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in blue.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Blue(this Enum value) =>
-		value.ToString().Blue();
+		value.ToString().Color(new Color(0f, 0f, 1f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value in bold.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Bold(this Enum value) =>
 		value.ToString().Bold();
 
@@ -47,14 +50,16 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Brown(this Enum value) =>
-		value.ToString().Brown();
+		value.ToString().Color(new Color(.65f, .32f, .17f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value with the first character capitalized.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Capitalized string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Capitalize(this Enum value) =>
 		value.ToString().Capitalize();
 
@@ -82,30 +87,34 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Cyan(this Enum value) =>
-		value.ToString().Cyan();
+		value.ToString().Color(new Color(0f, 1f, 1f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in gray.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Gray(this Enum value) =>
-		value.ToString().Gray();
+		value.ToString().Color(new Color(.5f, .5f, .5f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in green.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Green(this Enum value) =>
-		value.ToString().Green();
+		value.ToString().Color(new Color(0f, 1f, 0f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value in italic style.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Italicized string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Italic(this Enum value) =>
 		value.ToString().Italic();
 
@@ -114,6 +123,7 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to convert.</param>
 	/// <returns>Lowercase string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Lowercase(this Enum value) =>
 		value.ToString().Lowercase();
 
@@ -122,32 +132,36 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Magenta(this Enum value) =>
-		value.ToString().Magenta();
+		value.ToString().Color(new Color(1f, 0f, 1f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in orange.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Orange(this Enum value) =>
-		value.ToString().Orange();
+		value.ToString().Color(new Color(1f, .65f, 0f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in purple.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Purple(this Enum value) =>
-		value.ToString().Purple();
+		value.ToString().Color(new Color(.63f, .13f, .94f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in red.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Red(this Enum value) =>
-		value.ToString().Red();
+		value.ToString().Color(new Color(1f, 0f, 0f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value resized to the specified text size.
@@ -155,6 +169,7 @@ public static class EnumExtensions
 	/// <param name="value">The enum value to format.</param>
 	/// <param name="size">The text size.</param>
 	/// <returns>Resized string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Size(this Enum value, int size) =>
 		value.ToString().Size(size);
 
@@ -163,6 +178,7 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>String representation of the enum value with strikethrough.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Strikethrough(this Enum value) =>
 		value.ToString().Strikethrough();
 
@@ -171,6 +187,7 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>String representation of the enum value with underline.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Underline(this Enum value) =>
 		value.ToString().Underline();
 
@@ -179,6 +196,7 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to convert.</param>
 	/// <returns>Uppercase string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Uppercase(this Enum value) =>
 		value.ToString().Uppercase();
 
@@ -187,14 +205,16 @@ public static class EnumExtensions
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string White(this Enum value) =>
-		value.ToString().White();
+		value.ToString().Color(new Color(1f, 1f, 1f, 1f));
 
 	/// <summary>
 	///     Returns the string name of the enum value formatted in yellow.
 	/// </summary>
 	/// <param name="value">The enum value to format.</param>
 	/// <returns>Formatted string representation of the enum value.</returns>
+	[Obsolete("Use value.ToString() with the corresponding string extension instead.")]
 	public static string Yellow(this Enum value) =>
-		value.ToString().Yellow();
+		value.ToString().Color(new Color(1f, 1f, 0f, 1f));
 }

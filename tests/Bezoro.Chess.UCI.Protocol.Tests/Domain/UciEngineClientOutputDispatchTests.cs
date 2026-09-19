@@ -105,13 +105,30 @@ public class UciEngineClientOutputDispatchTests
 	}
 
 	[Fact]
-	public async Task GoAsync_WhenOutputSubscribersThrow_ShouldStillReturnSearchResult()
+	public async Task GoAsync_WhenSupportedAndCompatibilitySubscribersThrow_ShouldStillReturnSearchResult()
 	{
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
 		var client = await UciEngineClientTestHelpers.StartClientWithHandshakeAsync(transport, channel);
+		string? canonicalBestMove = null;
+		string? canonicalPonderMove = null;
+		string? compatibilityBestMove = null;
+		string? compatibilityPonderMove = null;
 
-		client.InfoPvReceived   += _ => throw new InvalidOperationException("info boom");
-		client.BestMoveReceived += (_, _) => throw new InvalidOperationException("bestmove boom");
+		client.InfoPvReceived += _ => throw new InvalidOperationException("info boom");
+		client.BestMoveMessageReceived += message =>
+		{
+			canonicalBestMove = message.BestMove;
+			canonicalPonderMove = message.PonderMove;
+		};
+		// Deliberately exercise exception isolation for the obsolete compatibility event.
+#pragma warning disable CS0618
+		client.BestMoveReceived += (bestMove, ponderMove) =>
+		{
+			compatibilityBestMove = bestMove;
+			compatibilityPonderMove = ponderMove;
+			throw new InvalidOperationException("bestmove boom");
+		};
+#pragma warning restore CS0618
 
 		var goTask = client.GoAsync(new() { Depth = 4 }, CancellationToken.None);
 
@@ -122,15 +139,19 @@ public class UciEngineClientOutputDispatchTests
 
 		result.BestMove.Should().Be("e2e4");
 		result.PrincipalVariations.Should().ContainSingle();
+		compatibilityBestMove.Should().Be(canonicalBestMove);
+		compatibilityPonderMove.Should().Be(canonicalPonderMove);
 
 		await client.DisposeAsync();
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenLineReceivedSubscriberThrows_ShouldStillCompleteHandshake()
+	public async Task StartAsync_WhenCompatibilityLineReceivedSubscriberThrows_ShouldStillCompleteHandshake()
 	{
 		var (transport, channel) = UciEngineClientTestHelpers.CreateMockTransport();
 		var client = new UciEngineClient(transport);
+		var canonicalLines = new List<string>();
+		var compatibilityLines = new List<string>();
 
 		transport.When(x => x.WriteLineAsync("uci", Arg.Any<CancellationToken>()))
 				 .Do(_ => channel.Writer.TryWrite("uciok"));
@@ -138,13 +159,22 @@ public class UciEngineClientOutputDispatchTests
 		transport.When(x => x.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
 				 .Do(_ => channel.Writer.TryWrite("readyok"));
 
-		client.LineReceived += _ => throw new InvalidOperationException("line boom");
+		client.RawLineReceived += canonicalLines.Add;
+		// Deliberately exercise exception isolation for the obsolete compatibility event.
+#pragma warning disable CS0618
+		client.LineReceived += line =>
+		{
+			compatibilityLines.Add(line);
+			throw new InvalidOperationException("line boom");
+		};
+#pragma warning restore CS0618
 
 		var startTask = client.StartAsync(CancellationToken.None);
 
 		await startTask.WaitAsync(TestConstants.DefaultTimeout);
 
 		client.Activity.Should().Be(EngineActivity.Idle);
+		compatibilityLines.Should().Equal(canonicalLines);
 
 		await client.DisposeAsync();
 	}

@@ -43,4 +43,17 @@ public class PooledObjectHandleValueTests
 
 		act.Should().Throw<ObjectDisposedException>();
 	}
+
+	[Fact]
+	public void Value_WhenAnotherCopyWasDisposed_ShouldThrowObjectDisposedException()
+	{
+		var pool   = new ObjectPool<object>(() => new());
+		var first  = pool.RentHandle();
+		var second = first;
+		first.Dispose();
+
+		Action action = () => _ = second.Value;
+
+		action.Should().Throw<ObjectDisposedException>();
+	}
 }

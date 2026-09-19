@@ -323,7 +323,7 @@ internal static class PlayableChessConsoleDemo
 					continue;
 				}
 
-				session.ApplyHumanMove(command.Move!);
+				session.ApplyMove(command.Move!);
 				continue;
 			}
 
@@ -335,7 +335,7 @@ internal static class PlayableChessConsoleDemo
 			);
 
 			Console.WriteLine("Engine is thinking...");
-			var engineMove = await session.PlayEngineMoveAsync(CancellationToken.None);
+			var engineMove = await session.PlayControlledMoveAsync(CancellationToken.None);
 
 			Console.WriteLine(
 				$"Engine plays {engineMove.Move}{engineMove.SearchResult.ToPlayerDisplayString(session.EngineColor, session.PlayerColor)}"

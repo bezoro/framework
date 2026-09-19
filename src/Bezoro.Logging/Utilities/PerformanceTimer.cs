@@ -4,13 +4,14 @@ using Bezoro.Logging.Types;
 namespace Bezoro.Logging.Utilities;
 
 /// <summary>
-///     Performance timer struct for zero-allocation timing.
-///     Fully compiled away in release builds for true zero overhead.
+///     Measures an operation and logs its elapsed time when disposed if the Bezoro.Logging assembly
+///     is compiled with <c>DEBUG</c>. Otherwise, the timer stores no state and disposal performs no work.
 /// </summary>
 public readonly struct PerformanceTimer : IDisposable
 {
 	/// <summary>
-	///     Initializes a new instance of the <see cref="PerformanceTimer" /> struct and starts timing.
+	///     Initializes a new instance of the <see cref="PerformanceTimer" /> struct and starts timing
+	///     when the Bezoro.Logging assembly is compiled with <c>DEBUG</c>.
 	/// </summary>
 	/// <param name="operationName">The name of the operation being timed.</param>
 	/// <param name="category">Optional log category for the completion message.</param>
@@ -26,8 +27,8 @@ public readonly struct PerformanceTimer : IDisposable
 	}
 
 	/// <summary>
-	///     Stops the timer and logs the elapsed time for the operation.
-	///     Fully compiled away in release builds.
+	///     Stops the timer and logs the elapsed time when the Bezoro.Logging assembly is compiled with
+	///     <c>DEBUG</c>. Otherwise, performs no work.
 	/// </summary>
 	public void Dispose()
 	{

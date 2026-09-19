@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types.Exceptions;
 using FluentAssertions;
@@ -137,17 +138,42 @@ public class GenericExtensionsTests
 	}
 
 	[Fact]
-	public void ThrowIfWhenPredicateIsFalse_WhenCalled_ShouldReturnValue()
+	public void ThrowIf_WhenExpressionTextIsReused_ShouldEvaluateEachInstance()
 	{
-		int result = 5.ThrowIf(x => x < 0);
-		result.Should().Be(5);
+		static Expression<Func<int, bool>> GreaterThan(int threshold) => value => value > threshold;
+
+		#pragma warning disable CS0618
+		5.ThrowIf(GreaterThan(10)).Should().Be(5);
+		Action action = () => 5.ThrowIf(GreaterThan(0));
+		#pragma warning restore CS0618
+		action.Should().Throw<ArgumentException>();
 	}
 
 	[Fact]
-	public void ThrowIfWhenPredicateIsTrue_WhenCalled_ShouldThrowArgumentException()
+	public void ThrowIfWhenExpressionPredicateIsTrueWithCustomException_ShouldThrowSameInstance()
 	{
-		var action = () => 5.ThrowIf(x => x > 0);
-		action.Should().Throw<ArgumentException>();
+		var expectedException = new InvalidOperationException("Custom exception");
+		Action action;
+
+		#pragma warning disable CS0618
+		action = () => 5.ThrowIf(value => value > 0, customException: expectedException);
+		#pragma warning restore CS0618
+
+		action.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(expectedException);
+	}
+
+	[Fact]
+	public void ThrowIfWhenExpressionPredicateIsTrueWithExplicitParameterName_ShouldPreserveGeneratedExceptionDetails()
+	{
+		Action action;
+
+		#pragma warning disable CS0618
+		action = () => 5.ThrowIf(value => value > 0, paramName: "number");
+		#pragma warning restore CS0618
+
+		var exception = action.Should().Throw<ArgumentException>().Which;
+		exception.ParamName.Should().Be("number");
+		exception.Message.Should().Contain("value > 0").And.Contain("number").And.Contain("5");
 	}
 
 	[Fact]

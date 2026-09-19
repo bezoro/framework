@@ -118,7 +118,9 @@ await client.StopSearchAsync(cancellationToken);
 await client.IsReadyAsync(cancellationToken);
 ```
 
-Compatibility events such as `InfoPvReceived`, `BestMoveReceived`, and `LineReceived` remain available for existing callers, but the typed events are the primary surface.
+`InfoPvReceived` remains a supported compatibility event for principal-variation consumers. The older event aliases remain available but are obsolete: `BestMoveReceived` projects `UciBestMoveMessage.BestMove` and `PonderMove` into two string arguments and reports "Use BestMoveMessageReceived instead.", while `LineReceived` reports "Use RawLineReceived instead." New code should use the canonical events.
+
+Typed `info` messages, `PrincipalVariation.TryParse`, and `SearchResult.TryParse` use one shared UCI info grammar. Outer whitespace and repeated ASCII spaces are accepted; tabs are not token separators. The `info` prefix, `cp`/`mate` score kinds, and score bounds are case-insensitive, while field keywords such as `depth` and `pv` retain their lowercase UCI spelling. Move text keeps the engine's original casing, and `string` and `pv` consume the remainder of their line.
 
 Collection-bearing protocol snapshots use immutable storage:
 - `SearchParameters.SearchMoves`
@@ -344,6 +346,12 @@ EngineMoveResult? reply = await session.PlayControlledMoveIfNeededAsync(cancella
 
 `UciPlayableMatchSession` keeps the sample's reusable match orchestration in the library: local legal-move generation and FEN ownership, move-history tracking, controller-driven automatic engine turns, request/response promotion flow, draw and timeout adjudication, optional clocks, serializable request processing, canonical protocol-side events, and current advantage resolution from the same full-strength move evaluations used for move lists and debugging history. Structural move types are available immediately; check, mate, and stalemate are resolved by the background classifier without blocking gameplay.
 
+The classifier publishes completed tactical results as one immutable batch per position. After cancellation, replacement classification waits for the retiring classifier to exit before it starts.
+
+`UndoMoves` restores the retained checkpoint's clock values, move counts, and stage, then restarts that position's turn unpaused at the undo time with its full current-stage delay. For a clocked authored setup, undo is available back to the loaded position; earlier played moves have no clock checkpoints to restore and cannot be undone through this session.
+
+Insufficient-material adjudication recognizes kings only, a lone knight, and bishop-only positions where every bishop remains on the same square-color complex.
+
 `EventOccurred` is intentionally transport-friendly: every event carries `SchemaVersion`, the resulting `PlayableMatchState` when available, and a canonical `MoveData` payload for applied moves so UI or server consumers do not need to reverse-engineer captures, promotion pieces, or castling rook movement from raw UCI strings.
 
 The event ordering contract is stable and tested for the important flows:
@@ -391,14 +399,14 @@ These helpers are intentionally lightweight. They are suitable for samples, diag
 | `WaitForCurrentMoveClassificationsAsync(ct)` | Awaits completion of background check/mate/stalemate resolution for the current position. |
 | `TryGetLegalMoveClassification(move, out classification)` | Reads a cached move classification for the current position. |
 | `ApplyMove(move)`                | Validates and applies a move for the current manually controlled side, or raises a pending promotion request when a promotion suffix is still needed. |
-| `ApplyHumanMove(move)`           | Compatibility alias for `ApplyMove` in human-versus-engine flows.          |
+| `ApplyHumanMove(move)`           | Obsolete compatibility alias. Migration message: "Use ApplyMove instead." |
 | `ChoosePromotion(piece)`         | Completes the current pending promotion using `q`, `r`, `b`, or `n`.       |
 | `PlayControlledMoveAsync(ct)`    | Plays the current side's move when that side is engine-controlled.         |
 | `PlayControlledMoveIfNeededAsync(ct)` | Plays only when the current side is engine-controlled and the match is still playable; otherwise returns `null`. |
-| `PlayEngineMoveAsync(ct)`        | Compatibility alias for `PlayControlledMoveAsync` in human-versus-engine flows. |
+| `PlayEngineMoveAsync(ct)`        | Obsolete compatibility alias. Migration message: "Use PlayControlledMoveAsync instead." |
 | `PlayUntilTerminalAsync(maxPlies, ct)` | Plays engine-controlled turns in sequence until the game is terminal or the ply cap is reached. |
-| `CanUndoMoves(count)`            | Reports whether the requested number of played moves can be undone.        |
-| `UndoMoves(count)`               | Rewinds played moves while preserving reachable cached analysis and classifications. |
+| `CanUndoMoves(count)`            | Reports whether the requested number of moves and any required retained clock checkpoint are available. |
+| `UndoMoves(count)`               | Rewinds played moves, preserves reachable caches and retained clock values, and restarts the retained turn unpaused at the undo time; clocked authored setups cannot rewind before their loaded checkpoint. |
 | `ProcessAsync(request, ct)`      | Applies a serializable `PlayableMatchRequest` against the session.         |
 | `ProcessBatchAsync(requests, ct)` | Applies a request batch and returns the ordered emitted events for that batch. |
 | `TryGetPlayedMoveScore(move, out score)` | Resolves a played move back to its parent-position high-quality score. |
@@ -451,6 +459,9 @@ Constructor policies:
 | `BestMoveMessageReceived`                    | Event for parsed `UciBestMoveMessage` output.                                    |
 | `ProtocolMessageReceived`                    | Event for all parsed protocol messages.                                          |
 | `RawLineReceived`                            | Event for every raw stdout line.                                                 |
+| `InfoPvReceived`                             | Supported compatibility event for principal-variation-bearing info output.       |
+| `BestMoveReceived`                           | Obsolete string projection of `UciBestMoveMessage.BestMove` and `PonderMove`. Migration message: "Use BestMoveMessageReceived instead." |
+| `LineReceived`                               | Obsolete event alias. Migration message: "Use RawLineReceived instead."         |
 | `StderrReceived`                             | Event for redirected stderr lines.                                               |
 | `ActivityChanged`                            | Event for `Idle`/`Searching`/`Pondering` transitions.                            |
 
@@ -501,10 +512,11 @@ See `samples/Bezoro.Chess.UCI.Protocol.ConsoleDemo` for an interactive playable 
 dotnet run -c Release --project benchmarks/Bezoro.Chess.UCI.Protocol.Benchmarks/Bezoro.Chess.UCI.Protocol.Benchmarks.csproj
 ```
 
-The protocol benchmark project currently focuses on the local-rules hot paths that now back playable-match orchestration: legal move generation and full move classification.
+The protocol benchmark project covers both UCI info parsing and the local-rules hot paths that back playable-match orchestration: legal move generation and full move classification.
 
 ## Design Notes
 - This project owns transport lifecycle, line dispatch, command serialization, handshake parsing, typed protocol messages, and safe async protocol behavior.
 - The protocol layer stays engine-agnostic for standard UCI behavior.
 - Extension probing exists here only as an explicit low-level escape hatch for engines that support them; playable-match orchestration no longer depends on those non-standard commands.
+- Local legal-move generation, move application, and tactical classification share one parsed position; batch classification parses its position at most once.
 - `SetOptionAsync` waits for `readyok`, which makes option updates safe to compose in application code.

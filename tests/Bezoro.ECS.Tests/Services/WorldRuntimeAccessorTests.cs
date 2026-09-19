@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Bezoro.ECS.Services;
 using Bezoro.ECS.Types;
 using FluentAssertions;
@@ -7,6 +9,93 @@ namespace Bezoro.ECS.Tests.Services;
 
 public partial class WorldRuntimeTests
 {
+	[Fact]
+	public void GetAccessor_WhenEntityMovesBetweenArchetypes_ShouldRefreshCachedColumnState()
+	{
+		using var world = new World();
+		var entity = world.Spawn(
+			new Position { X = 1, Y = 2 },
+			new Velocity { X = 3, Y = 4 }
+		);
+		var accessor = world.GetAccessor<Velocity>();
+
+		accessor.Has(entity).Should().BeTrue();
+		accessor.TryGet(entity, out var initial).Should().BeTrue();
+		initial.Should().Be(new Velocity { X = 3, Y = 4 });
+		accessor.Get(entity).Should().Be(new Velocity { X = 3, Y = 4 });
+
+		world.Remove<Velocity>(entity);
+
+		accessor.Has(entity).Should().BeFalse();
+		accessor.TryGet(entity, out var missing).Should().BeFalse();
+		missing.Should().Be(default(Velocity));
+		Action getMissing = () => accessor.Get(entity);
+		getMissing.Should().ThrowExactly<KeyNotFoundException>()
+			.Which.Message.Should().Be(
+				$"Component '{nameof(Velocity)}' was not found for entity '{entity.Id}:{entity.Version}'."
+			);
+
+		world.Add(entity, new Velocity { X = 7, Y = 8 });
+
+		accessor.Has(entity).Should().BeTrue();
+		accessor.TryGet(entity, out var replacement).Should().BeTrue();
+		replacement.Should().Be(new Velocity { X = 7, Y = 8 });
+		ref var writable = ref accessor.Get(entity);
+		writable.X = 9;
+		writable.Y = 10;
+		world.Read<Velocity>(entity).Should().Be(new Velocity { X = 9, Y = 10 });
+	}
+
+	[Fact]
+	public void GetAccessor_WhenEntityHandleIsStale_ShouldRejectItWithoutTouchingReplacement()
+	{
+		using var world = new World();
+		var stale = world.Spawn(new Position { X = 1, Y = 2 });
+		var accessor = world.GetAccessor<Position>();
+
+		accessor.Has(stale).Should().BeTrue();
+		accessor.TryGet(stale, out var initial).Should().BeTrue();
+		initial.Should().Be(new Position { X = 1, Y = 2 });
+		accessor.Get(stale).Should().Be(new Position { X = 1, Y = 2 });
+
+		world.Despawn(stale);
+		var replacement = world.Spawn(new Position { X = 7, Y = 8 });
+		replacement.Id.Should().Be(stale.Id);
+		replacement.Version.Should().NotBe(stale.Version);
+
+		accessor.Has(stale).Should().BeFalse();
+		accessor.TryGet(stale, out var missing).Should().BeFalse();
+		missing.Should().Be(default(Position));
+		Action getStale = () => accessor.Get(stale);
+		getStale.Should().ThrowExactly<InvalidOperationException>()
+			.Which.Message.Should().Be($"Entity '{stale.Id}:{stale.Version}' is not alive.");
+
+		accessor.Has(replacement).Should().BeTrue();
+		accessor.TryGet(replacement, out var current).Should().BeTrue();
+		current.Should().Be(new Position { X = 7, Y = 8 });
+		world.Read<Position>(replacement).Should().Be(new Position { X = 7, Y = 8 });
+	}
+
+	[Fact]
+	public void GetAccessor_WhenWorldIsDisposed_ShouldRejectEveryAccessKindBeforeEntityValidation()
+	{
+		using var world = new World();
+		var accessor = world.GetAccessor<Position>();
+		world.Dispose();
+
+		Action has = () => accessor.Has(Entity.None);
+		has.Should().ThrowExactly<ObjectDisposedException>()
+			.Which.ObjectName.Should().Be(nameof(World));
+
+		Action tryGet = () => accessor.TryGet(Entity.None, out _);
+		tryGet.Should().ThrowExactly<ObjectDisposedException>()
+			.Which.ObjectName.Should().Be(nameof(World));
+
+		Action get = () => accessor.Get(Entity.None);
+		get.Should().ThrowExactly<ObjectDisposedException>()
+			.Which.ObjectName.Should().Be(nameof(World));
+	}
+
 	[Fact]
 	public void GetAccessor_Has_WhenComponentRemoved_ShouldReflectStructuralState()
 	{
@@ -89,7 +178,7 @@ public partial class WorldRuntimeTests
 
 		for (var i = 0; i < entities.Length; i++)
 		{
-			var updated = world.Get<Position>(entities[i]);
+			var updated = world.Read<Position>(entities[i]);
 			updated.X.Should().Be(i + 10);
 			updated.Y.Should().Be(-i - 5);
 		}

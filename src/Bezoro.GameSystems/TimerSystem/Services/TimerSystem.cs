@@ -67,7 +67,7 @@ public sealed class TimerSystem : ISystem
 		if (world is null) throw new ArgumentNullException(nameof(world));
 
 		world.GetOrCreateResource<TimerEventsResource>();
-		var commands = context.Commands;
+		var commands = context.CommandStream;
 		float deltaTime = context.DeltaTime <= 0f ? 0f : context.DeltaTime;
 
 		world.Query<TimerQuery>().ForEach<Timer>(
@@ -81,7 +81,7 @@ public sealed class TimerSystem : ISystem
 
 	private void AdvanceTimer(
 		World         world,
-		CommandBuffer commands,
+		CommandStream commands,
 		Entity        timerEntity,
 		ref Timer     timer,
 		float         deltaTime)
@@ -99,7 +99,7 @@ public sealed class TimerSystem : ISystem
 		Publish(world, timerEntity, timer, TimerLifecycle.Finished);
 
 		if (timer.Mode == TimerMode.OneShot)
-			commands.Despawn(timerEntity);
+			commands.Destroy(timerEntity);
 	}
 
 	private void PublishPendingTransition(

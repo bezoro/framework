@@ -342,12 +342,13 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 		{
 			case "Read":
 			case "TryRead":
-			case "Get":
 			case "TryGet":
+			case "TryGetManaged":
 			case "Has":
 				target  = AccessTarget.Component;
 				isWrite = false;
 				return true;
+			case "Get":
 			case "Write":
 			case "TryWrite":
 			case "Set":
@@ -359,11 +360,11 @@ public sealed class SystemMetadataGenerator : IIncrementalGenerator
 				return true;
 			case "ReadResource":
 			case "TryReadResource":
-			case "GetResource":
 			case "HasResource":
 				target  = AccessTarget.Resource;
 				isWrite = false;
 				return true;
+			case "GetResource":
 			case "WriteResource":
 			case "GetOrCreateResource":
 			case "SetResource":
