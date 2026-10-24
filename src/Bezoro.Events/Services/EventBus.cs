@@ -9,7 +9,7 @@ namespace Bezoro.Events.Services;
 ///     Thread-safe event bus with priority-ordered handlers, cancellable propagation,
 ///     synchronous inline dispatch, and queued deferred dispatch.
 /// </summary>
-public sealed class EventBus : IEventBus
+public sealed class EventBus : IBoundedEventBus
 {
 	private readonly ConcurrentDictionary<int, Type>                     _handleToType  = new();
 	private readonly ConcurrentDictionary<Type, List<EventSubscription>> _subscriptions = new();
@@ -107,6 +107,32 @@ public sealed class EventBus : IEventBus
 
 		var count = 0;
 		while (_queue.TryDequeue(out var queued))
+		{
+			try
+			{
+				queued.Dispatch();
+			}
+			catch
+			{
+				// Don't let dispatch exceptions stop the flush
+			}
+
+			count++;
+		}
+
+		return count;
+	}
+
+	/// <inheritdoc />
+	public int FlushQueued(int maxEvents)
+	{
+		ThrowIfDisposed();
+
+		if (maxEvents < 0)
+			throw new ArgumentOutOfRangeException(nameof(maxEvents));
+
+		var count = 0;
+		while (count < maxEvents && _queue.TryDequeue(out var queued))
 		{
 			try
 			{

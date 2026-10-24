@@ -19,7 +19,7 @@ public readonly record struct PoolStatistics
 	public long TotalCreated { get; init; }
 
 	/// <summary>
-	///     Total number of objects discarded (failed validation or reset).
+	///     Total number of objects discarded (failed validation, reset, or rent callback).
 	/// </summary>
 	public long TotalDiscarded { get; init; }
 

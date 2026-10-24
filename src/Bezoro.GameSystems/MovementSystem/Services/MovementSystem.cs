@@ -66,9 +66,17 @@ public sealed class MovementSystem : ISystem
 
 		context.World.ForEach(_query, (ref Position position, in Velocity velocity) =>
 			{
-				position.X += velocity.X * deltaTime;
-				position.Y += velocity.Y * deltaTime;
-				position.Z += velocity.Z * deltaTime;
+				var nextX = position.X + velocity.X * deltaTime;
+				var nextY = position.Y + velocity.Y * deltaTime;
+				var nextZ = position.Z + velocity.Z * deltaTime;
+				if (float.IsNaN(nextX) || float.IsInfinity(nextX) ||
+					float.IsNaN(nextY) || float.IsInfinity(nextY) ||
+					float.IsNaN(nextZ) || float.IsInfinity(nextZ))
+					return;
+
+				position.X = nextX;
+				position.Y = nextY;
+				position.Z = nextZ;
 			}
 		);
 	}

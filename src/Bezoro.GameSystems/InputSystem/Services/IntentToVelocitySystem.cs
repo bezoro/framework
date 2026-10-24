@@ -51,7 +51,10 @@ public sealed class IntentToVelocitySystem : ISystem
 			ref var intent = ref cursor.Get<MovementIntent>(i);
 			ref var velocity = ref cursor.Get<Velocity>(i);
 
-			if (!queue.TryGetLatest(control.ControlId, out var state))
+			if (float.IsNaN(setting.Speed) || float.IsInfinity(setting.Speed) ||
+				float.IsNaN(setting.HoldDurationSeconds) || float.IsInfinity(setting.HoldDurationSeconds) ||
+				setting.HoldDurationSeconds < 0f ||
+				!queue.TryGetLatest(control.ControlId, out var state))
 			{
 				intent   = default;
 				velocity = default;
@@ -66,12 +69,24 @@ public sealed class IntentToVelocitySystem : ISystem
 				continue;
 			}
 
+			var velocityX = state.MoveX * setting.Speed;
+			var velocityY = state.MoveY * setting.Speed;
+			var velocityZ = state.MoveZ * setting.Speed;
+			if (float.IsNaN(velocityX) || float.IsInfinity(velocityX) ||
+				float.IsNaN(velocityY) || float.IsInfinity(velocityY) ||
+				float.IsNaN(velocityZ) || float.IsInfinity(velocityZ))
+			{
+				intent   = default;
+				velocity = default;
+				continue;
+			}
+
 			intent.X   = state.MoveX;
 			intent.Y   = state.MoveY;
 			intent.Z   = state.MoveZ;
-			velocity.X = state.MoveX * setting.Speed;
-			velocity.Y = state.MoveY * setting.Speed;
-			velocity.Z = state.MoveZ * setting.Speed;
+			velocity.X = velocityX;
+			velocity.Y = velocityY;
+			velocity.Z = velocityZ;
 		}
 	}
 

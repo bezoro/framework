@@ -291,10 +291,37 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void NotifyRent(T item)
+	private void NotifyRent(T item)
 	{
-		if (item is IPooledObject pooled)
-			pooled.OnRent();
+		try
+		{
+			if (item is IPooledObject pooled)
+				pooled.OnRent();
+		}
+		catch
+		{
+			try
+			{
+				try
+				{
+					ReleaseReturnedItem(item);
+				}
+				finally
+				{
+					lock (_lifecycleGate)
+					{
+						if (Volatile.Read(ref _disposed) == 0)
+							TrySignalWaiters();
+					}
+				}
+			}
+			catch
+			{
+				// Cleanup or notification failure must not replace the OnRent exception.
+			}
+
+			throw;
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -309,10 +336,15 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void DiscardUnownedItem(T item)
 	{
-		_policy.OnDiscard(item);
-
-		if (_options.TrackStatistics)
-			Interlocked.Increment(ref _totalDiscarded);
+		try
+		{
+			_policy.OnDiscard(item);
+		}
+		finally
+		{
+			if (_options.TrackStatistics)
+				Interlocked.Increment(ref _totalDiscarded);
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -408,8 +440,8 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			}
 
 			item = availableItem;
-			IncrementRented();
 			NotifyRent(item);
+			IncrementRented();
 			return true;
 		}
 
@@ -422,8 +454,8 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		if (!TryCreateOwnedItem(out item))
 			return false;
 
-		IncrementRented();
 		NotifyRent(item);
+		IncrementRented();
 		return true;
 	}
 

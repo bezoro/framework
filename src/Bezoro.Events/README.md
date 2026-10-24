@@ -7,6 +7,7 @@ A type-safe event bus with priority-ordered handlers, cancellable propagation, a
 | Type                    | Description                                                        |
 |-------------------------|--------------------------------------------------------------------|
 | `IEventBus`             | Core event bus contract (subscribe, publish, enqueue, flush)       |
+| `IBoundedEventBus`      | Optional event bus contract with a queued dispatch budget          |
 | `EventBus`              | Thread-safe sealed implementation                                  |
 | `EventContext<TEvent>`  | Context passed to handlers, carries `Data` and `Handled` flag      |
 | `SubscriptionHandle`    | Lightweight value-type handle identifying a subscription           |
@@ -55,6 +56,14 @@ bus.Publish(new EnemyDiedEvent(42, 150));
 | `int QueuedCount`                                               | Number of events currently in the queue              |
 | `int SubscriptionCount`                                         | Total active subscriptions across all event types    |
 
+### IBoundedEventBus : IEventBus
+
+| Member                       | Description                                        |
+|------------------------------|----------------------------------------------------|
+| `FlushQueued(int maxEvents)` | Dequeue at most the budget; returns count dequeued |
+
+`EventBus` implements both contracts. Choose `IEventBus` for the original operations, or `IBoundedEventBus` when the caller requires an explicit budget.
+
 ### EventContext\<TEvent\>
 
 | Member         | Description                                           |
@@ -90,6 +99,11 @@ bus.Subscribe<DamageEvent>(ctx =>
 ## Queued Dispatch
 
 ```csharp
+using Bezoro.Events.Abstractions;
+using Bezoro.Events.Services;
+
+using IEventBus bus = new EventBus();
+
 // Enqueue events during gameplay
 bus.Enqueue(new DamageEvent(25));
 bus.Enqueue(new HealEvent(10));
@@ -97,6 +111,20 @@ bus.Enqueue(new HealEvent(10));
 // Flush at a controlled point in the game loop
 int dispatched = bus.FlushQueued(); // returns 2
 ```
+
+For a dispatch budget, depend explicitly on `IBoundedEventBus`:
+
+```csharp
+using IBoundedEventBus boundedBus = new EventBus();
+boundedBus.Enqueue(new DamageEvent(25));
+int dequeued = boundedBus.FlushQueued(100);
+```
+
+`FlushQueued(maxEvents)` stops at the budget or an observed empty queue and returns its direct dequeue count, including events without handlers or with failed dispatch. Callbacks can enqueue events that consume the remaining budget. Sequential calls preserve FIFO order; concurrent and nested flushes retain the existing dispatch behavior. Nested calls have independent budgets and counts, so the budget does not bound elapsed time or all callback work.
+
+On a live bus, zero leaves the queue unchanged and returns zero; a negative budget throws `ArgumentOutOfRangeException` with parameter name `maxEvents` before dequeuing. A disposed bus throws `ObjectDisposedException` for every budget. Parameterless `FlushQueued()` still drains until it observes an empty queue, including callback-enqueued events.
+
+`IEventBus` retains its original members, so existing implementations can continue implementing that contract. Budgeted consumers require `IBoundedEventBus`; there is no automatic fallback to an unlimited flush.
 
 ## Unity Example — Enemy Kill Chain
 

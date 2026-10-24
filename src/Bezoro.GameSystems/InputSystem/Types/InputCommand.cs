@@ -18,11 +18,20 @@ public readonly struct InputCommand
 	/// <param name="moveY">Commanded Y movement component.</param>
 	/// <param name="moveZ">Commanded Z movement component.</param>
 	/// <param name="sequence">Monotonic sequence number for ordering.</param>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="controlId" /> is negative.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Thrown when <paramref name="controlId" /> is negative or a movement component is not finite.
+	/// </exception>
 	public InputCommand(int controlId, float moveX, float moveY, float moveZ, ulong sequence)
 	{
 		if (controlId < 0)
 			throw new ArgumentOutOfRangeException(nameof(controlId), "Control id must be non-negative.");
+
+		if (float.IsNaN(moveX) || float.IsInfinity(moveX))
+			throw new ArgumentOutOfRangeException(nameof(moveX), "Movement component must be finite.");
+		if (float.IsNaN(moveY) || float.IsInfinity(moveY))
+			throw new ArgumentOutOfRangeException(nameof(moveY), "Movement component must be finite.");
+		if (float.IsNaN(moveZ) || float.IsInfinity(moveZ))
+			throw new ArgumentOutOfRangeException(nameof(moveZ), "Movement component must be finite.");
 
 		ControlId = controlId;
 		MoveX     = moveX;
