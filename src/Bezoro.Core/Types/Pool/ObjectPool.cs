@@ -103,86 +103,57 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	{
 		item.ThrowIfNull();
 
-		if (Volatile.Read(ref _disposed) != 0)
-		{
-			ReleaseReturnedItem(item);
-			return false;
-		}
-
-		bool ownedReturn = false;
-		while (_ownedItems.TryGetValue(item, out var currentState))
-		{
-			if (currentState != PoolItemState.Rented)
-				return false;
-
-			if (_ownedItems.TryUpdate(item, PoolItemState.Returning, PoolItemState.Rented))
-			{
-				ownedReturn = true;
-				break;
-			}
-		}
-
-		bool canReturn;
-		try
-		{
-			canReturn = ResetAndValidateForReturn(item);
-		}
-		catch
-		{
-			try
-			{
-				ReleaseReturnedItem(item);
-			}
-			catch
-			{
-				// Keep the reset failure as the cause reported to the caller.
-			}
-
-			throw;
-		}
-
-		if (!canReturn)
-		{
-			if (_ownedItems.TryGetValue(item, out var rejectedState) && rejectedState == PoolItemState.Available)
-				return false;
-
-			ReleaseReturnedItem(item);
-			return false;
-		}
-
-		if (Volatile.Read(ref _disposed) != 0)
-		{
-			ReleaseReturnedItem(item);
-			return false;
-		}
-
-		if (ownedReturn)
-		{
-			if (_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Returning))
-				return PublishReturnedItem(item);
-
-			return false;
-		}
-
+		// Claim the object before callbacks can reset, publish, or discard it.
+		// A foreign return owns an uncounted Returning marker until capacity is reserved.
 		while (true)
 		{
 			if (_ownedItems.TryGetValue(item, out var state))
 			{
 				if (state != PoolItemState.Rented)
 					return false;
-
-				if (_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Rented))
-					return PublishReturnedItem(item);
-
+				if (_ownedItems.TryUpdate(item, PoolItemState.Returning, PoolItemState.Rented))
+					break;
 				continue;
 			}
 
-			if (TryRegisterForeignItem(item, out bool retryOwnership))
-				return PublishReturnedItem(item);
-
-			if (!retryOwnership)
+			// Unknown objects cannot transfer ownership to a disposed pool. In particular,
+			// a duplicate late return must not dispose a previously released object again.
+			if (Volatile.Read(ref _disposed) != 0)
 				return false;
+			if (!_ownedItems.TryAdd(item, PoolItemState.Returning))
+				continue;
+
+			if (TryReserveCapacity())
+				break;
+
+			try { DiscardUnownedItem(item); }
+			finally { TryRemoveOwnedItem(item, PoolItemState.Returning); }
+			return false;
 		}
+
+		if (Volatile.Read(ref _disposed) != 0)
+		{
+			ReleaseOwnedItem(item, _policy.OnDiscard);
+			return false;
+		}
+
+		bool canReturn;
+		try { canReturn = ResetAndValidateForReturn(item); }
+		catch
+		{
+			try { ReleaseOwnedItem(item, _policy.OnDiscard); }
+			catch { /* Preserve the reset failure. */ }
+			throw;
+		}
+
+		if (!canReturn || Volatile.Read(ref _disposed) != 0)
+		{
+			ReleaseOwnedItem(item, _policy.OnDiscard);
+			return false;
+		}
+
+		return _ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Returning) &&
+			   PublishReturnedItem(item);
 	}
 
 	/// <inheritdoc />
@@ -422,7 +393,7 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			{
 				try
 				{
-					ReleaseReturnedItem(item);
+					ReleaseOwnedItem(item, _policy.OnDiscard);
 				}
 				finally
 				{
@@ -522,7 +493,13 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 	private bool ReleaseOwnedItem(T item, Action<T> release)
 	{
-		if (!_ownedItems.TryRemove(item, out _)) return false;
+		while (true)
+		{
+			if (!_ownedItems.TryGetValue(item, out var state) || state == PoolItemState.Discarding)
+				return false;
+			if (_ownedItems.TryUpdate(item, PoolItemState.Discarding, state))
+				break;
+		}
 
 		try
 		{
@@ -530,6 +507,9 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		}
 		finally
 		{
+			// Keep the marker while user disposal code runs so reentrant and concurrent
+			// returns cannot reset or dispose the same object during that callback.
+			TryRemoveOwnedItem(item, PoolItemState.Discarding);
 			Interlocked.Decrement(ref _totalCount);
 			if (_options.TrackStatistics) Interlocked.Increment(ref _totalDiscarded);
 			lock (_lifecycleGate)
@@ -540,13 +520,6 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		}
 
 		return true;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void ReleaseReturnedItem(T item)
-	{
-		if (!ReleaseOwnedItem(item, _policy.OnDiscard))
-			DiscardUnownedItem(item);
 	}
 
 	private bool TryAcquire(bool allowCreate, [NotNullWhen(true)] out T? item)
@@ -630,58 +603,6 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		}
 	}
 
-	private bool TryRegisterForeignItem(T item, out bool retryOwnership)
-	{
-		while (true)
-		{
-			retryOwnership = false;
-
-			if (TryReserveCapacity())
-			{
-				if (_ownedItems.TryAdd(item, PoolItemState.Available))
-					return true;
-
-				Interlocked.Decrement(ref _totalCount);
-				retryOwnership = true;
-				return false;
-			}
-
-			if (!_ownedItems.TryAdd(item, PoolItemState.Available))
-			{
-				retryOwnership = true;
-				return false;
-			}
-
-			if (TryReplaceRentedItem(item))
-				return true;
-
-			if (!TryRemoveOwnedItem(item, PoolItemState.Available))
-			{
-				retryOwnership = true;
-				return false;
-			}
-
-			if (_options.MaxCapacity <= 0 || Volatile.Read(ref _totalCount) < _options.MaxCapacity)
-				continue;
-
-			DiscardUnownedItem(item);
-			return false;
-		}
-	}
-
-	private bool TryReplaceRentedItem(T replacement)
-	{
-		foreach (var pair in _ownedItems)
-		{
-			if (ReferenceEquals(pair.Key, replacement) || pair.Value != PoolItemState.Rented)
-				continue;
-
-			if (TryRemoveOwnedItem(pair.Key, PoolItemState.Rented))
-				return true;
-		}
-
-		return false;
-	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryRemoveOwnedItem(T item, PoolItemState state) =>

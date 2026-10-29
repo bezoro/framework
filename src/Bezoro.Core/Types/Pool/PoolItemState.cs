@@ -4,5 +4,6 @@ internal enum PoolItemState
 {
 	Available,
 	Rented,
-	Returning
+	Returning,
+	Discarding
 }

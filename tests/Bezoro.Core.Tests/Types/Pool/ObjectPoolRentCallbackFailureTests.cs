@@ -154,10 +154,10 @@ public class ObjectPoolRentCallbackFailureTests
 	[InlineData(false, true)]
 	[InlineData(true, false)]
 	[InlineData(true, true)]
-	public async Task FailedRent_WhenForeignReturnReplacesOwnership_ShouldDiscardOnlyFailedItem(
+	public async Task FailedRent_WhenForeignReturnArrivesAtCapacity_ShouldPreserveOwnershipUntilCallbackEnds(
 		bool prewarm, bool discardThrows)
 	{
-		var failure = new InvalidOperationException("rent failed after ownership replacement");
+		var failure = new InvalidOperationException("rent failed while ownership was retained");
 		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		using var release = new ManualResetEventSlim();
 		using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -167,7 +167,7 @@ public class ObjectPoolRentCallbackFailureTests
 			release.Wait(watchdog.Token);
 			throw failure;
 		} };
-		var replacement = new CallbackItem();
+		var foreign = new CallbackItem();
 		var policy = new CallbackPolicy(failedItem, discardThrows);
 		using var pool = new ObjectPool<CallbackItem>(policy, new PoolOptions(
 			InitialCapacity: prewarm ? 1 : 0, MaxCapacity: 1, TrackStatistics: true));
@@ -175,45 +175,36 @@ public class ObjectPoolRentCallbackFailureTests
 		try
 		{
 			await entered.Task.WaitAsync(watchdog.Token);
-			Assert.True(pool.Return(replacement));
+			if (discardThrows) Assert.Throws<ApplicationException>(() => pool.Return(foreign));
+			else Assert.False(pool.Return(foreign));
 			Assert.Equal(1, pool.TotalCount);
-			Assert.Equal(1, pool.AvailableCount);
-			Assert.Equal(0, replacement.DiscardCount);
-			Assert.Equal(0, replacement.DisposeCount);
+			Assert.Equal(0, pool.AvailableCount);
+			Assert.Equal(1, foreign.DiscardCount);
+			Assert.Equal(discardThrows ? 0 : 1, foreign.DisposeCount);
+			Assert.Equal(0, foreign.ReturnCount);
 			release.Set();
 
 			Assert.Same(failure, await failingRent.WaitAsync(watchdog.Token));
 			Assert.Equal(1, failedItem.DiscardCount);
 			Assert.Equal(discardThrows ? 0 : 1, failedItem.DisposeCount);
 			Assert.Equal(0, failedItem.ReturnCount);
-			Assert.Equal(1, policy.DiscardCount);
-			Assert.Equal(1, pool.Statistics.TotalDiscarded);
-			Assert.Equal(0, pool.Statistics.TotalRented);
-			Assert.Equal(1, pool.Statistics.TotalReturned);
-			Assert.Equal(1, pool.TotalCount);
-			Assert.Equal(1, pool.AvailableCount);
-			Assert.Equal(0, replacement.DiscardCount);
-			Assert.Equal(0, replacement.DisposeCount);
-
-			Assert.Same(replacement, pool.Rent());
-			Assert.False(pool.TryRent(out _));
-			Assert.Equal(1, policy.CreateCount);
-			Assert.Equal(1, pool.TotalCount);
-			Assert.True(pool.Return(replacement));
-			Assert.Equal(1, pool.Statistics.TotalRented);
-			Assert.Equal(2, pool.Statistics.TotalReturned);
-			Assert.Equal(1, pool.Statistics.TotalDiscarded);
-			Assert.Equal(0, replacement.DiscardCount);
-			Assert.Equal(0, replacement.DisposeCount);
-
-			pool.Dispose();
-			Assert.Equal(1, failedItem.DiscardCount);
-			Assert.Equal(discardThrows ? 0 : 1, failedItem.DisposeCount);
-			Assert.Equal(0, replacement.DiscardCount);
-			Assert.Equal(1, replacement.DisposeCount);
+			Assert.Equal(2, policy.DiscardCount);
 			Assert.Equal(2, pool.Statistics.TotalDiscarded);
+			Assert.Equal(0, pool.Statistics.TotalRented);
+			Assert.Equal(0, pool.Statistics.TotalReturned);
 			Assert.Equal(0, pool.TotalCount);
 			Assert.Equal(0, pool.AvailableCount);
+
+			var replacement = pool.Rent();
+			Assert.NotSame(foreign, replacement);
+			Assert.NotSame(failedItem, replacement);
+			Assert.True(pool.Return(replacement));
+			Assert.Equal(1, pool.TotalCount);
+			Assert.Equal(1, pool.AvailableCount);
+			pool.Dispose();
+			Assert.Equal(1, replacement.DisposeCount);
+			Assert.Equal(3, pool.Statistics.TotalDiscarded);
+			Assert.Equal(0, pool.TotalCount);
 		}
 		finally
 		{

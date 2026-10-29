@@ -35,6 +35,11 @@ public interface IPool<T> where T : class
 	/// </summary>
 	/// <param name="item">The object to return.</param>
 	/// <returns><c>true</c> if the object was returned to the pool; <c>false</c> if discarded due to capacity or validation.</returns>
+	/// <remarks>
+	///     A foreign object is accepted only while the live pool has free capacity; it never replaces an outstanding rental.
+	///     An unknown object returned after disposal remains the caller's responsibility and is not discarded by the pool.
+	///     Concurrent duplicate returns are rejected while reset or discard callbacks are running.
+	/// </remarks>
 	bool Return(T item);
 
 	/// <summary>
