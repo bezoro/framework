@@ -6,7 +6,8 @@ Integration tests for repository build and packaging scripts.
 
 | Area                      | Description                                                                 |
 |---------------------------|-----------------------------------------------------------------------------|
-| `PackageVersionScriptTests` | Exercises package version resolution from SemVer Git tags and commit height. |
+| `PackageVersionScriptTests` | Exercises SemVer precedence, validation, metadata, and Git-tag version resolution. |
+| `UnityPackageScriptTests` | Verifies runtime dependency staging, conflicts, missing artifacts, and output-path protection. |
 
 ## Quick Start
 

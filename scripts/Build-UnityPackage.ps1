@@ -23,6 +23,15 @@ else {
 	$PackageVersion = & $versionScript -RepositoryPath $repositoryRoot -VersionOverride $PackageVersion
 }
 
+# Refuse to recursively remove source directories or their ancestors.
+$relativeOutput = [System.IO.Path]::GetRelativePath($repositoryRoot, $outputRoot)
+$topLevelOutput = ($relativeOutput -split '[\\/]')[0]
+if ($relativeOutput -eq '.' -or $relativeOutput -eq '..' -or
+    $relativeOutput.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)") -or
+    $topLevelOutput -in @('src', 'tests', 'scripts', 'unity-package', '.git', 'api', 'docs', 'samples', 'benchmarks')) {
+    throw "OutputPath must be a staging directory inside the repository, separate from source directories."
+}
+
 if (Test-Path $outputRoot) {
 	Remove-Item $outputRoot -Recurse -Force
 }
@@ -40,6 +49,14 @@ $legacyPluginsRoot = Join-Path $runtimeRoot "Plugins"
 if (Test-Path $legacyPluginsRoot) {
 	Remove-Item $legacyPluginsRoot -Recurse -Force
 }
+
+# These assemblies belong to Unity's .NET Standard 2.1 profile. Shipping NuGet
+# copies introduces duplicate definitions in Unity, so use the host's versions.
+$hostAssemblies = @(
+    'Microsoft.CSharp.dll', 'System.Buffers.dll', 'System.Memory.dll',
+    'System.Numerics.Vectors.dll', 'System.Threading.Tasks.Extensions.dll'
+)
+$stagedAssemblies = @{}
 
 $projects = Get-ChildItem (Join-Path $repositoryRoot "src") -Recurse -Filter "*.csproj" |
 	Where-Object { $_.BaseName -ne "Bezoro.ECS.SourceGen" } |
@@ -59,11 +76,24 @@ foreach ($project in $projects) {
 	}
 
 	$artifactPath = Join-Path $buildOutputDirectory "$assemblyName.dll"
-	if (Test-Path $artifactPath) {
-		$destinationPath = Join-Path $runtimeRoot "$assemblyName.dll"
-		$destinationReadmePath = Join-Path $runtimeRoot "$assemblyName.README.md"
-		Copy-Item $artifactPath $destinationPath -Force
-		Copy-Item $readmePath $destinationReadmePath -Force
+	if (-not (Test-Path $artifactPath)) {
+		throw "Missing runtime assembly '$artifactPath'. Rebuild before staging."
+	}
+
+	foreach ($assembly in Get-ChildItem $buildOutputDirectory -Filter '*.dll' -File) {
+		if ($assembly.Name -in $hostAssemblies) { continue }
+		$hash = (Get-FileHash $assembly.FullName -Algorithm SHA256).Hash
+		if ($stagedAssemblies.ContainsKey($assembly.Name) -and $stagedAssemblies[$assembly.Name] -ne $hash) {
+			throw "Conflicting runtime dependency '$($assembly.Name)' in build outputs. Clean and rebuild the solution."
+		}
+		$stagedAssemblies[$assembly.Name] = $hash
+		Copy-Item $assembly.FullName (Join-Path $runtimeRoot $assembly.Name) -Force
+	}
+
+	Copy-Item $readmePath (Join-Path $runtimeRoot "$assemblyName.README.md") -Force
+	$xmlPath = Join-Path $buildOutputDirectory "$assemblyName.xml"
+	if (Test-Path $xmlPath) {
+		Copy-Item $xmlPath (Join-Path $runtimeRoot "$assemblyName.xml") -Force
 	}
 }
 
