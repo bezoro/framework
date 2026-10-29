@@ -196,9 +196,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
 		var errors          = new List<Exception>();
 
-		var transport = Transport()
-						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
-						.Build();
+		var transport = CreateExitWaitFailureTransport(teardownFailure, out var injectedFailures);
 
 		transport.Error += ex => errors.Add(ex);
 		await transport.StartAsync();
@@ -208,6 +206,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await act.Should().ThrowAsync<InvalidOperationException>()
 				 .WithMessage(teardownFailure.Message);
 
+		injectedFailures().Should().Be(1, "the fault must come from the teardown wait, not an exited child or the background monitor");
 		transport.Status.Should().Be(TransportStatus.Failed);
 		transport.IsStarted.Should().BeFalse();
 		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
@@ -673,9 +672,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
 		var errors          = new List<Exception>();
 
-		var transport = Transport()
-						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
-						.Build();
+		var transport = CreateExitWaitFailureTransport(teardownFailure, out var injectedFailures);
 
 		transport.Error += ex => errors.Add(ex);
 		await transport.StartAsync();
@@ -685,6 +682,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await act.Should().ThrowAsync<InvalidOperationException>()
 				 .WithMessage(teardownFailure.Message);
 
+		injectedFailures().Should().Be(1, "the fault must come from the teardown wait, not an exited child or the background monitor");
 		transport.Status.Should().Be(TransportStatus.Failed);
 		transport.IsStarted.Should().BeFalse();
 		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
@@ -708,5 +706,19 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 		transport.Status.Should().Be(TransportStatus.Stopped);
+	}
+
+	private static ProcessUciTransport CreateExitWaitFailureTransport(Exception failure, out Func<int> injectedFailures)
+	{
+		var failureCount = 0;
+		injectedFailures = () => Volatile.Read(ref failureCount);
+		return RunningProcess().WithWaitForProcessExitOverride((process, token) =>
+		{
+			// The background exit monitor uses CancellationToken.None. Inject once in the
+			// bounded teardown wait, then allow the forced-kill wait to confirm actual exit.
+			if (token.CanBeCanceled && Interlocked.CompareExchange(ref failureCount, 1, 0) == 0)
+				return Task.FromException(failure);
+			return process.WaitForExitAsync(token);
+		}).Build();
 	}
 }
