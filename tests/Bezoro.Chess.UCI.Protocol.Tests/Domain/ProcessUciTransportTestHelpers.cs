@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 using System.Text;
 using static Bezoro.Chess.UCI.Protocol.Tests.TestHelpers.TestDataBuilders;
 
@@ -19,7 +21,35 @@ internal static class ProcessUciTransportTestHelpers
 	public static ProcessUciTransportBuilder ErrorOutputProcess(string line, bool waitForInput = false) =>
 		TestProcess("stderr", Convert.ToBase64String(Encoding.UTF8.GetBytes(line + Environment.NewLine)), waitForInput ? "wait" : "exit");
 
+	internal static Process StartChildProcess(params string[] arguments)
+	{
+		var command = TestProcessCommand(arguments);
+		var process = new Process
+		{
+			StartInfo = ProcessHelper.CreateProcessStartInfo(command.Host, command.Arguments,
+				Environment.CurrentDirectory, true, Encoding.UTF8, Encoding.UTF8),
+			EnableRaisingEvents = true
+		};
+		try
+		{
+			if (!process.Start()) throw new InvalidOperationException("The test child process did not start.");
+			return process;
+		}
+		catch
+		{
+			process.Dispose();
+			throw;
+		}
+	}
+
 	private static ProcessUciTransportBuilder TestProcess(params string[] arguments)
+	{
+		var command = TestProcessCommand(arguments);
+		return Transport().WithPath(command.Host).WithArguments(command.Arguments)
+			.WithSendQuitOnStop(false).WithSendQuitOnDispose(false);
+	}
+
+	private static (string Host, string[] Arguments) TestProcessCommand(string[] arguments)
 	{
 		string? host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
 		if (string.IsNullOrEmpty(host) || !File.Exists(host))
@@ -29,8 +59,6 @@ internal static class ProcessUciTransportTestHelpers
 
 		string runtimeConfig = Path.ChangeExtension(typeof(ProcessUciTransportTestHelpers).Assembly.Location, ".runtimeconfig.json");
 		string child = Path.Combine(AppContext.BaseDirectory, "Bezoro.Chess.UCI.Protocol.TestProcess.dll");
-		return Transport().WithPath(host)
-			.WithArguments(["exec", "--runtimeconfig", runtimeConfig, child, .. arguments])
-			.WithSendQuitOnStop(false).WithSendQuitOnDispose(false);
+		return (host, ["exec", "--runtimeconfig", runtimeConfig, child, .. arguments]);
 	}
 }
