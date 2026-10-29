@@ -14,8 +14,9 @@ public sealed class EventBus : IBoundedEventBus
 	private readonly ConcurrentDictionary<int, Type>                     _handleToType  = new();
 	private readonly ConcurrentDictionary<Type, List<EventSubscription>> _subscriptions = new();
 	private readonly ConcurrentQueue<QueuedEvent>                        _queue         = new();
+	private readonly object                                             _lifecycleGate = new();
 	private          int                                                 _disposed;
-	private          int                                                 _nextId;
+	private static   long                                                _nextId;
 
 	/// <inheritdoc />
 	public int QueuedCount => _queue.Count;
@@ -41,27 +42,30 @@ public sealed class EventBus : IBoundedEventBus
 	/// <inheritdoc />
 	public bool Unsubscribe(SubscriptionHandle handle)
 	{
-		ThrowIfDisposed();
-
-		if (!_handleToType.TryRemove(handle.Id, out var eventType))
-			return false;
-
-		if (!_subscriptions.TryGetValue(eventType, out var list))
-			return false;
-
-		lock (list)
+		lock (_lifecycleGate)
 		{
-			for (var i = 0; i < list.Count; i++)
+			ThrowIfDisposed();
+
+			if (!_handleToType.TryRemove(handle.Id, out var eventType))
+				return false;
+
+			if (!_subscriptions.TryGetValue(eventType, out var list))
+				return false;
+
+			lock (list)
 			{
-				if (list[i].Handle != handle)
-					continue;
+				for (var i = 0; i < list.Count; i++)
+				{
+					if (list[i].Handle != handle)
+						continue;
 
-				list.RemoveAt(i);
-				return true;
+					list.RemoveAt(i);
+					return true;
+				}
 			}
-		}
 
-		return false;
+			return false;
+		}
 	}
 
 	/// <inheritdoc />
@@ -153,53 +157,66 @@ public sealed class EventBus : IBoundedEventBus
 	public SubscriptionHandle Subscribe<TEvent>(Action<EventContext<TEvent>> handler, int priority = 0)
 		where TEvent : struct
 	{
-		ThrowIfDisposed();
-
-		if (handler is null)
-			throw new ArgumentNullException(nameof(handler));
-
-		int id           = Interlocked.Increment(ref _nextId);
-		var handle       = new SubscriptionHandle(id);
-		var subscription = new EventSubscription(handle, priority, handler);
-
-		var eventType = typeof(TEvent);
-		var list      = _subscriptions.GetOrAdd(eventType, _ => new());
-		lock (list)
+		lock (_lifecycleGate)
 		{
-			InsertSorted(list, subscription);
+			ThrowIfDisposed();
+
+			if (handler is null)
+				throw new ArgumentNullException(nameof(handler));
+
+			long nextId = Interlocked.Increment(ref _nextId);
+			if (nextId > int.MaxValue)
+				throw new InvalidOperationException("The event subscription identifier space is exhausted.");
+
+			int id           = (int)nextId;
+			var handle       = new SubscriptionHandle(id);
+			var subscription = new EventSubscription(handle, priority, handler);
+
+			var eventType = typeof(TEvent);
+			var list      = _subscriptions.GetOrAdd(eventType, _ => new());
+			lock (list)
+			{
+				InsertSorted(list, subscription);
+			}
+
+			_handleToType[id] = eventType;
+
+			return handle;
 		}
-
-		_handleToType[id] = eventType;
-
-		return handle;
 	}
 
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		if (Interlocked.Exchange(ref _disposed, 1) != 0)
-			return;
-
-		foreach (var pair in _subscriptions)
+		lock (_lifecycleGate)
 		{
-			lock (pair.Value)
+			if (Interlocked.Exchange(ref _disposed, 1) != 0)
+				return;
+
+			foreach (var pair in _subscriptions)
 			{
-				pair.Value.Clear();
+				lock (pair.Value)
+				{
+					pair.Value.Clear();
+				}
 			}
+
+			_subscriptions.Clear();
+			_handleToType.Clear();
+
+			while (_queue.TryDequeue(out _)) { }
 		}
-
-		_subscriptions.Clear();
-		_handleToType.Clear();
-
-		while (_queue.TryDequeue(out _)) { }
 	}
 
 	/// <inheritdoc />
 	public void Enqueue<TEvent>(TEvent evt) where TEvent : struct
 	{
-		ThrowIfDisposed();
+		lock (_lifecycleGate)
+		{
+			ThrowIfDisposed();
 
-		_queue.Enqueue(new(() => Publish(evt)));
+			_queue.Enqueue(new(() => Publish(evt)));
+		}
 	}
 
 	private static void InsertSorted(List<EventSubscription> list, EventSubscription subscription)
@@ -230,7 +247,7 @@ public sealed class EventBus : IBoundedEventBus
 
 	private void ThrowIfDisposed()
 	{
-		if (_disposed != 0)
+		if (Volatile.Read(ref _disposed) != 0)
 			throw new ObjectDisposedException(nameof(EventBus));
 	}
 }
