@@ -28,6 +28,7 @@ internal static class UciInfoParser
 		uint? currentLineCpu = null;
 		string? infoString = null;
 		UciInfoScore? score = null;
+		UciWdl? wdl = null;
 		List<string>? refutation = null;
 		List<string>? currentLine = null;
 		PrincipalVariation? principalVariation = null;
@@ -113,6 +114,13 @@ internal static class UciInfoParser
 						score = new(centipawns, mate, bound);
 						break;
 					}
+				case "wdl" when TryReadUInt(tokens, i + 1, out uint wins) && wins <= 1000 &&
+					TryReadUInt(tokens, i + 2, out uint draws) && draws <= 1000 &&
+					TryReadUInt(tokens, i + 3, out uint losses) && losses <= 1000 &&
+					wins + draws + losses == 1000:
+					wdl = new((int)wins, (int)draws, (int)losses);
+					i += 3;
+					break;
 				case "refutation":
 					refutation = ReadTokenSequence(tokens, ref i);
 					break;
@@ -151,7 +159,7 @@ internal static class UciInfoParser
 								time ?? 0,
 								pvMoves.ToImmutableArray(),
 								string.Join(" ", pvMoves)
-							);
+							) { Wdl = wdl, ScoreBound = score?.Bound ?? UciScoreBound.Exact };
 
 						i = tokens.Length;
 						break;
@@ -177,7 +185,7 @@ internal static class UciInfoParser
 			currentLine is { Count: > 0 } ? currentLine.ToImmutableArray() : ImmutableArray<string>.Empty,
 			infoString,
 			principalVariation
-		);
+		) { Wdl = wdl };
 
 		return true;
 	}
@@ -211,6 +219,7 @@ internal static class UciInfoParser
 			"seldepth" or
 			"multipv" or
 			"score" or
+			"wdl" or
 			"nodes" or
 			"nps" or
 			"tbhits" or

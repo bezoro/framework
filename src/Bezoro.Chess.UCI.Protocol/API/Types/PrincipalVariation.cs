@@ -35,6 +35,12 @@ public readonly record struct PrincipalVariation(
 	string                RawPv
 )
 {
+	/// <summary>Gets optional win/draw/loss estimates from the engine, relative to the side to move.</summary>
+	public UciWdl? Wdl { get; init; }
+
+	/// <summary>Gets whether the reported score is exact or a search bound.</summary>
+	public UciScoreBound ScoreBound { get; init; }
+
 	/// <summary>
 	///     Attempts to parse a UCI <c>info ... pv ...</c> line.
 	/// </summary>

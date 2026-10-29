@@ -23,4 +23,8 @@ public readonly record struct UciInfoPayload(
 	ImmutableArray<string> CurrentLine,
 	string?               String,
 	PrincipalVariation?   PrincipalVariation
-);
+)
+{
+	/// <summary>Gets optional engine win/draw/loss estimates relative to the side to move.</summary>
+	public UciWdl? Wdl { get; init; }
+}
