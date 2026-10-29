@@ -1,28 +1,40 @@
+using static Bezoro.Chess.UCI.Protocol.Tests.TestHelpers.TestDataBuilders;
+
 namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 
-/// <summary>
-///     Shared test helpers for ProcessUciTransport tests.
-/// </summary>
+/// <summary>Native child processes with equivalent behavior on Windows and POSIX hosts.</summary>
 internal static class ProcessUciTransportTestHelpers
 {
-	/// <summary>
-	///     Resolves the path to cmd.exe on Windows for integration tests.
-	/// </summary>
-	/// <exception cref="InvalidOperationException">Thrown when cmd.exe cannot be found.</exception>
-	public static string TryResolveCmdPath()
+	public static ProcessUciTransportBuilder ExitingProcess() => ShellProcess("exit 0", "exit 0");
+
+	public static ProcessUciTransportBuilder ExitOnInputProcess() =>
+		ShellProcess("set /p input=&exit 0", "IFS= read -r input; exit 0");
+
+	public static ProcessUciTransportBuilder OutputProcess(params string[] lines) => PrintingProcess(lines, stderr: false);
+
+	public static ProcessUciTransportBuilder ErrorOutputProcess(string line) => PrintingProcess([line], stderr: true);
+
+	private static ProcessUciTransportBuilder PrintingProcess(string[] lines, bool stderr)
 	{
-		string systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-		if (!string.IsNullOrWhiteSpace(systemRoot))
-		{
-			string cmd = Path.Combine(systemRoot, "System32", "cmd.exe");
-			if (File.Exists(cmd)) return cmd;
-		}
-
-		string  envCmd = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\cmd.exe");
-		string? file   = File.Exists(envCmd) ? envCmd : null;
-		if (file is null)
-			throw new InvalidOperationException("Unable to resolve cmd.exe path");
-
-		return file;
+		string redirect = stderr ? " 1>&2" : string.Empty;
+		string windowsCommand = "chcp 65001>nul&" + string.Join("&", lines.Select(line => "echo(" + EscapeCmdEcho(line) + redirect));
+		string posixCommand = "printf '%s\\n' " + string.Join(" ", lines.Select(line => "'" + line.Replace("'", "'\\''") + "'")) + redirect;
+		return ShellProcess(windowsCommand, posixCommand);
 	}
+
+	private static ProcessUciTransportBuilder ShellProcess(string windowsCommand, string posixCommand)
+	{
+		string path = OperatingSystem.IsWindows()
+			? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe")
+			: "/bin/sh";
+		if (!File.Exists(path))
+			throw new InvalidOperationException($"The platform command interpreter was not found at {path}.");
+
+		return Transport().WithPath(path)
+			.WithArguments(OperatingSystem.IsWindows() ? ["/d", "/c", windowsCommand] : ["-c", posixCommand])
+			.WithSendQuitOnStop(false).WithSendQuitOnDispose(false);
+	}
+
+	private static string EscapeCmdEcho(string line) => line.Replace("^", "^^").Replace("&", "^&")
+		.Replace("|", "^|").Replace("<", "^<").Replace(">", "^>").Replace("(", "^(").Replace(")", "^)");
 }

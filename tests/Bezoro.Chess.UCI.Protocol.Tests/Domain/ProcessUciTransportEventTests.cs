@@ -1,5 +1,4 @@
 using System.Text;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -53,8 +52,7 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task Exited_WhenHandlerThrows_ShouldRaiseErrorEventAndNotCrash()
 	{
 		Log("Starting test: Exited_WhenHandlerThrows_ShouldRaiseErrorEventAndNotCrash");
-		await using var transport = Transport()
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var errorTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -74,11 +72,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task Exited_WhenMultipleReaders_ShouldRaiseExitedOnce()
 	{
 		Log("Starting test: Exited_WhenMultipleReaders_ShouldRaiseExitedOnce");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.WithSingleReader(false)
 									.Build();
 
@@ -111,11 +106,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task Exited_WhenProcessExits_ShouldRaiseEventWithExitCode()
 	{
 		Log("Starting test: Exited_WhenProcessExits_ShouldRaiseEventWithExitCode");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var tcs = new TaskCompletionSource<(int? Code, string? Error)>(
@@ -166,11 +158,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task Exited_WhenProcessExitsDuringRead_ShouldCompleteReadGracefully()
 	{
 		Log("Starting test: Exited_WhenProcessExitsDuringRead_ShouldCompleteReadGracefully");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -196,11 +185,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task Exited_WhenProcessExitsDuringWrite_ShouldRaiseExitedEventAndWriteShouldFail()
 	{
 		Log("Starting test: Exited_WhenProcessExitsDuringWrite_ShouldRaiseExitedEventAndWriteShouldFail");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -236,19 +222,16 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task IsHealthy_WhenProcessExitsUnexpectedly_ShouldReturnFalse()
 	{
 		Log("Starting test: IsHealthy_WhenProcessExitsUnexpectedly_ShouldReturnFalse");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitOnInputProcess()
 									.Build();
-
-		await transport.StartAsync();
-
-		transport.IsHealthy.Should().BeTrue("Process should be healthy immediately after start");
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		transport.Exited += (_, _) => exitedTcs.TrySetResult(null);
+
+		await transport.StartAsync();
+		transport.IsHealthy.Should().BeTrue("the child waits for input before exiting");
+		await transport.WriteLineAsync("exit");
 
 		var completed = await Task.WhenAny(exitedTcs.Task, Task.Delay(TestConstants.DefaultTimeout));
 		completed.Should().Be(exitedTcs.Task, "Process should exit");
@@ -284,16 +267,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task StderrReceived_WhenHandlerThrows_ShouldSwallowExceptionAndNotCrash()
 	{
 		Log("Starting test: StderrReceived_WhenHandlerThrows_ShouldSwallowExceptionAndNotCrash");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO,
-										"oops",
-										ProcessArgs.STD_OUT_TO_STD_ERR
-									)
+		await using var transport = ErrorOutputProcess("oops")
 									.WithRedirectStandardError()
 									.Build();
 
@@ -315,16 +290,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task StderrReceived_WhenRedirected_ShouldFireEvent()
 	{
 		Log("Starting test: StderrReceived_WhenRedirected_ShouldFireEvent");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO,
-										"HelloStderr",
-										ProcessArgs.STD_OUT_TO_STD_ERR
-									)
+		await using var transport = ErrorOutputProcess("HelloStderr")
 									.WithRedirectStandardError()
 									.Build();
 
@@ -344,16 +311,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task StderrReceived_WhenStderrDisabled_ShouldNotStartStderrLoop()
 	{
 		Log("Starting test: StderrReceived_WhenStderrDisabled_ShouldNotStartStderrLoop");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO,
-										"HelloErr",
-										ProcessArgs.STD_OUT_TO_STD_ERR
-									)
+		await using var transport = ErrorOutputProcess("HelloErr")
 									.WithRedirectStandardError(false)
 									.Build();
 
@@ -373,16 +332,8 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 	public async Task StderrReceived_WithUtf8Encoding_WhenCalled_ShouldHandleUnicodeCorrectly()
 	{
 		Log("Starting test: StderrReceived_WithUtf8Encoding_ShouldHandleUnicodeCorrectly");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO,
-										"test",
-										ProcessArgs.STD_OUT_TO_STD_ERR
-									)
+		await using var transport = ErrorOutputProcess("Olá 世界")
 									.WithRedirectStandardError()
 									.WithStderrEncoding(Encoding.UTF8)
 									.Build();
@@ -390,7 +341,7 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 		transport.StderrReceived += s =>
 		{
-			if (!string.IsNullOrEmpty(s)) tcs.TrySetResult(s);
+			if (s.Contains("Olá 世界", StringComparison.Ordinal)) tcs.TrySetResult(s);
 		};
 
 		await transport.StartAsync();

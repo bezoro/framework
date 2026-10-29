@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -327,11 +326,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	public async Task DisposeAsync_WithExitedProcess_WhenCalled_ShouldCompleteImmediately()
 	{
 		Log("Starting test: DisposeAsync_WithExitedProcess_ShouldCompleteImmediately");
-		string cmdPath = TryResolveCmdPath();
 
-		var transport = Transport()
-						.WithPath(cmdPath)
-						.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		var transport = ExitingProcess()
 						.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -545,27 +541,33 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenStopping_ShouldThrowInvalidOperationException()
+	public async Task StartAsync_WhenStopping_ShouldWaitThenRestart()
 	{
-		Log("Starting test: StartAsync_WhenStopping_ShouldThrowInvalidOperationException");
-		await using var process = Transport().Build();
+		var enteredStop = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var releaseStop = new ManualResetEventSlim();
+		await using var process = Transport().WithOnQuitSent(() =>
+		{
+			enteredStop.TrySetResult();
+			releaseStop.Wait(TestConstants.DefaultTimeout);
+		}).Build();
 		await process.StartAsync();
 
-		var stoppingTask = process.StopAsync();
-
-		bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
-								() => process.Status == TransportStatus.Stopping,
-								TestConstants.ShortDelay,
-								TestConstants.DefaultTimeout
-							);
-
-		conditionMet.Should().BeTrue("Status should transition to Stopping");
-
-		await FluentActions.Awaiting(() => process.StartAsync())
-						   .Should()
-						   .ThrowAsync<InvalidOperationException>();
-
-		await stoppingTask;
+		var stoppingTask = Task.Run(() => process.StopAsync());
+		try
+		{
+			await enteredStop.Task.WaitAsync(TestConstants.DefaultTimeout);
+			process.Status.Should().Be(TransportStatus.Stopping);
+			var restartingTask = process.StartAsync();
+			restartingTask.IsCompleted.Should().BeFalse("startup must wait for the previous process teardown");
+			releaseStop.Set();
+			await Task.WhenAll(stoppingTask, restartingTask).WaitAsync(TestConstants.DefaultTimeout);
+			process.Status.Should().Be(TransportStatus.Started);
+			process.IsHealthy.Should().BeTrue();
+		}
+		finally
+		{
+			releaseStop.Set();
+		}
 	}
 
 	[Fact]
