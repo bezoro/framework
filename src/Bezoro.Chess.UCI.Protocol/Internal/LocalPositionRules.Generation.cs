@@ -108,11 +108,7 @@ internal static partial class LocalPositionRules
 				continue;
 
 			int targetIndex = GetIndex(targetFile, nextRank);
-			bool isEnPassant = string.Equals(
-				state.EnPassantTarget,
-				FormatSquare(targetIndex),
-				StringComparison.Ordinal
-			);
+			bool isEnPassant = IsEnPassantCapture(state, fromIndex, targetIndex);
 			if (!isEnPassant && !IsEnemyPiece(state.Board[targetIndex], state.ActiveColor))
 				continue;
 
@@ -140,14 +136,14 @@ internal static partial class LocalPositionRules
 		if (!isPromotion)
 			return IsLegalMove(state, fromIndex, toIndex, isEnPassant) && AddMove(moves, fromIndex, toIndex);
 
+		// Every promotion leaves the same occupied squares when testing our king's safety.
+		if (!IsLegalMove(state, fromIndex, toIndex, isEnPassant, promotionPiece: 'q'))
+			return false;
 		if (moves is null)
-			return IsLegalMove(state, fromIndex, toIndex, isEnPassant, promotionPiece: 'q');
+			return true;
 
 		foreach (char promotionPiece in "qrbn")
-		{
-			if (IsLegalMove(state, fromIndex, toIndex, isEnPassant, promotionPiece: promotionPiece))
-				AddMove(moves, fromIndex, toIndex, promotionPiece);
-		}
+			AddMove(moves, fromIndex, toIndex, promotionPiece);
 
 		return false;
 	}
@@ -297,6 +293,10 @@ internal static partial class LocalPositionRules
 		bool               isQueensideCastling = false,
 		char               promotionPiece      = '\0')
 	{
+		// Kings are never captured, even when an authored position already attacks the inactive king.
+		if (char.ToLowerInvariant(state.Board[toIndex]) == 'k')
+			return false;
+
 		Span<char> board = stackalloc char[64];
 		state.Board.AsSpan().CopyTo(board);
 		char movingPiece = board[fromIndex];
@@ -314,6 +314,90 @@ internal static partial class LocalPositionRules
 			? movingPiece
 			: ColorizePromotionPiece(promotionPiece, state.ActiveColor);
 		return !IsKingInCheck(board, state.ActiveColor);
+	}
+
+	private static bool IsEnPassantCapture(LocalPositionState state, int fromIndex, int toIndex)
+	{
+		int requiredRank = state.ActiveColor == 'w' ? 4 : 3;
+		return GetRank(fromIndex) == requiredRank &&
+			GetRank(toIndex) == requiredRank + (state.ActiveColor == 'w' ? 1 : -1) &&
+			Math.Abs(GetFile(toIndex) - GetFile(fromIndex)) == 1 &&
+			state.EnPassantTarget.Length == 2 &&
+			ParseSquare(state.EnPassantTarget.AsSpan()) == toIndex &&
+			state.Board[toIndex] == '\0' &&
+			state.Board[state.ActiveColor == 'w' ? toIndex - 8 : toIndex + 8] ==
+				(state.ActiveColor == 'w' ? 'p' : 'P');
+	}
+
+	private static bool IsLegalCandidate(LocalPositionState state, string move)
+	{
+		int fromIndex = ParseSquare(move.AsSpan(0, 2));
+		int toIndex = ParseSquare(move.AsSpan(2, 2));
+		char piece = state.Board[fromIndex];
+		char kind = char.ToLowerInvariant(piece);
+		if (fromIndex == toIndex || piece == '\0' || GetPieceColor(piece) != state.ActiveColor ||
+			IsFriendlyPiece(state.Board[toIndex], state.ActiveColor))
+			return false;
+
+		int fileDelta = GetFile(toIndex) - GetFile(fromIndex);
+		int rankDelta = GetRank(toIndex) - GetRank(fromIndex);
+		bool isPromotion = kind == 'p' && GetRank(toIndex) == (state.ActiveColor == 'w' ? 7 : 0);
+		if ((move.Length == 5) != isPromotion)
+			return false;
+
+		bool enPassant = false;
+		switch (kind)
+		{
+			case 'p':
+				int forward = state.ActiveColor == 'w' ? 1 : -1;
+				if (fileDelta == 0)
+				{
+					if (state.Board[toIndex] != '\0')
+						return false;
+					if (rankDelta != forward &&
+						!(rankDelta == 2 * forward &&
+						  GetRank(fromIndex) == (state.ActiveColor == 'w' ? 1 : 6) &&
+						  state.Board[fromIndex + 8 * forward] == '\0'))
+						return false;
+				}
+				else
+				{
+					if (Math.Abs(fileDelta) != 1 || rankDelta != forward)
+						return false;
+					enPassant = IsEnPassantCapture(state, fromIndex, toIndex);
+					if (!enPassant && !IsEnemyPiece(state.Board[toIndex], state.ActiveColor))
+						return false;
+				}
+				break;
+			case 'n':
+				if (Math.Abs(fileDelta) * Math.Abs(rankDelta) != 2)
+					return false;
+				break;
+			case 'k':
+				if (Math.Abs(fileDelta) == 2 && rankDelta == 0 && GetFile(fromIndex) == 4 &&
+					GetRank(fromIndex) == (state.ActiveColor == 'w' ? 0 : 7))
+					return CanCastle(state, fileDelta > 0);
+				if (Math.Abs(fileDelta) > 1 || Math.Abs(rankDelta) > 1)
+					return false;
+				break;
+			case 'b':
+			case 'r':
+			case 'q':
+				bool diagonal = Math.Abs(fileDelta) == Math.Abs(rankDelta);
+				bool orthogonal = fileDelta == 0 || rankDelta == 0;
+				if (!(kind == 'b' ? diagonal : kind == 'r' ? orthogonal : diagonal || orthogonal))
+					return false;
+				int step = Math.Sign(fileDelta) + 8 * Math.Sign(rankDelta);
+				for (int square = fromIndex + step; square != toIndex; square += step)
+					if (state.Board[square] != '\0')
+						return false;
+				break;
+			default:
+				return false;
+		}
+
+		return IsLegalMove(state, fromIndex, toIndex, enPassant,
+			promotionPiece: isPromotion ? move[4] : '\0');
 	}
 
 	private static bool IsKingInCheck(ReadOnlySpan<char> board, char color)

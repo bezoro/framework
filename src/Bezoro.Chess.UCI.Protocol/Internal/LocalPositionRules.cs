@@ -11,7 +11,7 @@ internal static partial class LocalPositionRules
 	{
 		string normalizedMove = NormalizeMove(move);
 		var state = Parse(fen);
-		if (!GenerateLegalMoves(state).Contains(normalizedMove, StringComparer.Ordinal))
+		if (!IsLegalCandidate(state, normalizedMove))
 			throw new InvalidOperationException("The move is not legal in the supplied FEN position.");
 
 		var structural = ClassifyNormalized(state, normalizedMove);
@@ -100,8 +100,85 @@ internal static partial class LocalPositionRules
 			: knightCount <= 1;
 	}
 
-	internal static string BuildRepetitionKey(Fen fen) =>
-		$"{fen.PiecePlacement} {fen.ActiveColor} {NormalizeCastlingRights(fen.CastlingRights)} {NormalizeEnPassantTarget(fen.EnPassantTarget)}";
+	// This is a material test, not a complete solver for blocked dead positions.
+	internal static bool CanPossiblyMate(Fen fen, char side)
+	{
+		if (side is not ('w' or 'b'))
+			throw new ArgumentOutOfRangeException(nameof(side));
+
+		var state = Parse(fen);
+		var ownMinorCount = 0;
+		var ownKnightCount = 0;
+		var ownBishopCount = 0;
+		var enemyCanBlockKnightMate = false;
+		var hasPawnOrKnight = false;
+		bool? bishopSquareColor = null;
+		var bishopsOnBothColors = false;
+		for (var square = 0; square < state.Board.Length; square++)
+		{
+			char piece = state.Board[square];
+			if (piece == '\0')
+				continue;
+			char kind = char.ToLowerInvariant(piece);
+			bool own = GetPieceColor(piece) == side;
+			if (own && kind is 'p' or 'r' or 'q')
+				return true;
+			if (!own && kind is not ('k' or 'q'))
+				enemyCanBlockKnightMate = true;
+			if (kind is 'p' or 'n')
+				hasPawnOrKnight = true;
+			if (kind == 'n' && own)
+			{
+				ownKnightCount++;
+				ownMinorCount++;
+			}
+			if (kind == 'b')
+			{
+				bool squareColor = IsLightSquare(square);
+				if (bishopSquareColor.HasValue && bishopSquareColor != squareColor)
+					bishopsOnBothColors = true;
+				bishopSquareColor = squareColor;
+				if (own)
+				{
+					ownBishopCount++;
+					ownMinorCount++;
+				}
+			}
+		}
+
+		if (ownKnightCount > 0)
+			return ownMinorCount > 1 || enemyCanBlockKnightMate;
+		if (ownBishopCount > 0)
+			return bishopsOnBothColors || hasPawnOrKnight;
+		return false;
+	}
+
+	internal static string BuildRepetitionKey(Fen fen)
+	{
+		string enPassant = string.Empty;
+		if (fen.EnPassantTarget != "-")
+		{
+			var state = Parse(fen);
+			int targetIndex = ParseSquare(state.EnPassantTarget.AsSpan());
+			int pawnRank = state.ActiveColor == 'w' ? 4 : 3;
+			for (int fileDelta = -1; fileDelta <= 1; fileDelta += 2)
+			{
+				int file = GetFile(targetIndex) + fileDelta;
+				if (!IsOnBoard(file, pawnRank))
+					continue;
+				int fromIndex = GetIndex(file, pawnRank);
+				if (state.Board[fromIndex] == (state.ActiveColor == 'w' ? 'P' : 'p') &&
+					IsEnPassantCapture(state, fromIndex, targetIndex) &&
+					IsLegalMove(state, fromIndex, targetIndex, isEnPassant: true))
+				{
+					enPassant = state.EnPassantTarget;
+					break;
+				}
+			}
+		}
+
+		return $"{fen.PiecePlacement} {fen.ActiveColor} {NormalizeCastlingRights(fen.CastlingRights)} {enPassant}";
+	}
 
 	internal static ImmutableDictionary<string, MoveClassification> ClassifyMoves(
 		Fen                 fen,
@@ -166,6 +243,9 @@ internal static partial class LocalPositionRules
 		string             move,
 		MoveClassification structural)
 	{
+		if (!IsLegalCandidate(state, move))
+			throw new InvalidOperationException("The move is not legal in the supplied FEN position.");
+
 		var next = ApplyMove(state, move, structural);
 		bool isCheck = IsKingInCheck(next.Board, next.ActiveColor);
 		bool hasReply = HasAnyLegalMove(next);
@@ -218,10 +298,10 @@ internal static partial class LocalPositionRules
 
 		int nextHalfmoveClock = char.ToLowerInvariant(movingPiece) == 'p' || structural.IsCapture
 			? 0
-			: state.HalfmoveClock + 1;
+			: checked(state.HalfmoveClock + 1);
 
 		int nextFullmoveNumber = state.ActiveColor == 'b'
-			? state.FullmoveNumber + 1
+			? checked(state.FullmoveNumber + 1)
 			: state.FullmoveNumber;
 
 		return new(
@@ -236,13 +316,11 @@ internal static partial class LocalPositionRules
 
 	private static MoveClassification ClassifyNormalized(LocalPositionState state, string move)
 	{
-		string from = move[..2];
-		string to = move.Substring(2, 2);
 		int fromIndex = ParseSquare(move.AsSpan(0, 2));
 		int toIndex = ParseSquare(move.AsSpan(2, 2));
 		char movingPiece = state.Board[fromIndex];
 		if (movingPiece == '\0')
-			throw new ArgumentException($"No piece exists on source square '{from}'.", nameof(move));
+			throw new ArgumentException($"No piece exists on source square '{move[..2]}'.", nameof(move));
 
 		char target = state.Board[toIndex];
 		char? targetPiece = target == '\0' ? null : target;
@@ -250,9 +328,9 @@ internal static partial class LocalPositionRules
 		bool isPromotion = move.Length == 5;
 		char? promotionPiece = isPromotion ? move[4] : null;
 		bool isEnPassant = isPawn &&
-			from[0] != to[0] &&
+			GetFile(fromIndex) != GetFile(toIndex) &&
 			targetPiece is null &&
-			string.Equals(state.EnPassantTarget, to, StringComparison.Ordinal);
+			state.EnPassantTarget.AsSpan().SequenceEqual(move.AsSpan(2, 2));
 
 		char? capturedPiece = targetPiece;
 		if (isEnPassant)
@@ -272,12 +350,12 @@ internal static partial class LocalPositionRules
 		if (isEnPassant)
 			flags |= MoveClassificationFlags.EnPassant;
 
-		if (IsKingsideCastlingMove(movingPiece, from, to))
+		if (IsKingsideCastlingMove(movingPiece, fromIndex, toIndex))
 			flags |= MoveClassificationFlags.KingsideCastling;
-		else if (IsQueensideCastlingMove(movingPiece, from, to))
+		else if (IsQueensideCastlingMove(movingPiece, fromIndex, toIndex))
 			flags |= MoveClassificationFlags.QueensideCastling;
 
-		if (IsDoublePawnPush(movingPiece, from, to))
+		if (IsDoublePawnPush(movingPiece, fromIndex, toIndex))
 			flags |= MoveClassificationFlags.DoublePawnPush;
 
 		if ((flags &
@@ -292,16 +370,18 @@ internal static partial class LocalPositionRules
 		return MoveClassification.CreateStructural(flags, movingPiece, capturedPiece, promotionPiece);
 	}
 
-	private static bool IsDoublePawnPush(char movingPiece, string from, string to) =>
+	private static bool IsDoublePawnPush(char movingPiece, int fromIndex, int toIndex) =>
 		char.ToLowerInvariant(movingPiece) == 'p' &&
-		from[0] == to[0] &&
-		Math.Abs(to[1] - '0' - (from[1] - '0')) == 2;
+		GetFile(fromIndex) == GetFile(toIndex) &&
+		Math.Abs(GetRank(toIndex) - GetRank(fromIndex)) == 2;
 
-	private static bool IsKingsideCastlingMove(char movingPiece, string from, string to) =>
-		char.ToLowerInvariant(movingPiece) == 'k' && from[0] == 'e' && to[0] == 'g';
+	private static bool IsKingsideCastlingMove(char movingPiece, int fromIndex, int toIndex) =>
+		(movingPiece == 'K' && fromIndex == 4 && toIndex == 6) ||
+		(movingPiece == 'k' && fromIndex == 60 && toIndex == 62);
 
-	private static bool IsQueensideCastlingMove(char movingPiece, string from, string to) =>
-		char.ToLowerInvariant(movingPiece) == 'k' && from[0] == 'e' && to[0] == 'c';
+	private static bool IsQueensideCastlingMove(char movingPiece, int fromIndex, int toIndex) =>
+		(movingPiece == 'K' && fromIndex == 4 && toIndex == 2) ||
+		(movingPiece == 'k' && fromIndex == 60 && toIndex == 58);
 
 	private static string UpdateCastlingRights(
 		string castlingRights,
