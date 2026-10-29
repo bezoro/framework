@@ -4,43 +4,43 @@ namespace Bezoro.ECS.Internal;
 
 internal sealed class WorldResourceStore
 {
-	private readonly Dictionary<Type, object> _resources = [];
+	private readonly Dictionary<Type, IResourceBox> _resources = [];
 
 	public int Count => _resources.Count;
 
-	public IEnumerable<object> Boxes => _resources.Values;
-
 	public void Clear()
 	{
-		Dispose();
+		// Detach ownership before invoking user code, including reentrant disposal.
+		IResourceBox[] boxes = [.. _resources.Values];
 		_resources.Clear();
+		List<Exception>? errors = null;
+		foreach (var box in boxes)
+		{
+			try { box.DisposeValue(); }
+			catch (Exception error) { (errors ??= []).Add(error); }
+		}
+
+		if (errors is not null)
+			throw new AggregateException("One or more resources failed to dispose.", errors);
 	}
 
-	public void Dispose()
-	{
-		foreach (object boxed in _resources.Values)
-		{
-			if (boxed is IResourceBox resourceBox)
-				resourceBox.DisposeValue();
-		}
-	}
+	public void Dispose() => Clear();
 
 	public ref T Get<T>() where T : notnull
 	{
-		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+		if (!_resources.TryGetValue(typeof(T), out var boxed))
 			throw new KeyNotFoundException($"Resource of type {typeof(T).Name} was not found.");
 
-		return ref ((ResourceBox<T>)boxed).Value;
+		return ref GetTypedBox<T>(boxed).Value;
 	}
 
 	public bool Has<T>() where T : notnull => _resources.ContainsKey(typeof(T));
 
 	public bool TryRead<T>(out T resource) where T : notnull
 	{
-		if (_resources.TryGetValue(typeof(T), out object? boxed) &&
-			boxed is ResourceBox<T> typed)
+		if (_resources.TryGetValue(typeof(T), out var boxed))
 		{
-			resource = typed.Value;
+			resource = GetTypedBox<T>(boxed).Value;
 			return true;
 		}
 
@@ -50,14 +50,14 @@ internal sealed class WorldResourceStore
 
 	public ref T GetOrCreate<T>() where T : notnull, new()
 	{
-		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+		if (!_resources.TryGetValue(typeof(T), out var boxed))
 		{
 			var created = new ResourceBox<T>(new());
 			_resources[typeof(T)] = created;
 			return ref created.Value;
 		}
 
-		return ref ((ResourceBox<T>)boxed).Value;
+		return ref GetTypedBox<T>(boxed).Value;
 	}
 
 	public ref T GetOrCreate<T>(Func<T> factory) where T : notnull
@@ -65,43 +65,40 @@ internal sealed class WorldResourceStore
 		if (factory is null)
 			throw new ArgumentNullException(nameof(factory));
 
-		if (!_resources.TryGetValue(typeof(T), out object? boxed))
+		if (!_resources.TryGetValue(typeof(T), out var boxed))
 		{
-			var created = new ResourceBox<T>(factory());
+			T value = factory();
+			if (value is null)
+				throw new InvalidOperationException("Resource factory returned null.");
+			var created = new ResourceBox<T>(value);
 			_resources[typeof(T)] = created;
 			return ref created.Value;
 		}
 
-		return ref ((ResourceBox<T>)boxed).Value;
+		return ref GetTypedBox<T>(boxed).Value;
 	}
 
 	public void Set<T>(T resource) where T : notnull
 	{
-		if (_resources.TryGetValue(typeof(T), out object? existing) && existing is IResourceBox existingBox)
-			existingBox.DisposeValue();
-
-		_resources[typeof(T)] = new ResourceBox<T>(resource);
+		if (resource is null) throw new ArgumentNullException(nameof(resource));
+		Replace(typeof(T), new ResourceBox<T>(resource));
 	}
 
 	public bool Remove<T>() where T : notnull
 	{
-		if (!_resources.TryGetValue(typeof(T), out object? existing))
+		if (!_resources.TryGetValue(typeof(T), out var existing))
 			return false;
 
-		if (existing is IResourceBox resourceBox)
-			resourceBox.DisposeValue();
-
-		return _resources.Remove(typeof(T));
+		_resources.Remove(typeof(T));
+		existing.DisposeValue();
+		return true;
 	}
 
 	public SnapshotResourceRecord[] CaptureSnapshotRecords()
 	{
 		var resources = new List<SnapshotResourceRecord>(_resources.Count);
-		foreach (object resourceBox in _resources.Values)
-		{
-			if (resourceBox is IResourceBox box)
-				resources.Add(new(box.ResourceType, box.BoxedValue));
-		}
+		foreach (var box in _resources.Values)
+			resources.Add(new(box.ResourceType, box.BoxedValue));
 
 		return [.. resources];
 	}
@@ -118,13 +115,44 @@ internal sealed class WorldResourceStore
 				nameof(value)
 			);
 
-		if (_resources.TryGetValue(resourceType, out object? existing) && existing is IResourceBox existingBox)
-			existingBox.DisposeValue();
+		Replace(resourceType, new SnapshotResourceBox(resourceType, value));
+	}
 
-		var boxType = typeof(ResourceBox<>).MakeGenericType(resourceType);
-		_resources[resourceType] = Activator.CreateInstance(boxType, value) ??
-								  throw new InvalidOperationException(
-									  $"Failed to create resource box for type '{resourceType.FullName}'."
-								  );
+	private ResourceBox<T> GetTypedBox<T>(IResourceBox boxed) where T : notnull
+	{
+		if (boxed is ResourceBox<T> typed)
+			return typed;
+
+		// A restored resource gains its closed generic box when typed code first uses it.
+		// This avoids MakeGenericType/Activator and works without runtime code generation.
+		var materialized = new ResourceBox<T>((T)boxed.BoxedValue);
+		_resources[typeof(T)] = materialized;
+		return materialized;
+	}
+
+	private void Replace(Type resourceType, IResourceBox replacement)
+	{
+		if (_resources.TryGetValue(resourceType, out var existing))
+		{
+			if (!resourceType.IsValueType && ReferenceEquals(existing.BoxedValue, replacement.BoxedValue))
+				return;
+
+			_resources.Remove(resourceType);
+			existing.DisposeValue();
+		}
+
+		_resources[resourceType] = replacement;
+	}
+
+	private sealed class SnapshotResourceBox(Type resourceType, object value) : IResourceBox
+	{
+		public object BoxedValue { get; } = value;
+		public Type ResourceType { get; } = resourceType;
+
+		public void DisposeValue()
+		{
+			if (BoxedValue is IDisposable disposable)
+				disposable.Dispose();
+		}
 	}
 }

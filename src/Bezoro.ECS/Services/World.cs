@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using Bezoro.ECS.Abstractions;
 using Bezoro.ECS.Internal;
@@ -19,15 +18,6 @@ namespace Bezoro.ECS.Services;
 /// </remarks>
 public class World : IWorld, IDisposable
 {
-	private static readonly Dictionary<Type, bool> ContainsReferencesByType = [];
-	private static readonly MethodInfo ContainsReferencesMethod = typeof(World).GetMethod(
-																	  nameof(ContainsReferencesGeneric),
-																	  BindingFlags.NonPublic | BindingFlags.Static
-																  ) ??
-																  throw new InvalidOperationException(
-																	  "Missing contains-references helper."
-																  );
-	private static readonly object             ContainsReferencesSync = new();
 	private static          int                _nextInstanceId;
 	private readonly        int                _instanceId;
 	private readonly        WorldChangeTracker _changeTracker;
@@ -46,6 +36,7 @@ public class World : IWorld, IDisposable
 	private readonly WorldSystemRuntime          _systemRuntime;
 
 	private bool _disposed;
+	private bool _disposing;
 
 	/// <summary>
 	///     Initializes a world with default capacity and scheduling settings.
@@ -674,11 +665,16 @@ public class World : IWorld, IDisposable
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		if (_disposed)
+		if (_disposed || _disposing)
 			return;
 
-		_lifecycleService.Dispose(this);
-		_disposed = true;
+		_disposing = true;
+		try { _lifecycleService.Dispose(this); }
+		finally
+		{
+			_disposed = true;
+			_disposing = false;
+		}
 	}
 
 	/// <summary>
@@ -1465,12 +1461,12 @@ public class World : IWorld, IDisposable
 
 	internal int GetOrCreateComponentTypeId<T>() where T : struct
 	{
-		if (Volatile.Read(ref ComponentTypeIdCache<T>.OwnerInstanceId) == _instanceId)
+		if (ComponentTypeIdCache<T>.OwnerInstanceId == _instanceId)
 			return ComponentTypeIdCache<T>.TypeId;
 
 		int typeId = _entityStore.GetOrCreateComponentTypeIdGeneric<T>();
 		ComponentTypeIdCache<T>.TypeId = typeId;
-		Volatile.Write(ref ComponentTypeIdCache<T>.OwnerInstanceId, _instanceId);
+		ComponentTypeIdCache<T>.OwnerInstanceId = _instanceId;
 		return typeId;
 	}
 
@@ -2014,21 +2010,7 @@ public class World : IWorld, IDisposable
 			throw new InvalidOperationException("Query handle belongs to a different world.");
 	}
 
-	private static bool ContainsReferences(Type type)
-	{
-		lock (ContainsReferencesSync)
-		{
-			if (ContainsReferencesByType.TryGetValue(type, out bool cached))
-				return cached;
-
-			var contains = (bool)(ContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null) ?? false);
-			ContainsReferencesByType[type] = contains;
-			return contains;
-		}
-	}
-
-	private static bool ContainsReferencesGeneric<T>() where T : struct =>
-		RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+	private static bool ContainsReferences(Type type) => ComponentTypeTraits.ContainsReferences(type);
 
 	#pragma warning disable CS0618
 	private static WorldConfig ToWorldConfig(WorldOptions options)
@@ -2130,7 +2112,8 @@ public class World : IWorld, IDisposable
 
 	private static class ComponentTypeIdCache<T> where T : struct
 	{
-		public static int OwnerInstanceId;
-		public static int TypeId;
+		// A shared owner/ID pair can race when independent worlds run on different threads.
+		[ThreadStatic] public static int OwnerInstanceId;
+		[ThreadStatic] public static int TypeId;
 	}
 }

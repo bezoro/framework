@@ -104,7 +104,13 @@ internal sealed class SystemManager
 
 		_systems.Add(state);
 		_isPlanDirty = true;
-		system.OnCreate(world);
+		try { system.OnCreate(world); }
+		catch
+		{
+			_systems.Remove(state);
+			_isPlanDirty = true;
+			throw;
+		}
 	}
 
 	public void SetSystemSetEnabled(Type setType, bool enabled)
@@ -168,6 +174,8 @@ internal sealed class SystemManager
 	public void UpdatePhase(World world, SystemLoopPhase loopPhase, float deltaTime)
 	{
 		if (world is null) throw new ArgumentNullException(nameof(world));
+		if (float.IsNaN(deltaTime) || float.IsInfinity(deltaTime) || deltaTime < 0f)
+			throw new ArgumentOutOfRangeException(nameof(deltaTime), "Elapsed time must be finite and non-negative.");
 
 		if (_systems.Count == 0)
 			return;

@@ -352,3 +352,35 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 - Compiled queries are intended for sequential, cache-friendly component access in gameplay loops.
 - `World` is not thread-safe for concurrent direct API access; scheduler and `RunParallel` parallelism are coordinated internally.
 - Source generators in `Bezoro.ECS.SourceGen` can generate query spec and job helper code aligned with the compiled-query runtime.
+
+## Runtime ownership and engine deployment
+
+A world owns its registered disposable resources. Replacing a resource with the
+same object preserves it; replacing it with another object disposes the previous
+one. Removing, clearing, or disposing the world detaches resource ownership before
+calling user disposal code. World shutdown attempts to release every service even
+when a system's `OnDestroy` fails. A failed shutdown still closes the world.
+A failed system `OnCreate` removes that system from the schedule.
+
+Elapsed time and fixed update intervals must be finite and non-negative. A failing
+system update or command playback disposes every command stream created for the
+batch. Playback can have applied earlier commands before it fails; it does not
+roll back arbitrary world mutations.
+
+Each world supports its existing scheduled parallel jobs. Separate worlds can run
+on separate threads without sharing component ID cache entries. This does not
+make concurrent structural mutation of the same world safe.
+
+Native columns are reserved for value types whose marshaled layout matches typed
+memory access. Generic value types, enums, auto-layout types, `bool`, `char`, and
+structs containing custom-marshaled fields use typed managed arrays. This avoids
+unsupported `Marshal.SizeOf` calls and layout mismatches during entity movement.
+
+Snapshot resource restoration no longer constructs closed generic types through
+reflection. The runtime materializes a typed resource box when typed code first
+accesses that resource. Component reference detection no longer closes generic
+methods through reflection. Type-based component discovery, native marshaling,
+system metadata discovery, and JSON serialization still depend on reflection and
+metadata. Preserve the relevant component and system metadata when using Unity
+IL2CPP or trimmed builds. These changes do not constitute validation of an IL2CPP,
+Unity player, Godot export, or Native AOT deployment.
