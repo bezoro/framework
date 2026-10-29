@@ -60,7 +60,7 @@ public readonly record struct MoveAnalysis
 			);
 
 		var classification = boardState.Fen.ClassifyMoveFully(parsedMove.Raw.ToLowerInvariant());
-		bool isMate = classification.IsMate || score.ScoreMate == -1;
+		bool isMate = classification.IsMate;
 		bool isCheck = classification.IsCheck || isMate;
 
 		return new()
@@ -72,7 +72,7 @@ public readonly record struct MoveAnalysis
 			IsMate      = isMate,
 			IsNormal    = classification.IsNormal,
 			IsPromotion = classification.IsPromotion,
-			IsStalemate = classification.IsStalemate || isStalemate,
+			IsStalemate = classification.IsStalemate,
 			Score       = score,
 			MovingPiece = movingPiece
 		};

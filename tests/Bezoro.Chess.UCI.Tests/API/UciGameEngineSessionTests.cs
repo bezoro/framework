@@ -21,7 +21,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ApplyClassifiedMoveForTests_WhenGenerationIsStale_ShouldIgnoreMoveEvenIfNotationStillMatches()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
@@ -46,7 +46,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ApplyPonderBestMoveForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		await coordinator.StartSearchAsync(Fen.Default);
@@ -65,7 +65,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ApplyPonderBestMoveForTests_WhenSearchIsRetargeted_ShouldIgnoreOldGenerationOutput()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -91,7 +91,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ApplyPonderInfoForTests_WhenGenerationIsStale_ShouldIgnoreUpdate()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var pv = new PrincipalVariation(4, 6, 1, 20, null, 100, 1000, 0, 10, ["e2e4"], "e2e4");
@@ -107,7 +107,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task BestSearch_WhenStartedAndStopped_ShouldRestartCleanly()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var bestTcs1 =
@@ -155,7 +155,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ClassifyMoveForStateAsync_WhenCoordinatorStateHasChanged_ShouldUseCapturedSnapshotFen()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
@@ -173,7 +173,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ClearState_WhenCalled_ShouldCancelClassificationTokenSource()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var classificationStarted = false;
@@ -203,7 +203,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task ClearState_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var exceptions  = new ConcurrentBag<Exception>();
@@ -256,7 +256,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task CurrentLegalMoves_WhenAccessedConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
@@ -316,7 +316,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalled_ShouldUnsubscribeFromEngineEvents()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var stateChangeCount = 0;
@@ -346,7 +346,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalledAfterSearchAndClassification_ShouldNotThrow()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Start search to create _bestCts
@@ -367,7 +367,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task DisposeAsync_WhenCalledWithActiveSearches_ShouldDisposeAllTokenSourcesSafely()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Start search to create _bestCts
@@ -430,7 +430,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task FullGame_WhenScholarMate_ShouldValidateFlow()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Scholar's Mate sequence:
@@ -493,7 +493,7 @@ public class UciGameEngineSessionTests
 		var finalFen   = coordinator.CurrentFen;
 
 		finalFen.ActiveColor.Should().Be('b', "It should be Black's turn now");
-		finalFen.Checkers.Should().NotBeEmpty();
+		coordinator.State.IsCheck.Should().BeTrue();
 		finalState.LegalMoves.Should().BeEmpty("Black should be checkmated and have no legal moves");
 		finalState.ClassifiedMoves.Should().BeEmpty("Black should be checkmated and have no classified moves");
 
@@ -503,7 +503,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task NewGameAsync_WhenCalledAfterSearch_ShouldResetStateAndAllowRestart()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var firstInfo =
@@ -540,7 +540,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task SearchAsync_WhenSearchMovesIsSpecified_ShouldRestrictBestMoveToProvidedMoves()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
@@ -578,7 +578,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartAsync_WhenCompleted_ShouldAllowGetCurrentFenAsync()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var fen = coordinator.CurrentFen;
@@ -590,7 +590,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartAsync_WhenCompleted_ShouldExposeEngineMetadataAndCapabilities()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 
 		await coordinator.StartAsync();
 
@@ -598,14 +598,14 @@ public class UciGameEngineSessionTests
 		coordinator.EngineInfo.Author.Should().NotBeNullOrWhiteSpace();
 		coordinator.AvailableOptions.Should().Contain(x => x.Name == "Threads");
 		coordinator.AvailableOptions.Should().Contain(x => x.Name == "Hash");
-		coordinator.Capabilities.DisplayBoardFen.Should().Be(UciCapabilityState.Supported);
-		coordinator.Capabilities.PerftMoveListing.Should().Be(UciCapabilityState.Supported);
+		coordinator.Capabilities.DisplayBoardFen.Should().Be(UciCapabilityState.Unknown);
+		coordinator.Capabilities.PerftMoveListing.Should().Be(UciCapabilityState.Unknown);
 	}
 
 	[Fact]
 	public async Task StartAsync_WhenFenIsProvided_ShouldStartSearchAndBroadcastLegalMovesAndBestMove()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 
 		var legalTcs =
 			new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -641,7 +641,7 @@ public class UciGameEngineSessionTests
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenRequiredExtensionsAreUnavailable_ShouldFailEarlyWithClearMessage()
+	public async Task StartAsync_WhenNonstandardExtensionsAreUnavailable_ShouldStillSupportLocalGameplay()
 	{
 		var snapshotClient = CreateClientWithoutCoordinatorExtensions();
 		var ponder = new UciPonderRuntime(new UciEngineClient(TestResourcePaths.STOCKFISH_PATH));
@@ -649,16 +649,16 @@ public class UciGameEngineSessionTests
 
 		await using var coordinator = new UciGameEngineSession(snapshotClient, ponder, classifier);
 
-		await FluentActions.Awaiting(() => coordinator.StartAsync())
-						   .Should()
-						   .ThrowAsync<NotSupportedException>()
-						   .WithMessage("*DisplayBoardFen=Unsupported*PerftMoveListing=Unsupported*");
+		await coordinator.StartAsync();
+		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
+		await coordinator.MakeMoveAsync("e2e4");
+		coordinator.State.PlayedMoves.Should().ContainSingle("e2e4");
 	}
 
 	[Fact]
 	public async Task StartPonderAsync_WhenBestLineIsUpdated_ShouldRaiseBestMoveFromSingleEngineStream()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var bestLineTcs =
@@ -684,7 +684,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartPonderAsync_WhenCalled_ShouldRaisePonderInfo()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -706,7 +706,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartPonderAsync_WhenFenIsInvalid_ShouldThrowArgumentException()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		await Assert.ThrowsAsync<ArgumentException>(() => coordinator.StartSearchAsync(Fen.Empty()));
@@ -715,7 +715,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartPonderAsync_WhenStopped_ShouldRaisePonderBestMove()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		ParsedMove? best   = null;
@@ -747,7 +747,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartSearchAsync_WhenCalledForNewPositionWhileAlreadySearching_ShouldRetargetPonderRuntime()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var mateFen = Fen.Parse(TestConstants.WHITE_MATE_IN_ONE_FEN);
@@ -773,7 +773,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StartSearchAsync_WhenCanceled_ShouldNotLeaveSearchingStateTrue()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		using var cts = new CancellationTokenSource();
@@ -791,7 +791,7 @@ public class UciGameEngineSessionTests
 	[Fact(Timeout = 10000)]
 	public async Task StartSearchAsyncAndStopSearchAsync_WhenCalledConcurrently_ShouldBeThreadSafe()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var exceptions = new ConcurrentBag<Exception>();
@@ -890,7 +890,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task StreamClassifiedMovesAsync_WhenPositionIsSet_ShouldYieldClassifiedMoves()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Set a standard position and trigger background classification
@@ -919,7 +919,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task UpdatePositionAsync_WhenApplyingWhiteE2E4_ShouldProvideBlackResponsesAndClassifiedMove()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Initial position: expect legal moves including e2e4
@@ -995,7 +995,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task UpdatePositionAsync_WhenCalledWithDefaultFen_ShouldPopulateLegalMoves()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		// Start background processing for the default position
@@ -1017,7 +1017,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task WaitForClassificationAsync_WhenNewGameStarts_ShouldCancel()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
@@ -1034,7 +1034,7 @@ public class UciGameEngineSessionTests
 	[Fact]
 	public async Task WaitForClassificationAsync_WhenPositionChanges_ShouldCancel()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 		await coordinator.LoadMatchAsync(PlayableMatchSetup.Standard);
 
@@ -1052,7 +1052,7 @@ public class UciGameEngineSessionTests
 	[Trait("Requires", "Stockfish")]
 	public async Task AnalysisStream_WhenStarted_ShouldYieldPvWithScore()
 	{
-		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH);
+		await using var coordinator = new UciGameEngineSession(TestResourcePaths.STOCKFISH_PATH, options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true });
 		await coordinator.StartAsync();
 
 		var tcs = new TaskCompletionSource<PrincipalVariation>(TaskCreationOptions.RunContinuationsAsynchronously);
