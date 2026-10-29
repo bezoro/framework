@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Bezoro.Core.Abstractions;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Internal;
@@ -22,6 +23,10 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	private readonly IPoolPolicy<T>                          _policy;
 	private readonly PoolOptions                             _options;
 	private readonly SemaphoreSlim?                          _asyncWaitSemaphore;
+	private readonly CancellationTokenSource?                _disposeWaitCancellation;
+	private int _activeWaiters;
+	private bool _waitShutdownComplete;
+	private bool _waitResourcesDisposed;
 
 	private int  _disposed;
 	private int  _totalCount;
@@ -63,9 +68,21 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		_ownedItems = new(ReferenceIdentityComparer<T>.Instance);
 
 		if (_options.EnableAsyncWait && _options.MaxCapacity > 0)
+		{
 			_asyncWaitSemaphore = new(0, _options.MaxCapacity);
+			_disposeWaitCancellation = new();
+		}
 
-		PrewarmPool();
+		try
+		{
+			PrewarmPool();
+		}
+		catch
+		{
+			try { Dispose(); }
+			catch { /* Preserve the creation failure after releasing prewarmed objects. */ }
+			throw;
+		}
 	}
 
 	/// <inheritdoc />
@@ -92,7 +109,37 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			return false;
 		}
 
-		bool canReturn = ResetAndValidateForReturn(item);
+		bool ownedReturn = false;
+		while (_ownedItems.TryGetValue(item, out var currentState))
+		{
+			if (currentState != PoolItemState.Rented)
+				return false;
+
+			if (_ownedItems.TryUpdate(item, PoolItemState.Returning, PoolItemState.Rented))
+			{
+				ownedReturn = true;
+				break;
+			}
+		}
+
+		bool canReturn;
+		try
+		{
+			canReturn = ResetAndValidateForReturn(item);
+		}
+		catch
+		{
+			try
+			{
+				ReleaseReturnedItem(item);
+			}
+			catch
+			{
+				// Keep the reset failure as the cause reported to the caller.
+			}
+
+			throw;
+		}
 
 		if (!canReturn)
 		{
@@ -109,11 +156,19 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			return false;
 		}
 
+		if (ownedReturn)
+		{
+			if (_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Returning))
+				return PublishReturnedItem(item);
+
+			return false;
+		}
+
 		while (true)
 		{
 			if (_ownedItems.TryGetValue(item, out var state))
 			{
-				if (state == PoolItemState.Available)
+				if (state != PoolItemState.Rented)
 					return false;
 
 				if (_ownedItems.TryUpdate(item, PoolItemState.Available, PoolItemState.Rented))
@@ -182,19 +237,23 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 	public async ValueTask<T?> RentAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
 	{
 		ThrowIfDisposed();
+		if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+			throw new ArgumentOutOfRangeException(nameof(timeout));
 
 		var stopwatch = Stopwatch.StartNew();
 
 		while (true)
 		{
+			ThrowIfDisposed();
+			cancellationToken.ThrowIfCancellationRequested();
 			if (TryAcquire(true, out var item))
 				return item;
 
 			if (_asyncWaitSemaphore is null || !_options.EnableAsyncWait)
 				return null;
 
-			var remaining = timeout - stopwatch.Elapsed;
-			if (remaining <= TimeSpan.Zero)
+			var remaining = timeout == Timeout.InfiniteTimeSpan ? Timeout.InfiniteTimeSpan : timeout - stopwatch.Elapsed;
+			if (timeout != Timeout.InfiniteTimeSpan && remaining <= TimeSpan.Zero)
 			{
 				if (_options.TrackStatistics)
 					Interlocked.Increment(ref _totalTimeouts);
@@ -205,7 +264,7 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			if (_options.TrackStatistics)
 				Interlocked.Increment(ref _totalAsyncWaits);
 
-			bool acquired = await _asyncWaitSemaphore.WaitAsync(remaining, cancellationToken).ConfigureAwait(false);
+			bool acquired = await WaitForAvailableAsync(remaining, cancellationToken).ConfigureAwait(false);
 			if (!acquired)
 			{
 				if (_options.TrackStatistics)
@@ -225,6 +284,8 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 		while (true)
 		{
+			ThrowIfDisposed();
+			cancellationToken.ThrowIfCancellationRequested();
 			if (TryAcquire(true, out var item))
 				return item;
 
@@ -235,7 +296,7 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 				Interlocked.Increment(ref _totalAsyncWaits);
 
 			// Wait for an item to be returned, then loop to try again
-			await _asyncWaitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+			await WaitForAvailableAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
@@ -280,8 +341,65 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			Volatile.Write(ref _disposed, 1);
 		}
 
-		Clear();
+		try
+		{
+			Clear();
+		}
+		finally
+		{
+			try
+			{
+				_disposeWaitCancellation?.Cancel();
+			}
+			finally
+			{
+				lock (_lifecycleGate)
+				{
+					_waitShutdownComplete = true;
+					DisposeWaitResourcesIfReady();
+				}
+			}
+		}
+	}
+
+	private async Task<bool> WaitForAvailableAsync(TimeSpan timeout, CancellationToken cancellationToken)
+	{
+		CancellationTokenSource linkedCancellation;
+		lock (_lifecycleGate)
+		{
+			ThrowIfDisposed();
+			linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+				cancellationToken, _disposeWaitCancellation!.Token);
+			_activeWaiters++;
+		}
+
+		try
+		{
+			return await _asyncWaitSemaphore!.WaitAsync(timeout, linkedCancellation.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+		{
+			throw new ObjectDisposedException(nameof(ObjectPool<T>));
+		}
+		finally
+		{
+			linkedCancellation.Dispose();
+			lock (_lifecycleGate)
+			{
+				_activeWaiters--;
+				DisposeWaitResourcesIfReady();
+			}
+		}
+	}
+
+	private void DisposeWaitResourcesIfReady()
+	{
+		if (!_waitShutdownComplete || _activeWaiters != 0 || _waitResourcesDisposed)
+			return;
+
+		_waitResourcesDisposed = true;
 		_asyncWaitSemaphore?.Dispose();
+		_disposeWaitCancellation?.Dispose();
 	}
 
 	private static void DisposeItem(T item)
@@ -329,8 +447,14 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 
 	private void ClearAvailable(Action<T> release)
 	{
+		ExceptionDispatchInfo? failure = null;
 		while (_available.TryPop(out var item))
-			ReleaseOwnedItem(item, release);
+		{
+			try { ReleaseOwnedItem(item, release); }
+			catch (Exception ex) { failure ??= ExceptionDispatchInfo.Capture(ex); }
+		}
+
+		failure?.Throw();
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -408,6 +532,11 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 		{
 			Interlocked.Decrement(ref _totalCount);
 			if (_options.TrackStatistics) Interlocked.Increment(ref _totalDiscarded);
+			lock (_lifecycleGate)
+			{
+				if (Volatile.Read(ref _disposed) == 0)
+					TrySignalWaiters();
+			}
 		}
 
 		return true;
@@ -433,7 +562,19 @@ public sealed class ObjectPool<T> : IPool<T>, IDisposable where T : class
 			if (!_ownedItems.TryUpdate(availableItem, PoolItemState.Rented, PoolItemState.Available))
 				continue;
 
-			if (_options.ValidateOnRent && !_policy.Validate(availableItem))
+			bool valid;
+			try
+			{
+				valid = !_options.ValidateOnRent || _policy.Validate(availableItem);
+			}
+			catch
+			{
+				try { ReleaseOwnedItem(availableItem, _policy.OnDiscard); }
+				catch { /* Preserve the validation failure. */ }
+				throw;
+			}
+
+			if (!valid)
 			{
 				ReleaseOwnedItem(availableItem, _policy.OnDiscard);
 				continue;
