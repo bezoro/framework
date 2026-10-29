@@ -5,7 +5,7 @@ internal readonly struct BufferedInputState(
 	float moveY,
 	float moveZ,
 	ulong sequence,
-	float receivedAtSeconds)
+	double receivedAtSeconds)
 {
 	public float MoveX { get; } = moveX;
 
@@ -15,5 +15,5 @@ internal readonly struct BufferedInputState(
 
 	public ulong Sequence { get; } = sequence;
 
-	public float ReceivedAtSeconds { get; } = receivedAtSeconds;
+	public double ReceivedAtSeconds { get; } = receivedAtSeconds;
 }
