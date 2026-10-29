@@ -27,7 +27,19 @@ Hot-path changes reuse the resulting legal-move array, update repetition counts 
 
 ## Validation
 
-The complete Release solution compiles for .NET 10 and .NET Standard 2.1 with warnings treated as errors. The public-type inventory and staged UPM package are also checked. Final test totals and performance measurements are recorded below after the validation run.
+The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with zero warnings and zero errors. The final integrated run passed all 2425 tests, with zero failures and zero skips, including a real Stockfish 19 process on Linux. The public-type inventory check, staging of the UPM dependency closure, unique Unity metadata GUIDs, documentation links, and C# 9 API-consumer compilation passed.
+
+| Test project | Passed |
+| --- | --- |
+| Bezoro.Build.Tests | 26 |
+| Bezoro.Chess.UCI.Protocol.Tests | 680 |
+| Bezoro.Chess.UCI.Tests | 188 |
+| Bezoro.Core.Tests | 942 |
+| Bezoro.ECS.Tests | 273 |
+| Bezoro.Events.Tests | 88 |
+| Bezoro.GameSystems.Tests | 102 |
+| Bezoro.Logging.Tests | 30 |
+| Bezoro.TypingSystem.Tests | 96 |
 
 A differential check generated 24 deterministic random games with seed `20261029`, up to 180 plies each. For all 4,082 resulting test positions, the library's sorted legal-move set and selected move's complete resulting FEN matched `python-chess`. FEN comparison included the en passant target after a double pawn push. This supplements the checked-in perft references and special-position regressions; it does not prove correctness for every possible position.
 
