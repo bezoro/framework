@@ -48,6 +48,8 @@ Capture, castling, promotion, check, mate, and stalemate come from local board r
 `StartAsync` and `CreateAsync(enginePath, ...)` explicitly start engines. Call `SearchAsync`, `StartSearchAsync`, or `ClassifyMoveAsync` when analysis is needed. Automatic pondering and scored classification after each position change require `EnableBackgroundAnalysis = true`; the default is `false`.
 
 ```csharp
+using Bezoro.Chess.UCI.API.Types;
+
 var options = UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true };
 await using var session = await UciGameEngineSession.CreateAsync(
     enginePath, options: options, ct: cancellationToken);
@@ -84,6 +86,7 @@ await session.MakeMoveAsync(engineResult.BestMove, cancellationToken);
 ### Drive UI feedback from classified moves
 ```csharp
 using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Types;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
 await using var session = await UciGameEngineSession.CreateAsync(
@@ -298,7 +301,7 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 | `MoveClassified`                                                   | Raised for each newly classified legal move.                        |
 | `MoveClassificationUpdated`                                       | Obsolete alias for `MoveClassified`; prefer `MoveClassified` or `EventPublished`. |
 | `ClassificationCompleted`                                         | Raised when the current position's move classification is complete. |
-| `GameOver`                                                        | Raised when the current position has no legal moves.                |
+| `GameOver`                                                        | Raised when the match reaches a terminal result.                    |
 | `StateChanged`, `Ready`, `Stopped`, `Error`                       | Coarser lifecycle and integration events.                           |
 | `EngineError`                                                     | Obsolete alias for `Error`; prefer `Error` or `EventPublished`.     |
 

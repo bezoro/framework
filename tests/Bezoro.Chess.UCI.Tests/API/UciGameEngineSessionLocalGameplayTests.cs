@@ -18,7 +18,6 @@ public sealed class UciGameEngineSessionLocalGameplayTests
 	public async Task LocalConstructor_AllowsGameplayWithoutConfiguringEnginePath()
 	{
 		await using var session = new UciGameEngineSession();
-		await session.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await session.MakeMoveAsync("e2e4");
 		Assert.False(session.IsStarted);
 		Assert.Equal('b', session.CurrentFen.ActiveColor);
@@ -170,6 +169,36 @@ public sealed class UciGameEngineSessionLocalGameplayTests
 		await using var session = CreateSession();
 		await session.LoadMatchAsync(PlayableMatchSetup.Standard);
 		await Assert.ThrowsAsync<InvalidOperationException>(() => session.AcceptDrawAsync());
+	}
+
+	[Fact]
+	public async Task DrawOffer_SurvivesClockPauseAndResume()
+	{
+		await using var session = CreateSession(UciCoordinatorOptions.Default with
+		{
+			TimeControl = new(TimeSpan.FromMinutes(5), TimeSpan.Zero)
+		});
+		await session.LoadMatchAsync(PlayableMatchSetup.Standard);
+		await session.OfferDrawAsync();
+		Assert.Equal('w', (await session.PauseClockAsync()).DrawOfferedBy);
+		Assert.Equal('w', (await session.ResumeClockAsync()).DrawOfferedBy);
+		await session.AcceptDrawAsync();
+		Assert.Equal(PlayableMatchResultReason.DrawAgreement, session.State.Result.Reason);
+	}
+
+	[Fact]
+	public async Task DrawAgreement_CannotOverrideAnExpiredClock()
+	{
+		var now = DateTimeOffset.UtcNow;
+		await using var session = CreateSession(UciCoordinatorOptions.Default with
+		{
+			TimeControl = new(TimeSpan.FromSeconds(1), TimeSpan.Zero)
+		}, () => now);
+		await session.LoadMatchAsync(PlayableMatchSetup.Standard);
+		await session.OfferDrawAsync();
+		now += TimeSpan.FromSeconds(2);
+		await Assert.ThrowsAsync<InvalidOperationException>(() => session.AcceptDrawAsync());
+		Assert.Equal(PlayableMatchResultReason.Timeout, session.State.Result.Reason);
 	}
 
 	private sealed class QueuedSynchronizationContext : SynchronizationContext

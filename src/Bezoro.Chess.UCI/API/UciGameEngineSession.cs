@@ -33,6 +33,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task _ponderOperation = Task.CompletedTask;
 	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
+	private readonly bool _hasEngineConfiguration = true;
 	private readonly SemaphoreSlim _commandGate = new(1, 1);
 	private event Action<UciState>? StateObserved;
 	private event Action? StreamsStopped;
@@ -133,7 +134,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<UciState>? ClassificationCompleted;
 
 	/// <summary>
-	///     Raised when the current visible position is terminal and no legal moves remain.
+	///     Raised when the visible match reaches a terminal result.
 	/// </summary>
 	public event Action<UciState>? GameOver;
 
@@ -250,14 +251,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	/// <summary>
 	///     Creates a local playable session. Loading positions, moving, promotion, and undo need no engine process.
-	///     Call StartAsync explicitly to start optional analysis engines resolved as "stockfish" on PATH.
+	///     Use the constructor accepting an engine path when external analysis is needed.
 	/// </summary>
 	/// <param name="syncContext">Optional context for game-facing events.</param>
 	/// <param name="options">Clock, match policies, and opt-in background analysis settings.</param>
 	/// <param name="perspectiveColor">Board perspective, either w or b.</param>
 	public UciGameEngineSession(SynchronizationContext? syncContext = null, UciCoordinatorOptions? options = null,
 		char perspectiveColor = 'w')
-		: this("stockfish", syncContext: syncContext, options: options, perspectiveColor: perspectiveColor) { }
+		: this("stockfish", syncContext: syncContext, options: options, perspectiveColor: perspectiveColor)
+	{
+		_hasEngineConfiguration = false;
+		_state = UciState.Default with { LegalMoves = Fen.Default.GetLegalMoves().ToImmutableList() };
+		InitializeClocks('w');
+	}
 
 	/// <summary>
 	///     Constructs a new UciGameEngineSession with engines initialized for the given enginePath, arguments, and working
@@ -634,6 +640,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private async Task StartCoreAsync(CancellationToken ct = default)
 	{
+		if (!_hasEngineConfiguration)
+			throw new InvalidOperationException("This local session has no engine configured. Use the constructor accepting an engine path for external analysis.");
 		var snapshotStarted   = false;
 		var ponderStarted     = false;
 		var classifierStarted = false;
@@ -1258,7 +1266,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task<UciState> OfferDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor);
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor, updateDrawOffer: true);
 		RaiseStateEvent(DrawOffered, UciGameEngineSessionEventKind.DrawOffered, snapshot);
 		return Task.FromResult(snapshot);
 	}
@@ -1272,6 +1280,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task<UciState> AcceptDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
 		if (State.Result.IsTerminal)
 			throw new InvalidOperationException("The match has already ended.");
 		if (!_drawOfferedBy.HasValue)
@@ -1289,7 +1298,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task<UciState> DeclineDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		var snapshot = UpdateMatchMetadata(drawOfferedBy: null);
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: null, updateDrawOffer: true);
 		RaiseStateEvent(DrawDeclined, UciGameEngineSessionEventKind.DrawDeclined, snapshot);
 		return Task.FromResult(snapshot);
 	}
@@ -1303,6 +1312,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task<UciState> ClaimDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
 		if (!State.ClaimableResult.HasValue)
 			throw new InvalidOperationException("There is no claimable draw available.");
 
@@ -1319,6 +1329,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task<UciState> ResignCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
 		var snapshot = SetForcedResult(new(PlayableMatchResultReason.Resignation, Opposite(CurrentFen.ActiveColor)));
 		return Task.FromResult(snapshot);
 	}
@@ -1405,9 +1416,6 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		GC.SuppressFinalize(this);
 	}
 
-	/// <summary>
-	///     Cancels background move classification and clears all cached per-move results.
-	/// </summary>
 	private async Task<T> RunCommandAsync<T>(Func<Task<T>> command, CancellationToken ct)
 	{
 		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
@@ -1430,6 +1438,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		finally { _commandGate.Release(); }
 	}
 
+	/// <summary>
+	///     Cancels background move classification and clears its completion promise.
+	/// </summary>
 	private void ClearState()
 	{
 		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts);
@@ -1694,9 +1705,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		throw new ArgumentException(reason, nameof(move));
 	}
 
-	private UciState UpdateMatchMetadata(char? drawOfferedBy = null)
+	private UciState UpdateMatchMetadata(char? drawOfferedBy = null, bool updateDrawOffer = false)
 	{
-		if (drawOfferedBy.HasValue || _drawOfferedBy.HasValue)
+		if (updateDrawOffer)
 			_drawOfferedBy = drawOfferedBy;
 
 		MetadataUpdate update;
