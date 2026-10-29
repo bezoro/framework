@@ -15,9 +15,9 @@ internal sealed class SearchSession(bool ponder, bool fireAndForget = false)
 	private          uint                     _multiPvValue;
 	private          uint                     _reachedDepth;
 	private          uint                     _reachedSelDepth;
-	private          uint                     _totalNodesSearched;
-	private          uint                     _totalSearchTimeMs;
-	private          uint                     _totalTbHits;
+	private          ulong                    _totalNodesSearched;
+	private          ulong                    _totalSearchTimeMs;
+	private          ulong                    _totalTbHits;
 
 	/// <summary>True if this session was started in pondering mode.</summary>
 	public bool Ponder { get; } = ponder;

@@ -26,9 +26,9 @@ public readonly record struct SearchResult
 		uint                              ReachedDepth,
 		uint                              ReachedSelDepth,
 		uint                              MultiPvValue,
-		uint                              TotalNodesSearched,
-		uint                              TotalTbHits,
-		uint                              TotalSearchTimeMs,
+		ulong                             TotalNodesSearched,
+		ulong                             TotalTbHits,
+		ulong                             TotalSearchTimeMs,
 		ImmutableArray<PrincipalVariation> PrincipalVariations,
 		string                            BestMove,
 		string                            PonderMove
@@ -113,17 +113,17 @@ public readonly record struct SearchResult
 	/// <summary>
 	///     Gets the highest cumulative node count reported during the search.
 	/// </summary>
-	public uint TotalNodesSearched { get; init; }
+	public ulong TotalNodesSearched { get; init; }
 
 	/// <summary>
 	///     Gets the highest cumulative elapsed time reported during the search.
 	/// </summary>
-	public uint TotalSearchTimeMs { get; init; }
+	public ulong TotalSearchTimeMs { get; init; }
 
 	/// <summary>
 	///     Gets the highest cumulative tablebase hit count reported during the search.
 	/// </summary>
-	public uint TotalTbHits { get; init; }
+	public ulong TotalTbHits { get; init; }
 
 	/// <summary>
 	///     Attempts to parse a completed search transcript into a <see cref="SearchResult" />.
@@ -205,9 +205,9 @@ public readonly record struct SearchResult
 		out uint                              reachedDepth,
 		out uint                              reachedSelDepth,
 		out uint                              multiPvValue,
-		out uint                              totalNodesSearched,
-		out uint                              totalTbHits,
-		out uint                              totalSearchTimeMs,
+		out ulong                             totalNodesSearched,
+		out ulong                             totalTbHits,
+		out ulong                             totalSearchTimeMs,
 		out ImmutableArray<PrincipalVariation> principalVariations,
 		out string                            bestMove,
 		out string                            ponderMove)

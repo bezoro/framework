@@ -27,10 +27,10 @@ public readonly record struct PrincipalVariation(
 	uint                  MultiPv,
 	int?                  ScoreCp,
 	int?                  ScoreMate,
-	uint                  Nodes,
-	uint                  Nps,
-	uint                  TbHits,
-	uint                  Time,
+	ulong                 Nodes,
+	ulong                 Nps,
+	ulong                 TbHits,
+	ulong                 Time,
 	ImmutableArray<string> Moves,
 	string                RawPv
 )

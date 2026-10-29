@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 
 namespace Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 
@@ -17,10 +18,10 @@ internal static class UciInfoParser
 		uint? depth = null;
 		uint? selDepth = null;
 		uint? multiPv = null;
-		uint? nodes = null;
-		uint? nps = null;
-		uint? tbHits = null;
-		uint? time = null;
+		ulong? nodes = null;
+		ulong? nps = null;
+		ulong? tbHits = null;
+		ulong? time = null;
 		uint? hashFull = null;
 		uint? cpuLoad = null;
 		string? currentMove = null;
@@ -49,19 +50,19 @@ internal static class UciInfoParser
 					multiPv = multiPvValue;
 					i++;
 					break;
-				case "nodes" when TryReadUInt(tokens, i + 1, out uint nodesValue):
+				case "nodes" when TryReadULong(tokens, i + 1, out ulong nodesValue):
 					nodes = nodesValue;
 					i++;
 					break;
-				case "nps" when TryReadUInt(tokens, i + 1, out uint npsValue):
+				case "nps" when TryReadULong(tokens, i + 1, out ulong npsValue):
 					nps = npsValue;
 					i++;
 					break;
-				case "tbhits" when TryReadUInt(tokens, i + 1, out uint tbHitsValue):
+				case "tbhits" when TryReadULong(tokens, i + 1, out ulong tbHitsValue):
 					tbHits = tbHitsValue;
 					i++;
 					break;
-				case "time" when TryReadUInt(tokens, i + 1, out uint timeValue):
+				case "time" when TryReadULong(tokens, i + 1, out ulong timeValue):
 					time = timeValue;
 					i++;
 					break;
@@ -188,6 +189,12 @@ internal static class UciInfoParser
 		) { Wdl = wdl };
 
 		return true;
+	}
+
+	private static bool TryReadULong(string[] tokens, int index, out ulong value)
+	{
+		value = 0;
+		return index < tokens.Length && ulong.TryParse(tokens[index], NumberStyles.None, CultureInfo.InvariantCulture, out value);
 	}
 
 	private static bool TryReadUInt(string[] tokens, int index, out uint value)

@@ -570,3 +570,5 @@ After cancellation or timeout, the client sends `stop` and drains its response w
 Search node counts, tablebase hits, and elapsed time are cumulative engine counters. `SearchResult` keeps their highest reported values, including `info` messages without a PV. `BestPv` and `BestCpScore` use the deepest primary variation and prefer the most recent report at equal depth. Engine terminal responses `bestmove 0000` and `bestmove (none)` complete normally.
 
 Lifecycle operations serialize startup, shutdown, and disposal. Canceling the token originally passed to a successful `StartAsync` does not stop the reader; call `StopAsync` to end the client lifetime.
+
+UCI node counts, nodes per second, tablebase hits, and elapsed milliseconds use `ulong` in `UciInfoPayload`, `PrincipalVariation`, and search totals. Counters above `uint.MaxValue` remain available without truncation. Depth and MultiPV indices remain `uint`. This changes constructor and deconstruction signatures; consumers with explicit `uint` variables must use `ulong`. Search budgets keep their existing protocol types.
