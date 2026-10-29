@@ -239,11 +239,11 @@ internal sealed class BackgroundLoopManager(
 		if (stderr == null) return;
 
 		_stderrLoopTask = Task.Run(
-			() =>
+			async () =>
 			{
 				try
 				{
-					RunStderrLoop(stderr);
+					await RunStderrLoopAsync(stderr).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -306,11 +306,11 @@ internal sealed class BackgroundLoopManager(
 	/// <summary>
 	///     Attempts to read a line from the stream, returning null if the stream is closed or disposed.
 	/// </summary>
-	private static string? TryReadLine(StreamReader reader)
+	private static async ValueTask<string?> TryReadLineAsync(StreamReader reader)
 	{
 		try
 		{
-			return reader.ReadLine();
+			return await reader.ReadLineAsync().ConfigureAwait(false);
 		}
 		catch (ObjectDisposedException)
 		{
@@ -405,7 +405,7 @@ internal sealed class BackgroundLoopManager(
 		{
 			if (readToken.IsCancellationRequested) break;
 
-			string? line = TryReadLine(stdout);
+			string? line = await TryReadLineAsync(stdout).ConfigureAwait(false);
 			if (line is null) break;
 
 			if (line.Length == 0) continue;
@@ -421,11 +421,11 @@ internal sealed class BackgroundLoopManager(
 	/// <summary>
 	///     Runs the stderr loop, reading lines and invoking the handler.
 	/// </summary>
-	private void RunStderrLoop(StreamReader stderr)
+	private async Task RunStderrLoopAsync(StreamReader stderr)
 	{
 		while (true)
 		{
-			string? line = TryReadLine(stderr);
+			string? line = await TryReadLineAsync(stderr).ConfigureAwait(false);
 			if (line is null) break;
 
 			if (line.Length == 0) continue;

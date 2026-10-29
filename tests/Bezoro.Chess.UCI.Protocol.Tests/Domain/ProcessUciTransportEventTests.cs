@@ -328,25 +328,38 @@ public class ProcessUciTransportEventTests(StockfishFixture fixture, ITestOutput
 		completed.Should().NotBe(tcs.Task);
 	}
 
-	[Fact]
-	public async Task StderrReceived_WithUtf8Encoding_WhenCalled_ShouldHandleUnicodeCorrectly()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task StderrReceived_WithUtf8Encoding_WhenCalled_ShouldHandleUnicodeCorrectly(bool waitForInput)
 	{
-		Log("Starting test: StderrReceived_WithUtf8Encoding_ShouldHandleUnicodeCorrectly");
+		const string expected = "Olá 世界";
+		await using var transport = ErrorOutputProcess(expected, waitForInput)
+			.WithRedirectStandardError()
+			.WithStderrEncoding(Encoding.UTF8)
+			.Build();
 
-		await using var transport = ErrorOutputProcess("Olá 世界")
-									.WithRedirectStandardError()
-									.WithStderrEncoding(Encoding.UTF8)
-									.Build();
-
-		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-		transport.StderrReceived += s =>
+		var stderr = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var exited = new TaskCompletionSource<(int? Code, string? Error)>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
+		transport.StderrReceived += line =>
 		{
-			if (s.Contains("Olá 世界", StringComparison.Ordinal)) tcs.TrySetResult(s);
+			// Capture unexpected text too, so encoding failures show the actual value instead of timing out.
+			if (!string.IsNullOrEmpty(line)) stderr.TrySetResult(line);
 		};
+		transport.Error += error => errors.Enqueue(error.ToString());
+		transport.Exited += (code, error) => exited.TrySetResult((code, error));
 
 		await transport.StartAsync();
+		var completed = await Task.WhenAny(stderr.Task, Task.Delay(TestConstants.DefaultTimeout));
+		string exit = exited.Task.IsCompletedSuccessfully ? (await exited.Task).ToString() : "still running";
+		completed.Should().Be(stderr.Task,
+			$"stderr must drain even after child exit; waitForInput={waitForInput}, exit={exit}, status={transport.Status}, errors={string.Join(" | ", errors)}");
+		string received = await stderr.Task;
+		Log($"Received stderr characters: {string.Join(" ", received.Select(character => $"U+{(int)character:X4}"))}");
+		received.Should().Be(expected);
 
-		var completed = await Task.WhenAny(tcs.Task, Task.Delay(TestConstants.DefaultTimeout));
-		completed.Should().Be(tcs.Task);
+		if (waitForInput) await transport.WriteLineAsync("exit");
+		await exited.Task.WaitAsync(TestConstants.DefaultTimeout);
 	}
 }
