@@ -19,6 +19,25 @@ internal static partial class LocalPositionRules
 		return Fen.Parse(BuildRawFen(next))!.Value;
 	}
 
+	internal static Fen ApplyAndClassifyMove(
+		Fen fen,
+		string move,
+		out MoveClassification classification,
+		out ImmutableArray<string> resultingLegalMoves)
+	{
+		string normalizedMove = NormalizeMove(move);
+		var state = Parse(fen);
+		if (!IsLegalCandidate(state, normalizedMove))
+			throw new InvalidOperationException("The move is not legal in the supplied FEN position.");
+		var structural = ClassifyNormalized(state, normalizedMove);
+		var next = ApplyMove(state, normalizedMove, structural);
+		resultingLegalMoves = GenerateLegalMoves(next);
+		bool isCheck = IsKingInCheck(next.Board, next.ActiveColor);
+		classification = structural.WithTacticalOutcome(isCheck,
+			isCheck && resultingLegalMoves.IsEmpty, !isCheck && resultingLegalMoves.IsEmpty);
+		return Fen.Parse(BuildRawFen(next))!.Value;
+	}
+
 	internal static ImmutableArray<string> GetLegalMoves(Fen fen) => GenerateLegalMoves(Parse(fen));
 
 	internal static bool IsCurrentPlayerInCheck(Fen fen)

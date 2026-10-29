@@ -22,6 +22,23 @@ public sealed class LocalPositionRulesTests
 	}
 
 	[Theory]
+	[InlineData("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1")]
+	[InlineData("7k/8/8/3pP3/8/8/8/K7 w - d6 0 1", "e5d6")]
+	[InlineData("1r5k/P7/8/8/8/8/8/K7 w - - 0 1", "a7b8q")]
+	[InlineData("7k/5Q2/7K/8/8/8/8/8 w - - 0 1", "f7g7")]
+	[InlineData("k7/1QK5/8/8/8/8/8/8 w - - 0 1", "b7b6")]
+	public void ApplyAndClassifyMove_ShouldReturnSamePositionFlagsAndRepliesAsIndependentRules(string rawFen, string move)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+
+		var next = LocalPositionRules.ApplyAndClassifyMove(fen, move, out var classification, out var replies);
+
+		next.Should().Be(fen.ApplyMove(move));
+		classification.Should().Be(fen.ClassifyMoveFully(move));
+		replies.Should().Equal(next.GetLegalMoves());
+	}
+
+	[Theory]
 	[InlineData("7k/8/8/8/8/8/8/K7 w - - 0 1", true)]
 	[InlineData("7k/8/8/8/8/8/8/KN6 w - - 0 1", true)]
 	[InlineData("7k/8/8/8/8/8/8/KB6 w - - 0 1", true)]
