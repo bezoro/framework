@@ -192,12 +192,19 @@ public class ValidationHelperTests
 	}
 
 	[Fact]
-	public void ThrowIfObjectIsNull_WhenCalled_ShouldStillThrow_WhenObjectIsNotNull_PerCurrentBehavior()
+	public void ThrowIfObjectIsNull_WhenObjectIsNotNull_ShouldNotThrow()
 	{
 		object obj = new();
 		var    act = () => ValidationHelper.ThrowIfObjectIsNull(obj, "thing", "extra info");
-		var    ex  = act.Should().Throw<ArgumentNullException>().Which;
-		ex.Message.Should().Contain("ArgumentNullException occurred");
+		act.Should().NotThrow();
+	}
+
+	[Fact]
+	public void ThrowIfObjectIsNull_WhenNull_ShouldPreserveExplicitParameterAndDetails()
+	{
+		var act = () => ValidationHelper.ThrowIfObjectIsNull(null!, "thing", "extra info");
+		var ex = act.Should().Throw<ArgumentNullException>().Which;
+		ex.ParamName.Should().Be("thing");
 		ex.Message.Should().Contain("thing is null; extra info");
 	}
 

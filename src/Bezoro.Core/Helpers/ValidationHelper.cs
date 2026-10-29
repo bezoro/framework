@@ -206,7 +206,7 @@ public static class ValidationHelper
 		string? methodName       = null
 	)
 	{
-		objectToValidate.ThrowIfNull();
+		if (objectToValidate is not null) return;
 
 		var messageBuilder = new StringBuilder();
 		messageBuilder.Append(string.IsNullOrEmpty(paramName) ? "Object is null" : $"{paramName} is null");
@@ -214,6 +214,7 @@ public static class ValidationHelper
 		if (!string.IsNullOrWhiteSpace(exceptionMessage)) messageBuilder.Append($"; {exceptionMessage}");
 
 		throw new ArgumentNullException(
+			paramName ?? nameof(objectToValidate),
 			FormatExceptionMessage(nameof(ArgumentNullException), caller, methodName ?? string.Empty, messageBuilder.ToString())
 		);
 	}

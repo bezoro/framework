@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Bezoro.Core.Types;
 using Xunit;
 
@@ -40,6 +41,14 @@ public class SwapbackArraySafetyTests
 		Assert.Throws<InvalidOperationException>(() => array.AddRange(ThrowAfterOne()));
 		Assert.Equal(new[] { 1, 2 }, array.ToArray());
 		Assert.Throws<InvalidOperationException>(() => enumerator.MoveNext());
+	}
+
+	[Fact]
+	public void AddRange_AliasedQueryFailsBeforeUnboundedGrowth()
+	{
+		var array = new SwapbackArray<int> { 1, 2, 3 };
+		Assert.Throws<InvalidOperationException>(() => array.AddRange(array.Where(_ => true)));
+		Assert.Equal(new[] { 1, 2, 3, 1 }, array.ToArray());
 	}
 
 	private static IEnumerable<int> ThrowAfterOne()

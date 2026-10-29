@@ -421,6 +421,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		}
 
 		uint startCount = _count;
+		uint startVersion = Version;
 		try
 		{
 			_ = collection switch
@@ -432,7 +433,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		}
 		finally
 		{
-			if (_count != startCount)
+			if (_count != startCount && Version == startVersion)
 				Version++;
 		}
 	}
@@ -648,6 +649,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		foreach (var item in collection)
 		{
 			EnsureCapacity(_count + 1);
+			if (_count == startCount)
+				Version++;
+
 			_items[_count++] = item;
 		}
 
@@ -692,10 +696,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			return false;
 
 		EnsureCapacity(_count + (uint)collection.Count);
-		foreach (var item in collection)
-			_items[_count++] = item;
-
-		return true;
+		return AddEnumerable(collection);
 	}
 
 	/// <summary>
