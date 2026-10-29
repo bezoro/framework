@@ -27,6 +27,14 @@ internal sealed class UciLineWaiterRegistry
 		TimeSpan           timeout,
 		CancellationToken  cancellationToken)
 	{
+		if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+		cancellationToken.ThrowIfCancellationRequested();
+		// Validate/create timers before publishing the waiter so an invalid timeout cannot leak it.
+		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
+		using var linked = timeoutCts is null
+			? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+			: CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
 		var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 		LinkedListNode<WaiterRegistration> node;
 
@@ -45,11 +53,6 @@ internal sealed class UciLineWaiterRegistry
 			{
 				RemoveWaiter(node);
 			}
-
-		using var timeoutCts = timeout == Timeout.InfiniteTimeSpan ? null : new CancellationTokenSource(timeout);
-		using var linked = timeoutCts is null
-							   ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
-							   : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
 		using var registration = linked.Token.Register(() => tcs.TrySetCanceled(linked.Token));
 

@@ -266,9 +266,9 @@ public class SearchResultTests
 		result.ReachedDepth.Should().Be(6u);
 		result.ReachedSelDepth.Should().Be(9u);       // max seldepth across lines
 		result.MultiPvValue.Should().Be(2u);          // last multipv observed
-		result.TotalNodesSearched.Should().Be(3000u); // sum
-		result.TotalTbHits.Should().Be(3u);           // sum
-		result.TotalSearchTimeMs.Should().Be(50u);    // sum
+		result.TotalNodesSearched.Should().Be(2000u); // cumulative search-wide count
+		result.TotalTbHits.Should().Be(2u);           // cumulative search-wide count
+		result.TotalSearchTimeMs.Should().Be(30u);    // elapsed search time
 		result.PrincipalVariations.Length.Should().Be(2);
 		result.BestMove.Should().Be("e2e4");
 		result.PonderMove.Should().Be("e7e5");
@@ -290,9 +290,9 @@ public class SearchResultTests
 		result.ReachedDepth.Should().Be(7u);
 		result.ReachedSelDepth.Should().Be(9u);
 		result.MultiPvValue.Should().Be(2u);
-		result.TotalNodesSearched.Should().Be(3000u);
-		result.TotalTbHits.Should().Be(3u);
-		result.TotalSearchTimeMs.Should().Be(50u);
+		result.TotalNodesSearched.Should().Be(2000u);
+		result.TotalTbHits.Should().Be(2u);
+		result.TotalSearchTimeMs.Should().Be(30u);
 		result.PrincipalVariations.Should().HaveCount(2);
 		result.PrincipalVariations[0].Moves.Should().Equal("E2E4", "e7e5");
 		result.PrincipalVariations[1].ScoreMate.Should().Be(-3);
@@ -338,4 +338,54 @@ public class SearchResultTests
 		resultWithScoreCp.PrincipalVariations[0].ScoreCp.Should().Be(120);
 		resultWithScoreCp.PrincipalVariations[0].ScoreMate.Should().BeNull();
 	}
+	[Theory]
+	[InlineData("0000")]
+	[InlineData("(none)")]
+	public void TryParse_WhenNoMoveExists_ShouldAcceptTerminalBestMove(string move)
+	{
+		SearchResult.TryParse([$"  bestmove {move}  "], out var result).Should().BeTrue();
+		result.BestMove.Should().Be(move);
+	}
+
+	[Fact]
+	public void TryParse_ShouldUseLatestDeepestPrimaryVariationAndCumulativeCountersWithoutPv()
+	{
+		string[] lines =
+		[
+			"info depth 1 score cp 90 nodes 100 time 10 pv e2e4",
+			"info depth 12 multipv 1 score cp -50 nodes 4000000000 time 100 pv d2d4 d7d5",
+			"info depth 12 multipv 1 score cp -60 nodes 4000000001 time 110 pv c2c4 e7e5",
+			"info depth 10 multipv 1 score cp 10 nodes 200 time 20 pv e2e4 e7e5",
+			"info nodes 4294967295 tbhits 100 time 120",
+			"bestmove c2c4"
+		];
+		SearchResult.TryParse(lines, out var result).Should().BeTrue();
+		result.TotalNodesSearched.Should().Be(uint.MaxValue);
+		result.TotalSearchTimeMs.Should().Be(120);
+		result.TotalTbHits.Should().Be(100);
+		result.BestCpScore.Should().Be(-60);
+		result.BestPv!.Value.Moves[0].Should().Be("c2c4");
+	}
+
+	[Fact]
+	public void MoveLookup_ShouldMatchUppercaseEngineOutputWithoutChangingStoredNotation()
+	{
+		SearchResult.TryParse(["info depth 1 pv E2E4 E7E5", "bestmove e2e4"], out var result).Should().BeTrue();
+		result.ContainsMove("e7e5").Should().BeTrue();
+		result.GetVariationContaining("E7E5").Should().NotBeNull();
+		result.GetVariationStartingWith("e2e4")!.Value.Moves[0].Should().Be("E2E4");
+	}
+
+	[Fact]
+	public void DefaultResult_ShouldSupportEmptyQueries()
+	{
+		SearchResult result = default;
+		result.HasMate.Should().BeFalse();
+		result.BestCpScore.Should().BeNull();
+		result.BestPv.Should().BeNull();
+		result.MateScore.Should().BeNull();
+		result.ContainsMove("e2e4").Should().BeFalse();
+		result.GetVariationStartingWith("e2e4").Should().BeNull();
+	}
+
 }

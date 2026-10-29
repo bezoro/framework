@@ -41,7 +41,8 @@ internal static class UciProtocolParser
 
 		if (BestMoveLine.TryParse(trimmed, out var bestMove))
 		{
-			if (!UciCommandBuilder.IsUciMoveString(bestMove.BestMove) ||
+			if ((!UciCommandBuilder.IsUciMoveString(bestMove.BestMove) &&
+				 bestMove.BestMove != "0000" && bestMove.BestMove != "(none)") ||
 				(bestMove.HasPonder && !UciCommandBuilder.IsUciMoveString(bestMove.PonderMove!)))
 			{
 				return false;

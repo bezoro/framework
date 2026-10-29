@@ -15,6 +15,19 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	: IntegrationTestBase(fixture, output)
 {
 	[Fact]
+	public async Task TryWriteLineAsync_WhenAlreadyCanceledAndChannelReady_ShouldNotEnqueueCommand()
+	{
+		await using var transport = ProcessUciTransportBuilder.ForBackpressureTest().Build();
+		await transport.StartAsync();
+		using var cancellation = new CancellationTokenSource();
+		cancellation.Cancel();
+		await FluentActions.Awaiting(() => transport.TryWriteLineAsync("uci", TimeSpan.Zero, cancellation.Token))
+			.Should().ThrowAsync<OperationCanceledException>();
+		// The canceled write must leave the one-slot queue empty.
+		(await transport.TryWriteLineAsync("isready", TimeSpan.Zero)).Should().BeTrue();
+	}
+
+	[Fact]
 	public async Task TryWriteLineAsync_WhenCanceledDuringWait_ShouldThrowOperationCanceledException()
 	{
 		Log("Starting test: TryWriteLineAsync_WhenCanceledDuringWait_ShouldThrowOperationCanceledException");

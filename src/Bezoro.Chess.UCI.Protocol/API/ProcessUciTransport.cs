@@ -25,6 +25,8 @@ public sealed class ProcessUciTransport : IUciTransport
 	private readonly string?                    _workingDirectory;
 	private readonly TransportStateManager      _stateManager;
 
+	private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
 	private Channel<string>? _lines;
 	private Channel<string>? _outgoing;
 	private Process?         _process;
@@ -161,6 +163,13 @@ public sealed class ProcessUciTransport : IUciTransport
 	/// </remarks>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
+		await _lifecycleGate.WaitAsync(ct).ConfigureAwait(false);
+		try { await StartCoreAsync(ct).ConfigureAwait(false); }
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async Task StartCoreAsync(CancellationToken ct)
+	{
 		_stateManager.ThrowIfDisposed(nameof(ProcessUciTransport));
 
 		if (IsStartedAndAlive()) return;
@@ -217,6 +226,13 @@ public sealed class ProcessUciTransport : IUciTransport
 	///     If transport is not started, this method completes immediately with no operation.
 	/// </remarks>
 	public async Task StopAsync(CancellationToken ct = default)
+	{
+		await _lifecycleGate.WaitAsync(ct).ConfigureAwait(false);
+		try { await StopCoreAsync(ct).ConfigureAwait(false); }
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async Task StopCoreAsync(CancellationToken ct)
 	{
 		_stateManager.ThrowIfDisposed(nameof(ProcessUciTransport));
 		ct.ThrowIfCancellationRequested();
@@ -329,6 +345,7 @@ public sealed class ProcessUciTransport : IUciTransport
 	public async Task<bool> TryWriteLineAsync(string line, TimeSpan timeout, CancellationToken ct = default)
 	{
 		ValidateTryWritePreconditions(line, timeout);
+		ct.ThrowIfCancellationRequested();
 
 		if (_options.ValidateCommands) ProcessUciTransportValidator.ValidateCommandLine(line);
 
@@ -359,6 +376,13 @@ public sealed class ProcessUciTransport : IUciTransport
 	/// </summary>
 	/// <returns>A task that completes when teardown has finished.</returns>
 	public async ValueTask DisposeAsync()
+	{
+		await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+		try { await DisposeCoreAsync().ConfigureAwait(false); }
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async ValueTask DisposeCoreAsync()
 	{
 		if (!_stateManager.TryMarkDisposed()) return;
 
@@ -699,7 +723,15 @@ public sealed class ProcessUciTransport : IUciTransport
 		var startedProcess = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
 		token.ThrowIfCancellationRequested();
-		if (!startedProcess.Start()) throw new InvalidOperationException("Failed to start UCI engine process.");
+		try
+		{
+			if (!startedProcess.Start()) throw new InvalidOperationException("Failed to start UCI engine process.");
+		}
+		catch
+		{
+			startedProcess.Dispose();
+			throw;
+		}
 
 		_process = startedProcess;
 		_stateManager.MarkProcessAlive(true);
