@@ -197,6 +197,20 @@ public sealed class PlayableMatchClockKernelTests
         snapshot.SnapshotUtc.Should().Be(Origin + TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void CompleteMove_WhenTimeoutIsIgnored_ShouldStillCountMovesAndGrantStageTime()
+    {
+        var timeControl = new PlayableMatchTimeControl(
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(1),
+            timeoutPolicy: PlayableMatchTimeoutPolicy.Ignore,
+            additionalStages: [new(1, TimeSpan.FromSeconds(10), TimeSpan.Zero, TimeSpan.Zero)]);
+        var completed = PlayableMatchClockKernel.CompleteMove(
+            timeControl, CreateCheckpoint(whiteRemaining: 5), 'w', Origin + TimeSpan.FromSeconds(6));
+
+        completed.WhiteMovesCompleted.Should().Be(1);
+        completed.WhiteRemaining.Should().Be(TimeSpan.FromSeconds(11));
+    }
+
     private static PlayableMatchClockCheckpoint CreateCheckpoint(
         int whiteRemaining = 30,
         int blackRemaining = 30,

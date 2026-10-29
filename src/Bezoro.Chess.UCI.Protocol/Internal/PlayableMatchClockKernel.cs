@@ -189,8 +189,8 @@ internal static class PlayableMatchClockKernel
         int movesCompleted, TimeSpan elapsed,
         TimeSpan increment)
     {
-        remaining -= elapsed;
-        if (remaining <= TimeSpan.Zero)
+        remaining = ClampToZero(remaining - elapsed);
+        if (remaining <= TimeSpan.Zero && timeControl.TimeoutPolicy != PlayableMatchTimeoutPolicy.Ignore)
             return (TimeSpan.Zero, movesCompleted);
         movesCompleted++;
         return (remaining + increment + GetAddedStageTime(timeControl, movesCompleted), movesCompleted);

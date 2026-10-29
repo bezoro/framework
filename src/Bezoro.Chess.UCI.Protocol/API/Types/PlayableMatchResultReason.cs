@@ -30,5 +30,11 @@ public enum PlayableMatchResultReason
 	DrawAgreement,
 
 	/// <summary>A side lost on time.</summary>
-	Timeout
+	Timeout,
+
+	/// <summary>The same position occurred five times, ending the match without a claim.</summary>
+	FivefoldRepetition,
+
+	/// <summary>Seventy-five moves per side passed without a pawn move or capture.</summary>
+	SeventyFiveMoveRule
 }
