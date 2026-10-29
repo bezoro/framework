@@ -24,6 +24,7 @@
 - Context-aware analysis caching retains the base FEN and complete move history.
 - Review supports an explicit bounded pool of dedicated clients, per-engine CPU/hash requests, chronological results, monotonic progress, and cancellation/failure cleanup.
 - Local facade construction allocates no engine runtime. State streams retain only the latest pending immutable snapshot and reject subscription races after disposal.
+- Engine-backed sessions prune completed background and ponder-stop tasks even when automatic analysis is disabled, while retaining unfinished work for disposal.
 
 ### Other modules
 
