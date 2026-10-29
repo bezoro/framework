@@ -61,8 +61,8 @@ var scoredMoves = await session.WaitForClassificationAsync(cancellationToken);
 
 With automatic analysis disabled, the classification wait and stream complete with no scored moves. Use `session.CurrentFen.ClassifyMoveFully(move)` for on-demand local move semantics. Start the configured engines before enabling automatic analysis. Gameplay uses standard FEN and UCI coordinates and does not require the non-standard `d` or `go perft` engine extensions.
 
-## Ideal Usage
-### Use the game-engine session facade
+## Engine-backed usage
+### Search an engine-controlled move
 ```csharp
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;

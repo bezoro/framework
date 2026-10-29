@@ -20,6 +20,7 @@
 - Dedicated `UciGameReviewAnalyzer`, immutable review results, rating-model and annotation policies, WDL, expected-points quality, finite budgets, cancellation, and progress. The documented accuracy formula is library-specific, not CAPS2.
 - UCI search and transport lifecycle serialization, waiter/timer cleanup, cumulative counters, final primary-variation selection, and stop/go ordering.
 - Context-aware analysis caching retains the base FEN and complete move history.
+- Local facade construction allocates no engine runtime. State streams retain only the latest pending immutable snapshot and reject subscription races after disposal.
 
 ### Other modules
 

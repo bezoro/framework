@@ -58,6 +58,21 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
 | `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful playable-match coordinator with manual/manual, manual/engine, or engine/engine side control. |
 
+## Game review types
+
+| Type | Responsibility |
+| --- | --- |
+| `UciGameReviewAnalyzer` | Explicit, serialized review of a played game using a dedicated engine client |
+| `GameReviewOptions` | Finite search budget and optional player ratings |
+| `GameReviewResult`, `GameReviewEvaluation`, `ReviewedMove` | Immutable review, position, and played-move results |
+| `GameReviewProgress` | Completed/total position counts for progress reporting |
+| `UciWdl` | Validated win/draw/loss distribution and expected points |
+| `MoveQuality`, `MoveQualityClassifier` | Pure expected-points-loss classification |
+| `IExpectedPointsModel`, `EngineWdlExpectedPointsModel` | Replaceable probability model and engine-self-play default |
+| `MoveReviewAnnotation`, `IMoveReviewAnnotationPolicy` | Application-provided opening and special-label evidence |
+
+See the [review architecture and research](../../docs/chess-review.md) for the public Chess.com behavior studied, the implemented thresholds, and the proprietary features that are not reproduced.
+
 ## Local play without an engine
 
 Use the local constructor for Unity or Godot gameplay. It creates no process or transport and does not start background analysis. Moves, legal-move generation, promotion, clocks, and results run locally.

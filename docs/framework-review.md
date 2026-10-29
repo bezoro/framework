@@ -23,17 +23,17 @@ The review removed tests that explicitly asserted broken behavior and replaced t
 
 Local play uses deterministic rules and game-owned state. The protocol match can be constructed without clients; the game facade can be constructed without an engine path. Engine search is an explicit analysis or opponent action. Review results are immutable and carry model identity. Rating calibration and special annotations are separate policies rather than implicit claims of Chess.com equivalence.
 
-Hot-path changes reuse the resulting legal-move array, update repetition counts incrementally, avoid redundant full-history application, remove intermediate move strings and regular-expression parsing, and avoid formatting filtered messages. Native and pooled resources have explicit lifetime checks. The ECS keeps simple native layouts on its native path and uses typed managed storage for layouts that cannot safely share a marshaled stride.
+Hot-path changes reuse the resulting legal-move array, update repetition counts incrementally, avoid redundant full-history application, remove intermediate move strings and regular-expression parsing, and avoid formatting filtered messages. The local facade does not allocate external-engine clients, and its state stream retains only the most recent pending snapshot for slow readers. Stream subscription is synchronized with disposal. Native and pooled resources have explicit lifetime checks. The ECS keeps simple native layouts on its native path and uses typed managed storage for layouts that cannot safely share a marshaled stride.
 
 ## Validation
 
-The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with zero warnings and zero errors. The final integrated run passed all 2425 tests, with zero failures and zero skips, including a real Stockfish 19 process on Linux. The public-type inventory check, staging of the UPM dependency closure, unique Unity metadata GUIDs, documentation links, and C# 9 API-consumer compilation passed.
+The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with zero warnings and zero errors. The final integrated run passed all 2429 tests, with zero failures and zero skips, including a real Stockfish 19 process on Linux. The public-type inventory check, staging of the UPM dependency closure, unique Unity metadata GUIDs, documentation links, and C# 9 API-consumer compilation passed.
 
 | Test project | Passed |
 | --- | --- |
 | Bezoro.Build.Tests | 26 |
 | Bezoro.Chess.UCI.Protocol.Tests | 680 |
-| Bezoro.Chess.UCI.Tests | 188 |
+| Bezoro.Chess.UCI.Tests | 192 |
 | Bezoro.Core.Tests | 942 |
 | Bezoro.ECS.Tests | 273 |
 | Bezoro.Events.Tests | 88 |
@@ -41,7 +41,9 @@ The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with ze
 | Bezoro.Logging.Tests | 30 |
 | Bezoro.TypingSystem.Tests | 96 |
 
-A differential check generated 24 deterministic random games with seed `20261029`, up to 180 plies each. For all 4,082 resulting test positions, the library's sorted legal-move set and selected move's complete resulting FEN matched `python-chess`. FEN comparison included the en passant target after a double pawn push. This supplements the checked-in perft references and special-position regressions; it does not prove correctness for every possible position.
+A differential check generated 24 deterministic random games with seed `20261029`, up to 180 plies each. For all 4,082 resulting test positions, the library's sorted legal-move set and selected move's complete resulting FEN matched `python-chess` 1.11.2. FEN comparison included the en passant target after a double pawn push. This supplements the checked-in perft references and special-position regressions; it does not prove correctness for every possible position.
+
+The NuGet direct/transitive dependency audit covered 24 projects and reported no known advisories on the review date. This is a dated package-database check, not a claim that dependencies can never contain vulnerabilities.
 
 ## Local-rule performance diagnostic
 
