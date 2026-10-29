@@ -25,7 +25,7 @@ High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 
 ## Local gameplay
 
-`LoadMatchAsync`, `ResetAsync`, `MakeMoveAsync`, promotion, and undo use local rules. They do not start or wait for Stockfish. The async signatures remain for callers that already await them. With an available command gate, local operations complete synchronously.
+The constructor without an engine path creates no UCI clients or process transports. `LoadMatchAsync`, `ResetAsync`, `MakeMoveAsync`, promotion, and undo use local rules. They do not start or wait for Stockfish. The async signatures remain for callers that already await them. With an available command gate, local operations complete synchronously.
 
 ```csharp
 using Bezoro.Chess.UCI.API;
@@ -375,6 +375,6 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so session state can safely retain and rebroadcast them across threads.
 
-Gameplay commands serialize concurrent callers. Event callbacks use the supplied `SynchronizationContext`; async state and classification streams receive updates independently of that context. Streams complete on stop or disposal, and disposing a session observes canceled background workers before disposing their engines. Subscribers should await commands instead of synchronously blocking inside event callbacks.
+Gameplay commands serialize concurrent callers. Event callbacks use the supplied `SynchronizationContext`; async state and classification streams receive updates independently of that context. `StreamStateAsync` yields the current snapshot and keeps at most one pending snapshot. Slow consumers receive the latest state and skip intermediate snapshots, so a paused renderer cannot retain an unlimited backlog of board and analysis data. Use `EventPublished` for individual gameplay events. The classified-move stream retains its finite set of move results. Both streams complete on stop or disposal, and disposing a session observes canceled background workers before disposing their engines. Subscribers should await commands instead of synchronously blocking inside event callbacks.
 
 `UciState.IsCheck` uses local rules. `Fen.Checkers` remains optional metadata from engines supporting `d` and is not required for gameplay. Terminal outcomes remain fixed until undo or loading another match, and terminal clocks stay paused.

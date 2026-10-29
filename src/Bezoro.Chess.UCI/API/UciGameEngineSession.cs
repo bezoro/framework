@@ -21,7 +21,7 @@ namespace Bezoro.Chess.UCI.API;
 /// </summary>
 public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 {
-	private readonly SerializedUciEngineClientRuntime _classificationClient;
+	private readonly GameEngineClients? _engineClients;
 	private readonly CoordinatorClassificationRuntime _classificationRuntime;
 	private readonly PlayableMatchClaimableDrawPolicy _claimableDrawPolicy;
 	private readonly PlayableMatchControlledMoveFallbackPolicy _controlledMoveFallbackPolicy;
@@ -33,12 +33,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private Task _ponderOperation = Task.CompletedTask;
 	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
-	private readonly bool _hasEngineConfiguration = true;
 	private readonly SemaphoreSlim _commandGate = new(1, 1);
 	private event Action<UciState>? StateObserved;
 	private event Action? StreamsStopped;
-	private readonly UciPonderRuntime                 _ponder;
-	private readonly SerializedUciEngineClientRuntime _snapshotClient;
 	private readonly PlayableMatchTimeControl?        _timeControl;
 	private readonly Func<DateTimeOffset>              _utcNowProvider;
 	private readonly MatchSideControllerKind          _whiteController;
@@ -60,6 +57,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private CoordinatorPendingPromotionRequest? _pendingPromotion;
 
 	private UciState _state = UciState.Default;
+
+	private GameEngineClients Engines => _engineClients ?? throw new InvalidOperationException(
+		"This local session has no engine configured. Use the constructor accepting an engine path for external analysis.");
 
 	/// <summary>
 	///     Raised when an error occurs in any of the underlying engines.
@@ -258,9 +258,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="perspectiveColor">Board perspective, either w or b.</param>
 	public UciGameEngineSession(SynchronizationContext? syncContext = null, UciCoordinatorOptions? options = null,
 		char perspectiveColor = 'w')
-		: this("stockfish", syncContext: syncContext, options: options, perspectiveColor: perspectiveColor)
+		: this(null, syncContext, options, perspectiveColor, MatchSideControllerKind.Manual, MatchSideControllerKind.Manual)
 	{
-		_hasEngineConfiguration = false;
 		_state = UciState.Default with { LegalMoves = Fen.Default.GetLegalMoves().ToImmutableList() };
 		InitializeClocks('w');
 		ApplyMatchMetadata(_state);
@@ -288,9 +287,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
 		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
 		: this(
-			new UciEngineClient(enginePath, args, workingDirectory),
-			new UciPonderRuntime(new UciEngineClient(enginePath, args, workingDirectory)),
-			new UciEngineClient(enginePath, args, workingDirectory),
+			GameEngineClients.Create(enginePath, args, workingDirectory),
 			syncContext,
 			options,
 			perspectiveColor,
@@ -308,12 +305,21 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
 		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual,
 		Func<DateTimeOffset>?    utcNowProvider   = null)
+		: this(new GameEngineClients(snapshotClient, ponder, classificationClient), syncContext, options,
+			perspectiveColor, whiteController, blackController, utcNowProvider) { }
+
+	private UciGameEngineSession(
+		GameEngineClients? engineClients,
+		SynchronizationContext? syncContext,
+		UciCoordinatorOptions? options,
+		char perspectiveColor,
+		MatchSideControllerKind whiteController,
+		MatchSideControllerKind blackController,
+		Func<DateTimeOffset>? utcNowProvider = null)
 	{
 		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
-		_snapshotClient = new(snapshotClient ?? throw new ArgumentNullException(nameof(snapshotClient)));
-		_ponder      = ponder ?? throw new ArgumentNullException(nameof(ponder));
-		_classificationClient = new(classificationClient ?? throw new ArgumentNullException(nameof(classificationClient)));
+		_engineClients = engineClients;
 		_classificationRuntime = new(_sync);
 		_perspectiveColor      = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
 		_whiteController       = whiteController;
@@ -325,19 +331,22 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_drawOfferPolicy       = _options.DrawOfferPolicy;
 		_controlledMoveFallbackPolicy = _options.ControlledMoveFallbackPolicy;
 
-		_ponder.InfoPvWithGeneration   += OnPonderInfo;
-		_ponder.BestMoveWithGeneration += PonderOnBestMove;
+		if (engineClients is { } clients)
+		{
+			clients.Ponder.InfoPvWithGeneration += OnPonderInfo;
+			clients.Ponder.BestMoveWithGeneration += PonderOnBestMove;
+		}
 	}
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines are healthy and responsive.
 	/// </summary>
-	public bool IsHealthy => _snapshotClient.IsHealthy && _ponder.IsHealthy && _classificationClient.IsHealthy;
+	public bool IsHealthy => _engineClients?.IsHealthy ?? false;
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines have been started.
 	/// </summary>
-	public bool IsStarted => _snapshotClient.IsStarted && _ponder.IsStarted && _classificationClient.IsStarted;
+	public bool IsStarted => _engineClients?.IsStarted ?? false;
 
 	/// <summary>
 	///     Gets the current position FEN (after all played moves).
@@ -367,17 +376,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Gets the engine metadata reported by the snapshot client instance.
 	/// </summary>
-	public UciEngineInfo EngineInfo => _snapshotClient.EngineInfo;
+	public UciEngineInfo EngineInfo => _engineClients?.Snapshot.EngineInfo ?? UciEngineInfo.Empty;
 
 	/// <summary>
 	///     Gets the options advertised by the snapshot client instance during handshake.
 	/// </summary>
-	public ImmutableArray<UciEngineOption> AvailableOptions => _snapshotClient.AvailableOptions;
+	public ImmutableArray<UciEngineOption> AvailableOptions => _engineClients?.Snapshot.AvailableOptions ?? ImmutableArray<UciEngineOption>.Empty;
 
 	/// <summary>
 	///     Gets the capability state detected for the configured engine.
 	/// </summary>
-	public UciEngineCapabilities Capabilities => _snapshotClient.Capabilities;
+	public UciEngineCapabilities Capabilities => _engineClients?.Snapshot.Capabilities ?? UciEngineCapabilities.Unknown;
 
 	/// <summary>
 	///     Gets the side used for board-orientation and player-relative evaluation helpers.
@@ -498,6 +507,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		void OnStopped() => channel.Writer.TryComplete();
 		lock (_sync)
 		{
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
 			initialState = _state;
 			completionTask = _classificationRuntime.CompletionTask;
 			WriteMoves(initialState.ClassifiedMoves);
@@ -527,8 +537,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Streams state changes as an async enumerable.
-	///     Yields the current state immediately, then yields each subsequent state change.
+	///     Streams the latest state for rendering and status updates.
+	///     Yields the current state immediately and buffers at most one subsequent snapshot.
+	///     A slow consumer skips intermediate snapshots. Use EventPublished for gameplay event delivery.
 	/// </summary>
 	/// <param name="ct">Cancellation token.</param>
 	public async IAsyncEnumerable<UciState> StreamStateAsync(
@@ -536,12 +547,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	{
 		ct.ThrowIfCancellationRequested();
 		if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
-		var channel = Channel.CreateUnbounded<UciState>();
+		var channel = Channel.CreateBounded<UciState>(new BoundedChannelOptions(1)
+		{
+			FullMode = BoundedChannelFullMode.DropOldest,
+			SingleReader = true,
+			SingleWriter = false,
+			AllowSynchronousContinuations = false
+		});
 		void OnStateChanged(UciState state) => channel.Writer.TryWrite(state);
 		void OnStopped() => channel.Writer.TryComplete();
 		UciState initialState;
 		lock (_sync)
 		{
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
 			initialState = _state;
 			StateObserved += OnStateChanged;
 			StreamsStopped += OnStopped;
@@ -595,9 +613,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.SetOptionAsync(name, value, ct),
-			_ponder.SetOptionAsync(name, value, ct),
-			_classificationClient.SetOptionAsync(name, value, ct)
+			Engines.Snapshot.SetOptionAsync(name, value, ct),
+			Engines.Ponder.SetOptionAsync(name, value, ct),
+			Engines.Classifier.SetOptionAsync(name, value, ct)
 		);
 
 	/// <summary>
@@ -605,9 +623,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task SetDebugAsync(bool enabled, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.SetDebugAsync(enabled, ct),
-			_ponder.SetDebugAsync(enabled, ct),
-			_classificationClient.SetDebugAsync(enabled, ct)
+			Engines.Snapshot.SetDebugAsync(enabled, ct),
+			Engines.Ponder.SetDebugAsync(enabled, ct),
+			Engines.Classifier.SetDebugAsync(enabled, ct)
 		);
 
 	/// <summary>
@@ -615,9 +633,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.RegisterAsync(registration, ct),
-			_ponder.RegisterAsync(registration, ct),
-			_classificationClient.RegisterAsync(registration, ct)
+			Engines.Snapshot.RegisterAsync(registration, ct),
+			Engines.Ponder.RegisterAsync(registration, ct),
+			Engines.Classifier.RegisterAsync(registration, ct)
 		);
 
 	/// <summary>
@@ -643,26 +661,25 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private async Task StartCoreAsync(CancellationToken ct = default)
 	{
-		if (!_hasEngineConfiguration)
-			throw new InvalidOperationException("This local session has no engine configured. Use the constructor accepting an engine path for external analysis.");
+		_ = Engines;
 		var snapshotStarted   = false;
 		var ponderStarted     = false;
 		var classifierStarted = false;
 
 		try
 		{
-			await _snapshotClient.StartAsync(ct).ConfigureAwait(false);
+			await Engines.Snapshot.StartAsync(ct).ConfigureAwait(false);
 			snapshotStarted = true;
 
-			await _ponder.StartAsync(ct).ConfigureAwait(false);
+			await Engines.Ponder.StartAsync(ct).ConfigureAwait(false);
 			ponderStarted = true;
 
-			await _classificationClient.StartAsync(ct).ConfigureAwait(false);
+			await Engines.Classifier.StartAsync(ct).ConfigureAwait(false);
 			classifierStarted = true;
 
 			// Configure ponder engine based on options.
-			await _ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
-			await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
+			await Engines.Ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
+			await Engines.Ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
 
 			ClearState();
 			if (State.LegalMoves.Count == 0 && !State.Result.IsTerminal)
@@ -677,7 +694,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		}
 		catch
 		{
-			await RollbackStartAsync(snapshotStarted || _snapshotClient.IsStarted, ponderStarted || _ponder.IsStarted, classifierStarted || _classificationClient.IsStarted).ConfigureAwait(false);
+			await RollbackStartAsync(snapshotStarted || Engines.Snapshot.IsStarted, ponderStarted || Engines.Ponder.IsStarted, classifierStarted || Engines.Classifier.IsStarted).ConfigureAwait(false);
 			throw;
 		}
 	}
@@ -712,8 +729,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		try
 		{
-			await _ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
-			AcceptPonderGeneration(_ponder.CurrentSearchGeneration);
+			await Engines.Ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
+			AcceptPonderGeneration(Engines.Ponder.CurrentSearchGeneration);
 			SetSearchingState(true);
 		}
 		catch
@@ -737,31 +754,34 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		bool cancellationRequested = ct.IsCancellationRequested;
 		ClearState();
 
-		cancellationRequested = await TryStopStepAsync(
-			StopSearchCoreAsync,
-			cancellationRequested,
-			stopFailures,
-			ct,
-			reportErrors: false
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			_classificationClient.StopAsync,
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			token => _ponder.StopAsync(token),
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			_snapshotClient.StopAsync,
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
+		if (_engineClients is { })
+		{
+			cancellationRequested = await TryStopStepAsync(
+				StopSearchCoreAsync,
+				cancellationRequested,
+				stopFailures,
+				ct,
+				reportErrors: false
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				Engines.Classifier.StopAsync,
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				token => Engines.Ponder.StopAsync(token),
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				Engines.Snapshot.StopAsync,
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+		}
 
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
@@ -991,7 +1011,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The search result containing the best move and evaluation.</returns>
 	public Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default) =>
-		_snapshotClient.SearchAsync(CurrentFen, null, parameters, ct);
+		Engines.Snapshot.SearchAsync(CurrentFen, null, parameters, ct);
 
 	/// <summary>
 	///     Applies a legal move using local rules without waiting for an external engine.
@@ -1393,18 +1413,16 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		{
 			StreamsStopped?.Invoke();
 			ClearState();
-			_ponder.InfoPvWithGeneration -= OnPonderInfo;
-			_ponder.BestMoveWithGeneration -= PonderOnBestMove;
+			if (_engineClients is { } clients)
+			{
+				clients.Ponder.InfoPvWithGeneration -= OnPonderInfo;
+				clients.Ponder.BestMoveWithGeneration -= PonderOnBestMove;
+			}
 			CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 			try { await Task.WhenAll(_analysisTasks).ConfigureAwait(false); }
 			finally
 			{
-				try { await _classificationClient.DisposeAsync().ConfigureAwait(false); }
-				finally
-				{
-					try { await _ponder.DisposeAsync().ConfigureAwait(false); }
-					finally { await _snapshotClient.DisposeAsync().ConfigureAwait(false); }
-				}
+				if (_engineClients is { } engines) await engines.DisposeAsync().ConfigureAwait(false);
 			}
 		}
 		finally { _commandGate.Release(); }
@@ -1480,7 +1498,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		string            move,
 		CancellationToken ct)
 	{
-		var result = await _classificationClient.SearchMoveAsync(fen, move, _options.ClassificationDepth, ct)
+		var result = await Engines.Classifier.SearchMoveAsync(fen, move, _options.ClassificationDepth, ct)
 												.ConfigureAwait(false);
 		var boardState = BoardState.FromFen(fen) ??
 						 throw new InvalidOperationException(
@@ -1534,14 +1552,14 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private void QueuePonderStop()
 	{
-		if (!_ponder.IsStarted) return;
+		if (_engineClients is not { Ponder.IsStarted: true } engines) return;
 		var preceding = _ponderOperation;
 		_ponderOperation = Task.Run(async () =>
 		{
 			try
 			{
 				await preceding.ConfigureAwait(false);
-				await _ponder.StopSearchAsync(CancellationToken.None).ConfigureAwait(false);
+				await engines.Ponder.StopSearchAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch (Exception ex) { RaiseError(ex); }
 		});
@@ -1576,11 +1594,11 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			{
 				await precedingPonderOperation.ConfigureAwait(false);
 				token.ThrowIfCancellationRequested();
-				await _ponder.StartSearchAsync(baseFen, moves, token).ConfigureAwait(false);
+				await Engines.Ponder.StartSearchAsync(baseFen, moves, token).ConfigureAwait(false);
 				lock (_sync)
 				{
 					if (generation != _classificationRuntime.Generation || token.IsCancellationRequested) return;
-					AcceptPonderGeneration(_ponder.CurrentSearchGeneration);
+					AcceptPonderGeneration(Engines.Ponder.CurrentSearchGeneration);
 					SetSearchingState(true);
 				}
 				ponderStarted.TrySetResult(true);
@@ -1942,7 +1960,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (classifierStarted)
 			try
 			{
-				await _classificationClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Classifier.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1952,7 +1970,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (ponderStarted)
 			try
 			{
-				await _ponder.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Ponder.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1962,7 +1980,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (snapshotStarted)
 			try
 			{
-				await _snapshotClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Snapshot.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -2195,7 +2213,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		try
 		{
-			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
+			if (_engineClients is { } engines) await engines.Ponder.StopSearchAsync(ct).ConfigureAwait(false);
 		}
 		finally
 		{
