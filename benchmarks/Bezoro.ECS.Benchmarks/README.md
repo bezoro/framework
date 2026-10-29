@@ -149,3 +149,7 @@ sequentially and 1,029 us in parallel; its repeated parallel measurement was
 ratio. Use a longer isolated run on deployment hardware before selecting a worker
 limit. Profile Unity IL2CPP and Godot exports separately. The runtime implementation
 was unchanged between these measurements.
+
+The recorded runs used runtime code from commit `039cee8e`. Later scheduler fixes
+for failed submission and interrupted joins were not included in these measurements.
+Repeat the benchmark against the candidate release when accepting performance.

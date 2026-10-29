@@ -416,7 +416,9 @@ to those objects after the group finishes. Register data systems in worker world
 keep engine integration systems in a separate main-thread world.
 
 Cancellation stops dispatching worlds that have not started. Started worlds finish
-before an exception or cancellation reaches the caller. Completed updates and
+before an exception or cancellation reaches the caller.
+Accepted workers also finish before a thread-pool submission failure or an
+interruption of the join wait reaches the caller. Completed updates and
 command playback remain applied, so a failed step can leave worlds at different
 steps. Individual world state determines the result; group execution order is
 unspecified with multiple workers. Seed random state per world when comparing

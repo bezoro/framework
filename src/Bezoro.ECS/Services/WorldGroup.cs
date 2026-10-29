@@ -94,6 +94,7 @@ public sealed class WorldGroup
 	/// <exception cref="InvalidOperationException">An update on this group is already running.</exception>
 	/// <exception cref="ArgumentOutOfRangeException">The phase is unknown or elapsed time is invalid.</exception>
 	/// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+	/// <exception cref="ThreadInterruptedException">The calling thread was interrupted; started updates finish before propagation.</exception>
 	/// <exception cref="ObjectDisposedException">A world has already been disposed.</exception>
 	public void RunPhase(SystemLoopPhase loopPhase, float deltaTime, CancellationToken cancellationToken = default)
 	{

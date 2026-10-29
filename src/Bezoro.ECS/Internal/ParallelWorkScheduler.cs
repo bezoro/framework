@@ -6,7 +6,11 @@ internal static class ParallelWorkScheduler
 {
 	[ThreadStatic] private static int _parallelWorkerDepth;
 
-	public static void Execute(int itemCount, int maxDegreeOfParallelism, Action<int> action)
+	public static void Execute(
+		int itemCount,
+		int maxDegreeOfParallelism,
+		Action<int> action,
+		Func<WaitCallback, bool>? queueWorker = null)
 	{
 		if (itemCount < 0)
 			throw new ArgumentOutOfRangeException(nameof(itemCount), "Item count must be non-negative.");
@@ -32,8 +36,9 @@ internal static class ParallelWorkScheduler
 		}
 
 		int                    nextIndex        = -1;
-		ExceptionDispatchInfo? captured         = null;
+		Exception?             captured         = null;
 		var                    remainingWorkers = 1;
+		var                    completionPublished = 0;
 		using var              completion       = new ManualResetEventSlim(false);
 		WaitCallback worker = _ =>
 		{
@@ -51,25 +56,56 @@ internal static class ParallelWorkScheduler
 			}
 			catch (Exception ex)
 			{
-				Interlocked.CompareExchange(ref captured, ExceptionDispatchInfo.Capture(ex), null);
+				Interlocked.CompareExchange(ref captured, ex, null);
 			}
 			finally
 			{
 				_parallelWorkerDepth--;
 				if (Interlocked.Decrement(ref remainingWorkers) == 0)
+				{
 					completion.Set();
+					// The waiter also waits for Set to finish before disposing the event.
+					Volatile.Write(ref completionPublished, 1);
+				}
 			}
 		};
 
 		for (var workerIndex = 1; workerIndex < workerCount; workerIndex++)
 		{
 			Interlocked.Increment(ref remainingWorkers);
-			if (!ThreadPool.QueueUserWorkItem(worker))
+			bool queued;
+			try
+			{
+				// The optional submission seam must throw only when this callback was not accepted.
+				queued = queueWorker is null ? ThreadPool.QueueUserWorkItem(worker) : queueWorker(worker);
+			}
+			catch (Exception ex)
+			{
+				Interlocked.Decrement(ref remainingWorkers);
+				Interlocked.CompareExchange(ref captured, ex, null);
+				break;
+			}
+			if (!queued)
 				worker(null);
 		}
 
 		worker(null);
-		completion.Wait();
-		captured?.Throw();
+		while (true)
+		{
+			try
+			{
+				completion.Wait();
+				break;
+			}
+			catch (ThreadInterruptedException ex)
+			{
+				// Interruption is reported after all accepted workers have finished.
+				Interlocked.CompareExchange(ref captured, ex, null);
+			}
+		}
+		while (Volatile.Read(ref completionPublished) == 0)
+			Thread.SpinWait(1);
+		if (captured is not null)
+			ExceptionDispatchInfo.Capture(captured).Throw();
 	}
 }
