@@ -4,6 +4,8 @@ namespace Bezoro.ECS.Internal;
 
 internal static class ParallelWorkScheduler
 {
+	[ThreadStatic] private static int _parallelWorkerDepth;
+
 	public static void Execute(int itemCount, int maxDegreeOfParallelism, Action<int> action)
 	{
 		if (itemCount < 0)
@@ -18,7 +20,9 @@ internal static class ParallelWorkScheduler
 		if (itemCount == 0)
 			return;
 
-		int workerCount = Math.Min(itemCount, maxDegreeOfParallelism);
+		// Reuse an active worker for nested system/query/world scheduling rather than
+		// multiplying worker sets and blocking a thread pool full of outer workers.
+		int workerCount = _parallelWorkerDepth > 0 ? 1 : Math.Min(itemCount, maxDegreeOfParallelism);
 		if (workerCount == 1)
 		{
 			for (var i = 0; i < itemCount; i++)
@@ -33,6 +37,7 @@ internal static class ParallelWorkScheduler
 		using var              completion       = new ManualResetEventSlim(false);
 		WaitCallback worker = _ =>
 		{
+			_parallelWorkerDepth++;
 			try
 			{
 				while (captured is null)
@@ -50,6 +55,7 @@ internal static class ParallelWorkScheduler
 			}
 			finally
 			{
+				_parallelWorkerDepth--;
 				if (Interlocked.Decrement(ref remainingWorkers) == 0)
 					completion.Set();
 			}

@@ -384,3 +384,56 @@ system metadata discovery, and JSON serialization still depend on reflection and
 metadata. Preserve the relevant component and system metadata when using Unity
 IL2CPP or trimmed builds. These changes do not constitute validation of an IL2CPP,
 Unity player, Godot export, or Native AOT deployment.
+
+## Independent world workers
+
+`WorldGroup` steps independent data simulations through a fixed membership list.
+Choose a worker limit explicitly; the default of one preserves sequential order.
+
+```csharp
+var simulations = new[]
+{
+    new World(new WorldConfig { MaxDegreeOfParallelism = 1 }),
+    new World(new WorldConfig { MaxDegreeOfParallelism = 1 })
+};
+var group = new WorldGroup(simulations, maxDegreeOfParallelism: 2);
+group.FixedTick(1f / 60f, cancellationToken);
+```
+
+The group copies membership, rejects duplicate world references, and rejects
+concurrent or reentrant steps on that group. Each world retains its own component
+storage, resource dependency schedule, and command streams. Do not share mutable
+system instances, resources, or component-owned objects between these worlds.
+Share immutable configuration or publish copies of results after the step joins.
+Groups with overlapping membership must not run simultaneously. Wait for the
+step before reading, mutating, or disposing any member from another thread.
+The caller remains responsible for disposing the worlds.
+
+Parallel steps suit headless simulation, AI rollouts, and separate game sessions.
+Unity and Godot scene, rendering, physics-object, and UI calls with main-thread
+affinity must stay in the host's main-thread update. Copy simulation results back
+to those objects after the group finishes. Register data systems in worker worlds;
+keep engine integration systems in a separate main-thread world.
+
+Cancellation stops dispatching worlds that have not started. Started worlds finish
+before an exception or cancellation reaches the caller. Completed updates and
+command playback remain applied, so a failed step can leave worlds at different
+steps. Individual world state determines the result; group execution order is
+unspecified with multiple workers. Seed random state per world when comparing
+sequential and parallel runs.
+
+The shared scheduler reuses an active parallel worker for nested execution.
+A parallel `WorldGroup` therefore runs each member's system/query work on that
+member's worker instead of multiplying nested worker sets. A sequential group
+allows the world's own configured parallelism. Prefer one level of parallelism
+whose work units are large enough to cover scheduling overhead.
+
+Run the supplied CPU/memory comparison on the deployment hardware:
+
+```bash
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks -- --filter '*WorldGroupBenchmarks*' --fast
+```
+
+Small worlds can cost more to dispatch than to execute sequentially. The benchmark
+compares four worlds at three entity counts and reports managed allocations. Unity
+and Godot player performance still requires profiling in the target runtime.
