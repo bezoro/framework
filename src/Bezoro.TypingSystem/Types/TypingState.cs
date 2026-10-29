@@ -70,7 +70,7 @@ public readonly struct TypingState
 				"Target length cannot be less than correct count."
 			);
 
-		return Position == targetLength - 1 && CorrectCount == targetLength;
+		return targetLength > 0 && CorrectCount == targetLength;
 	}
 
 	/// <summary>
