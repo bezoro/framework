@@ -8,7 +8,7 @@ The build pipeline stages the assemblies and their NuGet runtime dependencies un
 The published package version is resolved from SemVer Git tags by `scripts/Get-PackageVersion.ps1`.
 
 - A commit tagged `v1.2.3` or `1.2.3` publishes `1.2.3`.
-- Commits after `v1.2.3` publish the next patch preview, for example `1.2.4-preview.1`.
+- Commits after `v1.2.3` publish a preview based on Conventional Commits: fixes produce `1.2.4-preview.N`, features `1.3.0-preview.N`, and breaking changes `2.0.0-preview.N`. Before 1.0, breaking changes increment the minor version. `N` is the commit height since the stable tag.
 - Repositories with no SemVer tags publish from the initial preview line, for example `0.1.0-preview.1`.
 
 Set `BEZORO_PACKAGE_VERSION` or pass `-PackageVersion` to `scripts/Build-UnityPackage.ps1` to override the resolved version for local staging.

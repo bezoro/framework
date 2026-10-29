@@ -133,13 +133,31 @@ function Get-PreviewVersion {
 	"$($BaseVersion.Major).$($BaseVersion.Minor).$($BaseVersion.Patch)-$PrereleaseLabel.$Height"
 }
 
-function Get-NextPatchPreviewVersion {
+function Get-NextPreviewVersion {
 	param(
 		[object]$BaseVersion,
 		[int]$Height
 	)
 
-	"$($BaseVersion.Major).$($BaseVersion.Minor).$($BaseVersion.Patch + 1)-$PrereleaseLabel.$Height"
+	$records = @(Invoke-Git @("log", "--format=%x1e%s%x1f%b", "$($BaseVersion.Tag)..HEAD")) -join "`n"
+	$breaking = $false
+	$feature = $false
+	foreach ($record in ($records -split [char]0x1e)) {
+		$parts = $record -split [char]0x1f, 2
+		$subject = $parts[0].Trim()
+		if ($subject -cmatch '^[a-z][a-z0-9-]*(?:\([^\r\n)]*\))?!:' -or
+			($parts.Length -gt 1 -and $parts[1] -cmatch '(?m)^BREAKING(?: CHANGE|-CHANGE):')) {
+			$breaking = $true
+		}
+		if ($subject -cmatch '^feat(?:\([^\r\n)]*\))?!?:') { $feature = $true }
+	}
+	$major = $BaseVersion.Major
+	$minor = $BaseVersion.Minor
+	$patch = $BaseVersion.Patch
+	if ($breaking -and $major -gt 0) { $major = $major + [System.Numerics.BigInteger]::One; $minor = 0; $patch = 0 }
+	elseif ($breaking -or $feature) { $minor = $minor + [System.Numerics.BigInteger]::One; $patch = 0 }
+	else { $patch = $patch + [System.Numerics.BigInteger]::One }
+	"$major.$minor.$patch-$PrereleaseLabel.$Height"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($VersionOverride)) {
@@ -179,7 +197,7 @@ $baseTag = Select-HighestSemVer $mergedTags -StableOnly
 if ($null -ne $baseTag) {
 	$heightOutput = @(Invoke-Git @("rev-list", "--count", "$($baseTag.Tag)..HEAD"))
 	$height = [int]$heightOutput[0]
-	Write-Output (Get-NextPatchPreviewVersion $baseTag $height)
+	Write-Output (Get-NextPreviewVersion $baseTag $height)
 	return
 }
 

@@ -35,5 +35,5 @@
 - Regression tests across every changed runtime module, reference perft coverage, Stockfish integration, and cross-platform build-script tests.
 - Linux integration engine selection through `BEZORO_STOCKFISH_PATH` and Linux/Windows CI validation.
 - Package dependency conflict detection, missing-artifact failures, protected staging paths, stable dependency metadata, and XML documentation.
-- SemVer numeric/ordinal prerelease precedence, numeric-identifier validation, large version components, and build metadata preservation.
+- SemVer numeric/ordinal prerelease precedence, numeric-identifier validation, large version components, build metadata preservation, and preview bumps based on Conventional Commit feature/breaking intent.
 - Updated module guides, root setup, contribution rules, architecture research, and review evidence. No release tag is created by this unreleased entry.
