@@ -7,5 +7,7 @@ internal readonly record struct PositionAnalysisWorkItem(
 	ImmutableArray<string> Moves,
 	char                   SideToMove,
 	char                   PlayerColor,
-	ImmutableArray<string> LegalMoves
+	ImmutableArray<string> LegalMoves,
+	Fen                    BaseFen,
+	long                   ContextRevision
 );
