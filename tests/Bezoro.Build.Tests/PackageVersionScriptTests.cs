@@ -45,6 +45,44 @@ public sealed class PackageVersionScriptTests
 		version.Should().Be("0.1.0-preview.2");
 	}
 
+	[Theory]
+	[InlineData("1.2.3-preview.9", "1.2.3-preview.10", "1.2.3-preview.10")]
+	[InlineData("1.2.3-2", "1.2.3-alpha", "1.2.3-alpha")]
+	[InlineData("1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-alpha.1")]
+	[InlineData("1.2.3-rc.1", "1.2.3", "1.2.3")]
+	[InlineData("1.2.3-Beta", "1.2.3-alpha", "1.2.3-alpha")]
+	[InlineData("1.2.3", "100000000000000000000.0.0", "100000000000000000000.0.0")]
+	public void ExactTagsFollowSemVerPrecedence(string first, string second, string expected)
+	{
+		using var repository = TemporaryGitRepository.Create();
+		repository.Commit("initial");
+		repository.Tag(first);
+		repository.Tag(second);
+		RunVersionScript(repository.Path).Should().Be(expected);
+	}
+
+	[Fact]
+	public void VersionOverridePreservesBuildMetadata()
+	{
+		var root = FindRepositoryRoot();
+		var result = RunProcess(root, "pwsh", "-NoProfile", "-NonInteractive", "-File",
+			System.IO.Path.Combine(root, "scripts/Get-PackageVersion.ps1"), "-VersionOverride", "v1.2.3-rc.2+build.007");
+		result.ExitCode.Should().Be(0, result.Error);
+		result.Output.Trim().Should().Be("1.2.3-rc.2+build.007");
+	}
+
+	[Theory]
+	[InlineData("1.2.3-01")]
+	[InlineData("1.2.3-alpha.01")]
+	[InlineData("01.2.3")]
+	public void InvalidSemVerOverridesAreRejected(string version)
+	{
+		var root = FindRepositoryRoot();
+		var result = RunProcess(root, "pwsh", "-NoProfile", "-NonInteractive", "-File",
+			System.IO.Path.Combine(root, "scripts/Get-PackageVersion.ps1"), "-VersionOverride", version);
+		result.ExitCode.Should().NotBe(0);
+	}
+
 	private static string RunVersionScript(string repositoryPath)
 	{
 		var root = FindRepositoryRoot();

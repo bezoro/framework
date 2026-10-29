@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$semVerPattern = "^(?:v)?(?<Major>0|[1-9]\d*)\.(?<Minor>0|[1-9]\d*)\.(?<Patch>0|[1-9]\d*)(?:-(?<Prerelease>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+(?<Build>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+$semVerPattern = "^(?:v)?(?<Major>0|[1-9][0-9]*)\.(?<Minor>0|[1-9][0-9]*)\.(?<Patch>0|[1-9][0-9]*)(?:-(?<Prerelease>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+(?<Build>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
 
 function ConvertTo-SemVerInfo {
 	param(
@@ -24,12 +24,18 @@ function ConvertTo-SemVerInfo {
 		return $null
 	}
 
-	$major = [int]$match.Groups["Major"].Value
-	$minor = [int]$match.Groups["Minor"].Value
-	$patch = [int]$match.Groups["Patch"].Value
+	$major = [System.Numerics.BigInteger]::Parse($match.Groups["Major"].Value)
+	$minor = [System.Numerics.BigInteger]::Parse($match.Groups["Minor"].Value)
+	$patch = [System.Numerics.BigInteger]::Parse($match.Groups["Patch"].Value)
 	$prerelease = $match.Groups["Prerelease"].Value
+	foreach ($identifier in ($prerelease -split '\.')) {
+		if ($identifier -match '^[0-9]+$' -and $identifier.Length -gt 1 -and $identifier.StartsWith('0')) {
+			return $null
+		}
+	}
 	$coreVersion = "$major.$minor.$patch"
 	$version = if ([string]::IsNullOrWhiteSpace($prerelease)) { $coreVersion } else { "$coreVersion-$prerelease" }
+	if ($match.Groups["Build"].Success) { $version += "+$($match.Groups['Build'].Value)" }
 
 	[pscustomobject]@{
 		Tag = $Value.Trim()
@@ -57,6 +63,32 @@ function Assert-SemVer {
 	$version
 }
 
+function Compare-SemVer($left, $right) {
+	foreach ($part in @('Major', 'Minor', 'Patch')) {
+		$comparison = $left.$part.CompareTo($right.$part)
+		if ($comparison -ne 0) { return $comparison }
+	}
+	if ($left.IsStable -ne $right.IsStable) {
+		if ($left.IsStable) { return 1 } else { return -1 }
+	}
+	$leftParts = $left.Prerelease -split '\.'
+	$rightParts = $right.Prerelease -split '\.'
+	for ($i = 0; $i -lt [Math]::Min($leftParts.Length, $rightParts.Length); $i++) {
+		$leftNumeric = $leftParts[$i] -match '^[0-9]+$'
+		$rightNumeric = $rightParts[$i] -match '^[0-9]+$'
+		if ($leftNumeric -and $rightNumeric) {
+			$comparison = ([System.Numerics.BigInteger]::Parse($leftParts[$i])).CompareTo(
+				[System.Numerics.BigInteger]::Parse($rightParts[$i]))
+		} elseif ($leftNumeric -ne $rightNumeric) {
+			$comparison = if ($leftNumeric) { -1 } else { 1 }
+		} else {
+			$comparison = [StringComparer]::Ordinal.Compare($leftParts[$i], $rightParts[$i])
+		}
+		if ($comparison -ne 0) { return $comparison }
+	}
+	return $leftParts.Length.CompareTo($rightParts.Length)
+}
+
 function Select-HighestSemVer {
 	param(
 		[string[]]$Tags,
@@ -70,14 +102,13 @@ function Select-HighestSemVer {
 		}
 	}
 
-	$versions |
-		Sort-Object `
-			@{ Expression = "Major"; Descending = $true },
-			@{ Expression = "Minor"; Descending = $true },
-			@{ Expression = "Patch"; Descending = $true },
-			@{ Expression = "StableRank"; Descending = $true },
-			@{ Expression = "Prerelease"; Descending = $true } |
-		Select-Object -First 1
+	$highest = $null
+	foreach ($version in $versions) {
+		if ($null -eq $highest -or (Compare-SemVer $version $highest) -gt 0) {
+			$highest = $version
+		}
+	}
+	$highest
 }
 
 function Invoke-Git {
@@ -117,6 +148,8 @@ if (-not [string]::IsNullOrWhiteSpace($VersionOverride)) {
 	return
 }
 
+# Validate generated versions too, including numeric prerelease identifiers.
+$null = Assert-SemVer "0.0.0-$PrereleaseLabel.0" "PrereleaseLabel"
 $defaultSemVer = Assert-SemVer $DefaultVersion "DefaultVersion"
 if (-not $defaultSemVer.IsStable) {
 	throw "DefaultVersion '$DefaultVersion' must be stable because prerelease labels are generated from commit height."
