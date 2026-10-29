@@ -11,17 +11,17 @@ Unit tests for `Bezoro.Core` primitives, extensions, helpers, and utility types.
 | `Utilities/*Tests`  | Mirrors `src/Bezoro.Core/Utilities` (`StringTags` processing and replacement behavior).                               |
 | `Extensions/*Tests` | Mirrors `src/Bezoro.Core/Extensions` (arrays, collections, enums, spans, memory, strings, and type extensions).       |
 
-## Quick Start
+## Run
 
 ```bash
-dotnet test tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj
+dotnet test tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj -c Release -f net10.0 --verbosity minimal
 ```
 
-## Design Notes
+## Coverage notes
 
 - Tests are deterministic and focus on behavior contracts and edge cases.
 - High-churn suites are split into focused files (`Types/Try*Tests`, `Extensions/StringExtensions*Tests`) for maintainability.
-- Assertions use FluentAssertions for consistency and readable failures.
+- Assertions use xUnit and FluentAssertions.
 - Pool tests protect the owned-capacity invariant: failed creation reservations are released, and owned items rejected
   during rent validation or return reset are removed and discarded exactly once.
 - `PooledObjectHandle<T>` tests cover copied handles to ensure that all struct copies share disposal state and return their
@@ -31,8 +31,20 @@ dotnet test tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj
 - Compatibility tests preserve obsolete expression guards, lifecycle boolean overloads, and formatting convenience shims
   while guiding callers to the canonical APIs.
 
-## Test Conventions
+## Conventions
 
 - Test method names follow `Method_WhenCondition_ShouldExpectation`.
 - Each test class targets a focused source type or behavior slice.
 - Disposable resources in tests use explicit ownership/disposal patterns.
+
+Tests use the .NET 10 SDK selected by [global.json](../../global.json). They run without Unity or Godot and do not replace validation in engine player builds.
+
+## Regression coverage
+
+- `GridSafetyTests` covers dimension overflow, invalid span dimensions and storage, row-aliasing coordinates, pooled initialization, and access after disposal.
+- `SwapbackArraySafetyTests` covers replacement at the logical end, self-appending, partial enumeration failures, and indirectly aliased LINQ sources. Capacity-boundary tests exercise arithmetic without allocating multi-gigabyte arrays.
+- `ObjectPoolLifecycleSafetyTests` covers disposal with pending timed and indefinite renters, infinite timeouts, duplicate owned returns, reset and validation failures, failed prewarming, and continuing cleanup after a discard failure.
+- `ObjectPoolDuplicateOwnershipTests` covers foreign-object ownership, preserving active rentals when the pool is full, and duplicate returns during reset or discard and after disposal.
+- Validation-helper tests require valid objects to pass the obsolete null guard and preserve named parameter details for null values.
+
+Concurrency tests use bounded waits to expose ownership errors. Passing them is evidence for those scenarios, not a proof covering every possible thread interleaving.

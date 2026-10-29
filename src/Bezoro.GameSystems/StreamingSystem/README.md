@@ -13,10 +13,16 @@ ECS distance-based streaming that toggles entity state using hysteresis and roun
 | `StreamingEventsResource`    | Queue resource of streaming transition events                     |
 | `StreamingSystem`            | `ISystem` that evaluates `Position + StreamState` each tick       |
 
-## Quick Start
+## Quick start
 
 ```csharp
-var world = new World();
+using System.Numerics;
+using Bezoro.ECS.Services;
+using Bezoro.GameSystems.MovementSystem.Types;
+using Bezoro.GameSystems.StreamingSystem.Services;
+using Bezoro.GameSystems.StreamingSystem.Types;
+
+using var world = new World();
 var system = new StreamingSystem();
 world.AddSystem(system);
 
@@ -37,7 +43,7 @@ world.Tick(0f);
 var state = world.Read<StreamState>(entity);
 ```
 
-## API Reference
+## API reference
 
 ### StreamingConfig
 
@@ -57,9 +63,19 @@ var state = world.Read<StreamState>(entity);
 | `StreamedOut` | Raised when an entity streams out                    |
 | `Update`      | Evaluates `Position + StreamState` and updates state |
 
-## Design Notes
+## Runtime notes
 
 - Uses squared-distance comparisons to avoid square root cost.
 - Applies hysteresis (`StreamOutDistance >= StreamInDistance`) to prevent boundary flicker.
 - Maintains a round-robin cursor in `StreamingRuntimeState` so work is distributed over ticks.
 - Publishes transition data to `StreamingEventsResource` for deterministic consumption.
+
+## Ownership and integration
+
+Configuration, component writes, event-queue draining, and world disposal belong to the world thread. Callbacks run on that thread; this subsystem does not marshal Unity or Godot scene access. The entity budget counts evaluations, not elapsed time, and transitions report a state decision rather than loading or unloading engine assets themselves.
+
+See [the module README](../README.md) for targets and engine integration. Run the .NET 10 tests with:
+
+```bash
+dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Release -f net10.0 --filter "FullyQualifiedName~StreamingSystem"
+```

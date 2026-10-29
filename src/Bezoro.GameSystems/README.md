@@ -2,7 +2,7 @@
 
 ECS-native gameplay systems built on top of `Bezoro.ECS`, `Bezoro.Core`, and `Bezoro.Events`. The assembly groups reusable runtime pipelines that can be composed into game loops without coupling them to any specific engine.
 
-## Included Systems
+## Included systems
 
 - `ActivationSystem`: deferred callback activation with priority ordering and per-tick budget control
 - `HealthSystem`: health state, damage, healing, and lifecycle-oriented health flow
@@ -10,19 +10,19 @@ ECS-native gameplay systems built on top of `Bezoro.ECS`, `Bezoro.Core`, and `Be
 - `StreamingSystem`: streaming-oriented system composition for chunk or world activation workflows
 - `TimerSystem`: timer components and tick-based timer progression
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Bezoro.ECS.Services;
 using Bezoro.GameSystems.ActivationSystem.Extensions;
 using Bezoro.GameSystems.ActivationSystem.Types;
 
-var world = new World();
+using var world = new World();
 world.SetResource(new ActivationConfig(maxActivationsPerTick: 4));
 world.AddActivationPipeline();
 ```
 
-## API Reference
+## API reference
 
 | Area | Primary APIs |
 | --- | --- |
@@ -33,22 +33,24 @@ world.AddActivationPipeline();
 | Streaming | `StreamingSystem`, `StreamingConfig`, `StreamState`, `StreamingStateChangedEvent` |
 | Timer | `TimerWorldExtensions`, `Timer`, `TimerMode`, `TimerLifecycleEvent` |
 
-## Feature Notes
+## Runtime behavior
 
 - Pipelines register ECS systems and resources through explicit `World` extension methods.
-- Command queues decouple producer threads from deterministic world updates.
+- Only ingress queues explicitly documented as thread-safe accept producer-thread calls. World APIs, resource access, and health/timer helpers run on the world update thread.
 - Lifecycle events are stored in world resources so consumers can drain them during their own systems.
-- Each subsystem README documents its ordering, capacity, and state-transition details.
+- World updates require finite, non-negative delta times. Unity hosts typically call `Tick(Time.deltaTime)` in `Update` and `FixedTick(Time.fixedDeltaTime)` in `FixedUpdate`; Godot hosts can call them from their corresponding process callbacks.
+- Callbacks run on the world update thread unless the subsystem has an explicitly configured dispatcher. The framework does not move the complete simulation to the engine's main thread.
+- Drain lifecycle queues regularly. A processing budget limits work per update and does not by itself bound producer backlog or memory use.
+- Input timestamps use double precision internally so short hold windows still expire after long uptimes. The existing public float timestamp is for display and compatibility.
+- Timer construction rejects non-finite values. The timer system skips advancement for non-finite values introduced through mutable timer fields, allowing recovery after those fields are repaired.
 
-## Project Notes
+## Subsystem documentation
 
-- This assembly is the packaged runtime surface for the gameplay systems under `src/Bezoro.GameSystems`.
-- Individual subsystem documentation lives next to each subsystem folder:
-- `ActivationSystem/README.md`
-- `HealthSystem/README.md`
-- `InputSystem/README.md`
-- `StreamingSystem/README.md`
-- `TimerSystem/README.md`
+- [Activation](ActivationSystem/README.md)
+- [Health](HealthSystem/README.md)
+- [Input](InputSystem/README.md)
+- [Streaming](StreamingSystem/README.md)
+- [Timers](TimerSystem/README.md)
 
 ## Dependencies
 
@@ -56,9 +58,22 @@ world.AddActivationPipeline();
 - [Bezoro.ECS](../Bezoro.ECS/README.md)
 - [Bezoro.Events](../Bezoro.Events/README.md)
 
-## Design Notes
+## Design notes
 
 - Systems depend only on Bezoro framework contracts and remain independent of Unity or another engine.
 - Mutable gameplay data is represented as ECS components or resources rather than hidden service state.
 - Ingestion, processing, and dispatch are separate systems when a workflow crosses a queue boundary.
 - Generated query specifications keep filtering and scheduler metadata compile-time visible.
+
+## Targets and validation
+
+Targets .NET 10 and .NET Standard 2.1. Unity 6 consumes the precompiled .NET Standard assembly; see the [Unity package](../../unity-package/README.md) for installation. The systems do not depend on Unity or Godot types.
+
+Use the SDK selected by [global.json](../../global.json):
+
+```bash
+dotnet build src/Bezoro.GameSystems/Bezoro.GameSystems.csproj -c Release
+dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Release -f net10.0
+```
+
+The tests exercise ECS composition and numeric behavior without launching an engine. They do not establish platform-specific frame budgets or AOT compatibility; validate those in the target player build.

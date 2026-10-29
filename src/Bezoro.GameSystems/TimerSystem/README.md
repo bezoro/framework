@@ -14,15 +14,16 @@ ECS-native timers for cooldowns and scheduled gameplay logic.
 | `TimerOwner`           | Optional owner link from timer entity to gameplay entity.                                |
 | `TimerWorldExtensions` | Control helpers: `StartTimer`, `PauseTimer`, `StopTimer`, `ResumeTimer`, `RestartTimer`. |
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Bezoro.ECS.Services;
 using Bezoro.GameSystems.TimerSystem.Extensions;
 using Bezoro.GameSystems.TimerSystem.Services;
 using Bezoro.GameSystems.TimerSystem.Types;
+using Timer = Bezoro.GameSystems.TimerSystem.Types.Timer;
 
-var world = new World();
+using var world = new World();
 var timers = new TimerSystem();
 world.AddSystem(timers);
 
@@ -47,7 +48,7 @@ while (eventQueue.TryDequeue(out var evt))
 }
 ```
 
-## API Reference
+## API reference
 
 ### `Timer`
 
@@ -82,16 +83,24 @@ while (eventQueue.TryDequeue(out var evt))
 | `ResumeTimer(Entity)`  | `Paused -> Running` and queues `Resumed`.              |
 | `RestartTimer(Entity)` | `* -> Running` + elapsed reset and queues `Restarted`. |
 
-## Design Notes
+## Runtime behavior
 
 - Timers are dedicated entities, enabling many timers per gameplay object.
 - `TimerSystem` writes lifecycle events to `TimerEventsResource` for pull-based consumption.
 - `TimerMode.OneShot` despawns timer entities when they finish.
-- Event handler exceptions are isolated and do not break system update.
+- Construction requires a positive finite duration and finite initial elapsed time. Finite elapsed values are clamped into the duration. Timer fields remain mutable; callers must maintain valid state when writing them directly.
+- Non-finite mutable durations or elapsed values suspend advancement instead of falsely emitting `Finished`. Repair the values to resume processing. Direct system updates with non-finite or negative delta skip advancement; ordinary world updates reject invalid delta times before running systems.
+- `Persistent` retains a completed timer entity; it does not repeat automatically. Call `RestartTimer` to reset and run it again.
+- Control helpers change the component immediately on the world thread and retain one pending lifecycle transition for the next system update. Multiple control calls before an update can replace that pending transition.
+- Callbacks execute synchronously on the world update thread. Exceptions do not escape the system's event invocation, but one throwing multicast subscriber can prevent later subscribers of that callback from running. The event is already queued in `TimerEventsResource`; drain that resource for independent consumption.
+- World access, timer control, borrowed component refs, and event-queue draining require world-thread ownership. These helpers are not producer-thread queues.
+- Timers accumulate elapsed time as floats. They suit gameplay cooldowns; they are not wall-clock timers or high-resolution scheduling guarantees.
 
 ## Build
 
 ```bash
-dotnet build bezoro.framework.sln
-dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj --filter "FullyQualifiedName~TimerSystem"
+dotnet build src/Bezoro.GameSystems/Bezoro.GameSystems.csproj -c Release
+dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Release -f net10.0 --filter "FullyQualifiedName~TimerSystem"
 ```
+
+See [the module README](../README.md) for .NET 10, .NET Standard 2.1, and Unity 6 integration.

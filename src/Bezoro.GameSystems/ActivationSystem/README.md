@@ -19,14 +19,14 @@ ECS-native activation pipeline for deferred callback execution with priority ord
 | `ActivationDispatchSystem`      | `PostTick`-stage system that invokes activated callbacks.                  |
 | `ActivationWorldExtensions`     | Pipeline wiring and resource helper extensions for `World`.                |
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Bezoro.ECS.Services;
 using Bezoro.GameSystems.ActivationSystem.Extensions;
 using Bezoro.GameSystems.ActivationSystem.Types;
 
-var world = new World();
+using var world = new World();
 world.SetResource(new ActivationConfig(maxActivationsPerTick: 4));
 world.AddActivationPipeline();
 
@@ -46,12 +46,11 @@ Console.WriteLine($"Activated: {runtime.ActivatedCount}");
 Console.WriteLine($"Complete: {runtime.IsComplete}");
 ```
 
-## Unity Integration
+## Unity integration
 
 Use activation as a frame-budgeted pipeline: instantiate/pool inactive objects, queue activation callbacks, and process a limited number per `Update`.
 
 ```csharp
-using System.Threading;
 using Bezoro.ECS.Services;
 using Bezoro.GameSystems.ActivationSystem.Extensions;
 using Bezoro.GameSystems.ActivationSystem.Types;
@@ -61,18 +60,15 @@ public sealed class UnityActivationBootstrap : MonoBehaviour
 {
 	private World _world = null!;
 	private ActivationCommandQueue _queue = null!;
-	private SynchronizationContext _unityContext = null!;
 
 	[SerializeField] private int maxActivationsPerFrame = 4;
 
 	private void Awake()
 	{
-		_unityContext = SynchronizationContext.Current!;
 		_world = new World();
 
 		_world.SetResource(new ActivationConfig(
-			maxActivationsPerTick: maxActivationsPerFrame,
-			callbackDispatcher: callback => _unityContext.Post(_ => callback(), null)
+			maxActivationsPerTick: maxActivationsPerFrame
 		));
 
 		_world.AddActivationPipeline();
@@ -102,9 +98,11 @@ public sealed class UnityActivationBootstrap : MonoBehaviour
 }
 ```
 
-This keeps Unity API calls on the main thread while spreading activation work across frames.
+`Update` runs this world on Unity's main thread, so the callbacks can call Unity APIs there. The budget counts activated entries, not milliseconds. One expensive callback can still exceed the frame budget.
 
-## API Reference
+When the world runs on a worker, configure `CallbackDispatcher` to marshal callbacks to the engine thread. An asynchronous dispatcher controls its own backlog, error handling, and shutdown; the activation system cannot catch exceptions thrown later by a posted callback. Stop producers and account for already-posted callbacks before disposing the world.
+
+## API reference
 
 ### `ActivationCommandQueue`
 
@@ -136,17 +134,17 @@ This keeps Unity API calls on the main thread while spreading activation work ac
 | `GetOrCreateActivationCommandQueue(World)` | Returns existing queue resource or creates one.                 |
 | `AddActivationPipeline(World)`             | Registers ingestion, processing, and dispatch systems in order. |
 
-## Design Notes
+## Runtime notes
 
 - External threads only interact with `ActivationCommandQueue`.
 - ECS systems perform all state mutation on the world update thread.
 - Priority ordering is deterministic: higher priority first, then lower handle id.
 - Completion is edge-triggered and published through `ActivationEventsResource`.
-- Callback and event exceptions are isolated and do not break simulation.
+- Synchronous callback/dispatcher failures are caught by the dispatch system. A budget does not bound producer backlog. Register and cancel only through the ingress queue from external threads; pipeline setup, resource inspection, and disposal stay on the world thread.
 
 ## Build
 
 ```bash
-dotnet build bezoro.framework.sln
-dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj --filter "FullyQualifiedName~ActivationSystem"
+dotnet build src/Bezoro.GameSystems/Bezoro.GameSystems.csproj -c Release
+dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Release -f net10.0 --filter "FullyQualifiedName~ActivationSystem"
 ```

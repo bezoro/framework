@@ -1,8 +1,8 @@
 # Bezoro.Logging
 
-A flexible, high-performance logging library for .NET with optional complexity. Designed for game development and general .NET applications with Unity compatibility.
+Conditional logging with typed payloads, filtering, formatting, and optional metadata for .NET and game-engine consumers.
 
-## Features
+## Behavior
 
 - **Conditional log calls**: `Logger.Log*` calls and their arguments are omitted at call sites compiled without `DEBUG`
 - **Event-driven architecture**: Subscribe to `Logger.OnLog` to handle log output
@@ -12,7 +12,7 @@ A flexible, high-performance logging library for .NET with optional complexity. 
 - **Performance timing**: Scoped elapsed-time measurement when the Bezoro.Logging assembly is compiled with `DEBUG`
 - **Flexible grouping**: Group logs by caller, category, thread, time window, or async context
 - **Visual styling**: Configurable colors and emoji indicators per log level
-- **Unity compatible**: Targets both .NET 9.0 and .NET Standard 2.1
+- **Unity compatible**: Targets both .NET 10 and .NET Standard 2.1
 
 ## Installation
 
@@ -22,7 +22,7 @@ Add a reference to `Bezoro.Logging` in your project:
 <ProjectReference Include="path/to/Bezoro.Logging.csproj" />
 ```
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Bezoro.Logging;
@@ -48,7 +48,7 @@ catch (Exception ex)
 }
 ```
 
-## Log Levels
+## Log levels
 
 | Level       | Description                               | Default Color   |
 |-------------|-------------------------------------------|-----------------|
@@ -72,7 +72,7 @@ Bezoro.Logging includes 50+ predefined categories organized by domain:
 
 ## Configuration
 
-### Global Settings
+### Global settings
 
 ```csharp
 // Enable/disable all logging
@@ -86,7 +86,9 @@ LoggerSettings.MutedCategories.Add(LogCategory.Debug);
 LoggerSettings.MutedCategories.Add(LogCategory.Profiling);
 ```
 
-### Metadata Options
+Disabled, below-minimum, and muted-category messages return before message formatting or collection enumeration. Call-site expressions still execute whenever `DEBUG` is defined: `Logger.Log(BuildExpensiveMessage())` calls the builder before the logger can inspect its filter. Conditional compilation removes the whole call, including its arguments, when that call site's compilation omits `DEBUG`.
+
+### Metadata options
 
 ```csharp
 // Timestamp configuration
@@ -107,11 +109,11 @@ LoggerSettings.FileLocation = FileLocationConfig.FullPath;
 LoggerSettings.FileLocation = FileLocationConfig.FilenameOnly;
 LoggerSettings.FileLocation = FileLocationConfig.Disabled;
 
-// Frame count (for game engines)
-LoggerSettings.FrameCount = FrameCountConfig.Create(() => Time.frameCount);
+// Use a caller-thread-safe provider. Update this cached value on the engine thread.
+LoggerSettings.FrameCount = FrameCountConfig.Create(() => Volatile.Read(ref cachedFrameCount));
 ```
 
-### Log Grouping
+### Log grouping
 
 ```csharp
 // Group logs by various criteria
@@ -126,7 +128,7 @@ LoggerSettings.Grouping = GroupingConfig.Create(
     timeWindowMs: 1000); // 1 second windows
 ```
 
-### Visual Styling
+### Visual styling
 
 ```csharp
 // Customize colors per log level
@@ -135,7 +137,7 @@ LoggerSettings.ErrorStyle = new LogStyle(ConsoleColor.Red, bold: true);
 LoggerSettings.WarningStyle = new LogStyle(ConsoleColor.Yellow, italic: true);
 ```
 
-## Performance Timing
+## Performance timing
 
 Measure operation durations with a scoped timer:
 
@@ -153,7 +155,7 @@ and logs from `Dispose`. Otherwise, the timer stores no state and `Dispose` perf
 no work. Direct `Logger.Log*` calls are conditional and are omitted when `DEBUG` is
 not defined in the compilation containing each call site.
 
-## Async Context Tracking
+## Async context tracking
 
 Track hierarchical context through async/await:
 
@@ -170,7 +172,7 @@ using (LoggerSettings.BeginAsyncContext("GameLoop"))
 }
 ```
 
-## Log Output Format
+## Log output format
 
 Depending on the enabled settings, an ordinary formatted message follows this structure:
 
@@ -223,7 +225,7 @@ When handling log events, you receive a `LogPayload` with:
 | `GroupingContext` | Grouping identifier computed from `LoggerSettings.Grouping` |
 | `Stage` | Normalized stage label, when stage tracking is enabled |
 
-## API Reference
+## API reference
 
 | API | Purpose |
 | --- | --- |
@@ -234,39 +236,75 @@ When handling log events, you receive a `LogPayload` with:
 | `GroupingConfig` | Selects caller, category, thread, async-context, or time-window grouping. |
 | `PerformanceTimer` | Measures and logs a scoped operation duration when the Bezoro.Logging assembly is compiled with `DEBUG`. |
 
-## Unity Integration
+## Unity 6 and Godot integration
 
-The library targets .NET Standard 2.1 for Unity compatibility. Connect to Unity's console:
+Use the precompiled .NET Standard 2.1 DLL in Unity 6. Logging invokes `OnLog` synchronously on the caller's thread. A subscriber must dispatch scene-object access to the engine thread when producers log from workers. This Unity sink queues payloads and drains up to 100 per frame:
 
 ```csharp
-Logger.OnLog += payload =>
+using System.Collections.Concurrent;
+using Bezoro.Logging;
+using Bezoro.Logging.Types;
+using UnityEngine;
+
+public sealed class UnityLogSink : MonoBehaviour
 {
-    switch (payload.Level)
+    private readonly ConcurrentQueue<LogPayload> _pending = new ConcurrentQueue<LogPayload>();
+
+    private void OnEnable() => Logger.OnLog += Receive;
+    private void OnDisable() => Logger.OnLog -= Receive;
+    private void Receive(LogPayload payload) => _pending.Enqueue(payload);
+
+    private void Update()
     {
-        case LogLevel.Error:
-        case LogLevel.Exception:
-            Debug.LogError(payload.FormattedMessage, payload.ContextObject as UnityEngine.Object);
-            break;
-        case LogLevel.Warning:
-            Debug.LogWarning(payload.FormattedMessage, payload.ContextObject as UnityEngine.Object);
-            break;
-        default:
-            Debug.Log(payload.FormattedMessage, payload.ContextObject as UnityEngine.Object);
-            break;
+        for (int i = 0; i < 100 && _pending.TryDequeue(out var payload); i++)
+        {
+            var context = payload.ContextObject as UnityEngine.Object;
+            switch (payload.Level)
+            {
+                case LogLevel.Error:
+                case LogLevel.Exception:
+                    Debug.LogError(payload.FormattedMessage, context);
+                    break;
+                case LogLevel.Warning:
+                    Debug.LogWarning(payload.FormattedMessage, context);
+                    break;
+                default:
+                    Debug.Log(payload.FormattedMessage, context);
+                    break;
+            }
+        }
     }
-};
+}
 ```
 
-## Target Frameworks
+The sink's queue is unbounded. An application that logs faster than it drains should add its own capacity or drop policy. Unsubscribe static handlers when their owner is disabled or destroyed; stop or coordinate producers before tearing down the sink. Godot integrations can drain an equivalent queue during `_Process` and call their chosen Godot logging APIs there.
 
-- .NET 9.0
+Metadata providers also execute on the logging caller's thread. Use cached frame or scene values when logging from workers. The framework does not dispatch providers to the main thread.
+
+## Target frameworks
+
+- .NET 10
 - .NET Standard 2.1 (Unity)
 
-## Design Notes
+## Runtime notes
 
 - `Logger.Log*` calls use `Conditional("DEBUG")`; each call is controlled by the `DEBUG` symbol in the compilation containing that call site.
 - `Logger.BeginTimer` remains a normal call in all builds, while its timer captures and logs only when the Bezoro.Logging assembly is compiled with `DEBUG`.
 - Output is event-driven; applications own console, file, Unity, or telemetry sinks.
-- Async context uses immutable linked ambient scopes so overlapping async branches push and pop independently, and disposal restores the parent scope.
+- Async context flows through `AsyncLocal`. Create and dispose nested scopes in their owning async flow and in reverse creation order. Ordinary sibling async branches maintain separate current contexts. Do not dispose one shared scope from multiple flows or dispose parent scopes before their children.
 - `Logger` owns filtering, stage transitions, sequence/time/thread/frame capture, and synchronous dispatch; the internal formatter deterministically maps captured input, settings, and context into `LogPayload`.
-- Configuration remains static to keep call sites allocation-light and engine-independent.
+- Configuration and the subscriber list are process-global. Set configuration before concurrent logging, or synchronize changes externally, especially mutation of `MutedCategories`.
+- Subscriber and metadata-provider exceptions propagate to the logging caller. Wrap application sinks when a sink failure must not interrupt gameplay.
+- Formatting retained logs, collection arguments, and async-context hierarchies can allocate. This logger does not promise zero allocation.
+- Timers compiled in Release without `DEBUG` do not collect timings. Direct calls made by a caller that defines `DEBUG` still invoke the library even when its DLL was built in Release.
+
+## Build and validation
+
+Use the SDK selected by [global.json](../../global.json):
+
+```bash
+dotnet build src/Bezoro.Logging/Bezoro.Logging.csproj -c Release
+dotnet test tests/Bezoro.Logging.Tests/Bezoro.Logging.Tests.csproj -c Release -f net10.0
+```
+
+The test project defines `DEBUG` so conditional log calls are exercised in Release tests. See [the Logging tests](../../tests/Bezoro.Logging.Tests/README.md).
