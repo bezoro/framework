@@ -263,6 +263,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_hasEngineConfiguration = false;
 		_state = UciState.Default with { LegalMoves = Fen.Default.GetLegalMoves().ToImmutableList() };
 		InitializeClocks('w');
+		ApplyMatchMetadata(_state);
 	}
 
 	/// <summary>
@@ -467,6 +468,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		[EnumeratorCancellation] CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
 		var channel = Channel.CreateUnbounded<Move>();
 		var yielded = new HashSet<string>(StringComparer.Ordinal);
 		var yieldedGate = new object();
@@ -533,6 +535,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		[EnumeratorCancellation] CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
 		var channel = Channel.CreateUnbounded<UciState>();
 		void OnStateChanged(UciState state) => channel.Writer.TryWrite(state);
 		void OnStopped() => channel.Writer.TryComplete();

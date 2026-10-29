@@ -201,6 +201,17 @@ public sealed class UciGameEngineSessionLocalGameplayTests
 		Assert.Equal(PlayableMatchResultReason.Timeout, session.State.Result.Reason);
 	}
 
+	[Fact]
+	public async Task LocalConstructor_ExposesConfiguredClockImmediately()
+	{
+		await using var session = new UciGameEngineSession(options: UciCoordinatorOptions.Default with
+		{
+			TimeControl = new(TimeSpan.FromMinutes(5), TimeSpan.Zero)
+		});
+		Assert.NotNull(session.State.Clock);
+		Assert.Equal('w', session.State.Clock.Value.ActiveColor);
+	}
+
 	private sealed class QueuedSynchronizationContext : SynchronizationContext
 	{
 		public override void Post(SendOrPostCallback d, object? state) { }
