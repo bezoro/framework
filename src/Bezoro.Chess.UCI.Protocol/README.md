@@ -572,3 +572,7 @@ Search node counts, tablebase hits, and elapsed time are cumulative engine count
 Lifecycle operations serialize startup, shutdown, and disposal. Canceling the token originally passed to a successful `StartAsync` does not stop the reader; call `StopAsync` to end the client lifetime.
 
 UCI node counts, nodes per second, tablebase hits, and elapsed milliseconds use `ulong` in `UciInfoPayload`, `PrincipalVariation`, and search totals. Counters above `uint.MaxValue` remain available without truncation. Depth and MultiPV indices remain `uint`. This changes constructor and deconstruction signatures; consumers with explicit `uint` variables must use `ulong`. Search budgets keep their existing protocol types.
+
+### Score absence and display
+
+`PositionScore.FromEngineScore` preserves an absent evaluation as nullable values; `ToDisplayString()` returns `unknown`. A genuine zero-centipawn score remains distinct. Invalid sides and unrepresentable sign inversion are rejected. Mate ordering reserves values outside the complete centipawn range and handles extreme input without integer overflow. Mate zero displays as `M0`; its sign cannot encode a winner, so use the match or review terminal result.

@@ -23,12 +23,16 @@ public readonly record struct PositionScore(int? Cp, int? Mate)
 		char sideToMove,
 		char playerColor)
 	{
+		if (sideToMove is not ('w' or 'b'))
+			throw new ArgumentOutOfRangeException(nameof(sideToMove));
+		if (playerColor is not ('w' or 'b'))
+			throw new ArgumentOutOfRangeException(nameof(playerColor));
 		int perspective = sideToMove == playerColor ? 1 : -1;
 
 		if (rawMateScore is int mateScore)
-			return new(null, mateScore * perspective);
+			return new(null, checked(mateScore * perspective));
 
-		return new((rawCpScore ?? 0) * perspective, null);
+		return new(rawCpScore is int cp ? checked(cp * perspective) : null, null);
 	}
 
 	/// <summary>
@@ -37,20 +41,24 @@ public readonly record struct PositionScore(int? Cp, int? Mate)
 	public double ToSortValue()
 	{
 		if (Mate is int mate)
-			return mate > 0 ? 100_000 - Math.Abs(mate) : -100_000 + Math.Abs(mate);
+			// Reserve a disjoint range for mates, even for extreme public input values.
+			return mate > 0
+				? 2.0 * int.MaxValue + 1 - mate
+				: 2.0 * int.MinValue - 1 + Math.Abs((long)mate);
 
 		return Cp ?? 0;
 	}
 
 	/// <summary>
-	///     Returns a compact display string for the score.
+	///     Returns a compact display string, or "unknown" when no evaluation exists.
+	///     Mate zero is displayed without a sign; use a terminal result to determine the winner.
 	/// </summary>
 	public string ToDisplayString()
 	{
 		if (Mate is int mate)
-			return mate > 0 ? $"+M{Math.Abs(mate)}" : $"-M{Math.Abs(mate)}";
+			return mate == 0 ? "M0" : mate > 0 ? $"+M{mate}" : $"-M{Math.Abs((long)mate)}";
 
-		int cp = Cp ?? 0;
+		if (Cp is not int cp) return "unknown";
 		return $"{(cp >= 0 ? "+" : string.Empty)}{cp.ToString(CultureInfo.InvariantCulture)} cp";
 	}
 }
