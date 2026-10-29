@@ -62,6 +62,14 @@ dotnet run -c Release --project benchmarks/Bezoro.Chess.UCI.Protocol.Benchmarks 
 
 A separate C# 9 consumer targeting .NET Standard 2.1 compiled successfully against the staged UPM DLLs, including local-match calls and review-option construction. This checks managed API consumption with Unity's documented language level; it is not a Unity Editor or player run.
 
+## Explicit multithreading
+
+The review analyzer supports a bounded pool of dedicated clients. It creates one async worker per active client, rather than a task per position. The default remains serial. Per-engine thread/hash requests and a configurable history limit make resource use explicit; engine hash is not the process's total RAM. Pure model and annotation transformations run sequentially after immutable position results have been assembled in chronological order.
+
+`WorldGroup` steps independent data-only worlds with an explicit worker limit and joins workers before returning or reporting failure. Its default is degree one. The existing scheduler cooperates with nested work so a parallel world group does not create another set of workers for each world's inner jobs. Membership is immutable; worlds remain mutable owners with external-access restrictions. See the [ECS benchmark results](../benchmarks/Bezoro.ECS.Benchmarks/README.md) for raw measurements, including the tiny workload where sequential execution won.
+
+Process stdout and stderr use asynchronous reads. Idle engines no longer retain workers in synchronous `ReadLine` calls. A shared .NET test process supplies exact bytes and lifecycle barriers across platforms, replacing shell/code-page-dependent fixtures.
+
 ## Remaining boundaries
 
 - Local rules cover orthodox chess. Chess960 and other variants are not implemented by the local rules even when an external engine supports them.

@@ -19,7 +19,9 @@
 - Terminal-result enforcement, clock freeze, fivefold repetition and 75-move automatic draws, timeout precedence, atomic setup validation, history-aware undo, and stale-analysis rejection.
 - Dedicated `UciGameReviewAnalyzer`, immutable review results, rating-model and annotation policies, WDL, expected-points quality, finite budgets, cancellation, and progress. The documented accuracy formula is library-specific, not CAPS2.
 - UCI search and transport lifecycle serialization, waiter/timer cleanup, cumulative counters, final primary-variation selection, and stop/go ordering.
+- Public application-transport injection and asynchronous stdout/stderr reads without retaining idle pool threads.
 - Context-aware analysis caching retains the base FEN and complete move history.
+- Review supports an explicit bounded pool of dedicated clients, per-engine CPU/hash requests, chronological results, monotonic progress, and cancellation/failure cleanup.
 - Local facade construction allocates no engine runtime. State streams retain only the latest pending immutable snapshot and reject subscription races after disposal.
 
 ### Other modules
@@ -27,6 +29,7 @@
 - Core grids, pool capacity and waiter lifecycle, duplicate returns, swapback collection boundaries, aliased enumeration, and null guards.
 - Event-subscription identity and disposal synchronization.
 - ECS native bounds and layout handling, restored-resource lifetime, isolated-world thread caches, failed creation/shutdown cleanup, command-stream ownership, and finite deltas.
+- Opt-in ECS WorldGroup execution across independent worlds, cooperative nested workers, immutable membership, and profiled sequential/parallel workloads.
 - Typing completion, single enumeration of word sources, and removal of consumed words without losing unread content.
 - Logging filters run before formatting.
 - Timer input validation and precise long-running input timestamps.

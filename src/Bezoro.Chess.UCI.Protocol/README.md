@@ -62,10 +62,10 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 
 | Type | Responsibility |
 | --- | --- |
-| `UciGameReviewAnalyzer` | Explicit, serialized review of a played game using a dedicated engine client |
-| `GameReviewOptions` | Finite search budget and optional player ratings |
+| `UciGameReviewAnalyzer` | Serialized game reviews with an optional bounded pool of dedicated engine clients |
+| `GameReviewOptions` | Finite search, CPU, hash-table, and history budgets with optional player ratings |
 | `GameReviewResult`, `GameReviewEvaluation`, `ReviewedMove` | Immutable review, position, and played-move results |
-| `GameReviewProgress` | Completed/total position counts for progress reporting |
+| `GameReviewProgress` | Monotonic completed/total counts and chronological position index, including parallel reviews |
 | `UciWdl` | Validated win/draw/loss distribution and expected points |
 | `MoveQuality`, `MoveQualityClassifier` | Pure expected-points-loss classification |
 | `IExpectedPointsModel`, `EngineWdlExpectedPointsModel` | Replaceable probability model and engine-self-play default |
@@ -591,3 +591,11 @@ UCI node counts, nodes per second, tablebase hits, and elapsed milliseconds use 
 ### Score absence and display
 
 `PositionScore.FromEngineScore` preserves an absent evaluation as nullable values; `ToDisplayString()` returns `unknown`. A genuine zero-centipawn score remains distinct. Invalid sides and unrepresentable sign inversion are rejected. Mate ordering reserves values outside the complete centipawn range and handles extreme input without integer overflow. Mate zero displays as `M0`; its sign cannot encode a winner, so use the match or review terminal result.
+
+### Application-provided transports
+
+`new UciEngineClient(transport, options)` accepts an `IUciTransport` implementation supplied by the application. The client owns that transport's start/stop/disposal lifecycle. This allows native engine bridges and remote analysis without requiring `Process.Start`. The adapter must preserve ordered UCI lines, cancellation, and the advertised threading/lifecycle contracts; no native, WebGL, or networking adapter is bundled.
+
+### Parallel game review
+
+`UciGameReviewAnalyzer` accepts a pool of distinct, already started dedicated clients. Set `GameReviewOptions.MaxParallelPositions` to opt in; the default remains one. `ThreadsPerEngine`, `HashMegabytesPerEngine`, and `MaxGameMoves` provide explicit CPU, hash-table, and history budgets. Results remain chronological and immutable. Progress carries `PositionIndex` because searches can finish out of order. See [parallel review and resource budgets](../../docs/chess-review.md#parallel-review-and-resource-budgets) for ownership, cancellation, and engine configuration.

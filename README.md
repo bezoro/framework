@@ -56,6 +56,21 @@ var review = await reviewer.AnalyzeAsync(Fen.Default,
 
 The reviewer evaluates the initial position and each resulting position once, reusing adjacent evaluations. It returns preferred lines, scores, expected-points loss, and move quality. Stockfish WDL estimates describe engine self-play; they are not calibrated human winning chances. Accuracy uses an explicitly documented library formula, not Chess.com's CAPS2. Rating models and special annotations are replaceable policies. See [research and review behavior](docs/chess-review.md).
 
+## Bounded parallel work
+
+Parallelism is explicit. Review can use a caller-owned pool of started clients with `MaxParallelPositions`, `ThreadsPerEngine`, and `HashMegabytesPerEngine`; defaults remain one worker, one engine thread, and a 16 MB hash request. Results stay chronological even when positions finish out of order. Cancellation joins every active worker before returning.
+
+For independent ECS simulations:
+
+```csharp
+using Bezoro.ECS.Services;
+
+var simulations = new WorldGroup(worlds, maxDegreeOfParallelism: 2);
+simulations.Tick(deltaTime);
+```
+
+Each world retains its own systems, resources, and command streams. Mutable objects must not be shared between concurrent worlds. Group calls join all workers; nested scheduler work reuses the active worker rather than multiplying thread counts. A tiny workload can be slower in parallel, so profile the target and keep degree one where appropriate. Unity/Godot scene, rendering, and UI calls stay on the main thread. See [ECS threading contracts](src/Bezoro.ECS/README.md) and [review worker budgets](docs/chess-review.md).
+
 ## Build and contribute
 
 ```sh

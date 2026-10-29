@@ -118,7 +118,10 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		UciClientOptions?    options = null)
 		: this(new ProcessUciTransport(enginePath, args, workingDirectory), options) { }
 
-	internal UciEngineClient(IUciTransport transport, UciClientOptions? options = null)
+	/// <summary>Creates a client over an application-provided transport, such as a native bridge or remote engine.</summary>
+	/// <param name="transport">Transport whose lifecycle is owned and disposed by this client.</param>
+	/// <param name="options">Optional handshake, readiness, and search policy.</param>
+	public UciEngineClient(IUciTransport transport, UciClientOptions? options = null)
 	{
 		_transport                = transport ?? throw new ArgumentNullException(nameof(transport));
 		_transport.Error         += OnTransportError;
