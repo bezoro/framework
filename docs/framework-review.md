@@ -9,7 +9,7 @@ Review date: 2026-10-29. Source baseline: `e86e66a8`. The review covered every r
 | Local chess | Malformed FEN ranks and counters, illegal king captures, phantom en passant, incorrect repetition identity, repeated board parsing and move generation |
 | Match state | Play after resignation/draw, timeout precedence, inconsistent loaded state, lost repetition context, stale analysis, clocks running after termination |
 | Game facade | Gameplay awaiting engines, promotion loss on failure, false checkmate from engine forecasts, streams depending on a blocked UI queue |
-| UCI | Lifecycle races, stale bestmove crossing searches, leaked waiters/timers, summed cumulative counters, shallow/secondary scores overriding final primary evaluation, truncated 64-bit counters, concurrent Process.Exited registrations losing an exit waiter |
+| UCI | Lifecycle races, explicit stop returning before regular-search cleanup, stale bestmove crossing searches, leaked waiters/timers, summed cumulative counters, shallow/secondary scores overriding final primary evaluation, truncated 64-bit counters, concurrent Process.Exited registrations losing an exit waiter |
 | Core | Invalid grid storage/coordinates, overflow, uninitialized pooled data, disposed access, aliasing and boundary errors in swapback collections, pool waiter/lifetime races, incorrect null guard |
 | Events | Subscription handles colliding between buses and registrations surviving disposal races |
 | ECS | Native destination/range errors, unsafe component strides, disposed storage access, duplicate resource disposal, runtime generic reflection, cross-thread type-cache interference, failed lifecycle cleanup |
@@ -27,12 +27,12 @@ Hot-path changes reuse the resulting legal-move array, update repetition counts 
 
 ## Validation
 
-The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with zero warnings and zero errors. The Release test suites passed all 2460 tests, with zero failures and zero skips, including a real Stockfish 19 process on Linux. The public-type inventory check, staging of the UPM dependency closure, unique Unity metadata GUIDs, documentation links, and C# 9 API-consumer compilation passed.
+The complete Release solution compiled for .NET 10 and .NET Standard 2.1 with zero warnings and zero errors. The Release test suites passed all 2464 tests, with zero failures and zero skips, including a real Stockfish 19 process on Linux. The public-type inventory check, staging of the UPM dependency closure, unique Unity metadata GUIDs, documentation links, and C# 9 API-consumer compilation passed.
 
 | Test project | Passed |
 | --- | --- |
 | Bezoro.Build.Tests | 26 |
-| Bezoro.Chess.UCI.Protocol.Tests | 697 |
+| Bezoro.Chess.UCI.Protocol.Tests | 701 |
 | Bezoro.Chess.UCI.Tests | 192 |
 | Bezoro.Core.Tests | 942 |
 | Bezoro.ECS.Tests | 287 |
@@ -69,6 +69,8 @@ The review analyzer supports a bounded pool of dedicated clients. It creates one
 `WorldGroup` steps independent data-only worlds with an explicit worker limit and joins workers before returning or reporting failure. Its default is degree one. The existing scheduler cooperates with nested work so a parallel world group does not create another set of workers for each world's inner jobs. Membership is immutable; worlds remain mutable owners with external-access restrictions. See the [ECS benchmark results](../benchmarks/Bezoro.ECS.Benchmarks/README.md) for raw measurements, including the tiny workload where sequential execution won.
 
 Process stdout and stderr use asynchronous reads. Idle engines no longer retain workers in synchronous `ReadLine` calls. A shared .NET test process supplies exact bytes and lifecycle barriers across platforms, replacing shell/code-page-dependent fixtures. Process exit-wait registration/removal is serialized per process. Its regression reproduced lost handlers with sixteen concurrent waiters before the fix; twenty repeated focused runs then passed, covering 1280 concurrent registrations without increasing timeouts.
+
+The subsequent Codex review identified an explicit stop returning before the regular search released its active slot. Stop now waits for that session's cleanup. The two initial deterministic regressions held cleanup or a cancellation-triggered stop write at a barrier; both failed before the correction. Their four final cases also cover timeout and cancellation of the stop caller. They verify that the original search finishes its side effects before stop returns and a replacement search starts.
 
 ## Remaining boundaries
 

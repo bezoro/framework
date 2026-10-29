@@ -578,7 +578,7 @@ The parser preserves WDL in `UciInfoPayload.Wdl` and `PrincipalVariation.Wdl`. M
 
 ## Search completion and restart
 
-`GoAsync` and `GoFireAndForgetAsync` share one active-search slot. Overlapping searches throw `InvalidOperationException`. Fire-and-forget searches forward live events without retaining an unbounded PV history. `StopSearchAsync` waits for the engine's `bestmove` response before another search can begin. A `readyok` response alone does not acknowledge that a search has stopped.
+`GoAsync` and `GoFireAndForgetAsync` share one active-search slot. Overlapping searches throw `InvalidOperationException`. Fire-and-forget searches forward live events without retaining an unbounded PV history. `StopSearchAsync` waits for the engine's `bestmove` response and the stopped search's cleanup before returning. After a successful stop, a new search can begin immediately without separately awaiting the original `GoAsync` task. A `readyok` response alone does not acknowledge that a search has stopped.
 
 After cancellation or timeout, the client sends `stop` and drains its response within `SearchStopGracePeriod`. If the engine never acknowledges with `bestmove`, subsequent searches require `StopAsync` followed by `StartAsync`. UCI has no request identifiers, so reusing that connection could attribute an old best move to a new position.
 

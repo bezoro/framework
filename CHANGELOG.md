@@ -19,6 +19,7 @@
 - Terminal-result enforcement, clock freeze, fivefold repetition and 75-move automatic draws, timeout precedence, atomic setup validation, history-aware undo, and stale-analysis rejection.
 - Dedicated `UciGameReviewAnalyzer`, immutable review results, rating-model and annotation policies, WDL, expected-points quality, finite budgets, cancellation, and progress. The documented accuracy formula is library-specific, not CAPS2.
 - UCI search and transport lifecycle serialization, waiter/timer cleanup, cumulative counters, final primary-variation selection, and stop/go ordering.
+- Explicit search stop waits for regular-search cleanup before returning, so an immediate replacement search can acquire the active slot.
 - Public application-transport injection and asynchronous stdout/stderr reads without retaining idle pool threads.
 - Context-aware analysis caching retains the base FEN and complete move history.
 - Review supports an explicit bounded pool of dedicated clients, per-engine CPU/hash requests, chronological results, monotonic progress, and cancellation/failure cleanup.
