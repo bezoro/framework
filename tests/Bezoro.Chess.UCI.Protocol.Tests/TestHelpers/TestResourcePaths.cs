@@ -18,5 +18,8 @@ public static class TestResourcePaths
 	/// <summary>
 	///     Path to the Stockfish executable for integration tests.
 	/// </summary>
-	public const string STOCKFISH_PATH = STOCKFISH_DIRECTORY + "/stockfish-windows-x86-64-avx2.exe";
+	public static string STOCKFISH_PATH =>
+		System.Environment.GetEnvironmentVariable("BEZORO_STOCKFISH_PATH") is { Length: > 0 } path
+			? path
+			: STOCKFISH_DIRECTORY + "/stockfish-windows-x86-64-avx2.exe";
 }

@@ -47,7 +47,7 @@ function Get-TypeReview([string]$name, [string]$kind, [string]$modifiers) {
 function Get-PublicTypes([string]$projectPath) {
     $projectName = Split-Path $projectPath -Leaf
     $files = Get-ChildItem -Path $projectPath -Recurse -Filter '*.cs' |
-        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' } |
+        Where-Object { $_.FullName -notmatch '[/\\](bin|obj)[/\\]' } |
         Sort-Object FullName
 
     foreach ($file in $files) {
