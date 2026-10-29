@@ -28,6 +28,10 @@ internal sealed class SearchSession(bool ponder, bool fireAndForget = false)
 	public TaskCompletionSource<UciBestMoveMessage> BestMoveCompletion { get; } =
 		new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+	/// <summary>Completes after this session can no longer write commands or change engine activity.</summary>
+	public TaskCompletionSource<object?> CleanupCompletion { get; } =
+		new(TaskCreationOptions.RunContinuationsAsynchronously);
+
 	/// <summary>
 	///     Returns the latest captured bestmove message, if any.
 	/// </summary>

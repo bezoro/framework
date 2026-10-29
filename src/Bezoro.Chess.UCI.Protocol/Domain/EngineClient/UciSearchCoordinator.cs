@@ -37,7 +37,10 @@ internal sealed class UciSearchCoordinator(
 		if (session is null) return;
 		session.CompleteBestMove(message);
 		if (session.IsFireAndForget)
+		{
 			Interlocked.CompareExchange(ref _activeSession, null, session);
+			session.CleanupCompletion.TrySetResult(null);
+		}
 	}
 
 	public async Task ExecuteFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
@@ -55,8 +58,7 @@ internal sealed class UciSearchCoordinator(
 		}
 		catch
 		{
-			_setActivity(EngineActivity.Idle);
-			Interlocked.CompareExchange(ref _activeSession, null, session);
+			CompleteSessionCleanup(session);
 			throw;
 		}
 	}
@@ -69,17 +71,17 @@ internal sealed class UciSearchCoordinator(
 		{
 			session = _activeSession;
 			await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
+			if (session is null) _setActivity(EngineActivity.Idle);
 		}
 		finally { _commandGate.Release(); }
-		if (session is null)
-		{
-			_setActivity(EngineActivity.Idle);
-			return;
-		}
+		if (session is null) return;
 
 		try
 		{
 			await AwaitBestMoveGracefullyAsync(session, session.BestMoveCompletion.Task, CancellationToken.None).ConfigureAwait(false);
+			// A regular search may still be sending its own stop after cancellation or timeout.
+			// Keep its slot reserved until that path has finished, rather than only awaiting bestmove.
+			await session.CleanupCompletion.Task.ConfigureAwait(false);
 			ct.ThrowIfCancellationRequested();
 		}
 		catch (TimeoutException)
@@ -89,11 +91,8 @@ internal sealed class UciSearchCoordinator(
 		}
 		finally
 		{
-			if (session.IsFireAndForget && ReferenceEquals(_activeSession, session))
-			{
-				_setActivity(EngineActivity.Idle);
-				Interlocked.CompareExchange(ref _activeSession, null, session);
-			}
+			if (session.IsFireAndForget && !session.CleanupCompletion.Task.IsCompleted)
+				CompleteSessionCleanup(session);
 		}
 	}
 
@@ -121,6 +120,23 @@ internal sealed class UciSearchCoordinator(
 		Interlocked.Exchange(ref _requiresRestart, 0);
 		var session = Interlocked.Exchange(ref _activeSession, null);
 		session?.BestMoveCompletion.TrySetCanceled();
+		if (session is { IsFireAndForget: true })
+			session.CleanupCompletion.TrySetResult(null);
+	}
+
+	private void CompleteSessionCleanup(SearchSession session)
+	{
+		try
+		{
+			if (ReferenceEquals(_activeSession, session))
+				_setActivity(EngineActivity.Idle);
+		}
+		finally
+		{
+			Interlocked.CompareExchange(ref _activeSession, null, session);
+			session.BestMoveCompletion.TrySetCanceled();
+			session.CleanupCompletion.TrySetResult(null);
+		}
 	}
 
 	private TimeSpan ComputeTimeout(SearchParameters parameters)
@@ -244,14 +260,7 @@ internal sealed class UciSearchCoordinator(
 		finally
 		{
 			timerCts.Cancel();
-			if (ReferenceEquals(_activeSession, session))
-			{
-				_setActivity(EngineActivity.Idle);
-				Interlocked.CompareExchange(ref _activeSession, null, session);
-			}
-
-			if (!session.BestMoveCompletion.Task.IsCompleted)
-				session.BestMoveCompletion.TrySetCanceled();
+			CompleteSessionCleanup(session);
 		}
 
 		if (callerCanceled)
