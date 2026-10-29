@@ -783,6 +783,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			).ConfigureAwait(false);
 		}
 
+		PruneCompletedAnalysisTasks();
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 
@@ -1422,6 +1423,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			try { await Task.WhenAll(_analysisTasks).ConfigureAwait(false); }
 			finally
 			{
+				_analysisTasks.Clear();
 				if (_engineClients is { } engines) await engines.DisposeAsync().ConfigureAwait(false);
 			}
 		}
@@ -1550,8 +1552,19 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			ImmutableDictionary<string, Move>.Empty, null, null, null, false));
 	}
 
+	// Callers hold _commandGate. Workers never mutate this collection.
+	private void PruneCompletedAnalysisTasks() =>
+		_analysisTasks.RemoveAll(static task =>
+		{
+			if (!task.IsCompleted) return false;
+			// Worker errors are published through Error. Observe faults left by throwing subscribers as well.
+			_ = task.Exception;
+			return true;
+		});
+
 	private void QueuePonderStop()
 	{
+		PruneCompletedAnalysisTasks();
 		if (_engineClients is not { Ponder.IsStarted: true } engines) return;
 		var preceding = _ponderOperation;
 		_ponderOperation = Task.Run(async () =>
@@ -1570,6 +1583,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		Fen baseFen, IReadOnlyCollection<string> moves, Fen currentFen,
 		ImmutableList<string> legalMoves, CancellationToken ct)
 	{
+		PruneCompletedAnalysisTasks();
 		int generation = BeginClassificationRun();
 		if (legalMoves.Count == 0)
 		{
@@ -1584,7 +1598,6 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		var token = cts.Token;
 		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts, cts);
-		_analysisTasks.RemoveAll(static task => task.IsCompleted);
 		var precedingPonderOperation = _ponderOperation;
 		var ponderStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ponderOperation = ponderStarted.Task;
