@@ -19,6 +19,8 @@ For a public-type addition, review the change and regenerate the inventory with 
 
 Keep engine dependencies outside deterministic rules and general-purpose modules. Local chess must work without a UCI client. Explicit analysis may await a client; applying a manual move must not wait for engine search. Keep snapshots immutable and document who owns mutable state and disposable resources.
 
+Prefer pure methods for rules, validation, classification, and numerical transformations. Use `readonly struct` or `readonly record struct` for compact immutable values and snapshots. Keep resource owners and orchestration as classes; avoid copying large value types or forcing immutable updates into component-storage hot paths that require mutation.
+
 Prefer clear control flow and small methods with a specific responsibility. Validate public inputs before mutating shared state or writing native memory. Make disposal idempotent where promised, release pooled/native storage on exceptional exits, and test failures as well as successful calls. Do not change a failing test to preserve an implementation bug.
 
 Use regression tests for observed defects. Add boundary, cancellation, and lifecycle cases when they exercise a meaningful contract. Use perft reference positions when changing chess generation. Measure hot paths with release builds and allocation diagnostics before introducing caches, unsafe code, or more complex representations. Report runtime, hardware, workload, and measurement limits with performance results. Avoid unlimited caches or background work that consumers did not request.
