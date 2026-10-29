@@ -35,7 +35,16 @@ public ref struct GridSpan2D<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public GridSpan2D(Span<T> data, int width, int height)
 	{
-		_data  = data;
+		if (width <= 0)
+			throw new ArgumentOutOfRangeException(nameof(width));
+		if (height <= 0)
+			throw new ArgumentOutOfRangeException(nameof(height));
+
+		int length = checked(width * height);
+		if (data.Length < length)
+			throw new ArgumentException("The backing span is smaller than the grid.", nameof(data));
+
+		_data  = data[..length];
 		Width  = width;
 		Height = height;
 	}
@@ -58,7 +67,13 @@ public ref struct GridSpan2D<T>
 	public ref T this[int x, int y]
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => ref _data[y * Width + x];
+		get
+		{
+			if (!IsInBounds(x, y))
+				throw new IndexOutOfRangeException("Grid index out of range.");
+
+			return ref _data[y * Width + x];
+		}
 	}
 
 	/// <summary>
@@ -90,7 +105,13 @@ public ref struct GridSpan2D<T>
 	/// <param name="y">The row index (zero-based).</param>
 	/// <returns>A span over the specified row.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public readonly Span<T> GetRow(int y) => _data.Slice(y * Width, Width);
+	public readonly Span<T> GetRow(int y)
+	{
+		if ((uint)y >= (uint)Height)
+			throw new ArgumentOutOfRangeException(nameof(y));
+
+		return _data.Slice(y * Width, Width);
+	}
 
 	/// <summary>
 	///     Clears all elements to their default value.
