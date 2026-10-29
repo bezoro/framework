@@ -45,67 +45,17 @@ public readonly record struct SearchResult
 		this.PonderMove          = PonderMove;
 	}
 
-	/// <summary>True if any PV is a mate line.</summary>
-	public bool HasMate
-	{
-		get
-		{
-			foreach (var variation in PrincipalVariations.IsDefault ? ImmutableArray<PrincipalVariation>.Empty : PrincipalVariations)
-			{
-				if (variation.ScoreMate.HasValue) return true;
-			}
+	/// <summary>True if the selected principal variation reports a mate.</summary>
+	public bool HasMate => MateScore.HasValue;
 
-			return false;
-		}
-	}
+	/// <summary>Gets the centipawn score of the selected principal variation, or null when absent.</summary>
+	public int? BestCpScore => BestPv?.ScoreCp;
 
-	/// <summary>Returns the centipawn score for the best PV (MultiPV=1), or null if not available.</summary>
-	public int? BestCpScore
-	{
-		get
-		{
-			var principalVariations = PrincipalVariations;
-			if (principalVariations.IsDefaultOrEmpty) return null;
-			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
-				return primaryVariation.ScoreCp;
-
-			int? bestScore = null;
-			foreach (var variation in principalVariations)
-			{
-				if (!variation.ScoreCp.HasValue) continue;
-				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
-					bestScore = variation.ScoreCp.Value;
-			}
-
-			return bestScore;
-		}
-	}
-
-	/// <summary>Returns the shortest mate found (positive for winning, negative for losing), or null if none.</summary>
-	public int? MateScore
-	{
-		get
-		{
-			var principalVariations = PrincipalVariations;
-			if (principalVariations.IsDefaultOrEmpty) return null;
-
-			int? shortestMate = null;
-			foreach (var principalVariation in principalVariations)
-			{
-				if (!principalVariation.ScoreMate.HasValue) continue;
-
-				int currentMate = principalVariation.ScoreMate.Value;
-				if (!shortestMate.HasValue || Math.Abs((long)currentMate) < Math.Abs((long)shortestMate.Value))
-					shortestMate = currentMate;
-			}
-
-			return shortestMate;
-		}
-	}
+	/// <summary>Gets the mate score of the selected principal variation, or null when absent.</summary>
+	public int? MateScore => BestPv?.ScoreMate;
 
 	/// <summary>
-	///     Returns the primary principal variation (<c>multipv 1</c>) when available; otherwise the highest-scoring
-	///     captured variation.
+	///     Gets the deepest, most recent primary variation, or the best available MultiPV rank when the primary is absent.
 	/// </summary>
 	public PrincipalVariation? BestPv
 	{
@@ -116,19 +66,16 @@ public readonly record struct SearchResult
 			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
 				return primaryVariation;
 
-			PrincipalVariation? bestVariation = null;
-			int? bestScore = null;
+			PrincipalVariation? selected = null;
 			foreach (var variation in principalVariations)
 			{
-				if (!variation.ScoreCp.HasValue) continue;
-				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
-				{
-					bestScore = variation.ScoreCp.Value;
-					bestVariation = variation;
-				}
+				if (selected is { } previous &&
+					(variation.MultiPv > previous.MultiPv ||
+					 (variation.MultiPv == previous.MultiPv && variation.Depth < previous.Depth))) continue;
+				selected = variation;
 			}
 
-			return bestVariation;
+			return selected;
 		}
 	}
 

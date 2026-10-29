@@ -21,6 +21,11 @@ internal sealed class UciSearchCoordinator(
 
 	private volatile SearchSession? _activeSession;
 	private int _requiresRestart;
+	private readonly SemaphoreSlim _commandGate = new(1, 1);
+
+	private TimeSpan StopGracePeriod => _options.SearchStopGracePeriod > TimeSpan.Zero
+		? _options.SearchStopGracePeriod
+		: TimeSpan.FromSeconds(2);
 
 	public Task<SearchResult> ExecuteSearchAsync(SearchParameters parameters, CancellationToken ct) =>
 		ExecuteSearchInternalAsync(parameters, ct);
@@ -46,8 +51,7 @@ internal sealed class UciSearchCoordinator(
 
 		try
 		{
-			_setActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-			await _transport.WriteLineAsync(command, ct).ConfigureAwait(false);
+			await WriteSearchCommandAsync(session, command, ct).ConfigureAwait(false);
 		}
 		catch
 		{
@@ -59,8 +63,14 @@ internal sealed class UciSearchCoordinator(
 
 	public async Task StopSearchAsync(CancellationToken ct)
 	{
-		var session = _activeSession;
-		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
+		SearchSession? session;
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			session = _activeSession;
+			await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
+		}
+		finally { _commandGate.Release(); }
 		if (session is null)
 		{
 			_setActivity(EngineActivity.Idle);
@@ -85,6 +95,17 @@ internal sealed class UciSearchCoordinator(
 				Interlocked.CompareExchange(ref _activeSession, null, session);
 			}
 		}
+	}
+
+	private async Task WriteSearchCommandAsync(SearchSession session, string command, CancellationToken ct)
+	{
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			_setActivity(session.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+			await _transport.WriteLineAsync(command, ct).ConfigureAwait(false);
+		}
+		finally { _commandGate.Release(); }
 	}
 
 	private void EnsureSynchronized()
@@ -145,7 +166,7 @@ internal sealed class UciSearchCoordinator(
 	{
 		try
 		{
-			using var stopCts = new CancellationTokenSource(_options.SearchStopGracePeriod);
+			using var stopCts = new CancellationTokenSource(StopGracePeriod);
 			await _transport.WriteLineAsync(UciConstants.Commands.STOP, stopCts.Token).ConfigureAwait(false);
 		}
 		catch
@@ -160,6 +181,12 @@ internal sealed class UciSearchCoordinator(
 		EnsureSynchronized();
 
 		var timeout = ComputeTimeout(parameters);
+		if (timeout != Timeout.InfiniteTimeSpan)
+		{
+			if (timeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(parameters), "Search timeout must be nonnegative or infinite.");
+			// Unity runtimes implement the portable Task.Delay limit with a signed millisecond count.
+			timeout = TimeSpan.FromMilliseconds(Math.Min(timeout.TotalMilliseconds, int.MaxValue));
+		}
 		string cmd     = UciCommandBuilder.BuildGoCommand(parameters);
 		var    session = new SearchSession(parameters.Ponder);
 
@@ -175,8 +202,7 @@ internal sealed class UciSearchCoordinator(
 
 		try
 		{
-			_setActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
+			await WriteSearchCommandAsync(session, cmd, ct).ConfigureAwait(false);
 
 			var bestTask = session.BestMoveCompletion.Task;
 			var timeoutTask = timeout == Timeout.InfiniteTimeSpan
@@ -246,9 +272,7 @@ internal sealed class UciSearchCoordinator(
 	{
 		try
 		{
-			var delay = _options.SearchStopGracePeriod > TimeSpan.Zero
-							? _options.SearchStopGracePeriod
-							: TimeSpan.FromSeconds(2);
+			var delay = StopGracePeriod;
 			using var graceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 			var grace = await Task.WhenAny(bestTask, Task.Delay(delay, graceCts.Token)).ConfigureAwait(false);
 			graceCts.Cancel();

@@ -55,7 +55,7 @@ public class SearchResultTests
 	}
 
 	[Fact]
-	public void MateScore_WhenMultipleMateScoresExist_ShouldKeepShortestMateSign()
+	public void MateScore_WhenMultipleMateScoresExist_ShouldUsePrimaryVariation()
 	{
 		var pv1 = new PrincipalVariation(
 			10,
@@ -112,7 +112,7 @@ public class SearchResultTests
 		);
 
 		result.HasMate.Should().BeTrue();
-		result.MateScore.Should().Be(-2);
+		result.MateScore.Should().Be(-5);
 	}
 
 	[Fact]
@@ -386,6 +386,35 @@ public class SearchResultTests
 		result.MateScore.Should().BeNull();
 		result.ContainsMove("e2e4").Should().BeFalse();
 		result.GetVariationStartingWith("e2e4").Should().BeNull();
+	}
+
+	[Fact]
+	public void Scores_ShouldNotUseStaleMateOrAnInferiorMultiPvLine()
+	{
+		string[] lines =
+		[
+			"info depth 1 multipv 1 score mate -5 pv e2e4",
+			"info depth 12 multipv 1 score cp 50 pv d2d4",
+			"info depth 12 multipv 2 score mate -2 pv e2e4",
+			"bestmove d2d4"
+		];
+		SearchResult.TryParse(lines, out var result).Should().BeTrue();
+		result.BestCpScore.Should().Be(50);
+		result.MateScore.Should().BeNull();
+		result.HasMate.Should().BeFalse();
+	}
+
+	[Fact]
+	public void BestPv_WhenPrimaryIsMissing_ShouldUseBestAvailableRankIncludingMateScores()
+	{
+		SearchResult.TryParse([
+			"info depth 12 multipv 2 score mate -8 pv d2d4",
+			"info depth 12 multipv 3 score mate -2 pv e2e4",
+			"bestmove d2d4"
+		], out var result).Should().BeTrue();
+		result.BestPv!.Value.MultiPv.Should().Be(2);
+		result.MateScore.Should().Be(-8);
+		result.BestCpScore.Should().BeNull();
 	}
 
 }

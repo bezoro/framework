@@ -112,4 +112,26 @@ public class UciProtocolRobustnessTests
 		(await search.ExecuteSearchAsync(new() { Depth = 1 }, default)).BestMove.Should().Be("d2d4");
 	}
 
+	[Fact]
+	public async Task StopSearch_ShouldNotOvertakePendingGoWrite()
+	{
+		var transport = Substitute.For<IUciTransport>();
+		var releaseGo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stopWritten = false;
+		var search = new UciSearchCoordinator(transport, _ => { }, new());
+		transport.WriteLineAsync("go infinite", Arg.Any<CancellationToken>()).Returns(releaseGo.Task);
+		transport.WriteLineAsync("stop", Arg.Any<CancellationToken>()).Returns(_ =>
+		{
+			stopWritten = true;
+			search.HandleBestMove(new("e2e4", "", "bestmove e2e4"));
+			return Task.CompletedTask;
+		});
+		var start = search.ExecuteFireAndForgetAsync(new() { Infinite = true }, default);
+		var stop = search.StopSearchAsync(default);
+		stopWritten.Should().BeFalse();
+		releaseGo.TrySetResult();
+		await Task.WhenAll(start, stop).WaitAsync(TimeSpan.FromSeconds(1));
+		stopWritten.Should().BeTrue();
+	}
+
 }
