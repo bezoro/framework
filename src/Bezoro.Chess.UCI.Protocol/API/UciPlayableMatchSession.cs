@@ -623,8 +623,11 @@ public sealed class UciPlayableMatchSession
 		if (_positionAnalysis is null)
 			throw new InvalidOperationException("No analysis engine is configured for this local session.");
 		ct.ThrowIfCancellationRequested();
-		var analysis = await _positionAnalysis.GetAnalysisAsync(CurrentState.PositionKey, ct).ConfigureAwait(false);
-		var classifications = GetCurrentLegalMoveClassifications();
+		long revision = _positionRevision;
+		string positionKey = CurrentState.PositionKey;
+		var analysis = await _positionAnalysis.GetAnalysisAsync(positionKey, ct).ConfigureAwait(false);
+		EnsurePositionRevision(revision);
+		var classifications = _classifications.GetKnown(positionKey);
 		if (analysis.Evaluations.IsDefaultOrEmpty || classifications.Count == 0)
 			return analysis;
 
