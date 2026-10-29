@@ -46,6 +46,32 @@ public sealed class UciPlayableLocalMatchTests
             .WithMessage("*analysis engine*");
     }
 
+    [Theory]
+    [InlineData("resign")]
+    [InlineData("accept")]
+    [InlineData("claim")]
+    [InlineData("offer")]
+    public async Task LocalSession_ExpiredClockCannotBeOverwrittenByAnotherAction(string action)
+    {
+        var now = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+        var match = new UciPlayableMatchSession(timeControl: new(TimeSpan.FromSeconds(5), TimeSpan.Zero), utcNowProvider: () => now);
+        await match.StartNewGameAsync();
+        match.Refresh();
+        match.OfferDraw();
+        now += TimeSpan.FromSeconds(6);
+
+        Action act = action switch
+        {
+            "resign" => match.Resign,
+            "accept" => match.AcceptDraw,
+            "claim" => match.ClaimDraw,
+            _ => match.OfferDraw
+        };
+        act.Should().Throw<InvalidOperationException>();
+        match.CurrentState.Result.Reason.Should().Be(PlayableMatchResultReason.Timeout);
+        match.CurrentState.Result.Winner.Should().Be('b');
+    }
+
     [Fact]
     public async Task LocalSession_ClassifiesMovesOnlyWhenRequested()
     {

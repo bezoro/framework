@@ -718,9 +718,9 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void OfferDraw()
 	{
+		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		var state = CurrentState;
-		if (state.Result.IsTerminal)
-			throw new InvalidOperationException("The match has already ended.");
 
 		_drawOfferedBy = state.Fen.ActiveColor;
 		UpdateCurrentStateMetadata();
@@ -733,6 +733,7 @@ public sealed class UciPlayableMatchSession
 	public void AcceptDraw()
 	{
 		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		if (!_drawOfferedBy.HasValue)
 			throw new InvalidOperationException("There is no opposing draw offer to accept.");
 
@@ -759,6 +760,7 @@ public sealed class UciPlayableMatchSession
 	public void ClaimDraw()
 	{
 		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		if (!_claimableResult.HasValue || !_claimableResult.Value.IsDraw)
 			throw new InvalidOperationException("There is no claimable draw available.");
 
@@ -771,6 +773,7 @@ public sealed class UciPlayableMatchSession
 	public void Resign()
 	{
 		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		var state = CurrentState;
 		SetForcedResult(new(PlayableMatchResultReason.Resignation, Opposite(state.Fen.ActiveColor)));
 	}
