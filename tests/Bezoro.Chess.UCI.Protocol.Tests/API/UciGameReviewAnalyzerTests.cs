@@ -70,7 +70,28 @@ public sealed class UciGameReviewAnalyzerTests
 		result.WhiteAccuracy.Should().Be(90);
 		result.BlackAccuracy.Should().Be(70);
 		result.ExpectedPointsModel.Should().Be("Engine WDL self-play");
-		progress.Values.Should().Equal(new GameReviewProgress(1, 3), new(2, 3), new(3, 3));
+		progress.Values.Should().Equal(new GameReviewProgress(1, 3) { PositionIndex = 0 }, new(2, 3) { PositionIndex = 1 }, new(3, 3) { PositionIndex = 2 });
+	}
+
+	[Theory]
+	[InlineData("220 200 580", 0.02, MoveQuality.Good)]
+	[InlineData("250 200 550", 0.05, MoveQuality.Inaccuracy)]
+	[InlineData("300 200 500", 0.10, MoveQuality.Mistake)]
+	[InlineData("400 200 400", 0.20, MoveQuality.Blunder)]
+	public async Task AnalyzeAsync_WhenWdlLossLandsExactlyOnACutoff_ShouldPreserveDecimalBoundary(
+		string replyWdl, double expectedLoss, MoveQuality expectedQuality)
+	{
+		var (client, _) = CreateClient(
+			("score cp 50 wdl 600 200 200", "d2d4"),
+			($"score cp 0 wdl {replyWdl}", "c7c5"));
+		await using var ownedClient = client;
+		await client.StartAsync();
+
+		var review = await new UciGameReviewAnalyzer(client, new(new() { Depth = 1 }))
+			.AnalyzeAsync(Fen.Default, ["e2e4"]);
+
+		review.Moves[0].ExpectedPointsLoss.Should().Be(expectedLoss);
+		review.Moves[0].Quality.Should().Be(expectedQuality);
 	}
 
 	[Fact]

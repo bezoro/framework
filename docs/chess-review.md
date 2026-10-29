@@ -14,7 +14,7 @@ Chess.com also distinguishes a quick local evaluation from deeper server-side Ga
 
 `UciPlayableMatchSession` owns local rules, history, promotion, results, and optional clocks. Its local constructor starts no process and queues no engine search. `Refresh()` is synchronous. The high-level facade also supports an engine-free constructor; background analysis is opt-in.
 
-`UciGameReviewAnalyzer` owns one review flow over a caller-owned dedicated client. Start the client first and give it to one analyzer. Do not share it with game opponents, pondering, another analyzer, or ad hoc commands while a review runs. Reviews on one analyzer are serialized and cancellable. Use `Progress<GameReviewProgress>` to post progress to a captured UI context.
+`UciGameReviewAnalyzer` owns one review flow over a caller-owned dedicated client or an explicit pool of dedicated clients. Start each client first and give it to one analyzer. Do not share it with game opponents, pondering, another analyzer, or ad hoc commands while a review runs. Reviews on one analyzer are serialized and cancellable. Use `Progress<GameReviewProgress>` to post progress to a captured UI context.
 
 For N moves, the reviewer validates the sequence, evaluates N+1 positions, and reuses neighboring results. Automatically terminal positions are resolved locally. Engine position commands retain the supplied starting FEN and complete move prefix. The result contains immutable evaluations, preferred variations, centipawn loss when comparable, expected-points loss, move quality, and optional annotations. Exact scores are required; lower/upper bounds are not presented as exact probabilities.
 
@@ -22,9 +22,38 @@ The default model requests Stockfish WDL. Expected points equal `P(win) + 0.5 * 
 
 [Stockfish's own documentation](https://official-stockfish.github.io/docs/stockfish-wiki/Stockfish-FAQ.html) distinguishes evaluations from annotations and explains that its WDL model comes from engine self-play. Those probabilities do not reproduce a rating-adjusted human model. Implement `IExpectedPointsModel` to use a separately calibrated model; ratings are passed through the review options.
 
+## Parallel review and resource budgets
+
+Position searches are independent after the reviewer validates the played sequence. Supply a small pool of distinct clients and set `MaxParallelPositions` to opt into concurrent searches. One worker exclusively uses each active client. The scheduler creates at most one worker task per active client and keeps the existing N+1 position reuse. Local move application, model calls, and annotation policies remain sequential.
+
+```csharp
+using Bezoro.Chess.UCI.Protocol.API;
+using Bezoro.Chess.UCI.Protocol.API.Types;
+
+// Both clients are already started and are reserved for this analyzer.
+var options = new GameReviewOptions(new SearchParameters { Nodes = 200_000 })
+{
+    MaxParallelPositions = 2,
+    ThreadsPerEngine = 1,
+    HashMegabytesPerEngine = 32,
+    MaxGameMoves = 4096
+};
+var reviewer = new UciGameReviewAnalyzer(
+    new[] { analysisClient1, analysisClient2 }, options);
+var result = await reviewer.AnalyzeAsync(initialFen, playedMoves, progress, cancellationToken);
+```
+
+The defaults are one active search, one thread per engine, sixteen MB of requested hash per engine, and at most 4096 played halfmoves. Parallelism is bounded by the requested limit, the pool size, and the number of nonterminal positions. The reviewer rejects an oversized history instead of truncating it. It copies the move list before its first await; queued reviews build their full FEN and evaluation arrays after acquiring the analyzer gate.
+
+`Threads` and `Hash` are set only when advertised by the engine. Requested values outside an advertised range fail before any client is reconfigured. Configure engines without those options separately. Budget CPU use as active clients times threads per engine. Hash controls the transposition table, not total process memory, and the caller controls how many processes are started. Keep all clients on the same engine build, evaluation network, and tablebase configuration so comparisons use the same model. Parallel scheduling changes hash warmup; even a fixed search budget does not promise identical scores to a serial run.
+
+Evaluations and moves in the returned immutable result always follow the played history. Searches can finish out of order. Progress callbacks are serialized, `CompletedPositions` increases monotonically, and `PositionIndex` identifies the zero-based chronological index that just finished. Use `Progress<GameReviewProgress>` when callbacks should post to Unity's or Godot's captured UI context.
+
+Cancellation or a worker failure cancels sibling workers and awaits their search cleanup before another review can use the pool. The caller retains ownership of all clients and disposes them after the analyzer's work has finished.
+
 ## Quality thresholds
 
-The implementation uses the published cutoffs with lower-inclusive intervals. This explicitly resolves boundaries that the public table lists in both neighboring rows.
+The implementation uses the published cutoffs with lower-inclusive intervals. This explicitly resolves boundaries that the public table lists in both neighboring rows. The review pipeline rounds nonnegative expected-points loss to twelve decimal places before classification, removing at most 5e-13 of binary floating-point noise. This preserves exact WDL-derived cutoff values such as 0.70 minus 0.68. The standalone `MoveQualityClassifier` compares caller-supplied doubles without rounding.
 
 | Expected-points loss | Quality |
 | --- | --- |

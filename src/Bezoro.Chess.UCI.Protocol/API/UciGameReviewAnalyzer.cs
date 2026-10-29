@@ -9,13 +9,13 @@ namespace Bezoro.Chess.UCI.Protocol.API;
 
 /// <summary>Reviews played games using N+1 position searches and locally adjudicated terminal positions.</summary>
 /// <remarks>
-/// The caller owns and starts the dedicated client. Use one analyzer per client and do not use the client for other work during a review.
-/// Reviews on this analyzer are serialized. Engine options enable full strength, one PV, and WDL when advertised.
+/// The caller owns and starts the dedicated clients. Each client belongs to one analyzer and must not be used for other work during a review.
+/// Reviews on this analyzer are serialized. Independent positions can use a bounded pool of dedicated clients. Engine options enable full strength, one PV, WDL, and the configured thread/hash budgets when advertised.
 /// The default probability model uses engine self-play WDL, not human winning chances or proprietary CAPS2.
 /// </remarks>
 public sealed class UciGameReviewAnalyzer
 {
-	private readonly UciEngineClient _client;
+	private readonly UciEngineClient[] _clients;
 	private readonly GameReviewOptions _options;
 	private readonly IExpectedPointsModel _model;
 	private readonly IMoveReviewAnnotationPolicy? _annotationPolicy;
@@ -31,17 +31,40 @@ public sealed class UciGameReviewAnalyzer
 		GameReviewOptions options,
 		IExpectedPointsModel? expectedPointsModel = null,
 		IMoveReviewAnnotationPolicy? annotationPolicy = null)
+		: this(new[] { client ?? throw new ArgumentNullException(nameof(client)) }, options, expectedPointsModel, annotationPolicy) { }
+
+	/// <summary>Creates a reviewer with a caller-owned pool of distinct, already started dedicated clients.</summary>
+	/// <param name="clients">Finite client pool, copied during construction. A worker exclusively uses each active client.</param>
+	/// <param name="options">Finite search, concurrency, and resource budgets. Parallelism defaults to one.</param>
+	/// <param name="expectedPointsModel">Probability model, or the engine-WDL model when omitted. Called sequentially after searches.</param>
+	/// <param name="annotationPolicy">Optional application policy, called sequentially after searches.</param>
+	public UciGameReviewAnalyzer(
+		IEnumerable<UciEngineClient> clients,
+		GameReviewOptions options,
+		IExpectedPointsModel? expectedPointsModel = null,
+		IMoveReviewAnnotationPolicy? annotationPolicy = null)
 	{
-		_client = client ?? throw new ArgumentNullException(nameof(client));
+		if (clients is null) throw new ArgumentNullException(nameof(clients));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+		var copiedClients = new List<UciEngineClient>();
+		var distinctClients = new HashSet<UciEngineClient>();
+		foreach (var client in clients)
+		{
+			if (client is null) throw new ArgumentException("The client pool must not contain null entries.", nameof(clients));
+			if (!distinctClients.Add(client))
+				throw new ArgumentException("Each review worker requires a distinct dedicated client.", nameof(clients));
+			copiedClients.Add(client);
+		}
+		if (copiedClients.Count == 0) throw new ArgumentException("At least one dedicated client is required.", nameof(clients));
+		_clients = copiedClients.ToArray();
 		_model = expectedPointsModel ?? EngineWdlExpectedPointsModel.Instance;
 		_annotationPolicy = annotationPolicy;
 	}
 
-	/// <summary>Validates the entire game, then reviews its positions in chronological order.</summary>
+	/// <summary>Validates the entire game, then reviews independent positions within the configured concurrency budget and returns chronological results.</summary>
 	/// <param name="initialFen">Complete starting FEN. Both kings must be present.</param>
 	/// <param name="playedMoves">Complete played history in UCI notation, copied before engine work begins.</param>
-	/// <param name="progress">Optional completion progress. Use Progress&lt;T&gt; to marshal callbacks to an engine UI thread.</param>
+	/// <param name="progress">Optional serialized, monotonic completion progress with the completed position index. Use Progress&lt;T&gt; to marshal callbacks to an engine UI thread.</param>
 	/// <param name="ct">Cancellation token for validation, queued reviews, and engine searches.</param>
 	/// <returns>Immutable scores, expected-points losses, classifications, and explicitly defined accuracy values.</returns>
 	/// <exception cref="NotSupportedException">The default model requires WDL evidence for non-mate engine scores.</exception>
@@ -54,74 +77,43 @@ public sealed class UciGameReviewAnalyzer
 		if (playedMoves is null)
 			throw new ArgumentNullException(nameof(playedMoves));
 		ct.ThrowIfCancellationRequested();
-		ValidateInitialPosition(initialFen);
-
+		// Copy the cheap move list before the first await so queued reviews cannot observe caller mutations.
 		var copiedMoves = new List<string>();
 		foreach (string move in playedMoves)
 		{
 			ct.ThrowIfCancellationRequested();
+			if (copiedMoves.Count >= _options.MaxGameMoves)
+				throw new ArgumentException("The supplied history exceeds the configured MaxGameMoves budget.", nameof(playedMoves));
 			copiedMoves.Add(LocalPositionRules.NormalizeMove(move));
 		}
 		string[] moves = copiedMoves.ToArray();
-		var positions = new Fen[moves.Length + 1];
-		var results = new PlayableMatchResult[positions.Length];
-		var classifications = new MoveClassification[moves.Length];
-		var repetitions = new Dictionary<string, int>(StringComparer.Ordinal);
-		positions[0] = initialFen;
-		var legalMoves = LocalPositionRules.GetLegalMoves(initialFen);
-		for (var index = 0; index < positions.Length; index++)
-		{
-			ct.ThrowIfCancellationRequested();
-			string key = LocalPositionRules.BuildRepetitionKey(positions[index]);
-			repetitions.TryGetValue(key, out int count);
-			repetitions[key] = ++count;
-			results[index] = GetTerminalResult(positions[index], legalMoves, count);
-			if (index == moves.Length)
-				break;
-			if (results[index].IsTerminal)
-				throw new ArgumentException("The supplied game continues after an automatic terminal result.", nameof(playedMoves));
-			positions[index + 1] = LocalPositionRules.ApplyAndClassifyMove(positions[index], moves[index],
-				out classifications[index], out legalMoves);
-		}
-
 		await _gate.WaitAsync(ct).ConfigureAwait(false);
 		try
 		{
-			bool configured = false;
-			var evaluations = ImmutableArray.CreateBuilder<GameReviewEvaluation>(positions.Length);
+			ValidateInitialPosition(initialFen);
+			var positions = new Fen[moves.Length + 1];
+			var results = new PlayableMatchResult[positions.Length];
+			var classifications = new MoveClassification[moves.Length];
+			var repetitions = new Dictionary<string, int>(StringComparer.Ordinal);
+			positions[0] = initialFen;
+			var legalMoves = LocalPositionRules.GetLegalMoves(initialFen);
 			for (var index = 0; index < positions.Length; index++)
 			{
 				ct.ThrowIfCancellationRequested();
+				string key = LocalPositionRules.BuildRepetitionKey(positions[index]);
+				repetitions.TryGetValue(key, out int count);
+				repetitions[key] = ++count;
+				results[index] = GetTerminalResult(positions[index], legalMoves, count);
+				if (index == moves.Length)
+					break;
 				if (results[index].IsTerminal)
-				{
-					var score = results[index].IsDraw ? new PositionScore(0, null) : new PositionScore(null, 0);
-					evaluations.Add(new(positions[index], score, string.Empty, null, results[index]));
-				}
-				else
-				{
-					if (!configured)
-					{
-						await ConfigureEngineAsync(ct).ConfigureAwait(false);
-						configured = true;
-					}
-					await _client.SetPositionAsync(initialFen, new ArraySegment<string>(moves, 0, index), ct)
-						.ConfigureAwait(false);
-					var search = await _client.GoAsync(_options.Search, ct).ConfigureAwait(false);
-					var variation = search.BestPv ?? throw new InvalidOperationException("The engine returned no primary variation for review.");
-					if (variation.ScoreBound != UciScoreBound.Exact ||
-						!variation.ScoreCp.HasValue && !variation.ScoreMate.HasValue || variation.ScoreMate == 0)
-						throw new InvalidOperationException("Review requires an exact primary-variation score.");
-					if (variation.Moves.IsDefaultOrEmpty ||
-						!string.Equals(variation.Moves[0], search.BestMove, StringComparison.OrdinalIgnoreCase))
-						throw new InvalidOperationException("The engine's best move does not match its primary variation.");
-					// Validate engine output without trusting a protocol-valid coordinate as a legal chess move.
-					LocalPositionRules.ApplyMove(positions[index], search.BestMove);
-					evaluations.Add(new(positions[index], new PositionScore(
-						variation.ScoreMate.HasValue ? null : variation.ScoreCp, variation.ScoreMate),
-						search.BestMove.ToLowerInvariant(), variation, default));
-				}
-				progress?.Report(new(index + 1, positions.Length));
+					throw new ArgumentException("The supplied game continues after an automatic terminal result.", nameof(playedMoves));
+				positions[index + 1] = LocalPositionRules.ApplyAndClassifyMove(positions[index], moves[index],
+					out classifications[index], out legalMoves);
 			}
+
+			var evaluations = await EvaluatePositionsAsync(initialFen, moves, positions, results, progress, ct)
+				.ConfigureAwait(false);
 
 			ct.ThrowIfCancellationRequested();
 			var reviewed = ImmutableArray.CreateBuilder<ReviewedMove>(moves.Length);
@@ -152,7 +144,7 @@ public sealed class UciGameReviewAnalyzer
 				else { blackLoss += loss; blackCount++; }
 			}
 
-			return new(initialFen, _options, _model.Name, evaluations.MoveToImmutable(), reviewed.MoveToImmutable(),
+			return new(initialFen, _options, _model.Name, evaluations, reviewed.MoveToImmutable(),
 				whiteCount == 0 ? null : 100 * (1 - whiteLoss / whiteCount),
 				blackCount == 0 ? null : 100 * (1 - blackLoss / blackCount));
 		}
@@ -160,6 +152,102 @@ public sealed class UciGameReviewAnalyzer
 		{
 			_gate.Release();
 		}
+	}
+
+	private async Task<ImmutableArray<GameReviewEvaluation>> EvaluatePositionsAsync(
+		Fen initialFen,
+		string[] moves,
+		Fen[] positions,
+		PlayableMatchResult[] results,
+		IProgress<GameReviewProgress>? progress,
+		CancellationToken ct)
+	{
+		using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		var evaluations = new GameReviewEvaluation[positions.Length];
+		int searchablePositions = 0;
+		foreach (var result in results)
+			if (!result.IsTerminal) searchablePositions++;
+		int workerCount = Math.Min(Math.Min(_options.MaxParallelPositions, _clients.Length), Math.Max(1, searchablePositions));
+		// Validate all active engines' advertised ranges before any engine is reconfigured.
+		for (var worker = 0; worker < workerCount && searchablePositions > 0; worker++)
+		{
+			ValidateResourceOption(_clients[worker], "Threads", _options.ThreadsPerEngine);
+			ValidateResourceOption(_clients[worker], "Hash", _options.HashMegabytesPerEngine);
+		}
+		var progressSync = new object();
+		int nextIndex = -1, completed = 0;
+		var workers = new Task[workerCount];
+		for (var worker = 0; worker < workers.Length; worker++)
+			workers[worker] = RunWorkerAsync(_clients[worker]);
+		await Task.WhenAll(workers).ConfigureAwait(false);
+		ct.ThrowIfCancellationRequested();
+		return ImmutableArray.CreateRange(evaluations);
+
+		async Task RunWorkerAsync(UciEngineClient client)
+		{
+			var token = cancellation.Token;
+			bool configured = false;
+			try
+			{
+				while (true)
+				{
+					token.ThrowIfCancellationRequested();
+					int index = Interlocked.Increment(ref nextIndex);
+					if (index >= positions.Length) return;
+					if (results[index].IsTerminal)
+					{
+						var score = results[index].IsDraw ? new PositionScore(0, null) : new PositionScore(null, 0);
+						evaluations[index] = new(positions[index], score, string.Empty, null, results[index]);
+					}
+					else
+					{
+						if (!configured)
+						{
+							await ConfigureEngineAsync(client, token).ConfigureAwait(false);
+							configured = true;
+						}
+						evaluations[index] = await EvaluatePositionAsync(client, initialFen, moves, positions[index], index, token)
+							.ConfigureAwait(false);
+					}
+					// A custom progress sink need not be thread-safe. Preserve monotonically increasing counts.
+					lock (progressSync)
+					{
+						token.ThrowIfCancellationRequested();
+						progress?.Report(new(++completed, positions.Length) { PositionIndex = index });
+					}
+				}
+			}
+			catch
+			{
+				cancellation.Cancel();
+				throw;
+			}
+		}
+	}
+
+	private async Task<GameReviewEvaluation> EvaluatePositionAsync(
+		UciEngineClient client, Fen initialFen, string[] moves, Fen position, int index, CancellationToken ct)
+	{
+		await client.SetPositionAsync(initialFen, new ArraySegment<string>(moves, 0, index), ct).ConfigureAwait(false);
+		var search = await client.GoAsync(_options.Search, ct).ConfigureAwait(false);
+		var variation = search.BestPv ?? throw new InvalidOperationException("The engine returned no primary variation for review.");
+		if (variation.ScoreBound != UciScoreBound.Exact ||
+			!variation.ScoreCp.HasValue && !variation.ScoreMate.HasValue || variation.ScoreMate == 0)
+			throw new InvalidOperationException("Review requires an exact primary-variation score.");
+		if (variation.Moves.IsDefaultOrEmpty ||
+			!string.Equals(variation.Moves[0], search.BestMove, StringComparison.OrdinalIgnoreCase))
+			throw new InvalidOperationException("The engine's best move does not match its primary variation.");
+		// Validate engine output without trusting a protocol-valid coordinate as a legal chess move.
+		LocalPositionRules.ApplyMove(position, search.BestMove);
+		return new(position, new PositionScore(variation.ScoreMate.HasValue ? null : variation.ScoreCp, variation.ScoreMate),
+			search.BestMove.ToLowerInvariant(), variation, default);
+	}
+
+	private static void ValidateResourceOption(UciEngineClient client, string name, int requested)
+	{
+		if (client.TryGetOption(name, out var option) &&
+			(option.Min is int min && requested < min || option.Max is int max && requested > max))
+			throw new ArgumentException($"The requested {name} budget is outside an engine's advertised range.", nameof(requested));
 	}
 
 	private static void ValidateInitialPosition(Fen fen)
@@ -218,17 +306,21 @@ public sealed class UciGameReviewAnalyzer
 			throw new ArgumentException("The side that is not moving cannot already be in check. Kings must not be adjacent.", nameof(fen));
 	}
 
-	private async Task ConfigureEngineAsync(CancellationToken ct)
+	private async Task ConfigureEngineAsync(UciEngineClient client, CancellationToken ct)
 	{
-		if (_client.TryGetOption("UCI_LimitStrength", out var strength))
-			await _client.SetOptionAsync(strength.Name, "false", ct).ConfigureAwait(false);
-		if (_client.TryGetOption("Skill Level", out var skill) && skill.Max is int maxSkill)
-			await _client.SetOptionAsync(skill.Name, maxSkill.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
-		if (_client.TryGetOption("MultiPV", out var multiPv))
-			await _client.SetOptionAsync(multiPv.Name, "1", ct).ConfigureAwait(false);
-		if (_client.TryGetOption("UCI_ShowWDL", out var wdl))
-			await _client.SetOptionAsync(wdl.Name, "true", ct).ConfigureAwait(false);
-		await _client.UciNewGameAsync(ct).ConfigureAwait(false);
+		if (client.TryGetOption("UCI_LimitStrength", out var strength))
+			await client.SetOptionAsync(strength.Name, "false", ct).ConfigureAwait(false);
+		if (client.TryGetOption("Skill Level", out var skill) && skill.Max is int maxSkill)
+			await client.SetOptionAsync(skill.Name, maxSkill.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
+		if (client.TryGetOption("MultiPV", out var multiPv))
+			await client.SetOptionAsync(multiPv.Name, "1", ct).ConfigureAwait(false);
+		if (client.TryGetOption("UCI_ShowWDL", out var wdl))
+			await client.SetOptionAsync(wdl.Name, "true", ct).ConfigureAwait(false);
+		if (client.TryGetOption("Threads", out var threads))
+			await client.SetOptionAsync(threads.Name, _options.ThreadsPerEngine.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
+		if (client.TryGetOption("Hash", out var hash))
+			await client.SetOptionAsync(hash.Name, _options.HashMegabytesPerEngine.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
+		await client.UciNewGameAsync(ct).ConfigureAwait(false);
 	}
 
 	private double GetExpectedPoints(GameReviewEvaluation evaluation, char side, int? rating)
