@@ -1,0 +1,36 @@
+# Contributing
+
+## Build contracts
+
+Install the .NET SDK selected by `global.json` and PowerShell 7. Keep `LangVersion=latest`; do not require Unity to compile framework source. Every runtime change must compile for `net10.0` and `netstandard2.1`. The ECS source generator targets `netstandard2.0` for analyzer-host compatibility.
+
+Run the release build and tests from the root. When a compatible Stockfish executable is not the bundled Windows binary, set `BEZORO_STOCKFISH_PATH` to its absolute path. Do not remove or silently skip engine integration coverage to get a green build.
+
+```sh
+dotnet restore bezoro.framework.sln
+dotnet build bezoro.framework.sln -c Release --no-restore
+dotnet test bezoro.framework.sln -c Release --no-build
+pwsh -NoProfile -File scripts/Export-PublicApi.ps1 -Check
+```
+
+For a public-type addition, review the change and regenerate the inventory with `scripts/Export-PublicApi.ps1`. This inventory checks type declarations, not full member-level binary compatibility. Review signatures, enum numeric values, constructors, and behavioral compatibility separately.
+
+## Code changes
+
+Keep engine dependencies outside deterministic rules and general-purpose modules. Local chess must work without a UCI client. Explicit analysis may await a client; applying a manual move must not wait for engine search. Keep snapshots immutable and document who owns mutable state and disposable resources.
+
+Prefer clear control flow and small methods with a specific responsibility. Validate public inputs before mutating shared state or writing native memory. Make disposal idempotent where promised, release pooled/native storage on exceptional exits, and test failures as well as successful calls. Do not change a failing test to preserve an implementation bug.
+
+Use regression tests for observed defects. Add boundary, cancellation, and lifecycle cases when they exercise a meaningful contract. Use perft reference positions when changing chess generation. Measure hot paths with release builds and allocation diagnostics before introducing caches, unsafe code, or more complex representations. Report runtime, hardware, workload, and measurement limits with performance results. Avoid unlimited caches or background work that consumers did not request.
+
+Worlds and protocol match mutations have an owning thread. Separate independent-world concurrency from concurrent mutation of the same world. UI callbacks must use the configured dispatcher; background work must not depend on a blocked UI event queue to finish.
+
+Update module documentation, examples, and change notes with code. Keep historical design documents historical; current READMEs describe current behavior. Clearly identify known platform limits and application-provided policies.
+
+## Commits and versions
+
+Use Conventional Commits, for example `fix(chess): reject moves after resignation`, `perf(core): avoid redundant allocations`, or `docs(ecs): explain snapshot ownership`. Use `!` and a `BREAKING CHANGE:` footer for incompatible API or behavior changes. Keep separate concerns in reviewable commits.
+
+Package versions come from SemVer Git tags through `scripts/Get-PackageVersion.ps1`. Do not hand-edit release versions in generated UPM output. `BEZORO_PACKAGE_VERSION` and `-PackageVersion` are explicit local overrides. Stable release tags use `vMAJOR.MINOR.PATCH`. During the 0.x development series, release breaking changes on a new minor version and document migration steps. No release tag is implied by a development branch or an unreleased change note.
+
+The source branch owns the build scripts and template. The CI publishes generated DLLs to `upm` after validation; do not maintain a second hand-edited copy of the framework there.
