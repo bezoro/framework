@@ -22,7 +22,7 @@ internal static class UciHelper
 	/// <param name="fen">The FEN string to validate.</param>
 	/// <returns>True if the FEN string is valid, otherwise false.</returns>
 	public static bool IsValidFen(string fen) =>
-		!string.IsNullOrWhiteSpace(fen) && UciConstants.Regex.FenRegex.IsMatch(fen);
+		Fen.Validate(fen);
 
 	/// <summary>
 	///     Validates if a string is a well-formed UCI move.

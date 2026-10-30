@@ -14,7 +14,7 @@ ECS-native health simulation with deferred mutation requests and event queue int
 | `HealthEventsResource`  | Pull-based world event queue for health mutation events.                    |
 | `HealthWorldExtensions` | Queue helpers for damage/heal variants and max-health updates.               |
 
-## Quick Start
+## Quick start
 
 ```csharp
 using Bezoro.ECS.Services;
@@ -22,7 +22,7 @@ using Bezoro.GameSystems.HealthSystem.Extensions;
 using Bezoro.GameSystems.HealthSystem.Services;
 using Bezoro.GameSystems.HealthSystem.Types;
 
-var world = new World();
+using var world = new World();
 var healthSystem = new HealthSystem();
 world.AddSystem(healthSystem);
 
@@ -36,14 +36,14 @@ world.Tick(0f);
 var health = world.Read<Health>(entity);
 Console.WriteLine($"{health.Current}/{health.Max} + {health.ExcessCurrent} excess");
 
-ref readonly var events = ref world.ReadResource<HealthEventsResource>();
+ref var events = ref world.WriteResource<HealthEventsResource>();
 while (events.TryDequeue(out var evt))
 {
     Console.WriteLine($"{evt.Kind}: dCurrent={evt.DeltaCurrent}, dExcess={evt.DeltaExcess}");
 }
 ```
 
-## API Reference
+## API reference
 
 ### Health
 
@@ -75,10 +75,20 @@ while (events.TryDequeue(out var evt))
 | `QueueHealthIncreaseHealth(World, Entity, uint)`             | Queues heal with overflow to excess.|
 | `QueueSetHealthMax(World, Entity, uint, MaxValueUpdateMode)` | Queues a max-health change request. |
 
-## Design Notes
+## Runtime notes
 
-- Mutations are deferred via request entities so gameplay code can enqueue operations safely.
-- `HealthSystem` consumes requests in queue order and despawns request entities after processing.
+- Helpers create request entities immediately and defer the health mutation until the system update. Call them on the world thread; they are not thread-safe producer queues.
+- `HealthSystem` consumes request entities in ECS query traversal order and despawns them after processing. Do not rely on a general FIFO guarantee across archetype changes or entity-storage reuse.
 - Damage supports both excess-first (`Damage`) and base-only (`DirectDamage`).
 - Healing supports both base-only (`Heal`) and overflow-to-excess (`IncreaseHealth`).
 - Events are emitted both through `HealthSystem.Changed` and `HealthEventsResource`.
+
+## Ownership and integration
+
+Health fields are mutable. The constructor clamps initial pools, and mutation helpers apply their documented clamping and saturation rules. Callers writing fields directly must preserve their own invariants. Callbacks run synchronously on the world thread. The event invocation catches exceptions, but a throwing subscriber can stop later subscribers in that invocation; queued event consumption is independent.
+
+This subsystem shares the [module targets and engine integration](../README.md). Run its .NET 10 tests with:
+
+```bash
+dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Release -f net10.0 --filter "FullyQualifiedName~HealthSystem"
+```

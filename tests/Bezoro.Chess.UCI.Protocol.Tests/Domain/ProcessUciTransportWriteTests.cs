@@ -1,10 +1,10 @@
 using System.Text;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
 using Xunit.Abstractions;
 using static Bezoro.Chess.UCI.Protocol.Tests.TestHelpers.TestDataBuilders;
+using static Bezoro.Chess.UCI.Protocol.Tests.Domain.ProcessUciTransportTestHelpers;
 
 namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 
@@ -14,6 +14,19 @@ namespace Bezoro.Chess.UCI.Protocol.Tests.Domain;
 public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutputHelper output)
 	: IntegrationTestBase(fixture, output)
 {
+	[Fact]
+	public async Task TryWriteLineAsync_WhenAlreadyCanceledAndChannelReady_ShouldNotEnqueueCommand()
+	{
+		await using var transport = ProcessUciTransportBuilder.ForBackpressureTest().Build();
+		await transport.StartAsync();
+		using var cancellation = new CancellationTokenSource();
+		cancellation.Cancel();
+		await FluentActions.Awaiting(() => transport.TryWriteLineAsync("uci", TimeSpan.Zero, cancellation.Token))
+			.Should().ThrowAsync<OperationCanceledException>();
+		// The canceled write must leave the one-slot queue empty.
+		(await transport.TryWriteLineAsync("isready", TimeSpan.Zero)).Should().BeTrue();
+	}
+
 	[Fact]
 	public async Task TryWriteLineAsync_WhenCanceledDuringWait_ShouldThrowOperationCanceledException()
 	{
@@ -173,8 +186,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	public async Task TryWriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException()
 	{
 		Log("Starting test: TryWriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException");
-		await using var transport = Transport()
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -332,8 +344,7 @@ public class ProcessUciTransportWriteTests(StockfishFixture fixture, ITestOutput
 	public async Task WriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException()
 	{
 		Log("Starting test: WriteLineAsync_WhenProcessHasExited_ShouldThrowInvalidOperationException");
-		await using var transport = Transport()
-									.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		await using var transport = ExitingProcess()
 									.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);

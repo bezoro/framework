@@ -15,12 +15,14 @@ public sealed class InputCommandQueue : IInputCommandSink
 	private readonly ConcurrentQueue<InputCommand>      _pendingCommands = new();
 	private readonly Dictionary<int, BufferedInputState> _latestByControl = [];
 
-	private float _simulationTimeSeconds;
+	private double _simulationTimeSeconds;
 
 	/// <summary>
 	///     Gets the simulation time accumulated by ingestion updates.
 	/// </summary>
-	public float SimulationTimeSeconds => _simulationTimeSeconds;
+	public float SimulationTimeSeconds => (float)_simulationTimeSeconds;
+
+	internal double SimulationTimestampSeconds => _simulationTimeSeconds;
 
 	/// <inheritdoc />
 	public void Enqueue(in InputCommand command) => _pendingCommands.Enqueue(command);
@@ -38,7 +40,7 @@ public sealed class InputCommandQueue : IInputCommandSink
 
 	internal void AdvanceTime(float deltaTimeSeconds)
 	{
-		if (deltaTimeSeconds <= 0f) return;
+		if (deltaTimeSeconds <= 0f || float.IsNaN(deltaTimeSeconds) || float.IsInfinity(deltaTimeSeconds)) return;
 		_simulationTimeSeconds += deltaTimeSeconds;
 	}
 

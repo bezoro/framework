@@ -1,5 +1,4 @@
 using System.Text;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -165,24 +164,14 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	public async Task ReadLoop_WhenChannelFull_ShouldIncrementBackpressureEvents()
 	{
 		Log("Starting test: ReadLoop_WhenChannelFull_ShouldIncrementBackpressureEvents");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO,
-										"L1",
-										ProcessArgs.CHAIN,
-										ProcessArgs.ECHO,
-										"L2"
-									)
+		await using var transport = OutputProcess("L1", "L2")
 									.WithChannelCapacity(1)
 									.Build();
 
 		await transport.StartAsync();
 
-		await Task.Delay(TestConstants.LongerDelay);
+		(await AsyncTestHelpers.WaitForConditionAsync(() => transport.BackpressureEvents > 0)).Should().BeTrue();
 
 		await transport.StopAsync();
 
@@ -193,32 +182,17 @@ public class ProcessUciTransportReadTests(StockfishFixture fixture, ITestOutputH
 	public async Task ReadLoop_WhenEmptyLines_ShouldSkipEmptyLinesAndEmitNonEmpty()
 	{
 		Log("Starting test: ReadLoop_WhenEmptyLines_ShouldSkipEmptyLinesAndEmitNonEmpty");
-		string cmdPath = TryResolveCmdPath();
 
-		await using var transport = Transport()
-									.WithPath(cmdPath)
-									.WithArguments(
-										ProcessArgs.CMD_EXECUTE,
-										ProcessArgs.ECHO_EMPTY,
-										ProcessArgs.CHAIN,
-										ProcessArgs.ECHO,
-										"marker"
-									)
+		await using var transport = OutputProcess("", "marker")
 									.Build();
 
 		await transport.StartAsync();
 
-		string?   received = null;
-		using var cts      = new CancellationTokenSource(TestConstants.DefaultTimeout);
+		var received = new List<string>();
+		using var cts = new CancellationTokenSource(TestConstants.DefaultTimeout);
 		await foreach (string line in transport.ReadLinesAsync(cts.Token))
-		{
-			if (string.IsNullOrWhiteSpace(line)) continue;
+			received.Add(line);
 
-			received = line;
-			break;
-		}
-
-		received.Should().NotBeNull();
-		received!.Trim().Should().Be("marker");
+		received.Should().Equal(["marker"]);
 	}
 }

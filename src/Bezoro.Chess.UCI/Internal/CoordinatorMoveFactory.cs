@@ -58,7 +58,7 @@ internal static class CoordinatorMoveFactory
 
 		try
 		{
-			var analysis = MoveAnalysis.Analyze(moveNotation, boardState.Value, MoveScore.FromCp(0), false);
+			var analysis = MoveAnalysis.Analyze(moveNotation, boardState.Value, default, false);
 			move = new(moveNotation, analysis);
 			return true;
 		}

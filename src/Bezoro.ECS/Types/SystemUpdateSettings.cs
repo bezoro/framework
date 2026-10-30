@@ -11,11 +11,11 @@ public readonly struct SystemUpdateSettings
 	///     Initializes a new instance of the <see cref="SystemUpdateSettings" /> struct.
 	/// </summary>
 	/// <param name="intervalSeconds">The minimum interval, in seconds, between updates. Use 0 for every update.</param>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="intervalSeconds" /> is negative.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="intervalSeconds" /> is negative or non-finite.</exception>
 	public SystemUpdateSettings(float intervalSeconds)
 	{
-		if (intervalSeconds < 0f)
-			throw new ArgumentOutOfRangeException(nameof(intervalSeconds), "Interval must be non-negative.");
+		if (float.IsNaN(intervalSeconds) || float.IsInfinity(intervalSeconds) || intervalSeconds < 0f)
+			throw new ArgumentOutOfRangeException(nameof(intervalSeconds), "Interval must be finite and non-negative.");
 
 		IntervalSeconds = intervalSeconds;
 	}

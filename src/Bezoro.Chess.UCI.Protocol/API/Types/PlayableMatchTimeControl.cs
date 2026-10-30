@@ -69,7 +69,16 @@ public readonly record struct PlayableMatchTimeControl
 		if (DelayPerMove < TimeSpan.Zero)
 			throw new ArgumentOutOfRangeException(nameof(DelayPerMove), "Delay per move must be greater than or equal to zero.");
 
+		if (TimeoutPolicy is not (PlayableMatchTimeoutPolicy.AutomaticLoss or PlayableMatchTimeoutPolicy.Ignore))
+			throw new ArgumentOutOfRangeException(nameof(TimeoutPolicy));
+
+		int previousTrigger = 0;
 		foreach (var stage in AdditionalStages)
+		{
 			stage.Validate();
+			if (stage.TriggerMovesPerSide <= previousTrigger)
+				throw new ArgumentException("Additional stages must have strictly increasing move triggers.", nameof(AdditionalStages));
+			previousTrigger = stage.TriggerMovesPerSide;
+		}
 	}
 }

@@ -30,7 +30,11 @@ public sealed class UciPonderRuntimeTests
 				 }
 			 );
 		transport.When(static value => value.WriteLineAsync("stop", Arg.Any<CancellationToken>()))
-				 .Do(_ => stopWritten.TrySetResult());
+				 .Do(_ =>
+				 {
+					 stopWritten.TrySetResult();
+					 channel.Writer.TryWrite("bestmove e2e4");
+				 });
 		transport.When(static value => value.WriteLineAsync("isready", Arg.Any<CancellationToken>()))
 				 .Do(async _ => await channel.Writer.WriteAsync("readyok"));
 

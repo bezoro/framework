@@ -5,6 +5,25 @@ namespace Bezoro.Logging.Tests;
 
 public sealed class LoggerFilteringTests
 {
+	[Theory]
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	public void FilteredLog_DoesNotFormatOrEnumerateTheMessage(int filter)
+	{
+		using var settings = new LoggerSettingsScope();
+		if (filter == 0) LoggerSettings.Enabled = false;
+		if (filter == 1) Logger.MinimumLevel = LogLevel.Error;
+		if (filter == 2) LoggerSettings.MutedCategories.Add(LogCategory.Test);
+
+		Capture(() => Logger.Log(new UnformattableMessage(), category: LogCategory.Test)).Should().BeEmpty();
+	}
+
+	private sealed class UnformattableMessage
+	{
+		public override string ToString() => throw new InvalidOperationException("Filtered messages must not be formatted.");
+	}
+
 	[Fact]
 	public void Log_WhenLoggingIsDisabled_ShouldNotDispatch()
 	{

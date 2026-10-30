@@ -22,6 +22,8 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	private readonly IUciTransport _transport;
 	private readonly object                 _lifecycleLock = new();
+	private readonly SemaphoreSlim          _lifecycleGate = new(1, 1);
+	private bool _disposed;
 	private readonly object                 _metadataLock  = new();
 	private readonly UciEngineCommandModule _commandModule;
 
@@ -116,7 +118,10 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 		UciClientOptions?    options = null)
 		: this(new ProcessUciTransport(enginePath, args, workingDirectory), options) { }
 
-	internal UciEngineClient(IUciTransport transport, UciClientOptions? options = null)
+	/// <summary>Creates a client over an application-provided transport, such as a native bridge or remote engine.</summary>
+	/// <param name="transport">Transport whose lifecycle is owned and disposed by this client.</param>
+	/// <param name="options">Optional handshake, readiness, and search policy.</param>
+	public UciEngineClient(IUciTransport transport, UciClientOptions? options = null)
 	{
 		_transport                = transport ?? throw new ArgumentNullException(nameof(transport));
 		_transport.Error         += OnTransportError;
@@ -312,7 +317,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Use for fire-and-forget searches (e.g., GUI spinning).
 	/// </summary>
 	public Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct) =>
-		_commandModule.GoFireAndForgetAsync(parameters, ct);
+		_searchCoordinator.ExecuteFireAndForgetAsync(parameters, ct);
 
 	/// <summary>
 	///     Sends "isready" to the engine and waits up to 10 seconds for "readyok".
@@ -352,12 +357,24 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public async Task StartAsync(CancellationToken ct = default)
 	{
+		await _lifecycleGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			if (_disposed) throw new ObjectDisposedException(nameof(UciEngineClient));
+			await StartCoreAsync(ct).ConfigureAwait(false);
+		}
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async Task StartCoreAsync(CancellationToken ct)
+	{
 		lock (_lifecycleLock)
 		{
 			if (_cts is { })
 				throw new InvalidOperationException("Engine client is already started.");
 
-			_cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			ct.ThrowIfCancellationRequested();
+			_cts = new CancellationTokenSource();
 		}
 
 		try
@@ -379,7 +396,7 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 			{
 				try
 				{
-					await StopAsync(CancellationToken.None).ConfigureAwait(false);
+					await StopCoreAsync(CancellationToken.None).ConfigureAwait(false);
 				}
 				catch
 				{
@@ -406,6 +423,13 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	///     Gracefully stops the engine, read loop, and disposes transports.
 	/// </summary>
 	public async Task StopAsync(CancellationToken ct = default)
+	{
+		await _lifecycleGate.WaitAsync(ct).ConfigureAwait(false);
+		try { await StopCoreAsync(ct).ConfigureAwait(false); }
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async Task StopCoreAsync(CancellationToken ct)
 	{
 		CancellationTokenSource? ctsToCancel       = null;
 		Task?                    readerTaskToAwait = null;
@@ -443,9 +467,9 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	}
 
 	/// <summary>
-	///     Sends the "stop" command to the engine and immediately transitions to Idle.
+	///     Sends the "stop" command and waits for bestmove before allowing another search.
 	/// </summary>
-	public Task StopSearchAsync(CancellationToken ct) => _commandModule.StopSearchAsync(ct);
+	public Task StopSearchAsync(CancellationToken ct) => _searchCoordinator.StopSearchAsync(ct);
 
 	/// <summary>
 	///     Sends "uci" to the engine and waits for "uciok" and "readyok" to confirm supported handshaking.
@@ -489,12 +513,24 @@ public sealed class UciEngineClient : IAsyncDisposable, IUciLineSource
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
+		await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+		try
+		{
+			if (_disposed) return;
+			_disposed = true;
+			await DisposeCoreAsync().ConfigureAwait(false);
+		}
+		finally { _lifecycleGate.Release(); }
+	}
+
+	private async ValueTask DisposeCoreAsync()
+	{
 		_transport.Error -= OnTransportError;
 		_transport.StderrReceived -= OnTransportStderr;
 
 		try
 		{
-			await StopAsync(CancellationToken.None).ConfigureAwait(false);
+			await StopCoreAsync(CancellationToken.None).ConfigureAwait(false);
 		}
 		catch
 		{

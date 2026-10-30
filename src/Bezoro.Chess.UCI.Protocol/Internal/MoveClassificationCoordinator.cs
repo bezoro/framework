@@ -158,7 +158,7 @@ internal sealed class MoveClassificationCoordinator : IDisposable
 
 	private static async Task<T> WaitWithCancellationAsync<T>(Task<T> task, CancellationToken ct)
 	{
-#if NET9_0
+#if NET9_0_OR_GREATER
 		return await task.WaitAsync(ct).ConfigureAwait(false);
 #else
 		if (!ct.CanBeCanceled)

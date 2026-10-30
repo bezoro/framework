@@ -1,314 +1,137 @@
-# Events
+# Bezoro.Events
 
-A type-safe event bus with priority-ordered handlers, cancellable propagation, and dual dispatch modes (synchronous inline + queued).
+A typed event bus with priority ordering, cancellable propagation, synchronous publication, and queued dispatch. Targets .NET 10 and .NET Standard 2.1. Unity 6 can consume the precompiled .NET Standard assembly; the library has no dependency on Unity or Godot.
 
-## Types
-
-| Type                    | Description                                                        |
-|-------------------------|--------------------------------------------------------------------|
-| `IEventBus`             | Core event bus contract (subscribe, publish, enqueue, flush)       |
-| `IBoundedEventBus`      | Optional event bus contract with a queued dispatch budget          |
-| `EventBus`              | Thread-safe sealed implementation                                  |
-| `EventContext<TEvent>`  | Context passed to handlers, carries `Data` and `Handled` flag      |
-| `SubscriptionHandle`    | Lightweight value-type handle identifying a subscription           |
-
-## Quick Start
+## Publish and subscribe
 
 ```csharp
 using Bezoro.Events.Services;
-using Bezoro.Events.Types;
-
-// Define events as readonly record structs
-public readonly record struct EnemyDiedEvent(int EnemyId, int ExperienceValue);
-public readonly record struct GiveExperienceEvent(int Amount);
-public readonly record struct LevelUpEvent(int NewLevel);
 
 using var bus = new EventBus();
+var received = 0;
+var handle = bus.Subscribe<DamageEvent>(context => received += context.Data.Amount);
 
-// Subscribe with priority (higher runs first)
-bus.Subscribe<EnemyDiedEvent>(ctx =>
-    bus.Publish(new GiveExperienceEvent(ctx.Data.ExperienceValue)));
+bus.Publish(new DamageEvent(25));
+bus.Unsubscribe(handle);
 
-bus.Subscribe<GiveExperienceEvent>(ctx =>
+public readonly struct DamageEvent
 {
-    player.Exp += ctx.Data.Amount;
-    if (player.Exp >= player.ExpToNextLevel)
-        bus.Publish(new LevelUpEvent(player.Level + 1));
-});
-
-bus.Subscribe<LevelUpEvent>(ctx => player.Level = ctx.Data.NewLevel);
-
-// Publish inline (handlers execute synchronously, chaining works)
-bus.Publish(new EnemyDiedEvent(42, 150));
+    public DamageEvent(int amount) { Amount = amount; }
+    public int Amount { get; }
+}
 ```
 
-## API Reference
-
-### IEventBus
-
-| Member                                                          | Description                                          |
-|-----------------------------------------------------------------|------------------------------------------------------|
-| `Subscribe<TEvent>(Action<EventContext<TEvent>>, int priority)` | Subscribe a handler; returns `SubscriptionHandle`    |
-| `Unsubscribe(SubscriptionHandle)`                               | Remove a subscription; returns `true` if found       |
-| `Publish<TEvent>(TEvent)`                                       | Dispatch event inline to all handlers                |
-| `Enqueue<TEvent>(TEvent)`                                       | Queue event for deferred dispatch                    |
-| `FlushQueued()`                                                 | Dispatch all queued events; returns count dispatched |
-| `int QueuedCount`                                               | Number of events currently in the queue              |
-| `int SubscriptionCount`                                         | Total active subscriptions across all event types    |
-
-### IBoundedEventBus : IEventBus
-
-| Member                       | Description                                        |
-|------------------------------|----------------------------------------------------|
-| `FlushQueued(int maxEvents)` | Dequeue at most the budget; returns count dequeued |
-
-`EventBus` implements both contracts. Choose `IEventBus` for the original operations, or `IBoundedEventBus` when the caller requires an explicit budget.
-
-### EventContext\<TEvent\>
-
-| Member         | Description                                           |
-|----------------|-------------------------------------------------------|
-| `TEvent Data`  | The event data                                        |
-| `bool Handled` | Set to `true` to stop further handlers from executing |
-
-### SubscriptionHandle
-
-| Member              | Description                                 |
-|---------------------|---------------------------------------------|
-| `int Id`            | Unique subscription identifier              |
-| `bool IsValid`      | `true` when `Id > 0`                        |
-| `static None`       | Represents an invalid/uninitialized handle  |
-
-## Priority & Cancellation
+Events must be structs. Higher-priority handlers run first; equal priorities preserve subscription order. Set `context.Handled = true` to stop propagation through the remaining handlers of that publication:
 
 ```csharp
-// Higher priority runs first
-bus.Subscribe<DamageEvent>(ctx =>
+bus.Subscribe<DamageEvent>(context =>
 {
-    // Shield absorbs damage, stop propagation
-    ctx.Handled = true;
+    if (shieldIsActive)
+        context.Handled = true;
 }, priority: 100);
-
-bus.Subscribe<DamageEvent>(ctx =>
-{
-    // This won't run if the shield handler set Handled = true
-    health.Current -= ctx.Data.Amount;
-}, priority: 0);
 ```
 
-## Queued Dispatch
+`Publish` invokes handlers synchronously on the calling thread and returns the resulting `EventContext<TEvent>`. Nested publications run immediately. Each handler exception is caught so later handlers can continue, unless the context has been marked handled. The bus does not expose a handler-error event; applications that need error reporting should catch and report within their handlers.
+
+## Queue work for a game loop
 
 ```csharp
 using Bezoro.Events.Abstractions;
 using Bezoro.Events.Services;
 
-using IEventBus bus = new EventBus();
+using IBoundedEventBus bus = new EventBus();
 
-// Enqueue events during gameplay
+// A producer thread can enqueue this immutable value.
 bus.Enqueue(new DamageEvent(25));
-bus.Enqueue(new HealEvent(10));
 
-// Flush at a controlled point in the game loop
-int dispatched = bus.FlushQueued(); // returns 2
+// Call from the engine's main thread to invoke handlers there.
+int dequeued = bus.FlushQueued(maxEvents: 100);
 ```
 
-For a dispatch budget, depend explicitly on `IBoundedEventBus`:
+`Enqueue` stores an event without invoking handlers. The thread that calls `FlushQueued` executes those handlers. Use one consumer to preserve handler execution order. Concurrent flushes can execute callbacks in parallel even though the queue itself is thread-safe.
+
+`FlushQueued(maxEvents)` returns its own dequeue count, including events with no handlers or failed dispatch. It stops at the budget or an observed empty queue. Callbacks may enqueue more events that consume the remaining budget. Nested flushes have independent budgets and counts, so the budget does not bound elapsed time or all callback work.
+
+Zero leaves a live queue unchanged; negative budgets throw `ArgumentOutOfRangeException` for `maxEvents`. Parameterless `FlushQueued()` drains until it observes an empty queue, including events enqueued by callbacks. Continuous producers or self-enqueueing callbacks can keep that call running. The queue has no capacity limit or backpressure; a flush budget limits consumption, not retained memory.
+
+## Ownership and concurrency
+
+- Subscriptions use snapshots. A handler can subscribe, unsubscribe, or publish during dispatch without corrupting iteration. A removed handler can still run in an already captured snapshot.
+- Handles created by `EventBus` have identifiers unique across its instances in the running process. Passing one bus's handle to another returns `false` without removing its subscription. The public handle constructor is not an ownership or security boundary.
+- `Dispose()` clears queued events and subscriptions. Registration and enqueue operations synchronize with disposal, preventing those operations from retaining new work afterward. Operations on a disposed bus throw `ObjectDisposedException`; disposal itself is idempotent.
+- Disposal does not join running publications or cancel callbacks already captured in snapshots. Stop publishers and consumers before disposing engine-owned objects used by handlers.
+- Bus bookkeeping is thread-safe. Handler state, event reference fields, and `EventContext` access outside its dispatch are the caller's responsibility.
+- Publication allocates an `EventContext`, rents a handler-snapshot array when handlers exist, and returns that array after dispatch. Enqueue creates deferred dispatch state. This is not a zero-allocation event system.
+
+## Unity 6 example
+
+This component owns its bus, subscribes during `Awake`, and flushes on the main thread. The event uses ordinary struct syntax supported by Unity's project compiler:
 
 ```csharp
-using IBoundedEventBus boundedBus = new EventBus();
-boundedBus.Enqueue(new DamageEvent(25));
-int dequeued = boundedBus.FlushQueued(100);
-```
-
-`FlushQueued(maxEvents)` stops at the budget or an observed empty queue and returns its direct dequeue count, including events without handlers or with failed dispatch. Callbacks can enqueue events that consume the remaining budget. Sequential calls preserve FIFO order; concurrent and nested flushes retain the existing dispatch behavior. Nested calls have independent budgets and counts, so the budget does not bound elapsed time or all callback work.
-
-On a live bus, zero leaves the queue unchanged and returns zero; a negative budget throws `ArgumentOutOfRangeException` with parameter name `maxEvents` before dequeuing. A disposed bus throws `ObjectDisposedException` for every budget. Parameterless `FlushQueued()` still drains until it observes an empty queue, including callback-enqueued events.
-
-`IEventBus` retains its original members, so existing implementations can continue implementing that contract. Budgeted consumers require `IBoundedEventBus`; there is no automatic fallback to an unlimited flush.
-
-## Unity Example — Enemy Kill Chain
-
-A full example showing how decoupled systems communicate through event chaining in a Unity game. Killing an enemy triggers experience gain, which may trigger a level-up — each system only knows about its own event.
-
-### Events
-
-```csharp
-// Events.cs
-public readonly record struct EnemyKilledEvent(int EnemyId, int ExperienceReward);
-public readonly record struct ExperienceGainedEvent(int Amount, int NewTotal);
-public readonly record struct LevelUpEvent(int OldLevel, int NewLevel);
-```
-
-### Game Manager (wires up the bus)
-
-```csharp
-// GameManager.cs
-using Bezoro.Events.Abstractions;
 using Bezoro.Events.Services;
-using UnityEngine;
-
-public class GameManager : MonoBehaviour
-{
-    public static IEventBus Bus { get; private set; }
-
-    void Awake() => Bus = new EventBus();
-    void OnDestroy() => Bus?.Dispose();
-}
-```
-
-### Combat System (publishes kills)
-
-```csharp
-// CombatSystem.cs
-using UnityEngine;
-
-public class CombatSystem : MonoBehaviour
-{
-    public void OnEnemyDefeated(int enemyId, int expReward)
-    {
-        GameManager.Bus.Publish(new EnemyKilledEvent(enemyId, expReward));
-    }
-}
-```
-
-### Experience System (listens for kills, publishes experience + level-ups)
-
-```csharp
-// ExperienceSystem.cs
 using Bezoro.Events.Types;
 using UnityEngine;
 
-public class ExperienceSystem : MonoBehaviour
+public sealed class DamageEventLoop : MonoBehaviour
 {
-    [SerializeField] int currentExp;
-    [SerializeField] int level = 1;
-    [SerializeField] int expPerLevel = 100;
+    private EventBus _bus;
+    private SubscriptionHandle _handle;
 
-    SubscriptionHandle _handle;
-
-    void OnEnable()
+    private void Awake()
     {
-        _handle = GameManager.Bus.Subscribe<EnemyKilledEvent>(OnEnemyKilled);
+        _bus = new EventBus();
+        _handle = _bus.Subscribe<DamageEvent>(OnDamage);
     }
 
-    void OnDisable()
+    // Stop external producers before destroying this component.
+    public void QueueDamage(int amount) => _bus.Enqueue(new DamageEvent(amount));
+
+    private void Update() => _bus.FlushQueued(100);
+
+    private void OnDamage(EventContext<DamageEvent> context)
     {
-        GameManager.Bus.Unsubscribe(_handle);
+        Debug.Log($"Damage received: {context.Data.Amount}");
     }
 
-    void OnEnemyKilled(EventContext<EnemyKilledEvent> ctx)
+    private void OnDestroy()
     {
-        currentExp += ctx.Data.ExperienceReward;
-
-        GameManager.Bus.Publish(new ExperienceGainedEvent(
-            ctx.Data.ExperienceReward, currentExp));
-
-        while (currentExp >= expPerLevel)
-        {
-            currentExp -= expPerLevel;
-            var oldLevel = level;
-            level++;
-
-            // Chains inline — UI and VFX handlers fire immediately
-            GameManager.Bus.Publish(new LevelUpEvent(oldLevel, level));
-        }
+        if (_bus == null) return;
+        _bus.Unsubscribe(_handle);
+        _bus.Dispose();
     }
+}
+
+public readonly struct DamageEvent
+{
+    public DamageEvent(int amount) { Amount = amount; }
+    public int Amount { get; }
 }
 ```
 
-### UI System (listens for experience and level-ups)
+The same pattern applies to Godot: enqueue from producers and flush in `_Process` or `_PhysicsProcess`. Neither engine's scene APIs should be called from a producer's inline `Publish` unless that producer already runs on the scene thread.
 
-```csharp
-// UISystem.cs
-using Bezoro.Events.Types;
-using UnityEngine;
-using UnityEngine.UI;
+`UnityEventBuses` groups independent `Update`, `FixedUpdate`, and `LateUpdate` buses. Its convenience flush methods are unlimited. For budgets, use a bounded bus directly or explicitly cast a supplied phase bus to `IBoundedEventBus` after checking its implementation. `ownsBuses: false` leaves disposal to the owner that supplied those buses.
 
-public class UISystem : MonoBehaviour
-{
-    [SerializeField] Text expLabel;
-    [SerializeField] Text levelLabel;
-    [SerializeField] GameObject levelUpBanner;
+## API reference
 
-    SubscriptionHandle _expHandle;
-    SubscriptionHandle _levelHandle;
+| API | Purpose |
+| --- | --- |
+| `IEventBus` | Subscribe, unsubscribe, publish, enqueue, unlimited flush, and counts. |
+| `IBoundedEventBus` | Extends `IEventBus` with `FlushQueued(int maxEvents)`. |
+| `EventBus` | Sealed implementation of both contracts. |
+| `EventContext<TEvent>` | Publication data and its `Handled` propagation flag. |
+| `SubscriptionHandle` | Subscription identifier; `None` is invalid and `IsValid` means `Id > 0`. |
+| `IUnityEventBuses`, `UnityEventBuses` | Independent buses for three game-loop phases. |
 
-    void OnEnable()
-    {
-        _expHandle   = GameManager.Bus.Subscribe<ExperienceGainedEvent>(OnExpGained);
-        _levelHandle = GameManager.Bus.Subscribe<LevelUpEvent>(OnLevelUp);
-    }
+Existing custom `IEventBus` implementations do not automatically support bounded flushing. Consumers requiring a budget should depend on `IBoundedEventBus`.
 
-    void OnDisable()
-    {
-        GameManager.Bus.Unsubscribe(_expHandle);
-        GameManager.Bus.Unsubscribe(_levelHandle);
-    }
+## Build and validation
 
-    void OnExpGained(EventContext<ExperienceGainedEvent> ctx)
-    {
-        expLabel.text = $"EXP: {ctx.Data.NewTotal}";
-    }
+Use the SDK selected by [global.json](../../global.json):
 
-    void OnLevelUp(EventContext<LevelUpEvent> ctx)
-    {
-        levelLabel.text = $"Level {ctx.Data.NewLevel}";
-        levelUpBanner.SetActive(true);
-    }
-}
+```bash
+dotnet build src/Bezoro.Events/Bezoro.Events.csproj -c Release
+dotnet test tests/Bezoro.Events.Tests/Bezoro.Events.Tests.csproj -c Release -f net10.0
 ```
 
-### VFX System (level-up particles with priority)
-
-```csharp
-// VFXSystem.cs
-using Bezoro.Events.Types;
-using UnityEngine;
-
-public class VFXSystem : MonoBehaviour
-{
-    [SerializeField] ParticleSystem levelUpParticles;
-
-    SubscriptionHandle _handle;
-
-    void OnEnable()
-    {
-        // High priority — VFX fires before UI updates
-        _handle = GameManager.Bus.Subscribe<LevelUpEvent>(OnLevelUp, priority: 10);
-    }
-
-    void OnDisable()
-    {
-        GameManager.Bus.Unsubscribe(_handle);
-    }
-
-    void OnLevelUp(EventContext<LevelUpEvent> ctx)
-    {
-        levelUpParticles.Play();
-    }
-}
-```
-
-### What happens when an enemy dies
-
-```
-CombatSystem.OnEnemyDefeated()
-  → Publish(EnemyKilledEvent)
-    → ExperienceSystem.OnEnemyKilled()
-        → Publish(ExperienceGainedEvent)
-            → UISystem.OnExpGained()          // updates EXP label
-        → Publish(LevelUpEvent)               // if threshold met
-            → VFXSystem.OnLevelUp()           // priority 10, runs first
-            → UISystem.OnLevelUp()            // priority 0, runs second
-```
-
-All of this happens synchronously within a single `Publish` call. Each system is fully decoupled — `CombatSystem` has no reference to `ExperienceSystem`, which has no reference to `UISystem` or `VFXSystem`.
-
-## Design Notes
-
-- **Delegate handlers**: Handlers are `Action<EventContext<TEvent>>` delegates, not interface-based. Class-based handlers can pass `handler.Handle` as the delegate.
-- **No marker interface**: Events are constrained by `where TEvent : struct` only, avoiding boxing overhead from interface dispatch.
-- **Snapshot-copy dispatch**: Handler lists are copied before iteration, making it safe for handlers to subscribe, unsubscribe, or publish new events during handling.
-- **Exception isolation**: Each handler invocation is wrapped in try-catch. A throwing handler does not prevent subsequent handlers from executing.
-- **Thread safety**: `ConcurrentDictionary` for type-to-handler mapping, `lock` on individual handler lists for mutation, `ConcurrentQueue` for the event queue, `Interlocked.Increment` for ID generation.
-- **Priority ordering**: Handlers are sorted descending by priority at insertion time. Same-priority handlers run in subscription order (stable).
+See [the Events tests](../../tests/Bezoro.Events.Tests/README.md) for lifecycle and concurrency coverage.

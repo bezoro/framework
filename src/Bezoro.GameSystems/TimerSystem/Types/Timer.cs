@@ -15,7 +15,7 @@ public struct Timer
 	/// <param name="elapsedSeconds">Initial elapsed time in seconds.</param>
 	/// <param name="state">Initial runtime state.</param>
 	/// <param name="mode">Lifecycle behavior after completion.</param>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="durationSeconds" /> is not positive.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when duration is not positive and finite, or elapsed time is not finite.</exception>
 	public Timer(
 		int        timerId,
 		float      durationSeconds,
@@ -23,8 +23,10 @@ public struct Timer
 		TimerState state          = TimerState.Stopped,
 		TimerMode  mode           = TimerMode.Persistent)
 	{
-		if (durationSeconds <= 0f)
-			throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Duration must be positive.");
+		if (durationSeconds <= 0f || float.IsNaN(durationSeconds) || float.IsInfinity(durationSeconds))
+			throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Duration must be positive and finite.");
+		if (float.IsNaN(elapsedSeconds) || float.IsInfinity(elapsedSeconds))
+			throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed time must be finite.");
 
 		TimerId = timerId;
 		DurationSeconds = durationSeconds;

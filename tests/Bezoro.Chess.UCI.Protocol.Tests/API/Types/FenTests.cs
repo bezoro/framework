@@ -79,4 +79,42 @@ public class FenTests(ITestOutputHelper output) : UnitTestBase(output)
 		Log("Testing Validate with valid FEN");
 		Fen.Validate(Fen.Default).Should().BeTrue();
 	}
+	[Theory]
+	[InlineData("8/8/8/8/8/8/8/7 w - - 0 1")]
+	[InlineData("8/8/8/8/8/8/8/8K w - - 0 1")]
+	[InlineData("8/8/8/8/8/8/8/44 w - - 0 1")]
+	[InlineData("8/8/8/8/8/8/8/8 w - - 0 0")]
+	[InlineData("8/8/8/8/8/8/8/8 w - - 2147483648 1")]
+	[InlineData("8/8/8/8/8/8/8/8 w - - 0 2147483648")]
+	[InlineData("8/8/8/8/8/8/8/8 w - - +0 1")]
+	[InlineData("8/8/8/8/8/8/8/8 w - - 0 1 extra")]
+	[InlineData("8/8/8/8/8/8/8/8\nw - - 0 1")]
+	[InlineData("8/8/8/8/8/8/8/8 w KK - 0 1")]
+	[InlineData("8/8/8/8/8/8/8/8 w - a4 0 1")]
+	public void Parse_WhenFieldsAreMalformed_ShouldReturnNullWithoutThrowing(string rawFen)
+	{
+		Fen.Validate(rawFen).Should().BeFalse();
+		Fen.Parse(rawFen).Should().BeNull();
+	}
+
+	[Fact]
+	public void Parse_WhenFieldsUseHorizontalWhitespace_ShouldParseEveryField()
+	{
+		var fen = Fen.Parse("  8/8/8/8/8/8/8/8\tw  -\t-  0  1  ");
+
+		fen.Should().NotBeNull();
+		fen!.Value.ActiveColor.Should().Be('w');
+		fen.Value.FullmoveNumber.Should().Be(1);
+	}
+
+	[Fact]
+	public void Parse_WhenCountersReachMaximum_ShouldPreserveValues()
+	{
+		var fen = Fen.Parse("8/8/8/8/8/8/8/8 w - - 2147483647 2147483647");
+
+		fen.Should().NotBeNull();
+		fen!.Value.HalfmoveClock.Should().Be(int.MaxValue);
+		fen.Value.FullmoveNumber.Should().Be(int.MaxValue);
+	}
+
 }

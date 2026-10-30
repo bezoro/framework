@@ -53,31 +53,28 @@ internal static class ProcessHelper
 	/// </summary>
 	public static Task WaitForProcessExitAsync(Process process, CancellationToken ct)
 	{
-		try
-		{
-			if (process.HasExited) return Task.CompletedTask;
-
-			if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
-		}
-		catch (ObjectDisposedException)
-		{
-			return Task.CompletedTask;
-		}
-
 		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		try
+		// Process.Exited has explicit add/remove accessors with non-atomic delegate updates.
+		// The lifetime monitor and teardown waiter must not overwrite each other's handlers.
+		lock (process)
 		{
-			process.Exited += Handler;
-			if (process.HasExited)
+			try
 			{
-				process.Exited -= Handler;
+				if (process.HasExited) return Task.CompletedTask;
+				if (!process.EnableRaisingEvents) process.EnableRaisingEvents = true;
+
+				process.Exited += Handler;
+				if (process.HasExited)
+				{
+					process.Exited -= Handler;
+					return Task.CompletedTask;
+				}
+			}
+			catch (ObjectDisposedException)
+			{
 				return Task.CompletedTask;
 			}
-		}
-		catch (ObjectDisposedException)
-		{
-			return Task.CompletedTask;
 		}
 
 		CancellationTokenRegistration reg = default;
@@ -94,11 +91,11 @@ internal static class ProcessHelper
 		return tcs.Task.ContinueWith(
 					  t =>
 					  {
-						  try
+						  lock (process)
 						  {
-							  process.Exited -= Handler;
+							  try { process.Exited -= Handler; }
+							  catch { /* The process may already have been disposed. */ }
 						  }
-						  catch { }
 
 						  reg.Dispose();
 						  return t;

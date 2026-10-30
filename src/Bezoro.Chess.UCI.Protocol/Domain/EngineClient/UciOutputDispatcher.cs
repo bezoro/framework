@@ -27,15 +27,10 @@ internal sealed class UciOutputDispatcher(
 		{
 			_messageObserver?.Invoke(message);
 
-			if (message.Info is { Payload.PrincipalVariation: { } pv })
-				_searchCoordinator.HandleInfoLine(line, pv);
+			if (message.Info is { } info)
+				_searchCoordinator.HandleInfo(info.Payload);
 			else if (message.BestMove is { } bestMove)
 				_searchCoordinator.HandleBestMove(bestMove);
-		}
-		else
-		{
-			if (line.StartsWith($"{UciConstants.Prefixes.INFO} ", StringComparison.OrdinalIgnoreCase))
-				_searchCoordinator.HandleInfoLine(line);
 		}
 
 		waiters.Notify(line);

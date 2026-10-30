@@ -18,6 +18,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
+			options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true },
 			ct: CancellationToken.None
 		);
 
@@ -46,6 +47,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
+			options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true },
 			ct: CancellationToken.None
 		);
 
@@ -85,6 +87,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
+			options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true },
 			ct: CancellationToken.None
 		);
 
@@ -138,6 +141,7 @@ public class UciGameEngineSessionGameEngineCompatibilityTests
 		await using var coordinator = await UciGameEngineSession.CreateAsync(
 			TestResourcePaths.STOCKFISH_PATH,
 			syncContext: syncContext,
+			options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true },
 			ct: CancellationToken.None
 		);
 

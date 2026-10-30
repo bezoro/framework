@@ -20,6 +20,12 @@ internal sealed class UciSearchCoordinator(
 	private readonly IUciTransport _transport = transport ?? throw new ArgumentNullException(nameof(transport));
 
 	private volatile SearchSession? _activeSession;
+	private int _requiresRestart;
+	private readonly SemaphoreSlim _commandGate = new(1, 1);
+
+	private TimeSpan StopGracePeriod => _options.SearchStopGracePeriod > TimeSpan.Zero
+		? _options.SearchStopGracePeriod
+		: TimeSpan.FromSeconds(2);
 
 	public Task<SearchResult> ExecuteSearchAsync(SearchParameters parameters, CancellationToken ct) =>
 		ExecuteSearchInternalAsync(parameters, ct);
@@ -27,26 +33,110 @@ internal sealed class UciSearchCoordinator(
 	public void HandleBestMove(UciBestMoveMessage message)
 	{
 		var session = _activeSession;
-
-		if (session is { })
-		{
-			session.CompleteBestMove(message);
-			Interlocked.CompareExchange(ref _activeSession, null, session);
-		}
-
 		_setActivity(EngineActivity.Idle);
+		if (session is null) return;
+		session.CompleteBestMove(message);
+		if (session.IsFireAndForget)
+		{
+			Interlocked.CompareExchange(ref _activeSession, null, session);
+			session.CleanupCompletion.TrySetResult(null);
+		}
 	}
 
-	public void HandleInfoLine(string line, PrincipalVariation? principalVariation = null)
+	public async Task ExecuteFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
 	{
-		if (principalVariation.HasValue)
-			_activeSession?.RecordInfo(principalVariation.Value);
+		ct.ThrowIfCancellationRequested();
+		EnsureSynchronized();
+		string command = UciCommandBuilder.BuildGoCommand(parameters);
+		var session = new SearchSession(parameters.Ponder, fireAndForget: true);
+		if (Interlocked.CompareExchange(ref _activeSession, session, null) is not null)
+			throw new InvalidOperationException("A search is already in progress.");
+
+		try
+		{
+			await WriteSearchCommandAsync(session, command, ct).ConfigureAwait(false);
+		}
+		catch
+		{
+			CompleteSessionCleanup(session);
+			throw;
+		}
 	}
+
+	public async Task StopSearchAsync(CancellationToken ct)
+	{
+		SearchSession? session;
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			session = _activeSession;
+			await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
+			if (session is null) _setActivity(EngineActivity.Idle);
+		}
+		finally { _commandGate.Release(); }
+		if (session is null) return;
+
+		try
+		{
+			await AwaitBestMoveGracefullyAsync(session, session.BestMoveCompletion.Task, CancellationToken.None).ConfigureAwait(false);
+			// A regular search may still be sending its own stop after cancellation or timeout.
+			// Keep its slot reserved until that path has finished, rather than only awaiting bestmove.
+			await session.CleanupCompletion.Task.ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+		}
+		catch (TimeoutException)
+		{
+			Interlocked.Exchange(ref _requiresRestart, 1);
+			throw;
+		}
+		finally
+		{
+			if (session.IsFireAndForget && !session.CleanupCompletion.Task.IsCompleted)
+				CompleteSessionCleanup(session);
+		}
+	}
+
+	private async Task WriteSearchCommandAsync(SearchSession session, string command, CancellationToken ct)
+	{
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			_setActivity(session.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+			await _transport.WriteLineAsync(command, ct).ConfigureAwait(false);
+		}
+		finally { _commandGate.Release(); }
+	}
+
+	private void EnsureSynchronized()
+	{
+		if (Volatile.Read(ref _requiresRestart) != 0)
+			throw new InvalidOperationException("The engine did not acknowledge stop with bestmove. Stop and restart the client before searching again.");
+	}
+
+	public void HandleInfo(UciInfoPayload info) => _activeSession?.RecordInfo(info);
 
 	public void HandleTransportTerminated()
 	{
+		Interlocked.Exchange(ref _requiresRestart, 0);
 		var session = Interlocked.Exchange(ref _activeSession, null);
 		session?.BestMoveCompletion.TrySetCanceled();
+		if (session is { IsFireAndForget: true })
+			session.CleanupCompletion.TrySetResult(null);
+	}
+
+	private void CompleteSessionCleanup(SearchSession session)
+	{
+		try
+		{
+			if (ReferenceEquals(_activeSession, session))
+				_setActivity(EngineActivity.Idle);
+		}
+		finally
+		{
+			Interlocked.CompareExchange(ref _activeSession, null, session);
+			session.BestMoveCompletion.TrySetCanceled();
+			session.CleanupCompletion.TrySetResult(null);
+		}
 	}
 
 	private TimeSpan ComputeTimeout(SearchParameters parameters)
@@ -83,7 +173,8 @@ internal sealed class UciSearchCoordinator(
 		}
 		catch (TimeoutException)
 		{
-			// Cancellation still needs to unwind even if the engine never reports bestmove after stop.
+			// UCI has no request IDs. A delayed bestmove must never satisfy the next search.
+			Interlocked.Exchange(ref _requiresRestart, 1);
 		}
 	}
 
@@ -91,7 +182,8 @@ internal sealed class UciSearchCoordinator(
 	{
 		try
 		{
-			await _transport.WriteLineAsync(UciConstants.Commands.STOP, CancellationToken.None).ConfigureAwait(false);
+			using var stopCts = new CancellationTokenSource(StopGracePeriod);
+			await _transport.WriteLineAsync(UciConstants.Commands.STOP, stopCts.Token).ConfigureAwait(false);
 		}
 		catch
 		{
@@ -101,6 +193,16 @@ internal sealed class UciSearchCoordinator(
 
 	private async Task<SearchResult> ExecuteSearchInternalAsync(SearchParameters parameters, CancellationToken ct)
 	{
+		ct.ThrowIfCancellationRequested();
+		EnsureSynchronized();
+
+		var timeout = ComputeTimeout(parameters);
+		if (timeout != Timeout.InfiniteTimeSpan)
+		{
+			if (timeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(parameters), "Search timeout must be nonnegative or infinite.");
+			// Unity runtimes implement the portable Task.Delay limit with a signed millisecond count.
+			timeout = TimeSpan.FromMilliseconds(Math.Min(timeout.TotalMilliseconds, int.MaxValue));
+		}
 		string cmd     = UciCommandBuilder.BuildGoCommand(parameters);
 		var    session = new SearchSession(parameters.Ponder);
 
@@ -110,19 +212,18 @@ internal sealed class UciSearchCoordinator(
 			throw new InvalidOperationException("A search is already in progress.");
 		}
 
-		var     timeout        = ComputeTimeout(parameters);
+		using var timerCts = new CancellationTokenSource();
 		UciBestMoveMessage? bestMove = null;
 		var     callerCanceled = false;
 
 		try
 		{
-			await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-			_setActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
+			await WriteSearchCommandAsync(session, cmd, ct).ConfigureAwait(false);
 
 			var bestTask = session.BestMoveCompletion.Task;
 			var timeoutTask = timeout == Timeout.InfiniteTimeSpan
-								  ? Task.Delay(Timeout.Infinite, CancellationToken.None)
-								  : Task.Delay(timeout);
+								  ? Task.Delay(Timeout.Infinite, timerCts.Token)
+								  : Task.Delay(timeout, timerCts.Token);
 
 			var       cancelTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			using var reg = ct.Register(static s => ((TaskCompletionSource<object?>)s!).TrySetResult(null), cancelTcs);
@@ -145,23 +246,21 @@ internal sealed class UciSearchCoordinator(
 				await IssueStopBestEffortAsync().ConfigureAwait(false);
 				try
 				{
-					bestMove = await AwaitBestMoveGracefullyAsync(session, bestTask, ct).ConfigureAwait(false);
+					bestMove = await AwaitBestMoveGracefullyAsync(session, bestTask, CancellationToken.None).ConfigureAwait(false);
+					callerCanceled = ct.IsCancellationRequested;
 				}
 				catch (TimeoutException)
 				{
 					bestMove = null;
+					callerCanceled = ct.IsCancellationRequested;
+					Interlocked.Exchange(ref _requiresRestart, 1);
 				}
 			}
 		}
 		finally
 		{
-			if (ReferenceEquals(_activeSession, session))
-				Interlocked.CompareExchange(ref _activeSession, null, session);
-
-			if (!session.BestMoveCompletion.Task.IsCompleted)
-				session.BestMoveCompletion.TrySetCanceled();
-
-			_setActivity(EngineActivity.Idle);
+			timerCts.Cancel();
+			CompleteSessionCleanup(session);
 		}
 
 		if (callerCanceled)
@@ -182,10 +281,10 @@ internal sealed class UciSearchCoordinator(
 	{
 		try
 		{
-			var delay = _options.SearchStopGracePeriod > TimeSpan.Zero
-							? _options.SearchStopGracePeriod
-							: TimeSpan.FromSeconds(2);
-			var grace = await Task.WhenAny(bestTask, Task.Delay(delay, ct)).ConfigureAwait(false);
+			var delay = StopGracePeriod;
+			using var graceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			var grace = await Task.WhenAny(bestTask, Task.Delay(delay, graceCts.Token)).ConfigureAwait(false);
+			graceCts.Cancel();
 
 			ct.ThrowIfCancellationRequested();
 

@@ -87,6 +87,8 @@ public static class Logger
 		string?      memberName,
 		string?      filePath)
 	{
+		if (ShouldSkipLog(level, category)) return;
+
 		// Capture caller info if requested
 		string? callerInfo = null;
 		if (captureCallerInfo && memberName != null)
@@ -416,6 +418,8 @@ public static class Logger
 		string?      memberName,
 		string?      filePath)
 	{
+		if (ShouldSkipLog(level, category)) return;
+
 		string message = string.IsNullOrEmpty(customMessage)
 							 ? exception.Message
 							 : $"{customMessage} | {exception.Message}";

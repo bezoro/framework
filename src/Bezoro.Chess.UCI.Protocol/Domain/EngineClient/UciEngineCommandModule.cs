@@ -26,12 +26,6 @@ internal sealed class UciEngineCommandModule(
 	private readonly UciLineWaiterRegistry _lineWaiters =
 		lineWaiters ?? throw new ArgumentNullException(nameof(lineWaiters));
 
-	public async Task GoFireAndForgetAsync(SearchParameters parameters, CancellationToken ct)
-	{
-		string cmd = UciCommandBuilder.BuildGoCommand(parameters);
-		await _transport.WriteLineAsync(cmd, ct).ConfigureAwait(false);
-		_setActivity(parameters.Ponder ? EngineActivity.Pondering : EngineActivity.Searching);
-	}
 
 	public async Task IsReadyAsync(CancellationToken ct)
 	{
@@ -86,11 +80,6 @@ internal sealed class UciEngineCommandModule(
 						.ConfigureAwait(false);
 	}
 
-	public async Task StopSearchAsync(CancellationToken ct)
-	{
-		await _transport.WriteLineAsync(UciConstants.Commands.STOP, ct).ConfigureAwait(false);
-		_setActivity(EngineActivity.Idle);
-	}
 
 	public async Task UciInitAsync(CancellationToken ct)
 	{
@@ -129,34 +118,42 @@ internal sealed class UciEngineCommandModule(
 
 	private async Task IsReadyCoreAsync(CancellationToken ct)
 	{
-		var readyTask = _lineWaiters.WaitForAsync(
-			static l => l.Trim().Equals(
-				UciConstants.Responses.READY_OK,
-				StringComparison.OrdinalIgnoreCase
-			),
+		await WriteAndWaitAsync(
+			UciConstants.Commands.IS_READY,
+			static l => l.Trim().Equals(UciConstants.Responses.READY_OK, StringComparison.OrdinalIgnoreCase),
 			_options.ReadyTimeout,
 			ct
-		);
-
-		await _transport.WriteLineAsync(UciConstants.Commands.IS_READY, ct).ConfigureAwait(false);
-		await readyTask.ConfigureAwait(false);
+		).ConfigureAwait(false);
 	}
 
 	private async Task UciInitCoreAsync(CancellationToken ct)
 	{
-		var uciOkTask = _lineWaiters.WaitForAsync(
-			static l => l.Trim().Equals(
-				UciConstants.Responses.UCI_OK,
-				StringComparison.OrdinalIgnoreCase
-			),
+		await WriteAndWaitAsync(
+			UciConstants.Commands.UCI,
+			static l => l.Trim().Equals(UciConstants.Responses.UCI_OK, StringComparison.OrdinalIgnoreCase),
 			_options.UciHandshakeTimeout,
 			ct
-		);
-
-		await _transport.WriteLineAsync(UciConstants.Commands.UCI, ct).ConfigureAwait(false);
-		await uciOkTask.ConfigureAwait(false);
+		).ConfigureAwait(false);
 
 		await IsReadyCoreAsync(ct).ConfigureAwait(false);
+	}
+
+	private async Task WriteAndWaitAsync(string command, Func<string, bool> predicate, TimeSpan timeout, CancellationToken ct)
+	{
+		using var waiterCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		var response = _lineWaiters.WaitForAsync(predicate, timeout, waiterCts.Token);
+		try
+		{
+			await _transport.WriteLineAsync(command, ct).ConfigureAwait(false);
+			await response.ConfigureAwait(false);
+		}
+		finally
+		{
+			// A failed write must remove its waiter before another command can consume readyok.
+			waiterCts.Cancel();
+			try { await response.ConfigureAwait(false); }
+			catch { /* The original write/wait error remains authoritative. */ }
+		}
 	}
 
 	private async Task UciNewGameCoreAsync(CancellationToken ct)
@@ -167,52 +164,38 @@ internal sealed class UciEngineCommandModule(
 
 	private async Task<Fen?> GetFenViaDisplayBoardCoreAsync(CancellationToken ct)
 	{
-		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), _options.DisplayBoardFenTimeout, ct);
-
+		using var waiterCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		using var checkersCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		var checkersTask = _lineWaiters.WaitForAsync(
-			static line => IsCheckersLine(line),
-			Timeout.InfiniteTimeSpan,
-			checkersCts.Token
-		);
-
-		await _transport.WriteLineAsync(UciConstants.Commands.DISPLAY_BOARD, ct).ConfigureAwait(false);
-
-		string fenLine;
+		var fenTask = _lineWaiters.WaitForAsync(static line => IsFenLine(line), _options.DisplayBoardFenTimeout, waiterCts.Token);
+		var checkersTask = _lineWaiters.WaitForAsync(static line => IsCheckersLine(line), Timeout.InfiniteTimeSpan, checkersCts.Token);
 		try
 		{
-			fenLine = await fenTask.ConfigureAwait(false);
+			await _transport.WriteLineAsync(UciConstants.Commands.DISPLAY_BOARD, ct).ConfigureAwait(false);
+
+			string fenLine;
+			try { fenLine = await fenTask.ConfigureAwait(false); }
+			catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }
+
+			if (!checkersTask.IsCompleted)
+				checkersCts.CancelAfter(_options.DisplayBoardCheckersGracePeriod);
+
+			string? checkersLine;
+			try { checkersLine = await checkersTask.ConfigureAwait(false); }
+			catch (OperationCanceledException) when (!ct.IsCancellationRequested) { checkersLine = null; }
+
+			string? rawFenCache = null;
+			_ = Fen.TryParseUciOutputLine(fenLine, ref rawFenCache, out var fenFromFen);
+			if (checkersLine is null) return fenFromFen;
+			_ = Fen.TryParseUciOutputLine(checkersLine, ref rawFenCache, out var fenWithCheckers);
+			return fenWithCheckers;
 		}
-		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+		finally
 		{
-#if NETSTANDARD || NETSTANDARD2_0 || NETSTANDARD2_1
+			waiterCts.Cancel();
 			checkersCts.Cancel();
-#else
-			await checkersCts.CancelAsync();
-#endif
-			return null;
+			try { await fenTask.ConfigureAwait(false); } catch { /* Observe and remove the waiter. */ }
+			try { await checkersTask.ConfigureAwait(false); } catch { /* Observe and remove the waiter. */ }
 		}
-
-		if (!checkersTask.IsCompleted)
-			checkersCts.CancelAfter(_options.DisplayBoardCheckersGracePeriod);
-
-		string? checkersLine;
-		try
-		{
-			checkersLine = await checkersTask.ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-		{
-			checkersLine = null;
-		}
-
-		string? rawFenCache = null;
-		_ = Fen.TryParseUciOutputLine(fenLine, ref rawFenCache, out var fenFromFen);
-
-		if (checkersLine is null) return fenFromFen;
-
-		_ = Fen.TryParseUciOutputLine(checkersLine, ref rawFenCache, out var fenWithCheckers);
-		return fenWithCheckers;
 	}
 
 	private async Task<ImmutableArray<string>> GetLegalMovesViaPerftCoreAsync(CancellationToken ct)

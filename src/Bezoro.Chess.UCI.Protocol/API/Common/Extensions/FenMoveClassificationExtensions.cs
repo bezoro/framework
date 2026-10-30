@@ -26,6 +26,7 @@ public static class FenMoveClassificationExtensions
 	/// <param name="fen">Current position.</param>
 	/// <param name="legalMoves">Legal moves in lowercase UCI notation.</param>
 	/// <returns>Fully resolved move classifications keyed by move notation.</returns>
+	/// <exception cref="InvalidOperationException">Thrown when any supplied move is illegal.</exception>
 	public static ImmutableDictionary<string, MoveClassification> ClassifyMovesFully(
 		this Fen            fen,
 		IEnumerable<string> legalMoves) =>
@@ -46,6 +47,7 @@ public static class FenMoveClassificationExtensions
 	/// <param name="fen">Current position.</param>
 	/// <param name="move">Move in lowercase UCI notation.</param>
 	/// <returns>Fully resolved move classification.</returns>
+	/// <exception cref="InvalidOperationException">Thrown when the supplied move is illegal.</exception>
 	public static MoveClassification ClassifyMoveFully(this Fen fen, string move) =>
 		LocalPositionRules.ClassifyMoveFully(fen, move);
 }

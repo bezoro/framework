@@ -13,6 +13,10 @@ namespace Bezoro.Chess.UCI.Protocol.API;
 ///     Coordinates a playable match using separate playing, snapshot, and full-strength analysis clients, plus local
 ///     board-state ownership for legal moves, promotion flow, clocks, and result adjudication.
 /// </summary>
+/// <remarks>
+///     Serialize calls that mutate a session. The session rejects stale asynchronous results after a position change,
+///     but concurrent callers must coordinate access to match state. Immutable snapshots can be retained by consumers.
+/// </remarks>
 public sealed class UciPlayableMatchSession
 {
 	private readonly MoveClassificationCoordinator  _classifications = new();
@@ -20,16 +24,21 @@ public sealed class UciPlayableMatchSession
 	private readonly int                            _engineMoveTimeMs;
 	private readonly List<PlayedMove>               _moveHistory = [];
 	private readonly List<string>                   _playedMoves = [];
-	private readonly UciEngineClient                _analysisClient;
-	private readonly UciEngineClient                _moveListClient;
-	private readonly UciEngineClient                _playingClient;
-	private readonly UciPositionAnalysisCoordinator _positionAnalysis;
+	private readonly Dictionary<string, int>         _repetitionCounts = new(StringComparer.Ordinal);
+	private readonly List<string>                    _repetitionKeys = [];
+	private Fen? _cachedLegalMovesFen;
+	private ImmutableArray<string> _cachedLegalMoves;
+	private readonly UciEngineClient?               _analysisClient;
+	private readonly UciEngineClient?               _moveListClient;
+	private readonly UciEngineClient?               _playingClient;
+	private readonly UciPositionAnalysisCoordinator? _positionAnalysis;
 	private readonly PlayableMatchClaimableDrawPolicy _claimableDrawPolicy;
 	private readonly PlayableMatchControlledMoveFallbackPolicy _controlledMoveFallbackPolicy;
 	private readonly PlayableMatchDrawOfferPolicy _drawOfferPolicy;
 	private readonly PlayableMatchTimeControl?      _timeControl;
 	private readonly Func<DateTimeOffset>           _utcNowProvider;
 	private          bool                           _hasCurrentState;
+	private          long                           _positionRevision;
 	private          int                            _clockHistoryOriginMoveCount;
 	private          Fen                            _baseFen = Fen.Default;
 	private          PlayableMatchState             _currentState;
@@ -43,6 +52,35 @@ public sealed class UciPlayableMatchSession
 	///     Occurs whenever the session emits a canonical protocol-side event.
 	/// </summary>
 	public event Action<PlayableMatchEvent>? EventOccurred;
+
+	/// <summary>
+	///     Creates a local manual-versus-manual match. No engine, process, transport, or background engine analysis is used.
+	/// </summary>
+	public UciPlayableMatchSession(
+		char perspectiveColor = 'w',
+		PlayableMatchClaimableDrawPolicy claimableDrawPolicy = PlayableMatchClaimableDrawPolicy.Automatic,
+		PlayableMatchDrawOfferPolicy drawOfferPolicy = PlayableMatchDrawOfferPolicy.ExpireOnMove,
+		PlayableMatchTimeControl? timeControl = null,
+		Func<DateTimeOffset>? utcNowProvider = null)
+	{
+		PerspectiveColor = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
+		if (claimableDrawPolicy is not (PlayableMatchClaimableDrawPolicy.Automatic or PlayableMatchClaimableDrawPolicy.ClaimRequired))
+			throw new ArgumentOutOfRangeException(nameof(claimableDrawPolicy));
+		if (drawOfferPolicy is not (PlayableMatchDrawOfferPolicy.ExpireOnMove or PlayableMatchDrawOfferPolicy.PersistUntilResponse))
+			throw new ArgumentOutOfRangeException(nameof(drawOfferPolicy));
+		WhiteController = MatchSideControllerKind.Manual;
+		BlackController = MatchSideControllerKind.Manual;
+		_claimableDrawPolicy = claimableDrawPolicy;
+		_drawOfferPolicy = drawOfferPolicy;
+		_controlledMoveFallbackPolicy = PlayableMatchControlledMoveFallbackPolicy.Throw;
+		_engineMoveTimeMs = 1_000;
+		_timeControl = timeControl;
+		_timeControl?.Validate();
+		_utcNowProvider = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
+	}
+
+	/// <summary>Gets whether this session has explicitly configured engine clients for analysis and controlled turns.</summary>
+	public bool HasEngineClients => _playingClient is not null;
 
 	/// <summary>
 	///     Creates a playable match session.
@@ -68,6 +106,16 @@ public sealed class UciPlayableMatchSession
 		_moveListClient   = moveListClient ?? throw new ArgumentNullException(nameof(moveListClient));
 		_engineMoveTimeMs = ValidatePositive(engineMoveTimeMs, nameof(engineMoveTimeMs));
 		PerspectiveColor  = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
+		if (whiteController is not (MatchSideControllerKind.Manual or MatchSideControllerKind.Engine))
+			throw new ArgumentOutOfRangeException(nameof(whiteController));
+		if (blackController is not (MatchSideControllerKind.Manual or MatchSideControllerKind.Engine))
+			throw new ArgumentOutOfRangeException(nameof(blackController));
+		if (claimableDrawPolicy is not (PlayableMatchClaimableDrawPolicy.Automatic or PlayableMatchClaimableDrawPolicy.ClaimRequired))
+			throw new ArgumentOutOfRangeException(nameof(claimableDrawPolicy));
+		if (drawOfferPolicy is not (PlayableMatchDrawOfferPolicy.ExpireOnMove or PlayableMatchDrawOfferPolicy.PersistUntilResponse))
+			throw new ArgumentOutOfRangeException(nameof(drawOfferPolicy));
+		if (controlledMoveFallbackPolicy is not (PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback or PlayableMatchControlledMoveFallbackPolicy.Throw))
+			throw new ArgumentOutOfRangeException(nameof(controlledMoveFallbackPolicy));
 		WhiteController   = whiteController;
 		BlackController   = blackController;
 		_utcNowProvider   = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
@@ -202,8 +250,13 @@ public sealed class UciPlayableMatchSession
 	/// <summary>
 	///     Tries to resolve a cached full-strength analysis for the supplied position key.
 	/// </summary>
-	public bool TryGetPositionAnalysis(string positionKey, out PositionAnalysisResult analysis) =>
-		_positionAnalysis.TryGetAnalysis(positionKey, out analysis);
+	public bool TryGetPositionAnalysis(string positionKey, out PositionAnalysisResult analysis)
+	{
+		if (_positionAnalysis is not null)
+			return _positionAnalysis.TryGetAnalysis(positionKey, out analysis);
+		analysis = default;
+		return false;
+	}
 
 	/// <summary>
 	///     Gets the latest cached legal-move classifications for the current position.
@@ -287,13 +340,15 @@ public sealed class UciPlayableMatchSession
             _clockHistory[^1] = PlayableMatchClockKernel.RestartTurn(_clockHistory[^1], _utcNowProvider());
 		}
 
+		_positionRevision++;
+		RewindRepetitionHistory(remainingMoveCount);
 		_pendingPromotion = null;
 		_forcedResult = default;
 		_claimableResult = null;
 		_drawOfferedBy = null;
 
 		var retainedPositionKeys = CollectRetainedPositionKeys();
-		_positionAnalysis.CancelPendingAndRetainCompleted(retainedPositionKeys);
+		_positionAnalysis?.CancelPendingAndRetainCompleted(retainedPositionKeys);
 		_classifications.CancelPendingAndRetain(retainedPositionKeys);
 
 		_hasCurrentState = false;
@@ -309,7 +364,6 @@ public sealed class UciPlayableMatchSession
 	/// <returns>The refreshed match state after the setup is loaded.</returns>
 	public async Task<PlayableMatchState> LoadMatchAsync(PlayableMatchSetup setup, CancellationToken ct = default)
 	{
-		setup.Validate();
 		await LoadMatchCoreAsync(setup, ct).ConfigureAwait(false);
 		var state = await RefreshAsync(ct).ConfigureAwait(false);
 		RaiseEvent(PlayableMatchEventKind.PositionLoaded, state: state);
@@ -331,34 +385,49 @@ public sealed class UciPlayableMatchSession
 
 	private async Task LoadMatchCoreAsync(PlayableMatchSetup setup, CancellationToken ct)
 	{
+		ct.ThrowIfCancellationRequested();
 		var currentFen = setup.ResolveCurrentFen();
+		var clockRestore = CreateClockRestore(currentFen, setup.Clock);
+		PlayableMatchClockCheckpoint? checkpoint = null;
+		if (clockRestore.HasValue)
+		{
+			if (!_timeControl.HasValue)
+				throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
+			checkpoint = PlayableMatchClockKernel.Restore(_timeControl.Value, currentFen.ActiveColor, clockRestore.Value);
+		}
+
+		// Finish validation and external work before replacing the local match.
+		if (_playingClient is not null && _analysisClient is not null && _moveListClient is not null)
+			await Task.WhenAll(
+				_playingClient.UciNewGameAsync(ct),
+				_analysisClient.UciNewGameAsync(ct),
+				_moveListClient.UciNewGameAsync(ct)
+			).ConfigureAwait(false);
+		ct.ThrowIfCancellationRequested();
+
+		_positionRevision++;
 		_baseFen = setup.BaseFen;
 		_playedMoves.Clear();
+		_playedMoves.AddRange(setup.PlayedMoves);
 		_moveHistory.Clear();
+		ResetRepetitionHistory();
+		UpdateMoveHistory(currentFen.Raw);
 		_pendingPromotion = null;
 		_lastResult = default;
 		_forcedResult = default;
 		_claimableResult = null;
 		_drawOfferedBy = null;
-
-		foreach (string move in setup.PlayedMoves)
-			_playedMoves.Add(move);
-
-		var clockRestore = CreateClockRestore(currentFen, setup.Clock);
-		if (clockRestore.HasValue)
-			RestoreClock(currentFen.ActiveColor, clockRestore.Value);
+		if (checkpoint.HasValue)
+		{
+			_clockHistory.Clear();
+			_clockHistory.Add(checkpoint.Value);
+		}
 		else
 			InitializeClocks(currentFen.ActiveColor);
 		_clockHistoryOriginMoveCount = _clockHistory.Count > 0 ? _playedMoves.Count : 0;
 		ResetBackgroundState();
 		_hasCurrentState = false;
-		_currentState    = default;
-
-		await Task.WhenAll(
-			_playingClient.UciNewGameAsync(ct),
-			_analysisClient.UciNewGameAsync(ct),
-			_moveListClient.UciNewGameAsync(ct)
-		).ConfigureAwait(false);
+		_currentState = default;
 	}
 
 	/// <summary>
@@ -384,16 +453,20 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public async Task<EngineMoveResult> PlayControlledMoveAsync(CancellationToken ct = default)
 	{
+		EnsureMatchIsPlayable();
 		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 
 		var state = CurrentState;
 		if (GetController(state.Fen.ActiveColor) != MatchSideControllerKind.Engine)
 			throw new InvalidOperationException("The current side is not engine-controlled.");
 
+		long revision = _positionRevision;
 		SearchResult result = default;
 		string move;
 		try
 		{
+			if (_playingClient is null)
+				throw new InvalidOperationException("No engine client is configured for controlled moves.");
 			result = await _playingClient.GoAsync(new() { MoveTimeMs = _engineMoveTimeMs }, ct).ConfigureAwait(false);
 			move = result.BestMove.ToLowerInvariant();
 		}
@@ -405,12 +478,18 @@ public sealed class UciPlayableMatchSession
 			move = SelectFallbackControlledMove(state);
 		}
 
+		ct.ThrowIfCancellationRequested();
+		EnsurePositionRevision(revision);
+		EnsureMatchIsPlayable();
+		DateTimeOffset? completedAt = _timeControl.HasValue ? _utcNowProvider() : null;
+		EnsureTurnHasTimeRemaining(completedAt);
+
 		if (!state.LegalMoves.ContainsUciMove(move))
 			throw new InvalidOperationException(
 				$"Engine produced '{move}', which is not legal in the current position."
 			);
 
-		CompleteMove(move, state.Fen.ActiveColor);
+		CompleteMove(move, state.Fen.ActiveColor, completedAt);
 		return new(move, result);
 	}
 
@@ -441,8 +520,10 @@ public sealed class UciPlayableMatchSession
 	public Task<ImmutableDictionary<string, MoveClassification>> WaitForCurrentMoveClassificationsAsync(
 		CancellationToken ct = default)
 	{
-		string positionKey = CurrentState.PositionKey;
-		return _classifications.WaitAsync(positionKey, ct);
+		var state = CurrentState;
+		if (!HasEngineClients)
+			_classifications.Enqueue(state.PositionKey, state.Fen, state.LegalMoves);
+		return _classifications.WaitAsync(state.PositionKey, ct);
 	}
 
 	/// <summary>
@@ -451,22 +532,44 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public async Task<PlayableMatchState> RefreshAsync(CancellationToken ct = default)
 	{
+		long revision = _positionRevision;
 		Fen currentFen = BuildCurrentFen();
 
-		await Task.WhenAll(
-			_playingClient.SetPositionAsync(_baseFen, _playedMoves, ct),
-			_analysisClient.SetPositionAsync(_baseFen, _playedMoves, ct)
-		).ConfigureAwait(false);
+		ct.ThrowIfCancellationRequested();
+		if (_playingClient is not null && _analysisClient is not null)
+			await Task.WhenAll(
+				_playingClient.SetPositionAsync(_baseFen, _playedMoves, ct),
+				_analysisClient.SetPositionAsync(_baseFen, _playedMoves, ct)
+			).ConfigureAwait(false);
 
-		var legalMoves = currentFen.GetLegalMoves();
+		EnsurePositionRevision(revision);
+		return RefreshLocalState(currentFen);
+	}
+
+	/// <summary>
+	///     Refreshes a local session synchronously, without allocating a task or contacting an engine.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Engine clients are configured; use <see cref="RefreshAsync" />.</exception>
+	public PlayableMatchState Refresh()
+	{
+		if (HasEngineClients)
+			throw new InvalidOperationException("Use RefreshAsync to synchronize the configured engine clients.");
+		return RefreshLocalState(BuildCurrentFen());
+	}
+
+	private PlayableMatchState RefreshLocalState(Fen currentFen)
+	{
+		var legalMoves = GetCachedLegalMoves(currentFen);
 		string positionKey = currentFen.Raw;
 
 		UpdateMoveHistory(positionKey);
-		_classifications.Enqueue(positionKey, currentFen, legalMoves);
-		EnrichMoveHistoryClassifications();
+		if (HasEngineClients)
+			_classifications.Enqueue(positionKey, currentFen, legalMoves);
+		if (HasEngineClients)
+			EnrichMoveHistoryClassifications();
 
 		if (legalMoves.Length > 0)
-			_positionAnalysis.Enqueue(positionKey, _playedMoves, currentFen.ActiveColor, PerspectiveColor, legalMoves);
+			_positionAnalysis?.Enqueue(positionKey, _baseFen, _playedMoves, currentFen.ActiveColor, PerspectiveColor, legalMoves);
 
 		var advantage = _moveHistory.ResolveCurrentAdvantage(
 			positionKey,
@@ -479,6 +582,13 @@ public sealed class UciPlayableMatchSession
 		var outcome = EvaluateOutcome(currentFen, legalMoves, clock);
 		_claimableResult = outcome.ClaimableResult;
 		var currentResult = outcome.Result;
+		if (currentResult.IsTerminal)
+		{
+			_forcedResult = currentResult;
+			FreezeClock(clock?.SnapshotUtc);
+			if (clock.HasValue)
+				clock = clock.Value with { IsPaused = true };
+		}
 		_currentState = new(
 			currentFen,
 			positionKey,
@@ -510,8 +620,14 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public async Task<PositionAnalysisResult> GetLegalMoveAnalysisAsync(CancellationToken ct = default)
 	{
-		var analysis = await _positionAnalysis.GetAnalysisAsync(CurrentState.PositionKey).ConfigureAwait(false);
-		var classifications = GetCurrentLegalMoveClassifications();
+		if (_positionAnalysis is null)
+			throw new InvalidOperationException("No analysis engine is configured for this local session.");
+		ct.ThrowIfCancellationRequested();
+		long revision = _positionRevision;
+		string positionKey = CurrentState.PositionKey;
+		var analysis = await _positionAnalysis.GetAnalysisAsync(positionKey, ct).ConfigureAwait(false);
+		EnsurePositionRevision(revision);
+		var classifications = _classifications.GetKnown(positionKey);
 		if (analysis.Evaluations.IsDefaultOrEmpty || classifications.Count == 0)
 			return analysis;
 
@@ -538,6 +654,7 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void ApplyMove(string move)
 	{
+		EnsureMatchIsPlayable();
 		if (_pendingPromotion.HasValue)
 			throw new InvalidOperationException("Choose a promotion piece before applying another move.");
 
@@ -559,6 +676,7 @@ public sealed class UciPlayableMatchSession
 		if (LocalPositionRules.TryCreatePendingPromotion(state.Fen, normalizedMove, state.LegalMoves, out var request))
 		{
 			_pendingPromotion = request;
+			UpdateCurrentStateMetadata();
 			RaiseEvent(PlayableMatchEventKind.PromotionRequired, pendingPromotion: request);
 			return;
 		}
@@ -581,6 +699,9 @@ public sealed class UciPlayableMatchSession
 		if (!_pendingPromotion.HasValue)
 			throw new InvalidOperationException("There is no pending promotion to complete.");
 
+		EnsureMatchIsPlayable();
+		DateTimeOffset? completedAt = _timeControl.HasValue ? _utcNowProvider() : null;
+		EnsureTurnHasTimeRemaining(completedAt);
 		char normalizedPiece = char.ToLowerInvariant(promotionPiece);
 		var request = _pendingPromotion.Value;
 		if (!request.AllowedPromotionPieces.Contains(normalizedPiece))
@@ -589,7 +710,7 @@ public sealed class UciPlayableMatchSession
 		_pendingPromotion = null;
 		string move = request.MovePrefix + normalizedPiece;
 		RaiseEvent(PlayableMatchEventKind.PromotionChosen, move: move);
-		CompleteMove(move, request.MovingSide);
+		CompleteMove(move, request.MovingSide, completedAt);
 	}
 
 	/// <summary>
@@ -597,9 +718,9 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void OfferDraw()
 	{
+		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		var state = CurrentState;
-		if (state.Result.IsTerminal)
-			throw new InvalidOperationException("The match has already ended.");
 
 		_drawOfferedBy = state.Fen.ActiveColor;
 		UpdateCurrentStateMetadata();
@@ -611,6 +732,8 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void AcceptDraw()
 	{
+		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		if (!_drawOfferedBy.HasValue)
 			throw new InvalidOperationException("There is no opposing draw offer to accept.");
 
@@ -636,6 +759,8 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void ClaimDraw()
 	{
+		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		if (!_claimableResult.HasValue || !_claimableResult.Value.IsDraw)
 			throw new InvalidOperationException("There is no claimable draw available.");
 
@@ -647,6 +772,8 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void Resign()
 	{
+		EnsureMatchIsPlayable();
+		EnsureTurnHasTimeRemaining(_timeControl.HasValue ? _utcNowProvider() : null);
 		var state = CurrentState;
 		SetForcedResult(new(PlayableMatchResultReason.Resignation, Opposite(state.Fen.ActiveColor)));
 	}
@@ -669,7 +796,7 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void ResumeClock()
 	{
-        if (!_timeControl.HasValue || _clockHistory.Count == 0 || !_clockHistory[^1].PausedAtUtc.HasValue)
+        if (_forcedResult.IsTerminal || !_timeControl.HasValue || _clockHistory.Count == 0 || !_clockHistory[^1].PausedAtUtc.HasValue)
 			return;
 
         _clockHistory[^1] = PlayableMatchClockKernel.Resume(_clockHistory[^1], _utcNowProvider());
@@ -682,7 +809,7 @@ public sealed class UciPlayableMatchSession
 	/// </summary>
 	public void CancelAnalysis()
 	{
-		_positionAnalysis.Cancel();
+		_positionAnalysis?.Cancel();
 		_classifications.Cancel();
 	}
 
@@ -873,7 +1000,7 @@ public sealed class UciPlayableMatchSession
 
 	private void ResetBackgroundState()
 	{
-		_positionAnalysis.Cancel();
+		_positionAnalysis?.Cancel();
 		_classifications.Cancel();
 	}
 
@@ -891,15 +1018,17 @@ public sealed class UciPlayableMatchSession
 
 	private void UpdateMoveHistory(string currentPositionKey)
 	{
+		if (_repetitionKeys.Count == 0)
+			ResetRepetitionHistory();
 		if (_moveHistory.Count == _playedMoves.Count)
 			return;
 
 		if (_moveHistory.Count > _playedMoves.Count)
 			throw new InvalidOperationException("Move history contains more entries than the played-move list.");
 
-		var current = _baseFen;
-		for (var i = 0; i < _moveHistory.Count; i++)
-			current = current.ApplyMove(_playedMoves[i]);
+		var current = _moveHistory.Count == 0
+			? _baseFen
+			: Fen.Parse(_moveHistory[^1].PositionKey)!.Value;
 
 		for (int moveIndex = _moveHistory.Count; moveIndex < _playedMoves.Count; moveIndex++)
 		{
@@ -912,6 +1041,7 @@ public sealed class UciPlayableMatchSession
 			char movingSide = current.ActiveColor;
 			int ply = current.FullmoveNumber;
 			current = current.ApplyMove(move);
+			AddRepetition(current);
 
 			_moveHistory.Add(
 				new(
@@ -931,6 +1061,9 @@ public sealed class UciPlayableMatchSession
 
 	private Fen BuildCurrentFen()
 	{
+		if (_moveHistory.Count == _playedMoves.Count)
+			return _moveHistory.Count == 0 ? _baseFen : Fen.Parse(_moveHistory[^1].PositionKey)!.Value;
+
 		var current = _baseFen;
 		foreach (string move in _playedMoves)
 			current = current.ApplyMove(move);
@@ -941,21 +1074,30 @@ public sealed class UciPlayableMatchSession
 	private void CompleteMove(string move, char movingSide, DateTimeOffset? completedAtUtc = null)
 	{
 		var previousFen = CurrentState.Fen;
-		var classification = previousFen.ClassifyMoveFully(move);
-		var resultingFen = previousFen.ApplyMove(move);
+		var resultingFen = LocalPositionRules.ApplyAndClassifyMove(previousFen, move, out var classification, out var legalMoves);
+		_cachedLegalMovesFen = resultingFen;
+		_cachedLegalMoves = legalMoves;
 		var moveData = BuildMoveData(previousFen, resultingFen, move, classification);
 
 		AdvanceClockForCompletedMove(movingSide, completedAtUtc);
+		_positionRevision++;
 		_playedMoves.Add(move);
+		_moveHistory.Add(new(previousFen.FullmoveNumber, movingSide, move, previousFen.Raw, resultingFen.Raw, classification));
+		AddRepetition(resultingFen);
 		if (_drawOfferPolicy == PlayableMatchDrawOfferPolicy.ExpireOnMove)
 			_drawOfferedBy = null;
 		_forcedResult = default;
         PlayableMatchClockState? clock = _timeControl.HasValue && _clockHistory.Count > 0
             ? PlayableMatchClockKernel.SnapshotAtTurnStart(_timeControl.Value, _clockHistory[^1])
             : null;
-        var immediateOutcome = EvaluateOutcome(resultingFen, resultingFen.GetLegalMoves(), clock);
+        var immediateOutcome = EvaluateOutcome(resultingFen, legalMoves, clock);
 		_claimableResult = immediateOutcome.ClaimableResult;
 		_lastResult = immediateOutcome.Result;
+		if (immediateOutcome.Result.IsTerminal)
+		{
+			_forcedResult = immediateOutcome.Result;
+			FreezeClock(clock?.SnapshotUtc);
+		}
 		_hasCurrentState = false;
 		_currentState = default;
 		RaiseEvent(PlayableMatchEventKind.MoveApplied, move: move, moveData: moveData);
@@ -971,15 +1113,6 @@ public sealed class UciPlayableMatchSession
 		var clockSetup = setup.Value;
         DateTimeOffset now = clockSetup.SnapshotUtc ?? _utcNowProvider();
         return PlayableMatchClockKernel.CreateRestore(currentFen, clockSetup, _timeControl, now);
-	}
-
-	private void RestoreClock(char activeColor, PlayableMatchClockRestore restore)
-	{
-		if (!_timeControl.HasValue)
-			throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
-
-		_clockHistory.Clear();
-        _clockHistory.Add(PlayableMatchClockKernel.Restore(_timeControl.Value, activeColor, restore));
 	}
 
 	private void InitializeClocks(char activeColor)
@@ -1009,6 +1142,24 @@ public sealed class UciPlayableMatchSession
         return PlayableMatchClockKernel.Snapshot(_timeControl.Value, _clockHistory[^1], now);
 	}
 
+	private void EnsureMatchIsPlayable()
+	{
+		if (_forcedResult.IsTerminal || CurrentState.Result.IsTerminal)
+			throw new InvalidOperationException("The match has already ended.");
+	}
+
+	private void EnsurePositionRevision(long revision)
+	{
+		if (_positionRevision != revision)
+			throw new InvalidOperationException("The match position changed while the operation was in progress.");
+	}
+
+	private void FreezeClock(DateTimeOffset? now = null)
+	{
+		if (_timeControl.HasValue && _clockHistory.Count > 0 && !_clockHistory[^1].PausedAtUtc.HasValue)
+			_clockHistory[^1] = PlayableMatchClockKernel.Pause(_clockHistory[^1], now ?? _utcNowProvider());
+	}
+
 	private void EnsureTurnHasTimeRemaining(DateTimeOffset? snapshotUtc = null)
 	{
 		if (_timeControl.HasValue && _timeControl.Value.TimeoutPolicy == PlayableMatchTimeoutPolicy.Ignore)
@@ -1024,6 +1175,9 @@ public sealed class UciPlayableMatchSession
 		if (currentRemaining > TimeSpan.Zero)
 			return;
 
+		char opponent = Opposite(CurrentState.Fen.ActiveColor);
+		SetForcedResult(new(PlayableMatchResultReason.Timeout,
+			LocalPositionRules.CanPossiblyMate(CurrentState.Fen, opponent) ? opponent : null), clock.Value.SnapshotUtc);
 		throw new InvalidOperationException("The current side has already lost on time.");
 	}
 
@@ -1035,6 +1189,13 @@ public sealed class UciPlayableMatchSession
 		if (_forcedResult.IsTerminal)
 			return new(_forcedResult, null);
 
+		if (legalMoves.IsDefaultOrEmpty || legalMoves.Length == 0)
+		{
+			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
+				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
+				: new(new(PlayableMatchResultReason.Stalemate, null), null);
+		}
+
 		if (clock.HasValue)
 		{
 			TimeSpan activeRemaining = fen.ActiveColor == 'w'
@@ -1044,41 +1205,74 @@ public sealed class UciPlayableMatchSession
 				_timeControl.Value.TimeoutPolicy == PlayableMatchTimeoutPolicy.AutomaticLoss &&
 				activeRemaining <= TimeSpan.Zero)
 			{
-				return new(new(PlayableMatchResultReason.Timeout, Opposite(fen.ActiveColor)), null);
+				char opponent = Opposite(fen.ActiveColor);
+				return new(new(PlayableMatchResultReason.Timeout,
+					LocalPositionRules.CanPossiblyMate(fen, opponent) ? opponent : null), null);
 			}
 		}
 
-		if (legalMoves.IsDefaultOrEmpty || legalMoves.Length == 0)
-		{
-			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
-				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
-				: new(new(PlayableMatchResultReason.Stalemate, null), null);
-		}
-
-		if (fen.HalfmoveClock >= 100)
-			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
+		if (fen.HalfmoveClock >= 150)
+			return new(new(PlayableMatchResultReason.SeventyFiveMoveRule, null), null);
 
 		if (LocalPositionRules.HasInsufficientMaterial(fen))
 			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
 
-		if (CountRepetitions(fen) >= 3)
+		int repetitions = CountRepetitions(fen);
+		if (repetitions >= 5)
+			return new(new(PlayableMatchResultReason.FivefoldRepetition, null), null);
+
+		if (fen.HalfmoveClock >= 100)
+			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
+
+		if (repetitions >= 3)
 			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.ThreefoldRepetition);
 
 		return new(default, null);
 	}
 
+	private ImmutableArray<string> GetCachedLegalMoves(Fen fen)
+	{
+		if (_cachedLegalMovesFen.HasValue && _cachedLegalMovesFen.Value.Raw == fen.Raw)
+			return _cachedLegalMoves;
+		_cachedLegalMovesFen = fen;
+		_cachedLegalMoves = fen.GetLegalMoves();
+		return _cachedLegalMoves;
+	}
+
+	private void ResetRepetitionHistory()
+	{
+		_repetitionCounts.Clear();
+		_repetitionKeys.Clear();
+		AddRepetition(_baseFen);
+	}
+
+	private void AddRepetition(Fen fen)
+	{
+		string key = LocalPositionRules.BuildRepetitionKey(fen);
+		_repetitionKeys.Add(key);
+		_repetitionCounts.TryGetValue(key, out int count);
+		_repetitionCounts[key] = count + 1;
+	}
+
+	private void RewindRepetitionHistory(int retainedMoveCount)
+	{
+		for (int i = _repetitionKeys.Count - 1; i > retainedMoveCount; i--)
+		{
+			string key = _repetitionKeys[i];
+			if (_repetitionCounts[key] == 1)
+				_repetitionCounts.Remove(key);
+			else
+				_repetitionCounts[key]--;
+			_repetitionKeys.RemoveAt(i);
+		}
+	}
+
 	private int CountRepetitions(Fen currentFen)
 	{
-		string currentKey = LocalPositionRules.BuildRepetitionKey(currentFen);
-		int count = LocalPositionRules.BuildRepetitionKey(_baseFen) == currentKey ? 1 : 0;
-		foreach (var move in _moveHistory)
-		{
-			var fen = Fen.Parse(move.PositionKey);
-			if (fen.HasValue && LocalPositionRules.BuildRepetitionKey(fen.Value) == currentKey)
-				count++;
-		}
-
-		return count;
+		string key = _repetitionKeys.Count > 0
+			? _repetitionKeys[^1]
+			: LocalPositionRules.BuildRepetitionKey(currentFen);
+		return _repetitionCounts.TryGetValue(key, out int count) ? count : 0;
 	}
 
 	private MatchOutcome CreateClaimableOrAutomaticResult(PlayableMatchResultReason reason)
@@ -1127,9 +1321,11 @@ public sealed class UciPlayableMatchSession
 		}
 	}
 
-	private void SetForcedResult(PlayableMatchResult result)
+	private void SetForcedResult(PlayableMatchResult result, DateTimeOffset? completedAtUtc = null)
 	{
+		_positionRevision++;
 		_forcedResult = result;
+		FreezeClock(completedAtUtc);
 		_claimableResult = null;
 		_drawOfferedBy = null;
 		_lastResult = result;
@@ -1170,7 +1366,7 @@ public sealed class UciPlayableMatchSession
 
 		return new(
 			_playedMoves.Count,
-			(_playedMoves.Count / 2) + 1,
+			previousFen.FullmoveNumber,
 			previousFen.ActiveColor,
 			move,
 			move[..2],

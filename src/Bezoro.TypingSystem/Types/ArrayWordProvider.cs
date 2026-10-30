@@ -24,9 +24,14 @@ public sealed class ArrayWordProvider : IWordProvider
 	public ArrayWordProvider(IEnumerable<string> words)
 	{
 		words.ThrowIfNull();
-		words.ThrowIfEmpty();
-
 		_words = new(words);
+		if (_words.IsEmpty)
+		{
+			if (words is System.Collections.ICollection)
+				throw new Bezoro.Core.Types.Exceptions.EmptyCollectionException(nameof(words));
+
+			throw new ArgumentException("Sequence cannot be empty.", nameof(words));
+		}
 	}
 
 	/// <inheritdoc />
@@ -65,7 +70,18 @@ public sealed class ArrayWordProvider : IWordProvider
 		word.ThrowIfNull();
 		word.ThrowIfEmpty();
 
-		_words.Remove(word.ToString());
+		if (!_words.TryGetIndex(word.ToString(), out uint index))
+			throw new InvalidOperationException("The specified word was not found.");
+
+		if (index < _index)
+		{
+			// Keep consumed words before the cursor when swapback moves the unread tail.
+			_index--;
+			_words[index] = _words[(uint)_index];
+			index = (uint)_index;
+		}
+
+		_words.TryRemoveAt(index);
 	}
 
 	/// <inheritdoc />

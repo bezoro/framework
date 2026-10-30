@@ -85,22 +85,25 @@ internal sealed class SystemBatchExecutor(int maxDegreeOfParallelism)
 
 	private static void FlushStreams(World world, CommandStream[] streams)
 	{
-		for (var i = 0; i < streams.Length; i++)
+		try
 		{
-			var stream = streams[i];
-			if (stream is null)
-				continue;
-
-			try
+			for (var i = 0; i < streams.Length; i++)
 			{
-				if (stream.HasCommands)
+				var stream = streams[i];
+				if (stream is not null && stream.HasCommands)
 					world.Playback(stream);
 			}
-			finally
-			{
-				stream.Dispose();
-			}
 		}
+		finally
+		{
+			DisposeStreams(streams);
+		}
+	}
+
+	private static void DisposeStreams(CommandStream[] streams)
+	{
+		foreach (var stream in streams)
+			stream?.Dispose();
 	}
 
 	private bool ShouldRun(
@@ -147,15 +150,23 @@ internal sealed class SystemBatchExecutor(int maxDegreeOfParallelism)
 		if (batch.Systems.Count == 0) return [];
 
 		var streams = new CommandStream[batch.Systems.Count];
-		if (_maxDegreeOfParallelism == 1 || batch.Systems.Count == 1)
-			for (var i = 0; i < batch.Systems.Count; i++)
-				ExecuteSystem(batch.Systems[i], world, streams, i);
-		else
-			ParallelWorkScheduler.Execute(
-				batch.Systems.Count,
-				_maxDegreeOfParallelism,
-				i => ExecuteSystem(batch.Systems[i], world, streams, i)
-			);
+		try
+		{
+			if (_maxDegreeOfParallelism == 1 || batch.Systems.Count == 1)
+				for (var i = 0; i < batch.Systems.Count; i++)
+					ExecuteSystem(batch.Systems[i], world, streams, i);
+			else
+				ParallelWorkScheduler.Execute(
+					batch.Systems.Count,
+					_maxDegreeOfParallelism,
+					i => ExecuteSystem(batch.Systems[i], world, streams, i)
+					);
+		}
+		catch
+		{
+			DisposeStreams(streams);
+			throw;
+		}
 
 		return streams;
 	}

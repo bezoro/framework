@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>Bezoro.Events</RootNamespace>
-		<TargetFrameworks>net9.0;netstandard2.1</TargetFrameworks>
+		<TargetFrameworks>net10.0;netstandard2.1</TargetFrameworks>
 	</PropertyGroup>
 	<ItemGroup>
 		<InternalsVisibleTo Include="Bezoro.Events.Tests" />

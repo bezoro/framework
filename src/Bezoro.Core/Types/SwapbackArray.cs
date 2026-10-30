@@ -414,15 +414,28 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		if (collection is null)
 			throw new ArgumentNullException(nameof(collection));
 
-		bool added = collection switch
+		if (ReferenceEquals(collection, this))
 		{
-			ICollection<T> c           => TryAddCollection(c),
-			IReadOnlyCollection<T> roc => TryAddReadOnlyCollection(roc),
-			_                          => AddEnumerable(collection)
-		};
+			AddRange(AsSpan());
+			return;
+		}
 
-		if (added)
-			Version++;
+		uint startCount = _count;
+		uint startVersion = Version;
+		try
+		{
+			_ = collection switch
+			{
+				ICollection<T> c           => TryAddCollection(c),
+				IReadOnlyCollection<T> roc => TryAddReadOnlyCollection(roc),
+				_                          => AddEnumerable(collection)
+			};
+		}
+		finally
+		{
+			if (_count != startCount && Version == startVersion)
+				Version++;
+		}
 	}
 
 	/// <summary>
@@ -509,9 +522,19 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		var current = (uint)_items.Length;
 		if (current >= min) return;
 
+		Resize(CalculateExpandedCapacity(current, min));
+	}
+
+	internal static uint CalculateExpandedCapacity(uint current, uint min)
+	{
+		if (min > MAX_ARRAY_LENGTH)
+			throw new OutOfMemoryException("Required capacity exceeds maximum array length.");
+		if (current >= min)
+			return current;
+
 		uint newCapacity;
 		if (current == 0)
-			newCapacity = MinimumArraySize;
+			newCapacity = MINIMUM_ARRAY_SIZE;
 		else
 			newCapacity = current > MAX_ARRAY_LENGTH / 2
 							  ? MAX_ARRAY_LENGTH
@@ -527,7 +550,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			newCapacity = MAX_ARRAY_LENGTH;
 		}
 
-		Resize(newCapacity);
+		return newCapacity;
 	}
 
 	/// <summary>
@@ -579,8 +602,8 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 	/// <exception cref="ArgumentOutOfRangeException">If <paramref name="index" /> is out of range.</exception>
 	public void ReplaceAt(uint index, T item)
 	{
-		if (index > _count)
-			throw new ArgumentOutOfRangeException(nameof(index), "Index cannot be greater than Count.");
+		if (index >= _count)
+			throw new ArgumentOutOfRangeException(nameof(index), "Index must be less than Count.");
 
 		_items[index] = item;
 		Version++;
@@ -626,6 +649,9 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 		foreach (var item in collection)
 		{
 			EnsureCapacity(_count + 1);
+			if (_count == startCount)
+				Version++;
+
 			_items[_count++] = item;
 		}
 
@@ -670,10 +696,7 @@ public sealed class SwapbackArray<T> : IReadOnlyList<T>
 			return false;
 
 		EnsureCapacity(_count + (uint)collection.Count);
-		foreach (var item in collection)
-			_items[_count++] = item;
-
-		return true;
+		return AddEnumerable(collection);
 	}
 
 	/// <summary>

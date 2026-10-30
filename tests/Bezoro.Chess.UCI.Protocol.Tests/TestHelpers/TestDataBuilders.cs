@@ -95,11 +95,11 @@ public static class TestDataBuilders
 		private string                _rawPv    = "e2e4 e7e5";
 		private uint                  _depth    = 10;
 		private uint                  _multiPv  = 1;
-		private uint                  _nodes    = 1000;
-		private uint                  _nps      = 5000;
+		private ulong                 _nodes    = 1000;
+		private ulong                 _nps      = 5000;
 		private uint                  _selDepth = 10;
-		private uint                  _tbHits   = 2;
-		private uint                  _time     = 50;
+		private ulong                 _tbHits   = 2;
+		private ulong                 _time     = 50;
 
 		public PrincipalVariation Build() =>
 			new(
@@ -135,13 +135,13 @@ public static class TestDataBuilders
 			return this;
 		}
 
-		public PrincipalVariationBuilder WithNodes(uint nodes)
+		public PrincipalVariationBuilder WithNodes(ulong nodes)
 		{
 			_nodes = nodes;
 			return this;
 		}
 
-		public PrincipalVariationBuilder WithNps(uint nps)
+		public PrincipalVariationBuilder WithNps(ulong nps)
 		{
 			_nps = nps;
 			return this;
@@ -173,13 +173,13 @@ public static class TestDataBuilders
 			return this;
 		}
 
-		public PrincipalVariationBuilder WithTbHits(uint tbHits)
+		public PrincipalVariationBuilder WithTbHits(ulong tbHits)
 		{
 			_tbHits = tbHits;
 			return this;
 		}
 
-		public PrincipalVariationBuilder WithTime(uint time)
+		public PrincipalVariationBuilder WithTime(ulong time)
 		{
 			_time = time;
 			return this;
@@ -197,9 +197,9 @@ public static class TestDataBuilders
 		private uint                              _multiPvValue        = 1;
 		private uint                              _reachedDepth        = 10;
 		private uint                              _reachedSelDepth     = 10;
-		private uint                              _totalNodesSearched  = 1000;
-		private uint                              _totalSearchTimeMs   = 50;
-		private uint                              _totalTbHits;
+		private ulong                             _totalNodesSearched  = 1000;
+		private ulong                             _totalSearchTimeMs   = 50;
+		private ulong                             _totalTbHits;
 
 		public SearchResult Build()
 		{
@@ -262,19 +262,19 @@ public static class TestDataBuilders
 			return this;
 		}
 
-		public SearchResultBuilder WithTotalNodesSearched(uint nodes)
+		public SearchResultBuilder WithTotalNodesSearched(ulong nodes)
 		{
 			_totalNodesSearched = nodes;
 			return this;
 		}
 
-		public SearchResultBuilder WithTotalSearchTimeMs(uint timeMs)
+		public SearchResultBuilder WithTotalSearchTimeMs(ulong timeMs)
 		{
 			_totalSearchTimeMs = timeMs;
 			return this;
 		}
 
-		public SearchResultBuilder WithTotalTbHits(uint tbHits)
+		public SearchResultBuilder WithTotalTbHits(ulong tbHits)
 		{
 			_totalTbHits = tbHits;
 			return this;

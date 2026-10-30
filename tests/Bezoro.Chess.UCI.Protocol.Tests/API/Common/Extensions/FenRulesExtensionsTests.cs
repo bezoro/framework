@@ -163,4 +163,80 @@ public sealed class FenRulesExtensionsTests
 		exception.GetType().Should().Be(exceptionType);
 		exception.Message.Should().Be(message);
 	}
+	[Theory]
+	[InlineData("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 4, 197281)]
+	[InlineData("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 3, 97862)]
+	[InlineData("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 4, 43238)]
+	[InlineData("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 3, 9467)]
+	[InlineData("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", 3, 62379)]
+	[InlineData("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 3, 89890)]
+	public void GetLegalMoves_WhenTraversingReferencePerftPositions_ShouldMatchNodeCount(string rawFen, int depth, long expected)
+	{
+		CountNodes(Fen.Parse(rawFen)!.Value, depth).Should().Be(expected);
+	}
+
+	[Theory]
+	[InlineData("7k/8/8/4P3/8/8/8/K7 w - d6 0 1")]
+	[InlineData("7k/8/8/3NP3/8/8/8/K7 w - d6 0 1")]
+	[InlineData("7k/8/8/3nP3/8/8/8/K7 w - d6 0 1")]
+	public void GetLegalMoves_WhenEnPassantPawnIsMissingOrWrong_ShouldExcludeCapture(string rawFen)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+
+		fen.GetLegalMoves().Should().NotContain("e5d6");
+		Action apply = () => fen.ApplyMove("e5d6");
+		apply.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
+	public void ApplyMove_WhenEnPassantTargetIsOccupied_ShouldCaptureOnlyTargetPiece()
+	{
+		var fen = Fen.Parse("7k/8/3n4/3pP3/8/8/8/K7 w - d6 0 1")!.Value;
+
+		fen.ApplyMove("e5d6").Raw.Should().Be("7k/8/3P4/3p4/8/8/8/K7 b - - 0 1");
+	}
+
+	[Theory]
+	[InlineData("7k/6Q1/8/8/8/8/8/K7 w - - 0 1", "g7h8")]
+	[InlineData("8/8/8/8/8/8/8/Kk6 w - - 0 1", "a1b1")]
+	public void GetLegalMoves_WhenEnemyKingIsAttacked_ShouldNeverIncludeKingCapture(string rawFen, string move)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+
+		fen.GetLegalMoves().Should().NotContain(move);
+		Action apply = () => fen.ApplyMove(move);
+		apply.Should().Throw<InvalidOperationException>();
+	}
+
+	[Fact]
+	public void GetLegalMoves_WhenFenIsDefaultValue_ShouldThrowArgumentException()
+	{
+		Action generate = () => default(Fen).GetLegalMoves();
+
+		generate.Should().Throw<ArgumentException>().WithParameterName("fen");
+	}
+
+	[Theory]
+	[InlineData("7k/8/8/8/8/8/8/K7 w - - 2147483647 1", "a1a2")]
+	[InlineData("7k/8/8/8/8/8/8/K7 b - - 0 2147483647", "h8h7")]
+	public void ApplyMove_WhenCounterWouldOverflow_ShouldThrowInsteadOfWrapping(string rawFen, string move)
+	{
+		Action apply = () => Fen.Parse(rawFen)!.Value.ApplyMove(move);
+
+		apply.Should().Throw<OverflowException>();
+	}
+
+	private static long CountNodes(Fen fen, int depth)
+	{
+		if (depth == 0)
+			return 1;
+		var moves = fen.GetLegalMoves();
+		if (depth == 1)
+			return moves.Length;
+		long count = 0;
+		foreach (string move in moves)
+			count += CountNodes(fen.ApplyMove(move), depth - 1);
+		return count;
+	}
+
 }

@@ -68,7 +68,8 @@ public sealed class TimerSystem : ISystem
 
 		world.GetOrCreateResource<TimerEventsResource>();
 		var commands = context.CommandStream;
-		float deltaTime = context.DeltaTime <= 0f ? 0f : context.DeltaTime;
+		float deltaTime = context.DeltaTime <= 0f || float.IsNaN(context.DeltaTime) || float.IsInfinity(context.DeltaTime)
+			? 0f : context.DeltaTime;
 
 		world.Query<TimerQuery>().ForEach<Timer>(
 			(Entity timerEntity, ref Timer timer) =>
@@ -87,6 +88,9 @@ public sealed class TimerSystem : ISystem
 		float         deltaTime)
 	{
 		if (timer.State != TimerState.Running || deltaTime <= 0f)
+			return;
+		if (timer.DurationSeconds <= 0f || float.IsNaN(timer.DurationSeconds) || float.IsInfinity(timer.DurationSeconds) ||
+			float.IsNaN(timer.ElapsedSeconds) || float.IsInfinity(timer.ElapsedSeconds))
 			return;
 
 		timer.ElapsedSeconds += deltaTime;

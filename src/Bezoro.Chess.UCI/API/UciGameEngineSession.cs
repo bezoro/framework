@@ -21,7 +21,7 @@ namespace Bezoro.Chess.UCI.API;
 /// </summary>
 public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 {
-	private readonly SerializedUciEngineClientRuntime _classificationClient;
+	private readonly GameEngineClients? _engineClients;
 	private readonly CoordinatorClassificationRuntime _classificationRuntime;
 	private readonly PlayableMatchClaimableDrawPolicy _claimableDrawPolicy;
 	private readonly PlayableMatchControlledMoveFallbackPolicy _controlledMoveFallbackPolicy;
@@ -29,23 +29,27 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private readonly GameEngineEventDispatcher        _events;
 	private readonly MatchSideControllerKind          _blackController;
 	private readonly List<PlayableMatchClockCheckpoint> _clockHistory = [];
+	private readonly List<Task> _analysisTasks = [];
+	private Task _ponderOperation = Task.CompletedTask;
 	private readonly char                             _perspectiveColor;
 	private readonly object                           _sync = new();
-	private readonly UciPonderRuntime                 _ponder;
-	private readonly SerializedUciEngineClientRuntime _snapshotClient;
+	private readonly SemaphoreSlim _commandGate = new(1, 1);
+	private event Action<UciState>? StateObserved;
+	private event Action? StreamsStopped;
 	private readonly PlayableMatchTimeControl?        _timeControl;
 	private readonly Func<DateTimeOffset>              _utcNowProvider;
 	private readonly MatchSideControllerKind          _whiteController;
 
 	private readonly UciCoordinatorOptions _options;
 
+	private int _disposed;
 	private CancellationTokenSource? _bestCts;
 	private CancellationTokenSource? _classificationCts;
 	private int                      _acceptedPonderGeneration;
 	private Guid                     _gameId = Guid.NewGuid();
 	private long                     _nextMoveId;
 	private long                     _nextPendingPromotionId;
-	private ImmutableArray<GameMoveEvent> _appliedMoveHistory = [];
+	private ImmutableList<GameMoveEvent> _appliedMoveHistory = [];
 	private PlayableMatchResult      _forcedResult;
 	private PlayableMatchResult?     _claimableResult;
 	private char?                    _drawOfferedBy;
@@ -53,6 +57,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private CoordinatorPendingPromotionRequest? _pendingPromotion;
 
 	private UciState _state = UciState.Default;
+
+	private GameEngineClients Engines => _engineClients ?? throw new InvalidOperationException(
+		"This local session has no engine configured. Use the constructor accepting an engine path for external analysis.");
 
 	/// <summary>
 	///     Raised when an error occurs in any of the underlying engines.
@@ -127,7 +134,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<UciState>? ClassificationCompleted;
 
 	/// <summary>
-	///     Raised when the current visible position is terminal and no legal moves remain.
+	///     Raised when the visible match reaches a terminal result.
 	/// </summary>
 	public event Action<UciState>? GameOver;
 
@@ -243,6 +250,22 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public event Action<UciGameEngineSessionEvent>? EventPublished;
 
 	/// <summary>
+	///     Creates a local playable session. Loading positions, moving, promotion, and undo need no engine process.
+	///     Use the constructor accepting an engine path when external analysis is needed.
+	/// </summary>
+	/// <param name="syncContext">Optional context for game-facing events.</param>
+	/// <param name="options">Clock, match policies, and opt-in background analysis settings.</param>
+	/// <param name="perspectiveColor">Board perspective, either w or b.</param>
+	public UciGameEngineSession(SynchronizationContext? syncContext = null, UciCoordinatorOptions? options = null,
+		char perspectiveColor = 'w')
+		: this(null, syncContext, options, perspectiveColor, MatchSideControllerKind.Manual, MatchSideControllerKind.Manual)
+	{
+		_state = UciState.Default with { LegalMoves = Fen.Default.GetLegalMoves().ToImmutableList() };
+		InitializeClocks('w');
+		ApplyMatchMetadata(_state);
+	}
+
+	/// <summary>
 	///     Constructs a new UciGameEngineSession with engines initialized for the given enginePath, arguments, and working
 	///     directory.
 	/// </summary>
@@ -264,9 +287,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
 		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual)
 		: this(
-			new UciEngineClient(enginePath, args, workingDirectory),
-			new UciPonderRuntime(new UciEngineClient(enginePath, args, workingDirectory)),
-			new UciEngineClient(enginePath, args, workingDirectory),
+			GameEngineClients.Create(enginePath, args, workingDirectory),
 			syncContext,
 			options,
 			perspectiveColor,
@@ -284,12 +305,21 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		MatchSideControllerKind whiteController  = MatchSideControllerKind.Manual,
 		MatchSideControllerKind blackController  = MatchSideControllerKind.Manual,
 		Func<DateTimeOffset>?    utcNowProvider   = null)
+		: this(new GameEngineClients(snapshotClient, ponder, classificationClient), syncContext, options,
+			perspectiveColor, whiteController, blackController, utcNowProvider) { }
+
+	private UciGameEngineSession(
+		GameEngineClients? engineClients,
+		SynchronizationContext? syncContext,
+		UciCoordinatorOptions? options,
+		char perspectiveColor,
+		MatchSideControllerKind whiteController,
+		MatchSideControllerKind blackController,
+		Func<DateTimeOffset>? utcNowProvider = null)
 	{
 		_events      = new(syncContext);
 		_options     = options ?? UciCoordinatorOptions.Default;
-		_snapshotClient = new(snapshotClient ?? throw new ArgumentNullException(nameof(snapshotClient)));
-		_ponder      = ponder ?? throw new ArgumentNullException(nameof(ponder));
-		_classificationClient = new(classificationClient ?? throw new ArgumentNullException(nameof(classificationClient)));
+		_engineClients = engineClients;
 		_classificationRuntime = new(_sync);
 		_perspectiveColor      = NormalizeColor(perspectiveColor, nameof(perspectiveColor));
 		_whiteController       = whiteController;
@@ -301,19 +331,22 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		_drawOfferPolicy       = _options.DrawOfferPolicy;
 		_controlledMoveFallbackPolicy = _options.ControlledMoveFallbackPolicy;
 
-		_ponder.InfoPvWithGeneration   += OnPonderInfo;
-		_ponder.BestMoveWithGeneration += PonderOnBestMove;
+		if (engineClients is { } clients)
+		{
+			clients.Ponder.InfoPvWithGeneration += OnPonderInfo;
+			clients.Ponder.BestMoveWithGeneration += PonderOnBestMove;
+		}
 	}
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines are healthy and responsive.
 	/// </summary>
-	public bool IsHealthy => _snapshotClient.IsHealthy && _ponder.IsHealthy && _classificationClient.IsHealthy;
+	public bool IsHealthy => _engineClients?.IsHealthy ?? false;
 
 	/// <summary>
 	///     Gets a value indicating whether all underlying engines have been started.
 	/// </summary>
-	public bool IsStarted => _snapshotClient.IsStarted && _ponder.IsStarted && _classificationClient.IsStarted;
+	public bool IsStarted => _engineClients?.IsStarted ?? false;
 
 	/// <summary>
 	///     Gets the current position FEN (after all played moves).
@@ -343,17 +376,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Gets the engine metadata reported by the snapshot client instance.
 	/// </summary>
-	public UciEngineInfo EngineInfo => _snapshotClient.EngineInfo;
+	public UciEngineInfo EngineInfo => _engineClients?.Snapshot.EngineInfo ?? UciEngineInfo.Empty;
 
 	/// <summary>
 	///     Gets the options advertised by the snapshot client instance during handshake.
 	/// </summary>
-	public ImmutableArray<UciEngineOption> AvailableOptions => _snapshotClient.AvailableOptions;
+	public ImmutableArray<UciEngineOption> AvailableOptions => _engineClients?.Snapshot.AvailableOptions ?? ImmutableArray<UciEngineOption>.Empty;
 
 	/// <summary>
 	///     Gets the capability state detected for the configured engine.
 	/// </summary>
-	public UciEngineCapabilities Capabilities => _snapshotClient.Capabilities;
+	public UciEngineCapabilities Capabilities => _engineClients?.Snapshot.Capabilities ?? UciEngineCapabilities.Unknown;
 
 	/// <summary>
 	///     Gets the side used for board-orientation and player-relative evaluation helpers.
@@ -423,8 +456,16 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			whiteController,
 			blackController
 		);
-		await coordinator.StartAsync(ct).ConfigureAwait(false);
-		return coordinator;
+		try
+		{
+			await coordinator.StartAsync(ct).ConfigureAwait(false);
+			return coordinator;
+		}
+		catch
+		{
+			await coordinator.DisposeAsync().ConfigureAwait(false);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -435,117 +476,104 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	public async IAsyncEnumerable<Move> StreamClassifiedMovesAsync(
 		[EnumeratorCancellation] CancellationToken ct = default)
 	{
+		ct.ThrowIfCancellationRequested();
+		if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
 		var channel = Channel.CreateUnbounded<Move>();
-		var yielded = new HashSet<string>();
+		var yielded = new HashSet<string>(StringComparer.Ordinal);
 		var yieldedGate = new object();
+		UciState initialState = default;
+		Task<IReadOnlyDictionary<string, Move>>? completionTask;
 
-		UciState                                     initialState;
-		Task<IReadOnlyDictionary<string, Move>>?     completionTask;
-		lock (_sync)
+		void WriteMoves(IReadOnlyDictionary<string, Move> moves)
 		{
-			initialState   = _state;
-			completionTask = _classificationRuntime.CompletionTask;
+			lock (yieldedGate)
+			{
+				foreach (var kvp in moves)
+					if (yielded.Add(kvp.Key)) channel.Writer.TryWrite(kvp.Value);
+			}
 		}
 
-		foreach (var kvp in initialState.ClassifiedMoves)
+		void OnStateChanged(UciState state)
 		{
-			yielded.Add(kvp.Key);
-			yield return kvp.Value;
-		}
-
-		if (initialState.IsClassificationComplete)
-			yield break;
-
-		void OnStateChanged(UciState newState)
-		{
-			if (newState.BaseFen != initialState.BaseFen ||
-				!newState.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
+			if (state.BaseFen != initialState.BaseFen || !state.PlayedMoves.SequenceEqual(initialState.PlayedMoves))
 			{
 				channel.Writer.TryComplete();
 				return;
 			}
-
-			lock (yieldedGate)
-			{
-				foreach (var kvp in newState.ClassifiedMoves)
-				{
-					if (yielded.Add(kvp.Key))
-						channel.Writer.TryWrite(kvp.Value);
-				}
-			}
-
-			if (newState.IsClassificationComplete)
-				channel.Writer.TryComplete();
+			WriteMoves(state.ClassifiedMoves);
+			if (state.IsClassificationComplete) channel.Writer.TryComplete();
 		}
 
-		StateChanged += OnStateChanged;
-
-		Task? completionMonitor = null;
-		if (completionTask is { })
+		void OnStopped() => channel.Writer.TryComplete();
+		lock (_sync)
 		{
-			completionMonitor = completionTask.ContinueWith(
-				static (task, state) =>
-				{
-					var writer = (ChannelWriter<Move>)state!;
-					var error = task.IsFaulted ? task.Exception?.InnerException ?? task.Exception : null;
-					writer.TryComplete(task.IsCanceled ? null : error);
-				},
-				channel.Writer,
-				CancellationToken.None,
-				TaskContinuationOptions.ExecuteSynchronously,
-				TaskScheduler.Default
-			);
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
+			initialState = _state;
+			completionTask = _classificationRuntime.CompletionTask;
+			WriteMoves(initialState.ClassifiedMoves);
+			StateObserved += OnStateChanged;
+			StreamsStopped += OnStopped;
 		}
+
+		if (initialState.IsClassificationComplete) channel.Writer.TryComplete();
+		if (completionTask is { })
+			_ = completionTask.ContinueWith(task =>
+			{
+				if (task.Status == TaskStatus.RanToCompletion) WriteMoves(task.Result);
+				channel.Writer.TryComplete(task.IsFaulted ? task.Exception?.InnerException ?? task.Exception : null);
+			}, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
 		try
 		{
 			while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
-			{
-				while (channel.Reader.TryRead(out var move))
-				{
-					yield return move;
-				}
-			}
+				while (channel.Reader.TryRead(out var move)) yield return move;
 		}
 		finally
 		{
-			StateChanged -= OnStateChanged;
-			if (completionMonitor is { })
-				await completionMonitor.ConfigureAwait(false);
+			StateObserved -= OnStateChanged;
+			StreamsStopped -= OnStopped;
+			channel.Writer.TryComplete();
 		}
 	}
 
 	/// <summary>
-	///     Streams state changes as an async enumerable.
-	///     Yields the current state immediately, then yields each subsequent state change.
+	///     Streams the latest state for rendering and status updates.
+	///     Yields the current state immediately and buffers at most one subsequent snapshot.
+	///     A slow consumer skips intermediate snapshots. Use EventPublished for gameplay event delivery.
 	/// </summary>
 	/// <param name="ct">Cancellation token.</param>
 	public async IAsyncEnumerable<UciState> StreamStateAsync(
 		[EnumeratorCancellation] CancellationToken ct = default)
 	{
-		var channel = Channel.CreateUnbounded<UciState>();
-
-		void OnStateChanged(UciState state)
+		ct.ThrowIfCancellationRequested();
+		if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
+		var channel = Channel.CreateBounded<UciState>(new BoundedChannelOptions(1)
 		{
-			channel.Writer.TryWrite(state);
+			FullMode = BoundedChannelFullMode.DropOldest,
+			SingleReader = true,
+			SingleWriter = false,
+			AllowSynchronousContinuations = false
+		});
+		void OnStateChanged(UciState state) => channel.Writer.TryWrite(state);
+		void OnStopped() => channel.Writer.TryComplete();
+		UciState initialState;
+		lock (_sync)
+		{
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
+			initialState = _state;
+			StateObserved += OnStateChanged;
+			StreamsStopped += OnStopped;
 		}
-
-		StateChanged += OnStateChanged;
-
 		try
 		{
-			// Yield current state first
-			yield return State;
-
+			yield return initialState;
 			while (await channel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
-			{
-				while (channel.Reader.TryRead(out var state))
-					yield return state;
-			}
+				while (channel.Reader.TryRead(out var state)) yield return state;
 		}
 		finally
 		{
-			StateChanged -= OnStateChanged;
+			StateObserved -= OnStateChanged;
+			StreamsStopped -= OnStopped;
 			channel.Writer.TryComplete();
 		}
 	}
@@ -553,22 +581,21 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Prepares a new game in all engines. Clears all cached move classifications and legal moves.
 	/// </summary>
-	public async Task NewGameAsync(CancellationToken ct = default)
+	public Task NewGameAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => NewGameCoreAsync(ct), ct);
+
+	private Task NewGameCoreAsync(CancellationToken ct = default)
 	{
+		ct.ThrowIfCancellationRequested();
 		InvalidatePonderState(clearTransientState: true);
 		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 		ClearState();
-		await Task.WhenAll(
-			_snapshotClient.NewGameAsync(ct),
-			_ponder.NewGameAsync(ct),
-			_classificationClient.NewGameAsync(ct)
-		).ConfigureAwait(false);
-
-		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
+		QueuePonderStop();
 		ResetGameplaySession();
 		State = UciState.Default;
 		var gameStarted = new GameStartedEvent(_gameId, Fen.Default, DateTimeOffset.UtcNow);
 		RaiseTypedEvent(GameStarted, gameStarted, UciGameEngineSessionEvent.ForGameStarted(gameStarted));
+		return Task.CompletedTask;
 	}
 
 	/// <summary>
@@ -586,9 +613,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	public Task SetOptionAsync(string name, string? value, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.SetOptionAsync(name, value, ct),
-			_ponder.SetOptionAsync(name, value, ct),
-			_classificationClient.SetOptionAsync(name, value, ct)
+			Engines.Snapshot.SetOptionAsync(name, value, ct),
+			Engines.Ponder.SetOptionAsync(name, value, ct),
+			Engines.Classifier.SetOptionAsync(name, value, ct)
 		);
 
 	/// <summary>
@@ -596,9 +623,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task SetDebugAsync(bool enabled, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.SetDebugAsync(enabled, ct),
-			_ponder.SetDebugAsync(enabled, ct),
-			_classificationClient.SetDebugAsync(enabled, ct)
+			Engines.Snapshot.SetDebugAsync(enabled, ct),
+			Engines.Ponder.SetDebugAsync(enabled, ct),
+			Engines.Classifier.SetDebugAsync(enabled, ct)
 		);
 
 	/// <summary>
@@ -606,9 +633,9 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	public Task RegisterAsync(UciRegistration registration, CancellationToken ct = default) =>
 		Task.WhenAll(
-			_snapshotClient.RegisterAsync(registration, ct),
-			_ponder.RegisterAsync(registration, ct),
-			_classificationClient.RegisterAsync(registration, ct)
+			Engines.Snapshot.RegisterAsync(registration, ct),
+			Engines.Ponder.RegisterAsync(registration, ct),
+			Engines.Classifier.RegisterAsync(registration, ct)
 		);
 
 	/// <summary>
@@ -629,31 +656,37 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Starts all engines and resets state. Sets UCI options on the ponder engine based on configuration.
 	/// </summary>
-	public async Task StartAsync(CancellationToken ct = default)
+	public Task StartAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => StartCoreAsync(ct), ct);
+
+	private async Task StartCoreAsync(CancellationToken ct = default)
 	{
+		_ = Engines;
 		var snapshotStarted   = false;
 		var ponderStarted     = false;
 		var classifierStarted = false;
 
 		try
 		{
-			await _snapshotClient.StartWithCoordinatorCapabilitiesAsync(ct).ConfigureAwait(false);
-			CoordinatorRuntimeUtilities.EnsureCoordinatorCapabilities(_snapshotClient.Capabilities);
+			await Engines.Snapshot.StartAsync(ct).ConfigureAwait(false);
 			snapshotStarted = true;
 
-			await _ponder.StartAsync(ct).ConfigureAwait(false);
+			await Engines.Ponder.StartAsync(ct).ConfigureAwait(false);
 			ponderStarted = true;
 
-			await _classificationClient.StartAsync(ct).ConfigureAwait(false);
+			await Engines.Classifier.StartAsync(ct).ConfigureAwait(false);
 			classifierStarted = true;
 
 			// Configure ponder engine based on options.
-			await _ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
-			await _ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
+			await Engines.Ponder.SetOptionAsync("Threads", _options.PonderThreads.ToString(), ct).ConfigureAwait(false);
+			await Engines.Ponder.SetOptionAsync("MultiPv", _options.MultiPv.ToString(),       ct).ConfigureAwait(false);
 
 			ClearState();
-			ResetGameplaySession();
-			State = UciState.Default;
+			if (State.LegalMoves.Count == 0 && !State.Result.IsTerminal)
+			{
+				ResetGameplaySession();
+				State = UciState.Default;
+			}
 
 			var gameStarted = new GameStartedEvent(_gameId, Fen.Default, DateTimeOffset.UtcNow);
 			RaiseTypedEvent(GameStarted, gameStarted, UciGameEngineSessionEvent.ForGameStarted(gameStarted));
@@ -661,7 +694,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		}
 		catch
 		{
-			await RollbackStartAsync(snapshotStarted, ponderStarted, classifierStarted).ConfigureAwait(false);
+			await RollbackStartAsync(snapshotStarted || Engines.Snapshot.IsStarted, ponderStarted || Engines.Ponder.IsStarted, classifierStarted || Engines.Classifier.IsStarted).ConfigureAwait(false);
 			throw;
 		}
 	}
@@ -679,11 +712,15 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="fen">Position to search from.</param>
 	/// <param name="playedMoves">Optional played moves to append to the FEN.</param>
 	/// <param name="ct">Cancellation token.</param>
-	public async Task StartSearchAsync(
+	public Task StartSearchAsync(Fen fen, IEnumerable<string>? playedMoves = null, CancellationToken ct = default) =>
+		RunCommandAsync(() => StartSearchCoreAsync(fen, playedMoves, ct), ct);
+
+	private async Task StartSearchCoreAsync(
 		Fen                  fen,
 		IEnumerable<string>? playedMoves = null,
 		CancellationToken    ct          = default)
 	{
+		await _ponderOperation.ConfigureAwait(false);
 		InvalidatePonderState(clearTransientState: true);
 
 		var newCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -692,8 +729,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 		try
 		{
-			await _ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
-			AcceptPonderGeneration(_ponder.CurrentSearchGeneration);
+			await Engines.Ponder.StartSearchAsync(fen, playedMoves, token).ConfigureAwait(false);
+			AcceptPonderGeneration(Engines.Ponder.CurrentSearchGeneration);
 			SetSearchingState(true);
 		}
 		catch
@@ -708,41 +745,49 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Stops any ongoing search and all engine operations. Resets cached state and cancels in-flight move classification.
 	/// </summary>
-	public async Task StopAsync(CancellationToken ct = default)
+	public Task StopAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => StopCoreAsync(ct), CancellationToken.None);
+
+	private async Task StopCoreAsync(CancellationToken ct = default)
 	{
 		var stopFailures = new List<Exception>();
 		bool cancellationRequested = ct.IsCancellationRequested;
 		ClearState();
 
-		cancellationRequested = await TryStopStepAsync(
-			StopSearchCoreAsync,
-			cancellationRequested,
-			stopFailures,
-			ct,
-			reportErrors: false
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			_classificationClient.StopAsync,
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			token => _ponder.StopAsync(token),
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
-		cancellationRequested = await TryStopStepAsync(
-			_snapshotClient.StopAsync,
-			cancellationRequested,
-			stopFailures,
-			ct
-		).ConfigureAwait(false);
+		if (_engineClients is { })
+		{
+			cancellationRequested = await TryStopStepAsync(
+				StopSearchCoreAsync,
+				cancellationRequested,
+				stopFailures,
+				ct,
+				reportErrors: false
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				Engines.Classifier.StopAsync,
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				token => Engines.Ponder.StopAsync(token),
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+			cancellationRequested = await TryStopStepAsync(
+				Engines.Snapshot.StopAsync,
+				cancellationRequested,
+				stopFailures,
+				ct
+			).ConfigureAwait(false);
+		}
 
+		PruneCompletedAnalysisTasks();
 		Interlocked.Exchange(ref _acceptedPonderGeneration, 0);
 		State = UciState.Default;
 
+		StreamsStopped?.Invoke();
 		RaiseSessionEvent(Stopped, UciGameEngineSessionEventKind.Stopped);
 		CoordinatorRuntimeUtilities.ThrowStopFailures(stopFailures, cancellationRequested, ct);
 	}
@@ -750,7 +795,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Stops any ongoing infinite ponder search.
 	/// </summary>
-	public async Task StopSearchAsync(CancellationToken ct = default)
+	public Task StopSearchAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => StopSearchCommandCoreAsync(ct), ct);
+
+	private async Task StopSearchCommandCoreAsync(CancellationToken ct = default)
 	{
 		try
 		{
@@ -772,7 +820,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="setup">Complete match setup to load.</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The refreshed state after the setup is loaded.</returns>
-	public async Task<UciState> LoadMatchAsync(PlayableMatchSetup setup, CancellationToken ct = default)
+	public Task<UciState> LoadMatchAsync(PlayableMatchSetup setup, CancellationToken ct = default) =>
+		RunCommandAsync(() => LoadMatchCoreAsync(setup, ct), ct);
+
+	private async Task<UciState> LoadMatchCoreAsync(PlayableMatchSetup setup, CancellationToken ct = default)
 	{
 		setup.Validate();
 		return await UpdatePositionCoreAsync(
@@ -784,11 +835,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Fully updates the engines to reflect a new board position:
-	///     - Stops prior search and cancels in-flight classification.
-	///     - Updates all engines to the new position.
-	///     - Publishes new set of legal moves via StateChanged.
-	///     - Kicks off ponder search and background classification.
+	///     Updates the locally validated board position and legal moves, then optionally schedules background analysis.
+	///     Completes without waiting for an external engine.
 	/// </summary>
 	/// <param name="fen">Position FEN</param>
 	/// <param name="playedMoves">Optional moves played after the FEN</param>
@@ -798,7 +846,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		Fen                  fen,
 		IEnumerable<string>? playedMoves,
 		CancellationToken    ct = default) =>
-		UpdatePositionCoreAsync(fen, playedMoves, null, ct);
+		RunCommandAsync(() => UpdatePositionCoreAsync(fen, playedMoves, null, ct), ct);
 
 	/// <summary>
 	///     Fully updates the engines to reflect a new board position and optionally restores the match clock snapshot.
@@ -813,12 +861,12 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		IEnumerable<string>?        playedMoves,
 		PlayableMatchClockRestore? clockRestore,
 		CancellationToken           ct = default) =>
-		UpdatePositionCoreAsync(
+		RunCommandAsync(() => UpdatePositionCoreAsync(
 			fen,
 			playedMoves,
 			clockRestore.HasValue ? _ => clockRestore.Value : null,
 			ct
-		);
+		), ct);
 
 	private async Task<UciState> UpdatePositionCoreAsync(
 		Fen                                    fen,
@@ -826,12 +874,23 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		Func<Fen, PlayableMatchClockRestore?>? resolveClockRestore,
 		CancellationToken                      ct)
 	{
-		var movesList = playedMoves?.ToList() ?? new List<string>();
+		ct.ThrowIfCancellationRequested();
+		var movesList = playedMoves?.Select(static move => move.Trim().ToLowerInvariant()).ToList() ?? new List<string>();
 		var previousTurn = State.CurrentFen.ActiveColor;
+		var history = BuildLoadedMoveHistory(fen, movesList, ct);
+		var effectiveFen = history.IsEmpty ? fen : history[^1].ResultingFen;
+		var clockRestore = resolveClockRestore?.Invoke(effectiveFen);
+		if (clockRestore.HasValue)
+		{
+			if (!_timeControl.HasValue)
+				throw new InvalidOperationException("Cannot restore clock state because this session has no time control.");
+			_ = PlayableMatchClockKernel.Restore(_timeControl.Value, effectiveFen.ActiveColor, clockRestore.Value);
+		}
 
+		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct, effectiveFen).ConfigureAwait(false);
 		ResetGameplaySession();
-		var snapshot = await LoadPositionSnapshotAsync(fen, movesList, ct).ConfigureAwait(false);
-		var clockRestore = resolveClockRestore?.Invoke(snapshot.CurrentFen);
+		_appliedMoveHistory = history.Select(move => move with { GameId = _gameId }).ToImmutableList();
+		_nextMoveId = history.Length;
 		if (clockRestore.HasValue)
 			RestoreClock(snapshot.CurrentFen.ActiveColor, clockRestore.Value);
 		else
@@ -870,12 +929,15 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Gets the actual current FEN (after all played moves) as seen by the engine.
+	///     Gets the locally validated current FEN after all played moves, without contacting an engine.
 	/// </summary>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The current position FEN, or null if not available.</returns>
-	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default) =>
-		_snapshotClient.GetFenAsync(ct);
+	public Task<Fen?> GetCurrentFenAsync(CancellationToken ct = default)
+	{
+		ct.ThrowIfCancellationRequested();
+		return Task.FromResult<Fen?>(CurrentFen);
+	}
 
 	/// <summary>
 	///     Waits until all legal moves in the current position have been classified.
@@ -933,19 +995,14 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		return await ClassifyMoveWithClassificationClientAsync(currentState.CurrentFen, move, ct).ConfigureAwait(false);
 	}
 
-	private async Task<Move> ClassifyMoveForEventAsync(
-		UciState           currentState,
-		string             move,
-		CancellationToken  ct = default)
+	private static Task<Move> ClassifyMoveForEventAsync(
+		UciState currentState, string move, CancellationToken ct = default)
 	{
-		try
-		{
-			return await ClassifyMoveForStateAsync(currentState, move, ct).ConfigureAwait(false);
-		}
-		catch (Exception) when (CoordinatorMoveFactory.TryBuildFallbackMove(currentState.CurrentFen, move, out var fallbackMove))
-		{
-			return fallbackMove;
-		}
+		ct.ThrowIfCancellationRequested();
+		if (currentState.ClassifiedMoves.TryGetValue(move, out var classified)) return Task.FromResult(classified);
+		if (CoordinatorMoveFactory.TryBuildFallbackMove(currentState.CurrentFen, move, out var localMove))
+			return Task.FromResult(localMove);
+		throw new InvalidOperationException("Unable to classify the legal move locally.");
 	}
 
 	/// <summary>
@@ -955,10 +1012,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The search result containing the best move and evaluation.</returns>
 	public Task<SearchResult> SearchAsync(SearchParameters parameters, CancellationToken ct = default) =>
-		_snapshotClient.SearchAsync(CurrentFen, null, parameters, ct);
+		Engines.Snapshot.SearchAsync(CurrentFen, null, parameters, ct);
 
 	/// <summary>
-	///     Applies a move to the current position and updates the engines.
+	///     Applies a legal move using local rules without waiting for an external engine.
 	///     This is a convenience wrapper around the position update API.
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
@@ -973,22 +1030,28 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Plays the current side automatically when that side is configured as engine-controlled.
 	/// </summary>
-	public async Task<EngineMoveResult> PlayControlledMoveAsync(CancellationToken ct = default)
+	public Task<EngineMoveResult> PlayControlledMoveAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => PlayControlledMoveCoreAsync(ct), ct);
+
+	private async Task<EngineMoveResult> PlayControlledMoveCoreAsync(CancellationToken ct = default)
 	{
+		if (State.Result.IsTerminal) throw new InvalidOperationException("The match has already ended.");
+		EnsureTurnHasTimeRemaining();
 		if (GetController(CurrentFen.ActiveColor) != MatchSideControllerKind.Engine)
 			throw new InvalidOperationException("The current side is not configured for engine control.");
 
 		try
 		{
 			var result = await SearchAsync(new() { MoveTimeMs = _options.EngineMoveTimeMs }, ct).ConfigureAwait(false);
-			await MakeMoveAsync(result.BestMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
+			await MakeMoveCoreAsync(result.BestMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
 			return new(result.BestMove.ToLowerInvariant(), result);
 		}
 		catch (InvalidOperationException) when (
 			_controlledMoveFallbackPolicy == PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback &&
+			!State.Result.IsTerminal &&
 			TryResolveFallbackControlledMove(State, out var fallbackMove))
 		{
-			await MakeMoveAsync(fallbackMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
+			await MakeMoveCoreAsync(fallbackMove, GameMoveActor.Engine, ct).ConfigureAwait(false);
 			return new(fallbackMove, default);
 		}
 	}
@@ -1015,14 +1078,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	}
 
 	/// <summary>
-	///     Applies a move to the current position and updates the engines with an explicit actor classification.
+	///     Applies a legal move locally with an explicit actor classification.
 	/// </summary>
 	/// <param name="move">The move to play (in UCI notation, e.g. "e2e4").</param>
 	/// <param name="actor">Who initiated the move.</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The new state after the move is applied.</returns>
 	/// <exception cref="ArgumentException">Thrown when the move is not legal in the current position.</exception>
-	public async Task<UciState> MakeMoveAsync(string move, GameMoveActor actor, CancellationToken ct = default)
+	public Task<UciState> MakeMoveAsync(string move, GameMoveActor actor, CancellationToken ct = default) =>
+		RunCommandAsync(() => MakeMoveCoreAsync(move, actor, ct), ct);
+
+	private async Task<UciState> MakeMoveCoreAsync(string move, GameMoveActor actor, CancellationToken ct = default)
 	{
 		UciState currentState;
 		CoordinatorPendingPromotionRequest? pendingPromotion;
@@ -1031,6 +1097,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			currentState     = _state;
 			pendingPromotion = _pendingPromotion;
 		}
+
+		ct.ThrowIfCancellationRequested();
+		if (currentState.Result.IsTerminal)
+			throw new InvalidOperationException("The match has already ended.");
 
 		string normalizedMove = move?.Trim().ToLowerInvariant() ?? string.Empty;
 		EnsureTurnHasTimeRemaining();
@@ -1094,19 +1164,25 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="pendingPromotionId">The identifier previously published in <see cref="PromotionRequired" />.</param>
 	/// <param name="pieceType">The chosen promotion piece type.</param>
 	/// <param name="ct">Cancellation token.</param>
-	public async Task<UciState> ChoosePromotionAsync(
+	public Task<UciState> ChoosePromotionAsync(long pendingPromotionId, PieceType pieceType, CancellationToken ct = default) =>
+		RunCommandAsync(() => ChoosePromotionCoreAsync(pendingPromotionId, pieceType, ct), ct);
+
+	private async Task<UciState> ChoosePromotionCoreAsync(
 		long             pendingPromotionId,
 		PieceType        pieceType,
 		CancellationToken ct = default)
 	{
+		ct.ThrowIfCancellationRequested();
+		if (State.Result.IsTerminal)
+			throw new InvalidOperationException("The match has already ended.");
+		EnsureTurnHasTimeRemaining();
 		CoordinatorPendingPromotionRequest pending;
 		lock (_sync)
 		{
 			if (!_pendingPromotion.HasValue || _pendingPromotion.Value.Id != pendingPromotionId)
 				throw new InvalidOperationException("No matching pending promotion request exists.");
 
-			pending           = _pendingPromotion.Value;
-			_pendingPromotion = null;
+			pending = _pendingPromotion.Value;
 		}
 
 		string? notation = CoordinatorMoveFactory.ResolvePromotionMoveNotation(pending, pieceType);
@@ -1138,13 +1214,16 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <param name="count">Number of moves to undo. Defaults to 1.</param>
 	/// <param name="ct">Cancellation token.</param>
 	/// <returns>The new state after undoing moves, or the current state if no moves were undone.</returns>
-	public async Task<UciState> UndoAsync(int count = 1, CancellationToken ct = default)
+	public Task<UciState> UndoAsync(int count = 1, CancellationToken ct = default) =>
+		RunCommandAsync(() => UndoCoreAsync(count, ct), ct);
+
+	private async Task<UciState> UndoCoreAsync(int count = 1, CancellationToken ct = default)
 	{
 		if (count < 1)
 			throw new ArgumentOutOfRangeException(nameof(count), "Count must be at least 1.");
 
 		UciState currentState;
-		ImmutableArray<GameMoveEvent> appliedMoves;
+		ImmutableList<GameMoveEvent> appliedMoves;
 		lock (_sync)
 		{
 			currentState = _state;
@@ -1156,21 +1235,22 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			return currentState;
 
 		int movesToRemove = Math.Min(count, currentState.PlayedMoves.Count);
-		var newMoves      = currentState.PlayedMoves.Take(currentState.PlayedMoves.Count - movesToRemove).ToList();
+		int retainedCount = currentState.PlayedMoves.Count - movesToRemove;
+		var newMoves = currentState.PlayedMoves.RemoveRange(retainedCount, movesToRemove);
 		var previousTurn = currentState.CurrentFen.ActiveColor;
-		var snapshot = await LoadPositionSnapshotAsync(currentState.BaseFen, newMoves, ct).ConfigureAwait(false);
-		InitializeClocks(snapshot.CurrentFen.ActiveColor);
-		var metadata = ApplyMatchMetadata(snapshot);
-		snapshot = metadata.Snapshot;
-
-		var removedMoves = appliedMoves.Length >= movesToRemove
-							   ? appliedMoves[^movesToRemove..]
-							   : appliedMoves;
+		var retainedFen = retainedCount > 0 ? appliedMoves[retainedCount - 1].ResultingFen : currentState.BaseFen;
+		var snapshot = await LoadPositionSnapshotAsync(currentState.BaseFen, newMoves, ct, retainedFen).ConfigureAwait(false);
+		var removedMoves = appliedMoves.Skip(retainedCount).ToImmutableArray();
 
 		lock (_sync)
 		{
-			_appliedMoveHistory = appliedMoves[..Math.Max(0, appliedMoves.Length - removedMoves.Length)];
+			_appliedMoveHistory = appliedMoves.RemoveRange(retainedCount, removedMoves.Length);
+			_forcedResult = default;
+			_drawOfferedBy = null;
 		}
+		InitializeClocks(snapshot.CurrentFen.ActiveColor);
+		var metadata = ApplyMatchMetadata(snapshot);
+		snapshot = metadata.Snapshot;
 
 		var moveUndone = new MoveUndoneEvent(_gameId, removedMoves, snapshot.CurrentFen, DateTimeOffset.UtcNow);
 		RaiseTypedEvent(MoveUndone, moveUndone, UciGameEngineSessionEvent.ForMoveUndone(moveUndone));
@@ -1204,10 +1284,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Offers a draw from the current side.
 	/// </summary>
-	public Task<UciState> OfferDrawAsync(CancellationToken ct = default)
+	public Task<UciState> OfferDrawAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => OfferDrawCoreAsync(ct), ct);
+
+	private Task<UciState> OfferDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor);
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: State.CurrentFen.ActiveColor, updateDrawOffer: true);
 		RaiseStateEvent(DrawOffered, UciGameEngineSessionEventKind.DrawOffered, snapshot);
 		return Task.FromResult(snapshot);
 	}
@@ -1215,9 +1298,17 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Accepts the current pending draw offer and ends the game as a draw.
 	/// </summary>
-	public Task<UciState> AcceptDrawAsync(CancellationToken ct = default)
+	public Task<UciState> AcceptDrawAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => AcceptDrawCoreAsync(ct), ct);
+
+	private Task<UciState> AcceptDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
+		if (State.Result.IsTerminal)
+			throw new InvalidOperationException("The match has already ended.");
+		if (!_drawOfferedBy.HasValue)
+			throw new InvalidOperationException("There is no pending draw offer.");
 		var snapshot = SetForcedResult(new(PlayableMatchResultReason.DrawAgreement, null));
 		return Task.FromResult(snapshot);
 	}
@@ -1225,10 +1316,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Declines the current pending draw offer.
 	/// </summary>
-	public Task<UciState> DeclineDrawAsync(CancellationToken ct = default)
+	public Task<UciState> DeclineDrawAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => DeclineDrawCoreAsync(ct), ct);
+
+	private Task<UciState> DeclineDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		var snapshot = UpdateMatchMetadata(drawOfferedBy: null);
+		var snapshot = UpdateMatchMetadata(drawOfferedBy: null, updateDrawOffer: true);
 		RaiseStateEvent(DrawDeclined, UciGameEngineSessionEventKind.DrawDeclined, snapshot);
 		return Task.FromResult(snapshot);
 	}
@@ -1236,9 +1330,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Claims the currently claimable draw result when available.
 	/// </summary>
-	public Task<UciState> ClaimDrawAsync(CancellationToken ct = default)
+	public Task<UciState> ClaimDrawAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => ClaimDrawCoreAsync(ct), ct);
+
+	private Task<UciState> ClaimDrawCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
 		if (!State.ClaimableResult.HasValue)
 			throw new InvalidOperationException("There is no claimable draw available.");
 
@@ -1249,9 +1347,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Resigns on behalf of the current side.
 	/// </summary>
-	public Task<UciState> ResignAsync(CancellationToken ct = default)
+	public Task<UciState> ResignAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => ResignCoreAsync(ct), ct);
+
+	private Task<UciState> ResignCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
+		UpdateMatchMetadata();
 		var snapshot = SetForcedResult(new(PlayableMatchResultReason.Resignation, Opposite(CurrentFen.ActiveColor)));
 		return Task.FromResult(snapshot);
 	}
@@ -1259,7 +1361,10 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Pauses the active match clock when time control is enabled.
 	/// </summary>
-	public Task<UciState> PauseClockAsync(CancellationToken ct = default)
+	public Task<UciState> PauseClockAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => PauseClockCoreAsync(ct), ct);
+
+	private Task<UciState> PauseClockCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
 		if (!_timeControl.HasValue || _clockHistory.Count == 0 || _clockHistory[^1].PausedAtUtc.HasValue)
@@ -1274,10 +1379,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// <summary>
 	///     Resumes the active match clock when paused.
 	/// </summary>
-	public Task<UciState> ResumeClockAsync(CancellationToken ct = default)
+	public Task<UciState> ResumeClockAsync(CancellationToken ct = default) =>
+		RunCommandAsync(() => ResumeClockCoreAsync(ct), ct);
+
+	private Task<UciState> ResumeClockCoreAsync(CancellationToken ct = default)
 	{
 		ct.ThrowIfCancellationRequested();
-		if (!_timeControl.HasValue || _clockHistory.Count == 0 || !_clockHistory[^1].PausedAtUtc.HasValue)
+		if (State.Result.IsTerminal || !_timeControl.HasValue || _clockHistory.Count == 0 || !_clockHistory[^1].PausedAtUtc.HasValue)
 			return Task.FromResult(State);
 
 		_clockHistory[^1] = PlayableMatchClockKernel.Resume(_clockHistory[^1], _utcNowProvider());
@@ -1300,20 +1408,26 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		// Cancel any background classification
-		ClearState();
-
-		// Unsubscribe from engine events
-		_ponder.InfoPvWithGeneration   -= OnPonderInfo;
-		_ponder.BestMoveWithGeneration -= PonderOnBestMove;
-
-		// Dispose cancellation token sources
-		// (ClearState() already handled _classificationCts)
-		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
-
-		await _classificationClient.DisposeAsync();
-		await _ponder.DisposeAsync();
-		await _snapshotClient.DisposeAsync();
+		if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+		await _commandGate.WaitAsync().ConfigureAwait(false);
+		try
+		{
+			StreamsStopped?.Invoke();
+			ClearState();
+			if (_engineClients is { } clients)
+			{
+				clients.Ponder.InfoPvWithGeneration -= OnPonderInfo;
+				clients.Ponder.BestMoveWithGeneration -= PonderOnBestMove;
+			}
+			CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
+			try { await Task.WhenAll(_analysisTasks).ConfigureAwait(false); }
+			finally
+			{
+				_analysisTasks.Clear();
+				if (_engineClients is { } engines) await engines.DisposeAsync().ConfigureAwait(false);
+			}
+		}
+		finally { _commandGate.Release(); }
 	}
 
 	/// <summary>
@@ -1325,8 +1439,30 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		GC.SuppressFinalize(this);
 	}
 
+	private async Task<T> RunCommandAsync<T>(Func<Task<T>> command, CancellationToken ct)
+	{
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
+			return await command().ConfigureAwait(false);
+		}
+		finally { _commandGate.Release(); }
+	}
+
+	private async Task RunCommandAsync(Func<Task> command, CancellationToken ct)
+	{
+		await _commandGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(UciGameEngineSession));
+			await command().ConfigureAwait(false);
+		}
+		finally { _commandGate.Release(); }
+	}
+
 	/// <summary>
-	///     Cancels background move classification and clears all cached per-move results.
+	///     Cancels background move classification and clears its completion promise.
 	/// </summary>
 	private void ClearState()
 	{
@@ -1364,7 +1500,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		string            move,
 		CancellationToken ct)
 	{
-		var result = await _classificationClient.SearchMoveAsync(fen, move, _options.ClassificationDepth, ct)
+		var result = await Engines.Classifier.SearchMoveAsync(fen, move, _options.ClassificationDepth, ct)
 												.ConfigureAwait(false);
 		var boardState = BoardState.FromFen(fen) ??
 						 throw new InvalidOperationException(
@@ -1374,99 +1510,128 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		return new Move(move, MoveAnalysis.Analyze(move, boardState, score, false));
 	}
 
-	private async Task<UciState> LoadPositionSnapshotAsync(
-		Fen                 fen,
-		IReadOnlyCollection<string> moves,
-		CancellationToken   ct)
+	private ImmutableArray<GameMoveEvent> BuildLoadedMoveHistory(Fen baseFen, IReadOnlyList<string> moves, CancellationToken ct)
 	{
-		await StopSearchAsync(ct).ConfigureAwait(false);
-		ClearState();
-
-		await _snapshotClient.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
-		await _ponder.SetPositionAsync(fen, moves, ct).ConfigureAwait(false);
-
-		var legalMoves = await _snapshotClient.GetLegalMovesAsync(ct).ConfigureAwait(false);
-		var effectiveFen = await _snapshotClient.GetFenAsync(ct).ConfigureAwait(false) ?? fen;
-
-		lock (_sync)
+		var history = ImmutableArray.CreateBuilder<GameMoveEvent>(moves.Count);
+		var position = baseFen;
+		var played = ImmutableList<string>.Empty;
+		for (int i = 0; i < moves.Count; i++)
 		{
-			_state = new(
-				fen,
-				effectiveFen,
-				moves.ToImmutableList(),
-				legalMoves.ToImmutableList(),
-				ImmutableDictionary<string, Move>.Empty,
-				null,
-				null,
-				null,
-				false
-			);
-
-			return _state;
+			ct.ThrowIfCancellationRequested();
+			string notation = moves[i];
+			var next = position.ApplyMove(notation);
+			var previousState = UciState.Default with { BaseFen = baseFen, CurrentFen = position, PlayedMoves = played };
+			played = played.Add(notation);
+			var nextState = UciState.Default with { BaseFen = baseFen, CurrentFen = next, PlayedMoves = played, LegalMoves = next.GetLegalMoves().ToImmutableList() };
+			if (!CoordinatorMoveFactory.TryBuildFallbackMove(position, notation, out var move))
+				throw new InvalidOperationException("Unable to reconstruct the loaded move history.");
+			history.Add(CoordinatorMoveFactory.BuildGameMoveEvent(_gameId, i + 1, previousState, nextState, notation, move, GameMoveActor.Remote));
+			position = next;
 		}
+		return history.MoveToImmutable();
 	}
 
-	private async Task StartBackgroundWorkAsync(
-		Fen                  baseFen,
-		IReadOnlyCollection<string> moves,
-		Fen                  currentFen,
-		ImmutableList<string> legalMoves,
-		CancellationToken    ct)
+	private Task<UciState> LoadPositionSnapshotAsync(
+		Fen fen, IReadOnlyCollection<string> moves, CancellationToken ct, Fen? currentFen = null)
 	{
-		try
-		{
-			await StartSearchAsync(baseFen, moves, ct).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (ct.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			RaiseError(ex);
-		}
+		ct.ThrowIfCancellationRequested();
+		Fen effectiveFen = currentFen ?? fen;
+		if (!currentFen.HasValue)
+			foreach (var move in moves)
+			{
+				ct.ThrowIfCancellationRequested();
+				effectiveFen = effectiveFen.ApplyMove(move);
+			}
+		var legalMoves = effectiveFen.GetLegalMoves();
+		InvalidatePonderState(clearTransientState: true);
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
+		ClearState();
+		QueuePonderStop();
+		return Task.FromResult(new UciState(
+			fen, effectiveFen, moves as ImmutableList<string> ?? moves.ToImmutableList(), legalMoves.ToImmutableList(),
+			ImmutableDictionary<string, Move>.Empty, null, null, null, false));
+	}
 
-		int classificationGeneration = BeginClassificationRun();
+	// Callers hold _commandGate. Workers never mutate this collection.
+	private void PruneCompletedAnalysisTasks() =>
+		_analysisTasks.RemoveAll(static task =>
+		{
+			if (!task.IsCompleted) return false;
+			// Worker errors are published through Error. Observe faults left by throwing subscribers as well.
+			_ = task.Exception;
+			return true;
+		});
+
+	private void QueuePonderStop()
+	{
+		PruneCompletedAnalysisTasks();
+		if (_engineClients is not { Ponder.IsStarted: true } engines) return;
+		var preceding = _ponderOperation;
+		_ponderOperation = Task.Run(async () =>
+		{
+			try
+			{
+				await preceding.ConfigureAwait(false);
+				await engines.Ponder.StopSearchAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch (Exception ex) { RaiseError(ex); }
+		});
+		_analysisTasks.Add(_ponderOperation);
+	}
+
+	private Task StartBackgroundWorkAsync(
+		Fen baseFen, IReadOnlyCollection<string> moves, Fen currentFen,
+		ImmutableList<string> legalMoves, CancellationToken ct)
+	{
+		PruneCompletedAnalysisTasks();
+		int generation = BeginClassificationRun();
 		if (legalMoves.Count == 0)
 		{
-			CompleteClassificationRun(classificationGeneration);
-			return;
+			CompleteClassificationRun(generation);
+			return Task.CompletedTask;
 		}
-
-		var classificationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-		var classificationToken = classificationCts.Token;
-		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts, classificationCts);
-
-		_ = Task.Run(
-			async () =>
+		if (!_options.EnableBackgroundAnalysis || !IsStarted || State.Result.IsTerminal)
+		{
+			_classificationRuntime.CompleteRun(State, generation, out _);
+			return Task.CompletedTask;
+		}
+		var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+		var token = cts.Token;
+		CoordinatorRuntimeUtilities.CancelAndDispose(ref _classificationCts, cts);
+		var precedingPonderOperation = _ponderOperation;
+		var ponderStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ponderOperation = ponderStarted.Task;
+		_analysisTasks.Add(Task.Run(async () =>
+		{
+			try
 			{
-				try
+				await precedingPonderOperation.ConfigureAwait(false);
+				token.ThrowIfCancellationRequested();
+				await Engines.Ponder.StartSearchAsync(baseFen, moves, token).ConfigureAwait(false);
+				lock (_sync)
 				{
-					foreach (var legalMove in legalMoves)
-					{
-						classificationToken.ThrowIfCancellationRequested();
-						var move = await ClassifyMoveWithClassificationClientAsync(
-							currentFen,
-							legalMove,
-							classificationToken
-						).ConfigureAwait(false);
-						ApplyClassifiedMove(move, classificationGeneration);
-					}
-
-					CompleteClassificationRun(classificationGeneration);
+					if (generation != _classificationRuntime.Generation || token.IsCancellationRequested) return;
+					AcceptPonderGeneration(Engines.Ponder.CurrentSearchGeneration);
+					SetSearchingState(true);
 				}
-				catch (OperationCanceledException)
+				ponderStarted.TrySetResult(true);
+				foreach (var notation in legalMoves)
 				{
-					CancelClassificationRunIfActive(classificationGeneration);
+					token.ThrowIfCancellationRequested();
+					var move = await ClassifyMoveWithClassificationClientAsync(currentFen, notation, token).ConfigureAwait(false);
+					ApplyClassifiedMove(move, generation);
 				}
-				catch (Exception ex)
-				{
-					FaultClassificationRun(classificationGeneration, ex);
-					RaiseError(ex);
-				}
-			},
-			CancellationToken.None
-		);
+				CompleteClassificationRun(generation);
+			}
+			catch (OperationCanceledException) { CancelClassificationRunIfActive(generation); }
+			catch (Exception ex)
+			{
+				FaultClassificationRun(generation, ex);
+				if (!token.IsCancellationRequested) RaiseError(ex);
+			}
+			finally { ponderStarted.TrySetResult(false); }
+		}, CancellationToken.None));
+		return Task.CompletedTask;
 	}
 
 	private async Task<UciState> ApplyMoveAsync(
@@ -1477,13 +1642,15 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		PromotionChosenEvent?   promotionChosenEvent,
 		CancellationToken       ct)
 	{
-		AdvanceClockForCompletedMove(previousState.CurrentFen.ActiveColor);
-		var newMoves = new List<string>(previousState.PlayedMoves) { moveNotation };
+		ct.ThrowIfCancellationRequested();
+		var completedAtUtc = _utcNowProvider();
+		EnsureTurnHasTimeRemaining(completedAtUtc);
+		var newMoves = previousState.PlayedMoves.Add(moveNotation);
+		var snapshot = await LoadPositionSnapshotAsync(previousState.BaseFen, newMoves, ct, previousState.CurrentFen.ApplyMove(moveNotation)).ConfigureAwait(false);
+		AdvanceClockForCompletedMove(previousState.CurrentFen.ActiveColor, completedAtUtc);
 		_forcedResult = default;
 		if (_drawOfferPolicy == PlayableMatchDrawOfferPolicy.ExpireOnMove)
 			_drawOfferedBy = null;
-
-		var snapshot = await LoadPositionSnapshotAsync(previousState.BaseFen, newMoves, ct).ConfigureAwait(false);
 		long moveId = Interlocked.Increment(ref _nextMoveId);
 
 		var moveEvent = CoordinatorMoveFactory.BuildGameMoveEvent(
@@ -1572,12 +1739,14 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		throw new ArgumentException(reason, nameof(move));
 	}
 
-	private UciState UpdateMatchMetadata(char? drawOfferedBy = null)
+	private UciState UpdateMatchMetadata(char? drawOfferedBy = null, bool updateDrawOffer = false)
 	{
-		if (drawOfferedBy.HasValue || _drawOfferedBy.HasValue)
+		if (updateDrawOffer)
 			_drawOfferedBy = drawOfferedBy;
 
-		var update = ApplyMatchMetadata(State);
+		MetadataUpdate update;
+		lock (_sync) update = ApplyMatchMetadata(_state);
+		RaiseStateEvent(StateChanged, UciGameEngineSessionEventKind.StateChanged, update.Snapshot);
 		if (update.ResultChanged)
 		{
 			RaiseStateEvent(ResultChanged, UciGameEngineSessionEventKind.ResultChanged, update.Snapshot);
@@ -1589,6 +1758,8 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private UciState SetForcedResult(PlayableMatchResult result)
 	{
+		if (State.Result.IsTerminal)
+			throw new InvalidOperationException("The match has already ended.");
 		_forcedResult = result;
 		_claimableResult = null;
 		_drawOfferedBy = null;
@@ -1598,7 +1769,18 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 	private MetadataUpdate ApplyMatchMetadata(UciState state)
 	{
 		var clock = GetClockSnapshot();
-		var outcome = EvaluateOutcome(state.CurrentFen, state.LegalMoves, clock);
+		var outcome = EvaluateOutcome(state.BaseFen, state.CurrentFen, state.LegalMoves, clock);
+		if (outcome.Result.IsTerminal)
+		{
+			_forcedResult = outcome.Result;
+			_pendingPromotion = null;
+			_drawOfferedBy = null;
+			if (_timeControl.HasValue && _clockHistory.Count > 0 && !_clockHistory[^1].PausedAtUtc.HasValue)
+			{
+				_clockHistory[^1] = PlayableMatchClockKernel.Pause(_clockHistory[^1], clock!.Value.SnapshotUtc);
+				clock = GetClockSnapshot(clock.Value.SnapshotUtc);
+			}
+		}
 		var snapshot = state with
 		{
 			Result = outcome.Result,
@@ -1713,16 +1895,25 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (currentRemaining > TimeSpan.Zero)
 			return;
 
+		UpdateMatchMetadata();
 		throw new InvalidOperationException("The current side has already lost on time.");
 	}
 
 	private MatchOutcome EvaluateOutcome(
+		Fen                    baseFen,
 		Fen                    fen,
 		IReadOnlyList<string>  legalMoves,
 		PlayableMatchClockState? clock)
 	{
 		if (_forcedResult.IsTerminal)
 			return new(_forcedResult, null);
+
+		if (legalMoves.Count == 0)
+		{
+			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
+				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
+				: new(new(PlayableMatchResultReason.Stalemate, null), null);
+		}
 
 		if (clock.HasValue)
 		{
@@ -1732,34 +1923,32 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 			if (_timeControl.HasValue &&
 				_timeControl.Value.TimeoutPolicy == PlayableMatchTimeoutPolicy.AutomaticLoss &&
 				activeRemaining <= TimeSpan.Zero)
-			{
-				return new(new(PlayableMatchResultReason.Timeout, Opposite(fen.ActiveColor)), null);
-			}
+				return new(new(PlayableMatchResultReason.Timeout, LocalPositionRules.CanPossiblyMate(fen, Opposite(fen.ActiveColor)) ? Opposite(fen.ActiveColor) : null), null);
 		}
 
-		if (legalMoves.Count == 0)
-		{
-			return LocalPositionRules.IsCurrentPlayerInCheck(fen)
-				? new(new(PlayableMatchResultReason.Checkmate, Opposite(fen.ActiveColor)), null)
-				: new(new(PlayableMatchResultReason.Stalemate, null), null);
-		}
-
-		if (fen.HalfmoveClock >= 100)
-			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
+		if (fen.HalfmoveClock >= 150)
+			return new(new(PlayableMatchResultReason.SeventyFiveMoveRule, null), null);
 
 		if (LocalPositionRules.HasInsufficientMaterial(fen))
 			return new(new(PlayableMatchResultReason.InsufficientMaterial, null), null);
 
-		if (CountRepetitions(fen) >= 3)
+		int repetitions = CountRepetitions(baseFen, fen);
+		if (repetitions >= 5)
+			return new(new(PlayableMatchResultReason.FivefoldRepetition, null), null);
+
+		if (fen.HalfmoveClock >= 100)
+			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.FiftyMoveRule);
+
+		if (repetitions >= 3)
 			return CreateClaimableOrAutomaticResult(PlayableMatchResultReason.ThreefoldRepetition);
 
 		return new(default, null);
 	}
 
-	private int CountRepetitions(Fen currentFen)
+	private int CountRepetitions(Fen baseFen, Fen currentFen)
 	{
 		string currentKey = LocalPositionRules.BuildRepetitionKey(currentFen);
-		var count = LocalPositionRules.BuildRepetitionKey(_state.BaseFen) == currentKey ? 1 : 0;
+		var count = LocalPositionRules.BuildRepetitionKey(baseFen) == currentKey ? 1 : 0;
 		foreach (var move in _appliedMoveHistory)
 		{
 			if (LocalPositionRules.BuildRepetitionKey(move.ResultingFen) == currentKey)
@@ -1784,7 +1973,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (classifierStarted)
 			try
 			{
-				await _classificationClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Classifier.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1794,7 +1983,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (ponderStarted)
 			try
 			{
-				await _ponder.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Ponder.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1804,7 +1993,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		if (snapshotStarted)
 			try
 			{
-				await _snapshotClient.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await Engines.Snapshot.StopAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -1937,6 +2126,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciState snapshot;
 		lock (_sync)
 		{
+			if (generation == 0 || generation != Volatile.Read(ref _acceptedPonderGeneration)) return;
 			_state   = _state with { Evaluation = pv };
 			snapshot = _state;
 		}
@@ -1965,6 +2155,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciState snapshot;
 		lock (_sync)
 		{
+			if (generation == 0 || generation != Volatile.Read(ref _acceptedPonderGeneration)) return;
 			_state   = _state with { BestMove = best, PonderMove = ponder };
 			snapshot = _state;
 		}
@@ -1984,6 +2175,7 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 		UciGameEngineSessionEventKind  kind,
 		UciState                       state)
 	{
+		if (kind == UciGameEngineSessionEventKind.StateChanged) StateObserved?.Invoke(state);
 		_events.Raise(legacyHandler, state);
 		_events.Raise(EventPublished, UciGameEngineSessionEvent.ForState(kind, state));
 	}
@@ -2028,12 +2220,13 @@ public sealed class UciGameEngineSession : IAsyncDisposable, IDisposable
 
 	private async Task StopSearchCoreAsync(CancellationToken ct)
 	{
+		await _ponderOperation.ConfigureAwait(false);
 		InvalidatePonderState(clearTransientState: true);
 		CoordinatorRuntimeUtilities.CancelAndDispose(ref _bestCts);
 
 		try
 		{
-			await _ponder.StopSearchAsync(ct).ConfigureAwait(false);
+			if (_engineClients is { } engines) await engines.Ponder.StopSearchAsync(ct).ConfigureAwait(false);
 		}
 		finally
 		{

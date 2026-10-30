@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Bezoro.Chess.UCI.Protocol.Domain.EngineClient;
+using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -25,9 +26,9 @@ public readonly record struct SearchResult
 		uint                              ReachedDepth,
 		uint                              ReachedSelDepth,
 		uint                              MultiPvValue,
-		uint                              TotalNodesSearched,
-		uint                              TotalTbHits,
-		uint                              TotalSearchTimeMs,
+		ulong                             TotalNodesSearched,
+		ulong                             TotalTbHits,
+		ulong                             TotalSearchTimeMs,
 		ImmutableArray<PrincipalVariation> PrincipalVariations,
 		string                            BestMove,
 		string                            PonderMove
@@ -39,95 +40,42 @@ public readonly record struct SearchResult
 		this.TotalNodesSearched  = TotalNodesSearched;
 		this.TotalTbHits         = TotalTbHits;
 		this.TotalSearchTimeMs   = TotalSearchTimeMs;
-		this.PrincipalVariations = PrincipalVariations;
+		this.PrincipalVariations = PrincipalVariations.IsDefault ? ImmutableArray<PrincipalVariation>.Empty : PrincipalVariations;
 		this.BestMove            = BestMove;
 		this.PonderMove          = PonderMove;
 	}
 
-	/// <summary>True if any PV is a mate line.</summary>
-	public bool HasMate
-	{
-		get
-		{
-			foreach (var variation in PrincipalVariations)
-			{
-				if (variation.ScoreMate.HasValue) return true;
-			}
+	/// <summary>True if the selected principal variation reports a mate.</summary>
+	public bool HasMate => MateScore.HasValue;
 
-			return false;
-		}
-	}
+	/// <summary>Gets the centipawn score of the selected principal variation, or null when absent.</summary>
+	public int? BestCpScore => BestPv?.ScoreCp;
 
-	/// <summary>Returns the centipawn score for the best PV (MultiPV=1), or null if not available.</summary>
-	public int? BestCpScore
-	{
-		get
-		{
-			var principalVariations = PrincipalVariations;
-			if (principalVariations.Length == 0) return null;
-			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
-				return primaryVariation.ScoreCp;
-
-			int? bestScore = null;
-			foreach (var variation in principalVariations)
-			{
-				if (!variation.ScoreCp.HasValue) continue;
-				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
-					bestScore = variation.ScoreCp.Value;
-			}
-
-			return bestScore;
-		}
-	}
-
-	/// <summary>Returns the shortest mate found (positive for winning, negative for losing), or null if none.</summary>
-	public int? MateScore
-	{
-		get
-		{
-			var principalVariations = PrincipalVariations;
-			if (principalVariations.Length == 0) return null;
-
-			int? shortestMate = null;
-			foreach (var principalVariation in principalVariations)
-			{
-				if (!principalVariation.ScoreMate.HasValue) continue;
-
-				int currentMate = principalVariation.ScoreMate.Value;
-				if (!shortestMate.HasValue || Math.Abs(currentMate) < Math.Abs(shortestMate.Value))
-					shortestMate = currentMate;
-			}
-
-			return shortestMate;
-		}
-	}
+	/// <summary>Gets the mate score of the selected principal variation, or null when absent.</summary>
+	public int? MateScore => BestPv?.ScoreMate;
 
 	/// <summary>
-	///     Returns the primary principal variation (<c>multipv 1</c>) when available; otherwise the highest-scoring
-	///     captured variation.
+	///     Gets the deepest, most recent primary variation, or the best available MultiPV rank when the primary is absent.
 	/// </summary>
 	public PrincipalVariation? BestPv
 	{
 		get
 		{
 			var principalVariations = PrincipalVariations;
-			if (principalVariations.Length == 0) return null;
+			if (principalVariations.IsDefaultOrEmpty) return null;
 			if (TryGetPrimaryVariation(principalVariations, out var primaryVariation))
 				return primaryVariation;
 
-			PrincipalVariation? bestVariation = null;
-			int? bestScore = null;
+			PrincipalVariation? selected = null;
 			foreach (var variation in principalVariations)
 			{
-				if (!variation.ScoreCp.HasValue) continue;
-				if (!bestScore.HasValue || variation.ScoreCp.Value > bestScore.Value)
-				{
-					bestScore = variation.ScoreCp.Value;
-					bestVariation = variation;
-				}
+				if (selected is { } previous &&
+					(variation.MultiPv > previous.MultiPv ||
+					 (variation.MultiPv == previous.MultiPv && variation.Depth < previous.Depth))) continue;
+				selected = variation;
 			}
 
-			return bestVariation;
+			return selected;
 		}
 	}
 
@@ -148,7 +96,7 @@ public readonly record struct SearchResult
 	public string PonderMove { get; init; } = string.Empty;
 
 	/// <summary>
-	///     Gets the last observed MultiPV value.
+	///     Gets the highest observed MultiPV value.
 	/// </summary>
 	public uint MultiPvValue { get; init; }
 
@@ -163,19 +111,19 @@ public readonly record struct SearchResult
 	public uint ReachedSelDepth { get; init; }
 
 	/// <summary>
-	///     Gets the sum of nodes reported across parsed PV lines.
+	///     Gets the highest cumulative node count reported during the search.
 	/// </summary>
-	public uint TotalNodesSearched { get; init; }
+	public ulong TotalNodesSearched { get; init; }
 
 	/// <summary>
-	///     Gets the sum of elapsed milliseconds reported across parsed PV lines.
+	///     Gets the highest cumulative elapsed time reported during the search.
 	/// </summary>
-	public uint TotalSearchTimeMs { get; init; }
+	public ulong TotalSearchTimeMs { get; init; }
 
 	/// <summary>
-	///     Gets the sum of tablebase hits reported across parsed PV lines.
+	///     Gets the highest cumulative tablebase hit count reported during the search.
 	/// </summary>
-	public uint TotalTbHits { get; init; }
+	public ulong TotalTbHits { get; init; }
 
 	/// <summary>
 	///     Attempts to parse a completed search transcript into a <see cref="SearchResult" />.
@@ -186,87 +134,43 @@ public readonly record struct SearchResult
 	public static bool TryParse(IReadOnlyCollection<string> lines, out SearchResult result)
 	{
 		result = default;
+		if (lines is null) return false;
 
-		uint reachedDepth       = 0,
-			 reachedSelDepth    = 0,
-			 multiPvValue       = 0,
-			 totalNodesSearched = 0,
-			 totalTbHits        = 0,
-			 totalSearchTimeMs  = 0;
-
-		List<PrincipalVariation> principalVariations = [];
-
-		string bestMove = string.Empty, ponderMove = string.Empty;
-		var    foundValidBestMove = false;
-
+		var session = new SearchSession(false);
+		UciBestMoveMessage? bestMove = null;
 		foreach (string? line in lines)
 		{
 			if (string.IsNullOrWhiteSpace(line)) continue;
-
-			if (line.StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
+			if (!UciProtocolParser.TryParse(line, out var message))
 			{
-				if (!BestMoveLine.TryParse(line, out var bestMoveLine) ||
-					!UciCommandBuilder.IsUciMoveString(bestMoveLine.BestMove) ||
-					(bestMoveLine.HasPonder && !UciCommandBuilder.IsUciMoveString(bestMoveLine.PonderMove!)))
-				{
+				if (line.AsSpan().TrimStart().StartsWith("bestmove ", StringComparison.OrdinalIgnoreCase))
 					return false;
-				}
-
-				bestMove           = bestMoveLine.BestMove;
-				ponderMove         = bestMoveLine.PonderMove ?? string.Empty;
-				foundValidBestMove = true;
+				continue;
 			}
 
-			if (!PrincipalVariation.TryParse(line, out var pv)) continue;
-
-			if (pv.Depth > reachedDepth) reachedDepth = pv.Depth;
-			if (pv.SelDepth > reachedSelDepth) reachedSelDepth = pv.SelDepth;
-			multiPvValue       =  pv.MultiPv;
-			totalNodesSearched += pv.Nodes;
-			totalTbHits        += pv.TbHits;
-			totalSearchTimeMs  += pv.Time;
-			principalVariations.Add(pv);
+			if (message.Info is { } info) session.RecordInfo(info.Payload);
+			if (message.BestMove is { } move) bestMove = move;
 		}
 
-		if (!foundValidBestMove)
-			return false;
-
-		result = new(
-			reachedDepth,
-			reachedSelDepth,
-			multiPvValue,
-			totalNodesSearched,
-			totalTbHits,
-			totalSearchTimeMs,
-			principalVariations.ToImmutableArray(),
-			bestMove,
-			ponderMove
-		);
-
+		if (bestMove is not { } resolved) return false;
+		result = session.BuildResult(resolved);
 		return true;
 	}
 
 	/// <summary>True if any PV contains the given move in UCI notation.</summary>
-	public bool ContainsMove(string move)
-	{
-		string normalizedMove = move.ToLowerInvariant();
-		foreach (var variation in PrincipalVariations)
-		{
-			if (variation.Moves.Contains(normalizedMove)) return true;
-		}
-
-		return false;
-	}
+	public bool ContainsMove(string move) => GetVariationContaining(move).HasValue;
 
 	/// <summary>
 	///     Returns the first principal variation containing the supplied move, or <see langword="null" /> when absent.
 	/// </summary>
 	public PrincipalVariation? GetVariationContaining(string move)
 	{
-		string normalizedMove = move.ToLowerInvariant();
+		if (string.IsNullOrEmpty(move) || PrincipalVariations.IsDefaultOrEmpty) return null;
 		foreach (var variation in PrincipalVariations)
 		{
-			if (variation.Moves.Contains(normalizedMove)) return variation;
+			if (variation.Moves.IsDefaultOrEmpty) continue;
+			foreach (string candidate in variation.Moves)
+				if (string.Equals(candidate, move, StringComparison.OrdinalIgnoreCase)) return variation;
 		}
 
 		return null;
@@ -275,10 +179,11 @@ public readonly record struct SearchResult
 	/// <summary>Returns the PV that starts with the given move, or null if none.</summary>
 	public PrincipalVariation? GetVariationStartingWith(string move)
 	{
-		string normalizedMove = move.ToLowerInvariant();
+		if (string.IsNullOrEmpty(move) || PrincipalVariations.IsDefaultOrEmpty) return null;
 		foreach (var variation in PrincipalVariations)
 		{
-			if (variation.Moves.Length > 0 && variation.Moves[0] == normalizedMove) return variation;
+			if (!variation.Moves.IsDefaultOrEmpty && string.Equals(variation.Moves[0], move, StringComparison.OrdinalIgnoreCase))
+				return variation;
 		}
 
 		return null;
@@ -300,9 +205,9 @@ public readonly record struct SearchResult
 		out uint                              reachedDepth,
 		out uint                              reachedSelDepth,
 		out uint                              multiPvValue,
-		out uint                              totalNodesSearched,
-		out uint                              totalTbHits,
-		out uint                              totalSearchTimeMs,
+		out ulong                             totalNodesSearched,
+		out ulong                             totalTbHits,
+		out ulong                             totalSearchTimeMs,
 		out ImmutableArray<PrincipalVariation> principalVariations,
 		out string                            bestMove,
 		out string                            ponderMove)
@@ -322,15 +227,18 @@ public readonly record struct SearchResult
 		ImmutableArray<PrincipalVariation> principalVariations,
 		out PrincipalVariation            primaryVariation)
 	{
+		bool found = false;
+		primaryVariation = default;
 		foreach (var principalVariation in principalVariations)
 		{
-			if (principalVariation.MultiPv != 1) continue;
-
+			// Engines may omit multipv for a single-PV search. Prefer the deepest,
+			// most recently reported primary line rather than the first shallow iteration.
+			if (principalVariation.MultiPv > 1) continue;
+			if (found && principalVariation.Depth < primaryVariation.Depth) continue;
 			primaryVariation = principalVariation;
-			return true;
+			found = true;
 		}
 
-		primaryVariation = default;
-		return false;
+		return found;
 	}
 }

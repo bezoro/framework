@@ -1,4 +1,5 @@
 using Bezoro.ECS.Services;
+using System.Runtime.ExceptionServices;
 
 namespace Bezoro.ECS.Internal;
 
@@ -23,10 +24,21 @@ internal sealed class WorldLifecycleService(
 
 	public void Dispose(World world)
 	{
-		_systemRuntime.Shutdown(world);
-		_entityStore.Dispose();
-		_queryEngine.ClearCompiledPlans();
-		_resourceStore.Dispose();
+		List<Exception>? errors = null;
+		Attempt(() => _systemRuntime.Shutdown(world), ref errors);
+		Attempt(_entityStore.Dispose, ref errors);
+		Attempt(_queryEngine.ClearCompiledPlans, ref errors);
+		Attempt(_resourceStore.Dispose, ref errors);
+		if (errors is { Count: 1 })
+			ExceptionDispatchInfo.Capture(errors[0]).Throw();
+		if (errors is not null)
+			throw new AggregateException("One or more world services failed to dispose.", errors);
+	}
+
+	private static void Attempt(Action action, ref List<Exception>? errors)
+	{
+		try { action(); }
+		catch (Exception error) { (errors ??= []).Add(error); }
 	}
 
 	public void Reset()

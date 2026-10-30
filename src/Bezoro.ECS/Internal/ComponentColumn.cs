@@ -36,8 +36,8 @@ internal sealed unsafe class ComponentColumn : IDisposable
 			if (_elementSize <= 0)
 				throw new InvalidOperationException("Component size must be positive.");
 
-			var byteLength = checked((nuint)((ulong)_elementSize * (ulong)capacity));
-#if NET9_0
+			var byteLength = checked((nuint)checked(_elementSize * capacity));
+#if NET9_0_OR_GREATER
 			var native = NativeMemory.AlignedAlloc(byteLength, ALIGNMENT_BYTES);
 			if (native is null)
 				throw new OutOfMemoryException("Failed to allocate unmanaged component buffer.");
@@ -156,6 +156,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 	{
 		ValidateIndex(sourceIndex);
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
+		destination.ValidateIndex(destinationIndex);
 
 		if (!_isManaged && !destination._isManaged && destination.ComponentType == ComponentType)
 		{
@@ -185,11 +186,10 @@ internal sealed unsafe class ComponentColumn : IDisposable
 		if (destination is null) throw new ArgumentNullException(nameof(destination));
 		if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
 
-		if (length == 0)
-			return;
-
 		ValidateRange(sourceIndex, length);
 		destination.ValidateRange(destinationIndex, length);
+		if (length == 0)
+			return;
 
 		if (!_isManaged && !destination._isManaged && destination.ComponentType == ComponentType)
 		{
@@ -250,7 +250,7 @@ internal sealed unsafe class ComponentColumn : IDisposable
 		if (_isManaged || _allocatedPointer == IntPtr.Zero)
 			return;
 
-#if NET9_0
+#if NET9_0_OR_GREATER
 		if (UsesNativeAlignedAlloc)
 		{
 			NativeMemory.AlignedFree(_allocatedPointer.ToPointer());
@@ -270,16 +270,18 @@ internal sealed unsafe class ComponentColumn : IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void ValidateIndex(int index)
 	{
+		EnsureNotDisposed();
 		if ((uint)index >= (uint)Capacity)
 			throw new ArgumentOutOfRangeException(nameof(index));
 	}
 
 	private void ValidateRange(int index, int length)
 	{
+		EnsureNotDisposed();
 		if (length < 0)
 			throw new ArgumentOutOfRangeException(nameof(length));
 
-		if (index < 0 || index + length > Capacity)
+		if ((uint)index > (uint)Capacity || length > Capacity - index)
 			throw new ArgumentOutOfRangeException(nameof(index));
 	}
 

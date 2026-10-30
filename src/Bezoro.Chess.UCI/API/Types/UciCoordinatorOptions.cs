@@ -13,7 +13,8 @@ public readonly record struct UciCoordinatorOptions(
 	PlayableMatchTimeControl?           TimeControl                    = null,
 	PlayableMatchClaimableDrawPolicy    ClaimableDrawPolicy            = PlayableMatchClaimableDrawPolicy.Automatic,
 	PlayableMatchDrawOfferPolicy        DrawOfferPolicy                = PlayableMatchDrawOfferPolicy.ExpireOnMove,
-	PlayableMatchControlledMoveFallbackPolicy ControlledMoveFallbackPolicy = PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback
+	PlayableMatchControlledMoveFallbackPolicy ControlledMoveFallbackPolicy = PlayableMatchControlledMoveFallbackPolicy.UseLocalFallback,
+	bool EnableBackgroundAnalysis = false
 )
 {
 	/// <summary>

@@ -10,7 +10,7 @@ public class MoveAnalysisTests
 	[Fact]
 	public void Analyze_WhenBlackQueensideCastling_ShouldSetIsCastlingTrue()
 	{
-		var fen = Fen.Parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
+		var fen = Fen.Parse("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1");
 		fen.Should().NotBeNull();
 
 		var board = BoardState.FromFen(fen!.Value);
@@ -57,7 +57,7 @@ public class MoveAnalysisTests
 	[Fact]
 	public void Analyze_WhenWhiteKingsideCastling_ShouldSetIsCastlingTrue()
 	{
-		var board = BoardState.FromFen(Fen.Default);
+		var board = BoardState.FromFen(Fen.Parse("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")!.Value);
 		board.Should().NotBeNull();
 
 		var analysis = MoveAnalysis.Analyze("e1g1", board!.Value, MoveScore.FromCp(0), false);
@@ -94,4 +94,13 @@ public class MoveAnalysisTests
 
 		analysis.IsStalemate.Should().BeTrue();
 	}
+	[Fact]
+	public void Analyze_WhenEngineReportsForcedMate_ShouldNotClassifyAnOrdinaryMoveAsImmediateMate()
+	{
+		var board = BoardState.FromFen(Fen.Default)!.Value;
+		var analysis = MoveAnalysis.Analyze("e2e4", board, MoveScore.FromMate(-1), false);
+		analysis.IsMate.Should().BeFalse();
+		analysis.IsCheck.Should().BeFalse();
+	}
+
 }

@@ -175,18 +175,26 @@ public class FenMoveClassificationExtensionsTests
 	}
 
 	[Fact]
-	public void ClassifyMoveFully_WhenMoveCapturesDefendingKing_ShouldReportStalemate()
+	public void ClassifyMoveFully_WhenMoveCapturesDefendingKing_ShouldRejectIllegalMove()
 	{
 		var fen = Fen.Parse("7k/6Q1/8/8/8/8/8/K7 w - - 0 1")!.Value;
 
-		var classification = fen.ClassifyMoveFully("g7h8");
+		Action classify = () => fen.ClassifyMoveFully("g7h8");
 
-		classification.IsCapture.Should().BeTrue();
-		classification.CapturedPiece.Should().Be('k');
-		classification.IsCheck.Should().BeFalse();
-		classification.IsMate.Should().BeFalse();
-		classification.IsStalemate.Should().BeTrue();
-		classification.IsResolved.Should().BeTrue();
+		classify.Should().Throw<InvalidOperationException>();
+	}
+
+	[Theory]
+	[InlineData("e2e5")]
+	[InlineData("a1a4")]
+	[InlineData("e7e5")]
+	[InlineData("g1g1")]
+	[InlineData("g1f3q")]
+	public void ClassifyMoveFully_WhenMoveIsIllegal_ShouldRejectIt(string move)
+	{
+		Action classify = () => Fen.Default.ClassifyMoveFully(move);
+
+		classify.Should().Throw<InvalidOperationException>();
 	}
 
 	[Theory]

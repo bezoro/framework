@@ -1,6 +1,6 @@
 using Bezoro.Core.Extensions;
 using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Helpers;
+using System.Globalization;
 
 namespace Bezoro.Chess.UCI.Protocol.API.Types;
 
@@ -36,7 +36,7 @@ public readonly record struct Fen
 	/// <summary>
 	///     Gets the standard chess starting position.
 	/// </summary>
-	public static Fen Default => Parse(UciConstants.Fen.STANDARD)!.Value;
+	public static Fen Default { get; } = Parse(UciConstants.Fen.STANDARD)!.Value;
 
 	/// <summary>
 	///     Gets the active side to move, normalized to <c>w</c> or <c>b</c>.
@@ -151,7 +151,7 @@ public readonly record struct Fen
 	/// <param name="rawFen">Candidate raw FEN text.</param>
 	/// <returns><see langword="true" /> when the value is valid; otherwise <see langword="false" />.</returns>
 	public static bool Validate(string rawFen) =>
-		!string.IsNullOrWhiteSpace(rawFen) && UciHelper.IsValidFen(rawFen.Trim());
+		TryParseCore(rawFen, false, out _);
 
 	/// <summary>
 	///     Returns an empty/default FEN value.
@@ -163,78 +163,104 @@ public readonly record struct Fen
 	/// </summary>
 	/// <param name="rawFen">Raw FEN text to parse.</param>
 	/// <returns>The parsed value, or <see langword="null" /> when validation fails.</returns>
-	public static Fen? Parse(string rawFen)
-	{
-		if (!Validate(rawFen)) return null;
-
-		string[] parts = rawFen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-		string piecePlacement = parts[0].ThrowIfEmpty();
-
-		char activeColor = ParseActiveColor(parts);
-
-		string castlingRights  = parts.Length > 2 ? parts[2].ThrowIfNull() : string.Empty;
-		string enPassantTarget = parts.Length > 3 ? parts[3].ThrowIfNull() : string.Empty;
-
-		var    moveCounters = ParseMoveCounters(parts);
-		string checkers     = ParseCheckers(parts);
-
-		return new(
-			piecePlacement,
-			activeColor,
-			castlingRights,
-			enPassantTarget,
-			moveCounters.halfmoveClock,
-			moveCounters.fullmoveNumber,
-			checkers,
-			rawFen
-		);
-	}
+	public static Fen? Parse(string rawFen) => TryParseCore(rawFen, true, out var fen) ? fen : null;
 
 	/// <summary>
 	///     Returns the raw FEN string.
 	/// </summary>
 	public override string ToString() => Raw;
 
-	private static (int halfmoveClock, int fullmoveNumber) ParseMoveCounters(string[] parts)
+	private static bool TryParseCore(string? rawFen, bool createValue, out Fen fen)
 	{
-		var halfmoveClock = 0;
-		if (parts.Length > 4)
-		{
-			parts[4].ThrowIfNull().ThrowIfEmpty();
-			if (!int.TryParse(parts[4], out halfmoveClock))
-				throw new ArgumentException("Halfmove clock in FEN must be an integer.", nameof(parts));
-		}
+		fen = default;
+		ReadOnlySpan<char> text = rawFen.AsSpan();
+		var offset = 0;
+		ReadOnlySpan<char> placement = ReadToken(text, ref offset);
+		ReadOnlySpan<char> color = ReadToken(text, ref offset);
+		ReadOnlySpan<char> castling = ReadToken(text, ref offset);
+		ReadOnlySpan<char> enPassant = ReadToken(text, ref offset);
+		ReadOnlySpan<char> halfmove = ReadToken(text, ref offset);
+		ReadOnlySpan<char> fullmove = ReadToken(text, ref offset);
+		if (!ReadToken(text, ref offset).IsEmpty ||
+			!IsValidPlacement(placement) ||
+			color.Length != 1 || color[0] is not ('w' or 'b') ||
+			!IsValidCastling(castling) ||
+			!(enPassant.SequenceEqual("-") ||
+			  enPassant.Length == 2 && enPassant[0] is >= 'a' and <= 'h' && enPassant[1] is '3' or '6') ||
+			!int.TryParse(halfmove, NumberStyles.None, CultureInfo.InvariantCulture, out int halfmoveClock) ||
+			!int.TryParse(fullmove, NumberStyles.None, CultureInfo.InvariantCulture, out int fullmoveNumber) ||
+			fullmoveNumber < 1)
+			return false;
 
-		var fullmoveNumber = 1;
-		if (parts.Length > 5)
-		{
-			parts[5].ThrowIfNull().ThrowIfEmpty();
-			if (!int.TryParse(parts[5], out fullmoveNumber))
-				throw new ArgumentException("Fullmove number in FEN must be an integer.", nameof(parts));
-		}
-
-		return (halfmoveClock, fullmoveNumber);
+		if (createValue)
+			fen = new Fen(placement.ToString(), color[0], castling.ToString(), enPassant.ToString(),
+				halfmoveClock, fullmoveNumber, string.Empty, rawFen!);
+		return true;
 	}
 
-	private static char ParseActiveColor(string[] parts)
+	private static ReadOnlySpan<char> ReadToken(ReadOnlySpan<char> text, ref int offset)
 	{
-		if (parts.Length < 2) throw new ArgumentException("FEN does not specify active color.", nameof(parts));
+		while (offset < text.Length && text[offset] is ' ' or '\t')
+			offset++;
+		int start = offset;
+		while (offset < text.Length && text[offset] is not (' ' or '\t'))
+			offset++;
+		return text.Slice(start, offset - start);
+	}
 
-		string token = parts[1].ThrowIfEmpty();
-		if (token.Length != 1)
-			throw new ArgumentException(
-				"Invalid active color in FEN. Expected single character 'w' or 'b'.",
-				nameof(parts)
-			);
-
-		var c = char.ToLowerInvariant(token[0]);
-		return c switch
+	private static bool IsValidPlacement(ReadOnlySpan<char> placement)
+	{
+		var rankCount = 1;
+		var fileCount = 0;
+		var previousWasDigit = false;
+		foreach (char symbol in placement)
 		{
-			'w' => 'w',
-			'b' => 'b',
-			_   => throw new ArgumentException("Invalid active color in FEN. Expected 'w' or 'b'.", nameof(parts))
-		};
+			if (symbol == '/')
+			{
+				if (fileCount != 8 || ++rankCount > 8)
+					return false;
+				fileCount = 0;
+				previousWasDigit = false;
+				continue;
+			}
+
+			if (symbol is >= '1' and <= '8')
+			{
+				if (previousWasDigit)
+					return false;
+				fileCount += symbol - '0';
+				previousWasDigit = true;
+			}
+			else
+			{
+				if ("prnbqkPRNBQK".AsSpan().IndexOf(symbol) < 0)
+					return false;
+				fileCount++;
+				previousWasDigit = false;
+			}
+
+			if (fileCount > 8)
+				return false;
+		}
+
+		return rankCount == 8 && fileCount == 8;
+	}
+
+	private static bool IsValidCastling(ReadOnlySpan<char> castling)
+	{
+		if (castling.SequenceEqual("-"))
+			return true;
+		if (castling.IsEmpty)
+			return false;
+		var previousIndex = -1;
+		foreach (char right in castling)
+		{
+			int index = "KQkq".AsSpan().IndexOf(right);
+			if (index <= previousIndex)
+				return false;
+			previousIndex = index;
+		}
+		return true;
 	}
 
 	private static string ExtractFenPayloadFromUciLine(string line)
@@ -242,13 +268,5 @@ public readonly record struct Fen
 		string payload                                                 = line[FEN_KEYWORD.Length..].TrimStart();
 		if (payload.Length > 0 && payload[0] == FEN_SEPARATOR) payload = payload[1..].TrimStart();
 		return payload;
-	}
-
-	private static string ParseCheckers(string[] parts)
-	{
-		if (parts.Length <= 6) return string.Empty;
-
-		for (var i = 6; i < parts.Length; i++) parts[i].ThrowIfNull();
-		return string.Join(" ", parts, 6, parts.Length - 6);
 	}
 }

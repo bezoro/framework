@@ -14,7 +14,11 @@ permissions:
 
 jobs:
   validate:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -26,6 +30,16 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.203
+
+      - name: Install Stockfish for Linux integration tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl -fSL https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-linux-x86-64-universal.tar.gz -o "$RUNNER_TEMP/stockfish.tar.gz"
+          echo "9defc0d4e55d49c65a6d042f3e571a39fcea499ade6dbe741b53b8c65e03611f  $RUNNER_TEMP/stockfish.tar.gz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/stockfish"
+          tar -xzf "$RUNNER_TEMP/stockfish.tar.gz" -C "$RUNNER_TEMP/stockfish"
+          echo "BEZORO_STOCKFISH_PATH=$RUNNER_TEMP/stockfish/stockfish/stockfish-linux-x86-64-universal" >> "$GITHUB_ENV"
 
       - name: Resolve package version
         id: package-version

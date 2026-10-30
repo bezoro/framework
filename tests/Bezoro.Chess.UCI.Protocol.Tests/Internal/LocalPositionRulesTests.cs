@@ -22,6 +22,23 @@ public sealed class LocalPositionRulesTests
 	}
 
 	[Theory]
+	[InlineData("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1g1")]
+	[InlineData("7k/8/8/3pP3/8/8/8/K7 w - d6 0 1", "e5d6")]
+	[InlineData("1r5k/P7/8/8/8/8/8/K7 w - - 0 1", "a7b8q")]
+	[InlineData("7k/5Q2/7K/8/8/8/8/8 w - - 0 1", "f7g7")]
+	[InlineData("k7/1QK5/8/8/8/8/8/8 w - - 0 1", "b7b6")]
+	public void ApplyAndClassifyMove_ShouldReturnSamePositionFlagsAndRepliesAsIndependentRules(string rawFen, string move)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+
+		var next = LocalPositionRules.ApplyAndClassifyMove(fen, move, out var classification, out var replies);
+
+		next.Should().Be(fen.ApplyMove(move));
+		classification.Should().Be(fen.ClassifyMoveFully(move));
+		replies.Should().Equal(next.GetLegalMoves());
+	}
+
+	[Theory]
 	[InlineData("7k/8/8/8/8/8/8/K7 w - - 0 1", true)]
 	[InlineData("7k/8/8/8/8/8/8/KN6 w - - 0 1", true)]
 	[InlineData("7k/8/8/8/8/8/8/KB6 w - - 0 1", true)]
@@ -55,14 +72,13 @@ public sealed class LocalPositionRulesTests
 		string firstKey = LocalPositionRules.BuildRepetitionKey(first);
 		string secondKey = LocalPositionRules.BuildRepetitionKey(second);
 
-		firstKey.Should().Be("4k3/8/8/8/8/8/8/4K3 w Kq e3");
+		firstKey.Should().Be("4k3/8/8/8/8/8/8/4K3 w Kq ");
 		secondKey.Should().Be(firstKey);
 	}
 
 	[Theory]
 	[InlineData("4k3/8/8/8/8/8/8/4K3 b Kq e3 0 1")]
 	[InlineData("4k3/8/8/8/8/8/8/4K3 w Qq e3 0 1")]
-	[InlineData("4k3/8/8/8/8/8/8/4K3 w Kq d3 0 1")]
 	public void BuildRepetitionKey_WhenPositionIdentityFieldDiffers_ShouldReturnDifferentKey(string rawFen)
 	{
 		var baseline = Fen.Parse("4k3/8/8/8/8/8/8/4K3 w Kq e3 0 1")!.Value;
@@ -70,6 +86,48 @@ public sealed class LocalPositionRulesTests
 
 		LocalPositionRules.BuildRepetitionKey(changed)
 			.Should().NotBe(LocalPositionRules.BuildRepetitionKey(baseline));
+	}
+
+	[Theory]
+	[InlineData("7k/8/8/4P3/8/8/8/K7 w - d6 0 1")]
+	[InlineData("k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1")]
+	[InlineData("7k/8/8/3p4/8/8/8/K7 w - d6 0 1")]
+	[InlineData("7k/8/8/4P3/8/8/3p4/K7 w - d3 0 1")]
+	public void BuildRepetitionKey_WhenEnPassantIsNotLegal_ShouldIgnoreTarget(string rawFen)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+		var noTarget = Fen.Parse(rawFen.Replace(fen.EnPassantTarget, "-", StringComparison.Ordinal))!.Value;
+
+		LocalPositionRules.BuildRepetitionKey(fen).Should().Be(LocalPositionRules.BuildRepetitionKey(noTarget));
+	}
+
+	[Theory]
+	[InlineData("7k/8/8/3pP3/8/8/8/K7 w - d6 0 1")]
+	[InlineData("7k/8/8/8/3Pp3/8/8/K7 b - d3 0 1")]
+	public void BuildRepetitionKey_WhenEnPassantIsLegal_ShouldKeepTarget(string rawFen)
+	{
+		var fen = Fen.Parse(rawFen)!.Value;
+		var noTarget = Fen.Parse(rawFen.Replace(fen.EnPassantTarget, "-", StringComparison.Ordinal))!.Value;
+
+		LocalPositionRules.BuildRepetitionKey(fen).Should().NotBe(LocalPositionRules.BuildRepetitionKey(noTarget));
+	}
+
+	[Theory]
+	[InlineData("7k/8/8/8/8/8/8/K7 w - - 0 1", 'w', false)]
+	[InlineData("7k/8/8/8/8/8/8/KR6 w - - 0 1", 'b', false)]
+	[InlineData("7k/8/8/8/8/8/8/KR6 w - - 0 1", 'w', true)]
+	[InlineData("7k/8/8/8/8/8/8/KN6 w - - 0 1", 'w', false)]
+	[InlineData("7k/8/8/8/8/8/8/KB6 w - - 0 1", 'w', false)]
+	[InlineData("6qk/8/8/8/8/8/8/KN6 w - - 0 1", 'w', false)]
+	[InlineData("6rk/8/8/8/8/8/8/KN6 w - - 0 1", 'w', true)]
+	[InlineData("6nk/8/8/8/8/8/8/KB6 w - - 0 1", 'w', true)]
+	[InlineData("5b1k/8/8/8/8/8/8/K1B5 w - - 0 1", 'w', false)]
+	[InlineData("6bk/8/8/8/8/8/8/K1B5 w - - 0 1", 'w', true)]
+	[InlineData("7k/8/8/8/8/8/8/KBN5 w - - 0 1", 'w', true)]
+	[InlineData("7k/8/8/8/8/8/8/KNN5 w - - 0 1", 'w', true)]
+	public void CanPossiblyMate_WhenMaterialVaries_ShouldUseSideSpecificPotential(string rawFen, char side, bool expected)
+	{
+		LocalPositionRules.CanPossiblyMate(Fen.Parse(rawFen)!.Value, side).Should().Be(expected);
 	}
 
 	[Fact]

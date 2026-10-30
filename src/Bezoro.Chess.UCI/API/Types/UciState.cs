@@ -1,5 +1,6 @@
 using Bezoro.Chess.UCI.Protocol.API.Types;
 using System.Collections.Immutable;
+using Bezoro.Chess.UCI.Protocol.Internal;
 
 namespace Bezoro.Chess.UCI.API.Types;
 
@@ -40,7 +41,7 @@ public readonly record struct UciState(
 	/// <summary>
 	///     Gets a value indicating whether the side to move is in check.
 	/// </summary>
-	public bool IsCheck => !string.IsNullOrEmpty(CurrentFen.Checkers);
+	public bool IsCheck => LocalPositionRules.IsCurrentPlayerInCheck(CurrentFen);
 
 	/// <summary>
 	///     Gets a value indicating whether the current position is checkmate.
@@ -48,7 +49,7 @@ public readonly record struct UciState(
 	/// </summary>
 	public bool IsCheckmate =>
 		Result.Reason == PlayableMatchResultReason.Checkmate ||
-		(LegalMoves.Count == 0 && !string.IsNullOrEmpty(CurrentFen.Checkers));
+		(LegalMoves.Count == 0 && IsCheck);
 
 	/// <summary>
 	///     Gets a value indicating whether all legal moves have been classified.
@@ -66,7 +67,7 @@ public readonly record struct UciState(
 	/// </summary>
 	public bool IsStalemate =>
 		Result.Reason == PlayableMatchResultReason.Stalemate ||
-		(LegalMoves.Count == 0 && string.IsNullOrEmpty(CurrentFen.Checkers));
+		(LegalMoves.Count == 0 && !IsCheck);
 
 	/// <summary>
 	///     Gets the classification progress as a value between 0.0 and 1.0.

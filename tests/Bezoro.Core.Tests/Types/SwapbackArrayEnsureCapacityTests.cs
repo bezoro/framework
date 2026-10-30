@@ -23,21 +23,15 @@ public class SwapbackArrayEnsureCapacityTests
 	public void WhenAtMaxArrayLength_WhenCalled_ShouldNotGrow()
 	{
 		const uint MAX_ARRAY_LENGTH = 0x7FFFFFC7;
-		var        arr              = new SwapbackArray<int>(MAX_ARRAY_LENGTH);
-
-		arr.EnsureCapacity(MAX_ARRAY_LENGTH);
-
-		arr.MaxArrayLength.Should().Be(MAX_ARRAY_LENGTH);
+		SwapbackArray<int>.CalculateExpandedCapacity(MAX_ARRAY_LENGTH, MAX_ARRAY_LENGTH)
+			.Should().Be(MAX_ARRAY_LENGTH);
 	}
 
 	[Fact]
 	public void WhenDoublingWouldExceedMax_WhenCalled_ShouldUseMaxCapacity()
 	{
-		var arr = new SwapbackArray<int>(int.MaxValue / 2);
-
-		arr.EnsureCapacity(int.MaxValue / 2 + 1);
-
-		arr.Capacity.Should().Be(arr.MaxArrayLength);
+		SwapbackArray<int>.CalculateExpandedCapacity(int.MaxValue / 2, int.MaxValue / 2 + 1)
+			.Should().Be(0x7FFFFFC7);
 	}
 
 	[Fact]

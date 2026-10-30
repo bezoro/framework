@@ -58,6 +58,43 @@ Low-level UCI transport, parsing, and engine-client orchestration for chess engi
 | `UciPositionAnalysisCoordinator` | `Bezoro.Chess.UCI.Protocol.API`   | FIFO full-strength position-analysis queue with completed-result caching by position key.                 |
 | `UciPlayableMatchSession`    | `Bezoro.Chess.UCI.Protocol.API`       | Stateful playable-match coordinator with manual/manual, manual/engine, or engine/engine side control. |
 
+## Game review types
+
+| Type | Responsibility |
+| --- | --- |
+| `UciGameReviewAnalyzer` | Serialized game reviews with an optional bounded pool of dedicated engine clients |
+| `GameReviewOptions` | Finite search, CPU, hash-table, and history budgets with optional player ratings |
+| `GameReviewResult`, `GameReviewEvaluation`, `ReviewedMove` | Immutable review, position, and played-move results |
+| `GameReviewProgress` | Monotonic completed/total counts and chronological position index, including parallel reviews |
+| `UciWdl` | Validated win/draw/loss distribution and expected points |
+| `MoveQuality`, `MoveQualityClassifier` | Pure expected-points-loss classification |
+| `IExpectedPointsModel`, `EngineWdlExpectedPointsModel` | Replaceable probability model and engine-self-play default |
+| `MoveReviewAnnotation`, `IMoveReviewAnnotationPolicy` | Application-provided opening and special-label evidence |
+
+See the [review architecture and research](../../docs/chess-review.md) for the public Chess.com behavior studied, the implemented thresholds, and the proprietary features that are not reproduced.
+
+## Local play without an engine
+
+Use the local constructor for Unity or Godot gameplay. It creates no process or transport and does not start background analysis. Moves, legal-move generation, promotion, clocks, and results run locally.
+
+```csharp
+var match = new UciPlayableMatchSession();
+await match.StartNewGameAsync(); // Completes synchronously for a local session.
+var opening = match.Refresh();
+match.ApplyMove("e2e4");
+var reply = match.Refresh();
+```
+
+`Refresh()` is synchronous and available for local sessions. Sessions constructed with engine clients use `RefreshAsync()` to synchronize those clients. `HasEngineClients` distinguishes these modes. `GetLegalMoveAnalysisAsync()` requires an analysis engine; it throws when called on a local session. Local tactical batch classification is optional through `WaitForCurrentMoveClassificationsAsync()`.
+
+Serialize mutations to a session. Immutable returned snapshots may be retained by UI code. An asynchronous engine result is rejected if a load, move, undo, or result change made its position obsolete.
+
+Threefold repetition and the fifty-move rule follow the configured claim policy. Fivefold repetition and the seventy-five-move rule end the game automatically; checkmate takes priority. Terminal results freeze the clock until a new setup or undo. Timeout is a draw if the opponent cannot possibly mate by material, with a conservative material test rather than a solver for all blocked dead positions. Additional clock-stage triggers must be strictly increasing.
+
+Clock timestamps use the supplied `utcNowProvider`, with `DateTimeOffset.UtcNow` as the default. The kernel clamps negative elapsed time to zero; wall-clock changes such as NTP adjustments can still change the charged time. Applications needing a monotonic clock should provide timestamps derived from a fixed UTC origin plus `Stopwatch` elapsed time.
+
+For analysis from an authored position, pass its base FEN and complete move history to the explicit-base overload of `UciPositionAnalysisCoordinator.Enqueue`. The older overload retains its standard-initial-position behavior. Reusing a key with a different base position, history, perspective, or legal-move list invalidates the previous cache entry and cancels its outstanding waiters. Retired requests cannot overwrite the replacement analysis. Engines that advertise the boolean `UCI_ShowWDL` option have it enabled for analysis.
+
 ## Quick Start
 ```csharp
 using Bezoro.Chess.UCI.Protocol.API;
@@ -520,3 +557,45 @@ The protocol benchmark project covers both UCI info parsing and the local-rules 
 - Extension probing exists here only as an explicit low-level escape hatch for engines that support them; playable-match orchestration no longer depends on those non-standard commands.
 - Local legal-move generation, move application, and tactical classification share one parsed position; batch classification parses its position at most once.
 - `SetOptionAsync` waits for `readyok`, which makes option updates safe to compose in application code.
+
+## Stockfish win/draw/loss estimates
+
+Enable Stockfish's `UCI_ShowWDL` option to receive estimates alongside centipawn and mate scores:
+
+```csharp
+await client.SetOptionAsync("UCI_ShowWDL", "true", cancellationToken);
+var result = await client.GoAsync(new SearchParameters { Depth = 16 }, cancellationToken);
+if (result.BestPv is { Wdl: { } wdl } pv && pv.ScoreBound == UciScoreBound.Exact)
+{
+    double expectedPoints = wdl.ExpectedPoints;
+    double opponentExpectedPoints = wdl.OpponentPerspective.ExpectedPoints;
+}
+```
+
+`UciWdl` stores wins, draws, and losses per thousand games. Its constructor requires values in `0..1000` whose sum is `1000`. `ExpectedPoints` counts a draw as half a point. The estimate is relative to the side to move in the searched position. When evaluating a resulting position for the player who just moved, use `OpponentPerspective`.
+
+The parser preserves WDL in `UciInfoPayload.Wdl` and `PrincipalVariation.Wdl`. Malformed distributions remain absent. `PrincipalVariation.ScoreBound` distinguishes exact scores from lower and upper search bounds. A bound must not be presented as an exact evaluation of move quality. These are engine self-play estimates, not an Elo-specific human prediction or a reproduction of Chess.com's private review algorithm. See the [Stockfish FAQ](https://official-stockfish.github.io/docs/stockfish-wiki/Stockfish-FAQ.html).
+
+## Search completion and restart
+
+`GoAsync` and `GoFireAndForgetAsync` share one active-search slot. Overlapping searches throw `InvalidOperationException`. Fire-and-forget searches forward live events without retaining an unbounded PV history. `StopSearchAsync` waits for the engine's `bestmove` response and the stopped search's cleanup before returning. After a successful stop, a new search can begin immediately without separately awaiting the original `GoAsync` task. A `readyok` response alone does not acknowledge that a search has stopped.
+
+After cancellation or timeout, the client sends `stop` and drains its response within `SearchStopGracePeriod`. If the engine never acknowledges with `bestmove`, subsequent searches require `StopAsync` followed by `StartAsync`. UCI has no request identifiers, so reusing that connection could attribute an old best move to a new position.
+
+Search node counts, tablebase hits, and elapsed time are cumulative engine counters. `SearchResult` keeps their highest reported values, including `info` messages without a PV. `BestPv` and `BestCpScore` use the deepest primary variation and prefer the most recent report at equal depth. Engine terminal responses `bestmove 0000` and `bestmove (none)` complete normally.
+
+Lifecycle operations serialize startup, shutdown, and disposal. Canceling the token originally passed to a successful `StartAsync` does not stop the reader; call `StopAsync` to end the client lifetime.
+
+UCI node counts, nodes per second, tablebase hits, and elapsed milliseconds use `ulong` in `UciInfoPayload`, `PrincipalVariation`, and search totals. Counters above `uint.MaxValue` remain available without truncation. Depth and MultiPV indices remain `uint`. This changes constructor and deconstruction signatures; consumers with explicit `uint` variables must use `ulong`. Search budgets keep their existing protocol types.
+
+### Score absence and display
+
+`PositionScore.FromEngineScore` preserves an absent evaluation as nullable values; `ToDisplayString()` returns `unknown`. A genuine zero-centipawn score remains distinct. Invalid sides and unrepresentable sign inversion are rejected. Mate ordering reserves values outside the complete centipawn range and handles extreme input without integer overflow. Mate zero displays as `M0`; its sign cannot encode a winner, so use the match or review terminal result.
+
+### Application-provided transports
+
+`new UciEngineClient(transport, options)` accepts an `IUciTransport` implementation supplied by the application. The client owns that transport's start/stop/disposal lifecycle. This allows native engine bridges and remote analysis without requiring `Process.Start`. The adapter must preserve ordered UCI lines, cancellation, and the advertised threading/lifecycle contracts; no native, WebGL, or networking adapter is bundled.
+
+### Parallel game review
+
+`UciGameReviewAnalyzer` accepts a pool of distinct, already started dedicated clients. Set `GameReviewOptions.MaxParallelPositions` to opt in; the default remains one. `ThreadsPerEngine`, `HashMegabytesPerEngine`, and `MaxGameMoves` provide explicit CPU, hash-table, and history budgets. Results remain chronological and immutable. Progress carries `PositionIndex` because searches can finish out of order. See [parallel review and resource budgets](../../docs/chess-review.md#parallel-review-and-resource-budgets) for ownership, cancellation, and engine configuration.

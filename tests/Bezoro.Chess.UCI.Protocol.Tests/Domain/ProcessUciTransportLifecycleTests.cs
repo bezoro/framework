@@ -1,4 +1,3 @@
-using Bezoro.Chess.UCI.Protocol.Domain.Common.Constants;
 using Bezoro.Chess.UCI.Protocol.Tests.TestHelpers;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -197,9 +196,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
 		var errors          = new List<Exception>();
 
-		var transport = Transport()
-						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
-						.Build();
+		var transport = CreateExitWaitFailureTransport(teardownFailure, out var injectedFailures);
 
 		transport.Error += ex => errors.Add(ex);
 		await transport.StartAsync();
@@ -209,6 +206,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await act.Should().ThrowAsync<InvalidOperationException>()
 				 .WithMessage(teardownFailure.Message);
 
+		injectedFailures().Should().Be(1, "the fault must come from the teardown wait, not an exited child or the background monitor");
 		transport.Status.Should().Be(TransportStatus.Failed);
 		transport.IsStarted.Should().BeFalse();
 		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
@@ -327,11 +325,8 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	public async Task DisposeAsync_WithExitedProcess_WhenCalled_ShouldCompleteImmediately()
 	{
 		Log("Starting test: DisposeAsync_WithExitedProcess_ShouldCompleteImmediately");
-		string cmdPath = TryResolveCmdPath();
 
-		var transport = Transport()
-						.WithPath(cmdPath)
-						.WithArguments(ProcessArgs.CMD_EXECUTE, ProcessArgs.EXIT, ProcessArgs.ZERO)
+		var transport = ExitingProcess()
 						.Build();
 
 		var exitedTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -545,27 +540,33 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 	}
 
 	[Fact]
-	public async Task StartAsync_WhenStopping_ShouldThrowInvalidOperationException()
+	public async Task StartAsync_WhenStopping_ShouldWaitThenRestart()
 	{
-		Log("Starting test: StartAsync_WhenStopping_ShouldThrowInvalidOperationException");
-		await using var process = Transport().Build();
+		var enteredStop = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var releaseStop = new ManualResetEventSlim();
+		await using var process = Transport().WithOnQuitSent(() =>
+		{
+			enteredStop.TrySetResult();
+			releaseStop.Wait(TestConstants.DefaultTimeout);
+		}).Build();
 		await process.StartAsync();
 
-		var stoppingTask = process.StopAsync();
-
-		bool conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
-								() => process.Status == TransportStatus.Stopping,
-								TestConstants.ShortDelay,
-								TestConstants.DefaultTimeout
-							);
-
-		conditionMet.Should().BeTrue("Status should transition to Stopping");
-
-		await FluentActions.Awaiting(() => process.StartAsync())
-						   .Should()
-						   .ThrowAsync<InvalidOperationException>();
-
-		await stoppingTask;
+		var stoppingTask = Task.Run(() => process.StopAsync());
+		try
+		{
+			await enteredStop.Task.WaitAsync(TestConstants.DefaultTimeout);
+			process.Status.Should().Be(TransportStatus.Stopping);
+			var restartingTask = process.StartAsync();
+			restartingTask.IsCompleted.Should().BeFalse("startup must wait for the previous process teardown");
+			releaseStop.Set();
+			await Task.WhenAll(stoppingTask, restartingTask).WaitAsync(TestConstants.DefaultTimeout);
+			process.Status.Should().Be(TransportStatus.Started);
+			process.IsHealthy.Should().BeTrue();
+		}
+		finally
+		{
+			releaseStop.Set();
+		}
 	}
 
 	[Fact]
@@ -671,9 +672,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		var teardownFailure = new InvalidOperationException("Injected process-exit wait failure.");
 		var errors          = new List<Exception>();
 
-		var transport = Transport()
-						.WithWaitForProcessExitOverride((_, _) => Task.FromException(teardownFailure))
-						.Build();
+		var transport = CreateExitWaitFailureTransport(teardownFailure, out var injectedFailures);
 
 		transport.Error += ex => errors.Add(ex);
 		await transport.StartAsync();
@@ -683,6 +682,7 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 		await act.Should().ThrowAsync<InvalidOperationException>()
 				 .WithMessage(teardownFailure.Message);
 
+		injectedFailures().Should().Be(1, "the fault must come from the teardown wait, not an exited child or the background monitor");
 		transport.Status.Should().Be(TransportStatus.Failed);
 		transport.IsStarted.Should().BeFalse();
 		errors.Should().Contain(ex => ex.Message == teardownFailure.Message);
@@ -706,5 +706,19 @@ public class ProcessUciTransportLifecycleTests(StockfishFixture fixture, ITestOu
 
 		quitSent.Should().BeTrue("quit command should be sent when SendQuitOnStop is true");
 		transport.Status.Should().Be(TransportStatus.Stopped);
+	}
+
+	private static ProcessUciTransport CreateExitWaitFailureTransport(Exception failure, out Func<int> injectedFailures)
+	{
+		var failureCount = 0;
+		injectedFailures = () => Volatile.Read(ref failureCount);
+		return RunningProcess().WithWaitForProcessExitOverride((process, token) =>
+		{
+			// The background exit monitor uses CancellationToken.None. Inject once in the
+			// bounded teardown wait, then allow the forced-kill wait to confirm actual exit.
+			if (token.CanBeCanceled && Interlocked.CompareExchange(ref failureCount, 1, 0) == 0)
+				return Task.FromException(failure);
+			return process.WaitForExitAsync(token);
+		}).Build();
 	}
 }

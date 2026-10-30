@@ -42,6 +42,7 @@ Bezoro.ECS.Attributes.WritesResourceAttribute | public sealed class | stable-sha
 Bezoro.ECS.Options.SnapshotDeserializationOptions | public sealed class | stable-shape | Options/SnapshotDeserializationOptions.cs
 Bezoro.ECS.Options.WorldOptions | public sealed class | stable-shape | Options/WorldOptions.cs
 Bezoro.ECS.Services.World | public class | review-unsealed-class | Services/World.cs
+Bezoro.ECS.Services.WorldGroup | public sealed class | stable-shape | Services/WorldGroup.cs
 Bezoro.ECS.Types.ArenaDiagnostics | public sealed class | stable-shape | Types/ArenaDiagnostics.cs
 Bezoro.ECS.Types.CommandBuffer | public readonly struct | stable-shape | Types/CommandBuffer.cs
 Bezoro.ECS.Types.CommandStream | public sealed class | stable-shape | Types/CommandStream.cs

@@ -56,6 +56,8 @@ public readonly record struct PlayableMatchSetup
 	/// <exception cref="ArgumentException">Thrown when any played move is illegal for its position.</exception>
 	public Fen ResolveCurrentFen()
 	{
+		if (string.IsNullOrWhiteSpace(BaseFen.Raw) || PlayedMoves.IsDefault)
+			throw new ArgumentException("The setup must contain a parsed base FEN and an initialized move list.");
 		var current = BaseFen;
 		foreach (string move in PlayedMoves)
 		{

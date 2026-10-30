@@ -18,6 +18,9 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	private readonly Action? _beforeWorkerRetires;
 	private readonly Action? _afterWorkDequeued;
 	private readonly object _sync = new();
+	private readonly Dictionary<string, string> _analysisContexts = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, long> _analysisRevisions = new(StringComparer.Ordinal);
+	private long _nextAnalysisRevision;
 	private readonly Queue<PositionAnalysisWorkItem> _pendingRequests = new();
 	private readonly Dictionary<string, PositionAnalysisResult> _completedAnalyses = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, TaskCompletionSource<PositionAnalysisResult>> _waiters =
@@ -64,19 +67,54 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 		char                   sideToMove,
 		char                   playerColor,
 		ImmutableArray<string> legalMoves)
+		=> Enqueue(positionKey, Fen.Default, moves, sideToMove, playerColor, legalMoves);
+
+	/// <summary>
+	///     Queues analysis with an explicit base position and its complete move history.
+	/// </summary>
+	public void Enqueue(
+		string positionKey,
+		Fen baseFen,
+		IReadOnlyList<string> moves,
+		char sideToMove,
+		char playerColor,
+		ImmutableArray<string> legalMoves)
 	{
+		if (string.IsNullOrWhiteSpace(positionKey))
+			throw new ArgumentException("A position key is required.", nameof(positionKey));
+		if (string.IsNullOrWhiteSpace(baseFen.Raw))
+			throw new ArgumentException("A parsed base FEN is required.", nameof(baseFen));
+		if (moves is null)
+			throw new ArgumentNullException(nameof(moves));
+		if (sideToMove is not ('w' or 'b'))
+			throw new ArgumentOutOfRangeException(nameof(sideToMove));
+		if (playerColor is not ('w' or 'b'))
+			throw new ArgumentOutOfRangeException(nameof(playerColor));
+		if (legalMoves.IsDefault)
+			legalMoves = [];
+		string context = baseFen.Raw + "|" + sideToMove + playerColor + "|" +
+			string.Join(" ", moves) + "|" + string.Join(" ", legalMoves);
 		lock (_sync)
 		{
-			if (_completedAnalyses.ContainsKey(positionKey) || _waiters.ContainsKey(positionKey))
+			if (_analysisContexts.TryGetValue(positionKey, out string? priorContext) && priorContext == context &&
+				(_completedAnalyses.ContainsKey(positionKey) || _waiters.ContainsKey(positionKey)))
 				return;
 
+			if (_waiters.TryGetValue(positionKey, out var priorWaiter))
+				priorWaiter.TrySetCanceled();
+			_completedAnalyses.Remove(positionKey);
+			_analysisContexts[positionKey] = context;
+			long revision = ++_nextAnalysisRevision;
+			_analysisRevisions[positionKey] = revision;
 			_pendingRequests.Enqueue(
 				new(
 					positionKey,
 					[.. moves],
 					sideToMove,
 					playerColor,
-					legalMoves
+					legalMoves,
+					baseFen,
+					revision
 				)
 			);
 
@@ -121,6 +159,31 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 	}
 
 	/// <summary>
+	///     Awaits a queued analysis, canceling only this caller's wait when requested. Shared analysis continues.
+	/// </summary>
+	public Task<PositionAnalysisResult> GetAnalysisAsync(string positionKey, CancellationToken ct)
+	{
+		ct.ThrowIfCancellationRequested();
+		var task = GetAnalysisAsync(positionKey);
+		return !ct.CanBeCanceled || task.IsCompleted ? task : WaitWithCancellationAsync(task, ct);
+	}
+
+	private static async Task<PositionAnalysisResult> WaitWithCancellationAsync(
+		Task<PositionAnalysisResult> task, CancellationToken ct)
+	{
+#if NET9_0_OR_GREATER
+		return await task.WaitAsync(ct).ConfigureAwait(false);
+#else
+		var cancellation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var registration = ct.Register(
+			static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true), cancellation);
+		if (task != await Task.WhenAny(task, cancellation.Task).ConfigureAwait(false))
+			throw new OperationCanceledException(ct);
+		return await task.ConfigureAwait(false);
+#endif
+	}
+
+	/// <summary>
 	///     Cancels in-flight work and clears pending and completed state.
 	/// </summary>
 	public void Cancel() => CancelCore(null);
@@ -145,6 +208,8 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 			{
 				if (_pendingRequests.TryDequeue(out request))
 				{
+					if (!_analysisRevisions.TryGetValue(request.PositionKey, out long revision) || revision != request.ContextRevision)
+						continue;
 					generation = _lifetimeCts;
 					token = generation.Token;
 				}
@@ -171,7 +236,8 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 				TaskCompletionSource<PositionAnalysisResult>? waiter = null;
 				lock (_sync)
 				{
-					if (!ReferenceEquals(generation, _lifetimeCts))
+					if (!ReferenceEquals(generation, _lifetimeCts) ||
+						!_analysisRevisions.TryGetValue(request.PositionKey, out long revision) || revision != request.ContextRevision)
 						continue;
 
 					_completedAnalyses[request.PositionKey] = analysis;
@@ -190,7 +256,8 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 				TaskCompletionSource<PositionAnalysisResult>? waiter = null;
 				lock (_sync)
 				{
-					if (!ReferenceEquals(generation, _lifetimeCts))
+					if (!ReferenceEquals(generation, _lifetimeCts) ||
+						!_analysisRevisions.TryGetValue(request.PositionKey, out long revision) || revision != request.ContextRevision)
 						continue;
 
 					if (_waiters.TryGetValue(request.PositionKey, out waiter))
@@ -232,6 +299,14 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 						_completedAnalyses.Remove(positionKey);
 				}
 			}
+			foreach (string key in _analysisContexts.Keys.ToArray())
+			{
+				if (!_completedAnalyses.ContainsKey(key))
+				{
+					_analysisContexts.Remove(key);
+					_analysisRevisions.Remove(key);
+				}
+			}
 		}
 
 		try
@@ -253,10 +328,14 @@ public sealed class UciPositionAnalysisCoordinator : IDisposable
 		int fallbackMoveTimeMs)
 	{
 		if (client is null) throw new ArgumentNullException(nameof(client));
+		if (multiPvMoveTimeMs <= 0) throw new ArgumentOutOfRangeException(nameof(multiPvMoveTimeMs));
+		if (fallbackMoveTimeMs <= 0) throw new ArgumentOutOfRangeException(nameof(fallbackMoveTimeMs));
 
 		return async (workItem, token) =>
 		{
-			await client.SetPositionAsync(Fen.Default, workItem.Moves, token).ConfigureAwait(false);
+			if (client.TryGetOption("UCI_ShowWDL", out var showWdl) && showWdl.Type == UciOptionType.Check)
+				await client.SetOptionAsync(showWdl.Name, "true", token).ConfigureAwait(false);
+			await client.SetPositionAsync(workItem.BaseFen, workItem.Moves, token).ConfigureAwait(false);
 			return await client.AnalyzePositionAsync(
 				workItem.SideToMove,
 				workItem.PlayerColor,

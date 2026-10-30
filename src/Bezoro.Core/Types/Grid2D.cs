@@ -38,9 +38,11 @@ public sealed class Grid2D<T> : IDisposable
 
 		Width     = width;
 		Height    = height;
-		Length    = width * height;
+		Length    = checked(width * height);
 		_fromPool = usePooling;
 		_data     = usePooling ? ArrayPool<T>.Shared.Rent(Length) : new T[Length];
+		if (usePooling)
+			_data.AsSpan(0, Length).Clear();
 	}
 
 	/// <summary>
@@ -91,6 +93,7 @@ public sealed class Grid2D<T> : IDisposable
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		get
 		{
+			ThrowIfDisposed();
 			if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
 				ThrowIndexOutOfRange();
 
@@ -103,14 +106,18 @@ public sealed class Grid2D<T> : IDisposable
 	/// </summary>
 	/// <returns>A span over all grid elements.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public Span<T> AsSpan() => _data.AsSpan(0, Length);
+	public Span<T> AsSpan()
+	{
+		ThrowIfDisposed();
+		return _data.AsSpan(0, Length);
+	}
 
 	/// <summary>
 	///     Gets a <see cref="ReadOnlySpan{T}" /> over the entire grid data in row-major order.
 	/// </summary>
 	/// <returns>A read-only span over all grid elements.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ReadOnlySpan<T> AsReadOnlySpan() => _data.AsSpan(0, Length);
+	public ReadOnlySpan<T> AsReadOnlySpan() => AsSpan();
 
 	/// <summary>
 	///     Gets a <see cref="Span{T}" /> over a single row of the grid.
@@ -121,6 +128,7 @@ public sealed class Grid2D<T> : IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Span<T> GetRow(int y)
 	{
+		ThrowIfDisposed();
 		if ((uint)y >= (uint)Height)
 			ThrowRowOutOfRange();
 
@@ -134,13 +142,7 @@ public sealed class Grid2D<T> : IDisposable
 	/// <returns>A read-only span over the specified row.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="y" /> is out of bounds.</exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ReadOnlySpan<T> GetRowReadOnly(int y)
-	{
-		if ((uint)y >= (uint)Height)
-			ThrowRowOutOfRange();
-
-		return _data.AsSpan(y * Width, Width);
-	}
+	public ReadOnlySpan<T> GetRowReadOnly(int y) => GetRow(y);
 
 	/// <summary>
 	///     Clears all elements in the grid to their default value.
@@ -174,6 +176,7 @@ public sealed class Grid2D<T> : IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TryGet(int x, int y, out T value)
 	{
+		ThrowIfDisposed();
 		if (IsInBounds(x, y))
 		{
 			value = _data![y * Width + x];
@@ -194,6 +197,7 @@ public sealed class Grid2D<T> : IDisposable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool TrySet(int x, int y, T value)
 	{
+		ThrowIfDisposed();
 		if (IsInBounds(x, y))
 		{
 			_data![y * Width + x] = value;
@@ -220,13 +224,19 @@ public sealed class Grid2D<T> : IDisposable
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		if (_data is null)
+		var data = Interlocked.Exchange(ref _data, null);
+		if (data is null)
 			return;
 
 		if (_fromPool)
-			ArrayPool<T>.Shared.Return(_data, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+			ArrayPool<T>.Shared.Return(data, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+	}
 
-		_data = null;
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ThrowIfDisposed()
+	{
+		if (_data is null)
+			throw new ObjectDisposedException(nameof(Grid2D<T>));
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]

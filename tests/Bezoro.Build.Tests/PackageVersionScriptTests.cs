@@ -45,6 +45,71 @@ public sealed class PackageVersionScriptTests
 		version.Should().Be("0.1.0-preview.2");
 	}
 
+	[Theory]
+	[InlineData("1.2.3-preview.9", "1.2.3-preview.10", "1.2.3-preview.10")]
+	[InlineData("1.2.3-2", "1.2.3-alpha", "1.2.3-alpha")]
+	[InlineData("1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-alpha.1")]
+	[InlineData("1.2.3-rc.1", "1.2.3", "1.2.3")]
+	[InlineData("1.2.3-Beta", "1.2.3-alpha", "1.2.3-alpha")]
+	[InlineData("1.2.3", "100000000000000000000.0.0", "100000000000000000000.0.0")]
+	public void ExactTagsFollowSemVerPrecedence(string first, string second, string expected)
+	{
+		using var repository = TemporaryGitRepository.Create();
+		repository.Commit("initial");
+		repository.Tag(first);
+		repository.Tag(second);
+		RunVersionScript(repository.Path).Should().Be(expected);
+	}
+
+	[Fact]
+	public void VersionOverridePreservesBuildMetadata()
+	{
+		var root = FindRepositoryRoot();
+		var result = RunProcess(root, "pwsh", "-NoProfile", "-NonInteractive", "-File",
+			System.IO.Path.Combine(root, "scripts/Get-PackageVersion.ps1"), "-VersionOverride", "v1.2.3-rc.2+build.007");
+		result.ExitCode.Should().Be(0, result.Error);
+		result.Output.Trim().Should().Be("1.2.3-rc.2+build.007");
+	}
+
+	[Theory]
+	[InlineData("1.2.3-01")]
+	[InlineData("1.2.3-alpha.01")]
+	[InlineData("01.2.3")]
+	public void InvalidSemVerOverridesAreRejected(string version)
+	{
+		var root = FindRepositoryRoot();
+		var result = RunProcess(root, "pwsh", "-NoProfile", "-NonInteractive", "-File",
+			System.IO.Path.Combine(root, "scripts/Get-PackageVersion.ps1"), "-VersionOverride", version);
+		result.ExitCode.Should().NotBe(0);
+	}
+
+	[Theory]
+	[InlineData("v1.2.3", "fix(core): reject overflow", "1.2.4-preview.1")]
+	[InlineData("v1.2.3", "feat(chess): add game review", "1.3.0-preview.1")]
+	[InlineData("v1.2.3", "refactor(chess)!: separate gameplay", "2.0.0-preview.1")]
+	[InlineData("v0.1.3", "fix(core)!: change ownership", "0.2.0-preview.1")]
+	[InlineData("v1.2.3", "fix(core): change ownership\n\nBREAKING CHANGE: foreign returns are rejected", "2.0.0-preview.1")]
+	public void PreviewVersionsHonorConventionalCommitIntent(string tag, string message, string expected)
+	{
+		using var repository = TemporaryGitRepository.Create();
+		repository.Commit("initial");
+		repository.Tag(tag);
+		repository.Commit(message);
+		RunVersionScript(repository.Path).Should().Be(expected);
+	}
+
+	[Fact]
+	public void BreakingChangesTakePrecedenceOverFeaturesAndFixes()
+	{
+		using var repository = TemporaryGitRepository.Create();
+		repository.Commit("initial");
+		repository.Tag("v1.2.3");
+		repository.Commit("refactor!: remove old API");
+		repository.Commit("feat: add review");
+		repository.Commit("fix: reject overflow");
+		RunVersionScript(repository.Path).Should().Be("2.0.0-preview.3");
+	}
+
 	private static string RunVersionScript(string repositoryPath)
 	{
 		var root = FindRepositoryRoot();

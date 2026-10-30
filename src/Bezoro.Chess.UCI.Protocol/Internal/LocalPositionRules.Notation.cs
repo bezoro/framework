@@ -6,25 +6,23 @@ internal static partial class LocalPositionRules
 {
 	internal static LocalPositionState Parse(Fen fen)
 	{
+		if (fen.PiecePlacement is null || fen.ActiveColor is not ('w' or 'b'))
+			throw new ArgumentException("A parsed FEN position is required.", nameof(fen));
+
 		var board = new char[64];
-		string[] ranks = fen.PiecePlacement.Split('/');
-		if (ranks.Length != 8)
-			throw new ArgumentException("Piece placement must contain eight ranks.", nameof(fen));
-
-		for (var rankIndex = 0; rankIndex < 8; rankIndex++)
+		var rank = 7;
+		var file = 0;
+		foreach (char symbol in fen.PiecePlacement)
 		{
-			var fileIndex = 0;
-			foreach (char symbol in ranks[rankIndex])
+			if (symbol == '/')
 			{
-				if (char.IsDigit(symbol))
-				{
-					fileIndex += symbol - '0';
-					continue;
-				}
-
-				board[GetIndex(fileIndex, 7 - rankIndex)] = symbol;
-				fileIndex++;
+				rank--;
+				file = 0;
 			}
+			else if (symbol is >= '1' and <= '8')
+				file += symbol - '0';
+			else
+				board[GetIndex(file++, rank)] = symbol;
 		}
 
 		return new(
@@ -51,14 +49,23 @@ internal static partial class LocalPositionRules
 
 	internal static int ParseSquare(ReadOnlySpan<char> square) => GetIndex(square[0] - 'a', square[1] - '1');
 
-	internal static string FormatMove(int fromIndex, int toIndex, char promotionPiece = '\0')
-	{
-		string move = $"{FormatSquare(fromIndex)}{FormatSquare(toIndex)}";
-		return promotionPiece == '\0' ? move : $"{move}{promotionPiece}";
-	}
+	internal static string FormatMove(int fromIndex, int toIndex, char promotionPiece = '\0') =>
+		string.Create(promotionPiece == '\0' ? 4 : 5, (fromIndex, toIndex, promotionPiece), static (chars, state) =>
+		{
+			chars[0] = (char)('a' + GetFile(state.fromIndex));
+			chars[1] = (char)('1' + GetRank(state.fromIndex));
+			chars[2] = (char)('a' + GetFile(state.toIndex));
+			chars[3] = (char)('1' + GetRank(state.toIndex));
+			if (chars.Length == 5)
+				chars[4] = state.promotionPiece;
+		});
 
 	internal static string FormatSquare(int index) =>
-		$"{(char)('a' + GetFile(index))}{(char)('1' + GetRank(index))}";
+		string.Create(2, index, static (chars, square) =>
+		{
+			chars[0] = (char)('a' + GetFile(square));
+			chars[1] = (char)('1' + GetRank(square));
+		});
 
 	internal static int GetIndex(int file, int rank) => rank * 8 + file;
 

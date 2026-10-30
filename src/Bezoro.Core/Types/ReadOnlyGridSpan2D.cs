@@ -26,7 +26,16 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ReadOnlyGridSpan2D(ReadOnlySpan<T> data, int width, int height)
 	{
-		_data  = data;
+		if (width <= 0)
+			throw new ArgumentOutOfRangeException(nameof(width));
+		if (height <= 0)
+			throw new ArgumentOutOfRangeException(nameof(height));
+
+		int length = checked(width * height);
+		if (data.Length < length)
+			throw new ArgumentException("The backing span is smaller than the grid.", nameof(data));
+
+		_data  = data[..length];
 		Width  = width;
 		Height = height;
 	}
@@ -45,7 +54,13 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 	public ref readonly T this[int x, int y]
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => ref _data[y * Width + x];
+		get
+		{
+			if (!IsInBounds(x, y))
+				throw new IndexOutOfRangeException("Grid index out of range.");
+
+			return ref _data[y * Width + x];
+		}
 	}
 
 	/// <summary>Checks if the specified coordinates are within bounds.</summary>
@@ -64,5 +79,11 @@ public readonly ref struct ReadOnlyGridSpan2D<T>
 	/// <param name="y">The row index (zero-based).</param>
 	/// <returns>A read-only span over the specified row.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ReadOnlySpan<T> GetRow(int y) => _data.Slice(y * Width, Width);
+	public ReadOnlySpan<T> GetRow(int y)
+	{
+		if ((uint)y >= (uint)Height)
+			throw new ArgumentOutOfRangeException(nameof(y));
+
+		return _data.Slice(y * Width, Width);
+	}
 }
