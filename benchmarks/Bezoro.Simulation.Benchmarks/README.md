@@ -10,9 +10,9 @@ Use representative capacities and workloads when interpreting results. Small ope
 
 ## Recorded attribute diagnostic
 
-The [attribute CSV](results/2026-10-29-attributes-short-run.csv) contains a local ShortRun on Debian 13, Intel Xeon Platinum 8573C, SDK 10.0.203 and .NET 10.0.7. Three warmups and three 100 ms measured iterations were used. The measured implementation corresponds to `d1a9a23a`.
+The [attribute CSV](results/2026-10-29-attributes-short-run.csv) contains a local ShortRun on Debian 13, Intel Xeon Platinum 8573C, SDK 10.0.203 and .NET 10.0.7. Three warmups and three 100 ms measured iterations were used. The measured implementation includes the compact modifier layout in `8edd1637`.
 
-Cached reads measured 2.55–2.68 ns across 0, 8, and 64 modifiers. Changing the base value and evaluating 64 modifiers measured 222.7 ns; the pure span calculation measured 196.1 ns. All nine workloads reported zero managed bytes per operation. These are short diagnostics on shared hardware, with wide error intervals. Sub-nanosecond differences and ratios should not drive engine frame-budget decisions.
+Cached reads measured 2.51–2.53 ns across 0, 8, and 64 modifiers. Changing the base value and evaluating 64 modifiers measured 203.9 ns; the pure span calculation measured 198.0 ns with a particularly wide error interval. All nine workloads reported zero managed bytes per operation. These are short diagnostics on shared hardware. Sub-nanosecond differences and ratios should not drive engine frame-budget decisions.
 
 ## Recorded timing diagnostic
 

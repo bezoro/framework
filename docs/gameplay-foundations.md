@@ -17,7 +17,7 @@ Simulation references Core. Navigation and Persistence have no runtime project d
 
 ## Memory and ownership
 
-Capacities are explicit. Slot-map backing storage is approximately `capacity × (sizeof(T) + 16)` bytes plus array/object headers. A ring buffer holds one `T[capacity]`. Navigation owns 32 bytes of workspace per cell, in addition to the immutable `ushort` grid and the caller's route buffer. Schedulers and attribute sets allocate their bounded storage at construction rather than retaining one task or closure per event.
+Capacities are explicit. Slot-map backing storage is approximately `capacity × (sizeof(T) + 16)` bytes plus array/object headers. A ring buffer holds one `T[capacity]`. Attribute modifiers use 16 bytes after removing eight bytes of x64 alignment padding; a layout regression first reproduced the previous 24-byte size. Navigation owns 32 bytes of workspace per cell, in addition to the immutable `ushort` grid and the caller's route buffer. Schedulers and attribute sets allocate their bounded storage at construction rather than retaining one task or closure per event.
 
 Steady-state random draws, collection operations, clock advancement, scheduling, cached attribute reads, path queries, and envelope operations have allocation checks or measured workloads. This does not make initialization, user payload construction, file streams, or asynchronous I/O allocation-free. File reads use caller-owned destination memory and reject advertised payload lengths beyond the configured limit before reading payload data.
 
@@ -33,7 +33,7 @@ The [console example](../samples/Bezoro.Gameplay.ConsoleDemo/README.md) composes
 
 ## Validation evidence
 
-The integrated Release build completed with zero warnings and errors. The integrated run passed 2,747 tests across 12 projects, including Stockfish 19 integration on Linux. The subsequent packaging-documentation regression brought the validated inventory to 2,748 tests; the complete build-script suite passed 28 tests after that change. No failures or skips occurred. UPM staging and the C# 9 consumer build against the staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs.
+The integrated Release build completed with zero warnings and errors. The integrated run passed 2,747 tests across 12 projects, including Stockfish 19 integration on Linux. Subsequent packaging-documentation and modifier-layout regressions brought the validated inventory to 2,749 tests; the complete build-script and Simulation suites then passed 28 and 77 tests. No failures or skips occurred in these verification runs. UPM staging and the C# 9 consumer build against the staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs.
 
 | Test project | Passed |
 | --- | ---: |
@@ -46,7 +46,7 @@ The integrated Release build completed with zero warnings and errors. The integr
 | TypingSystem | 96 |
 | Chess protocol | 701 |
 | Chess facade | 195 |
-| Simulation | 76 |
+| Simulation | 77 |
 | Navigation | 36 |
 | Persistence | 79 |
 

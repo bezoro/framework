@@ -29,6 +29,8 @@ currentDamage = attributes.GetValue(damage); // 140
 
 Keep identifier assignments stable in application save formats. Zero is invalid; an identifier must be constructed from a positive integer. `Contains` returns false for default or unknown identifiers; value and definition lookups reject them. A set copies its definitions and has a fixed number of attributes. `SetDefinition` replaces the base value and bounds of an existing identifier; it does not add an attribute or rename one.
 
+`StatModifier` stores its double value and two integer fields in 16 bytes, avoiding padding in modifier arrays. Handles are also 16-byte values. Referenced application objects and array headers are additional storage.
+
 ## Formula and ordering
 
 For each attribute:
