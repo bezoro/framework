@@ -11,11 +11,17 @@
     <ProjectReference Include="../../src/Bezoro.Simulation/Bezoro.Simulation.csproj" />
     <ProjectReference Include="../../src/Bezoro.Navigation/Bezoro.Navigation.csproj" />
     <ProjectReference Include="../../src/Bezoro.Persistence/Bezoro.Persistence.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Inventory/Bezoro.Inventory.csproj" />
+    <ProjectReference Include="../../src/Bezoro.StateMachines/Bezoro.StateMachines.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Spatial/Bezoro.Spatial.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(FrameworkBinaryRoot)' != ''">
     <Reference Include="Bezoro.Core"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Core.dll</HintPath></Reference>
     <Reference Include="Bezoro.Simulation"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Simulation.dll</HintPath></Reference>
     <Reference Include="Bezoro.Navigation"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Navigation.dll</HintPath></Reference>
     <Reference Include="Bezoro.Persistence"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Persistence.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Inventory"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Inventory.dll</HintPath></Reference>
+    <Reference Include="Bezoro.StateMachines"><HintPath>$(FrameworkBinaryRoot)/Bezoro.StateMachines.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Spatial"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Spatial.dll</HintPath></Reference>
   </ItemGroup>
 </Project>
