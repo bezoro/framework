@@ -12,4 +12,4 @@ WarmupCount=3
 ```
 | Method            | Mean     | Error    | StdDev   | Allocated |
 |------------------ |---------:|---------:|---------:|----------:|
-| TransitionAndTick | 54.30 ns | 3.301 ns | 0.181 ns |         - |
+| TransitionAndTick | 55.19 ns | 6.565 ns | 0.360 ns |         - |

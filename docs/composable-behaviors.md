@@ -65,9 +65,9 @@ Cleanup is attempted once per activation and continues through other started chi
 
 ## Validation evidence
 
-The complete local Linux Release build passed with zero warnings/errors. All **3,137 tests passed across 19 suites**, with no failures or skipped tests, including Stockfish 19 integration. Conditions, Statecharts, BehaviorTrees and Behaviors also passed their module suites with checked arithmetic.
+The complete local Linux Release build passed with zero warnings/errors. All **3,154 tests passed across 19 suites**, with no failures or skipped tests, including Stockfish 19 integration. Conditions, Statecharts, BehaviorTrees and Behaviors also passed their module suites with checked arithmetic.
 
-The new suites contain 22 condition, 54 statechart, 43 tree and 37 composition tests. They cover short-circuit order, inactive branches, ancestor exits, parallel regions, budget-one progress, lifecycle failure, stale tokens, ownership, and warmed allocation checks.
+The new suites contain 22 condition, 54 statechart, 43 tree and 54 composition tests. They cover short-circuit order, inactive branches, ancestor exits, parallel regions, budget-one progress, lifecycle failure, stale tokens, ownership, and warmed allocation checks.
 
 Independent reference models supplemented the suites:
 
@@ -75,6 +75,7 @@ Independent reference models supplemented the suites:
 - 160,000 chart dispatches checked 157,717 transitions and 321,066 predicate traces.
 - 80,000 tree updates and 71,954 restarts checked exact Enter/Tick/Exit/Abort traces.
 - Mixed composition chains through depth 64 checked budget-one progress, priority recovery, fault cleanup, and late completion rejection.
+- A separate 42-case signal callback corpus failed against the preserved implementation before the ancestor reservation fix and passed with checked arithmetic afterward, including exception recovery and resource cleanup.
 - 400,000 warmed ticks across memory, reactive, parallel and deeply mixed graphs measured zero managed allocation in those scenarios.
 
 Twenty-one BenchmarkDotNet workloads reported zero managed allocation after setup. [Raw results and source/runtime context](../benchmarks/results/2026-10-30-composable-behaviors/README.md) include error intervals and show both cached-path behavior and the cost of explicitly reactive evaluation. These are host diagnostics, not engine frame budgets.

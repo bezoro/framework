@@ -10,11 +10,11 @@ Job=ShortRun  IterationCount=3  LaunchCount=1
 WarmupCount=3
 
 ```
-| Method          | Depth | Mean      | Error     | StdDev   | Allocated |
-|---------------- |------ |----------:|----------:|---------:|----------:|
-| **NestedBudgetOne** | **1**     |  **11.42 ns** |  **0.516 ns** | **0.028 ns** |         **-** |
-| NestedFullPath  | 1     |  11.06 ns |  0.165 ns | 0.009 ns |         - |
-| **NestedBudgetOne** | **8**     |  **49.06 ns** |  **1.261 ns** | **0.069 ns** |         **-** |
-| NestedFullPath  | 8     | 116.11 ns | 12.672 ns | 0.695 ns |         - |
-| **NestedBudgetOne** | **32**    | **156.78 ns** | **28.985 ns** | **1.589 ns** |         **-** |
-| NestedFullPath  | 32    | 505.00 ns | 60.255 ns | 3.303 ns |         - |
+| Method          | Depth | Mean      | Error      | StdDev    | Allocated |
+|---------------- |------ |----------:|-----------:|----------:|----------:|
+| **NestedBudgetOne** | **1**     |  **11.79 ns** |   **0.464 ns** |  **0.025 ns** |         **-** |
+| NestedFullPath  | 1     |  13.86 ns |  12.158 ns |  0.666 ns |         - |
+| **NestedBudgetOne** | **8**     |  **59.36 ns** |  **40.550 ns** |  **2.223 ns** |         **-** |
+| NestedFullPath  | 8     | 139.10 ns | 376.727 ns | 20.650 ns |         - |
+| **NestedBudgetOne** | **32**    | **157.77 ns** |  **10.962 ns** |  **0.601 ns** |         **-** |
+| NestedFullPath  | 32    | 482.93 ns |  49.275 ns |  2.701 ns |         - |
