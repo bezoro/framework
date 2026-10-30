@@ -253,6 +253,44 @@ public sealed class AtomicFileSaveStoreTests
     }
 
     [Fact]
+    public async Task Delete_WithAnOpenSnapshot_FreesTheSlotForNewSavesAndRetainsTheOldSnapshot()
+    {
+        using var directory = new TemporaryDirectory();
+        var store = directory.CreateStore();
+        byte[] original = new byte[] { 1, 2, 3 };
+        await store.WriteAsync("profile", 1, original);
+
+        using (var snapshot = new FileStream(directory.SlotPath("profile"), FileMode.Open, FileAccess.Read,
+                   FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous))
+        {
+            await store.DeleteAsync("profile");
+            Assert.Equal(SaveReadStatus.NotFound, (await store.ReadAsync("profile", new byte[8])).Status);
+
+            byte[] replacement = new byte[] { 4, 5, 6, 7 };
+            await store.WriteAsync("profile", 2, replacement);
+            byte[] current = new byte[replacement.Length];
+            var result = await store.ReadAsync("profile", current, expectedSchemaVersion: 2);
+            Assert.True(result.IsSuccess);
+            Assert.Equal(replacement, current);
+
+            byte[] encodedOriginal = new byte[SaveEnvelope.GetEncodedLength(original.Length)];
+            Assert.Equal(encodedOriginal.Length, snapshot.Length);
+            for (int offset = 0; offset < encodedOriginal.Length;)
+            {
+                int read = await snapshot.ReadAsync(encodedOriginal.AsMemory(offset));
+                Assert.InRange(read, 1, encodedOriginal.Length - offset);
+                offset += read;
+            }
+            Assert.Equal(SaveReadStatus.Success,
+                SaveEnvelope.Decode(encodedOriginal, 1024, out var header, out var decodedOriginal, expectedSchemaVersion: 1));
+            Assert.Equal(1u, header.SchemaVersion);
+            Assert.Equal(original, decodedOriginal.ToArray());
+        }
+
+        Assert.Empty(directory.TemporaryFiles());
+    }
+
+    [Fact]
     public async Task Delete_IsIdempotentAndLeavesOtherSlotsIntact()
     {
         using var directory = new TemporaryDirectory();

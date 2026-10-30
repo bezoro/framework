@@ -146,7 +146,10 @@ public sealed class AtomicFileSaveStore : ISaveStore
     }
 
     /// <inheritdoc />
-    /// <remarks>The commit-gate wait is asynchronous and cancelable; the final filesystem unlink is synchronous.</remarks>
+    /// <remarks>
+    /// The slot is removed by a same-directory rename under the path gate. Retired-file cleanup is synchronous.
+    /// Cancellation is checked before the rename, never after it. Cleanup failure may therefore be reported after removal.
+    /// </remarks>
     public async ValueTask DeleteAsync(string slot, CancellationToken cancellationToken = default)
     {
         string path = GetSlotPath(slot);
@@ -157,8 +160,16 @@ public sealed class AtomicFileSaveStore : ISaveStore
         {
             cancellationToken.ThrowIfCancellationRequested();
             RejectSymbolicLink(path);
-            try { File.Delete(path); }
-            catch (DirectoryNotFoundException) { }
+            string retiredPath = Path.Combine(RootDirectory, $".{slot}.{Guid.NewGuid():N}.deleted.tmp");
+            cancellationToken.ThrowIfCancellationRequested();
+            try { File.Move(path, retiredPath); }
+            catch (FileNotFoundException) { return; }
+            catch (DirectoryNotFoundException) { return; }
+            try { File.Delete(retiredPath); }
+            catch (Exception cleanupFailure) when (cleanupFailure is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException("The save slot was removed, but its retired file could not be cleaned up.", cleanupFailure);
+            }
         }
         finally { gate.Release(); }
     }
