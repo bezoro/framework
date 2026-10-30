@@ -352,3 +352,90 @@ Canonical parity tracker against the Bevy + Unity ECS reference bar.
 - Compiled queries are intended for sequential, cache-friendly component access in gameplay loops.
 - `World` is not thread-safe for concurrent direct API access; scheduler and `RunParallel` parallelism are coordinated internally.
 - Source generators in `Bezoro.ECS.SourceGen` can generate query spec and job helper code aligned with the compiled-query runtime.
+
+## Runtime ownership and engine deployment
+
+A world owns its registered disposable resources. Replacing a resource with the
+same object preserves it; replacing it with another object disposes the previous
+one. Removing, clearing, or disposing the world detaches resource ownership before
+calling user disposal code. World shutdown attempts to release every service even
+when a system's `OnDestroy` fails. A failed shutdown still closes the world.
+A failed system `OnCreate` removes that system from the schedule.
+
+Elapsed time and fixed update intervals must be finite and non-negative. A failing
+system update or command playback disposes every command stream created for the
+batch. Playback can have applied earlier commands before it fails; it does not
+roll back arbitrary world mutations.
+
+Each world supports its existing scheduled parallel jobs. Separate worlds can run
+on separate threads without sharing component ID cache entries. This does not
+make concurrent structural mutation of the same world safe.
+
+Native columns are reserved for value types whose marshaled layout matches typed
+memory access. Generic value types, enums, auto-layout types, `bool`, `char`, and
+structs containing custom-marshaled fields use typed managed arrays. This avoids
+unsupported `Marshal.SizeOf` calls and layout mismatches during entity movement.
+
+Snapshot resource restoration no longer constructs closed generic types through
+reflection. The runtime materializes a typed resource box when typed code first
+accesses that resource. Component reference detection no longer closes generic
+methods through reflection. Type-based component discovery, native marshaling,
+system metadata discovery, and JSON serialization still depend on reflection and
+metadata. Preserve the relevant component and system metadata when using Unity
+IL2CPP or trimmed builds. These changes do not constitute validation of an IL2CPP,
+Unity player, Godot export, or Native AOT deployment.
+
+## Independent world workers
+
+`WorldGroup` steps independent data simulations through a fixed membership list.
+Choose a worker limit explicitly; the default of one preserves sequential order.
+
+```csharp
+var simulations = new[]
+{
+    new World(new WorldConfig { MaxDegreeOfParallelism = 1 }),
+    new World(new WorldConfig { MaxDegreeOfParallelism = 1 })
+};
+var group = new WorldGroup(simulations, maxDegreeOfParallelism: 2);
+group.FixedTick(1f / 60f, cancellationToken);
+```
+
+The group copies membership, rejects duplicate world references, and rejects
+concurrent or reentrant steps on that group. Each world retains its own component
+storage, resource dependency schedule, and command streams. Do not share mutable
+system instances, resources, or component-owned objects between these worlds.
+Share immutable configuration or publish copies of results after the step joins.
+Groups with overlapping membership must not run simultaneously. Wait for the
+step before reading, mutating, or disposing any member from another thread.
+The caller remains responsible for disposing the worlds.
+
+Parallel steps suit headless simulation, AI rollouts, and separate game sessions.
+Unity and Godot scene, rendering, physics-object, and UI calls with main-thread
+affinity must stay in the host's main-thread update. Copy simulation results back
+to those objects after the group finishes. Register data systems in worker worlds;
+keep engine integration systems in a separate main-thread world.
+
+Cancellation stops dispatching worlds that have not started. Started worlds finish
+before an exception or cancellation reaches the caller.
+Accepted workers also finish before a thread-pool submission failure or an
+interruption of the join wait reaches the caller. Completed updates and
+command playback remain applied, so a failed step can leave worlds at different
+steps. Individual world state determines the result; group execution order is
+unspecified with multiple workers. Seed random state per world when comparing
+sequential and parallel runs.
+
+The shared scheduler reuses an active parallel worker for nested execution.
+A parallel `WorldGroup` therefore runs each member's system/query work on that
+member's worker instead of multiplying nested worker sets. A sequential group
+allows the world's own configured parallelism. Prefer one level of parallelism
+whose work units are large enough to cover scheduling overhead.
+
+Run the supplied CPU/memory comparison on the deployment hardware:
+
+```bash
+dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks -- --filter '*WorldGroupBenchmarks*' --fast
+```
+
+Small worlds can cost more to dispatch than to execute sequentially. The benchmark
+compares four worlds at three entity counts and reports managed allocations. Unity
+and Godot player performance still requires profiling in the target runtime.

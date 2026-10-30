@@ -23,33 +23,46 @@ High-level game-engine event layer built on `Bezoro.Chess.UCI.Protocol`.
 | `PieceColor`, `PieceType`        | `Bezoro.Chess.UCI.API.Common.Enums` | Chess enums used by move and board analysis.                                                   |
 | `GameMoveActor`, `GameMoveKindFlags` | `Bezoro.Chess.UCI.API.Common.Enums` | UI-facing enums describing move initiators and structural move kinds.                        |
 
-## Quick Start
+## Local gameplay
+
+The constructor without an engine path creates no UCI clients or process transports. `LoadMatchAsync`, `ResetAsync`, `MakeMoveAsync`, promotion, and undo use local rules. They do not start or wait for Stockfish. The async signatures remain for callers that already await them. With an available command gate, local operations complete synchronously.
+
 ```csharp
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var session = await UciGameEngineSession.CreateAsync(
-    enginePath,
-    perspectiveColor: 'b',
-    whiteController: MatchSideControllerKind.Engine,
-    blackController: MatchSideControllerKind.Manual,
-    ct: cancellationToken);
-
+await using var session = new UciGameEngineSession(
+    syncContext: SynchronizationContext.Current);
 await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 
-var result = await session.SearchAsync(
-    new SearchParameters { Depth = 12 },
-    cancellationToken);
-
-var move = await session.ClassifyMoveAsync(result.BestMove, cancellationToken);
-
-Console.WriteLine($"Best move: {move.Notation}");
-Console.WriteLine($"Capture:   {move.Analysis.IsCapture}");
-Console.WriteLine($"Castling:  {move.Analysis.IsCastling}");
+session.MoveMade += move => AnimateMove(move.From, move.To);
+session.PositionChanged += state => DrawBoard(state.CurrentFen);
+await session.MakeMoveAsync("e2e4", cancellationToken);
+await session.UndoAsync(ct: cancellationToken);
 ```
 
-## Ideal Usage
-### Use the game-engine session facade
+Capture, castling, promotion, check, mate, and stalemate come from local board rules. An absent engine score stays absent. A predicted forced mate in an engine variation does not mark an ordinary move as immediate checkmate.
+
+## Optional engine analysis
+
+`StartAsync` and `CreateAsync(enginePath, ...)` explicitly start engines. Call `SearchAsync`, `StartSearchAsync`, or `ClassifyMoveAsync` when analysis is needed. Automatic pondering and scored classification after each position change require `EnableBackgroundAnalysis = true`; the default is `false`.
+
+```csharp
+using Bezoro.Chess.UCI.API.Types;
+
+var options = UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true };
+await using var session = await UciGameEngineSession.CreateAsync(
+    enginePath, options: options, ct: cancellationToken);
+await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
+
+// Engine work runs separately. Loading and moving never await its results.
+var scoredMoves = await session.WaitForClassificationAsync(cancellationToken);
+```
+
+With automatic analysis disabled, the classification wait and stream complete with no scored moves. Use `session.CurrentFen.ClassifyMoveFully(move)` for on-demand local move semantics. Start the configured engines before enabling automatic analysis. Gameplay uses standard FEN and UCI coordinates and does not require the non-standard `d` or `go perft` engine extensions.
+
+## Engine-backed usage
+### Search an engine-controlled move
 ```csharp
 using Bezoro.Chess.UCI.API;
 using Bezoro.Chess.UCI.Protocol.API.Types;
@@ -73,9 +86,13 @@ await session.MakeMoveAsync(engineResult.BestMove, cancellationToken);
 ### Drive UI feedback from classified moves
 ```csharp
 using Bezoro.Chess.UCI.API;
+using Bezoro.Chess.UCI.API.Types;
 using Bezoro.Chess.UCI.Protocol.API.Types;
 
-await using var session = await UciGameEngineSession.CreateAsync(enginePath, ct: cancellationToken);
+await using var session = await UciGameEngineSession.CreateAsync(
+    enginePath,
+    options: UciCoordinatorOptions.Default with { EnableBackgroundAnalysis = true },
+    ct: cancellationToken);
 await session.LoadMatchAsync(PlayableMatchSetup.Standard, cancellationToken);
 
 await foreach (var move in session.StreamClassifiedMovesAsync(cancellationToken))
@@ -236,7 +253,7 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 |-------------------------------------------------------------------|---------------------------------------------------------------------|
 | `CreateAsync(enginePath, options, syncContext, perspectiveColor, whiteController, blackController, ct)` | Constructs and starts a ready-to-use game-engine session. |
 | `StartAsync(ct)` / `StopAsync(ct)`                                | Starts or stops all internal engine instances.                      |
-| `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Resets position state or starts a fresh engine game context.        |
+| `ResetAsync(ct)` / `NewGameAsync(ct)`                             | Loads the standard position or clears the local gameplay context.  |
 | `LoadMatchAsync(setup, ct)`                                        | Loads a complete `PlayableMatchSetup`, including base FEN, played moves, and optional clock setup. |
 | `UpdatePositionAsync(fen, playedMoves, ct)` / `UpdatePositionAsync(fen, playedMoves, clockRestore, ct)` | Obsolete migration shims for older callers; prefer `LoadMatchAsync`. |
 | `SetPositionAsync(fenString, ct)`                                 | Convenience wrapper that parses a FEN string.                       |
@@ -257,7 +274,7 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 | `SetOptionAsync(name, value, ct)`                                 | Applies a UCI option to all internal engine instances.              |
 | `SetDebugAsync(enabled, ct)`                                      | Broadcasts `debug on/off` to all internal engines.                  |
 | `RegisterAsync(registration, ct)`                                 | Broadcasts the standard `register` command to all internal engines. |
-| `GetCurrentFenAsync(ct)`                                          | Returns the engine-reported current FEN if available.               |
+| `GetCurrentFenAsync(ct)`                                          | Returns the current local FEN without engine I/O.                   |
 | `PerspectiveColor` / `WhiteController` / `BlackController`        | Controller-neutral playable-side configuration mirrored from protocol. |
 | `GetController(side)`                                             | Returns the configured controller for `w` or `b`.                   |
 | `State`                                                           | Current immutable snapshot.                                         |
@@ -284,7 +301,7 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 | `MoveClassified`                                                   | Raised for each newly classified legal move.                        |
 | `MoveClassificationUpdated`                                       | Obsolete alias for `MoveClassified`; prefer `MoveClassified` or `EventPublished`. |
 | `ClassificationCompleted`                                         | Raised when the current position's move classification is complete. |
-| `GameOver`                                                        | Raised when the current position has no legal moves.                |
+| `GameOver`                                                        | Raised when the match reaches a terminal result.                    |
 | `StateChanged`, `Ready`, `Stopped`, `Error`                       | Coarser lifecycle and integration events.                           |
 | `EngineError`                                                     | Obsolete alias for `Error`; prefer `Error` or `EventPublished`.     |
 
@@ -341,7 +358,8 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 | `ClaimableDrawPolicy` | Whether repetition and fifty-move draws are automatic or require an explicit claim. |
 | `DrawOfferPolicy`     | Whether pending draw offers expire on the next move. |
 | `ControlledMoveFallbackPolicy` | Whether engine-controlled turns may fall back to a legal local move. |
-| `Default`             | Safe default configuration.                   |
+| `EnableBackgroundAnalysis` | Opts into automatic pondering and scored classification after local position updates. Defaults to false. |
+| `Default`             | Default configuration with automatic analysis disabled. |
 
 ## Design Notes
 - This project hides transport/protocol complexity behind one game-facing facade.
@@ -350,9 +368,15 @@ Use `PlayableMatchSetup` for save/load or authored setup assets. `PlayableMatchC
 - New integrations should prefer `EventPublished`; focused subscriptions should use canonical named events such as `EvaluationChanged`, `MoveClassified`, and `Error`.
 - Obsolete compatibility aliases (`EvaluationUpdated`, `MoveClassificationUpdated`, and `EngineError`) remain for source compatibility only.
 - Resign, draw offer/claim, adjudicated result, and chess-clock state are projected from protocol-backed match rules rather than reimplemented by the consumer.
-- High-level clock operations use the same deterministic clock kernel as the protocol session. The high-level session publishes its live post-move snapshot after the engine position reload, so reload latency is charged to the newly active side.
+- Clock operations share the protocol session's deterministic clock kernel. Moves commit their local position, history, result, and clock before optional engine work runs.
 - `UndoAsync` intentionally reloads the retained position and resets both sides to the configured initial time, base stage, and zero completed clock moves. This differs from `UciPlayableMatchSession.UndoMoves`, which restores a retained clock checkpoint and restarts that retained turn.
-- Move completion debits the clock before the engine position reload. If that reload fails, the clock checkpoint has advanced while the visible position remains unchanged; reload or reset the match before retrying the move. This transaction boundary remains a known limitation.
+- Invalid position and clock setups leave the current game intact. Invalid or canceled promotion choices retain the pending request. Undo clears adjudicated results and rebuilds repetition state from retained history.
 - The session builds on protocol-owned local FEN and legal-move generation for playable match flow, while engine-specific `d` and `go perft 1` remain available only as optional low-level escape hatches on `UciEngineClient`.
 - Protocol types such as `Fen`, `SearchParameters`, and `SearchResult` come from `Bezoro.Chess.UCI.Protocol`; this project uses them rather than redefining them.
 - Search and metadata snapshots exposed by the protocol layer are immutable, so session state can safely retain and rebroadcast them across threads.
+
+Gameplay commands serialize concurrent callers. Event callbacks use the supplied `SynchronizationContext`; async state and classification streams receive updates independently of that context. `StreamStateAsync` yields the current snapshot and keeps at most one pending snapshot. Slow consumers receive the latest state and skip intermediate snapshots, so a paused renderer cannot retain an unlimited backlog of board and analysis data. Use `EventPublished` for individual gameplay events. The classified-move stream retains its finite set of move results. Both streams complete on stop or disposal, and disposing a session observes canceled background workers before disposing their engines. Subscribers should await commands instead of synchronously blocking inside event callbacks.
+
+Engine-backed sessions prune completed background and ponder-stop tasks during subsequent operations, including when `EnableBackgroundAnalysis` is false. Unfinished tasks remain tracked so disposal can await them before releasing engine resources. Local gameplay does not wait for those tasks.
+
+`UciState.IsCheck` uses local rules. `Fen.Checkers` remains optional metadata from engines supporting `d` and is not required for gameplay. Terminal outcomes remain fixed until undo or loading another match, and terminal clocks stay paused.
