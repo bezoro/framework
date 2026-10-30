@@ -42,3 +42,5 @@ For a platform-specific failure, set `validation_platform` to `windows` or `linu
 `validation_tests=persistence` restricts a manual diagnostic run to the persistence suite after the complete build/API checks. Main integration and publication ignore this restriction and run every suite. Use the targeted mode to investigate backend-specific failures without repeatedly running unrelated engine integration tests.
 
 `Test-Framework.ps1` discovers every `tests/**/*.Tests.csproj`, so new modules enter local and CI validation automatically. Use `-Suite Bezoro.Inventory.Tests` to select a project by its basename, or pass multiple names. Unknown selections fail before any suite runs. `-ResultsDirectory` writes one TRX per project. Keep test project names unique and ending in `.Tests`.
+
+For an optional older-compiler check against staged DLLs, use `scripts/Test-UnityApiCompiler.ps1` with a compiler DLL and .NET Standard 2.1 reference directory. It downloads nothing and leaves the framework's `LangVersion=latest` build unchanged. See the [consumer instructions](samples/Bezoro.UnityApiSmoke/README.md).

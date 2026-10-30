@@ -33,6 +33,8 @@ The [console example](../samples/Bezoro.Gameplay.ConsoleDemo/README.md) composes
 
 ## Validation evidence
 
+This evidence records the foundations round at `b32e7aa6`. The [toolkit round](gameplay-toolkit.md) records later additions and the updated test inventory.
+
 The integrated Release build completed with zero warnings and errors, and the final local Linux run passed 2,752 tests across 12 projects, including Stockfish 19 integration. Windows diagnostics exposed overlapping replacement and snapshot-open failures; the backend now coordinates those boundaries and retires deleted slots by rename so old snapshots cannot block reuse of the live name. All 82 persistence tests passed locally, including cancelable gate waits and deletion/recreation with an open snapshot. UPM staging and the C# 9 consumer build against staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs. Host-specific CI results are recorded in the pull request; local Linux results do not establish Windows or engine-player behavior.
 
 | Test project | Passed |

@@ -35,10 +35,38 @@ The [toolkit console host](../samples/Bezoro.Toolkit.ConsoleDemo/README.md) coll
 
 An application owns transactions spanning modules. Inventory's two-phase transfer does not make a pickup that mutates both an inventory and a spatial index globally atomic. Keep that orchestration on one owner, or add an application command/rollback policy before introducing callbacks or competing writers.
 
+## Validation evidence
+
+The final local Linux Release run passed **2,981 tests across 15 suites**, with zero failures or skipped tests, including Stockfish 19 integration. The complete solution built for its selected targets with zero warnings or errors. New runtime assemblies compiled for .NET 10 and .NET Standard 2.1. The new module and utility suites also passed with checked arithmetic.
+
+| Suite | Passed |
+| --- | ---: |
+| Build scripts | 28 |
+| Core | 1,157 |
+| Chess protocol | 701 |
+| Chess facade | 195 |
+| ECS | 287 |
+| Events | 88 |
+| GameSystems | 102 |
+| Inventory | 32 |
+| Logging | 30 |
+| Navigation | 36 |
+| Persistence | 82 |
+| Simulation | 77 |
+| Spatial | 35 |
+| StateMachines | 35 |
+| TypingSystem | 96 |
+
+Independent reviews supplemented the unit suites. Inventory conservation and failure atomicity were checked through 30,000 operations with BigInteger totals. Spatial review compared 360,000 mutations and 425,520 queries with a brute-force model. A portable bit-set model exercised 5,757,829 inclusive next-bit searches; ordered-span bounds and reference-slice removals used separate models. State evaluation was checked against a dictionary over 100,000 signals. These are bounded scenarios rather than a proof for every input or thread interleaving.
+
+The test-runner fixture verified discovery of all 15 suites, filtering, rejection of unknown names before execution, paths with spaces, and propagation of a failing child exit code. It does not contact GitHub or dispatch CI.
+
+Thirteen selected BenchmarkDotNet workloads reported zero managed allocation after setup. The [raw measurements](../benchmarks/results/2026-10-30-toolkit/README.md) include runtime, source revisions, parameters and error intervals. Construction, application data, exceptions and file I/O are outside those operations; .NET 10 timing does not establish Unity or Godot player timing.
+
 ## Validation boundaries
 
 Module suites cover invalid input, finite extremes, overflow checking, differential reference models, stale handles, destination preservation, concurrency where promised, and warm allocation checks. Independent reviews use separate models and reported one spatial boundary inconsistency; the corrected filter now agrees across cell sizes.
 
-The C# 9 consumer compiles against .NET Standard projects and staged DLLs with the selected SDK. It does not launch Unity's exact Roslyn compiler, IL2CPP, or a Godot exporter. Validate intended engine/player targets and stripping settings separately.
+The C# 9 consumer compiles against .NET Standard projects and staged DLLs with the selected SDK. An additional Roslyn 3.8 check compiles the same sources and executes the produced IL; both consumer methods returned 4. Empty output views establish stack lifetimes under the older compiler without allocating. The optional compiler helper makes that check reproducible without changing framework build settings. This does not launch Unity's exact compiler, IL2CPP, or a Godot exporter. Validate intended engine/player targets and stripping settings separately.
 
 The shared test runner discovers every test project ending in .Tests.csproj. Main integration and publication still run the complete suite on both CI platforms. Working-branch pushes do not start CI, and this round uses local validation instead of dispatching another workflow for portable managed modules.
