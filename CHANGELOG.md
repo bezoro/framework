@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Gameplay toolkit
+
+- Independent inventory, state-machine, and spatial assemblies with no engine dependencies.
+- Immutable item catalogs and bounded stacks, all-or-nothing inventory transfers, and validated save restoration.
+- Shared sparse transition tables with pure state evaluation and explicit self-transition behavior.
+- Bounded uniform point grids, stable generational handles, rectangle/circle filtering, and caller-owned query buffers.
+- Fixed-capacity bit sets, sorted span bounds, and span removal that releases reference payloads.
+- Little-endian binary span readers/writers with per-field atomic failure and overlapping source support.
+- Signed floor/ceiling division, Euclidean modulo, finite scalar interpolation, wrapping, movement, and elapsed-time damping.
+- Fixed integer magnitude overflow, negative/overflowing nearest-multiple rounding, and exponential damping at floating-point extremes.
+- Composed pickup/quest/inventory checkpoint example, expanded C# 9 DLL consumption checks, and an optional older-compiler check. Stack-backed output views also compile under Roslyn 3.8.
+- Test-suite discovery shared by local validation and main-only CI; new modules no longer require a hard-coded test list.
+
 ### Gameplay foundations
 
 - Deterministic PCG32 state, unbiased integer ranges, portable floating-point draws, span shuffling, and immutable integer-weight selection tables.

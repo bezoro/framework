@@ -2,6 +2,12 @@
 
 Engine-independent collections, grids, object pools, value types, results, and guard extensions shared by the framework. The library targets .NET 10 and .NET Standard 2.1. Unity 6 consumes the precompiled .NET Standard DLLs; its project compiler does not need to compile the framework's source syntax.
 
+## Data utilities
+
+[Binary span cursors](Binary/README.md) read and write explicit little-endian fields with bounds checks and no storage growth. [Bit sets](Collections/README.BitSet.md) store fixed-capacity flags in words; span extensions provide lower/upper bounds and ordered/swap-back removal with reference clearing. [Numeric helpers](Numerics/README.md) cover signed chunk division, cyclic indices, interpolation, and elapsed-time damping with explicit finite-input policies.
+
+Use the new operations where their contracts fit the game. Binary readers do not validate application schemas, sorted span searches require caller-maintained ordering, and mutable bit sets require external serialization.
+
 ## Object pools
 
 Supply a reset policy when rented objects carry mutable state:
@@ -109,6 +115,8 @@ sealed record ParseFailure(string Input) : IFailureReason;
 ```
 
 Prefer direct guards or focused extensions such as `ThrowIfNull` and `ThrowIfEmpty` in new code. The obsolete `ValidationHelper.ThrowIfObjectIsNull` now follows its documented contract: a non-null value passes, and a null value throws with the supplied parameter name and details.
+
+Integer `Abs` throws for `int.MinValue`, whose positive magnitude cannot fit in an `int`. `RoundToNearest` requires a positive multiple, rounds midpoints away from zero, and throws if the rounded result cannot fit. Both handle negative inputs without wrapping.
 
 ## Other APIs
 

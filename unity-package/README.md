@@ -42,6 +42,9 @@ To move to the latest published package:
 - `Bezoro.Logging.dll`
 - `Bezoro.Navigation.dll`
 - `Bezoro.Persistence.dll`
+- `Bezoro.Inventory.dll`
+- `Bezoro.StateMachines.dll`
+- `Bezoro.Spatial.dll`
 - `Bezoro.Simulation.dll`
 - `Bezoro.TypingSystem.dll`
 

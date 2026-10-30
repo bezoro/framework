@@ -1,0 +1,10 @@
+{
+  "source_revision": "25b8e05351b62e61d555fa3e864d23e1e767f579",
+  "collected_utc": "2026-10-30T11:17:09.440549+00:00",
+  "project": "Spatial",
+  "filters": [
+    "*Circle*"
+  ],
+  "job": "ShortRun",
+  "environment": "shared Linux x64; see BDN report for CPU, OS, runtime and error intervals; initialization excluded"
+}

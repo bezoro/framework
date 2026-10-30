@@ -13,10 +13,15 @@ Reusable C# libraries for Unity 6 and other .NET game projects, including Godot 
 | [Simulation](src/Bezoro.Simulation/README.md) | Fixed-step time, tick scheduling, and attributes with modifiers |
 | [Navigation](src/Bezoro.Navigation/README.md) | Weighted grid pathfinding with reusable search storage |
 | [Persistence](src/Bezoro.Persistence/README.md) | Versioned save envelopes and atomic file storage |
+| [Inventory](src/Bezoro.Inventory/README.md) | Bounded item stacks, atomic transfers, and validated restoration |
+| [StateMachines](src/Bezoro.StateMachines/README.md) | Immutable transition tables and pure state evaluation |
+| [Spatial](src/Bezoro.Spatial/README.md) | Uniform point indexing with circle and rectangle queries |
 | [Logging](src/Bezoro.Logging/README.md) | Filtering, formatting, and log destinations |
 | [TypingSystem](src/Bezoro.TypingSystem/README.md) | Word consumption and typing state |
 | [Chess protocol and rules](src/Bezoro.Chess.UCI.Protocol/README.md) | Local chess, match state, optional UCI engines, and game review |
 | [Chess game facade](src/Bezoro.Chess.UCI/README.md) | Game-facing board snapshots, moves, and UI event dispatch |
+
+The [toolkit example](samples/Bezoro.Toolkit.ConsoleDemo/README.md) combines pickup queries, inventories, quest states, and a byte checkpoint. Core also provides [binary span cursors](src/Bezoro.Core/Binary/README.md), [bit sets and span algorithms](src/Bezoro.Core/Collections/README.BitSet.md), and [scalar/grid arithmetic](src/Bezoro.Core/Numerics/README.md). See [module ownership and validation](docs/gameplay-toolkit.md).
 
 ## Unity installation
 

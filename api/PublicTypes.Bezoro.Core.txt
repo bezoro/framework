@@ -6,9 +6,13 @@ Bezoro.Core.Abstractions.IPool<T> | public interface | review-contract | Abstrac
 Bezoro.Core.Abstractions.IPooledObject | public interface | review-contract | Abstractions/IPooledObject.cs
 Bezoro.Core.Abstractions.IPoolPolicy<T> | public interface | review-contract | Abstractions/IPoolPolicy.cs
 Bezoro.Core.Abstractions.IProcessable | public interface | review-contract | Abstractions/IProcessable.cs
+Bezoro.Core.Binary.BinarySpanReader | public ref struct | review-mutable-struct | Binary/BinarySpanReader.cs
+Bezoro.Core.Binary.BinarySpanWriter | public ref struct | review-mutable-struct | Binary/BinarySpanWriter.cs
 Bezoro.Core.CodeGen.CodeWriter | public class | review-unsealed-class | CodeGen/CodeWriter.cs
 Bezoro.Core.CodeGen.CSharpCodeBuilder | public class | review-unsealed-class | CodeGen/CSharpCodeBuilder.cs
 Bezoro.Core.CodeGen.CSharpFileGenerator | public class | review-unsealed-class | CodeGen/CSharpFileGenerator.cs
+Bezoro.Core.Collections.BitSet | public sealed class | stable-shape | Collections/BitSet.cs
+Bezoro.Core.Collections.Enumerator | public struct | review-mutable-struct | Collections/BitSet.cs
 Bezoro.Core.Collections.Enumerator | public struct | review-mutable-struct | Collections/RingBuffer.cs
 Bezoro.Core.Collections.Enumerator | public struct | review-mutable-struct | Collections/SlotMap.cs
 Bezoro.Core.Collections.RingBuffer<T> | public sealed class | stable-shape | Collections/RingBuffer.cs
@@ -28,6 +32,9 @@ Bezoro.Core.Extensions.GenericExtensions | public static class | stable-shape | 
 Bezoro.Core.Extensions.IntExtensions | public static class | stable-shape | Extensions/IntExtensions.cs
 Bezoro.Core.Extensions.LongExtensions | public static class | stable-shape | Extensions/LongExtensions.cs
 Bezoro.Core.Extensions.MemoryExtensions | public static class | stable-shape | Extensions/MemoryExtensions.cs
+Bezoro.Core.Extensions.MutableSpanExtensions | public static class | stable-shape | Extensions/MutableSpanExtensions.cs
+Bezoro.Core.Extensions.NumericExtensions | public static class | stable-shape | Extensions/NumericExtensions.cs
+Bezoro.Core.Extensions.SortedSpanExtensions | public static class | stable-shape | Extensions/SortedSpanExtensions.cs
 Bezoro.Core.Extensions.SpanExtensions | public static class | stable-shape | Extensions/SpanExtensions.cs
 Bezoro.Core.Extensions.StringExtensions | public static partial class | stable-shape | Extensions/StringExtensions.Colour.cs
 Bezoro.Core.Extensions.StringExtensions | public static partial class | stable-shape | Extensions/StringExtensions.cs
@@ -40,6 +47,7 @@ Bezoro.Core.Helpers.DoubleComparer | public static class | stable-shape | Helper
 Bezoro.Core.Helpers.ExceptionHelper | public static class | stable-shape | Helpers/ExceptionHelper.cs
 Bezoro.Core.Helpers.FloatComparer | public static class | stable-shape | Helpers/FloatComparer.cs
 Bezoro.Core.Helpers.ValidationHelper | public static class | stable-shape | Helpers/ValidationHelper.cs
+Bezoro.Core.Numerics.ScalarMath | public static class | stable-shape | Numerics/ScalarMath.cs
 Bezoro.Core.Randomness.Pcg32 | public static class | stable-shape | Random/Pcg32.cs
 Bezoro.Core.Randomness.Pcg32State | public readonly struct | stable-shape | Random/Pcg32State.cs
 Bezoro.Core.Randomness.WeightedIndexTable | public sealed class | stable-shape | Random/WeightedIndexTable.cs

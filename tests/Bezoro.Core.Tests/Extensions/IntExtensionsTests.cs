@@ -1,3 +1,4 @@
+using System;
 using Bezoro.Core.Extensions;
 using Bezoro.Core.Types.Exceptions;
 using FluentAssertions;
@@ -130,4 +131,45 @@ public class IntExtensionsTests
 	[InlineData(6, 5)]
 	public void ThrowIfMoreThan_WhenCalled_ShouldThrow_WhenValueIsMoreThanMax(int value, int max) =>
 		value.Invoking(v => v.ThrowIfMoreThan(max)).Should().Throw<ValueTooLargeException>();
+
+	[Fact]
+	public void Abs_MinValue_ThrowsInsteadOfReturningANegativeMagnitude() =>
+		Assert.Throws<OverflowException>(() => int.MinValue.Abs());
+
+	[Theory]
+	[InlineData(-14, 5, -15)]
+	[InlineData(-11, 5, -10)]
+	[InlineData(-3, 2, -4)]
+	[InlineData(3, 2, 4)]
+	[InlineData(int.MinValue, 1, int.MinValue)]
+	[InlineData(int.MinValue, 2, int.MinValue)]
+	[InlineData(int.MaxValue, 1, int.MaxValue)]
+	[InlineData(int.MaxValue, int.MaxValue, int.MaxValue)]
+	public void RoundToNearest_HandlesSignsMidpointsAndExtremes(int value, int multiple, int expected) =>
+		Assert.Equal(expected, value.RoundToNearest(multiple));
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	[InlineData(int.MinValue)]
+	public void RoundToNearest_RejectsNonPositiveMultiples(int multiple) =>
+		Assert.Throws<ArgumentOutOfRangeException>(() => 42.RoundToNearest(multiple));
+
+	[Fact]
+	public void RoundToNearest_MatchesDecimalOracleAndReportsUnrepresentableResults()
+	{
+		var random = new Random(93013);
+		for (int i = 0; i < 10_000; i++)
+		{
+			int value = (int)random.NextInt64(int.MinValue, (long)int.MaxValue + 1);
+			int multiple = random.Next(1, int.MaxValue);
+			decimal expected = decimal.Round(value / (decimal)multiple, 0, MidpointRounding.AwayFromZero) * multiple;
+			if (expected < int.MinValue || expected > int.MaxValue)
+				Assert.Throws<OverflowException>(() => value.RoundToNearest(multiple));
+			else
+				Assert.Equal((int)expected, value.RoundToNearest(multiple));
+		}
+		Assert.Throws<OverflowException>(() => int.MaxValue.RoundToNearest(2));
+		Assert.Throws<OverflowException>(() => int.MinValue.RoundToNearest(3));
+	}
 }

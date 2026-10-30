@@ -31,6 +31,16 @@ dotnet test tests/Bezoro.Core.Tests/Bezoro.Core.Tests.csproj -c Release -f net10
 - Compatibility tests preserve obsolete expression guards, lifecycle boolean overloads, and formatting convenience shims
   while guiding callers to the canonical APIs.
 
+## Toolkit coverage
+
+- Binary vectors, overlap, truncation, prefix limits, cursor preservation and IEEE bit round-trips.
+- Bit-set tail masks, self operations, enumeration invalidation, portable scans and boolean reference models.
+- Sorted span bounds against linear models, reverse comparers and reference-clearing removals in slices.
+- Signed division/modulo against BigInteger, scalar wrapping against decimal, finite interpolation extremes and damping near underflow.
+- Integer magnitude overflow, negative nearest-multiple rounding and unrepresentable results.
+
+These utility suites include warm allocation checks. Such checks do not include construction, exception paths, caller-owned comparer behavior, or application serialization.
+
 ## Conventions
 
 - Test method names follow `Method_WhenCondition_ShouldExpectation`.

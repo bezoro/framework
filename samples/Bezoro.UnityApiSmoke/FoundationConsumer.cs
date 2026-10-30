@@ -41,8 +41,10 @@ namespace Bezoro.UnityApiSmoke
             byte[] payload = { 1, 2, 3 };
             Span<byte> envelope = stackalloc byte[SaveEnvelope.HeaderSize + 3];
             SaveEnvelope.Write(1, payload, envelope);
+            // Older C# 9 compilers need the output span to have the stack buffer's lifetime.
+            ReadOnlySpan<byte> restored = envelope.Slice(0, 0);
             SaveReadStatus decoded = SaveEnvelope.Decode(envelope, 3, out SaveEnvelopeHeader header,
-                out ReadOnlySpan<byte> restored, expectedSchemaVersion: 1);
+                out restored, expectedSchemaVersion: 1);
             if (decoded != SaveReadStatus.Success || header.SchemaVersion != 1 || restored.Length != 3 ||
                 route.Status != GridPathStatus.Found || stats.GetValue(id) != 10)
                 throw new InvalidOperationException("The consumer examples must produce valid results.");

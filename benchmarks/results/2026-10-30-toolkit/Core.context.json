@@ -1,0 +1,15 @@
+{
+  "source_revision": "a5e09c8cad631b3d4f9c3c3587c05c54df6f6e78",
+  "collected_utc": "2026-10-30T11:23:05.830907+00:00",
+  "project": "Core",
+  "filters": [
+    "*BinaryBufferBenchmarks*",
+    "*Count4096Flags*",
+    "*LowerBound1024*",
+    "*ExponentialDamping*",
+    "*NegativeChunkCoordinate*"
+  ],
+  "job": "ShortRun",
+  "environment": "shared Linux x64; see BDN report for CPU, OS, runtime and error intervals; initialization excluded",
+  "note": "Damping uses runtime field inputs; constant-folded exploratory measurements discarded."
+}
