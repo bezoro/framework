@@ -14,6 +14,10 @@
     <ProjectReference Include="../../src/Bezoro.Inventory/Bezoro.Inventory.csproj" />
     <ProjectReference Include="../../src/Bezoro.StateMachines/Bezoro.StateMachines.csproj" />
     <ProjectReference Include="../../src/Bezoro.Spatial/Bezoro.Spatial.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Conditions/Bezoro.Conditions.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Statecharts/Bezoro.Statecharts.csproj" />
+    <ProjectReference Include="../../src/Bezoro.BehaviorTrees/Bezoro.BehaviorTrees.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Behaviors/Bezoro.Behaviors.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(FrameworkBinaryRoot)' != ''">
     <Reference Include="Bezoro.Core"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Core.dll</HintPath></Reference>
@@ -23,5 +27,9 @@
     <Reference Include="Bezoro.Inventory"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Inventory.dll</HintPath></Reference>
     <Reference Include="Bezoro.StateMachines"><HintPath>$(FrameworkBinaryRoot)/Bezoro.StateMachines.dll</HintPath></Reference>
     <Reference Include="Bezoro.Spatial"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Spatial.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Conditions"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Conditions.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Statecharts"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Statecharts.dll</HintPath></Reference>
+    <Reference Include="Bezoro.BehaviorTrees"><HintPath>$(FrameworkBinaryRoot)/Bezoro.BehaviorTrees.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Behaviors"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Behaviors.dll</HintPath></Reference>
   </ItemGroup>
 </Project>
