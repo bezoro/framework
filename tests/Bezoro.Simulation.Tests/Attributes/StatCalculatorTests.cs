@@ -8,6 +8,12 @@ public sealed class StatCalculatorTests
     private static readonly StatId Damage = new(1);
 
     [Fact]
+    public void Modifier_KeepsItsValueAndTwoIntegerFieldsWithinSixteenBytes()
+    {
+        Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<StatModifier>());
+    }
+
+    [Fact]
     public void Id_DefaultIsInvalidAndPositiveIdsHaveValueEquality()
     {
         Assert.False(default(StatId).IsValid);

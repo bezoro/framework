@@ -29,11 +29,12 @@ public readonly struct StatModifier
         Priority = priority;
     }
 
-    /// <summary>Gets the operation. The default modifier is an additive zero.</summary>
-    public StatModifierOperation Operation { get; }
-
+    // Keep the 64-bit value before the two 32-bit fields to avoid alignment padding in modifier arrays.
     /// <summary>Gets the amount, fractional percentage, factor, or override value.</summary>
     public double Value { get; }
+
+    /// <summary>Gets the operation. The default modifier is an additive zero.</summary>
+    public StatModifierOperation Operation { get; }
 
     /// <summary>Gets the override priority. Higher priorities win; equal priorities use the last modifier.</summary>
     public int Priority { get; }
