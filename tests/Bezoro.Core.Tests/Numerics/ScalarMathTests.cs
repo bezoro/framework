@@ -174,6 +174,68 @@ public sealed class ScalarMathTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => ScalarMath.Damp(0f, 1f, 1f, -1f));
 	}
 
+	[Fact]
+	public void Damp_PreservesLateStageDecayAndMatchesPartitionedTime()
+	{
+		double expected = Math.Exp(-40d);
+		double single = ScalarMath.Damp(1d, 0d, 1d, 40d);
+		double split = 1;
+		for (int step = 0; step < 40; step++) split = ScalarMath.Damp(split, 0d, 1d, 1d);
+		Assert.Equal(expected, single);
+		Assert.InRange(Math.Abs(single - split), 0d, expected * 1e-13);
+		Assert.Equal(-expected, ScalarMath.Damp(-1d, 0d, 1d, 40d));
+		Assert.Equal((float)expected, ScalarMath.Damp(1f, 0f, 1f, 40f));
+	}
+
+	[Theory]
+	[InlineData(744d)]
+	[InlineData(800d)]
+	public void Damp_RescalesSubnormalDecayToRetainRepresentableEndpointContributions(double elapsedTime)
+	{
+		double single = ScalarMath.Damp(double.MaxValue, 0d, 1d, elapsedTime);
+		double midpoint = ScalarMath.Damp(double.MaxValue, 0d, 1d, elapsedTime * 0.5);
+		double split = ScalarMath.Damp(midpoint, 0d, 1d, elapsedTime * 0.5);
+		double expected = Math.Exp(Math.Log(double.MaxValue) - elapsedTime);
+		Assert.True(single > 0 && double.IsFinite(single));
+		Assert.Equal(split, single);
+		Assert.InRange(Math.Abs(single - expected), 0d, expected * 1e-12);
+		Assert.Equal(-single, ScalarMath.Damp(-double.MaxValue, 0d, 1d, elapsedTime));
+	}
+
+	[Fact]
+	public void Damp_RescalesAnUnderflowingRateTimeProductBeforeApplyingIt()
+	{
+		double expected = Math.ScaleB(double.MaxValue, -1075);
+		double single = ScalarMath.Damp(0d, double.MaxValue, double.Epsilon, 0.5d);
+		Assert.True(single > 0 && double.IsFinite(single));
+		Assert.Equal(expected, single);
+		Assert.Equal(single, ScalarMath.Damp(0d, double.MaxValue, 0.5d, double.Epsilon));
+		Assert.Equal(-single, ScalarMath.Damp(0d, -double.MaxValue, double.Epsilon, 0.5d));
+		Assert.Equal(1d + expected, ScalarMath.Damp(1d, double.MaxValue, double.Epsilon, 0.5d));
+		Assert.Equal(double.MaxValue,
+			ScalarMath.Damp(double.MaxValue, -double.MaxValue, double.Epsilon, 0.5d));
+	}
+
+	[Fact]
+	public void Damp_RescalesSubnormalRateTimeProductsWithoutPrematureRoundingOrEndpointOverflow()
+	{
+		double expected = Math.ScaleB(double.MaxValue, -1074) * 1.1d;
+		Assert.Equal(expected, ScalarMath.Damp(0d, double.MaxValue, double.Epsilon, 1.1d));
+		Assert.Equal(expected, ScalarMath.Damp(0d, double.MaxValue, 1.1d, double.Epsilon));
+		// A small endpoint needs the larger factor first to preserve its final subnormal result.
+		Assert.Equal(Math.ScaleB(100_000d, -1074), ScalarMath.Damp(0d, 1e-10, 1e15, double.Epsilon));
+	}
+
+	[Fact]
+	public void Damp_ScalesTheSmallerFactorFirstAtTheRoundedOverflowThreshold()
+	{
+		const double factor = 103.53421365645285;
+		double endpoint = double.MaxValue / factor;
+		Assert.True(double.IsPositiveInfinity(endpoint * factor));
+		double expected = endpoint * double.Epsilon * factor;
+		Assert.Equal(expected, ScalarMath.Damp(0d, endpoint, factor, double.Epsilon));
+	}
+
 	[Theory]
 	[InlineData(double.NaN)]
 	[InlineData(double.PositiveInfinity)]

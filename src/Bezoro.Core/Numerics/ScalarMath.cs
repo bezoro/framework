@@ -4,6 +4,9 @@ namespace Bezoro.Core.Numerics;
 /// <remarks>Floating-point rounding and transcendental results can differ between runtimes and processors.</remarks>
 public static class ScalarMath
 {
+	private const double HalfConvergenceExponent = 0.6931471805599453;
+	private const double MinimumNormalDouble = 2.2250738585072014E-308;
+
 	/// <summary>Wraps a finite value into [min, max), preserving values already inside the interval.</summary>
 	/// <remarks>The interval must be increasing with a finite representable width. A rounded upper endpoint maps to min.</remarks>
 	/// <exception cref="ArgumentOutOfRangeException">An input is not finite, or the interval has no positive finite width.</exception>
@@ -121,7 +124,8 @@ public static class ScalarMath
 	/// <remarks>
 	/// Computes interpolation by 1 - exp(-rate * elapsedTime). A rate or elapsed time of zero preserves current.
 	/// For a fixed target and rate, splitting elapsed time gives the same mathematical trajectory within rounding error.
-	/// An overflowing rate/time product reaches target. Very small products use a series to avoid subtractive cancellation.
+	/// An overflowing rate/time product reaches target. Evaluation preserves small initial changes and late-stage decay
+	/// with a series, remaining-weight interpolation, and rescaling when a product or exponential underflows.
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">An input is not finite, or rate or elapsedTime is negative.</exception>
 	public static double Damp(double current, double target, double rate, double elapsedTime)
@@ -132,6 +136,28 @@ public static class ScalarMath
 		ValidateNonnegative(elapsedTime, nameof(elapsedTime));
 		if (current == target || rate == 0 || elapsedTime == 0) return current;
 		double exponent = rate * elapsedTime;
+		if (exponent < MinimumNormalDouble)
+		{
+			// Scale before multiplying the factors together so subnormal exponent
+			// quantization cannot erase a representable endpoint contribution.
+			double larger = Math.Max(rate, elapsedTime);
+			double smaller = Math.Min(rate, elapsedTime);
+			double correction = ScaleProduct(target, larger, smaller) - ScaleProduct(current, larger, smaller);
+			double result = current + correction;
+			return Math.Min(Math.Max(result, Math.Min(current, target)), Math.Max(current, target));
+		}
+		// Beyond half convergence, interpolate from the target using the remaining weight.
+		// Subtracting that weight from one would erase representable late-stage changes.
+		if (exponent > HalfConvergenceExponent)
+		{
+			double decay = Math.Exp(-exponent);
+			if (decay < MinimumNormalDouble && !double.IsInfinity(exponent))
+			{
+				double halfDecay = Math.Exp(-exponent * 0.5);
+				return LerpFinite(target, LerpFinite(target, current, halfDecay), halfDecay);
+			}
+			return LerpFinite(target, current, decay);
+		}
 		double amount = exponent < 0.00001
 			? exponent * (1 + exponent * (-0.5 + exponent * (1.0 / 6 + exponent * (-1.0 / 24 + exponent / 120))))
 			: 1 - Math.Exp(-exponent);
@@ -142,6 +168,11 @@ public static class ScalarMath
 	/// <exception cref="ArgumentOutOfRangeException">An input is not finite, or rate or elapsedTime is negative.</exception>
 	public static float Damp(float current, float target, float rate, float elapsedTime) =>
 		(float)Damp((double)current, target, rate, elapsedTime);
+
+	private static double ScaleProduct(double value, double larger, double smaller) =>
+		larger > 1 && Math.Abs(value) >= double.MaxValue / larger
+			? value * smaller * larger
+			: value * larger * smaller;
 
 	private static double PositiveRemainder(double value, double modulus)
 	{
