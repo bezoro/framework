@@ -10,8 +10,6 @@ Reason: `unity-package/package.json`, release assembly metadata, and CI publishi
 
 Context: All public APIs throughout the framework.
 
-Apply this standard when adding new APIs and when reviewing or redesigning existing APIs across the entire codebase. It is the guiding criterion for the future framework-wide API rework.
-
 Rules:
 
 - Make public APIs as intuitive as possible for human readers. Usage should be clear, declarative, and follow a natural logical sequence, almost like reading a book.
