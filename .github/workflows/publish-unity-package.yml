@@ -1,6 +1,9 @@
 name: Validate and publish Unity package
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       publish_upm:
@@ -91,7 +94,7 @@ jobs:
 
   publish-unity-package:
     needs: validate
-    if: inputs.publish_upm && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.publish_upm)
     runs-on: ubuntu-latest
     permissions:
       contents: write
