@@ -33,7 +33,7 @@ The [console example](../samples/Bezoro.Gameplay.ConsoleDemo/README.md) composes
 
 ## Validation evidence
 
-The integrated Release build completed with zero warnings and errors. The integrated run passed 2,747 tests across 12 projects, including Stockfish 19 integration on Linux. Subsequent packaging-documentation and modifier-layout regressions brought the validated inventory to 2,749 tests; the complete build-script and Simulation suites then passed 28 and 77 tests. No failures or skips occurred in these verification runs. UPM staging and the C# 9 consumer build against the staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs.
+The integrated Release build completed with zero warnings and errors, and the final integrated run passed 2,749 tests across 12 projects, including Stockfish 19 integration on Linux. A Windows CI run then exposed overlapping native file replacement failures. The correction added one cancellation/ownership regression, bringing the inventory to 2,750 tests; all 80 persistence tests and 60 focused repeated cases passed locally afterward. UPM staging and the C# 9 consumer build against staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs.
 
 | Test project | Passed |
 | --- | ---: |
@@ -48,7 +48,7 @@ The integrated Release build completed with zero warnings and errors. The integr
 | Chess facade | 195 |
 | Simulation | 77 |
 | Navigation | 36 |
-| Persistence | 79 |
+| Persistence | 80 |
 
 - PCG tests use the published 42/54 reference vector and pin floating conversions, shuffle order, snapshot continuation, and integer extremes, including a checked build.
 - Collection tests compare seeded operation sequences with reference models and verify stale/foreign handles and released payloads.
@@ -69,5 +69,7 @@ Attribute arithmetic uses ordered binary64 operations and finite saturation, fol
 Navigation covers weighted rectangular grids. Large searches may exhaust a caller's expansion budget, and an incomplete query returns a status rather than a partial route. Cancellation is cooperative. Immutable grid changes require a new snapshot; borrowed query buffers must remain valid for the call.
 
 Atomic file visibility requires a trusted local directory and a filesystem supporting replacement. Writes retain the previous save on failure before commit; cancellation after commit does not turn success into a reported failure. Flush requests are not a universal power-loss durability guarantee. Engine-specific WebGL, console, cloud, or virtual storage can implement the byte-oriented save-store interface.
+
+Commits and deletes for one normalized path coordinate across instances of the loaded module through 64 fixed semaphore shards. This prevents overlapping Windows replacement calls without retaining path history or serializing payload I/O. Multiple processes, separately loaded copies, and alternate filesystem aliases require external coordination. A canceled gate wait never releases another operation's gate.
 
 Managed compilation and tests do not establish Unity Editor, IL2CPP, or Godot export compatibility. Validate the selected engine/player target and its stripping configuration. CI is reserved for consolidated checks and automatic main integration; development pushes do not run it.
