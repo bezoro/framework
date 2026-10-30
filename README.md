@@ -10,6 +10,9 @@ Reusable C# libraries for Unity 6 and other .NET game projects, including Godot 
 | [Events](src/Bezoro.Events/README.md) | Typed event routing, queued dispatch, and subscriptions |
 | [ECS](src/Bezoro.ECS/README.md) | Worlds, component storage, queries, scheduling, and snapshots |
 | [GameSystems](src/Bezoro.GameSystems/README.md) | Activation, health, input, streaming, and timers |
+| [Simulation](src/Bezoro.Simulation/README.md) | Fixed-step time, tick scheduling, and attributes with modifiers |
+| [Navigation](src/Bezoro.Navigation/README.md) | Weighted grid pathfinding with reusable search storage |
+| [Persistence](src/Bezoro.Persistence/README.md) | Versioned save envelopes and atomic file storage |
 | [Logging](src/Bezoro.Logging/README.md) | Filtering, formatting, and log destinations |
 | [TypingSystem](src/Bezoro.TypingSystem/README.md) | Word consumption and typing state |
 | [Chess protocol and rules](src/Bezoro.Chess.UCI.Protocol/README.md) | Local chess, match state, optional UCI engines, and game review |
@@ -23,7 +26,7 @@ In Unity Package Manager, choose **Install package from git URL**:
 https://github.com/bezoro/framework.git#upm
 ```
 
-Use the .NET Standard 2.1 API compatibility profile. Unity's compiler does not compile this repository's source. The CI builds the DLLs, includes their runtime dependencies, and publishes the generated UPM branch after validation. See [package installation and platform limits](unity-package/README.md).
+Use the .NET Standard 2.1 API compatibility profile. Unity's compiler does not compile this repository's source. After updates enter `main`, the workflow builds the DLLs, validates both platforms, includes runtime dependencies, and publishes the generated UPM branch. See [package installation and platform limits](unity-package/README.md).
 
 ## Local chess without Stockfish
 
@@ -71,6 +74,12 @@ simulations.Tick(deltaTime);
 
 Each world retains its own systems, resources, and command streams. Mutable objects must not be shared between concurrent worlds. Group calls join all workers; nested scheduler work reuses the active worker rather than multiplying thread counts. A tiny workload can be slower in parallel, so profile the target and keep degree one where appropriate. Unity/Godot scene, rendering, and UI calls stay on the main thread. See [ECS threading contracts](src/Bezoro.ECS/README.md) and [review worker budgets](docs/chess-review.md).
 
+## Gameplay foundations
+
+The gameplay foundations also provide [deterministic random streams](src/Bezoro.Core/Random/README.md), [bounded collections and generational handles](src/Bezoro.Core/Collections/README.md), [simulation time](src/Bezoro.Simulation/Timing/README.md), [attribute calculations](src/Bezoro.Simulation/Attributes/README.md), [grid navigation](src/Bezoro.Navigation/README.md), and [save storage](src/Bezoro.Persistence/README.md). These modules operate on game data and do not call Unity or Godot APIs. Applications own the update loop and choose which independent instances to run on workers.
+
+Run the [composed gameplay demo](samples/Bezoro.Gameplay.ConsoleDemo/README.md) to exercise navigation, modifier expiry, and checkpoint replay together. The [C# 9 API consumer](samples/Bezoro.UnityApiSmoke/README.md) checks consumption through the Unity language level. See [foundation design and validation](docs/gameplay-foundations.md) for capacity, threading, and measurement details.
+
 ## Build and contribute
 
 ```sh
@@ -81,5 +90,7 @@ pwsh -NoProfile -File scripts/Export-PublicApi.ps1 -Check
 ```
 
 Install PowerShell 7 for build-script tests. Chess integration tests use the bundled Windows Stockfish by default. On Linux/macOS, set `BEZORO_STOCKFISH_PATH` to an absolute path to a compatible engine binary. Stockfish is not part of the published Unity package.
+
+Pushes to working branches do not start GitHub Actions. Updates to `main`, including merges, automatically validate and publish. Run local checks during development, and dispatch **Validate and publish Unity package** only when a consolidated pre-merge check is useful. Leave `publish_upm` disabled for validation. A manual publication requires `main` with `publish_upm` enabled; publication is rejected on other branches.
 
 See [contribution guidelines](CONTRIBUTING.md), [change notes](CHANGELOG.md), and the [review report](docs/framework-review.md). Runtime compatibility must also be verified in the intended Unity/Godot player build; a successful .NET build does not establish IL2CPP, trimming, WebGL, or console support.

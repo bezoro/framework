@@ -75,6 +75,8 @@ These collections require external synchronization for concurrent mutation and a
 
 ## Grids and borrowed views
 
+For fixed-capacity gameplay storage, see [generational slot maps and ring buffers](Collections/README.md). For replayable procedural generation, shuffling, and weighted selection, see [deterministic random streams](Random/README.md). Their capacities and state ownership are explicit; they do not introduce global random state or synchronize mutable game data implicitly.
+
 ```csharp
 using Bezoro.Core.Types;
 

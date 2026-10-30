@@ -27,7 +27,7 @@ attributes.TryUpdateModifier(equipment,
 currentDamage = attributes.GetValue(damage); // 140
 ```
 
-Keep identifier assignments stable in application save formats. Zero is invalid; an identifier must be constructed from a positive integer. A set copies its definitions and has a fixed number of attributes. `SetDefinition` replaces the base value and bounds of an existing identifier; it does not add an attribute or rename one.
+Keep identifier assignments stable in application save formats. Zero is invalid; an identifier must be constructed from a positive integer. `Contains` returns false for default or unknown identifiers; value and definition lookups reject them. A set copies its definitions and has a fixed number of attributes. `SetDefinition` replaces the base value and bounds of an existing identifier; it does not add an attribute or rename one.
 
 ## Formula and ordering
 
