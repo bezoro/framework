@@ -4,7 +4,7 @@ using Bezoro.Simulation.Timing;
 namespace Bezoro.Simulation.Benchmarks;
 
 [MemoryDiagnoser]
-public sealed class TimingBenchmarks
+public class TimingBenchmarks
 {
     private TickScheduler<int> _scheduler = null!;
     private ScheduledItem<int>[] _due = null!;
