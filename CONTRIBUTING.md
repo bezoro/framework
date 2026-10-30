@@ -9,7 +9,7 @@ Run the release build and tests from the root. When a compatible Stockfish execu
 ```sh
 dotnet restore bezoro.framework.sln
 dotnet build bezoro.framework.sln -c Release --no-restore
-dotnet test bezoro.framework.sln -c Release --no-build
+pwsh -NoProfile -File scripts/Test-Framework.ps1 -NoBuild
 pwsh -NoProfile -File scripts/Export-PublicApi.ps1 -Check
 ```
 
@@ -40,3 +40,5 @@ The source branch owns the build scripts and template. Updates to `main`, includ
 For a platform-specific failure, set `validation_platform` to `windows` or `linux` in a manual validation run. This avoids repeating the other runner unnecessarily. Publication requests and automatic main integration always use both platforms, regardless of the selected diagnostic target.
 
 `validation_tests=persistence` restricts a manual diagnostic run to the persistence suite after the complete build/API checks. Main integration and publication ignore this restriction and run every suite. Use the targeted mode to investigate backend-specific failures without repeatedly running unrelated engine integration tests.
+
+`Test-Framework.ps1` discovers every `tests/**/*.Tests.csproj`, so new modules enter local and CI validation automatically. Use `-Suite Bezoro.Inventory.Tests` to select a project by its basename, or pass multiple names. Unknown selections fail before any suite runs. `-ResultsDirectory` writes one TRX per project. Keep test project names unique and ending in `.Tests`.
