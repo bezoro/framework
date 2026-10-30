@@ -33,7 +33,7 @@ The [console example](../samples/Bezoro.Gameplay.ConsoleDemo/README.md) composes
 
 ## Validation evidence
 
-The integrated Release build completed with zero warnings and errors, and the final integrated run passed 2,749 tests across 12 projects, including Stockfish 19 integration on Linux. A Windows CI run then exposed overlapping native file replacement failures. The correction added one cancellation/ownership regression, bringing the inventory to 2,750 tests; all 80 persistence tests and 60 focused repeated cases passed locally afterward. UPM staging and the C# 9 consumer build against staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs.
+The integrated Release build completed with zero warnings and errors, and the final local Linux run passed 2,752 tests across 12 projects, including Stockfish 19 integration. Windows diagnostics exposed overlapping replacement and snapshot-open failures; the backend now coordinates those boundaries and retires deleted slots by rename so old snapshots cannot block reuse of the live name. All 82 persistence tests passed locally, including cancelable gate waits and deletion/recreation with an open snapshot. UPM staging and the C# 9 consumer build against staged .NET Standard DLLs passed. The public-type inventory was regenerated for the new APIs. Host-specific CI results are recorded in the pull request; local Linux results do not establish Windows or engine-player behavior.
 
 | Test project | Passed |
 | --- | ---: |
@@ -48,7 +48,7 @@ The integrated Release build completed with zero warnings and errors, and the fi
 | Chess facade | 195 |
 | Simulation | 77 |
 | Navigation | 36 |
-| Persistence | 80 |
+| Persistence | 82 |
 
 - PCG tests use the published 42/54 reference vector and pin floating conversions, shuffle order, snapshot continuation, and integer extremes, including a checked build.
 - Collection tests compare seeded operation sequences with reference models and verify stale/foreign handles and released payloads.
@@ -70,6 +70,6 @@ Navigation covers weighted rectangular grids. Large searches may exhaust a calle
 
 Atomic file visibility requires a trusted local directory and a filesystem supporting replacement. Writes retain the previous save on failure before commit; cancellation after commit does not turn success into a reported failure. Flush requests are not a universal power-loss durability guarantee. Engine-specific WebGL, console, cloud, or virtual storage can implement the byte-oriented save-store interface.
 
-Commits and deletes for one normalized path coordinate across instances of the loaded module through 64 fixed semaphore shards. This prevents overlapping Windows replacement calls without retaining path history or serializing payload I/O. Multiple processes, separately loaded copies, and alternate filesystem aliases require external coordination. A canceled gate wait never releases another operation's gate.
+Snapshot opens, commits, and deletes for one normalized path coordinate across instances of the loaded module through 64 fixed semaphore shards. This prevents overlapping Windows replacement/open calls without retaining path history or serializing payload I/O. Deletes first rename the active slot to a unique tombstone, preserving open snapshots while freeing the name for a new save. Cleanup failures can be reported after removal and do not roll the deletion back. Multiple processes, separately loaded copies, and alternate filesystem aliases require external coordination. A canceled gate wait never releases another operation's gate.
 
 Managed compilation and tests do not establish Unity Editor, IL2CPP, or Godot export compatibility. Validate the selected engine/player target and its stripping configuration. CI is reserved for consolidated checks and automatic main integration; development pushes do not run it.
