@@ -8,6 +8,7 @@ Integration tests for repository build and packaging scripts.
 |---------------------------|-----------------------------------------------------------------------------|
 | `PackageVersionScriptTests` | Exercises SemVer precedence, validation, metadata, and Git-tag version resolution. |
 | `UnityPackageScriptTests` | Verifies runtime dependency staging, conflicts, missing artifacts, and output-path protection. |
+| `UnityPackagePublishScriptTests` | Publishes to an isolated local bare repository, checking idempotence, Conventional Commits, artifact replacement, and retained history. |
 
 ## Quick Start
 

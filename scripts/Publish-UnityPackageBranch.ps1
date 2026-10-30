@@ -73,7 +73,7 @@ try {
 		}
 
 		$sourceRevision = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) { "unknown" } else { $env:GITHUB_SHA }
-		& git commit -m "Publish Unity package from $sourceRevision"
+		& git commit -m "chore(upm): publish Unity package from $sourceRevision"
 		if ($LASTEXITCODE -ne 0) {
 			throw "Failed to commit Unity package contents."
 		}
