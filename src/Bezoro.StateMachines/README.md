@@ -64,3 +64,9 @@ dotnet run -c Release --project benchmarks/Bezoro.StateMachines.Benchmarks -- --
 ```
 
 Tests compare 100,000 seeded steps with an independent dictionary model, check concurrent use by 32 agents, and measure managed allocations after warm-up. They also cover copied input, duplicate rules, self transitions, missing rules, boundary IDs, and extremely large declared ranges. Benchmark workloads are described in the [benchmark README](../../benchmarks/Bezoro.StateMachines.Benchmarks/README.md). Managed tests do not establish engine-player or IL2CPP compatibility.
+
+## Choosing a larger runtime
+
+This flat kernel stays dependency-free and stores no agent runtime, timer, or callback. A host can keep only a four-byte StateId and call Step on explicit events, as in the [chest example](../../samples/Bezoro.Statecharts.ConsoleDemo/README.md).
+
+For hierarchical states and orthogonal regions, choose the optional [Statecharts module](../Bezoro.Statecharts/README.md). For AI composition, [Behaviors](../Bezoro.Behaviors/README.md) can adapt this same flat definition to an owned behavior node. These choices add the workspace and lifecycle features described by those modules; using the flat kernel does not construct them.

@@ -8,7 +8,7 @@ The solution normally builds it against project references. After staging the Un
 dotnet build samples/Bezoro.UnityApiSmoke -c Release -p:FrameworkBinaryRoot=/absolute/path/to/framework/artifacts/unity-package/Runtime
 ```
 
-It exercises the foundations and toolkit, including spans, readonly results, generational handles, binary cursors with stack buffers, inventories, state evaluation, spatial queries, scalar helpers, and asynchronous save interfaces. The toolkit console example also executes both synchronous consumer methods. This is a compiler/API check. It does not launch the Unity Editor, perform IL2CPP linking, or establish platform export compatibility.
+It exercises the foundations and toolkit, including spans, readonly results, generational handles, binary cursors with stack buffers, inventories, state evaluation, spatial queries, scalar helpers, and asynchronous save interfaces. The toolkit console example also executes the synchronous consumer methods. This is a compiler/API check. It does not launch the Unity Editor, perform IL2CPP linking, or establish platform export compatibility.
 
 ## Checking an older compiler
 
@@ -22,4 +22,10 @@ After staging the package, pass an extracted compiler DLL and the .NET Standard 
   -ReferenceAssemblyPath /path/to/netstandard.library.ref/2.1.0/ref/netstandard2.1
 ```
 
-The helper supplies references and compiles the two consumers. It does not download packages, replace the framework compiler, or run in ordinary builds. The recorded Roslyn 3.8 check also executed the produced IL and both methods returned 4. That is evidence for this compiler, not a claim about Unity's exact compiler or IL2CPP.
+The helper supplies references and compiles the three consumers. It does not download packages, replace the framework compiler, or run in ordinary builds. The recorded Roslyn 3.8 check also executed the produced IL and both methods returned 4. That is evidence for this compiler, not a claim about Unity's exact compiler or IL2CPP.
+
+## Behavior APIs
+
+BehaviorConsumer adds Conditions, Statecharts, BehaviorTrees and Behaviors to both project-reference and staged-DLL checks. It verifies orthogonal states, compact typed conditions, tree lifecycle and BT -> flat FSM -> BT composition with one visit per update. Its result is 2; the existing FoundationConsumer and ToolkitConsumer results are 4 each.
+
+The same three source files are accepted by the optional Roslyn 3.8 check. This validates managed API consumption and execution of its generated IL, not a Unity Editor, IL2CPP or Godot export.

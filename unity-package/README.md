@@ -45,6 +45,10 @@ To move to the latest published package:
 - `Bezoro.Inventory.dll`
 - `Bezoro.StateMachines.dll`
 - `Bezoro.Spatial.dll`
+- `Bezoro.Conditions.dll`
+- `Bezoro.Statecharts.dll`
+- `Bezoro.BehaviorTrees.dll`
+- `Bezoro.Behaviors.dll`
 - `Bezoro.Simulation.dll`
 - `Bezoro.TypingSystem.dll`
 

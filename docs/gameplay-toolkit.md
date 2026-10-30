@@ -37,6 +37,8 @@ An application owns transactions spanning modules. Inventory's two-phase transfe
 
 ## Validation evidence
 
+This evidence records the toolkit round at `0221b246`. The [composable-behaviors round](composable-behaviors.md) records later additions and validation.
+
 The final local Linux Release run passed **2,981 tests across 15 suites**, with zero failures or skipped tests, including Stockfish 19 integration. The complete solution built for its selected targets with zero warnings or errors. New runtime assemblies compiled for .NET 10 and .NET Standard 2.1. The new module and utility suites also passed with checked arithmetic.
 
 | Suite | Passed |
