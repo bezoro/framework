@@ -7,3 +7,7 @@ dotnet run -c Release --project benchmarks/Bezoro.Spatial.Benchmarks -- --filter
 ```
 
 `MemoryDiagnoser` measures steady-state managed allocation. These workloads do not establish Unity, IL2CPP, or Godot performance. Cell density, queried area, payload size, and the required count pass affect latency. The test suite separately checks zero allocation after warmup; no timing result is claimed until a benchmark report is recorded.
+
+## Recorded toolkit diagnostic
+
+[Selected measurements and raw reports](../results/2026-10-30-toolkit/README.md) record the source revision, runtime, workload parameters and error intervals. Only the listed workloads were measured; the project also defines other profiling cases.

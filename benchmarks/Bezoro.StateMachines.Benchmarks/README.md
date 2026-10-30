@@ -9,3 +9,7 @@ dotnet run -c Release --project benchmarks/Bezoro.StateMachines.Benchmarks -- --
 ```
 
 `MemoryDiagnoser` measures managed allocation. These workloads do not measure definition construction, host entry/exit actions, or engine scene APIs. No latency claim is made without a recorded run on the target runtime.
+
+## Recorded toolkit diagnostic
+
+[Selected measurements and raw reports](../results/2026-10-30-toolkit/README.md) record the source revision, runtime, workload parameters and error intervals. Only the listed workloads were measured; the project also defines other profiling cases.

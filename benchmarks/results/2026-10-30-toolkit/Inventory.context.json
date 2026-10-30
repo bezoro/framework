@@ -1,0 +1,10 @@
+{
+  "source_revision": "25b8e05351b62e61d555fa3e864d23e1e767f579",
+  "collected_utc": "2026-10-30T11:16:05.715380+00:00",
+  "project": "Inventory",
+  "filters": [
+    "*TransferRoundTrip*"
+  ],
+  "job": "ShortRun",
+  "environment": "shared Linux x64; see BDN report for CPU, OS, runtime and error intervals; initialization excluded"
+}
