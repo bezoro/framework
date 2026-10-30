@@ -6,8 +6,8 @@ INTEL XEON PLATINUM 8573C, 1 CPU, 5 logical and 5 physical cores
   [Host]   : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
   ShortRun : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
 
-Job=ShortRun  IterationCount=3  LaunchCount=1  
-WarmupCount=3  
+Job=ShortRun  IterationCount=3  LaunchCount=1
+WarmupCount=3
 
 ```
 | Method | PointCount | Mean       | Error     | StdDev   | Allocated |

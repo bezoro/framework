@@ -1,6 +1,6 @@
 # Toolkit diagnostic measurements
 
-Thirteen selected workloads were measured after setup with BenchmarkDotNet ShortRun: one launch, three warmups and three measured iterations. All reported 0 B of managed allocation per operation. Raw CSVs and unmodified BDN reports are adjacent; context JSON files pin the source revisions and filters.
+Thirteen selected workloads were measured after setup with BenchmarkDotNet ShortRun: one launch, three warmups and three measured iterations. All reported 0 B of managed allocation per operation. Raw CSVs and BDN reports with trailing whitespace normalized are adjacent; context JSON files pin the source revisions and filters.
 
 The shared host was Debian 13 on an Intel Xeon Platinum 8573C with five visible cores, SDK 10.0.203 and .NET 10.0.7 x64. These .NET 10 timings do not measure Unity's .NET Standard implementation, Mono, IL2CPP, or a Godot export.
 
