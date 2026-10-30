@@ -45,6 +45,8 @@ A differential check generated 24 deterministic random games with seed `20261029
 
 The NuGet direct/transitive dependency audit covered 25 projects and reported no known advisories on the review date. This is a dated package-database check, not a claim that dependencies can never contain vulnerabilities.
 
+The ECS restored-resource allocation regression warms the complete measured loop and checks eight fixed samples for a zero-allocation steady-state sample. Repeated boxing would allocate in every sample. This avoids treating a single sample taken after ten warmup reads as a stable measurement. The zero-byte requirement remains unchanged. An isolated negative-control worktree introduced boxing on each typed read; all eight batches then allocated 240,000 bytes and the regression failed. The runtime source was unchanged by this test correction.
+
 ## Local-rule performance diagnostic
 
 Release builds were compared with the initial commit on the same Linux x64 machine, Intel Xeon Platinum 8573C, using the .NET 10 runtime for both assemblies. Each workload received 10,000 warmup calls and seven samples of 50,000 calls. Times below are medians; managed allocations came from `GC.GetAllocatedBytesForCurrentThread`. The workload is the initial position and `e2e4`, not a claim about every position or total framework speed.
