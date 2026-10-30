@@ -50,8 +50,9 @@ namespace Bezoro.UnityApiSmoke
                 !writer.TryWriteLengthPrefixedBytes(tag))
                 throw new InvalidOperationException("Checkpoint encoding failed.");
             var reader = new BinarySpanReader(writer.WrittenSpan);
+            ReadOnlySpan<byte> restoredTag = reader.UnreadSpan.Slice(0, 0);
             if (!reader.TryReadUInt32(out uint id) || !reader.TryReadInt64(out long quantity) ||
-                !reader.TryReadLengthPrefixedBytes(2, out ReadOnlySpan<byte> restoredTag) ||
+                !reader.TryReadLengthPrefixedBytes(2, out restoredTag) ||
                 id != coin.Value || quantity != 5 || restoredTag.Length != 2 || reader.Remaining != 0)
                 throw new InvalidOperationException("Checkpoint decoding failed.");
 
