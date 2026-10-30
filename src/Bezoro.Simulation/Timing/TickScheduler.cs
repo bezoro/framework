@@ -91,7 +91,8 @@ public sealed class TickScheduler<T>
 
     /// <summary>
     /// Attempts to schedule a payload at an absolute tick. Equal due ticks retain scheduling order.
-    /// Invalid time or exhausted insertion-order identities throw without changing the scheduler.
+    /// Invalid time throws without changing the scheduler. If capacity is available,
+    /// exhausted insertion-order identities also throw without changing the scheduler.
     /// </summary>
     public bool TryScheduleAt(T value, long dueTick, out ScheduledHandle handle)
     {
