@@ -9,6 +9,11 @@ Bezoro.Core.Abstractions.IProcessable | public interface | review-contract | Abs
 Bezoro.Core.CodeGen.CodeWriter | public class | review-unsealed-class | CodeGen/CodeWriter.cs
 Bezoro.Core.CodeGen.CSharpCodeBuilder | public class | review-unsealed-class | CodeGen/CSharpCodeBuilder.cs
 Bezoro.Core.CodeGen.CSharpFileGenerator | public class | review-unsealed-class | CodeGen/CSharpFileGenerator.cs
+Bezoro.Core.Collections.Enumerator | public struct | review-mutable-struct | Collections/RingBuffer.cs
+Bezoro.Core.Collections.Enumerator | public struct | review-mutable-struct | Collections/SlotMap.cs
+Bezoro.Core.Collections.RingBuffer<T> | public sealed class | stable-shape | Collections/RingBuffer.cs
+Bezoro.Core.Collections.SlotHandle | public readonly struct | stable-shape | Collections/SlotHandle.cs
+Bezoro.Core.Collections.SlotMap<T> | public sealed class | stable-shape | Collections/SlotMap.cs
 Bezoro.Core.Extensions.ActionExtensions | public static class | stable-shape | Extensions/ActionExtensions.cs
 Bezoro.Core.Extensions.ArrayExtensions | public static class | stable-shape | Extensions/ArrayExtensions.cs
 Bezoro.Core.Extensions.ByteExtensions | public static class | stable-shape | Extensions/ByteExtensions.cs
@@ -35,6 +40,9 @@ Bezoro.Core.Helpers.DoubleComparer | public static class | stable-shape | Helper
 Bezoro.Core.Helpers.ExceptionHelper | public static class | stable-shape | Helpers/ExceptionHelper.cs
 Bezoro.Core.Helpers.FloatComparer | public static class | stable-shape | Helpers/FloatComparer.cs
 Bezoro.Core.Helpers.ValidationHelper | public static class | stable-shape | Helpers/ValidationHelper.cs
+Bezoro.Core.Randomness.Pcg32 | public static class | stable-shape | Random/Pcg32.cs
+Bezoro.Core.Randomness.Pcg32State | public readonly struct | stable-shape | Random/Pcg32State.cs
+Bezoro.Core.Randomness.WeightedIndexTable | public sealed class | stable-shape | Random/WeightedIndexTable.cs
 Bezoro.Core.Types.ArrayElementInfo<T> | public readonly struct | stable-shape | Types/ArrayElementInfo.cs
 Bezoro.Core.Types.Color | public readonly record struct | stable-shape | Types/Color.cs
 Bezoro.Core.Types.Enumerator | public struct | review-mutable-struct | Types/SingleItemEnumerable.cs

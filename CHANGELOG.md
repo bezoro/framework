@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Gameplay foundations
+
+- Deterministic PCG32 state, unbiased integer ranges, portable floating-point draws, span shuffling, and immutable integer-weight selection tables.
+- Fixed-capacity generational slot maps and FIFO ring buffers with explicit rejection or overwrite semantics and cleared references.
+- Independent `Bezoro.Simulation` assembly with pure fixed-step time, bounded tick scheduling, finite attribute formulas, generational modifier handles, and cached per-attribute evaluation.
+- Independent `Bezoro.Navigation` assembly with copied immutable weighted grids, reusable A* storage, integer costs, cancellation, expansion budgets, and caller-provided path buffers.
+- Independent `Bezoro.Persistence` assembly with a versioned binary envelope, metadata/payload CRC32, bounded decoding, application-owned schemas, and atomic local file replacement.
+- Snapshot opens, save commits, and deletes use fixed shared coordination across same-process store instances to prevent concurrent Windows replacement/open failures; payload I/O remains outside the gates. Deletion retires the active name by rename so open snapshots cannot block immediate slot reuse.
+- Composed gameplay/checkpoint console example and a .NET Standard 2.1 API consumer intentionally compiled with C# 9. Framework source remains on `LangVersion=latest`.
+- New module DLLs and stable Unity metadata in UPM, cross-platform test coverage, and locally recorded benchmark evidence.
+- CI runs automatically on updates to `main`, including merges. Working-branch pushes do not start CI; manual consolidated validation remains available. Generated UPM commits now use Conventional Commits.
+
 ### API and behavior changes
 
 - Runtime projects target .NET 10 and .NET Standard 2.1. Tests, samples, and benchmarks use .NET 10. The compiler language setting remains `latest`.

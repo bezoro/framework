@@ -1,26 +1,52 @@
-name: Publish Unity Package
+name: Validate and publish Unity package
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      validation_platform:
+        description: Select a targeted manual check; publishing always validates both platforms
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+        default: all
+      validation_tests:
+        description: Target persistence during manual diagnosis; main and publication always run every suite
+        type: choice
+        options:
+          - all
+          - persistence
+        default: all
+      publish_upm:
+        description: Publish the validated main revision to the upm branch
+        type: boolean
+        required: false
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        # Main integration and publication always use both. Manual diagnosis can target one runner.
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' && !inputs.publish_upm && inputs.validation_platform == 'windows') && '["windows-latest"]' || (github.event_name == 'workflow_dispatch' && !inputs.publish_upm && inputs.validation_platform == 'linux') && '["ubuntu-latest"]' || '["windows-latest","ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
+    env:
+      VALIDATION_TESTS: ${{ (github.event_name == 'workflow_dispatch' && !inputs.publish_upm && inputs.validation_tests == 'persistence') && 'persistence' || 'all' }}
 
     steps:
+      - name: Check publication target
+        if: inputs.publish_upm && github.ref != 'refs/heads/main'
+        shell: pwsh
+        run: throw 'UPM publication requires running this workflow on main.'
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -69,10 +95,17 @@ jobs:
             "tests/Bezoro.TypingSystem.Tests/Bezoro.TypingSystem.Tests.csproj",
             "tests/Bezoro.ECS.Tests/Bezoro.ECS.Tests.csproj",
             "tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj",
+            "tests/Bezoro.Simulation.Tests/Bezoro.Simulation.Tests.csproj",
+            "tests/Bezoro.Navigation.Tests/Bezoro.Navigation.Tests.csproj",
+            "tests/Bezoro.Persistence.Tests/Bezoro.Persistence.Tests.csproj",
             "tests/Bezoro.Logging.Tests/Bezoro.Logging.Tests.csproj",
             "tests/Bezoro.Chess.UCI.Protocol.Tests/Bezoro.Chess.UCI.Protocol.Tests.csproj",
             "tests/Bezoro.Chess.UCI.Tests/Bezoro.Chess.UCI.Tests.csproj"
           )
+
+          if ($env:VALIDATION_TESTS -eq "persistence") {
+            $testProjects = @("tests/Bezoro.Persistence.Tests/Bezoro.Persistence.Tests.csproj")
+          }
 
           foreach ($project in $testProjects) {
             dotnet test $project -c Release --no-build --verbosity minimal
@@ -83,8 +116,10 @@ jobs:
 
   publish-unity-package:
     needs: validate
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.publish_upm)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout

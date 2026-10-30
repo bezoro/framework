@@ -29,6 +29,24 @@ public sealed class UnityPackageScriptTests
     }
 
     [Fact]
+    public void StagingResolvesFlattenedReadmeLinksToSourceDocumentation()
+    {
+        using var fixture = new StagingFixture();
+        fixture.AddProject("Bezoro.One");
+        File.WriteAllText(Path.Combine(fixture.Path, "src/Bezoro.One/README.md"),
+            "[Details](Details/README.md#usage)\n[Notes](<Details/My Notes.md#topic> \"Notes\")\n" +
+            "[Local](#local)\n[External](https://example.com/guide)\n");
+
+        var result = fixture.Run();
+
+        result.ExitCode.Should().Be(0, result.Error);
+        string readme = File.ReadAllText(Path.Combine(fixture.Path, "artifacts/package/Runtime/Bezoro.One.README.md"));
+        readme.Should().Contain("https://github.com/bezoro/framework/blob/main/src/Bezoro.One/Details/README.md#usage");
+        readme.Should().Contain("https://github.com/bezoro/framework/blob/main/src/Bezoro.One/Details/My%20Notes.md#topic \"Notes\"");
+        readme.Should().Contain("[Local](#local)").And.Contain("[External](https://example.com/guide)");
+    }
+
+    [Fact]
     public void StagingRejectsConflictingDependencyVersions()
     {
         using var fixture = new StagingFixture();

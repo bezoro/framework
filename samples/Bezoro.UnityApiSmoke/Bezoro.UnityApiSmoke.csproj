@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <!-- The framework stays on latest. This consumer deliberately checks Unity's source language level. -->
+    <LangVersion>9.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(FrameworkBinaryRoot)' == ''">
+    <ProjectReference Include="../../src/Bezoro.Core/Bezoro.Core.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Simulation/Bezoro.Simulation.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Navigation/Bezoro.Navigation.csproj" />
+    <ProjectReference Include="../../src/Bezoro.Persistence/Bezoro.Persistence.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(FrameworkBinaryRoot)' != ''">
+    <Reference Include="Bezoro.Core"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Core.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Simulation"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Simulation.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Navigation"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Navigation.dll</HintPath></Reference>
+    <Reference Include="Bezoro.Persistence"><HintPath>$(FrameworkBinaryRoot)/Bezoro.Persistence.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

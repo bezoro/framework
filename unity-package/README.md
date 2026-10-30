@@ -23,7 +23,7 @@ https://github.com/bezoro/framework.git#upm
 
 ## Update behavior
 
-Unity Git dependencies are lock-file based. A new push to GitHub updates the `upm` branch, but an existing Unity project stays pinned to the commit recorded in `Packages/packages-lock.json` until you update the package in Unity.
+Unity Git dependencies are lock-file based. Updates to `main`, including merges, automatically run **Validate and publish Unity package** and update `upm` after validation. Pushes to working branches do not start CI. A manual run can perform a consolidated check, or publish from `main` when `publish_upm` is enabled. An existing Unity project stays pinned to the commit recorded in `Packages/packages-lock.json` until you update the package in Unity.
 
 To move to the latest published package:
 
@@ -40,12 +40,17 @@ To move to the latest published package:
 - `Bezoro.Events.dll`
 - `Bezoro.GameSystems.dll`
 - `Bezoro.Logging.dll`
+- `Bezoro.Navigation.dll`
+- `Bezoro.Persistence.dll`
+- `Bezoro.Simulation.dll`
 - `Bezoro.TypingSystem.dll`
 
 Each assembly is accompanied by a sibling README, for example:
 
 - `Runtime/Bezoro.Core.dll`
 - `Runtime/Bezoro.Core.README.md`
+
+Source-relative links in these flattened READMEs point to the corresponding GitHub source revision, so subsystem guides remain reachable without shipping the source tree into the Unity project.
 
 `Bezoro.ECS.SourceGen` is not part of the Unity package. This package is intended for consuming the precompiled runtime assemblies.
 
