@@ -18,6 +18,7 @@ public abstract class Behavior<TContext> : IBehavior<TContext>
     private Behavior<TContext>? _activeNext;
     private bool _startedByParent;
     private bool _executing;
+    private bool _descendantSignalExecuting;
     private bool _parentPermit;
     private bool _cleanupAttempted;
     private BehaviorStatus _status;
@@ -195,9 +196,21 @@ public abstract class Behavior<TContext> : IBehavior<TContext>
     }
 
     /// <summary>Begins a synchronous signal operation. The entire composition must be externally serialized.</summary>
-    protected void BeginSignalOperation() => EnterOperation(requireRunning: true, allowOwnedSignal: true);
+    protected void BeginSignalOperation()
+    {
+        // EnterOperation validates the complete owning chain before changing any flag.
+        // Reserve that chain separately so internal child lifecycle still uses parentPermit.
+        EnterOperation(requireRunning: true, allowOwnedSignal: true);
+        for (var parent = _parent; parent is not null; parent = parent._parent)
+            parent._descendantSignalExecuting = true;
+    }
     /// <summary>Ends a signal operation.</summary>
-    protected void EndSignalOperation() => _executing = false;
+    protected void EndSignalOperation()
+    {
+        for (var parent = _parent; parent is not null; parent = parent._parent)
+            parent._descendantSignalExecuting = false;
+        _executing = false;
+    }
     /// <summary>Gets whether this component and every owning ancestor still accept execution results.</summary>
     protected bool CanAcceptSignals
     {
@@ -261,13 +274,15 @@ public abstract class Behavior<TContext> : IBehavior<TContext>
 
     private void EnterOperation(bool requireRunning, bool allowOwnedSignal = false)
     {
-        if (_executing) throw new InvalidOperationException("Behavior operations are not reentrant.");
+        if (_executing || _descendantSignalExecuting)
+            throw new InvalidOperationException("Behavior operations are not reentrant within an owning graph.");
         if (_parent is not null && !_parentPermit && !allowOwnedSignal)
             throw new InvalidOperationException("An owned child is controlled through its parent.");
         if (allowOwnedSignal)
             for (var parent = _parent; parent is not null; parent = parent._parent)
             {
-                if (parent._executing) throw new InvalidOperationException("A signal cannot mutate an executing composition.");
+                if (parent._executing || parent._descendantSignalExecuting)
+                    throw new InvalidOperationException("A signal cannot mutate an executing composition.");
                 if (parent._status != BehaviorStatus.Running)
                     throw new InvalidOperationException("A signal cannot address an inactive or terminal composition.");
             }

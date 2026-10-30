@@ -61,7 +61,7 @@ Exit plans revoke the activations they will remove before cancellation callbacks
 
 Serialize all operations and token checks on an owner's execution thread. Marshal asynchronous results to that owner before querying liveness or modifying its context. The libraries do not create background tasks or provide lock-free concurrent mutation. Independent actors may run on different workers when their contexts and handlers permit it; Unity/Godot scene access remains on the engine thread.
 
-Cleanup is attempted once per activation and continues through other started children when a callback throws. Effects already performed by application code cannot be rolled back. Faulted runners require their documented Stop/Reset before reuse. Guard failures before mutation preserve the chart configuration. Reentrant mutation is rejected; a host that needs signals raised during callbacks should queue them explicitly and drain them after the current operation.
+Cleanup is attempted once per activation and continues through other started children when a callback throws. Effects already performed by application code cannot be rolled back. Faulted runners require their documented Stop/Reset before reuse. Guard failures before mutation preserve the chart configuration. A descendant signal reserves its ancestor chain before callbacks execute, rejecting ancestor lifecycle changes and sibling signals before they can alter status or child tracking. Reservations use parent links and one flag per component, are released on failure, and allow the executing component's normal child entry/exit. A host that needs signals raised during callbacks should queue them explicitly and drain them after the current operation.
 
 ## Validation evidence
 

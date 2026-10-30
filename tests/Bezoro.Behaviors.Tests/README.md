@@ -2,7 +2,7 @@
 
 These tests exercise optional adapters through their public APIs. Definitions are reused; each mutable child runtime is exclusively owned by one graph.
 
-Coverage includes tree/flat-machine/statechart nesting with one shared visit budget, linear progress through deep continuations, reactive parents, round-robin parallel bindings, state changes while suspended, stale completion signals, terminal mapping and immediate resource cleanup, reentry, constructor failures, sparse state ranges, faulty callbacks, reentrancy, and reuse after a failed Stop. A separate allocation check includes warm Start/Tick/Stop operations. Constructor comparisons verify that inactive declared states and wide unvisited branches do not increase adapter execution storage.
+Coverage includes tree/flat-machine/statechart nesting with one shared visit budget, linear progress through deep continuations, reactive parents, round-robin parallel bindings, state changes while suspended, stale completion signals, terminal mapping and immediate resource cleanup, reentry, constructor failures, sparse state ranges, faulty callbacks, reentrancy, and reuse after a failed Stop. Signal regressions attempt ancestor Stop/Tick and sibling Dispatch from descendant guards and lifecycle callbacks, checking resource cleanup, unchanged sibling tokens, and reservation release after exceptions. A separate allocation check includes warm Start/Tick/Stop operations. Constructor comparisons verify that inactive declared states and wide unvisited branches do not increase adapter execution storage.
 
 ```sh
 dotnet test tests/Bezoro.Behaviors.Tests -c Release
