@@ -1,0 +1,8 @@
+{
+  "source_revision": "454a223f713f9508c22a58f8a8f083109bb327bc",
+  "collected_utc": "2026-10-30T14:41:10.708312+00:00",
+  "project": "Conditions",
+  "filter": "*",
+  "job": "ShortRun",
+  "environment": "shared Linux x64; BDN reports record CPU, OS, SDK, runtime and intervals; setup excluded"
+}

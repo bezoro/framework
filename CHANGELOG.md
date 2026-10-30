@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Composable behaviors
+
+- Independent typed Conditions, Statecharts, BehaviorTrees and optional Behaviors integration assemblies.
+- Hierarchical and orthogonal state regions, External/Local/Internal transitions, pure pre-dispatch guards, and sparse active-source event routing.
+- Memory and reactive trees, subtree occurrences, bounded continuations, compact compiled tables and runtime storage based on active path depth.
+- Shared visit budgets across nested trees and machines, explicit terminal mappings, bounded completion signals, exclusive child ownership, and cleanup on interruption or completion.
+- Activation liveness covers pending exits and ancestor scopes, rejecting stale synchronous and asynchronous completion signals.
+- Statechart and composed NPC examples, scheduled perception through the existing TickScheduler, and expanded C# 9/older-compiler API checks.
+
 ### Gameplay toolkit
 
 - Independent inventory, state-machine, and spatial assemblies with no engine dependencies.

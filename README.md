@@ -16,12 +16,18 @@ Reusable C# libraries for Unity 6 and other .NET game projects, including Godot 
 | [Inventory](src/Bezoro.Inventory/README.md) | Bounded item stacks, atomic transfers, and validated restoration |
 | [StateMachines](src/Bezoro.StateMachines/README.md) | Immutable transition tables and pure state evaluation |
 | [Spatial](src/Bezoro.Spatial/README.md) | Uniform point indexing with circle and rectangle queries |
+| [Conditions](src/Bezoro.Conditions/README.md) | Typed predicates and compiled short-circuit logic |
+| [Statecharts](src/Bezoro.Statecharts/README.md) | Hierarchical and parallel states with event-driven transitions |
+| [BehaviorTrees](src/Bezoro.BehaviorTrees/README.md) | Memory and reactive trees with bounded execution |
+| [Behaviors](src/Bezoro.Behaviors/README.md) | Optional owned composition of trees, statecharts, and flat machines |
 | [Logging](src/Bezoro.Logging/README.md) | Filtering, formatting, and log destinations |
 | [TypingSystem](src/Bezoro.TypingSystem/README.md) | Word consumption and typing state |
 | [Chess protocol and rules](src/Bezoro.Chess.UCI.Protocol/README.md) | Local chess, match state, optional UCI engines, and game review |
 | [Chess game facade](src/Bezoro.Chess.UCI/README.md) | Game-facing board snapshots, moves, and UI event dispatch |
 
 The [toolkit example](samples/Bezoro.Toolkit.ConsoleDemo/README.md) combines pickup queries, inventories, quest states, and a byte checkpoint. Core also provides [binary span cursors](src/Bezoro.Core/Binary/README.md), [bit sets and span algorithms](src/Bezoro.Core/Collections/README.BitSet.md), and [scalar/grid arithmetic](src/Bezoro.Core/Numerics/README.md). See [module ownership and validation](docs/gameplay-toolkit.md).
+
+Use the [statechart examples](samples/Bezoro.Statecharts.ConsoleDemo/README.md) for a chest, parallel character states, and scheduled perception. The [NPC example](samples/Bezoro.Behaviors.ConsoleDemo/README.md) nests trees and machines with one shared work budget. See [composition, costs and lifecycle](docs/composable-behaviors.md).
 
 ## Unity installation
 

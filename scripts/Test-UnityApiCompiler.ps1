@@ -20,7 +20,7 @@ $outputRoot = Resolve-RepositoryPath $OutputPath
 if (-not (Test-Path $compiler -PathType Leaf)) { throw "Compiler DLL not found: $compiler" }
 $references = @(Get-ChildItem $referenceRoot -File -Filter '*.dll' | Sort-Object Name | ForEach-Object FullName)
 if ($references.Count -eq 0) { throw 'No .NET Standard reference assemblies were found.' }
-foreach ($name in @('Core', 'Simulation', 'Navigation', 'Persistence', 'Inventory', 'StateMachines', 'Spatial')) {
+foreach ($name in @('Core', 'Simulation', 'Navigation', 'Persistence', 'Inventory', 'StateMachines', 'Spatial', 'Conditions', 'Statecharts', 'BehaviorTrees', 'Behaviors')) {
     $dll = Join-Path $frameworkRoot "Bezoro.$name.dll"
     if (-not (Test-Path $dll -PathType Leaf)) { throw "Framework DLL not found: $dll" }
     $references += $dll
@@ -32,7 +32,7 @@ $response = Join-Path $outputRoot 'consumer.rsp'
 $arguments = @('/nostdlib+', '/target:library', '/langversion:9.0', '/nullable:enable', '/warnaserror+')
 $arguments += '/out:"' + $outputAssembly + '"'
 $arguments += @($references | ForEach-Object { '/reference:"' + $_ + '"' })
-foreach ($file in @('FoundationConsumer.cs', 'ToolkitConsumer.cs')) {
+foreach ($file in @('FoundationConsumer.cs', 'ToolkitConsumer.cs', 'BehaviorConsumer.cs')) {
     $arguments += '"' + (Join-Path $repositoryRoot "samples/Bezoro.UnityApiSmoke/$file") + '"'
 }
 [IO.File]::WriteAllLines($response, $arguments, [Text.UTF8Encoding]::new($false))
