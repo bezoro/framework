@@ -146,6 +146,21 @@ public sealed class GridPathfinderTests
         Assert.Equal(2UL * ushort.MaxValue * 1000, result.TotalCost);
     }
 
+    [Fact]
+    public void RouteCostsCanExceedUInt32WithoutTruncation()
+    {
+        var grid = new NavigationGrid(67, 1, ushort.MaxValue);
+        GridPoint[] path = new GridPoint[67];
+        var result = new GridPathfinder(67).FindPath(grid, new(0, 0), new(66, 0), path);
+
+        Assert.Equal(GridPathStatus.Found, result.Status);
+        Assert.Equal(4_325_310_000UL, result.TotalCost);
+        Assert.Equal(67, result.RequiredPathLength);
+        Assert.Equal(67, result.WrittenLength);
+        Assert.Equal(new GridPoint(0, 0), path[0]);
+        Assert.Equal(new GridPoint(66, 0), path[^1]);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
