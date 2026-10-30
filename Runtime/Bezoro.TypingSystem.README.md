@@ -87,11 +87,12 @@ provider.LoadWordsFromFile(path);
 
 ## Build and validation
 
-Use the SDK selected by [global.json](../../global.json):
+Use the SDK selected by [global.json](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/global.json):
 
 ```bash
 dotnet build src/Bezoro.TypingSystem/Bezoro.TypingSystem.csproj -c Release
 dotnet test tests/Bezoro.TypingSystem.Tests/Bezoro.TypingSystem.Tests.csproj -c Release -f net10.0
 ```
 
-See [the TypingSystem tests](../../tests/Bezoro.TypingSystem.Tests/README.md) for completion, single-pass source, removal, and concurrent-consumer coverage.
+See [the TypingSystem tests](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/tests/Bezoro.TypingSystem.Tests/README.md) for completion, single-pass source, removal, and concurrent-consumer coverage.
+

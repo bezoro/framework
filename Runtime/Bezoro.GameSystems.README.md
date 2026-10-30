@@ -46,17 +46,17 @@ world.AddActivationPipeline();
 
 ## Subsystem documentation
 
-- [Activation](ActivationSystem/README.md)
-- [Health](HealthSystem/README.md)
-- [Input](InputSystem/README.md)
-- [Streaming](StreamingSystem/README.md)
-- [Timers](TimerSystem/README.md)
+- [Activation](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.GameSystems/ActivationSystem/README.md)
+- [Health](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.GameSystems/HealthSystem/README.md)
+- [Input](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.GameSystems/InputSystem/README.md)
+- [Streaming](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.GameSystems/StreamingSystem/README.md)
+- [Timers](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.GameSystems/TimerSystem/README.md)
 
 ## Dependencies
 
-- [Bezoro.Core](../Bezoro.Core/README.md)
-- [Bezoro.ECS](../Bezoro.ECS/README.md)
-- [Bezoro.Events](../Bezoro.Events/README.md)
+- [Bezoro.Core](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.Core/README.md)
+- [Bezoro.ECS](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.ECS/README.md)
+- [Bezoro.Events](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/src/Bezoro.Events/README.md)
 
 ## Design notes
 
@@ -67,9 +67,9 @@ world.AddActivationPipeline();
 
 ## Targets and validation
 
-Targets .NET 10 and .NET Standard 2.1. Unity 6 consumes the precompiled .NET Standard assembly; see the [Unity package](../../unity-package/README.md) for installation. The systems do not depend on Unity or Godot types.
+Targets .NET 10 and .NET Standard 2.1. Unity 6 consumes the precompiled .NET Standard assembly; see the [Unity package](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/unity-package/README.md) for installation. The systems do not depend on Unity or Godot types.
 
-Use the SDK selected by [global.json](../../global.json):
+Use the SDK selected by [global.json](https://github.com/bezoro/framework/blob/2ba319ac003b05275e5e8fe2c435086e8edac345/global.json):
 
 ```bash
 dotnet build src/Bezoro.GameSystems/Bezoro.GameSystems.csproj -c Release
@@ -77,3 +77,4 @@ dotnet test tests/Bezoro.GameSystems.Tests/Bezoro.GameSystems.Tests.csproj -c Re
 ```
 
 The tests exercise ECS composition and numeric behavior without launching an engine. They do not establish platform-specific frame budgets or AOT compatibility; validate those in the target player build.
+

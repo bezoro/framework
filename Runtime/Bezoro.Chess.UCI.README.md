@@ -380,3 +380,4 @@ Gameplay commands serialize concurrent callers. Event callbacks use the supplied
 Engine-backed sessions prune completed background and ponder-stop tasks during subsequent operations, including when `EnableBackgroundAnalysis` is false. Unfinished tasks remain tracked so disposal can await them before releasing engine resources. Local gameplay does not wait for those tasks.
 
 `UciState.IsCheck` uses local rules. `Fen.Checkers` remains optional metadata from engines supporting `d` and is not required for gameplay. Terminal outcomes remain fixed until undo or loading another match, and terminal clocks stay paused.
+

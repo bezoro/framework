@@ -439,3 +439,4 @@ dotnet run -c Release --project benchmarks/Bezoro.ECS.Benchmarks -- --filter '*W
 Small worlds can cost more to dispatch than to execute sequentially. The benchmark
 compares four worlds at three entity counts and reports managed allocations. Unity
 and Godot player performance still requires profiling in the target runtime.
+

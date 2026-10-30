@@ -168,6 +168,118 @@
                 Executes the processing logic for the implementing type.
             </summary>
         </member>
+        <member name="T:Bezoro.Core.Binary.BinarySpanReader">
+            <summary>Reads little-endian values from a borrowed byte span without allocating storage.</summary>
+            <remarks>
+            A failed Try method leaves the cursor unchanged and returns a default output value.
+            Copies have independent cursors over the same borrowed memory. Keep that memory alive and unchanged while reading.
+            The default reader is a valid empty reader. No byte order, schema, or type metadata is inferred.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.#ctor(System.ReadOnlySpan{System.Byte})">
+            <summary>Creates a reader at the beginning of the borrowed source.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanReader.Position">
+            <summary>Gets the number of bytes consumed.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanReader.Remaining">
+            <summary>Gets the number of bytes still available.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanReader.UnreadSpan">
+            <summary>Gets a borrowed view of the unconsumed bytes.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadByte(System.Byte@)">
+            <summary>Reads one byte, or returns false without advancing when exhausted.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadInt16(System.Int16@)">
+            <summary>Reads a 16-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadUInt16(System.UInt16@)">
+            <summary>Reads a 16-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadInt32(System.Int32@)">
+            <summary>Reads a 32-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadUInt32(System.UInt32@)">
+            <summary>Reads a 32-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadInt64(System.Int64@)">
+            <summary>Reads a 64-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadUInt64(System.UInt64@)">
+            <summary>Reads a 64-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadSingle(System.Single@)">
+            <summary>Reads the raw IEEE 754 binary32 representation, preserving non-finite values and signed zero.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadDouble(System.Double@)">
+            <summary>Reads the raw IEEE 754 binary64 representation, preserving non-finite values and signed zero.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadBytes(System.Int32,System.ReadOnlySpan{System.Byte}@)">
+            <summary>Reads a borrowed view of the requested number of bytes without copying.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The requested byte count is negative.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanReader.TryReadLengthPrefixedBytes(System.Int32,System.ReadOnlySpan{System.Byte}@)">
+            <summary>Reads an Int32 length prefix followed by a borrowed view of that many bytes.</summary>
+            <param name="maximumLength">The application's explicit, inclusive field-length limit.</param>
+            <param name="value">The borrowed field, or the default span when the prefix or payload is invalid or incomplete.</param>
+            <returns>False for a negative length, a length above the limit, or an incomplete field; the cursor is unchanged.</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException">The field-length limit is negative.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Binary.BinarySpanWriter">
+            <summary>Writes little-endian values into a borrowed byte span without allocating storage.</summary>
+            <remarks>
+            Insufficient capacity leaves both the cursor and destination unchanged.
+            Copies have independent cursors but alias the same destination, so coordinate writes externally.
+            The default writer is a valid empty writer. No storage grows and unwritten capacity is not cleared.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.#ctor(System.Span{System.Byte})">
+            <summary>Creates a writer at the beginning of the borrowed destination.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanWriter.Position">
+            <summary>Gets the number of bytes written.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanWriter.Remaining">
+            <summary>Gets the number of bytes still available.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Binary.BinarySpanWriter.WrittenSpan">
+            <summary>Gets a borrowed read-only view of bytes written by this cursor.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteByte(System.Byte)">
+            <summary>Writes one byte, or returns false without mutation when exhausted.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteInt16(System.Int16)">
+            <summary>Writes a 16-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteUInt16(System.UInt16)">
+            <summary>Writes a 16-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteInt32(System.Int32)">
+            <summary>Writes a 32-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteUInt32(System.UInt32)">
+            <summary>Writes a 32-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteInt64(System.Int64)">
+            <summary>Writes a 64-bit signed integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteUInt64(System.UInt64)">
+            <summary>Writes a 64-bit unsigned integer in little-endian order.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteSingle(System.Single)">
+            <summary>Writes the raw IEEE 754 binary32 representation, preserving non-finite values and signed zero.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteDouble(System.Double)">
+            <summary>Writes the raw IEEE 754 binary64 representation, preserving non-finite values and signed zero.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteBytes(System.ReadOnlySpan{System.Byte})">
+            <summary>Copies bytes into the destination; source and destination may overlap.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Binary.BinarySpanWriter.TryWriteLengthPrefixedBytes(System.ReadOnlySpan{System.Byte})">
+            <summary>Writes an Int32 byte-count prefix and the bytes, supporting overlapping source and destination.</summary>
+            <remarks>Capacity is checked for the complete field before writing any bytes.</remarks>
+        </member>
         <member name="T:Bezoro.Core.CodeGen.CodeWriter">
             <summary>
                 Provides methods for generating structured, indented code with automatic "using" header collection and scope
@@ -368,6 +480,256 @@
             <summary>
                 Generates the C# file and writes it to disk at the output path.
             </summary>
+        </member>
+        <member name="T:Bezoro.Core.Collections.BitSet">
+            <summary>Stores a fixed number of flags using one bit per flag.</summary>
+            <remarks>
+            Construction allocates one array of 64-bit words. Operations never resize it.
+            Concurrent reads are supported while no thread mutates the set; mutations require external serialization.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.#ctor(System.Int32)">
+            <summary>Creates a set of cleared flags. Zero length is permitted.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">Length is negative.</exception>
+        </member>
+        <member name="P:Bezoro.Core.Collections.BitSet.Length">
+            <summary>Gets the fixed number of addressable flags.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.BitSet.Count">
+            <summary>Counts set flags in O(ceil(Length / 64)) time without allocating.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.BitSet.Item(System.Int32)">
+            <summary>Gets or sets a flag at a zero-based index.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the fixed length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Contains(System.Int32)">
+            <summary>Reports whether the indexed flag is set.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the fixed length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Set(System.Int32,System.Boolean)">
+            <summary>Sets or clears a flag, returning true only when its value changes.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the fixed length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Reset(System.Int32)">
+            <summary>Clears a flag, returning true only when its value changes.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the fixed length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Toggle(System.Int32)">
+            <summary>Inverts a flag and returns its new value.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the fixed length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.SetAll">
+            <summary>Sets every addressable flag, leaving unused tail bits clear.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Clear">
+            <summary>Clears every flag while retaining the backing storage.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.UnionWith(Bezoro.Core.Collections.BitSet)">
+            <summary>Sets flags present in either set. The other set must have the same length.</summary>
+            <exception cref="T:System.ArgumentNullException">The other set is null.</exception>
+            <exception cref="T:System.ArgumentException">The lengths differ. Neither set is modified.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.IntersectWith(Bezoro.Core.Collections.BitSet)">
+            <summary>Keeps only flags present in both sets. The other set must have the same length.</summary>
+            <exception cref="T:System.ArgumentNullException">The other set is null.</exception>
+            <exception cref="T:System.ArgumentException">The lengths differ. Neither set is modified.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.ExceptWith(Bezoro.Core.Collections.BitSet)">
+            <summary>Clears flags present in the other set. The other set must have the same length.</summary>
+            <exception cref="T:System.ArgumentNullException">The other set is null.</exception>
+            <exception cref="T:System.ArgumentException">The lengths differ. Neither set is modified.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.XorWith(Bezoro.Core.Collections.BitSet)">
+            <summary>Keeps flags present in exactly one set. The other set must have the same length.</summary>
+            <exception cref="T:System.ArgumentNullException">The other set is null.</exception>
+            <exception cref="T:System.ArgumentException">The lengths differ. Neither set is modified.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.FindNextSetBit(System.Int32)">
+            <summary>Finds the first set flag at or after the supplied index, or returns -1 when none remains.</summary>
+            <param name="startIndex">An inclusive index between zero and Length. Length always returns -1.</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is negative or greater than Length.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.GetEnumerator">
+            <summary>Enumerates set indices in ascending order without boxing or allocation.</summary>
+            <remarks>Changing flag contents invalidates existing enumerators. No-op writes do not.</remarks>
+        </member>
+        <member name="T:Bezoro.Core.Collections.BitSet.Enumerator">
+            <summary>A value-type cursor over set indices. Its lifetime requires an unchanged set.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.BitSet.Enumerator.Current">
+            <summary>Gets the current set index.</summary>
+            <exception cref="T:System.InvalidOperationException">The cursor is not positioned or its set changed.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.BitSet.Enumerator.MoveNext">
+            <summary>Advances to the next set index, returning false at the end.</summary>
+            <exception cref="T:System.InvalidOperationException">The set changed after enumeration began.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Collections.RingBuffer`1">
+            <summary>A fixed-capacity FIFO buffer with explicit rejection and overwrite operations.</summary>
+            <typeparam name="T">The stored value type.</typeparam>
+            <remarks>One thread must own mutations and reads, or callers must serialize access externally.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.#ctor(System.Int32)">
+            <summary>Creates an empty FIFO buffer with a positive, fixed capacity.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">Capacity is zero or negative.</exception>
+        </member>
+        <member name="P:Bezoro.Core.Collections.RingBuffer`1.Count">
+            <summary>Gets the live value count.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.RingBuffer`1.Capacity">
+            <summary>Gets the fixed maximum value count.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.RingBuffer`1.IsFull">
+            <summary>Reports whether a rejecting enqueue would fail.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.RingBuffer`1.Item(System.Int32)">
+            <summary>Gets a value by logical FIFO position, where zero is the oldest value.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the live value range.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.TryEnqueue(`0)">
+            <summary>Appends a value or returns false without mutation when full.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Enqueue(`0)">
+            <summary>Appends a value, throwing rather than overwriting when full.</summary>
+            <exception cref="T:System.InvalidOperationException">The buffer is full.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.EnqueueOverwrite(`0,`0@)">
+            <summary>Appends a value, evicting the oldest value only when full.</summary>
+            <returns>True if a value was evicted. The output is default when there was no eviction.</returns>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.TryDequeue(`0@)">
+            <summary>Removes the oldest value, clearing its storage, or returns false and default when empty.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Dequeue">
+            <summary>Removes the oldest value, throwing when empty.</summary>
+            <exception cref="T:System.InvalidOperationException">The buffer is empty.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.TryPeek(`0@)">
+            <summary>Copies the oldest value without removing it, or returns false and default when empty.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.CopyTo(System.Span{`0})">
+            <summary>Copies all live values in FIFO order without changing the buffer.</summary>
+            <exception cref="T:System.ArgumentException">The destination is smaller than Count.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Clear">
+            <summary>Removes all values and releases references without disposing them.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.GetEnumerator">
+            <summary>Returns an allocation-free FIFO-order enumerator.</summary>
+        </member>
+        <member name="T:Bezoro.Core.Collections.RingBuffer`1.Enumerator">
+            <summary>Enumerates FIFO values and rejects mutations after enumeration starts.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.RingBuffer`1.Enumerator.Current">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Enumerator.MoveNext">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Enumerator.Reset">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.RingBuffer`1.Enumerator.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:Bezoro.Core.Collections.SlotHandle">
+            <summary>Identifies one occupied slot in the map that created it.</summary>
+            <remarks>Default, removed, cleared, and foreign-map handles never identify a live value.</remarks>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotHandle.IsDefault">
+            <summary>Reports whether this is the default, unassigned handle.</summary>
+            <remarks>A non-default handle can still be stale. Query its map to test liveness.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotHandle.Equals(Bezoro.Core.Collections.SlotHandle)">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotHandle.Equals(System.Object)">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotHandle.GetHashCode">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotHandle.op_Equality(Bezoro.Core.Collections.SlotHandle,Bezoro.Core.Collections.SlotHandle)">
+            <summary>Compares handles, including their owning map and generation.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotHandle.op_Inequality(Bezoro.Core.Collections.SlotHandle,Bezoro.Core.Collections.SlotHandle)">
+            <summary>Compares handles, including their owning map and generation.</summary>
+        </member>
+        <member name="T:Bezoro.Core.Collections.SlotMap`1">
+            <summary>Stores a fixed number of densely packed values addressed by stable, generation-checked handles.</summary>
+            <typeparam name="T">The stored value type.</typeparam>
+            <remarks>
+            Mutations require one owning thread or external serialization. Separate maps can run independently.
+            Removal moves the last dense value into the removed position; handles survive that move, dense indices do not.
+            The map owns its storage, but does not dispose values.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.#ctor(System.Int32)">
+            <summary>Creates an empty map with the supplied fixed capacity. Zero capacity is permitted.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">Capacity is negative.</exception>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.Count">
+            <summary>Gets the number of live values.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.Capacity">
+            <summary>Gets the original storage capacity. Storage never grows.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.AvailableCapacity">
+            <summary>Gets the number of slots that can currently accept new values.</summary>
+            <remarks>Slots whose generations are exhausted are permanently retired.</remarks>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.Values">
+            <summary>Gets a read-only view of live values in current dense order.</summary>
+            <remarks>The view is borrowed and must not be retained across mutations.</remarks>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.Item(Bezoro.Core.Collections.SlotHandle)">
+            <summary>Gets or replaces a value identified by a live handle.</summary>
+            <exception cref="T:System.ArgumentException">The handle is stale, default, or belongs to another map.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Add(`0)">
+            <summary>Adds a value and returns its stable handle.</summary>
+            <exception cref="T:System.InvalidOperationException">No reusable slot remains.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.TryAdd(`0,Bezoro.Core.Collections.SlotHandle@)">
+            <summary>Adds a value if a slot is available, otherwise returns false and the default handle.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Contains(Bezoro.Core.Collections.SlotHandle)">
+            <summary>Reports whether a handle currently identifies a value in this map.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.TryGet(Bezoro.Core.Collections.SlotHandle,`0@)">
+            <summary>Copies a live value to the output, or returns false and the default value for an invalid handle.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.GetHandleAt(System.Int32)">
+            <summary>Gets the stable handle for a position in the current dense value view.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The dense index is outside the live value range.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Remove(Bezoro.Core.Collections.SlotHandle)">
+            <summary>Removes a live value. Invalid handles return false without changing the map.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.TryRemove(Bezoro.Core.Collections.SlotHandle,`0@)">
+            <summary>Removes a live value and returns it. Invalid handles return false and the default value.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Clear">
+            <summary>Removes every value, clears references, and invalidates every live handle.</summary>
+            <remarks>O(Count). Retired slots stay retired; no value is disposed.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.GetEnumerator">
+            <summary>Returns an allocation-free dense-order enumerator.</summary>
+        </member>
+        <member name="T:Bezoro.Core.Collections.SlotMap`1.Enumerator">
+            <summary>Enumerates dense values and rejects mutations after enumeration starts.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Collections.SlotMap`1.Enumerator.Current">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Enumerator.MoveNext">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Enumerator.Reset">
+            <inheritdoc />
+        </member>
+        <member name="M:Bezoro.Core.Collections.SlotMap`1.Enumerator.Dispose">
+            <inheritdoc />
         </member>
         <member name="T:Bezoro.Core.Extensions.ActionExtensions">
             <summary>
@@ -1344,6 +1706,7 @@
             </summary>
             <param name="value">The integer value.</param>
             <returns>The absolute value.</returns>
+            <exception cref="T:System.OverflowException">The value is <see cref="F:System.Int32.MinValue" />.</exception>
         </member>
         <member name="M:Bezoro.Core.Extensions.IntExtensions.Clamp(System.Int32,System.Int32,System.Int32)">
             <summary>
@@ -1375,8 +1738,10 @@
                 Rounds an integer to the nearest multiple of the specified value.
             </summary>
             <param name="value">The value to round.</param>
-            <param name="nearest">The multiple to round to.</param>
-            <returns>The value rounded to the nearest multiple of <paramref name="nearest" />.</returns>
+            <param name="nearest">The positive multiple to round to.</param>
+            <returns>The nearest multiple, with exact midpoints rounded away from zero.</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException">The multiple is not positive.</exception>
+            <exception cref="T:System.OverflowException">The nearest multiple is outside the Int32 range.</exception>
         </member>
         <member name="M:Bezoro.Core.Extensions.IntExtensions.Sign(System.Int32)">
             <summary>
@@ -1447,6 +1812,65 @@
             <param name="paramName">The expression or parameter name for the exception message (automatically supplied).</param>
             <returns>The same <see cref="T:System.ReadOnlyMemory`1" /> instance if it is not empty.</returns>
             <exception cref="T:System.ArgumentException">Thrown if <paramref name="memory" /> is empty.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Extensions.MutableSpanExtensions">
+            <summary>Compacts caller-owned spans without resizing their backing storage.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.MutableSpanExtensions.RemoveAtOrdered``1(System.Span{``0},System.Int32)">
+            <summary>Removes an element by shifting its successors left, then clears the old last element.</summary>
+            <returns>The borrowed span with its logical length reduced by one. Retain this return value.</returns>
+            <remarks>O(Length - index). Aliases observe the mutation; the backing array length is unchanged.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the logical span.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.MutableSpanExtensions.RemoveAtSwapBack``1(System.Span{``0},System.Int32)">
+            <summary>Removes an element by moving the last element into its position, then clears the old last element.</summary>
+            <returns>The borrowed span with its logical length reduced by one. Retain this return value.</returns>
+            <remarks>O(1). Element order may change. Aliases observe the mutation; backing storage is not resized.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">The index is outside the logical span.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Extensions.NumericExtensions">
+            <summary>Integer division and remainder operations for positive chunk sizes and cyclic indices.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.FloorDivide(System.Int32,System.Int32)">
+            <summary>Divides and rounds toward negative infinity, including negative numerators.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The divisor is not positive.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.FloorDivide(System.Int64,System.Int64)">
+            <summary>Divides and rounds toward negative infinity, including negative numerators.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The divisor is not positive.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.CeilingDivide(System.Int32,System.Int32)">
+            <summary>Divides and rounds toward positive infinity without adding to the numerator.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The divisor is not positive.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.CeilingDivide(System.Int64,System.Int64)">
+            <summary>Divides and rounds toward positive infinity without adding to the numerator.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The divisor is not positive.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.EuclideanModulo(System.Int32,System.Int32)">
+            <summary>Returns the remainder in the half-open interval [0, modulus).</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The modulus is not positive.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.NumericExtensions.EuclideanModulo(System.Int64,System.Int64)">
+            <summary>Returns the remainder in the half-open interval [0, modulus).</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The modulus is not positive.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Extensions.SortedSpanExtensions">
+            <summary>Finds insertion bounds in already sorted spans without allocating.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.SortedSpanExtensions.LowerBound``1(System.ReadOnlySpan{``0},``0,System.Collections.Generic.IComparer{``0})">
+            <summary>Finds the first index whose value compares greater than or equal to the search value.</summary>
+            <remarks>The span must be sorted with the supplied comparer. Returns Length when no such value exists.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.SortedSpanExtensions.UpperBound``1(System.ReadOnlySpan{``0},``0,System.Collections.Generic.IComparer{``0})">
+            <summary>Finds the first index whose value compares strictly greater than the search value.</summary>
+            <remarks>The span must be sorted with the supplied comparer. Returns Length when no such value exists.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.SortedSpanExtensions.LowerBound``1(System.Span{``0},``0,System.Collections.Generic.IComparer{``0})">
+            <summary>Finds the lower insertion bound in an already sorted mutable span without changing it.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Extensions.SortedSpanExtensions.UpperBound``1(System.Span{``0},``0,System.Collections.Generic.IComparer{``0})">
+            <summary>Finds the upper insertion bound in an already sorted mutable span without changing it.</summary>
         </member>
         <member name="T:Bezoro.Core.Extensions.SpanExtensions">
             <summary>
@@ -2482,6 +2906,193 @@
             <param name="caller">Optional object context for exception trace.</param>
             <param name="methodName">Optional calling method name.</param>
             <exception cref="T:System.ArgumentException">If value exceeds maximum.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Numerics.ScalarMath">
+            <summary>Pure scalar operations with finite inputs and explicit interpolation and time policies.</summary>
+            <remarks>Floating-point rounding and transcendental results can differ between runtimes and processors.</remarks>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.Wrap(System.Double,System.Double,System.Double)">
+            <summary>Wraps a finite value into [min, max), preserving values already inside the interval.</summary>
+            <remarks>The interval must be increasing with a finite representable width. A rounded upper endpoint maps to min.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or the interval has no positive finite width.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.Wrap(System.Single,System.Single,System.Single)">
+            <summary>Wraps a finite value into [min, max), using double intermediates.</summary>
+            <remarks>The interval must be increasing. A rounded upper endpoint maps to min.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or min is not less than max.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.MoveTowards(System.Double,System.Double,System.Double)">
+            <summary>Moves toward target by at most maxDelta without passing it.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or maxDelta is negative.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.MoveTowards(System.Single,System.Single,System.Single)">
+            <summary>Moves toward target by at most maxDelta, using double intermediates and never passing target.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or maxDelta is negative.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.LerpClamped(System.Double,System.Double,System.Double)">
+            <summary>Interpolates between finite endpoints, clamping amount to [0, 1].</summary>
+            <remarks>Exact endpoint amounts return the original endpoints. Opposite-sign endpoints do not overflow their difference.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.LerpClamped(System.Single,System.Single,System.Single)">
+            <summary>Interpolates between finite endpoints with double intermediates, clamping amount to [0, 1].</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.InverseLerpClamped(System.Double,System.Double,System.Double)">
+            <summary>Returns a value's fractional position between the endpoints, clamped to [0, 1]. Reversed intervals are supported.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+            <exception cref="T:System.ArgumentException">The endpoints are equal.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.InverseLerpClamped(System.Single,System.Single,System.Single)">
+            <summary>Returns a value's fractional position with double intermediates, clamped to [0, 1].</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+            <exception cref="T:System.ArgumentException">The endpoints are equal.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.RemapClamped(System.Double,System.Double,System.Double,System.Double,System.Double)">
+            <summary>Maps a finite value between intervals, clamping its source position. Either interval may be reversed.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+            <exception cref="T:System.ArgumentException">The source endpoints are equal.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.RemapClamped(System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>Maps a finite value between intervals with double intermediates, clamping its source position.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite.</exception>
+            <exception cref="T:System.ArgumentException">The source endpoints are equal.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.Damp(System.Double,System.Double,System.Double,System.Double)">
+            <summary>Approaches target exponentially at a nonnegative convergence rate per unit of elapsed time.</summary>
+            <remarks>
+            Computes interpolation by 1 - exp(-rate * elapsedTime). A rate or elapsed time of zero preserves current.
+            For a fixed target and rate, splitting elapsed time gives the same mathematical trajectory within rounding error.
+            An overflowing rate/time product reaches target. Evaluation preserves small initial changes and late-stage decay
+            with a series, remaining-weight interpolation, and rescaling when a product or exponential underflows.
+            </remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or rate or elapsedTime is negative.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Numerics.ScalarMath.Damp(System.Single,System.Single,System.Single,System.Single)">
+            <summary>Approaches target exponentially with double intermediates and a rate per unit of elapsed time.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">An input is not finite, or rate or elapsedTime is negative.</exception>
+        </member>
+        <member name="T:Bezoro.Core.Randomness.Pcg32">
+            <summary>Allocation-free random operations with explicit, caller-owned PCG state.</summary>
+            <remarks>
+            This generator is suitable for deterministic game simulation, not secrets or security.
+            All argument validation happens before advancing the state. Rejection sampling can consume
+            more than one raw draw. Do not share one state variable between concurrent writers.
+            </remarks>
+        </member>
+        <member name="F:Bezoro.Core.Randomness.Pcg32.AlgorithmId">
+            <summary>Identifies the stream, range, floating-point conversion, and shuffle rules used for replay.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextUInt32(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a value covering the complete <see cref="T:System.UInt32"/> range, consuming one raw draw.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextUInt32(Bezoro.Core.Randomness.Pcg32State@,System.UInt32)">
+            <summary>Returns an unbiased value in <c>[0, exclusiveUpperBound)</c>.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The bound is zero.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextUInt64(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a full-width value by concatenating two raw draws, first draw in the high bits.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextUInt64(Bezoro.Core.Randomness.Pcg32State@,System.UInt64)">
+            <summary>Returns an unbiased value in <c>[0, exclusiveUpperBound)</c> using full-width rejection sampling.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The bound is zero.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextInt32(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a value covering the complete signed 32-bit range.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextInt32(Bezoro.Core.Randomness.Pcg32State@,System.Int32,System.Int32)">
+            <summary>Returns an unbiased value in <c>[minInclusive, maxExclusive)</c>, including ranges crossing zero.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The range is empty or reversed.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextInt64(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a value covering the complete signed 64-bit range, consuming two raw draws.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextInt64(Bezoro.Core.Randomness.Pcg32State@,System.Int64,System.Int64)">
+            <summary>Returns an unbiased value in <c>[minInclusive, maxExclusive)</c>, including ranges crossing zero.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">The range is empty or reversed.</exception>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextSingle(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a value in <c>[0, 1)</c> with 24 random bits, consuming one raw draw.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.NextDouble(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Returns a value in <c>[0, 1)</c> with 53 random bits from the high bits of two concatenated draws.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32.Shuffle``1(Bezoro.Core.Randomness.Pcg32State@,System.Span{``0})">
+            <summary>Shuffles a caller-owned span in place using descending Fisher-Yates and unbiased indices.</summary>
+            <remarks>Empty and single-element spans consume no random values.</remarks>
+        </member>
+        <member name="T:Bezoro.Core.Randomness.Pcg32State">
+            <summary>An immutable snapshot of the PCG XSH RR 64/32 random generator.</summary>
+            <remarks>
+            Copy a state to branch a deterministic simulation. Mutating one caller-owned copy does not
+            affect another. The default value is a valid raw state with value zero and stream zero;
+            use <see cref="M:Bezoro.Core.Randomness.Pcg32State.Create(System.UInt64,System.UInt64)"/> for the reference algorithm's seed initialization.
+            </remarks>
+        </member>
+        <member name="F:Bezoro.Core.Randomness.Pcg32State.MaxStream">
+            <summary>The largest distinct stream selector, whose increment is <see cref="F:System.UInt64.MaxValue"/>.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.#ctor(System.UInt64,System.UInt64)">
+            <summary>Restores a raw snapshot without running the seed initialization sequence.</summary>
+            <param name="value">The saved 64-bit internal state.</param>
+            <param name="stream">The saved 63-bit stream selector.</param>
+        </member>
+        <member name="P:Bezoro.Core.Randomness.Pcg32State.Value">
+            <summary>The internal state to persist with <see cref="P:Bezoro.Core.Randomness.Pcg32State.Stream"/> and <see cref="F:Bezoro.Core.Randomness.Pcg32.AlgorithmId"/>.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Randomness.Pcg32State.Stream">
+            <summary>The stream selector. Its corresponding LCG increment is <c>(Stream &lt;&lt; 1) | 1</c>.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.Create(System.UInt64,System.UInt64)">
+            <summary>Initializes a stream using the reference PCG seed procedure.</summary>
+            <param name="seed">The seed added between two initialization steps.</param>
+            <param name="stream">A distinct stream selector in <c>0..2^63-1</c>.</param>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.Next(System.UInt32@)">
+            <summary>Returns the next state and the output from this state, without modifying this value.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.Equals(Bezoro.Core.Randomness.Pcg32State)">
+            <summary>Compares both the raw state and stream selector.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.Equals(System.Object)">
+            <inheritdoc/>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.GetHashCode">
+            <inheritdoc/>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.op_Equality(Bezoro.Core.Randomness.Pcg32State,Bezoro.Core.Randomness.Pcg32State)">
+            <summary>Compares two snapshots.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.Pcg32State.op_Inequality(Bezoro.Core.Randomness.Pcg32State,Bezoro.Core.Randomness.Pcg32State)">
+            <summary>Compares two snapshots for inequality.</summary>
+        </member>
+        <member name="T:Bezoro.Core.Randomness.WeightedIndexTable">
+            <summary>An immutable, exact integer-weight distribution with allocation-free sampling.</summary>
+            <remarks>
+            Construction stores cumulative weights in one owned array. Zero weights are allowed but cannot be
+            selected. Sampling takes O(log n) time and does not retain caller-owned storage. Concurrent readers
+            may share a table if each worker owns its random state.
+            </remarks>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.WeightedIndexTable.#ctor(System.ReadOnlySpan{System.UInt64})">
+            <summary>Copies a nonempty distribution whose total is positive and fits in <see cref="T:System.UInt64"/>.</summary>
+            <exception cref="T:System.ArgumentException">The distribution is empty, all zero, or its total overflows.</exception>
+        </member>
+        <member name="P:Bezoro.Core.Randomness.WeightedIndexTable.Count">
+            <summary>The number of entries, including zero-weight entries.</summary>
+        </member>
+        <member name="P:Bezoro.Core.Randomness.WeightedIndexTable.TotalWeight">
+            <summary>The sum of all weights and exclusive upper bound for a selection ticket.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.WeightedIndexTable.GetWeight(System.Int32)">
+            <summary>Returns the original weight at an index.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.WeightedIndexTable.Pick(Bezoro.Core.Randomness.Pcg32State@)">
+            <summary>Selects an index from an unbiased ticket in <c>[0, TotalWeight)</c>.</summary>
+        </member>
+        <member name="M:Bezoro.Core.Randomness.WeightedIndexTable.GetIndexForTicket(System.UInt64)">
+            <summary>Maps an exact ticket in <c>[0, TotalWeight)</c> to its positive-weight entry.</summary>
+            <remarks>This also permits deterministic selection from a caller-provided ticket source.</remarks>
         </member>
         <member name="T:Bezoro.Core.Types.ArrayElementInfo`1">
              <summary>
