@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Reflection;
 using System.Text;
 using Xunit;
 
@@ -264,6 +265,38 @@ public sealed class AtomicFileSaveStoreTests
         byte[] destination = new byte[1];
         Assert.True((await store.ReadAsync("second", destination)).IsSuccess);
         Assert.Equal(2, destination[0]);
+    }
+
+    [Fact]
+    public async Task Delete_WaitingForAnotherCommit_CancelsWithoutReleasingItsGateOrRemovingTheSave()
+    {
+        using var directory = new TemporaryDirectory();
+        var store = directory.CreateStore();
+        await store.WriteAsync("profile", 1, new byte[] { 1, 2, 3 });
+        // Hold the short commit boundary directly, without a timing-sensitive disk barrier.
+        var getGate = typeof(AtomicFileSaveStore)
+            .GetMethod("GetCommitGate", BindingFlags.NonPublic | BindingFlags.Static)!;
+        string slotPath = directory.SlotPath("profile");
+        var gate = (SemaphoreSlim)getGate.Invoke(null, new object[] { slotPath })!;
+        Assert.Same(gate, getGate.Invoke(null, new object[] { slotPath.ToUpperInvariant() }));
+        Assert.True(await gate.WaitAsync(TimeSpan.FromSeconds(5)));
+        try
+        {
+            using var cancellation = new CancellationTokenSource();
+            Task deletion = store.DeleteAsync("profile", cancellation.Token).AsTask();
+            Assert.False(deletion.IsCompleted);
+
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => deletion.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(0, gate.CurrentCount);
+            Assert.True(File.Exists(directory.SlotPath("profile")));
+        }
+        finally { gate.Release(); }
+
+        byte[] destination = new byte[3];
+        Assert.True((await store.ReadAsync("profile", destination)).IsSuccess);
+        Assert.Equal(new byte[] { 1, 2, 3 }, destination);
     }
 
     [Theory]

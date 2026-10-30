@@ -3,13 +3,16 @@ namespace Bezoro.Persistence;
 /// <summary>Stores versioned envelopes using temporary files and same-directory replacement.</summary>
 /// <remarks>
 /// Intended for a trusted, application-owned directory on a local filesystem with atomic replacement support.
-/// Operations own their streams and may run concurrently; the last filesystem commit wins.
+/// Operations own their streams and may run concurrently; same-process commits and deletes
+/// for a normalized path share bounded synchronization. The last filesystem commit wins.
 /// Atomic visibility is not a guarantee of survival across power loss or failure of a filesystem or storage device.
 /// </remarks>
 public sealed class AtomicFileSaveStore : ISaveStore
 {
     private const int IoChunkSize = 65_536;
     private const int CommitRetryLimit = 8;
+    private const int CommitShardCount = 64;
+    private static readonly SemaphoreSlim[] CommitGates = CreateCommitGates();
 
     /// <summary>Creates a store configuration. The directory is created by the first write, not the constructor.</summary>
     /// <param name="rootDirectory">A trusted save directory, resolved to an absolute path at construction.</param>
@@ -69,7 +72,10 @@ public sealed class AtomicFileSaveStore : ISaveStore
                 if (FlushToDisk) stream.Flush(flushToDisk: true);
             }
 
-            Commit(temporaryPath, path, cancellationToken);
+            var gate = GetCommitGate(path);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try { Commit(temporaryPath, path, cancellationToken); }
+            finally { gate.Release(); }
         }
         catch (Exception writeFailure)
         {
@@ -130,15 +136,21 @@ public sealed class AtomicFileSaveStore : ISaveStore
     }
 
     /// <inheritdoc />
-    /// <remarks>Deletion is synchronous filesystem work. Cancellation is checked before the unlink operation.</remarks>
-    public ValueTask DeleteAsync(string slot, CancellationToken cancellationToken = default)
+    /// <remarks>The commit-gate wait is asynchronous and cancelable; the final filesystem unlink is synchronous.</remarks>
+    public async ValueTask DeleteAsync(string slot, CancellationToken cancellationToken = default)
     {
         string path = GetSlotPath(slot);
         cancellationToken.ThrowIfCancellationRequested();
-        RejectSymbolicLink(path);
-        try { File.Delete(path); }
-        catch (DirectoryNotFoundException) { }
-        return default;
+        var gate = GetCommitGate(path);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RejectSymbolicLink(path);
+            try { File.Delete(path); }
+            catch (DirectoryNotFoundException) { }
+        }
+        finally { gate.Release(); }
     }
 
     private string GetSlotPath(string slot)
@@ -164,6 +176,21 @@ public sealed class AtomicFileSaveStore : ISaveStore
         }
         catch (FileNotFoundException) { }
         catch (DirectoryNotFoundException) { }
+    }
+
+    private static SemaphoreSlim GetCommitGate(string path)
+    {
+        // Case-insensitive hashing coordinates Windows path casing. On case-sensitive
+        // filesystems it can only serialize extra paths, just like any shard collision.
+        uint hash = unchecked((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(path));
+        return CommitGates[hash & (CommitShardCount - 1)];
+    }
+
+    private static SemaphoreSlim[] CreateCommitGates()
+    {
+        var gates = new SemaphoreSlim[CommitShardCount];
+        for (int index = 0; index < gates.Length; index++) gates[index] = new(1, 1);
+        return gates;
     }
 
     private static void Commit(string temporaryPath, string destinationPath, CancellationToken cancellationToken)
