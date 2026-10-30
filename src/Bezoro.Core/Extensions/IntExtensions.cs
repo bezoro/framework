@@ -63,7 +63,8 @@ public static class IntExtensions
 	/// </summary>
 	/// <param name="value">The integer value.</param>
 	/// <returns>The absolute value.</returns>
-	public static int Abs(this int value) => value < 0 ? -value : value;
+	/// <exception cref="OverflowException">The value is <see cref="int.MinValue" />.</exception>
+	public static int Abs(this int value) => Math.Abs(value);
 
 	/// <summary>
 	///     Restricts an integer to the specified minimum and maximum bounds.
@@ -94,9 +95,17 @@ public static class IntExtensions
 	///     Rounds an integer to the nearest multiple of the specified value.
 	/// </summary>
 	/// <param name="value">The value to round.</param>
-	/// <param name="nearest">The multiple to round to.</param>
-	/// <returns>The value rounded to the nearest multiple of <paramref name="nearest" />.</returns>
-	public static int RoundToNearest(this int value, int nearest) => (value + nearest / 2) / nearest * nearest;
+	/// <param name="nearest">The positive multiple to round to.</param>
+	/// <returns>The nearest multiple, with exact midpoints rounded away from zero.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">The multiple is not positive.</exception>
+	/// <exception cref="OverflowException">The nearest multiple is outside the Int32 range.</exception>
+	public static int RoundToNearest(this int value, int nearest)
+	{
+		if (nearest <= 0) throw new ArgumentOutOfRangeException(nameof(nearest));
+		long magnitude = Math.Abs((long)value);
+		long rounded = (magnitude + nearest / 2L) / nearest * nearest;
+		return checked((int)(value < 0 ? -rounded : rounded));
+	}
 
 	/// <summary>
 	///     Returns the sign of the integer.

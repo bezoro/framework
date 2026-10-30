@@ -110,6 +110,8 @@ sealed record ParseFailure(string Input) : IFailureReason;
 
 Prefer direct guards or focused extensions such as `ThrowIfNull` and `ThrowIfEmpty` in new code. The obsolete `ValidationHelper.ThrowIfObjectIsNull` now follows its documented contract: a non-null value passes, and a null value throws with the supplied parameter name and details.
 
+Integer `Abs` throws for `int.MinValue`, whose positive magnitude cannot fit in an `int`. `RoundToNearest` requires a positive multiple, rounds midpoints away from zero, and throws if the rounded result cannot fit. Both handle negative inputs without wrapping.
+
 ## Other APIs
 
 | API | Purpose |
