@@ -38,3 +38,5 @@ Package versions come from SemVer Git tags through `scripts/Get-PackageVersion.p
 The source branch owns the build scripts and template. Updates to `main`, including merges, automatically validate both platforms and publish generated DLLs to `upm`; do not maintain a second hand-edited copy of the framework there. Pushes to working branches do not start CI. Use local checks during development. Dispatch the workflow manually only when a consolidated pre-merge check is needed; `publish_upm` can also request publication from `main`.
 
 For a platform-specific failure, set `validation_platform` to `windows` or `linux` in a manual validation run. This avoids repeating the other runner unnecessarily. Publication requests and automatic main integration always use both platforms, regardless of the selected diagnostic target.
+
+`validation_tests=persistence` restricts a manual diagnostic run to the persistence suite after the complete build/API checks. Main integration and publication ignore this restriction and run every suite. Use the targeted mode to investigate backend-specific failures without repeatedly running unrelated engine integration tests.
