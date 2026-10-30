@@ -58,6 +58,37 @@ $hostAssemblies = @(
 )
 $stagedAssemblies = @{}
 
+# Runtime READMEs are flattened beside DLLs. Resolve their source-relative links
+# against the reviewed source revision rather than nonexistent package folders.
+$documentationRevision = 'main'
+try {
+    $revision = & git -C $repositoryRoot rev-parse --verify HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $revision -match '^[0-9a-fA-F]{40}$') {
+        $documentationRevision = $revision
+    }
+}
+catch { }
+$documentationBase = "https://github.com/bezoro/framework/blob/$documentationRevision/"
+
+function Copy-RuntimeReadme([string]$SourcePath, [string]$DestinationPath) {
+    # Reparse an explicit file URI so fragments remain anchors instead of literal path characters.
+    $sourceUri = [Uri]::new(([Uri]::new([IO.Path]::GetFullPath($SourcePath))).AbsoluteUri)
+    $content = Get-Content $SourcePath -Raw
+    $content = [regex]::Replace($content, '\]\((?:<(?<angle>[^>]+)>|(?<target>[^)\s]+))(?<title>\s+"[^"]*")?\)', [System.Text.RegularExpressions.MatchEvaluator] {
+        param($match)
+        $target = if ($match.Groups['angle'].Success) { $match.Groups['angle'].Value } else { $match.Groups['target'].Value }
+        if ($target.StartsWith('#') -or $target.StartsWith('/') -or
+            $target -match '^[a-zA-Z][a-zA-Z0-9+.-]*:') { return $match.Value }
+        $resolved = [Uri]::new($sourceUri, $target)
+        if (-not $resolved.IsFile) { return $match.Value }
+        $relative = [IO.Path]::GetRelativePath($repositoryRoot, $resolved.LocalPath).Replace('\', '/')
+        if ($relative -eq '..' -or $relative.StartsWith('../')) { return $match.Value }
+        $escaped = ($relative -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
+        return '](' + $documentationBase + $escaped + $resolved.Query + $resolved.Fragment + $match.Groups['title'].Value + ')'
+    })
+    Set-Content -Path $DestinationPath -Value $content -Encoding utf8
+}
+
 $projects = Get-ChildItem (Join-Path $repositoryRoot "src") -Recurse -Filter "*.csproj" |
 	Where-Object { $_.BaseName -ne "Bezoro.ECS.SourceGen" } |
 	Sort-Object FullName
@@ -90,7 +121,7 @@ foreach ($project in $projects) {
 		Copy-Item $assembly.FullName (Join-Path $runtimeRoot $assembly.Name) -Force
 	}
 
-	Copy-Item $readmePath (Join-Path $runtimeRoot "$assemblyName.README.md") -Force
+	Copy-RuntimeReadme $readmePath (Join-Path $runtimeRoot "$assemblyName.README.md")
 	$xmlPath = Join-Path $buildOutputDirectory "$assemblyName.xml"
 	if (Test-Path $xmlPath) {
 		Copy-Item $xmlPath (Join-Path $runtimeRoot "$assemblyName.xml") -Force
