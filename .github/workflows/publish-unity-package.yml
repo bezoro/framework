@@ -6,6 +6,14 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      validation_platform:
+        description: Select a targeted manual check; publishing always validates both platforms
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+        default: all
       publish_upm:
         description: Publish the validated main revision to the upm branch
         type: boolean
@@ -20,7 +28,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        # Main integration and publication always use both. Manual diagnosis can target one runner.
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' && !inputs.publish_upm && inputs.validation_platform == 'windows') && '["windows-latest"]' || (github.event_name == 'workflow_dispatch' && !inputs.publish_upm && inputs.validation_platform == 'linux') && '["ubuntu-latest"]' || '["windows-latest","ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
 
     steps:
