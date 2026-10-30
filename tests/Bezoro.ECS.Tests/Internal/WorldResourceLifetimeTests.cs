@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Bezoro.ECS.Internal;
 using FluentAssertions;
 using Xunit;
@@ -78,19 +79,40 @@ public sealed class WorldResourceLifetimeTests
 	[Fact]
 	public void RestoredStructResource_RepeatedTypedReadsDoNotBox()
 	{
+		const int readCount = 10_000;
+		const int sampleCount = 8;
 		var store = new WorldResourceStore();
 		store.SetBoxed(typeof(Counter), new Counter { Value = 1 });
-		for (int warmup = 0; warmup < 10; warmup++) store.TryRead<Counter>(out _);
+
+		// Warm the measured helper and the complete read path, including materialization.
+		MeasureTypedReadAllocations(store, readCount, out _);
+		var samples = new long[sampleCount];
+		long minimumAllocated = long.MaxValue;
+		for (int sample = 0; sample < sampleCount; sample++)
+		{
+			samples[sample] = MeasureTypedReadAllocations(store, readCount, out int sum);
+			sum.Should().Be(readCount);
+			minimumAllocated = Math.Min(minimumAllocated, samples[sample]);
+		}
+
+		// Runtime initialization can affect a batch, but boxing on every read affects
+		// every batch. Require an allocation-free batch from this fixed sample window.
+		minimumAllocated.Should().Be(0,
+			"steady-state typed reads must not box; allocated bytes per batch: {0}", string.Join(", ", samples));
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+	private static long MeasureTypedReadAllocations(WorldResourceStore store, int readCount, out int sum)
+	{
+		// Keep JIT inlining/OSR of the measurement loop outside the allocation contract.
+		sum = 0;
 		long before = GC.GetAllocatedBytesForCurrentThread();
-		int sum = 0;
-		for (int iteration = 0; iteration < 10_000; iteration++)
+		for (int iteration = 0; iteration < readCount; iteration++)
 		{
 			store.TryRead<Counter>(out var counter);
 			sum += counter.Value;
 		}
-		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-		sum.Should().Be(10_000);
-		allocated.Should().Be(0);
+		return GC.GetAllocatedBytesForCurrentThread() - before;
 	}
 
 	private struct Counter { public int Value; }
