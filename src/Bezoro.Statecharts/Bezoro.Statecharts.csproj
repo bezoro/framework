@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFrameworks>net10.0;netstandard2.1</TargetFrameworks><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Bezoro.StateMachines/Bezoro.StateMachines.csproj" />
+    <ProjectReference Include="../Bezoro.Conditions/Bezoro.Conditions.csproj" />
+  </ItemGroup>
+</Project>
