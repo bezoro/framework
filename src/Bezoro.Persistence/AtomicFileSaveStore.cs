@@ -3,8 +3,8 @@ namespace Bezoro.Persistence;
 /// <summary>Stores versioned envelopes using temporary files and same-directory replacement.</summary>
 /// <remarks>
 /// Intended for a trusted, application-owned directory on a local filesystem with atomic replacement support.
-/// Operations own their streams and may run concurrently; same-process commits and deletes
-/// for a normalized path share bounded synchronization. The last filesystem commit wins.
+/// Operations own their streams and may run concurrently; same-process snapshot opens, commits,
+/// and deletes for a normalized path share bounded synchronization. The last filesystem commit wins.
 /// Atomic visibility is not a guarantee of survival across power loss or failure of a filesystem or storage device.
 /// </remarks>
 public sealed class AtomicFileSaveStore : ISaveStore
@@ -95,16 +95,26 @@ public sealed class AtomicFileSaveStore : ISaveStore
         string path = GetSlotPath(slot);
         SaveEnvelope.ValidateExpectedSchema(expectedSchemaVersion);
         cancellationToken.ThrowIfCancellationRequested();
-        RejectSymbolicLink(path);
         FileStream stream;
+        var gate = GetCommitGate(path);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete,
-                8192, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            cancellationToken.ThrowIfCancellationRequested();
+            RejectSymbolicLink(path);
+            try
+            {
+                // Windows replacement temporarily owns native handles on the new file.
+                // Open the snapshot after that boundary and permit native metadata access.
+                stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+                    8192, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            }
+            catch (FileNotFoundException) { return new(SaveReadStatus.NotFound); }
+            catch (DirectoryNotFoundException) { return new(SaveReadStatus.NotFound); }
         }
-        catch (FileNotFoundException) { return new(SaveReadStatus.NotFound); }
-        catch (DirectoryNotFoundException) { return new(SaveReadStatus.NotFound); }
+        finally { gate.Release(); }
 
+        // The opened handle identifies the snapshot; payload I/O never holds the path gate.
         using (stream)
         {
             long fileLength = stream.Length;

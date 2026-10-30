@@ -267,8 +267,10 @@ public sealed class AtomicFileSaveStoreTests
         Assert.Equal(2, destination[0]);
     }
 
-    [Fact]
-    public async Task Delete_WaitingForAnotherCommit_CancelsWithoutReleasingItsGateOrRemovingTheSave()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadOrDelete_WaitingForAnotherCommit_CancelsWithoutReleasingItsGateOrRemovingTheSave(bool read)
     {
         using var directory = new TemporaryDirectory();
         var store = directory.CreateStore();
@@ -283,14 +285,18 @@ public sealed class AtomicFileSaveStoreTests
         try
         {
             using var cancellation = new CancellationTokenSource();
-            Task deletion = store.DeleteAsync("profile", cancellation.Token).AsTask();
-            Assert.False(deletion.IsCompleted);
+            byte[] blockedDestination = new byte[] { 42, 42, 42 };
+            Task operation = read
+                ? store.ReadAsync("profile", blockedDestination, cancellationToken: cancellation.Token).AsTask()
+                : store.DeleteAsync("profile", cancellation.Token).AsTask();
+            Assert.False(operation.IsCompleted);
 
             cancellation.Cancel();
 
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => deletion.WaitAsync(TimeSpan.FromSeconds(5)));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal(0, gate.CurrentCount);
             Assert.True(File.Exists(directory.SlotPath("profile")));
+            Assert.Equal(new byte[] { 42, 42, 42 }, blockedDestination);
         }
         finally { gate.Release(); }
 
