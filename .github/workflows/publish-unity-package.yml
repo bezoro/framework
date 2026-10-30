@@ -1,16 +1,16 @@
-name: Publish Unity Package
+name: Validate and publish Unity package
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      publish_upm:
+        description: Publish the validated main revision to the upm branch
+        type: boolean
+        required: false
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -21,6 +21,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Check publication target
+        if: inputs.publish_upm && github.ref != 'refs/heads/main'
+        shell: pwsh
+        run: throw 'UPM publication requires running this workflow on main.'
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -86,8 +91,10 @@ jobs:
 
   publish-unity-package:
     needs: validate
-    if: github.event_name != 'pull_request'
+    if: inputs.publish_upm && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
