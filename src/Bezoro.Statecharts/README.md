@@ -66,13 +66,13 @@ All selected exits run before transition effects and entries. Exits follow rever
 
 ## Lifecycle, ownership, and late results
 
-`Start` enters the initial configuration; starting an active runner throws. `Stop` is idempotent, invalidates every activation, and attempts every pending exit. `Reset` stops and clears a fault after cleanup succeeds. Completed effects cannot be rolled back by the framework.
+`Start` enters the initial configuration; starting an active runner throws. `Stop` is idempotent, invalidates every activation before its first exit callback, and attempts every pending exit. StateId membership and ActiveStates may still describe other states awaiting exit during cleanup, but their asynchronous activation tokens are already invalid. Lifecycle failure uses the same global token invalidation. `Reset` stops and clears a fault after cleanup succeeds. Completed effects cannot be rolled back by the framework.
 
 A guard exception preserves the prior active configuration and running status. An exception after lifecycle changes begin faults and stops the runner. Cleanup attempts exits for all states still active, including an entry whose OnEnter callback threw. The state and token are removed before OnExit, so that exit is never attempted twice. Cleanup errors are preserved with the original failure in an AggregateException. A faulted runner requires Reset before Start.
 
 Operations reject reentrancy. Callbacks can query the configuration but cannot Start, Stop, Reset, or Dispatch recursively. State and reaction effects should produce application intents or commands; an application controller resolves movement, external impulses, restrictions, and animation layers explicitly.
 
-A StateActivation identifies one entry in one runner. It is invalid after exit, reentry, Stop, or use with another runner:
+A StateActivation identifies one entry in one runner. Dispatch revokes every token scheduled for exit before invoking its first exit callback. Tokens for unaffected states remain live, and tokens issued to new entries are live during their OnEnter callbacks. The exit plan uses existing bounded workspace; it creates no extra array. A token is invalid after exit, reentry, Stop, or use with another runner:
 
 ```csharp
 var activation = runner.GetActivation(stateId);

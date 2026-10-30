@@ -23,6 +23,7 @@ public sealed class StatechartRunner<TContext>
     private readonly StateId[] _targetPath;
     private readonly bool[] _guardScratch;
     private int _activeCount;
+    private int _pendingExitCount;
     private ulong _lastSerial;
     private bool _busy;
 
@@ -166,7 +167,13 @@ public sealed class StatechartRunner<TContext>
                 entryCount = Definition.AppendEntries(_candidates[i], _entryPlan, entryCount, _regionStack, _targetPath);
             ReserveActivations(entryCount);
             changing = true;
-            for (int i = exitCount - 1; i >= 0; i--) Exit(_exitPlan[i], ref context);
+            _pendingExitCount = exitCount;
+            for (int i = exitCount - 1; i >= 0; i--)
+            {
+                Exit(_exitPlan[i], ref context);
+                _pendingExitCount = i;
+            }
+            _pendingExitCount = 0;
             for (int i = 0; i < selectedCount; i++)
             {
                 int transition = _selected[i];
@@ -180,7 +187,7 @@ public sealed class StatechartRunner<TContext>
             if (changing) FailAndCleanup(failure, ref context);
             throw;
         }
-        finally { _busy = false; }
+        finally { _pendingExitCount = 0; _busy = false; }
     }
 
     /// <summary>Tests whether the supplied numeric state is currently active.</summary>
@@ -198,11 +205,18 @@ public sealed class StatechartRunner<TContext>
         return index >= 0;
     }
 
-    /// <summary>Tests whether a token issued by this runner still identifies an active entry.</summary>
+    /// <summary>Tests whether a token issued by this runner remains live in the running chart.</summary>
+    /// <remarks>
+    /// Stop and lifecycle failure revoke all tokens before exit callbacks. Dispatch also revokes tokens
+    /// for its complete exit plan before callbacks, preserving unaffected and newly entered activations.
+    /// </remarks>
     public bool IsActive(StateActivation activation)
     {
-        if (activation.Owner != _owner || activation.Serial == 0) return false;
-        for (int i = 0; i < _activeCount; i++) if (_serials[i] == activation.Serial) return true;
+        if (!IsRunning || activation.Owner != _owner || activation.Serial == 0) return false;
+        for (int i = 0; i < _activeCount; i++)
+            if (_serials[i] == activation.Serial)
+                return _pendingExitCount == 0 ||
+                    Definition.FindActive(_exitPlan.AsSpan(0, _pendingExitCount), _active[i]) < 0;
         return false;
     }
 

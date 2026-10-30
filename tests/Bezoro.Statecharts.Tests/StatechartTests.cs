@@ -463,6 +463,109 @@ public sealed class StatechartTests
         Assert.Equal(token, runner.GetActivation(S(6)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StopAndFault_InvalidateAllTokensBeforeAnyExitCallback(bool fault)
+    {
+        var definition = new StatechartDefinition(
+            new ChartState[] { new(R(0)), new(R(1)), new(R(2)) },
+            new ChartRegion[] { new(S(0)), new(S(1)), new(S(2)) },
+            new ChartTransition[] { new(S(0), E(0), S(0), kind: ChartTransitionKind.Internal) }, 1);
+        var handler = new StopTokenObserver { ThrowTransition = fault };
+        int context = 0;
+        var runner = new StatechartRunner<int>(definition, handler);
+        handler.Runner = runner;
+        runner.Start(ref context);
+        handler.OtherRegionToken = runner.GetActivation(S(0));
+        Assert.True(runner.IsActive(handler.OtherRegionToken));
+        if (fault)
+            Assert.Throws<InvalidOperationException>(() => runner.Dispatch(E(0), ref context));
+        else
+            runner.Stop(ref context);
+        Assert.True(handler.ObservedExit);
+        Assert.True(handler.OtherRegionStillInConfiguration);
+        Assert.False(handler.OtherRegionTokenStillLive);
+        Assert.Empty(runner.ActiveStates.ToArray());
+        Assert.False(runner.IsActive(handler.OtherRegionToken));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Dispatch_RevokesPendingExitsBeforeCancellationAndAcceptsNewReentryTokens(bool reenter)
+    {
+        var definition = new StatechartDefinition(
+            new ChartState[] { new(R(0)), new(R(0)), new(R(1)), new(R(2)), new(R(3)) },
+            new ChartRegion[] { new(S(0)), new(S(2), S(0)), new(S(3), S(0)), new(S(4)) },
+            new ChartTransition[] { new(S(0), E(0), reenter ? S(0) : S(1)) }, 1);
+        var handler = new DispatchTokenObserver();
+        int context = 0;
+        var runner = new StatechartRunner<int>(definition, handler);
+        handler.Runner = runner;
+        runner.Start(ref context);
+        handler.PendingToken = runner.GetActivation(S(2));
+        handler.UnaffectedToken = runner.GetActivation(S(4));
+        handler.ObserveTransition = true;
+        var result = runner.Dispatch(E(0), ref context);
+        Assert.Equal(1, result.TransitionCount);
+        Assert.Equal(1, handler.CancellationCallbacks);
+        Assert.True(handler.PendingStateStillInConfiguration);
+        Assert.False(handler.PendingTokenStillLive);
+        Assert.True(handler.UnaffectedTokenStillLive);
+        Assert.True(handler.AllNewEntriesLive);
+        Assert.False(runner.IsFaulted);
+        Assert.True(runner.IsRunning);
+        Assert.False(runner.IsActive(handler.PendingToken));
+        Assert.True(runner.IsActive(handler.UnaffectedToken));
+        Assert.Equal(reenter, runner.IsActive(S(2)));
+        if (reenter) Assert.NotEqual(handler.PendingToken, runner.GetActivation(S(2)));
+    }
+
+    private sealed class DispatchTokenObserver : StatechartHandler<int>
+    {
+        public StatechartRunner<int> Runner = null!;
+        public StateActivation PendingToken, UnaffectedToken;
+        public bool ObserveTransition;
+        public int CancellationCallbacks;
+        public bool PendingStateStillInConfiguration, PendingTokenStillLive, UnaffectedTokenStillLive;
+        public bool AllNewEntriesLive = true;
+        public override void OnEnter(StateId state, StateActivation activation, ref int context)
+        {
+            if (ObserveTransition) AllNewEntriesLive &= Runner.IsActive(activation);
+        }
+        public override void OnExit(StateId state, StateActivation activation, ref int context)
+        {
+            if (state != S(3)) return;
+            CancellationCallbacks++;
+            PendingStateStillInConfiguration = Runner.IsActive(S(2));
+            PendingTokenStillLive = Runner.IsActive(PendingToken);
+            UnaffectedTokenStillLive = Runner.IsActive(UnaffectedToken);
+            // A canceled job may deliver its completion synchronously. Revoked tokens
+            // must prevent that completion from attempting a reentrant signal dispatch.
+            if (Runner.IsActive(PendingToken)) Runner.Dispatch(E(0), ref context);
+        }
+    }
+
+    private sealed class StopTokenObserver : StatechartHandler<int>
+    {
+        public StatechartRunner<int> Runner = null!;
+        public StateActivation OtherRegionToken;
+        public bool ThrowTransition;
+        public bool ObservedExit, OtherRegionStillInConfiguration, OtherRegionTokenStillLive;
+        public override void OnTransition(int index, in ChartTransition transition, ref int context)
+        {
+            if (ThrowTransition) throw new InvalidOperationException("transition");
+        }
+        public override void OnExit(StateId state, StateActivation activation, ref int context)
+        {
+            if (state != S(2)) return;
+            ObservedExit = true;
+            OtherRegionStillInConfiguration = Runner.IsActive(S(0));
+            OtherRegionTokenStillLive = Runner.IsActive(OtherRegionToken);
+        }
+    }
+
     private sealed class LogContext { public List<string> Events { get; } = new(); public int GuardCalls; }
     private sealed class LogHandler : StatechartHandler<LogContext>
     {
