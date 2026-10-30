@@ -5,3 +5,19 @@
 Context: Unity package staging and CI release builds.
 Rule: Resolve package versions with `scripts/Get-PackageVersion.ps1` from SemVer Git tags; use `BEZORO_PACKAGE_VERSION` or `-PackageVersion` only for explicit local overrides.
 Reason: `unity-package/package.json`, release assembly metadata, and CI publishing should stay on one version source.
+
+## Public API readability
+
+Context: All public APIs throughout the framework.
+
+Apply this standard when adding new APIs and when reviewing or redesigning existing APIs across the entire codebase. It is the guiding criterion for the future framework-wide API rework.
+
+Rules:
+
+- Make public APIs as intuitive as possible for human readers. Usage should be clear, declarative, and follow a natural logical sequence, almost like reading a book.
+- Choose names, parameters, and composition patterns that express the caller's intent. Avoid cryptic abbreviations, unexplained positional values, and surprising behavior.
+- Make ownership, lifecycle, side effects, and failure behavior clear in the public contract. Keep implementation and storage details internal whenever callers do not need them.
+- Internal implementations may be complex when that complexity materially improves performance or memory use. Keep that complexity behind the API and document the invariants needed to maintain it.
+- Preserve the pay-for-use principle. A readable API must not introduce unnecessary allocations, processing, or mandatory abstractions.
+
+Reason: Consumers should be able to understand what their code does by reading its public API calls, even when the implementation uses advanced optimizations.
