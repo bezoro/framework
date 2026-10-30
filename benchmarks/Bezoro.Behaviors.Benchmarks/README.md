@@ -7,3 +7,7 @@ dotnet run -c Release --project benchmarks/Bezoro.Behaviors.Benchmarks -- --filt
 ```
 
 Setup, definition compilation, graph validation, context construction, and user job scheduling are outside measured operations. A warmed zero-allocation test is included in the test suite. Defining these workloads does not imply a latency result; record hardware, runtime, source revision and error intervals before using measurements for a game budget.
+
+## Recorded diagnostic
+
+[Raw measurements and context](../results/2026-10-30-composable-behaviors/README.md) record these workloads with source revision, parameters, host/runtime and error intervals. The measurements cover steady-state data execution after setup.

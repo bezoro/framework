@@ -77,6 +77,8 @@ Independent reference models supplemented the suites:
 - Mixed composition chains through depth 64 checked budget-one progress, priority recovery, fault cleanup, and late completion rejection.
 - 400,000 warmed ticks across memory, reactive, parallel and deeply mixed graphs measured zero managed allocation in those scenarios.
 
+Twenty-one BenchmarkDotNet workloads reported zero managed allocation after setup. [Raw results and source/runtime context](../benchmarks/results/2026-10-30-composable-behaviors/README.md) include error intervals and show both cached-path behavior and the cost of explicitly reactive evaluation. These are host diagnostics, not engine frame budgets.
+
 The two console examples executed their assertions. The current C# 9 consumer compiles the public APIs; a real Roslyn 3.8 compiler also compiled and executed all three consumers against a .NET Standard 2.1 snapshot, returning 4, 4 and 2. These are bounded host/compiler checks and do not prove every thread interleaving or engine/player behavior.
 
 ## Examples

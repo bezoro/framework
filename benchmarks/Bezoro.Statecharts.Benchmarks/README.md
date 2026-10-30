@@ -7,3 +7,7 @@ dotnet run -c Release --project benchmarks/Bezoro.Statecharts.Benchmarks -- --fi
 ```
 
 The workload makes inactive declaration count visible rather than assuming every state needs per-frame work. Runtime metadata and hardware still affect cache behavior. Record source revision, runtime, parameters, and error intervals before using measurements for frame budgets; .NET 10 measurements do not establish Unity/IL2CPP or Godot timing.
+
+## Recorded diagnostic
+
+[Raw measurements and context](../results/2026-10-30-composable-behaviors/README.md) record these workloads with source revision, parameters, host/runtime and error intervals. The measurements cover steady-state data execution after setup.
